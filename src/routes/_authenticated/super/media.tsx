@@ -325,7 +325,7 @@ function MediaLibraryAdmin() {
 
       {/* Tabs: Media Manager vs Homepage Client Logos */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="grid grid-cols-2 w-[340px] mb-6">
+        <TabsList className="grid grid-cols-2 w-full max-w-sm mb-6">
           <TabsTrigger value="media" className="gap-2 text-xs">
             <ImageIcon className="size-4" /> Media Files ({files.length})
           </TabsTrigger>

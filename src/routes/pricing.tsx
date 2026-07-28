@@ -114,8 +114,8 @@ export function PricingPage() {
         </div>
       </PageHero>
 
-      <section className="py-16">
-        <div className="mx-auto max-w-6xl px-6 grid gap-6 md:grid-cols-3">
+      <section className="py-12 sm:py-16">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 grid gap-6 grid-cols-1 md:grid-cols-3">
           {plans.map((p) => {
             const rawVal = yearly ? p.price.yearly : p.price.monthly;
             const formattedPrice = rawVal !== null ? formatSystemAmount(rawVal, sysConfig) : "Custom";

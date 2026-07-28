@@ -451,26 +451,26 @@ function SuperSettingsAdmin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-7 w-full max-w-5xl">
-          <TabsTrigger value="branding" className="gap-1.5 text-xs">
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1.5 w-full bg-secondary/50 rounded-xl">
+          <TabsTrigger value="branding" className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]">
             <ImageIcon className="size-3.5" /> Branding
           </TabsTrigger>
-          <TabsTrigger value="currency" className="gap-1.5 text-xs">
+          <TabsTrigger value="currency" className="gap-1.5 text-xs flex-1 min-w-[120px] sm:min-w-[135px]">
             <Coins className="size-3.5 text-amber-500" /> Currency & Locale
           </TabsTrigger>
-          <TabsTrigger value="smtp" className="gap-1.5 text-xs">
+          <TabsTrigger value="smtp" className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]">
             <Mail className="size-3.5" /> SMTP Engine
           </TabsTrigger>
-          <TabsTrigger value="oauth" className="gap-1.5 text-xs">
+          <TabsTrigger value="oauth" className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]">
             <Lock className="size-3.5" /> OAuth Logins
           </TabsTrigger>
-          <TabsTrigger value="pusher" className="gap-1.5 text-xs">
+          <TabsTrigger value="pusher" className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]">
             <Radio className="size-3.5" /> WebSockets
           </TabsTrigger>
-          <TabsTrigger value="payments" className="gap-1.5 text-xs">
+          <TabsTrigger value="payments" className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]">
             <CreditCard className="size-3.5" /> Payments
           </TabsTrigger>
-          <TabsTrigger value="system" className="gap-1.5 text-xs">
+          <TabsTrigger value="system" className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]">
             <AlertTriangle className="size-3.5" /> Maintenance
           </TabsTrigger>
         </TabsList>

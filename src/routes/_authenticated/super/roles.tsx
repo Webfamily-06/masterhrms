@@ -361,12 +361,12 @@ function RolesAdminStudio() {
 
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="grid grid-cols-2 w-[460px]">
-          <TabsTrigger value="user_assignment" className="gap-2 text-xs">
-            <Users className="size-3.5" /> User Directory & Role Assignment ({users?.length ?? 0})
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full max-w-lg">
+          <TabsTrigger value="user_assignment" className="gap-2 text-xs flex-1 min-w-[160px]">
+            <Users className="size-3.5" /> User Directory ({users?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="roles_crud" className="gap-2 text-xs">
-            <Shield className="size-3.5" /> Role Definitions & Permissions ({rolesList.length})
+          <TabsTrigger value="roles_crud" className="gap-2 text-xs flex-1 min-w-[160px]">
+            <Shield className="size-3.5" /> Role Definitions ({rolesList.length})
           </TabsTrigger>
         </TabsList>
 
