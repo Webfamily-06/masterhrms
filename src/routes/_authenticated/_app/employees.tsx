@@ -152,39 +152,41 @@ function Employees() {
               className="border-0 shadow-none focus-visible:ring-0 h-8"
             />
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Position</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">No employees yet.</TableCell></TableRow>
-              )}
-              {filtered.map((e: any) => (
-                <TableRow key={e.id}>
-                  <TableCell className="font-mono text-xs">{e.employee_code}</TableCell>
-                  <TableCell className="font-medium">{e.first_name} {e.last_name}</TableCell>
-                  <TableCell className="text-muted-foreground">{e.email}</TableCell>
-                  <TableCell>{e.departments?.name ?? "—"}</TableCell>
-                  <TableCell>{e.position ?? "—"}</TableCell>
-                  <TableCell className="capitalize">{e.employment_type.replace("_", " ")}</TableCell>
-                  <TableCell>
-                    <Badge variant={e.status === "active" ? "default" : "secondary"} className="capitalize">
-                      {e.status.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
+          <div className="overflow-x-auto min-w-full">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Position</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">No employees yet.</TableCell></TableRow>
+                )}
+                {filtered.map((e: any) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="font-mono text-xs">{e.employee_code}</TableCell>
+                    <TableCell className="font-medium">{e.first_name} {e.last_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{e.email}</TableCell>
+                    <TableCell>{e.departments?.name ?? "—"}</TableCell>
+                    <TableCell>{e.position ?? "—"}</TableCell>
+                    <TableCell className="capitalize">{e.employment_type.replace("_", " ")}</TableCell>
+                    <TableCell>
+                      <Badge variant={e.status === "active" ? "default" : "secondary"} className="capitalize">
+                        {e.status.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

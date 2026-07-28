@@ -417,7 +417,7 @@ function Dashboard() {
       </Card>
 
       {/* Realtime Workforce Stat Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active Staff" value={stats?.employees ?? 0} icon={Users} hint="Live DB count" color="text-blue-600 bg-blue-500/10" loading={isStatsLoading} />
         <StatCard label="Present Today" value={stats?.presentToday ?? 0} icon={Clock} hint="Shift logged" color="text-emerald-600 bg-emerald-500/10" loading={isStatsLoading} />
         <StatCard label="Pending Leave" value={stats?.pendingLeave ?? 0} icon={CalendarCheck} hint="Manager review" color="text-amber-600 bg-amber-500/10" loading={isStatsLoading} />
@@ -425,7 +425,7 @@ function Dashboard() {
       </div>
 
       {/* Realtime Module Operational Metrics */}
-      <div className="grid sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border-emerald-500/30 bg-emerald-500/5">
           <CardContent className="p-4 flex items-center justify-between">
             <div>

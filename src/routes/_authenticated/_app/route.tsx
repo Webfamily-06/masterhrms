@@ -39,7 +39,7 @@ function AppShell() {
             <SidebarTrigger />
             <div className="flex-1" />
           </header>
-          <main className="flex-1 p-6 md:p-8">
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden">
             <Outlet />
           </main>
         </div>

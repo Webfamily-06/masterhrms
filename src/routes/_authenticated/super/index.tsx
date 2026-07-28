@@ -253,7 +253,7 @@ function SuperOverview() {
       </Card>
 
       {/* Platform Metric Overview Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((s) => (
           <Card key={s.label} className="shadow-xs hover:border-primary/50 transition-all">
             <CardContent className="p-5">
