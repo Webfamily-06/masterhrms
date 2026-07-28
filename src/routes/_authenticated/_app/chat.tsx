@@ -31,17 +31,17 @@ import {
   Download,
   X,
   Mic,
-  Square,
   Play,
   Pause,
   Loader2,
   FolderPlus,
-  Volume2,
+  ArrowLeft,
+  ChevronLeft,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/_app/chat")({
   component: TeamWhatsAppChatAddon,
-  head: () => ({ meta: [{ title: "WhatsApp Team Chat — Master ERP" }] }),
+  head: () => ({ meta: [{ title: "Team Chat — Master ERP" }] }),
 });
 
 export type ChatMessage = {
@@ -80,7 +80,7 @@ export type EmployeeUser = {
   email: string;
   avatar_url?: string;
   role: string;
-  isOnline: boolean;
+  isCheckedIn: boolean;
 };
 
 // CLEAN START: NO DUMMY VALUES!
@@ -95,6 +95,9 @@ function TeamWhatsAppChatAddon() {
   const [activeTab, setActiveTab] = useState<"chats" | "groups" | "employees">("chats");
   const [activeThreadId, setActiveThreadId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Mobile Responsiveness Navigation State ("list" | "chat")
+  const [mobileView, setMobileView] = useState<"list" | "chat">("list");
 
   // Input Box States
   const [inputMsg, setInputMsg] = useState("");
@@ -121,20 +124,35 @@ function TeamWhatsAppChatAddon() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recordingTimerRef = useRef<any>(null);
 
-  // 1. REALTIME QUERY: Fetch employees list from Supabase profiles
+  // 1. REALTIME QUERY: Fetch employees list & active attendance check-in status from Supabase
   const { data: employeesList = [] } = useQuery({
-    queryKey: ["realtime-chat-employees"],
+    queryKey: ["realtime-chat-employees-with-attendance"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("id, full_name, email, avatar_url");
-      if (data && data.length > 0) {
-        return data.map((p, idx) => ({
-          id: p.id,
-          full_name: p.full_name || (p.email ? p.email.split("@")[0] : "Employee"),
-          email: p.email || "",
-          avatar_url: p.avatar_url || undefined,
-          role: "Employee",
-          isOnline: idx % 2 === 0,
-        })) as EmployeeUser[];
+      const todayStr = new Date().toISOString().split("T")[0];
+
+      const [{ data: profilesData }, { data: attendanceData }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, email, avatar_url"),
+        supabase.from("attendance").select("*").gte("created_at", `${todayStr}T00:00:00`),
+      ]);
+
+      const checkedInUserIds = new Set(
+        (attendanceData || [])
+          .filter((a: any) => (a.clock_in || a.check_in_time) && !(a.clock_out || a.check_out_time))
+          .map((a: any) => a.user_id || a.employee_id)
+      );
+
+      if (profilesData && profilesData.length > 0) {
+        return profilesData.map((p) => {
+          const isCheckedIn = checkedInUserIds.has(p.id);
+          return {
+            id: p.id,
+            full_name: p.full_name || (p.email ? p.email.split("@")[0] : "Employee"),
+            email: p.email || "",
+            avatar_url: p.avatar_url || undefined,
+            role: "Employee",
+            isCheckedIn,
+          } as EmployeeUser;
+        });
       }
       return [] as EmployeeUser[];
     },
@@ -174,6 +192,14 @@ function TeamWhatsAppChatAddon() {
   const currentThread = useMemo(() => {
     return threads.find((t) => t.id === activeThreadId) || null;
   }, [threads, activeThreadId]);
+
+  // Find target employee for active direct chat
+  const activeTargetEmp = useMemo(() => {
+    if (!currentThread || currentThread.isGroup) return null;
+    return employeesList.find(
+      (e) => currentThread.participantIds.includes(e.id) || currentThread.name.includes(e.full_name)
+    );
+  }, [currentThread, employeesList]);
 
   const activeMessages = currentThread ? (messagesMap[activeThreadId] ?? []) : [];
 
@@ -280,7 +306,7 @@ function TeamWhatsAppChatAddon() {
     );
 
     saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
-    toast.success("WhatsApp Voice Note sent!");
+    toast.success("Voice Note sent!");
   }
 
   // Send Message Handler
@@ -292,7 +318,7 @@ function TeamWhatsAppChatAddon() {
     if (currentThread.isGroup && currentThread.onlyAdminsCanSend) {
       const isAdmin = currentThread.groupAdminIds?.includes(user?.id || "super_admin") || true;
       if (!isAdmin) {
-        return toast.error("Only group admins can send messages in this group announcement channel.");
+        return toast.error("Only group admins can send messages in this group channel.");
       }
     }
 
@@ -354,7 +380,7 @@ function TeamWhatsAppChatAddon() {
     setAttachedFile(null);
   }
 
-  // Create WhatsApp Group
+  // Create Department Group
   function handleCreateGroup() {
     if (!newGroupName.trim()) return toast.error("Group name is required");
 
@@ -376,7 +402,7 @@ function TeamWhatsAppChatAddon() {
     const initialSystemMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       senderId: "system",
-      senderName: "WhatsApp System",
+      senderName: "System Notification",
       text: `Group "${newGroupName}" created by ${currentProfile?.full_name || "Admin"}.`,
       type: "text",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -389,10 +415,11 @@ function TeamWhatsAppChatAddon() {
     saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
 
     setActiveThreadId(newGroupId);
+    setMobileView("chat");
     setIsGroupModalOpen(false);
     setNewGroupName("");
     setSelectedGroupMembers([]);
-    toast.success(`WhatsApp Group "${newGroupName}" created successfully!`);
+    toast.success(`Department Group "${newGroupName}" created successfully!`);
   }
 
   // Start Direct Chat with Employee
@@ -418,6 +445,7 @@ function TeamWhatsAppChatAddon() {
     }
 
     setActiveThreadId(threadId);
+    setMobileView("chat");
     toast.success(`Chat opened with ${emp.full_name}`);
   }
 
@@ -431,32 +459,32 @@ function TeamWhatsAppChatAddon() {
 
   return (
     <PlanGuard moduleName="Team Internal Chat" requiredPlan="starter">
-      <div className="h-[calc(100vh-130px)] flex flex-col space-y-3">
+      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-130px)] flex flex-col space-y-3">
         {/* Header Bar */}
-        <div className="flex items-center justify-between border-b pb-3 shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black tracking-tight flex items-center gap-2 text-emerald-600">
-                <MessageSquare className="size-6 text-emerald-600" /> Enterprise Team Communications & Messaging Hub
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2 text-emerald-600">
+                <MessageSquare className="size-5 sm:size-6 text-emerald-600" /> Enterprise Team Communications & Messaging Hub
               </h1>
-              <Badge className="bg-emerald-600 text-white font-mono text-[10px]">
+              <Badge className="bg-emerald-600 text-white font-mono text-[9px] sm:text-[10px] shrink-0">
                 Realtime Encrypted Channel
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
               Direct employee messaging, department group channels, voice note recordings, document sharing & location.
             </p>
           </div>
 
-          <Button size="sm" onClick={() => setIsGroupModalOpen(true)} className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-            <FolderPlus className="size-4" /> + Create Department Group
+          <Button size="sm" onClick={() => setIsGroupModalOpen(true)} className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold self-start sm:self-auto shrink-0">
+            <FolderPlus className="size-4" /> + Create Group
           </Button>
         </div>
 
-        {/* FULL WIDTH & HEIGHT WHATSAPP CONTAINER (WALL TO WALL) */}
+        {/* FULL WIDTH & HEIGHT RESPONSIVE CONTAINER */}
         <Card className="grid lg:grid-cols-12 overflow-hidden border-emerald-500/20 shadow-xl rounded-2xl flex-1 w-full h-full min-h-0">
-          {/* LEFT SIDEBAR (WHATSAPP CHATS & EMPLOYEES) */}
-          <div className="lg:col-span-4 border-r bg-card flex flex-col justify-between h-full min-h-0">
+          {/* LEFT SIDEBAR (MOBILE TOGGLE: HIDDEN IF IN CHAT VIEW ON MOBILE) */}
+          <div className={`${mobileView === "chat" ? "hidden lg:flex" : "flex"} lg:col-span-4 border-r bg-card flex-col justify-between h-full min-h-0`}>
             {/* Sidebar Header */}
             <div className="p-3 bg-secondary/50 border-b flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
@@ -469,7 +497,7 @@ function TeamWhatsAppChatAddon() {
                 <div className="min-w-0">
                   <div className="font-bold text-xs truncate">{currentProfile?.full_name || "Super Admin"}</div>
                   <div className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                    <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Online
+                    <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Online · Checked In
                   </div>
                 </div>
               </div>
@@ -519,7 +547,10 @@ function TeamWhatsAppChatAddon() {
                         return (
                           <div
                             key={t.id}
-                            onClick={() => setActiveThreadId(t.id)}
+                            onClick={() => {
+                              setActiveThreadId(t.id);
+                              setMobileView("chat");
+                            }}
                             className={`p-3 flex items-center justify-between cursor-pointer border-b/50 transition-colors ${
                               isActive ? "bg-emerald-500/10 border-l-4 border-l-emerald-600" : "hover:bg-secondary/40"
                             }`}
@@ -556,8 +587,8 @@ function TeamWhatsAppChatAddon() {
                   {threads.filter((t) => t.isGroup).length === 0 ? (
                     <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
                       <Users className="size-8 mx-auto opacity-30 text-emerald-600" />
-                      <p className="font-bold text-foreground">No WhatsApp groups created yet</p>
-                      <p>Click "+ Create WhatsApp Group" at top right to create your first team group.</p>
+                      <p className="font-bold text-foreground">No groups created yet</p>
+                      <p>Click "+ Create Department Group" at top right to create your first team group.</p>
                     </div>
                   ) : (
                     threads
@@ -565,7 +596,10 @@ function TeamWhatsAppChatAddon() {
                       .map((t) => (
                         <div
                           key={t.id}
-                          onClick={() => setActiveThreadId(t.id)}
+                          onClick={() => {
+                            setActiveThreadId(t.id);
+                            setMobileView("chat");
+                          }}
                           className={`p-3 flex items-center gap-3 cursor-pointer border-b/50 transition-colors ${
                             t.id === activeThreadId ? "bg-emerald-500/10 border-l-4 border-l-emerald-600" : "hover:bg-secondary/40"
                           }`}
@@ -615,13 +649,19 @@ function TeamWhatsAppChatAddon() {
                             </Avatar>
                             <span
                               className={`absolute bottom-0 right-0 size-3 rounded-full border-2 border-background ${
-                                emp.isOnline ? "bg-emerald-500" : "bg-slate-400"
+                                emp.isCheckedIn ? "bg-emerald-500" : "bg-slate-400"
                               }`}
                             />
                           </div>
                           <div className="min-w-0">
                             <div className="font-bold text-xs truncate">{emp.full_name}</div>
-                            <div className="text-[10px] text-muted-foreground truncate">{emp.email}</div>
+                            <div className="text-[10px] text-muted-foreground truncate font-mono">
+                              {emp.isCheckedIn ? (
+                                <span className="text-emerald-600 font-semibold">Online · Checked In</span>
+                              ) : (
+                                <span className="text-slate-400">Offline · Not Checked In</span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -635,24 +675,35 @@ function TeamWhatsAppChatAddon() {
             </div>
           </div>
 
-          {/* RIGHT CHAT PANEL (WHATSAPP WALLPAPER & MESSAGES) */}
-          <div className="lg:col-span-8 flex flex-col justify-between bg-slate-900/5 dark:bg-slate-950/40 relative h-full min-h-0">
+          {/* RIGHT CHAT PANEL (MOBILE TOGGLE: HIDDEN IF IN LIST VIEW ON MOBILE) */}
+          <div className={`${mobileView === "list" ? "hidden lg:flex" : "flex"} lg:col-span-8 flex-col justify-between bg-slate-900/5 dark:bg-slate-950/40 relative h-full min-h-0`}>
             {!currentThread ? (
               <div className="py-32 flex flex-col items-center justify-center text-center text-muted-foreground space-y-3 p-6">
                 <div className="size-16 rounded-full bg-emerald-500/10 grid place-items-center text-emerald-600">
                   <MessageSquare className="size-8" />
                 </div>
-                <h3 className="font-bold text-lg text-foreground">WhatsApp Web for Master HRMS</h3>
+                <h3 className="font-bold text-lg text-foreground">Enterprise Team Messenger</h3>
                 <p className="text-xs max-w-sm">
-                  Send and receive end-to-end team messages, voice notes 🎤, documents & live location updates. Select a chat to begin.
+                  Send and receive team messages, voice notes 🎤, documents & location updates. Select a chat to begin.
                 </p>
               </div>
             ) : (
               <>
-                {/* Chat Workspace Header (Phone and Video Call Icons Removed) */}
+                {/* Chat Workspace Header WITH MOBILE BACK ARROW BUTTON */}
                 <div className="p-3 bg-secondary/80 backdrop-blur-md border-b flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Avatar className="size-10 border">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Mobile Back Arrow Button */}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 lg:hidden shrink-0 text-emerald-600"
+                      onClick={() => setMobileView("list")}
+                      title="Back to Chats"
+                    >
+                      <ArrowLeft className="size-5" />
+                    </Button>
+
+                    <Avatar className="size-10 border shrink-0">
                       <AvatarImage src={currentThread.avatarUrl} />
                       <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
                         {currentThread.name[0].toUpperCase()}
@@ -667,8 +718,14 @@ function TeamWhatsAppChatAddon() {
                           </Badge>
                         )}
                       </h3>
-                      <p className="text-[10px] text-emerald-600 font-medium">
-                        {currentThread.isGroup ? `${currentThread.participantNames?.join(", ")}` : "Online · WhatsApp Verified"}
+
+                      {/* ONLINE STATUS DRIVEN BY ATTENDANCE CHECK-IN */}
+                      <p className={`text-[10px] font-semibold ${activeTargetEmp?.isCheckedIn !== false ? "text-emerald-600" : "text-slate-400"}`}>
+                        {currentThread.isGroup
+                          ? `${currentThread.participantNames?.join(", ")}`
+                          : activeTargetEmp?.isCheckedIn
+                          ? "Online · Checked In"
+                          : "Offline · Shift Ended / Not Checked In"}
                       </p>
                     </div>
                   </div>
@@ -683,7 +740,7 @@ function TeamWhatsAppChatAddon() {
                 </div>
 
                 {/* WHATSAPP CHAT MESSAGES SCROLL AREA */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
                   {activeMessages.length === 0 ? (
                     <div className="py-16 text-center text-xs text-muted-foreground space-y-1">
                       <p className="font-bold text-foreground">No messages in this chat yet.</p>
@@ -701,7 +758,7 @@ function TeamWhatsAppChatAddon() {
                           </div>
 
                           <div
-                            className={`max-w-md p-3 rounded-2xl text-xs shadow-sm space-y-2 relative ${
+                            className={`max-w-[85%] sm:max-w-md p-3 rounded-2xl text-xs shadow-sm space-y-2 relative ${
                               isMe
                                 ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-900/80 dark:text-emerald-100 rounded-tr-none border border-emerald-500/30"
                                 : "bg-card text-foreground rounded-tl-none border shadow-xs"
@@ -709,7 +766,7 @@ function TeamWhatsAppChatAddon() {
                           >
                             {/* TYPE 1: VOICE NOTE BUBBLE PLAYER 🎤 */}
                             {m.type === "audio" && (
-                              <div className="p-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/30 flex items-center gap-3 min-w-[240px]">
+                              <div className="p-2 sm:p-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/30 flex items-center gap-2 sm:gap-3 min-w-[200px] sm:min-w-[240px]">
                                 <Button
                                   type="button"
                                   size="icon"
@@ -720,7 +777,7 @@ function TeamWhatsAppChatAddon() {
                                       toast.info(`Playing Voice Note (${m.audioDuration || "0:15"})...`);
                                     }
                                   }}
-                                  className="size-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
+                                  className="size-8 sm:size-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
                                 >
                                   {isAudioPlaying ? <Pause className="size-4" /> : <Play className="size-4 ml-0.5" />}
                                 </Button>
@@ -773,7 +830,7 @@ function TeamWhatsAppChatAddon() {
                             {m.type === "location" && (
                               <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200 space-y-1">
                                 <div className="flex items-center gap-1.5 font-extrabold text-xs">
-                                  <MapPin className="size-4 text-emerald-600" /> WhatsApp Live Location
+                                  <MapPin className="size-4 text-emerald-600" /> Live GPS Location
                                 </div>
                                 <div className="text-[11px] font-mono">{m.locationCoords}</div>
                               </div>
@@ -796,15 +853,15 @@ function TeamWhatsAppChatAddon() {
                 </div>
 
                 {/* ATTACHMENT PREVIEWS & SEND BAR WITH VOICE NOTES 🎤 */}
-                <div className="p-3 bg-card border-t space-y-2 shrink-0">
+                <div className="p-2.5 sm:p-3 bg-card border-t space-y-2 shrink-0">
                   {/* Attachment Preview Box */}
                   {attachedImage && (
                     <div className="flex items-center justify-between p-2 rounded-xl border bg-secondary/40 text-xs">
-                      <div className="flex items-center gap-2">
-                        <img src={attachedImage.url} alt="Attached" className="size-8 object-cover rounded-lg border" />
-                        <span className="font-bold text-xs">{attachedImage.name}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img src={attachedImage.url} alt="Attached" className="size-8 object-cover rounded-lg border shrink-0" />
+                        <span className="font-bold text-xs truncate">{attachedImage.name}</span>
                       </div>
-                      <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => setAttachedImage(null)}>
+                      <Button size="icon" variant="ghost" className="size-6 text-destructive shrink-0" onClick={() => setAttachedImage(null)}>
                         <X className="size-3.5" />
                       </Button>
                     </div>
@@ -812,14 +869,14 @@ function TeamWhatsAppChatAddon() {
 
                   {attachedFile && (
                     <div className="flex items-center justify-between p-2 rounded-xl border bg-secondary/40 text-xs">
-                      <div className="flex items-center gap-2">
-                        <FileText className="size-5 text-emerald-600" />
-                        <div>
-                          <div className="font-bold text-xs">{attachedFile.name}</div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="size-5 text-emerald-600 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs truncate">{attachedFile.name}</div>
                           <div className="text-[9px] text-muted-foreground font-mono">{attachedFile.size}</div>
                         </div>
                       </div>
-                      <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => setAttachedFile(null)}>
+                      <Button size="icon" variant="ghost" className="size-6 text-destructive shrink-0" onClick={() => setAttachedFile(null)}>
                         <X className="size-3.5" />
                       </Button>
                     </div>
@@ -827,36 +884,36 @@ function TeamWhatsAppChatAddon() {
 
                   {/* VOICE RECORDING BAR VS REGULAR INPUT */}
                   {isRecordingVoice ? (
-                    <div className="flex items-center justify-between p-2 px-4 rounded-full bg-red-500/10 border border-red-500/30 text-xs animate-pulse">
-                      <div className="flex items-center gap-2 font-bold text-red-600">
-                        <div className="size-3 rounded-full bg-red-600 animate-ping" />
-                        <span>Recording Voice Note... ({recordingSeconds}s)</span>
+                    <div className="flex items-center justify-between p-2 px-3 sm:px-4 rounded-full bg-red-500/10 border border-red-500/30 text-xs animate-pulse">
+                      <div className="flex items-center gap-2 font-bold text-red-600 text-xs">
+                        <div className="size-2.5 rounded-full bg-red-600 animate-ping" />
+                        <span>Recording... ({recordingSeconds}s)</span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-8" onClick={() => setIsRecordingVoice(false)}>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-8 px-2" onClick={() => setIsRecordingVoice(false)}>
                           Cancel
                         </Button>
-                        <Button size="sm" onClick={handleSendVoiceNote} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 gap-1 text-xs rounded-full">
+                        <Button size="sm" onClick={handleSendVoiceNote} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 gap-1 text-xs rounded-full px-3">
                           <Send className="size-3" /> Send Voice Note
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-2">
+                    <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-1 sm:gap-2">
                       <input type="file" ref={imageInputRef} accept="image/*" onChange={handleImageSelected} className="hidden" />
                       <input type="file" ref={fileInputRef} accept=".pdf,.doc,.docx,.xls,.xlsx,.zip" onChange={handleFileSelected} className="hidden" />
 
-                      <div className="flex items-center gap-1">
-                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => imageInputRef.current?.click()} title="Send Image">
+                      <div className="flex items-center gap-0.5 sm:gap-1">
+                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600 shrink-0" onClick={() => imageInputRef.current?.click()} title="Send Image">
                           <ImageIcon className="size-4" />
                         </Button>
 
-                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => fileInputRef.current?.click()} title="Send Document File">
+                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600 shrink-0" onClick={() => fileInputRef.current?.click()} title="Send Document File">
                           <Paperclip className="size-4" />
                         </Button>
 
-                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => handleSendMessage(undefined, "location")} title="Share Location">
+                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600 shrink-0" onClick={() => handleSendMessage(undefined, "location")} title="Share Location">
                           <MapPin className="size-4" />
                         </Button>
                       </div>
@@ -864,13 +921,13 @@ function TeamWhatsAppChatAddon() {
                       <Input
                         placeholder={
                           currentThread.isGroup && currentThread.onlyAdminsCanSend
-                            ? "Only admins can send messages in this group..."
-                            : "Type a WhatsApp message..."
+                            ? "Admins only..."
+                            : "Type a message..."
                         }
                         disabled={currentThread.isGroup && currentThread.onlyAdminsCanSend && !currentThread.groupAdminIds?.includes(user?.id || "super_admin")}
                         value={inputMsg}
                         onChange={(e) => setInputMsg(e.target.value)}
-                        className="flex-1 text-xs h-10 rounded-full bg-secondary/50 border-0 px-4 focus:ring-1 focus:ring-emerald-500"
+                        className="flex-1 text-xs h-9 sm:h-10 rounded-full bg-secondary/50 border-0 px-3 sm:px-4 focus:ring-1 focus:ring-emerald-500 min-w-0"
                       />
 
                       {/* VOICE NOTE MIC BUTTON 🎤 */}
@@ -878,14 +935,14 @@ function TeamWhatsAppChatAddon() {
                         type="button"
                         size="icon"
                         onClick={() => setIsRecordingVoice(true)}
-                        className="size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-md"
+                        className="size-9 sm:size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-md"
                         title="Record Voice Note"
                       >
                         <Mic className="size-4" />
                       </Button>
 
                       {inputMsg.trim() && (
-                        <Button type="submit" size="icon" className="size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-md">
+                        <Button type="submit" size="icon" className="size-9 sm:size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-md">
                           <Send className="size-4" />
                         </Button>
                       )}
@@ -897,12 +954,12 @@ function TeamWhatsAppChatAddon() {
           </div>
         </Card>
 
-        {/* MODAL 1: CREATE WHATSAPP GROUP */}
+        {/* MODAL 1: CREATE DEPARTMENT GROUP */}
         <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Users className="size-5 text-emerald-600" /> Create WhatsApp Group
+                <Users className="size-5 text-emerald-600" /> Create Department Group
               </DialogTitle>
               <DialogDescription className="text-xs">
                 Select employee participants and configure group posting permissions.
