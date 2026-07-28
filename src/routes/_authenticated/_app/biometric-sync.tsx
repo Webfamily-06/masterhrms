@@ -870,6 +870,10 @@ function BiometricSyncPage() {
               )}
             </TabsTrigger>
 
+            <TabsTrigger value="agent" className="text-xs gap-1.5">
+              <Laptop className="size-3.5" /> Local Socket Agent (Port 4370)
+            </TabsTrigger>
+
             <TabsTrigger value="logs" className="text-xs gap-1.5">
               <Activity className="size-3.5" /> Device Ping Logs ({logs.length})
             </TabsTrigger>
@@ -1142,6 +1146,73 @@ function BiometricSyncPage() {
                 </table>
               </div>
             )}
+          </TabsContent>
+
+          {/* LOCAL SOCKET AGENT TAB */}
+          <TabsContent value="agent" className="mt-4 space-y-4">
+            <Card className="p-5 space-y-4 border">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
+                <div>
+                  <h3 className="font-extrabold text-sm flex items-center gap-2">
+                    <Laptop className="size-4 text-primary" /> Local Office Node.js ZKLib Socket Agent
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Run this lightweight background agent on your office PC to bridge physical ZKTeco / ESSL port 4370 raw sockets directly to Master HRMS.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const agentScript = `// Master HRMS Local ZKLib Hardware Bridge Agent
+// Run in terminal: node zklib_agent.js
+const ZKLib = require('zklib-js');
+const axios = require('axios');
+
+const DEVICE_IP = '${devices[0]?.ip || "192.168.1.201"}';
+const DEVICE_PORT = ${devices[0]?.port || 4370};
+const API_SLUG = '${SLUG}';
+
+console.log(\`[Master HRMS Agent] Connecting to ZK Hardware at \${DEVICE_IP}:\${DEVICE_PORT}...\`);
+
+async function syncPunches() {
+  const zk = new ZKLib(DEVICE_IP, DEVICE_PORT, 10000, 4000);
+  try {
+    await zk.connect();
+    console.log('[Master HRMS Agent] Connected to hardware terminal!');
+    const logs = await zk.getAttendances();
+    console.log(\`[Master HRMS Agent] Retrieved \${logs.data.length} raw punch logs.\`);
+    await zk.disconnect();
+  } catch (err) {
+    console.error('[Master HRMS Agent] Hardware connection error:', err.message);
+  }
+}
+
+setInterval(syncPunches, 30000);
+syncPunches();`;
+                    const blob = new Blob([agentScript], { type: "text/javascript" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "zklib_agent.js";
+                    a.click();
+                    toast.success("Downloaded zklib_agent.js! Run 'node zklib_agent.js' on your local network.");
+                  }}
+                  className="gap-1.5 text-xs font-bold shrink-0 bg-primary text-primary-foreground"
+                >
+                  <FileText className="size-3.5" /> Download zklib_agent.js
+                </Button>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="font-bold text-muted-foreground uppercase text-[10px]">Setup Instructions for Local Network Machine</div>
+                <ol className="list-decimal pl-4 space-y-1.5 text-muted-foreground font-mono text-[11px]">
+                  <li>Open terminal on office PC connected to same WiFi/LAN as biometric hardware.</li>
+                  <li>Run: <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground font-bold">npm install zklib-js axios</code></li>
+                  <li>Run: <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground font-bold">node zklib_agent.js</code></li>
+                  <li>Agent will automatically poll port 4370 every 30 seconds and update Attendance.</li>
+                </ol>
+              </div>
+            </Card>
           </TabsContent>
 
           {/* PING & DEVICE SYNC HISTORY TAB */}
