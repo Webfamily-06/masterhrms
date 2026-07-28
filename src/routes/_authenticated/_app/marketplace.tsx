@@ -361,12 +361,24 @@ function MarketplacePage() {
 
                   <CardContent className="pt-0 space-y-3">
                     <div className="pt-3 border-t flex items-center justify-between">
-                      <span className="text-[11px] font-medium text-muted-foreground">
-                        Status:{" "}
-                        <strong className={installed ? "text-emerald-600 font-bold" : "text-muted-foreground"}>
-                          {installed ? "Installed & Active" : "Available"}
-                        </strong>
-                      </span>
+                      <div>
+                        {installed ? (
+                          <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1 font-mono">
+                            ● Installed & Active
+                          </span>
+                        ) : isFree ? (
+                          <span className="text-[11px] font-mono font-bold text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
+                            FREE ADDON
+                          </span>
+                        ) : (
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Price</span>
+                            <span className="font-mono font-black text-sm text-primary">
+                              {formatSystemAmount(priceVal, sysConfig)}<span className="text-[10px] font-normal text-muted-foreground">/mo</span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
                       {installed ? (
                         <Button
