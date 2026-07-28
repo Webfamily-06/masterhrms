@@ -29,11 +29,14 @@ import { Route as AddonsSlugRouteImport } from './routes/addons.$slug'
 import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as AuthenticatedAppAccountingRouteImport } from './routes/_authenticated/_app/accounting'
+import { Route as AuthenticatedAppAiOcrRouteImport } from './routes/_authenticated/_app/ai-ocr'
 import { Route as AuthenticatedAppAttendanceRouteImport } from './routes/_authenticated/_app/attendance'
+import { Route as AuthenticatedAppBiometricSyncRouteImport } from './routes/_authenticated/_app/biometric-sync'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/_app/chat'
 import { Route as AuthenticatedAppCrmRouteImport } from './routes/_authenticated/_app/crm'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/_app/dashboard'
 import { Route as AuthenticatedAppEmployeesRouteImport } from './routes/_authenticated/_app/employees'
+import { Route as AuthenticatedAppGoogleWorkspaceRouteImport } from './routes/_authenticated/_app/google-workspace'
 import { Route as AuthenticatedAppHrmRouteImport } from './routes/_authenticated/_app/hrm'
 import { Route as AuthenticatedAppInvoicesRouteImport } from './routes/_authenticated/_app/invoices'
 import { Route as AuthenticatedAppLeaveRouteImport } from './routes/_authenticated/_app/leave'
@@ -44,10 +47,13 @@ import { Route as AuthenticatedAppPosRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAppProductsRouteImport } from './routes/_authenticated/_app/products'
 import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/_app/projects'
 import { Route as AuthenticatedAppProposalsRouteImport } from './routes/_authenticated/_app/proposals'
+import { Route as AuthenticatedAppRazorpayGatewayRouteImport } from './routes/_authenticated/_app/razorpay-gateway'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/_app/settings'
 import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_authenticated/_app/subscription'
 import { Route as AuthenticatedAppSupportRouteImport } from './routes/_authenticated/_app/support'
+import { Route as AuthenticatedAppTallyImporterRouteImport } from './routes/_authenticated/_app/tally-importer'
 import { Route as AuthenticatedAppUsersRouteImport } from './routes/_authenticated/_app/users'
+import { Route as AuthenticatedAppWhatsappAlertsRouteImport } from './routes/_authenticated/_app/whatsapp-alerts'
 import { Route as AuthenticatedSuperIndexRouteImport } from './routes/_authenticated/super/index'
 import { Route as AuthenticatedSuperAnalyticsRouteImport } from './routes/_authenticated/super/analytics'
 import { Route as AuthenticatedSuperApiDocsRouteImport } from './routes/_authenticated/super/api-docs'
@@ -166,10 +172,21 @@ const AuthenticatedAppAccountingRoute =
     path: '/accounting',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppAiOcrRoute = AuthenticatedAppAiOcrRouteImport.update({
+  id: '/ai-ocr',
+  path: '/ai-ocr',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppAttendanceRoute =
   AuthenticatedAppAttendanceRouteImport.update({
     id: '/attendance',
     path: '/attendance',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppBiometricSyncRoute =
+  AuthenticatedAppBiometricSyncRouteImport.update({
+    id: '/biometric-sync',
+    path: '/biometric-sync',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
@@ -192,6 +209,12 @@ const AuthenticatedAppEmployeesRoute =
   AuthenticatedAppEmployeesRouteImport.update({
     id: '/employees',
     path: '/employees',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppGoogleWorkspaceRoute =
+  AuthenticatedAppGoogleWorkspaceRouteImport.update({
+    id: '/google-workspace',
+    path: '/google-workspace',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppHrmRoute = AuthenticatedAppHrmRouteImport.update({
@@ -249,6 +272,12 @@ const AuthenticatedAppProposalsRoute =
     path: '/proposals',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppRazorpayGatewayRoute =
+  AuthenticatedAppRazorpayGatewayRouteImport.update({
+    id: '/razorpay-gateway',
+    path: '/razorpay-gateway',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
@@ -266,11 +295,23 @@ const AuthenticatedAppSupportRoute = AuthenticatedAppSupportRouteImport.update({
   path: '/support',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppTallyImporterRoute =
+  AuthenticatedAppTallyImporterRouteImport.update({
+    id: '/tally-importer',
+    path: '/tally-importer',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppUsersRoute = AuthenticatedAppUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppWhatsappAlertsRoute =
+  AuthenticatedAppWhatsappAlertsRouteImport.update({
+    id: '/whatsapp-alerts',
+    path: '/whatsapp-alerts',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedSuperIndexRoute = AuthenticatedSuperIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -393,11 +434,14 @@ export interface FileRoutesByFullPath {
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
+  '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/chat': typeof AuthenticatedAppChatRoute
   '/crm': typeof AuthenticatedAppCrmRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
+  '/google-workspace': typeof AuthenticatedAppGoogleWorkspaceRoute
   '/hrm': typeof AuthenticatedAppHrmRoute
   '/invoices': typeof AuthenticatedAppInvoicesRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
@@ -408,10 +452,13 @@ export interface FileRoutesByFullPath {
   '/products': typeof AuthenticatedAppProductsRoute
   '/projects': typeof AuthenticatedAppProjectsRoute
   '/proposals': typeof AuthenticatedAppProposalsRoute
+  '/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/settings': typeof AuthenticatedAppSettingsRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/support': typeof AuthenticatedAppSupportRoute
+  '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
   '/users': typeof AuthenticatedAppUsersRoute
+  '/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -449,11 +496,14 @@ export interface FileRoutesByTo {
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
+  '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/chat': typeof AuthenticatedAppChatRoute
   '/crm': typeof AuthenticatedAppCrmRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
+  '/google-workspace': typeof AuthenticatedAppGoogleWorkspaceRoute
   '/hrm': typeof AuthenticatedAppHrmRoute
   '/invoices': typeof AuthenticatedAppInvoicesRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
@@ -464,10 +514,13 @@ export interface FileRoutesByTo {
   '/products': typeof AuthenticatedAppProductsRoute
   '/projects': typeof AuthenticatedAppProjectsRoute
   '/proposals': typeof AuthenticatedAppProposalsRoute
+  '/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/settings': typeof AuthenticatedAppSettingsRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/support': typeof AuthenticatedAppSupportRoute
+  '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
   '/users': typeof AuthenticatedAppUsersRoute
+  '/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -509,11 +562,14 @@ export interface FileRoutesById {
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
+  '/_authenticated/_app/ai-ocr': typeof AuthenticatedAppAiOcrRoute
   '/_authenticated/_app/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/_authenticated/_app/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/_authenticated/_app/chat': typeof AuthenticatedAppChatRoute
   '/_authenticated/_app/crm': typeof AuthenticatedAppCrmRoute
   '/_authenticated/_app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/_authenticated/_app/employees': typeof AuthenticatedAppEmployeesRoute
+  '/_authenticated/_app/google-workspace': typeof AuthenticatedAppGoogleWorkspaceRoute
   '/_authenticated/_app/hrm': typeof AuthenticatedAppHrmRoute
   '/_authenticated/_app/invoices': typeof AuthenticatedAppInvoicesRoute
   '/_authenticated/_app/leave': typeof AuthenticatedAppLeaveRoute
@@ -524,10 +580,13 @@ export interface FileRoutesById {
   '/_authenticated/_app/products': typeof AuthenticatedAppProductsRoute
   '/_authenticated/_app/projects': typeof AuthenticatedAppProjectsRoute
   '/_authenticated/_app/proposals': typeof AuthenticatedAppProposalsRoute
+  '/_authenticated/_app/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/_authenticated/_app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/_app/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/_authenticated/_app/support': typeof AuthenticatedAppSupportRoute
+  '/_authenticated/_app/tally-importer': typeof AuthenticatedAppTallyImporterRoute
   '/_authenticated/_app/users': typeof AuthenticatedAppUsersRoute
+  '/_authenticated/_app/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
   '/_authenticated/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/_authenticated/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/_authenticated/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -568,11 +627,14 @@ export interface FileRouteTypes {
     | '/legal/$slug'
     | '/p/$slug'
     | '/accounting'
+    | '/ai-ocr'
     | '/attendance'
+    | '/biometric-sync'
     | '/chat'
     | '/crm'
     | '/dashboard'
     | '/employees'
+    | '/google-workspace'
     | '/hrm'
     | '/invoices'
     | '/leave'
@@ -583,10 +645,13 @@ export interface FileRouteTypes {
     | '/products'
     | '/projects'
     | '/proposals'
+    | '/razorpay-gateway'
     | '/settings'
     | '/subscription'
     | '/support'
+    | '/tally-importer'
     | '/users'
+    | '/whatsapp-alerts'
     | '/super/analytics'
     | '/super/api-docs'
     | '/super/backup'
@@ -624,11 +689,14 @@ export interface FileRouteTypes {
     | '/legal/$slug'
     | '/p/$slug'
     | '/accounting'
+    | '/ai-ocr'
     | '/attendance'
+    | '/biometric-sync'
     | '/chat'
     | '/crm'
     | '/dashboard'
     | '/employees'
+    | '/google-workspace'
     | '/hrm'
     | '/invoices'
     | '/leave'
@@ -639,10 +707,13 @@ export interface FileRouteTypes {
     | '/products'
     | '/projects'
     | '/proposals'
+    | '/razorpay-gateway'
     | '/settings'
     | '/subscription'
     | '/support'
+    | '/tally-importer'
     | '/users'
+    | '/whatsapp-alerts'
     | '/super/analytics'
     | '/super/api-docs'
     | '/super/backup'
@@ -683,11 +754,14 @@ export interface FileRouteTypes {
     | '/legal/$slug'
     | '/p/$slug'
     | '/_authenticated/_app/accounting'
+    | '/_authenticated/_app/ai-ocr'
     | '/_authenticated/_app/attendance'
+    | '/_authenticated/_app/biometric-sync'
     | '/_authenticated/_app/chat'
     | '/_authenticated/_app/crm'
     | '/_authenticated/_app/dashboard'
     | '/_authenticated/_app/employees'
+    | '/_authenticated/_app/google-workspace'
     | '/_authenticated/_app/hrm'
     | '/_authenticated/_app/invoices'
     | '/_authenticated/_app/leave'
@@ -698,10 +772,13 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/products'
     | '/_authenticated/_app/projects'
     | '/_authenticated/_app/proposals'
+    | '/_authenticated/_app/razorpay-gateway'
     | '/_authenticated/_app/settings'
     | '/_authenticated/_app/subscription'
     | '/_authenticated/_app/support'
+    | '/_authenticated/_app/tally-importer'
     | '/_authenticated/_app/users'
+    | '/_authenticated/_app/whatsapp-alerts'
     | '/_authenticated/super/analytics'
     | '/_authenticated/super/api-docs'
     | '/_authenticated/super/backup'
@@ -882,11 +959,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAccountingRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/ai-ocr': {
+      id: '/_authenticated/_app/ai-ocr'
+      path: '/ai-ocr'
+      fullPath: '/ai-ocr'
+      preLoaderRoute: typeof AuthenticatedAppAiOcrRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/attendance': {
       id: '/_authenticated/_app/attendance'
       path: '/attendance'
       fullPath: '/attendance'
       preLoaderRoute: typeof AuthenticatedAppAttendanceRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/biometric-sync': {
+      id: '/_authenticated/_app/biometric-sync'
+      path: '/biometric-sync'
+      fullPath: '/biometric-sync'
+      preLoaderRoute: typeof AuthenticatedAppBiometricSyncRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/chat': {
@@ -915,6 +1006,13 @@ declare module '@tanstack/react-router' {
       path: '/employees'
       fullPath: '/employees'
       preLoaderRoute: typeof AuthenticatedAppEmployeesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/google-workspace': {
+      id: '/_authenticated/_app/google-workspace'
+      path: '/google-workspace'
+      fullPath: '/google-workspace'
+      preLoaderRoute: typeof AuthenticatedAppGoogleWorkspaceRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/hrm': {
@@ -987,6 +1085,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProposalsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/razorpay-gateway': {
+      id: '/_authenticated/_app/razorpay-gateway'
+      path: '/razorpay-gateway'
+      fullPath: '/razorpay-gateway'
+      preLoaderRoute: typeof AuthenticatedAppRazorpayGatewayRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/settings': {
       id: '/_authenticated/_app/settings'
       path: '/settings'
@@ -1008,11 +1113,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppSupportRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/tally-importer': {
+      id: '/_authenticated/_app/tally-importer'
+      path: '/tally-importer'
+      fullPath: '/tally-importer'
+      preLoaderRoute: typeof AuthenticatedAppTallyImporterRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/users': {
       id: '/_authenticated/_app/users'
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof AuthenticatedAppUsersRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/whatsapp-alerts': {
+      id: '/_authenticated/_app/whatsapp-alerts'
+      path: '/whatsapp-alerts'
+      fullPath: '/whatsapp-alerts'
+      preLoaderRoute: typeof AuthenticatedAppWhatsappAlertsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/super/': {
@@ -1146,11 +1265,14 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAccountingRoute: typeof AuthenticatedAppAccountingRoute
+  AuthenticatedAppAiOcrRoute: typeof AuthenticatedAppAiOcrRoute
   AuthenticatedAppAttendanceRoute: typeof AuthenticatedAppAttendanceRoute
+  AuthenticatedAppBiometricSyncRoute: typeof AuthenticatedAppBiometricSyncRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRoute
   AuthenticatedAppCrmRoute: typeof AuthenticatedAppCrmRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
   AuthenticatedAppEmployeesRoute: typeof AuthenticatedAppEmployeesRoute
+  AuthenticatedAppGoogleWorkspaceRoute: typeof AuthenticatedAppGoogleWorkspaceRoute
   AuthenticatedAppHrmRoute: typeof AuthenticatedAppHrmRoute
   AuthenticatedAppInvoicesRoute: typeof AuthenticatedAppInvoicesRoute
   AuthenticatedAppLeaveRoute: typeof AuthenticatedAppLeaveRoute
@@ -1161,19 +1283,25 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppProductsRoute: typeof AuthenticatedAppProductsRoute
   AuthenticatedAppProjectsRoute: typeof AuthenticatedAppProjectsRoute
   AuthenticatedAppProposalsRoute: typeof AuthenticatedAppProposalsRoute
+  AuthenticatedAppRazorpayGatewayRoute: typeof AuthenticatedAppRazorpayGatewayRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppSubscriptionRoute: typeof AuthenticatedAppSubscriptionRoute
   AuthenticatedAppSupportRoute: typeof AuthenticatedAppSupportRoute
+  AuthenticatedAppTallyImporterRoute: typeof AuthenticatedAppTallyImporterRoute
   AuthenticatedAppUsersRoute: typeof AuthenticatedAppUsersRoute
+  AuthenticatedAppWhatsappAlertsRoute: typeof AuthenticatedAppWhatsappAlertsRoute
 }
 
 const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppAccountingRoute: AuthenticatedAppAccountingRoute,
+  AuthenticatedAppAiOcrRoute: AuthenticatedAppAiOcrRoute,
   AuthenticatedAppAttendanceRoute: AuthenticatedAppAttendanceRoute,
+  AuthenticatedAppBiometricSyncRoute: AuthenticatedAppBiometricSyncRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRoute,
   AuthenticatedAppCrmRoute: AuthenticatedAppCrmRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
   AuthenticatedAppEmployeesRoute: AuthenticatedAppEmployeesRoute,
+  AuthenticatedAppGoogleWorkspaceRoute: AuthenticatedAppGoogleWorkspaceRoute,
   AuthenticatedAppHrmRoute: AuthenticatedAppHrmRoute,
   AuthenticatedAppInvoicesRoute: AuthenticatedAppInvoicesRoute,
   AuthenticatedAppLeaveRoute: AuthenticatedAppLeaveRoute,
@@ -1184,10 +1312,13 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppProductsRoute: AuthenticatedAppProductsRoute,
   AuthenticatedAppProjectsRoute: AuthenticatedAppProjectsRoute,
   AuthenticatedAppProposalsRoute: AuthenticatedAppProposalsRoute,
+  AuthenticatedAppRazorpayGatewayRoute: AuthenticatedAppRazorpayGatewayRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppSubscriptionRoute: AuthenticatedAppSubscriptionRoute,
   AuthenticatedAppSupportRoute: AuthenticatedAppSupportRoute,
+  AuthenticatedAppTallyImporterRoute: AuthenticatedAppTallyImporterRoute,
   AuthenticatedAppUsersRoute: AuthenticatedAppUsersRoute,
+  AuthenticatedAppWhatsappAlertsRoute: AuthenticatedAppWhatsappAlertsRoute,
 }
 
 const AuthenticatedAppRouteRouteWithChildren =

@@ -36,6 +36,10 @@ import {
   ImageIcon,
   Sparkles,
   Lock,
+  Fingerprint,
+  ScanLine,
+  ArrowLeftRight,
+  HardDrive,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -93,6 +97,17 @@ const menuGroups: MenuGroup[] = [
       { title: "Support Tickets", url: "/support", icon: LifeBuoy },
       { title: "Subscription & Plan", url: "/subscription", icon: CreditCard, badge: "Upgrade", badgeVariant: "outline" },
       { title: "Settings", url: "/settings", icon: Settings },
+    ],
+  },
+  {
+    label: "Installed Addons",
+    items: [
+      { title: "WhatsApp Alerts", url: "/whatsapp-alerts", icon: MessageSquare, badge: "Active", badgeVariant: "secondary" },
+      { title: "Biometric Sync", url: "/biometric-sync", icon: Fingerprint, badge: "Active", badgeVariant: "secondary" },
+      { title: "AI Invoice OCR", url: "/ai-ocr", icon: ScanLine, badge: "AI", badgeVariant: "default" },
+      { title: "Tally Importer", url: "/tally-importer", icon: ArrowLeftRight },
+      { title: "Razorpay Gateway", url: "/razorpay-gateway", icon: CreditCard },
+      { title: "Google Workspace", url: "/google-workspace", icon: HardDrive },
     ],
   },
 ];
