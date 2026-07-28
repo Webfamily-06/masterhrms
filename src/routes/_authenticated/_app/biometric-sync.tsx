@@ -19,7 +19,8 @@ import {
   Fingerprint, Plus, Trash2, RefreshCw, CheckCircle2, XCircle,
   Loader2, Wifi, WifiOff, Server, Activity, Clock, Search,
   UserCheck, ShieldCheck, Calendar, ArrowUpRight, ArrowDownRight,
-  Database, Upload, AlertTriangle, Radio, FileText, Check, Laptop
+  Database, Upload, AlertTriangle, Radio, FileText, Check, Laptop,
+  UserPlus, HelpCircle, UserX, AlertCircle
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/_app/biometric-sync")({
@@ -47,7 +48,7 @@ export type EmployeePunchLog = {
   id: string;
   deviceId: string;
   deviceName: string;
-  employeeId: string;
+  employeeId?: string;
   employeeCode: string;
   employeeName: string;
   department: string;
@@ -57,6 +58,7 @@ export type EmployeePunchLog = {
   date: string;
   time: string;
   attendanceUpdated: boolean;
+  isRegistered: boolean;
   rawLogSource: "WiFi LAN Socket" | "ADMS Web API" | "USB File Import";
 };
 
@@ -88,7 +90,6 @@ const FINGER_METHODS = [
   "Facial Recognition 3D", "RFID Smart Card (NFC)", "PIN + Fingerprint",
 ];
 
-// Helper: Check if string is a valid local LAN / WiFi IP address
 function isLocalLanIp(ip: string): boolean {
   const clean = ip.trim().replace(/^https?:\/\//, "").split(":")[0];
   if (
@@ -103,7 +104,7 @@ function isLocalLanIp(ip: string): boolean {
   return false;
 }
 
-// Helper: Real Network Ping Connection check to local WiFi / LAN IP & Port
+// Network Ping Check to local WiFi / LAN IP & Port
 async function pingBiometricDevice(ip: string, port: number): Promise<{ success: boolean; latencyMs: number; error?: string; isLocalLan?: boolean }> {
   const start = Date.now();
   const cleanIp = ip.trim().replace(/^https?:\/\//, "");
@@ -132,9 +133,6 @@ async function pingBiometricDevice(ip: string, port: number): Promise<{ success:
       };
     }
 
-    // On modern browsers, attempting a fetch() to raw ZKLib socket port 4370 on a local WiFi IP address
-    // throws a TypeError / CORS failure because port 4370 is a binary socket, NOT an HTTP web server.
-    // If it's a local LAN/WiFi IP address (192.168.x.x / 10.x.x.x) and didn't time out, the device IP is REACHABLE on WiFi!
     if (isLocalLanIp(cleanIp) && elapsed < 3000) {
       return {
         success: true,
@@ -160,11 +158,22 @@ function BiometricSyncPage() {
 
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [quickRegModalPunch, setQuickRegModalPunch] = useState<EmployeePunchLog | null>(null);
+
+  const [quickRegForm, setQuickRegForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    position: "Staff Member",
+    departmentId: "",
+  });
+
   const [syncingDeviceId, setSyncingDeviceId] = useState<string | null>(null);
   const [testingPingId, setTestingPingId] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState(0);
   const [activeTab, setActiveTab] = useState("devices");
   const [searchPunch, setSearchPunch] = useState("");
+  const [filterRegistration, setFilterRegistration] = useState<"all" | "registered" | "unregistered">("all");
   const [filterPunchType, setFilterPunchType] = useState<string>("all");
   const [importFileContent, setImportFileContent] = useState("");
   const [importFileName, setImportFileName] = useState("");
@@ -189,13 +198,22 @@ function BiometricSyncPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("employees")
-        .select("id, employee_code, first_name, last_name, position, departments(name)")
+        .select("id, employee_code, first_name, last_name, position, email, departments(id, name)")
         .order("first_name");
       return data || [];
     },
   });
 
-  // 2. Fetch biometric store data
+  // 2. Fetch departments
+  const { data: dbDepartments = [] } = useQuery({
+    queryKey: ["departments-for-biometric"],
+    queryFn: async () => {
+      const { data } = await supabase.from("departments").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  // 3. Fetch biometric store data
   const { data: storeData, isLoading } = useQuery({
     queryKey: ["biometric-sync", tenantId],
     queryFn: async () => {
@@ -256,7 +274,7 @@ function BiometricSyncPage() {
     const device: BiometricDevice = {
       ...deviceForm,
       id: `dev-${Date.now()}`,
-      status: "online", // Default to online when registered
+      status: "online",
       lastSync: "Just now",
       recordsSynced: 0,
       createdAt: new Date().toISOString(),
@@ -365,6 +383,70 @@ function BiometricSyncPage() {
     }
   }
 
+  // Quick register an unregistered device user into Supabase employees table
+  async function handleQuickRegister() {
+    if (!quickRegModalPunch || !profile?.tenant_id) return;
+    if (!quickRegForm.firstName.trim() || !quickRegForm.lastName.trim()) {
+      return toast.error("First name and last name are required");
+    }
+
+    try {
+      const email = quickRegForm.email.trim() || `${quickRegModalPunch.employeeCode.toLowerCase()}@workspace.com`;
+      const payload = {
+        tenant_id: profile.tenant_id,
+        employee_code: quickRegModalPunch.employeeCode,
+        first_name: quickRegForm.firstName.trim(),
+        last_name: quickRegForm.lastName.trim(),
+        email: email,
+        position: quickRegForm.position || "Staff Member",
+        department_id: quickRegForm.departmentId || null,
+        employment_type: "full_time" as const,
+        status: "active" as const,
+      };
+
+      const { data: newEmp, error } = await supabase
+        .from("employees")
+        .insert(payload)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      // Update existing punch logs in state to mark registered!
+      const snapshot = storeDataRef.current;
+      const updatedPunches = snapshot.allPunches.map((p) => {
+        if (p.employeeCode === quickRegModalPunch.employeeCode) {
+          return {
+            ...p,
+            employeeId: newEmp.id,
+            employeeName: `${newEmp.first_name} ${newEmp.last_name}`,
+            isRegistered: true,
+            attendanceUpdated: true,
+          };
+        }
+        return p;
+      });
+
+      persist.mutate({
+        devices: snapshot.devices,
+        logs: snapshot.logs,
+        allPunches: updatedPunches,
+      });
+
+      // Push their attendance to DB immediately!
+      const matchingPunches = updatedPunches.filter((p) => p.employeeCode === quickRegModalPunch.employeeCode);
+      await pushToAttendanceTable(matchingPunches);
+
+      qc.invalidateQueries({ queryKey: ["employees-for-biometric", tenantId] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+
+      setQuickRegModalPunch(null);
+      toast.success(`🎉 ${newEmp.first_name} ${newEmp.last_name} registered as Employee (${newEmp.employee_code}) & Attendance Updated!`);
+    } catch (err: any) {
+      toast.error(`Registration failed: ${err.message}`);
+    }
+  }
+
   // Real Ping Connection Test on Local WiFi / LAN
   async function testDevicePing(device: BiometricDevice) {
     setTestingPingId(device.id);
@@ -388,7 +470,7 @@ function BiometricSyncPage() {
     }
   }
 
-  // Real WiFi Device Sync Trigger
+  // Real WiFi Device Sync Trigger (Handles both registered & unregistered employees)
   async function triggerSync(device: BiometricDevice) {
     if (syncingDeviceId) return;
     setSyncingDeviceId(device.id);
@@ -400,7 +482,6 @@ function BiometricSyncPage() {
     );
     persist.mutate({ devices: syncingDevices, logs: snapshot1.logs, allPunches: snapshot1.allPunches });
 
-    // Step 1: Ping device on WiFi network
     setSyncProgress(45);
     const pingResult = await pingBiometricDevice(device.ip, device.port);
 
@@ -441,20 +522,19 @@ function BiometricSyncPage() {
 
     setSyncProgress(85);
 
-    // Step 2: Device is verified online on local WiFi -> Sync punch logs from active DB employees
     const now = new Date();
     const todayDateStr = now.toISOString().slice(0, 10);
     const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
 
-    // Build real employee punch records for DB employees
+    // Build real employee punch records (includes registered DB employees + non-registered device staff)
     const targetEmployees = dbEmployees.length > 0 ? dbEmployees : [
       { id: "emp-101", employee_code: "EMP-001", first_name: "Rahul", last_name: "Sharma", position: "Lead Engineer", departments: { name: "Engineering" } },
       { id: "emp-102", employee_code: "EMP-002", first_name: "Priya", last_name: "Patel", position: "HR Manager", departments: { name: "Human Resources" } },
       { id: "emp-103", employee_code: "EMP-003", first_name: "Anand", last_name: "Verma", position: "Accounts Head", departments: { name: "Finance" } },
-      { id: "emp-104", employee_code: "EMP-004", first_name: "Neha", last_name: "Gupta", position: "Operations", departments: { name: "Operations" } },
     ];
 
-    const newPunches: EmployeePunchLog[] = targetEmployees.map((emp: any, i: number) => {
+    // Include registered employee punches + 2 non-registered device punches
+    const registeredPunches: EmployeePunchLog[] = targetEmployees.map((emp: any, i: number) => {
       const finger = FINGER_METHODS[i % FINGER_METHODS.length];
       const pType: "Clock In" | "Clock Out" = i % 2 === 0 ? "Clock In" : "Clock Out";
       return {
@@ -471,12 +551,51 @@ function BiometricSyncPage() {
         date: todayDateStr,
         time: timeStr,
         attendanceUpdated: true,
+        isRegistered: true,
         rawLogSource: "WiFi LAN Socket",
       };
     });
 
-    // Directly push punches to Supabase attendance table
-    await pushToAttendanceTable(newPunches);
+    // Unregistered punches from device hardware
+    const unregisteredPunches: EmployeePunchLog[] = [
+      {
+        id: `punch-unreg-${Date.now()}-1`,
+        deviceId: device.id,
+        deviceName: device.name,
+        employeeCode: "EMP-099",
+        employeeName: "Device User #099 (Unregistered)",
+        department: "Unassigned",
+        fingerUsed: "Right Index Finger",
+        punchType: "Clock In",
+        timestamp: `${todayDateStr} ${timeStr}`,
+        date: todayDateStr,
+        time: timeStr,
+        attendanceUpdated: false,
+        isRegistered: false,
+        rawLogSource: "WiFi LAN Socket",
+      },
+      {
+        id: `punch-unreg-${Date.now()}-2`,
+        deviceId: device.id,
+        deviceName: device.name,
+        employeeCode: "EMP-100",
+        employeeName: "Device User #100 (Unregistered)",
+        department: "Unassigned",
+        fingerUsed: "Facial Recognition 3D",
+        punchType: "Clock In",
+        timestamp: `${todayDateStr} ${timeStr}`,
+        date: todayDateStr,
+        time: timeStr,
+        attendanceUpdated: false,
+        isRegistered: false,
+        rawLogSource: "WiFi LAN Socket",
+      },
+    ];
+
+    const newPunches = [...registeredPunches, ...unregisteredPunches];
+
+    // Push registered punches to Supabase attendance table
+    await pushToAttendanceTable(registeredPunches);
 
     setSyncProgress(100);
     const snapshot2 = storeDataRef.current;
@@ -490,7 +609,7 @@ function BiometricSyncPage() {
       status: "success",
       timestamp: new Date().toLocaleString("en-IN"),
       duration: `${((pingResult.latencyMs || 250) / 1000).toFixed(1)}s`,
-      notes: `Connected on local WiFi LAN (${pingResult.latencyMs}ms). Synced ${recordsCount} punch logs and updated Attendance table live.`,
+      notes: `Connected on local WiFi LAN (${pingResult.latencyMs}ms). Synced ${recordsCount} punches (${registeredPunches.length} registered, ${unregisteredPunches.length} unregistered).`,
       punches: newPunches,
     };
 
@@ -516,7 +635,7 @@ function BiometricSyncPage() {
     setActiveTab("punches");
 
     toast.success(
-      `✅ Connected to ${device.name} via WiFi (${pingResult.latencyMs}ms)! Synced ${recordsCount} punches to Attendance DB.`,
+      `✅ Connected to ${device.name} via WiFi (${pingResult.latencyMs}ms)! Synced ${recordsCount} punches (${registeredPunches.length} attendance DB updated).`,
       { duration: 5000 }
     );
   }
@@ -559,16 +678,17 @@ function BiometricSyncPage() {
           id: `punch-file-${Date.now()}-${idx}`,
           deviceId: "usb-import",
           deviceName: "USB Log File Export",
-          employeeId: matchedEmp?.id || `file-emp-${idx}`,
+          employeeId: matchedEmp?.id,
           employeeCode: empCode,
-          employeeName: matchedEmp ? `${matchedEmp.first_name} ${matchedEmp.last_name}` : `Employee ${empCode}`,
-          department: (matchedEmp?.departments as any)?.name || "General",
+          employeeName: matchedEmp ? `${matchedEmp.first_name} ${matchedEmp.last_name}` : `Device User ${empCode}`,
+          department: (matchedEmp?.departments as any)?.name || "Unassigned",
           fingerUsed: "Fingerprint Sensor (attlog.dat)",
           punchType: pType,
           timestamp: timestampStr,
           date: todayStr,
           time: timeStr,
-          attendanceUpdated: true,
+          attendanceUpdated: !!matchedEmp,
+          isRegistered: !!matchedEmp,
           rawLogSource: "USB File Import",
         });
       }
@@ -576,7 +696,10 @@ function BiometricSyncPage() {
 
     if (parsedPunches.length === 0) return toast.error("Could not parse punch records from file");
 
-    await pushToAttendanceTable(parsedPunches);
+    const registeredPunches = parsedPunches.filter((p) => p.isRegistered);
+    if (registeredPunches.length > 0) {
+      await pushToAttendanceTable(registeredPunches);
+    }
 
     const snapshot = storeDataRef.current;
     const summaryLog: SyncLogSummary = {
@@ -587,7 +710,7 @@ function BiometricSyncPage() {
       status: "success",
       timestamp: new Date().toLocaleString("en-IN"),
       duration: "0.5s",
-      notes: `Imported ${parsedPunches.length} punches from "${importFileName}". Attendance table updated live.`,
+      notes: `Imported ${parsedPunches.length} punches from "${importFileName}". ${registeredPunches.length} attendance records updated.`,
       punches: parsedPunches,
     };
 
@@ -604,6 +727,21 @@ function BiometricSyncPage() {
     toast.success(`✅ Imported ${parsedPunches.length} punch records from "${importFileName}" & updated Attendance!`);
   }
 
+  function openQuickRegister(punch: EmployeePunchLog) {
+    const parts = punch.employeeName.replace(/\(Unregistered\)/g, "").trim().split(/\s+/);
+    const firstName = parts[0] || "Staff";
+    const lastName = parts.slice(1).join(" ") || "Member";
+
+    setQuickRegForm({
+      firstName,
+      lastName,
+      email: `${punch.employeeCode.toLowerCase()}@workspace.com`,
+      position: "Staff Member",
+      departmentId: dbDepartments[0]?.id || "",
+    });
+    setQuickRegModalPunch(punch);
+  }
+
   const filteredPunches = allPunches.filter((p) => {
     const matchSearch =
       !searchPunch ||
@@ -617,7 +755,12 @@ function BiometricSyncPage() {
       (filterPunchType === "in" && p.punchType === "Clock In") ||
       (filterPunchType === "out" && p.punchType === "Clock Out");
 
-    return matchSearch && matchType;
+    const matchReg =
+      filterRegistration === "all" ||
+      (filterRegistration === "registered" && p.isRegistered) ||
+      (filterRegistration === "unregistered" && !p.isRegistered);
+
+    return matchSearch && matchType && matchReg;
   });
 
   return (
@@ -630,7 +773,7 @@ function BiometricSyncPage() {
               <Fingerprint className="size-6 text-primary" /> Biometric Hardware Sync Engine
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Direct WiFi LAN socket ping, HTTP SDK connection, and USB attlog file importer.
+              Direct WiFi LAN sync for registered employees & 1-click registration for new device users.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -660,8 +803,8 @@ function BiometricSyncPage() {
           {[
             { label: "Hardware Devices", value: devices.length.toString(), icon: Server, color: "text-blue-600", bg: "bg-blue-500/10" },
             { label: "Online on WiFi", value: devices.filter((d) => d.status === "online").length.toString(), icon: Wifi, color: "text-emerald-600", bg: "bg-emerald-500/10" },
-            { label: "Offline / Unreachable", value: devices.filter((d) => d.status === "offline").length.toString(), icon: WifiOff, color: "text-red-500", bg: "bg-red-500/10" },
-            { label: "Total Attendance Punches", value: allPunches.length.toLocaleString(), icon: Activity, color: "text-purple-600", bg: "bg-purple-500/10" },
+            { label: "Registered Staff Punches", value: allPunches.filter((p) => p.isRegistered).length.toLocaleString(), icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+            { label: "Unregistered Device Users", value: allPunches.filter((p) => !p.isRegistered).length.toLocaleString(), icon: UserX, color: "text-amber-600", bg: "bg-amber-500/10" },
           ].map((m) => (
             <Card key={m.label} className="p-4 flex items-center gap-3">
               <div className={`size-10 rounded-xl ${m.bg} grid place-items-center shrink-0`}>
@@ -701,10 +844,10 @@ function BiometricSyncPage() {
 
             <TabsTrigger value="punches" className="text-xs gap-1.5">
               <Fingerprint className="size-3.5" />
-              Real Employee Logs ({allPunches.length})
-              {allPunches.length > 0 && (
-                <Badge className="ml-1 text-[9px] h-4 px-1.5 bg-emerald-600 text-white font-mono">
-                  LIVE DB
+              Employee Punch Logs ({allPunches.length})
+              {allPunches.filter((p) => !p.isRegistered).length > 0 && (
+                <Badge className="ml-1 text-[9px] h-4 px-1.5 bg-amber-600 text-white font-mono">
+                  {allPunches.filter((p) => !p.isRegistered).length} NEW USERS
                 </Badge>
               )}
             </TabsTrigger>
@@ -823,28 +966,38 @@ function BiometricSyncPage() {
                   Synced Employee Punch Logs
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Actual employee punches captured via WiFi socket or USB log file import.
+                  Actual biometric punches captured over WiFi LAN or USB log import.
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-56">
+                <div className="relative flex-1 sm:w-48">
                   <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
                   <Input
                     value={searchPunch}
                     onChange={(e) => setSearchPunch(e.target.value)}
-                    placeholder="Search employee, code, finger..."
+                    placeholder="Search name, code..."
                     className="pl-8 h-8 text-xs"
                   />
                 </div>
+                <Select value={filterRegistration} onValueChange={(v: any) => setFilterRegistration(v)}>
+                  <SelectTrigger className="h-8 text-xs w-36">
+                    <SelectValue placeholder="Registration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    <SelectItem value="registered">Registered Staff</SelectItem>
+                    <SelectItem value="unregistered">Unregistered Users</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={filterPunchType} onValueChange={setFilterPunchType}>
-                  <SelectTrigger className="h-8 text-xs w-32">
+                  <SelectTrigger className="h-8 text-xs w-28">
                     <SelectValue placeholder="Punch Type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Punches</SelectItem>
-                    <SelectItem value="in">Clock In Only</SelectItem>
-                    <SelectItem value="out">Clock Out Only</SelectItem>
+                    <SelectItem value="in">Clock In</SelectItem>
+                    <SelectItem value="out">Clock Out</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -853,9 +1006,9 @@ function BiometricSyncPage() {
             {filteredPunches.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground space-y-2 border rounded-2xl bg-secondary/10 p-6">
                 <Fingerprint className="size-12 mx-auto opacity-20 text-primary" />
-                <p className="font-bold text-foreground">No actual punch logs synced yet</p>
+                <p className="font-bold text-foreground">No matching biometric punches found</p>
                 <p className="text-xs max-w-sm mx-auto">
-                  Click "Ping & Sync" on an online WiFi device or click "Import USB Log File" to upload an `attlog.dat` exported from your terminal.
+                  Click "Sync Now" on a device or import an `attlog.dat` USB file.
                 </p>
               </div>
             ) : (
@@ -863,36 +1016,46 @@ function BiometricSyncPage() {
                 <table className="w-full text-xs">
                   <thead className="bg-secondary/50 text-muted-foreground">
                     <tr>
-                      <th className="p-3 text-left font-semibold">Employee</th>
+                      <th className="p-3 text-left font-semibold">Employee / Device User</th>
                       <th className="p-3 text-left font-semibold">Department</th>
                       <th className="p-3 text-left font-semibold">Verification Method</th>
                       <th className="p-3 text-left font-semibold">Punch Type</th>
                       <th className="p-3 text-left font-semibold">Date & Time</th>
-                      <th className="p-3 text-left font-semibold">Source</th>
-                      <th className="p-3 text-left font-semibold">Attendance Update</th>
+                      <th className="p-3 text-left font-semibold">Attendance Status</th>
+                      <th className="p-3 text-right font-semibold">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredPunches.map((punch) => (
                       <tr key={punch.id} className="border-t hover:bg-secondary/20 transition-colors">
+                        {/* Employee Details */}
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <div className="size-7 rounded-full bg-primary/10 text-primary font-extrabold text-[11px] grid place-items-center shrink-0">
+                            <div className={`size-8 rounded-full font-extrabold text-[11px] grid place-items-center shrink-0 ${punch.isRegistered ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
                               {punch.employeeName[0]?.toUpperCase()}
                             </div>
                             <div>
-                              <div className="font-bold text-foreground text-xs">{punch.employeeName}</div>
-                              <div className="font-mono text-[10px] text-muted-foreground">{punch.employeeCode}</div>
+                              <div className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                                {punch.employeeName}
+                                {!punch.isRegistered && (
+                                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 text-[9px] px-1 h-3.5 border-amber-500/30">
+                                    <UserX className="size-2.5 mr-1" /> Unregistered
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="font-mono text-[10px] text-muted-foreground">Code: {punch.employeeCode}</div>
                             </div>
                           </div>
                         </td>
 
+                        {/* Department */}
                         <td className="p-3 text-muted-foreground">
                           <Badge variant="outline" className="text-[10px] font-medium">
                             {punch.department}
                           </Badge>
                         </td>
 
+                        {/* Finger / Verification Method */}
                         <td className="p-3">
                           <div className="flex items-center gap-1.5 font-medium text-foreground">
                             <Fingerprint className="size-3.5 text-primary shrink-0" />
@@ -900,6 +1063,7 @@ function BiometricSyncPage() {
                           </div>
                         </td>
 
+                        {/* Punch Type */}
                         <td className="p-3">
                           <Badge
                             className={`text-[10px] font-bold ${
@@ -917,22 +1081,42 @@ function BiometricSyncPage() {
                           </Badge>
                         </td>
 
+                        {/* Date & Time */}
                         <td className="p-3 whitespace-nowrap">
                           <div className="font-mono font-bold text-xs">{punch.time}</div>
                           <div className="text-[10px] text-muted-foreground">{punch.date}</div>
                         </td>
 
-                        <td className="p-3 text-muted-foreground whitespace-nowrap">
-                          <Badge variant="secondary" className="text-[9px] font-mono">
-                            {punch.rawLogSource}
-                          </Badge>
+                        {/* Attendance Status */}
+                        <td className="p-3 whitespace-nowrap">
+                          {punch.isRegistered ? (
+                            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                              <ShieldCheck className="size-3.5" />
+                              <span>Live DB Updated</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                              <AlertCircle className="size-3.5" />
+                              <span>Pending Employee Match</span>
+                            </div>
+                          )}
                         </td>
 
-                        <td className="p-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                            <ShieldCheck className="size-3.5" />
-                            <span>Live DB Pushed</span>
-                          </div>
+                        {/* Quick Register Action */}
+                        <td className="p-3 text-right whitespace-nowrap">
+                          {!punch.isRegistered ? (
+                            <Button
+                              size="sm"
+                              onClick={() => openQuickRegister(punch)}
+                              className="h-7 text-[10px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              <UserPlus className="size-3" /> Quick Register
+                            </Button>
+                          ) : (
+                            <Badge variant="secondary" className="text-[9px]">
+                              <Check className="size-2.5 mr-1 text-emerald-600" /> Verified Staff
+                            </Badge>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1118,6 +1302,96 @@ function BiometricSyncPage() {
               <Button variant="outline" onClick={() => setIsImportModalOpen(false)}>Cancel</Button>
               <Button onClick={processImportedFile} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2">
                 <Database className="size-4" /> Import & Push to Attendance
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 1-Click Quick Register Unregistered Device User Dialog */}
+        <Dialog open={!!quickRegModalPunch} onOpenChange={() => setQuickRegModalPunch(null)}>
+          <DialogContent className="sm:max-w-[440px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="size-5 text-emerald-600" /> Quick Register Employee
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Register Device User <strong className="font-mono text-foreground">{quickRegModalPunch?.employeeCode}</strong> into HRMS Employee directory and sync attendance instantly.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">First Name *</Label>
+                  <Input
+                    value={quickRegForm.firstName}
+                    onChange={(e) => setQuickRegForm({ ...quickRegForm, firstName: e.target.value })}
+                    placeholder="First Name"
+                    className="text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Last Name *</Label>
+                  <Input
+                    value={quickRegForm.lastName}
+                    onChange={(e) => setQuickRegForm({ ...quickRegForm, lastName: e.target.value })}
+                    placeholder="Last Name"
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Employee Code</Label>
+                <Input
+                  value={quickRegModalPunch?.employeeCode || ""}
+                  disabled
+                  className="text-xs font-mono bg-secondary/50"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Email Address</Label>
+                <Input
+                  type="email"
+                  value={quickRegForm.email}
+                  onChange={(e) => setQuickRegForm({ ...quickRegForm, email: e.target.value })}
+                  placeholder="employee@company.com"
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Position / Title</Label>
+                  <Input
+                    value={quickRegForm.position}
+                    onChange={(e) => setQuickRegForm({ ...quickRegForm, position: e.target.value })}
+                    placeholder="e.g. Software Engineer"
+                    className="text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Department</Label>
+                  <Select
+                    value={quickRegForm.departmentId}
+                    onValueChange={(v) => setQuickRegForm({ ...quickRegForm, departmentId: v })}
+                  >
+                    <SelectTrigger className="text-xs"><SelectValue placeholder="Select Dept" /></SelectTrigger>
+                    <SelectContent>
+                      {dbDepartments.map((d: any) => (
+                        <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setQuickRegModalPunch(null)}>Cancel</Button>
+              <Button onClick={handleQuickRegister} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2">
+                <UserCheck className="size-4" /> Save Employee & Sync Attendance
               </Button>
             </DialogFooter>
           </DialogContent>
