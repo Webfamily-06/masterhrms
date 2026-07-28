@@ -61,6 +61,7 @@ import { Route as AuthenticatedSuperMarketplaceRouteImport } from './routes/_aut
 import { Route as AuthenticatedSuperMediaRouteImport } from './routes/_authenticated/super/media'
 import { Route as AuthenticatedSuperNotificationsRouteImport } from './routes/_authenticated/super/notifications'
 import { Route as AuthenticatedSuperPlansRouteImport } from './routes/_authenticated/super/plans'
+import { Route as AuthenticatedSuperProfileRouteImport } from './routes/_authenticated/super/profile'
 import { Route as AuthenticatedSuperRolesRouteImport } from './routes/_authenticated/super/roles'
 import { Route as AuthenticatedSuperSettingsRouteImport } from './routes/_authenticated/super/settings'
 import { Route as AuthenticatedSuperSupportRouteImport } from './routes/_authenticated/super/support'
@@ -343,6 +344,12 @@ const AuthenticatedSuperPlansRoute = AuthenticatedSuperPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => AuthenticatedSuperRouteRoute,
 } as any)
+const AuthenticatedSuperProfileRoute =
+  AuthenticatedSuperProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const AuthenticatedSuperRolesRoute = AuthenticatedSuperRolesRouteImport.update({
   id: '/roles',
   path: '/roles',
@@ -417,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/super/media': typeof AuthenticatedSuperMediaRoute
   '/super/notifications': typeof AuthenticatedSuperNotificationsRoute
   '/super/plans': typeof AuthenticatedSuperPlansRoute
+  '/super/profile': typeof AuthenticatedSuperProfileRoute
   '/super/roles': typeof AuthenticatedSuperRolesRoute
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/super/support': typeof AuthenticatedSuperSupportRoute
@@ -472,6 +480,7 @@ export interface FileRoutesByTo {
   '/super/media': typeof AuthenticatedSuperMediaRoute
   '/super/notifications': typeof AuthenticatedSuperNotificationsRoute
   '/super/plans': typeof AuthenticatedSuperPlansRoute
+  '/super/profile': typeof AuthenticatedSuperProfileRoute
   '/super/roles': typeof AuthenticatedSuperRolesRoute
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/super/support': typeof AuthenticatedSuperSupportRoute
@@ -531,6 +540,7 @@ export interface FileRoutesById {
   '/_authenticated/super/media': typeof AuthenticatedSuperMediaRoute
   '/_authenticated/super/notifications': typeof AuthenticatedSuperNotificationsRoute
   '/_authenticated/super/plans': typeof AuthenticatedSuperPlansRoute
+  '/_authenticated/super/profile': typeof AuthenticatedSuperProfileRoute
   '/_authenticated/super/roles': typeof AuthenticatedSuperRolesRoute
   '/_authenticated/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/_authenticated/super/support': typeof AuthenticatedSuperSupportRoute
@@ -589,6 +599,7 @@ export interface FileRouteTypes {
     | '/super/media'
     | '/super/notifications'
     | '/super/plans'
+    | '/super/profile'
     | '/super/roles'
     | '/super/settings'
     | '/super/support'
@@ -644,6 +655,7 @@ export interface FileRouteTypes {
     | '/super/media'
     | '/super/notifications'
     | '/super/plans'
+    | '/super/profile'
     | '/super/roles'
     | '/super/settings'
     | '/super/support'
@@ -702,6 +714,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/media'
     | '/_authenticated/super/notifications'
     | '/_authenticated/super/plans'
+    | '/_authenticated/super/profile'
     | '/_authenticated/super/roles'
     | '/_authenticated/super/settings'
     | '/_authenticated/super/support'
@@ -1093,6 +1106,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperPlansRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/profile': {
+      id: '/_authenticated/super/profile'
+      path: '/profile'
+      fullPath: '/super/profile'
+      preLoaderRoute: typeof AuthenticatedSuperProfileRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/_authenticated/super/roles': {
       id: '/_authenticated/super/roles'
       path: '/roles'
@@ -1188,6 +1208,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperMediaRoute: typeof AuthenticatedSuperMediaRoute
   AuthenticatedSuperNotificationsRoute: typeof AuthenticatedSuperNotificationsRoute
   AuthenticatedSuperPlansRoute: typeof AuthenticatedSuperPlansRoute
+  AuthenticatedSuperProfileRoute: typeof AuthenticatedSuperProfileRoute
   AuthenticatedSuperRolesRoute: typeof AuthenticatedSuperRolesRoute
   AuthenticatedSuperSettingsRoute: typeof AuthenticatedSuperSettingsRoute
   AuthenticatedSuperSupportRoute: typeof AuthenticatedSuperSupportRoute
@@ -1210,6 +1231,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperMediaRoute: AuthenticatedSuperMediaRoute,
     AuthenticatedSuperNotificationsRoute: AuthenticatedSuperNotificationsRoute,
     AuthenticatedSuperPlansRoute: AuthenticatedSuperPlansRoute,
+    AuthenticatedSuperProfileRoute: AuthenticatedSuperProfileRoute,
     AuthenticatedSuperRolesRoute: AuthenticatedSuperRolesRoute,
     AuthenticatedSuperSettingsRoute: AuthenticatedSuperSettingsRoute,
     AuthenticatedSuperSupportRoute: AuthenticatedSuperSupportRoute,

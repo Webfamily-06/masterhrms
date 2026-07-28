@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Globe, Save, RefreshCw, Loader2, Plus, Search, CheckCircle2 } from "lucide-react";
+import { Globe, Save, RefreshCw, Loader2, Plus, Search, CheckCircle2, Languages, Sparkles, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/super/languages")({
   component: LanguageEditorAdminStudio,
+  head: () => ({ meta: [{ title: "Language Editor — Super Admin" }] }),
 });
 
 export type LanguageDictionary = {
@@ -145,6 +147,15 @@ function LanguageEditorAdminStudio() {
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
 
+  // Add New Language Modal State
+  const [isAddLangModalOpen, setIsAddLangModalOpen] = useState(false);
+  const [newLangCode, setNewLangCode] = useState("");
+  const [newLangName, setNewLangName] = useState("");
+  const [newLangFlag, setNewLangFlag] = useState("🌐");
+
+  // Sync CMS Pages Text State
+  const [isSyncingCms, setIsSyncingCms] = useState(false);
+
   // 1. REALTIME QUERY: Fetch language packs from Supabase
   const { data: langPacks, isLoading, refetch } = useQuery({
     queryKey: ["realtime-language-packs"],
@@ -166,14 +177,14 @@ function LanguageEditorAdminStudio() {
       const { error } = await supabase.from("cms_pages").upsert({
         slug: "system-language-packs",
         title: "System Language Localization Packs",
-        meta_description: "Realtime JSON language translation files",
+        meta_description: "Realtime JSON language translation packs",
         content: { languages: updatedList } as any,
         published: true,
       }, { onConflict: "slug" });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(`Language pack ${currentPack.name} (${currentPack.code}.json) saved to Supabase!`);
+      toast.success(`Language translation pack for ${currentPack.name} saved!`);
       qc.invalidateQueries({ queryKey: ["realtime-language-packs"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -193,6 +204,60 @@ function LanguageEditorAdminStudio() {
     toast.success(`Translation key "${newKey}" added`);
   }
 
+  // Create New Language Handler
+  function handleCreateLanguage() {
+    if (!newLangCode || !newLangName) return toast.error("Please fill in language code and name");
+    const code = newLangCode.toLowerCase().trim();
+
+    if (list.some((l) => l.code === code)) {
+      return toast.error("Language code already exists");
+    }
+
+    const newPack: LanguagePack = {
+      code,
+      name: newLangName.trim(),
+      flag: newLangFlag || "🌐",
+      isDefault: false,
+      strings: { ...list[0].strings },
+    };
+
+    const updated = [...list, newPack];
+    saveMutation.mutate(updated);
+    setSelectedLangCode(code);
+    setIsAddLangModalOpen(false);
+    setNewLangCode("");
+    setNewLangName("");
+    toast.success(`New Language "${newLangName}" (${code}) added and active!`);
+  }
+
+  // Sync All CMS Pages Text into Translation Keys
+  async function handleSyncAllCmsText() {
+    setIsSyncingCms(true);
+    try {
+      const { data: pages } = await supabase.from("cms_pages").select("title, slug, content");
+      if (!pages || pages.length === 0) return toast.info("No CMS pages found to sync");
+
+      let extractedCount = 0;
+      const newStrings = { ...currentPack.strings };
+
+      pages.forEach((p) => {
+        const titleKey = `cms.page.${p.slug}.title`;
+        if (!newStrings[titleKey]) {
+          newStrings[titleKey] = p.title;
+          extractedCount++;
+        }
+      });
+
+      const updatedPacks = list.map((l) => (l.code === currentPack.code ? { ...l, strings: newStrings } : l));
+      saveMutation.mutate(updatedPacks);
+      toast.success(`Synced ${extractedCount} new text keys across all CMS pages into ${currentPack.name}!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to sync CMS text");
+    } finally {
+      setIsSyncingCms(false);
+    }
+  }
+
   const entries = Object.entries(currentPack.strings).filter(([k, v]) => {
     const q = searchQuery.toLowerCase();
     return !q || k.toLowerCase().includes(q) || v.toLowerCase().includes(q);
@@ -204,35 +269,42 @@ function LanguageEditorAdminStudio() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">Language Editor</h1>
-            <Badge variant="secondary" className="gap-1 text-xs">
-              <Globe className="size-3 text-primary" /> Realtime JSON Localization
+            <h1 className="text-3xl font-bold tracking-tight">Language & Localization Editor</h1>
+            <Badge variant="secondary" className="gap-1 text-xs font-mono">
+              <Globe className="size-3 text-primary" /> Realtime Translations
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Customize heading texts, labels, and menu items across Super Admin & Tenant panels.
+            Add new languages, sync texts across all CMS pages, and customize headings and menu items.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
-            <RefreshCw className="size-4" /> Refresh
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleSyncAllCmsText} disabled={isSyncingCms} className="gap-1.5 text-xs">
+            {isSyncingCms ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-primary" />}
+            Sync All Pages Text
           </Button>
+
+          <Button variant="secondary" size="sm" onClick={() => setIsAddLangModalOpen(true)} className="gap-1.5 text-xs">
+            <Languages className="size-3.5" /> + Add New Language
+          </Button>
+
           <Select value={selectedLangCode} onValueChange={setSelectedLangCode}>
-            <SelectTrigger className="h-9 w-[180px] text-xs">
+            <SelectTrigger className="h-9 w-[180px] text-xs font-semibold">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {list.map((l) => (
-                <SelectItem key={l.code} value={l.code} className="text-xs">
-                  <span className="mr-2">{l.flag}</span> {l.name} ({l.code}.json)
+                <SelectItem key={l.code} value={l.code} className="text-xs font-semibold">
+                  <span className="mr-2">{l.flag}</span> {l.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => saveMutation.mutate(list)} disabled={saveMutation.isPending} className="gap-2">
+
+          <Button onClick={() => saveMutation.mutate(list)} disabled={saveMutation.isPending} className="gap-2 bg-primary font-bold">
             {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            Save Language JSON
+            Save Translations
           </Button>
         </div>
       </div>
@@ -266,15 +338,15 @@ function LanguageEditorAdminStudio() {
                 />
               </div>
 
-              <Button onClick={handleAddStringKey} className="sm:mt-5 gap-1.5 h-9 shrink-0 text-xs">
-                <Plus className="size-3.5" /> Add Translation
+              <Button onClick={handleAddStringKey} className="sm:mt-5 gap-1.5 h-9 shrink-0 text-xs font-bold">
+                <Plus className="size-3.5" /> Add Key
               </Button>
             </div>
           </Card>
 
           {/* Translation Dictionary Table */}
           <Card className="p-4 border shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="relative max-w-md w-full">
                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
                 <Input
@@ -285,8 +357,8 @@ function LanguageEditorAdminStudio() {
                 />
               </div>
 
-              <Badge variant="outline" className="font-mono text-xs">
-                File: {currentPack.code}.json ({entries.length} keys)
+              <Badge variant="outline" className="font-mono text-xs self-start sm:self-auto">
+                {currentPack.flag} {currentPack.name} ({entries.length} Active Keys)
               </Badge>
             </div>
 
@@ -317,6 +389,59 @@ function LanguageEditorAdminStudio() {
           </Card>
         </div>
       )}
+
+      {/* ADD NEW LANGUAGE MODAL */}
+      <Dialog open={isAddLangModalOpen} onOpenChange={setIsAddLangModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Languages className="size-5 text-primary" /> Add New Language Translation Pack
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Add a new language pack to the topbar language switcher.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Language Code *</Label>
+                <Input
+                  placeholder="e.g. ja, pt, it, ru"
+                  value={newLangCode}
+                  onChange={(e) => setNewLangCode(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Flag Emoji</Label>
+                <Input
+                  placeholder="e.g. 🇯🇵, 🇵🇹, 🇮🇹"
+                  value={newLangFlag}
+                  onChange={(e) => setNewLangFlag(e.target.value)}
+                  className="text-xs text-center"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Language Name *</Label>
+              <Input
+                placeholder="e.g. Japanese (日本語), Português"
+                value={newLangName}
+                onChange={(e) => setNewLangName(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddLangModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateLanguage} className="bg-primary font-bold">Add Language</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

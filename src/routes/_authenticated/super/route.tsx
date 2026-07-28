@@ -402,15 +402,12 @@ function SuperShell() {
             <div className="flex items-center gap-1.5 p-1 px-2 rounded-lg border bg-secondary/30 shadow-xs">
               <Globe className="size-3.5 text-primary shrink-0" />
               <Select value={selectedLang} onValueChange={handleLangChange}>
-                <SelectTrigger className="h-6 text-xs border-0 bg-transparent shadow-none p-0 focus:ring-0 w-[80px] sm:w-[110px]">
-                  <div className="flex items-center gap-1 truncate">
-                    <span>{currentLang.flag}</span>
-                    <SelectValue />
-                  </div>
+                <SelectTrigger className="h-6 text-xs border-0 bg-transparent shadow-none p-0 focus:ring-0 w-[90px] sm:w-[125px]">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map((l) => (
-                    <SelectItem key={l.code} value={l.code} className="text-xs">
+                    <SelectItem key={l.code} value={l.code} className="text-xs font-semibold">
                       <span className="mr-2">{l.flag}</span> {l.label}
                     </SelectItem>
                   ))}
@@ -444,6 +441,9 @@ function SuperShell() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate({ to: "/super/profile" })} className="text-xs cursor-pointer">
+                  <User className="mr-2 size-4 text-primary" /> Profile Management
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate({ to: "/super/settings" })} className="text-xs cursor-pointer">
                   <Settings className="mr-2 size-4" /> System Settings
                 </DropdownMenuItem>
