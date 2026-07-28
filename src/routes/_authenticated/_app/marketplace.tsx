@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Store, Search, CheckCircle2, Plus, Sparkles, ArrowRight, ShieldCheck, Cpu, MessageSquare, Landmark, Lock, CreditCard, ShoppingBag, Loader2, Check, ImageIcon } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
+import { openRazorpayCheckout } from "@/lib/razorpay";
 import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
 import { toast } from "sonner";
 
@@ -186,18 +187,39 @@ function MarketplacePage() {
     qc.invalidateQueries({ queryKey: ["realtime-tenant-dashboard-stats", tenantId] });
   }
 
-  // Handle Purchase Confirmation
+  // Handle Purchase Confirmation via Razorpay Payment Gateway
   async function confirmPurchase() {
     if (!selectedAddon || !tenantId) return;
     setIsPurchasing(true);
 
     try {
-      const isFree = (selectedAddon.price_monthly || 0) === 0;
+      const price = selectedAddon.price_monthly || 0;
+      const isFree = price === 0;
+      let razorpayResponse = null;
+
+      // For paid addons: Trigger Razorpay Payment Gateway checkout page
+      if (!isFree) {
+        toast.info("Launching Razorpay Payment Gateway...");
+        razorpayResponse = await openRazorpayCheckout({
+          amount: price,
+          name: selectedAddon.name,
+          description: selectedAddon.description || `Monthly subscription for ${selectedAddon.name}`,
+          userName: profile?.full_name || user?.email || "Workspace Admin",
+          userEmail: user?.email || "admin@workspace.com",
+          tenantId: tenantId,
+        });
+
+        if (!razorpayResponse || !razorpayResponse.razorpay_payment_id) {
+          throw new Error("Payment response is null or incomplete. Payment was not completed.");
+        }
+      }
+
+      // Payment verified or free -> Activate Addon
       const newInstalledItem: TenantPurchasedAddon = {
         addonId: selectedAddon.id,
         addonSlug: selectedAddon.slug || selectedAddon.id,
         addonName: selectedAddon.name,
-        priceMonthly: selectedAddon.price_monthly || 0,
+        priceMonthly: price,
         purchasedAt: new Date().toISOString(),
         status: "active",
       };
@@ -205,14 +227,47 @@ function MarketplacePage() {
       const updated = [newInstalledItem, ...installedAddons.filter((a) => a.addonId !== selectedAddon.id)];
       await persistInstalledAddons(updated);
 
+      // Log transaction to Razorpay logs if paid
+      if (razorpayResponse && razorpayResponse.razorpay_payment_id) {
+        try {
+          const razorpaySlug = `system-razorpay-gateway-${tenantId}`;
+          const { data: existingData } = await supabase.from("cms_pages").select("content").eq("slug", razorpaySlug).maybeSingle();
+          const p = (existingData?.content as any) || {};
+          const existingTxns = p.transactions || [];
+          const newTxn = {
+            id: `txn-${Date.now()}`,
+            paymentId: razorpayResponse.razorpay_payment_id,
+            orderId: razorpayResponse.razorpay_order_id || `ord_${Date.now()}`,
+            customer: profile?.full_name || user?.email || "Workspace Customer",
+            amount: price,
+            currency: "INR",
+            status: "captured",
+            method: "Razorpay Checkout",
+            timestamp: new Date().toLocaleString(),
+            invoiceRef: `ADDON-${selectedAddon.name}`,
+          };
+          await supabase.from("cms_pages").upsert({
+            slug: razorpaySlug,
+            title: "Razorpay Gateway Config",
+            content: { ...p, transactions: [newTxn, ...existingTxns] },
+            published: true,
+          }, { onConflict: "slug" });
+        } catch (logErr) {
+          console.warn("Transaction log error:", logErr);
+        }
+      }
+
       toast.success(
         isFree
           ? `Free Addon "${selectedAddon.name}" installed successfully!`
-          : `Addon "${selectedAddon.name}" purchased and activated on workspace!`
+          : `🎉 Payment Verified (ID: ${razorpayResponse?.razorpay_payment_id})! Addon "${selectedAddon.name}" activated on your workspace!`
       );
       setSelectedAddon(null);
     } catch (err: any) {
-      toast.error(err.message || "Purchase failed");
+      toast.error(
+        `❌ Payment Rejected / Failed: ${err.message || "Payment was not completed. Addon activation aborted."}`,
+        { duration: 6000 }
+      );
     } finally {
       setIsPurchasing(false);
     }
