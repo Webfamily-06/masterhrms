@@ -24,8 +24,8 @@ import {
   CheckCircle2,
   Building2,
   TrendingUp,
-  Sparkles,
-  Award,
+  FolderPlus,
+  Tag,
 } from "lucide-react";
 import type { CmsPage } from "@/routes/_authenticated/super/cms";
 
@@ -34,8 +34,7 @@ export const Route = createFileRoute("/_authenticated/super/case-studies")({
   head: () => ({ meta: [{ title: "Case Studies & ROI Manager — Super Admin" }] }),
 });
 
-const INDUSTRIES = [
-  "All Industries",
+const DEFAULT_INDUSTRIES = [
   "Manufacturing & Plant Ops",
   "Healthcare & Hospital Systems",
   "Retail & Multi-Location E-Com",
@@ -49,6 +48,10 @@ function DedicatedCaseStudiesManager() {
   const [search, setSearch] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("All Industries");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Category / Industry Dialog State
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatInput, setNewCatInput] = useState("");
 
   // Dialog States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -67,7 +70,19 @@ function DedicatedCaseStudiesManager() {
     published: true,
   });
 
-  // 1. REALTIME QUERY: Fetch all Case Studies (slug starts with "case-study-") from Supabase cms_pages
+  // 1. REALTIME QUERY: Fetch case study industries/categories from Supabase cms_pages
+  const { data: industriesList = DEFAULT_INDUSTRIES } = useQuery({
+    queryKey: ["realtime-case-study-categories"],
+    queryFn: async () => {
+      const { data } = await supabase.from("cms_pages").select("content").eq("slug", "system-case-study-categories").maybeSingle();
+      if (data?.content && typeof data.content === "object" && "categories" in data.content) {
+        return ((data.content as any).categories ?? DEFAULT_INDUSTRIES) as string[];
+      }
+      return DEFAULT_INDUSTRIES;
+    },
+  });
+
+  // 2. REALTIME QUERY: Fetch all Case Studies (slug starts with "case-study-") from Supabase cms_pages
   const { data: caseStudies = [], isLoading } = useQuery({
     queryKey: ["super-dedicated-case-studies"],
     queryFn: async () => {
@@ -81,6 +96,46 @@ function DedicatedCaseStudiesManager() {
       return (data as CmsPage[]) || [];
     },
   });
+
+  // Save Case Study Categories Mutation
+  async function persistCategories(updated: string[]) {
+    const { error } = await supabase.from("cms_pages").upsert({
+      slug: "system-case-study-categories",
+      title: "System Case Study Categories",
+      content: { categories: updated } as any,
+      published: true,
+    }, { onConflict: "slug" });
+    if (error) throw error;
+    qc.invalidateQueries({ queryKey: ["realtime-case-study-categories"] });
+  }
+
+  // Create Category Handler
+  async function handleAddCategory() {
+    if (!newCatInput.trim()) return toast.error("Category name required");
+    const cat = newCatInput.trim();
+    if (industriesList.includes(cat)) return toast.error("Category already exists");
+
+    try {
+      await persistCategories([...industriesList, cat]);
+      toast.success(`Category/Industry "${cat}" created in real-time!`);
+      setNewCatInput("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create category");
+    }
+  }
+
+  // Delete Category Handler
+  async function handleDeleteCategory(catToDelete: string) {
+    if (!confirm(`Delete category "${catToDelete}"?`)) return;
+    try {
+      const updated = industriesList.filter((c) => c !== catToDelete);
+      await persistCategories(updated);
+      if (selectedIndustry === catToDelete) setSelectedIndustry("All Industries");
+      toast.success(`Category "${catToDelete}" deleted`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete category");
+    }
+  }
 
   // Filter Case Studies by Search & Industry
   const filteredCaseStudies = useMemo(() => {
@@ -118,7 +173,7 @@ function DedicatedCaseStudiesManager() {
       title: "",
       slug: "",
       clientCompany: "",
-      industry: "Manufacturing & Plant Ops",
+      industry: industriesList[0] || "Manufacturing & Plant Ops",
       roiResult: "Cut operational costs by 45%",
       coverImage: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80",
       excerpt: "",
@@ -135,7 +190,7 @@ function DedicatedCaseStudiesManager() {
       title: cs.title,
       slug: cs.slug.replace(/^case-study-/, ""),
       clientCompany: cs.content?.clientCompany || cs.title.split(" ")[0] || "Client Company",
-      industry: cs.content?.industry || "Manufacturing & Plant Ops",
+      industry: cs.content?.industry || industriesList[0] || "Manufacturing & Plant Ops",
       roiResult: cs.content?.roiResult || cs.meta_description || "Cut operational costs by 45%",
       coverImage: cs.content?.coverImage || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80",
       excerpt: cs.meta_description || cs.content?.hero?.subtitle || "",
@@ -145,7 +200,7 @@ function DedicatedCaseStudiesManager() {
     setIsCreateOpen(true);
   }
 
-  // 2. Save Case Study Mutation (Create / Update)
+  // Save Case Study Mutation (Create / Update)
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!form.title.trim() || !form.clientCompany.trim()) {
@@ -230,13 +285,19 @@ function DedicatedCaseStudiesManager() {
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Create customer success stories, upload plant/office thumbnails, record ROI metrics, and showcase transformation stories.
+            Create customer success stories, manage industry categories, upload thumbnails, and publish ROI metrics.
           </p>
         </div>
 
-        <Button size="sm" onClick={handleOpenCreate} className="gap-2 bg-primary font-bold">
-          <Plus className="size-4" /> Create New Case Study
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setIsCategoryModalOpen(true)} className="gap-1.5 text-xs">
+            <FolderPlus className="size-4 text-primary" /> Manage Categories
+          </Button>
+
+          <Button size="sm" onClick={handleOpenCreate} className="gap-2 bg-primary font-bold">
+            <Plus className="size-4" /> Create New Case Study
+          </Button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -253,11 +314,12 @@ function DedicatedCaseStudiesManager() {
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
           <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
-            <SelectTrigger className="h-9 text-xs w-[210px]">
+            <SelectTrigger className="h-9 text-xs w-[220px]">
               <SelectValue placeholder="Industry filter" />
             </SelectTrigger>
             <SelectContent>
-              {INDUSTRIES.map((ind) => (
+              <SelectItem value="All Industries" className="text-xs">All Industries</SelectItem>
+              {industriesList.map((ind) => (
                 <SelectItem key={ind} value={ind} className="text-xs">
                   {ind}
                 </SelectItem>
@@ -381,7 +443,7 @@ function DedicatedCaseStudiesManager() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {INDUSTRIES.filter((i) => i !== "All Industries").map((ind) => (
+                    {industriesList.map((ind) => (
                       <SelectItem key={ind} value={ind} className="text-xs">
                         {ind}
                       </SelectItem>
@@ -488,6 +550,52 @@ function DedicatedCaseStudiesManager() {
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
               {editingCaseStudy ? "Save Changes" : "Publish Case Study"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MANAGE CASE STUDY CATEGORIES / INDUSTRIES MODAL */}
+      <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="size-5 text-primary" /> Manage Industry Sectors & Categories
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Create new categories or delete existing categories for customer case studies.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Create Category Input */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="New Industry Name (e.g. Automotive & EV)"
+                value={newCatInput}
+                onChange={(e) => setNewCatInput(e.target.value)}
+                className="text-xs flex-1"
+              />
+              <Button onClick={handleAddCategory} className="bg-primary font-bold text-xs shrink-0 gap-1">
+                <Plus className="size-3.5" /> Add Sector
+              </Button>
+            </div>
+
+            {/* Existing Categories List */}
+            <div className="space-y-1.5 border rounded-xl p-3 bg-secondary/20 max-h-56 overflow-y-auto">
+              <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Active Industry Sectors ({industriesList.length})</div>
+              {industriesList.map((cat) => (
+                <div key={cat} className="flex items-center justify-between p-2 rounded-lg border bg-card text-xs">
+                  <span className="font-semibold">{cat}</span>
+                  <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => handleDeleteCategory(cat)} title="Delete Industry Sector">
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setIsCategoryModalOpen(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

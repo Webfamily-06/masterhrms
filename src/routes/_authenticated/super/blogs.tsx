@@ -27,6 +27,8 @@ import {
   User,
   Tag,
   ExternalLink,
+  FolderPlus,
+  Settings,
 } from "lucide-react";
 import type { CmsPage } from "@/routes/_authenticated/super/cms";
 
@@ -35,8 +37,7 @@ export const Route = createFileRoute("/_authenticated/super/blogs")({
   head: () => ({ meta: [{ title: "Blogs & Articles Manager — Super Admin" }] }),
 });
 
-const BLOG_CATEGORIES = [
-  "All Categories",
+const DEFAULT_BLOG_CATEGORIES = [
   "ERP Systems",
   "Global Payroll & Tax",
   "Workforce AI",
@@ -50,6 +51,10 @@ function DedicatedBlogsManager() {
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("All Categories");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Category Dialog State
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatInput, setNewCatInput] = useState("");
 
   // Dialog States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -67,8 +72,20 @@ function DedicatedBlogsManager() {
     published: true,
   });
 
-  // 1. REALTIME QUERY: Fetch all Blogs (slug starts with "blog-") from Supabase cms_pages
-  const { data: blogs = [], isLoading, refetch } = useQuery({
+  // 1. REALTIME QUERY: Fetch blog categories from Supabase cms_pages
+  const { data: blogCategories = DEFAULT_BLOG_CATEGORIES } = useQuery({
+    queryKey: ["realtime-blog-categories"],
+    queryFn: async () => {
+      const { data } = await supabase.from("cms_pages").select("content").eq("slug", "system-blog-categories").maybeSingle();
+      if (data?.content && typeof data.content === "object" && "categories" in data.content) {
+        return ((data.content as any).categories ?? DEFAULT_BLOG_CATEGORIES) as string[];
+      }
+      return DEFAULT_BLOG_CATEGORIES;
+    },
+  });
+
+  // 2. REALTIME QUERY: Fetch all Blogs (slug starts with "blog-") from Supabase cms_pages
+  const { data: blogs = [], isLoading } = useQuery({
     queryKey: ["super-dedicated-blogs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -81,6 +98,46 @@ function DedicatedBlogsManager() {
       return (data as CmsPage[]) || [];
     },
   });
+
+  // Save Blog Categories Mutation
+  async function persistCategories(updated: string[]) {
+    const { error } = await supabase.from("cms_pages").upsert({
+      slug: "system-blog-categories",
+      title: "System Blog Categories",
+      content: { categories: updated } as any,
+      published: true,
+    }, { onConflict: "slug" });
+    if (error) throw error;
+    qc.invalidateQueries({ queryKey: ["realtime-blog-categories"] });
+  }
+
+  // Create Category Handler
+  async function handleAddCategory() {
+    if (!newCatInput.trim()) return toast.error("Category name required");
+    const cat = newCatInput.trim();
+    if (blogCategories.includes(cat)) return toast.error("Category already exists");
+
+    try {
+      await persistCategories([...blogCategories, cat]);
+      toast.success(`Category "${cat}" created in real-time!`);
+      setNewCatInput("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create category");
+    }
+  }
+
+  // Delete Category Handler
+  async function handleDeleteCategory(catToDelete: string) {
+    if (!confirm(`Delete category "${catToDelete}"?`)) return;
+    try {
+      const updated = blogCategories.filter((c) => c !== catToDelete);
+      await persistCategories(updated);
+      if (selectedCat === catToDelete) setSelectedCat("All Categories");
+      toast.success(`Category "${catToDelete}" deleted`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete category");
+    }
+  }
 
   // Filter Blogs by Search & Category
   const filteredBlogs = useMemo(() => {
@@ -116,7 +173,7 @@ function DedicatedBlogsManager() {
     setForm({
       title: "",
       slug: "",
-      category: "ERP Systems",
+      category: blogCategories[0] || "ERP Systems",
       author: "Master ERP Editorial Team",
       coverImage: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
       excerpt: "",
@@ -132,7 +189,7 @@ function DedicatedBlogsManager() {
     setForm({
       title: blog.title,
       slug: blog.slug.replace(/^blog-/, ""),
-      category: blog.content?.category || "ERP Systems",
+      category: blog.content?.category || blogCategories[0] || "ERP Systems",
       author: blog.content?.author || "Master ERP Editorial Team",
       coverImage: blog.content?.coverImage || "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
       excerpt: blog.meta_description || blog.content?.hero?.subtitle || "",
@@ -142,7 +199,7 @@ function DedicatedBlogsManager() {
     setIsCreateOpen(true);
   }
 
-  // 2. Save Blog Mutation (Create / Update)
+  // Save Blog Mutation (Create / Update)
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!form.title.trim()) throw new Error("Blog title is required");
@@ -223,13 +280,19 @@ function DedicatedBlogsManager() {
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Create, edit, and publish enterprise blog articles, upload thumbnails, and manage public CMS news.
+            Create blog articles, manage custom blog categories, upload thumbnails, and publish to CMS.
           </p>
         </div>
 
-        <Button size="sm" onClick={handleOpenCreate} className="gap-2 bg-primary font-bold">
-          <Plus className="size-4" /> Create New Blog Article
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setIsCategoryModalOpen(true)} className="gap-1.5 text-xs">
+            <FolderPlus className="size-4 text-primary" /> Manage Categories
+          </Button>
+
+          <Button size="sm" onClick={handleOpenCreate} className="gap-2 bg-primary font-bold">
+            <Plus className="size-4" /> Create New Blog Article
+          </Button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -246,11 +309,12 @@ function DedicatedBlogsManager() {
 
         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
           <Select value={selectedCat} onValueChange={setSelectedCat}>
-            <SelectTrigger className="h-9 text-xs w-[180px]">
+            <SelectTrigger className="h-9 text-xs w-[200px]">
               <SelectValue placeholder="Category filter" />
             </SelectTrigger>
             <SelectContent>
-              {BLOG_CATEGORIES.map((c) => (
+              <SelectItem value="All Categories" className="text-xs">All Categories</SelectItem>
+              {blogCategories.map((c) => (
                 <SelectItem key={c} value={c} className="text-xs">
                   {c}
                 </SelectItem>
@@ -387,7 +451,7 @@ function DedicatedBlogsManager() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {BLOG_CATEGORIES.filter((c) => c !== "All Categories").map((c) => (
+                    {blogCategories.map((c) => (
                       <SelectItem key={c} value={c} className="text-xs">
                         {c}
                       </SelectItem>
@@ -479,6 +543,52 @@ function DedicatedBlogsManager() {
               {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
               {editingBlog ? "Save Changes" : "Publish Blog"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MANAGE BLOG CATEGORIES MODAL (CREATE & DELETE CATEGORY) */}
+      <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="size-5 text-primary" /> Manage Blog Categories
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Create new categories or delete existing categories for blog articles.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Create Category Input */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="New Category Name (e.g. AI & Automation)"
+                value={newCatInput}
+                onChange={(e) => setNewCatInput(e.target.value)}
+                className="text-xs flex-1"
+              />
+              <Button onClick={handleAddCategory} className="bg-primary font-bold text-xs shrink-0 gap-1">
+                <Plus className="size-3.5" /> Add Category
+              </Button>
+            </div>
+
+            {/* Existing Categories List */}
+            <div className="space-y-1.5 border rounded-xl p-3 bg-secondary/20 max-h-56 overflow-y-auto">
+              <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Active Categories ({blogCategories.length})</div>
+              {blogCategories.map((cat) => (
+                <div key={cat} className="flex items-center justify-between p-2 rounded-lg border bg-card text-xs">
+                  <span className="font-semibold">{cat}</span>
+                  <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => handleDeleteCategory(cat)} title="Delete Category">
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setIsCategoryModalOpen(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
