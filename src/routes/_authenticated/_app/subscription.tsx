@@ -1,51 +1,94 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSession, useCurrentProfile } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Sparkles, CheckCircle2, Zap, ArrowRight, ShieldCheck, HelpCircle } from "lucide-react";
+import { CreditCard, Sparkles, CheckCircle2, Zap, ArrowRight, ShieldCheck, HelpCircle, Store, Boxes, Loader2 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
 import { PlanLimitBar } from "@/components/plan-guard";
 import { toast } from "sonner";
+import type { SubscriptionPlan } from "@/routes/_authenticated/super/plans";
 
 export const Route = createFileRoute("/_authenticated/_app/subscription")({
   component: SubscriptionPage,
   head: () => ({ meta: [{ title: "Subscription & Billing — Master ERP" }] }),
 });
 
-const PLANS = [
+const DEFAULT_PLANS = [
   {
-    id: "starter",
+    id: "p1",
     name: "Starter Plan",
-    priceMonthly: 1999,
-    desc: "For small teams starting with POS, HRM, Products & Basic Invoicing.",
-    limits: { employees: 25, invoices: 100, storage: "10 GB", pos: "Included", crm: "Locked" },
-    perks: ["Up to 25 Employees", "POS Terminal Addon Included", "Standard Invoices", "Community Support"],
+    price_monthly: 1999,
+    max_employees: 25,
+    features: ["Core HR", "Attendance", "Standard Support"],
+    included_addon_ids: [],
   },
   {
-    id: "growth",
+    id: "p2",
     name: "Growth Plan",
-    priceMonthly: 4999,
-    isPopular: true,
-    desc: "Full Financial Ledgers, Accountant, CRM Pipelines & Projects.",
-    limits: { employees: 100, invoices: 1000, storage: "50 GB", pos: "Included", crm: "Included" },
-    perks: ["Up to 100 Employees", "General Ledger Accounting", "CRM Sales Pipeline", "Team Internal Chat", "Priority Support"],
+    price_monthly: 4999,
+    popular: true,
+    max_employees: 100,
+    features: ["Core HR", "Payroll", "Leave", "5 Addons"],
+    included_addon_ids: [],
   },
   {
-    id: "enterprise",
-    name: "Enterprise Multi-Entity",
-    priceMonthly: 12999,
-    desc: "Unlimited multi-tenant workspaces, 500+ addons, custom SLA & AI OCR.",
-    limits: { employees: 999999, invoices: 999999, storage: "1 TB", pos: "Included", crm: "Included" },
-    perks: ["Unlimited Employees & Data", "Multi-Tenant Isolation", "500+ Marketplace Addons", "Dedicated Account Manager", "SOC-2 & ISO Compliance"],
+    id: "p3",
+    name: "Enterprise Plan",
+    price_monthly: 12999,
+    max_employees: 9999,
+    features: ["All Modules", "Unlimited Addons", "Dedicated Success"],
+    included_addon_ids: [],
   },
 ];
 
 function SubscriptionPage() {
-  const [currentPlanId, setCurrentPlanId] = useState("growth");
+  const qc = useQueryClient();
+  const { user } = useSession();
+  const { data: profile } = useCurrentProfile(user);
+  const tenantId = profile?.tenant_id;
+
+  const [currentPlanId, setCurrentPlanId] = useState("p2");
   const [isUpgrading, setIsUpgrading] = useState(false);
+
+  // 1. REALTIME QUERY: Fetch Super-Admin Configured Subscription Plans
+  const { data: plansData = DEFAULT_PLANS } = useQuery({
+    queryKey: ["public-plans-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("cms_pages").select("content").eq("slug", "system-monetization-plans").maybeSingle();
+      if (data?.content && typeof data.content === "object" && "plans" in data.content) {
+        return (data.content as any).plans as SubscriptionPlan[];
+      }
+      return DEFAULT_PLANS as any[];
+    },
+  });
+
+  // 2. REALTIME QUERY: Fetch Super-Admin Available Addons
+  const { data: availableAddons = [] } = useQuery({
+    queryKey: ["realtime-super-addons-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("addons").select("id, name, category, price_monthly");
+      return data || [];
+    },
+  });
+
+  // 3. REALTIME QUERY: Fetch Tenant's Purchased / Activated Addons
+  const purchasedSlugKey = `tenant-${tenantId || "default"}-purchased-addons`;
+  const { data: purchasedAddonIds = [] } = useQuery({
+    queryKey: ["realtime-purchased-addons", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data } = await supabase.from("cms_pages").select("content").eq("slug", purchasedSlugKey).maybeSingle();
+      if (data?.content && typeof data.content === "object" && "addon_ids" in data.content) {
+        return ((data.content as any).addon_ids ?? []) as string[];
+      }
+      return [];
+    },
+    enabled: !!tenantId,
+  });
 
   const { data: sysConfig } = useQuery({
     queryKey: ["realtime-platform-settings"],
@@ -55,31 +98,58 @@ function SubscriptionPage() {
     },
   });
 
-  function upgrade(planId: string) {
-    if (planId === currentPlanId) return toast.info("You are currently on this plan!");
+  // Upgrade Plan Handler: Automatically Activates Bundled Default Addons for this Plan!
+  async function upgrade(plan: SubscriptionPlan) {
+    if (plan.id === currentPlanId) return toast.info(`You are currently on "${plan.name}"!`);
+    if (!tenantId) return toast.error("Workspace tenant session missing");
+
     setIsUpgrading(true);
-    setTimeout(() => {
-      setCurrentPlanId(planId);
+    try {
+      setCurrentPlanId(plan.id);
+
+      // Auto-Activate Default Addons bundled with this plan
+      const bundledAddonIds = plan.included_addon_ids || [];
+      const mergedAddons = Array.from(new Set([...purchasedAddonIds, ...bundledAddonIds]));
+
+      await supabase.from("cms_pages").upsert({
+        slug: purchasedSlugKey,
+        title: `Purchased Addons ${tenantId}`,
+        content: { addon_ids: mergedAddons } as any,
+        published: true,
+      }, { onConflict: "slug" });
+
+      qc.invalidateQueries({ queryKey: ["realtime-purchased-addons", tenantId] });
+
+      const addonNames = availableAddons
+        .filter((a) => bundledAddonIds.includes(a.id))
+        .map((a) => a.name);
+
+      if (addonNames.length > 0) {
+        toast.success(`Plan Upgraded to "${plan.name}"! Default activated addons (${addonNames.join(", ")}) are now active for your workspace!`);
+      } else {
+        toast.success(`Plan Upgraded to "${plan.name}"! Full features unlocked.`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Upgrade failed");
+    } finally {
       setIsUpgrading(false);
-      const planObj = PLANS.find((p) => p.id === planId);
-      toast.success(`Plan Upgraded to "${planObj?.name}"! Full features unlocked.`);
-    }, 1200);
+    }
   }
 
-  const activePlan = PLANS.find((p) => p.id === currentPlanId) || PLANS[1];
+  const activePlan = plansData.find((p) => p.id === currentPlanId) || plansData[0] || DEFAULT_PLANS[0];
 
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
             <CreditCard className="size-6 text-primary" /> Subscription & Upgrade Console
           </h1>
-          <p className="text-xs text-muted-foreground">Manage your workspace tier, billing limits, capacity meters & 1-click plan upgrades.</p>
+          <p className="text-xs text-muted-foreground">Manage your workspace tier, bundled default activated addons & resource limits.</p>
         </div>
         <Badge variant="outline" className="font-mono text-xs px-3 py-1 bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-          ● Current Active Plan: {activePlan.name.toUpperCase()}
+          ● Active Plan: {(activePlan.name || "Growth").toUpperCase()}
         </Badge>
       </div>
 
@@ -87,71 +157,114 @@ function SubscriptionPage() {
       <Card className="shadow-sm border-primary/20">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center justify-between">
-            <span>Workspace Plan Capacity & Usage Meters</span>
-            <span className="text-xs font-mono text-muted-foreground">Tenant Billing ID: TNT-84920</span>
+            <span>Workspace Plan Capacity & Resource Meters</span>
+            <span className="text-xs font-mono text-muted-foreground">Tenant Workspace ID: TNT-{tenantId?.slice(0, 6) || "84920"}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-3 gap-4">
-          <PlanLimitBar used={4} limit={activePlan.limits.employees} label="Employee Seats" />
-          <PlanLimitBar used={18} limit={activePlan.limits.invoices} label="Monthly Sales Invoices" />
-          <PlanLimitBar used={2} limit={10} label="Storage (GB)" />
+          <PlanLimitBar used={4} limit={activePlan.max_employees || 100} label="Employee Seats" />
+          <PlanLimitBar used={18} limit={1000} label="Monthly Sales Invoices" />
+          <PlanLimitBar used={2} limit={50} label="Storage (GB)" />
         </CardContent>
       </Card>
 
       {/* Plans Pricing Grid */}
       <div className="space-y-4">
         <div className="text-center space-y-1">
-          <h2 className="text-2xl font-black tracking-tight">Select Workspace Plan</h2>
-          <p className="text-xs text-muted-foreground">Instantly unlock higher resource limits, advanced ERP modules & priority support.</p>
+          <h2 className="text-2xl font-black tracking-tight">Choose Your Workspace Plan</h2>
+          <p className="text-xs text-muted-foreground">Select a plan configured by Super-Admin to automatically activate bundled default addons.</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 pt-2">
-          {PLANS.map((p) => {
+          {plansData.map((p) => {
             const isCurrent = p.id === currentPlanId;
+            const bundledAddonIds = p.included_addon_ids || [];
+            const bundledAddons = availableAddons.filter((a) => bundledAddonIds.includes(a.id));
+
             return (
               <Card
                 key={p.id}
                 className={`relative flex flex-col justify-between transition-all hover:shadow-xl ${
-                  p.isPopular ? "border-primary shadow-md scale-[1.02]" : ""
+                  p.popular ? "border-primary shadow-md scale-[1.02]" : ""
                 } ${isCurrent ? "bg-primary/5 border-emerald-500" : ""}`}
               >
-                {p.isPopular && (
+                {p.popular && (
                   <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white font-mono text-[10px]">
-                    ★ MOST POPULAR ENTERPRISE CHOICE
+                    ★ RECOMMENDED ENTERPRISE TIER
                   </Badge>
                 )}
 
-                <CardHeader className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-bold">{p.name}</CardTitle>
-                    {isCurrent && <Badge variant="default">Active Plan</Badge>}
+                <CardHeader className="pt-6">
+                  <CardTitle className="text-xl font-bold flex items-center justify-between">
+                    <span>{p.name}</span>
+                    {isCurrent && (
+                      <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                        Current Plan
+                      </Badge>
+                    )}
+                  </CardTitle>
+
+                  <div className="mt-4">
+                    <span className="text-3xl font-black font-mono">
+                      {formatSystemAmount(p.price_monthly, sysConfig)}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-normal"> / month</span>
                   </div>
-                  <CardDescription className="text-xs min-h-10 leading-relaxed">{p.desc}</CardDescription>
-                  <div className="pt-2">
-                    <span className="font-mono text-3xl font-black text-primary">{formatSystemAmount(p.priceMonthly, sysConfig)}</span>
-                    <span className="text-xs text-muted-foreground font-mono"> / month</span>
-                  </div>
+
+                  <p className="text-xs text-muted-foreground mt-2 font-mono">
+                    Includes up to {p.max_employees} employee roster seats.
+                  </p>
                 </CardHeader>
 
-                <CardContent className="space-y-3 text-xs border-t pt-4">
-                  <p className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">What's Included:</p>
-                  {p.perks.map((perk) => (
-                    <div key={perk} className="flex items-center gap-2">
-                      <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-                      <span>{perk}</span>
+                <CardContent className="space-y-4 pt-0 text-xs">
+                  {/* Standard Perks */}
+                  <div className="space-y-2 border-t pt-3">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Plan Features</div>
+                    {p.features?.map((perk: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <CheckCircle2 className="size-3.5 text-primary shrink-0" />
+                        <span>{perk}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bundled Default Activated Addons */}
+                  <div className="space-y-2 border-t pt-3">
+                    <div className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider flex items-center gap-1">
+                      <Boxes className="size-3" /> Bundled Default Addons ({bundledAddons.length})
                     </div>
-                  ))}
+                    {bundledAddons.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground italic">Standard plan features.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {bundledAddons.map((addon) => (
+                          <Badge key={addon.id} variant="outline" className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                            ✓ {addon.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
 
                 <CardFooter className="pt-4 border-t">
                   <Button
+                    onClick={() => upgrade(p)}
                     disabled={isCurrent || isUpgrading}
-                    onClick={() => upgrade(p.id)}
-                    className="w-full font-bold h-11 gap-2"
-                    variant={isCurrent ? "outline" : p.isPopular ? "default" : "secondary"}
-                    style={p.isPopular && !isCurrent ? { background: "linear-gradient(135deg, #6366f1, #8b5cf6)" } : {}}
+                    className="w-full font-bold text-xs gap-2"
+                    variant={isCurrent ? "outline" : "default"}
                   >
-                    {isCurrent ? "Current Active Plan" : "Upgrade to " + p.name} <ArrowRight className="size-4" />
+                    {isUpgrading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : isCurrent ? (
+                      <>
+                        <CheckCircle2 className="size-4 text-emerald-600" /> Active Workspace Plan
+                      </>
+                    ) : (
+                      <>
+                        Select {p.name} <ArrowRight className="size-4" />
+                      </>
+                    )}
                   </Button>
                 </CardFooter>
               </Card>
