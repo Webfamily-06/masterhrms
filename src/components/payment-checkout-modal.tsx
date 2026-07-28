@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatSystemAmount } from "@/lib/currency";
 import { openRazorpayCheckout } from "@/lib/razorpay";
+import { openPayPalCheckout } from "@/lib/paypal";
 import { toast } from "sonner";
 import {
   CreditCard, Landmark, Upload, CheckCircle2, XCircle, Loader2,
@@ -102,7 +103,6 @@ export function PaymentCheckoutModal({
           throw new Error("Payment response is null or incomplete. Payment was not verified.");
         }
 
-        // Call success activator
         await onSuccess({ method: "Razorpay", paymentId: razorpayResp.razorpay_payment_id });
         onOpenChange(false);
         return;
@@ -111,11 +111,19 @@ export function PaymentCheckoutModal({
       // OPTION 2: PAYPAL PAYMENT GATEWAY
       if (paymentMethod === "paypal") {
         toast.info("Launching PayPal Payment Gateway...");
-        // Simulate PayPal SDK approval window
-        await new Promise((r) => setTimeout(r, 2000));
-        const paypalId = `PAYPAL-PAY-${Date.now().toString().slice(-8)}`;
+        const paypalResp = await openPayPalCheckout({
+          amount: amount,
+          name: itemName,
+          description: description,
+          tenantId: tenantId,
+          clientId: sysConfig?.paypalClientId,
+        });
 
-        await onSuccess({ method: "PayPal", paymentId: paypalId });
+        if (!paypalResp || !paypalResp.paypal_order_id) {
+          throw new Error("PayPal payment response is null or cancelled.");
+        }
+
+        await onSuccess({ method: "PayPal", paymentId: paypalResp.paypal_order_id });
         onOpenChange(false);
         return;
       }
@@ -129,10 +137,8 @@ export function PaymentCheckoutModal({
           throw new Error("Please attach your payment receipt screenshot.");
         }
 
-        // Upload screenshot image to Media Library / storage or encode as base64 URL
         let receiptUrl = proofPreview || "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400";
 
-        // Save Bank Transfer request to system monetization cms_pages for Admin review!
         const monetizationSlug = "system-monetization-plans";
         const { data: existingData } = await supabase
           .from("cms_pages")
@@ -194,7 +200,7 @@ export function PaymentCheckoutModal({
             <CreditCard className="size-5 text-primary" /> {title}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Choose your preferred payment method to activate <strong className="text-foreground">{itemName}</strong> ({formatSystemAmount(amount, sysConfig?.currency)}).
+            Choose your preferred payment gateway to activate <strong className="text-foreground">{itemName}</strong> ({formatSystemAmount(amount, sysConfig?.currency)}).
           </DialogDescription>
         </DialogHeader>
 
@@ -210,35 +216,39 @@ export function PaymentCheckoutModal({
             </div>
           </div>
 
-          {/* Payment Method Selector */}
+          {/* Payment Method Selector with Official Brand Logos */}
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select Payment Method</Label>
 
             <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="space-y-2">
               {/* Razorpay */}
-              <label className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === "razorpay" ? "border-primary bg-primary/5 shadow-xs" : "hover:bg-secondary/30"}`}>
+              <label className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "razorpay" ? "border-blue-600 bg-blue-500/5 shadow-xs ring-1 ring-blue-500/30" : "hover:bg-secondary/30"}`}>
                 <div className="flex items-center gap-3">
                   <RadioGroupItem value="razorpay" id="pm-razorpay" />
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-blue-500/10 grid place-items-center text-blue-600 font-black text-xs">RZP</div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-7 w-20 rounded-lg bg-white border p-1 grid place-items-center shrink-0 shadow-xs">
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/8/89/Razorpay_logo.svg" alt="Razorpay Logo" className="h-full object-contain" />
+                    </div>
                     <div>
                       <div className="font-bold text-xs">Razorpay Payment Gateway</div>
-                      <div className="text-[10px] text-muted-foreground">Cards, UPI, Net Banking, Wallet & QR Code</div>
+                      <div className="text-[10px] text-muted-foreground">UPI, Credit/Debit Cards, NetBanking, Wallets</div>
                     </div>
                   </div>
                 </div>
-                <Badge className="bg-blue-600 text-white text-[9px]">Instant Auto-Active</Badge>
+                <Badge className="bg-blue-600 text-white text-[9px]">Auto-Active</Badge>
               </label>
 
               {/* PayPal */}
-              <label className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === "paypal" ? "border-primary bg-primary/5 shadow-xs" : "hover:bg-secondary/30"}`}>
+              <label className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "paypal" ? "border-indigo-600 bg-indigo-500/5 shadow-xs ring-1 ring-indigo-500/30" : "hover:bg-secondary/30"}`}>
                 <div className="flex items-center gap-3">
                   <RadioGroupItem value="paypal" id="pm-paypal" />
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-indigo-500/10 grid place-items-center text-indigo-600 font-black text-xs">PP</div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-7 w-20 rounded-lg bg-white border p-1 grid place-items-center shrink-0 shadow-xs">
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal Logo" className="h-full object-contain" />
+                    </div>
                     <div>
-                      <div className="font-bold text-xs">PayPal Checkout</div>
-                      <div className="text-[10px] text-muted-foreground">PayPal Balance, Debit / Credit Card</div>
+                      <div className="font-bold text-xs">PayPal Global Checkout</div>
+                      <div className="text-[10px] text-muted-foreground">PayPal Balance & International Credit Cards ($ USD)</div>
                     </div>
                   </div>
                 </div>
@@ -246,16 +256,17 @@ export function PaymentCheckoutModal({
               </label>
 
               {/* Manual Bank Transfer */}
-              <label className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === "bank_transfer" ? "border-primary bg-primary/5 shadow-xs" : "hover:bg-secondary/30"}`}>
+              <label className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "bank_transfer" ? "border-emerald-600 bg-emerald-500/5 shadow-xs ring-1 ring-emerald-500/30" : "hover:bg-secondary/30"}`}>
                 <div className="flex items-center gap-3">
                   <RadioGroupItem value="bank_transfer" id="pm-bank" />
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-emerald-500/10 grid place-items-center text-emerald-600 font-black text-xs">
-                      <Landmark className="size-4" />
+                  <div className="flex items-center gap-3">
+                    <div className="h-7 w-20 rounded-lg bg-white border p-1 flex items-center justify-center gap-1 shrink-0 shadow-xs">
+                      <Landmark className="size-3.5 text-emerald-600" />
+                      <span className="font-black text-[10px] text-emerald-700 font-mono">UPI/BANK</span>
                     </div>
                     <div>
                       <div className="font-bold text-xs">Manual Bank Transfer + Receipt Upload</div>
-                      <div className="text-[10px] text-muted-foreground">Transfer to Account & attach Screenshot for Admin approval</div>
+                      <div className="text-[10px] text-muted-foreground">Direct Bank / UPI transfer with screenshot verification</div>
                     </div>
                   </div>
                 </div>
@@ -343,7 +354,7 @@ export function PaymentCheckoutModal({
             {isProcessing ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
             {paymentMethod === "bank_transfer"
               ? "Submit Receipt for Approval"
-              : `Proceed to Pay ${formatSystemAmount(amount, sysConfig?.currency)}`}
+              : `Pay ${formatSystemAmount(amount, sysConfig?.currency)} via ${paymentMethod === "paypal" ? "PayPal" : "Razorpay"}`}
           </Button>
         </DialogFooter>
       </DialogContent>
