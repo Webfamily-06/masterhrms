@@ -437,19 +437,19 @@ function TeamWhatsAppChatAddon() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black tracking-tight flex items-center gap-2 text-emerald-600">
-                <MessageSquare className="size-6 text-emerald-600" /> WhatsApp Team Chat Addon
+                <MessageSquare className="size-6 text-emerald-600" /> Enterprise Team Communications & Messaging Hub
               </h1>
               <Badge className="bg-emerald-600 text-white font-mono text-[10px]">
-                WhatsApp Web Concept
+                Realtime Encrypted Channel
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Realtime messaging with voice notes 🎤, image/file attachments & GPS location.
+              Direct employee messaging, department group channels, voice note recordings, document sharing & location.
             </p>
           </div>
 
           <Button size="sm" onClick={() => setIsGroupModalOpen(true)} className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-            <FolderPlus className="size-4" /> + Create WhatsApp Group
+            <FolderPlus className="size-4" /> + Create Department Group
           </Button>
         </div>
 
