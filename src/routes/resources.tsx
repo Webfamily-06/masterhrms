@@ -108,14 +108,17 @@ function ResourcesPage() {
             {blogs.length > 0
               ? blogs.map((b) => {
                   const contentObj = (b.content as any) || {};
+                  const cover = contentObj.coverImage || "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80";
                   return (
                     <Link
                       key={b.id}
                       to={`/p/${b.slug}` as any}
                       className="group rounded-xl border bg-card overflow-hidden hover:shadow-lg hover:border-primary/50 transition-all flex flex-col justify-between"
                     >
-                      <div className="aspect-[16/9] bg-gradient-to-br from-primary/20 via-secondary to-primary/10 p-6 flex flex-col justify-end">
-                        <Badge className="w-fit bg-primary/90 text-primary-foreground text-[10px]">
+                      <div className="aspect-[16/9] relative bg-secondary/40 overflow-hidden">
+                        <img src={cover} alt={b.title} className="size-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        <Badge className="absolute bottom-3 left-3 bg-primary/90 text-primary-foreground text-[10px]">
                           {contentObj.category || "ERP Systems"}
                         </Badge>
                       </div>
@@ -125,7 +128,7 @@ function ResourcesPage() {
                             {b.title}
                           </h3>
                           <p className="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
-                            {b.meta_description || contentObj.hero?.subtitle || "Read the full article..."}
+                            {b.meta_description || contentObj.hero?.subtitle || "Read full article..."}
                           </p>
                         </div>
                         <div className="pt-2 border-t flex items-center justify-between text-xs text-primary font-semibold">
@@ -178,15 +181,25 @@ function ResourcesPage() {
             {caseStudies.length > 0
               ? caseStudies.map((cs) => {
                   const contentObj = (cs.content as any) || {};
+                  const cover = contentObj.coverImage || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80";
                   return (
-                    <Link key={cs.id} to={`/p/${cs.slug}` as any} className="group p-6 rounded-xl border bg-card hover:shadow-md hover:border-primary/40 transition-all space-y-3">
-                      <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-                        Success Story
-                      </Badge>
-                      <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{cs.title}</h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{cs.meta_description || contentObj.impact || "Read full customer story..."}</p>
-                      <div className="pt-2 text-xs font-semibold text-primary flex items-center gap-1">
-                        Read Case Study <ArrowRight className="size-3.5" />
+                    <Link key={cs.id} to={`/p/${cs.slug}` as any} className="group rounded-xl border bg-card overflow-hidden hover:shadow-md hover:border-primary/40 transition-all flex flex-col justify-between">
+                      <div className="aspect-[16/9] relative bg-secondary/40 overflow-hidden">
+                        <img src={cover} alt={cs.title} className="size-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        <Badge variant="outline" className="absolute bottom-3 left-3 text-[10px] font-mono bg-emerald-500/90 text-white border-none">
+                          {contentObj.industry || "Success Story"}
+                        </Badge>
+                      </div>
+                      <div className="p-5 flex-1 flex flex-col justify-between space-y-2">
+                        <div>
+                          <div className="text-xs font-bold text-primary mb-1">{contentObj.clientCompany || cs.title}</div>
+                          <h3 className="font-bold text-base group-hover:text-primary transition-colors leading-snug">{cs.title}</h3>
+                          <p className="text-xs text-emerald-600 font-semibold mt-2 line-clamp-2">{cs.meta_description || contentObj.roiResult || "Transformed enterprise operations..."}</p>
+                        </div>
+                        <div className="pt-2 border-t text-xs font-semibold text-primary flex items-center gap-1">
+                          Read Case Study <ArrowRight className="size-3.5 group-hover:translate-x-1 transition-transform" />
+                        </div>
                       </div>
                     </Link>
                   );

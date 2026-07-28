@@ -53,6 +53,7 @@ import { Route as AuthenticatedSuperAnalyticsRouteImport } from './routes/_authe
 import { Route as AuthenticatedSuperApiDocsRouteImport } from './routes/_authenticated/super/api-docs'
 import { Route as AuthenticatedSuperBackupRouteImport } from './routes/_authenticated/super/backup'
 import { Route as AuthenticatedSuperBlogsRouteImport } from './routes/_authenticated/super/blogs'
+import { Route as AuthenticatedSuperCaseStudiesRouteImport } from './routes/_authenticated/super/case-studies'
 import { Route as AuthenticatedSuperCmsRouteImport } from './routes/_authenticated/super/cms'
 import { Route as AuthenticatedSuperEmailTemplatesRouteImport } from './routes/_authenticated/super/email-templates'
 import { Route as AuthenticatedSuperLanguagesRouteImport } from './routes/_authenticated/super/languages'
@@ -297,6 +298,12 @@ const AuthenticatedSuperBlogsRoute = AuthenticatedSuperBlogsRouteImport.update({
   path: '/blogs',
   getParentRoute: () => AuthenticatedSuperRouteRoute,
 } as any)
+const AuthenticatedSuperCaseStudiesRoute =
+  AuthenticatedSuperCaseStudiesRouteImport.update({
+    id: '/case-studies',
+    path: '/case-studies',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const AuthenticatedSuperCmsRoute = AuthenticatedSuperCmsRouteImport.update({
   id: '/cms',
   path: '/cms',
@@ -402,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
+  '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
@@ -456,6 +464,7 @@ export interface FileRoutesByTo {
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
+  '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
@@ -514,6 +523,7 @@ export interface FileRoutesById {
   '/_authenticated/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/_authenticated/super/backup': typeof AuthenticatedSuperBackupRoute
   '/_authenticated/super/blogs': typeof AuthenticatedSuperBlogsRoute
+  '/_authenticated/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/_authenticated/super/cms': typeof AuthenticatedSuperCmsRoute
   '/_authenticated/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/_authenticated/super/languages': typeof AuthenticatedSuperLanguagesRoute
@@ -571,6 +581,7 @@ export interface FileRouteTypes {
     | '/super/api-docs'
     | '/super/backup'
     | '/super/blogs'
+    | '/super/case-studies'
     | '/super/cms'
     | '/super/email-templates'
     | '/super/languages'
@@ -625,6 +636,7 @@ export interface FileRouteTypes {
     | '/super/api-docs'
     | '/super/backup'
     | '/super/blogs'
+    | '/super/case-studies'
     | '/super/cms'
     | '/super/email-templates'
     | '/super/languages'
@@ -682,6 +694,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/api-docs'
     | '/_authenticated/super/backup'
     | '/_authenticated/super/blogs'
+    | '/_authenticated/super/case-studies'
     | '/_authenticated/super/cms'
     | '/_authenticated/super/email-templates'
     | '/_authenticated/super/languages'
@@ -1024,6 +1037,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperBlogsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/case-studies': {
+      id: '/_authenticated/super/case-studies'
+      path: '/case-studies'
+      fullPath: '/super/case-studies'
+      preLoaderRoute: typeof AuthenticatedSuperCaseStudiesRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/_authenticated/super/cms': {
       id: '/_authenticated/super/cms'
       path: '/cms'
@@ -1160,6 +1180,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperApiDocsRoute: typeof AuthenticatedSuperApiDocsRoute
   AuthenticatedSuperBackupRoute: typeof AuthenticatedSuperBackupRoute
   AuthenticatedSuperBlogsRoute: typeof AuthenticatedSuperBlogsRoute
+  AuthenticatedSuperCaseStudiesRoute: typeof AuthenticatedSuperCaseStudiesRoute
   AuthenticatedSuperCmsRoute: typeof AuthenticatedSuperCmsRoute
   AuthenticatedSuperEmailTemplatesRoute: typeof AuthenticatedSuperEmailTemplatesRoute
   AuthenticatedSuperLanguagesRoute: typeof AuthenticatedSuperLanguagesRoute
@@ -1180,6 +1201,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperApiDocsRoute: AuthenticatedSuperApiDocsRoute,
     AuthenticatedSuperBackupRoute: AuthenticatedSuperBackupRoute,
     AuthenticatedSuperBlogsRoute: AuthenticatedSuperBlogsRoute,
+    AuthenticatedSuperCaseStudiesRoute: AuthenticatedSuperCaseStudiesRoute,
     AuthenticatedSuperCmsRoute: AuthenticatedSuperCmsRoute,
     AuthenticatedSuperEmailTemplatesRoute:
       AuthenticatedSuperEmailTemplatesRoute,

@@ -47,6 +47,7 @@ import {
   ChevronRight,
   Code,
   BookOpen,
+  Briefcase,
   Menu,
   X,
 } from "lucide-react";
@@ -94,11 +95,11 @@ const navItems: NavGroup[] = [
     to: "/super/blogs",
     label: "Blogs & Articles",
     icon: BookOpen,
-    submenus: [
-      { to: "/super/blogs", label: "All Posts" },
-      { to: "/super/blogs", label: "Categories & Tags" },
-      { to: "/super/blogs", label: "Case Studies" },
-    ],
+  },
+  {
+    to: "/super/case-studies",
+    label: "Case Studies & ROI",
+    icon: Briefcase,
   },
   { to: "/super/media", label: "Media Library", icon: ImageIcon },
 
