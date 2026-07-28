@@ -255,6 +255,19 @@ export function PaymentCheckoutModal({
                 <Badge className="bg-indigo-600 text-white text-[9px]">Global Instant</Badge>
               </label>
 
+              {/* PayPal Inline Panel */}
+              {paymentMethod === "paypal" && (
+                <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 space-y-2 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-indigo-700 dark:text-indigo-400">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-4" />
+                    <span>Direct PayPal Express Checkout</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Clicking "Pay via PayPal" will launch the secure PayPal checkout window directly. Once approved, your {itemName} will be activated instantly.
+                  </p>
+                </div>
+              )}
+
               {/* Manual Bank Transfer */}
               <label className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "bank_transfer" ? "border-emerald-600 bg-emerald-500/5 shadow-xs ring-1 ring-emerald-500/30" : "hover:bg-secondary/30"}`}>
                 <div className="flex items-center gap-3">
