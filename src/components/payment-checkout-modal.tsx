@@ -268,16 +268,22 @@ export function PaymentCheckoutModal({
           {paymentMethod === "bank_transfer" && (
             <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-3">
               <div className="font-bold text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 border-b border-emerald-500/20 pb-2">
-                <Building className="size-4" /> Official Bank Account Details for Transfer
+                <Building className="size-4" /> Official Bank Account Details & Transfer Instructions
               </div>
 
-              <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
-                <div><span className="text-muted-foreground">Bank:</span> <strong className="text-foreground">{BANK_DETAILS.bankName}</strong></div>
-                <div><span className="text-muted-foreground">A/C Name:</span> <strong className="text-foreground">{BANK_DETAILS.accountName}</strong></div>
-                <div><span className="text-muted-foreground">A/C No:</span> <strong className="text-foreground">{BANK_DETAILS.accountNo}</strong></div>
-                <div><span className="text-muted-foreground">IFSC:</span> <strong className="text-foreground">{BANK_DETAILS.ifsc}</strong></div>
-                <div className="col-span-2"><span className="text-muted-foreground">UPI ID:</span> <strong className="text-foreground text-emerald-600">{BANK_DETAILS.upiId}</strong></div>
-              </div>
+              {sysConfig?.bankTransferDetails ? (
+                <div className="p-2.5 rounded-lg bg-background border font-mono text-[11px] whitespace-pre-line leading-relaxed text-foreground">
+                  {sysConfig.bankTransferDetails}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
+                  <div><span className="text-muted-foreground">Bank:</span> <strong className="text-foreground">{BANK_DETAILS.bankName}</strong></div>
+                  <div><span className="text-muted-foreground">A/C Name:</span> <strong className="text-foreground">{BANK_DETAILS.accountName}</strong></div>
+                  <div><span className="text-muted-foreground">A/C No:</span> <strong className="text-foreground">{BANK_DETAILS.accountNo}</strong></div>
+                  <div><span className="text-muted-foreground">IFSC:</span> <strong className="text-foreground">{BANK_DETAILS.ifsc}</strong></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">UPI ID:</span> <strong className="text-foreground text-emerald-600">{BANK_DETAILS.upiId}</strong></div>
+                </div>
+              )}
 
               <div className="space-y-2 border-t border-emerald-500/20 pt-2">
                 <div className="space-y-1">

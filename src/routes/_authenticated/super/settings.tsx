@@ -43,6 +43,7 @@ import {
   Calendar,
   Coins,
   ShieldCheck,
+  Building,
   Languages,
   RotateCcw,
 } from "lucide-react";
@@ -1001,23 +1002,89 @@ function SuperSettingsAdmin() {
         <TabsContent value="payments" className="space-y-6 pt-4">
           <Card className="p-6 border shadow-xs space-y-6">
             <h3 className="font-bold text-base border-b pb-4 flex items-center gap-2">
-              <CreditCard className="size-5 text-primary" /> Global Payment Gateways
+              <CreditCard className="size-5 text-primary" /> Global Payment Gateways & Bank Instructions
             </h3>
 
-            <div className="space-y-4">
+            {/* 1. Razorpay Gateway */}
+            <div className="space-y-4 border-b pb-6">
               <div className="flex items-center justify-between">
-                <div className="font-bold text-xs text-emerald-600">Razorpay Payment Gateway (INR ₹)</div>
+                <div>
+                  <div className="font-bold text-xs text-blue-600 flex items-center gap-1.5">
+                    <CreditCard className="size-4" /> Razorpay Payment Gateway (INR ₹)
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">UPI, Credit/Debit Cards, NetBanking for Indian INR payments</div>
+                </div>
                 <Switch checked={form.razorpayEnabled} onCheckedChange={(checked) => setForm({ ...form, razorpayEnabled: checked })} />
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">Razorpay Key ID</Label>
-                  <Input value={form.razorpayKeyId} onChange={(e) => setForm({ ...form, razorpayKeyId: e.target.value })} className="text-xs font-mono" />
+                  <Input value={form.razorpayKeyId} onChange={(e) => setForm({ ...form, razorpayKeyId: e.target.value })} className="text-xs font-mono" placeholder="rzp_live_xxxxxxxxxxxx" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">Razorpay Key Secret</Label>
-                  <Input type="password" value={form.razorpayKeySecret} onChange={(e) => setForm({ ...form, razorpayKeySecret: e.target.value })} className="text-xs font-mono" />
+                  <Input type="password" value={form.razorpayKeySecret} onChange={(e) => setForm({ ...form, razorpayKeySecret: e.target.value })} className="text-xs font-mono" placeholder="••••••••••••••••" />
                 </div>
+              </div>
+            </div>
+
+            {/* 2. PayPal Gateway */}
+            <div className="space-y-4 border-b pb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-xs text-indigo-600 flex items-center gap-1.5">
+                    <Globe className="size-4" /> PayPal Payment Gateway (USD $)
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">Global PayPal balance and international credit card checkout</div>
+                </div>
+                <Switch checked={form.paypalEnabled} onCheckedChange={(checked) => setForm({ ...form, paypalEnabled: checked })} />
+              </div>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs font-semibold">PayPal Client ID</Label>
+                  <Input value={form.paypalClientId} onChange={(e) => setForm({ ...form, paypalClientId: e.target.value })} className="text-xs font-mono" placeholder="AQxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">PayPal Environment Mode</Label>
+                  <Select value={form.paypalMode} onValueChange={(v: any) => setForm({ ...form, paypalMode: v })}>
+                    <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
+                      <SelectItem value="live">Live (Production)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5 col-span-3">
+                  <Label className="text-xs font-semibold">PayPal Secret Key</Label>
+                  <Input type="password" value={form.paypalSecret} onChange={(e) => setForm({ ...form, paypalSecret: e.target.value })} className="text-xs font-mono" placeholder="ELxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Manual Bank Transfer Instructions & Account Details */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-xs text-emerald-600 flex items-center gap-1.5">
+                    <Building className="size-4" /> Manual Bank Transfer Instructions & Account Details
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">Shown to tenants when choosing Manual Bank Transfer option</div>
+                </div>
+                <Switch checked={form.bankTransferEnabled} onCheckedChange={(checked) => setForm({ ...form, bankTransferEnabled: checked })} />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Bank Account Details & Payment Instructions</Label>
+                <Textarea
+                  rows={6}
+                  value={form.bankTransferDetails}
+                  onChange={(e) => setForm({ ...form, bankTransferDetails: e.target.value })}
+                  placeholder="Enter Bank Name, Account Number, IFSC, Swift Code, UPI ID, and Transfer Instructions..."
+                  className="text-xs font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Tenants will copy these bank details to transfer money and upload their transaction receipt screenshot for your approval in Super Admin → Monetization → Bank Transfers.
+                </p>
               </div>
             </div>
           </Card>
