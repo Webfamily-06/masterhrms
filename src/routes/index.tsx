@@ -243,7 +243,6 @@ function Landing() {
     setTimeout(() => {
       toast.success("Thank you! An ERP specialist will contact you shortly.");
       setContactForm({ name: "", email: "", phone: "", company: "", headcount: "100-500 Staff", message: "" });
-      setIsSending(false);
     }, 1000);
   }
 
@@ -262,13 +261,12 @@ function Landing() {
     <MarketingLayout>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* HERO — CINEMATIC LIQUID GLASS                                  */}
+      {/* HERO — CINEMATIC LIQUID GLASS (MOBILE RESPONSIVE)             */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <section
         ref={heroRef}
-        className="relative overflow-hidden flex items-center"
+        className="relative overflow-x-clip overflow-y-hidden flex items-center min-h-[90vh] sm:min-h-screen py-16 sm:py-24 lg:py-0"
         style={{
-          minHeight: "100vh",
           background: "linear-gradient(125deg, #05060f 0%, #0c0e1e 40%, #0a0c1a 70%, #070818 100%)",
         }}
       >
@@ -298,18 +296,12 @@ function Landing() {
 
         {/* ── Layer 1: Ambient macro blobs ─────────────────────────────── */}
         <div className="pointer-events-none absolute inset-0">
-          {/* Top-left violet mass */}
-          <div className="animate-liquid-drift absolute -top-40 -left-40 w-[700px] h-[700px] rounded-full"
+          <div className="animate-liquid-drift absolute -top-40 -left-40 w-[350px] sm:w-[700px] h-[350px] sm:h-[700px] rounded-full"
             style={{ background: "radial-gradient(circle at 40% 40%, rgba(99,102,241,0.35) 0%, rgba(139,92,246,0.15) 45%, transparent 70%)", filter: "blur(80px)" }} />
-          {/* Bottom-right emerald mass */}
-          <div className="animate-liquid-glow absolute -bottom-32 -right-32 w-[550px] h-[550px] rounded-full"
+          <div className="animate-liquid-glow absolute -bottom-32 -right-32 w-[300px] sm:w-[550px] h-[300px] sm:h-[550px] rounded-full"
             style={{ background: "radial-gradient(circle, rgba(16,185,129,0.28) 0%, rgba(6,182,212,0.12) 55%, transparent 75%)", filter: "blur(90px)" }} />
-          {/* Mid-right rose accent */}
-          <div className="absolute top-1/3 right-1/5 w-[320px] h-[320px] rounded-full"
+          <div className="absolute top-1/3 right-1/5 w-[200px] sm:w-[320px] h-[200px] sm:h-[320px] rounded-full"
             style={{ background: "radial-gradient(circle, rgba(244,63,94,0.18) 0%, transparent 70%)", filter: "blur(60px)", animation: "liquid-float 9s ease-in-out infinite 3s" }} />
-          {/* Center top purple haze */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px]"
-            style={{ background: "radial-gradient(ellipse, rgba(139,92,246,0.12) 0%, transparent 70%)", filter: "blur(70px)" }} />
         </div>
 
         {/* ── Layer 2: Interactive cursor glow ─────────────────────────── */}
@@ -322,46 +314,40 @@ function Landing() {
             backgroundImage: "linear-gradient(rgba(99,102,241,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.06) 1px, transparent 1px)",
             backgroundSize: "64px 64px",
           }} />
-        {/* Diagonal accent lines */}
-        <div className="absolute inset-0 pointer-events-none opacity-30"
-          style={{
-            backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 80px, rgba(99,102,241,0.03) 80px, rgba(99,102,241,0.03) 81px)",
-          }} />
 
         {/* ── Main Content Grid ─────────────────────────────────────────── */}
-        <div className="mx-auto max-w-7xl px-6 py-24 lg:py-0 w-full relative z-10">
-          <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-center min-h-[calc(100vh-80px)]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 w-full relative z-10">
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center min-h-[calc(100vh-100px)] py-6 sm:py-10 lg:py-0">
 
             {/* ══ LEFT COLUMN — Copy & CTAs ══════════════════════════════ */}
-            <div className="lg:col-span-6 space-y-8 text-center lg:text-left">
+            <div className="lg:col-span-6 space-y-6 sm:space-y-8 text-center lg:text-left">
 
               {/* Eyebrow pill with animated live dot */}
-              <div className="animate-slide-up inline-flex items-center gap-2.5 rounded-full px-5 py-2.5 text-xs font-bold"
+              <div className="animate-slide-up inline-flex items-center gap-2 rounded-full px-3.5 sm:px-5 py-2 sm:py-2.5 text-[11px] sm:text-xs font-bold max-w-full"
                 style={{
                   background: "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08))",
                   border: "1px solid rgba(99,102,241,0.3)",
                   backdropFilter: "blur(20px)",
                   boxShadow: "0 0 20px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.06)",
                 }}>
-                <span className="relative flex size-2">
+                <span className="relative flex size-2 shrink-0">
                   <span className="animate-ping absolute inline-flex size-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
                 </span>
-                <Sparkles className="size-3.5 text-indigo-400" />
-                <span className="bg-gradient-to-r from-indigo-300 via-violet-300 to-cyan-300 bg-clip-text text-transparent font-extrabold tracking-wide">
+                <Sparkles className="size-3.5 text-indigo-400 shrink-0" />
+                <span className="bg-gradient-to-r from-indigo-300 via-violet-300 to-cyan-300 bg-clip-text text-transparent font-extrabold tracking-wide truncate">
                   Next-Gen Cloud ERP
                 </span>
-                <span className="w-px h-3 bg-white/15" />
-                <span className="text-white/40 text-[10px] font-mono tracking-widest">{currCode} · 500+ ADDONS</span>
+                <span className="w-px h-3 bg-white/15 shrink-0 hidden sm:inline" />
+                <span className="text-white/40 text-[10px] font-mono tracking-widest shrink-0 hidden sm:inline">{currCode} · 500+ ADDONS</span>
               </div>
 
               {/* ── Animated multi-word headline ───────────────────────── */}
-              <div className="animate-slide-up-d1 space-y-2">
-                <h1 className="text-5xl sm:text-6xl lg:text-[72px] xl:text-[80px] font-black tracking-tight leading-[1.02] text-white">
+              <div className="animate-slide-up-d1 space-y-1 sm:space-y-2">
+                <h1 className="text-4xl xs:text-5xl sm:text-6xl lg:text-[70px] xl:text-[76px] font-black tracking-tight leading-[1.04] text-white">
                   The Only
                   <br />
                   <span className="relative">
-                    {/* Animated gradient text */}
                     <span
                       className="animate-gradient-shift bg-clip-text text-transparent"
                       style={{ backgroundImage: "linear-gradient(90deg, #818cf8, #a78bfa, #38bdf8, #34d399, #818cf8)" }}>
@@ -369,9 +355,9 @@ function Landing() {
                     </span>
                   </span>
                 </h1>
-                <div className="flex flex-col sm:flex-row items-center lg:items-start gap-2 text-5xl sm:text-6xl lg:text-[72px] xl:text-[80px] font-black tracking-tight leading-[1.02]">
+                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 text-3xl xs:text-4xl sm:text-6xl lg:text-[70px] xl:text-[76px] font-black tracking-tight leading-[1.04]">
                   <span className="text-white/80">Enterprise</span>
-                  <div className="relative h-[1.1em] overflow-hidden text-left min-w-[280px] sm:min-w-[360px]">
+                  <div className="relative h-[1.25em] overflow-hidden text-center lg:text-left min-w-[210px] xs:min-w-[250px] sm:min-w-[340px]">
                     {/* Rotating words via CSS */}
                     {["ERP Platform", "HRMS Suite", "Finance Cloud", "Ops Console"].map((word, i) => (
                       <span
@@ -393,7 +379,7 @@ function Landing() {
               </div>
 
               {/* Sub copy */}
-              <p className="animate-slide-up-d2 text-base sm:text-lg text-white/45 leading-relaxed max-w-[540px] mx-auto lg:mx-0">
+              <p className="animate-slide-up-d2 text-sm sm:text-base lg:text-lg text-white/45 leading-relaxed max-w-[540px] mx-auto lg:mx-0 px-1 sm:px-0">
                 Unify{" "}
                 <span className="text-white/75 font-semibold">Financial Ledgers</span>,{" "}
                 <span className="text-white/75 font-semibold">Sales CRM</span>,{" "}
@@ -404,11 +390,11 @@ function Landing() {
               </p>
 
               {/* CTA Buttons */}
-              <div className="animate-slide-up-d3 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5">
+              <div className="animate-slide-up-d3 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 w-full max-w-md mx-auto lg:mx-0">
                 {/* Primary CTA */}
                 <Link to="/auth" search={{ mode: "signup" } as never} className="w-full sm:w-auto">
                   <button
-                    className="conic-glow w-full sm:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-xl text-sm font-bold text-white relative overflow-hidden group transition-all duration-300 hover:scale-[1.02]"
+                    className="conic-glow w-full sm:w-auto flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 rounded-xl text-xs sm:text-sm font-bold text-white relative overflow-hidden group transition-all duration-300 hover:scale-[1.02]"
                     style={{
                       background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #4f46e5 100%)",
                       backgroundSize: "200% 200%",
@@ -418,7 +404,6 @@ function Landing() {
                       Start Free Enterprise Trial
                       <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
                     </span>
-                    {/* Shimmer */}
                     <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/15 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
                   </button>
                 </Link>
@@ -426,15 +411,15 @@ function Landing() {
                 {/* Secondary CTA */}
                 <Link to="/contact" className="w-full sm:w-auto">
                   <button
-                    className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-xl text-sm font-semibold text-white/70 hover:text-white transition-all duration-300 hover:scale-[1.01] group"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 rounded-xl text-xs sm:text-sm font-semibold text-white/70 hover:text-white transition-all duration-300 hover:scale-[1.01] group"
                     style={{
                       background: "rgba(255,255,255,0.04)",
                       border: "1px solid rgba(255,255,255,0.1)",
                       backdropFilter: "blur(16px)",
                       boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
                     }}>
-                    <div className="size-6 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                      <Play className="size-2.5 fill-indigo-400 text-indigo-400 translate-x-px" />
+                    <div className="size-5 sm:size-6 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                      <Play className="size-2 sm:size-2.5 fill-indigo-400 text-indigo-400 translate-x-px" />
                     </div>
                     Watch Executive Demo
                   </button>
@@ -442,31 +427,31 @@ function Landing() {
               </div>
 
               {/* Trust strip */}
-              <div className="animate-slide-up-d4 flex flex-wrap items-center justify-center lg:justify-start gap-x-6 gap-y-2 pt-1">
+              <div className="animate-slide-up-d4 flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-2 pt-1">
                 {[
                   { icon: "🛡️", text: "ISO 27001 Certified" },
                   { icon: "📊", text: "GST & Tax Compliant" },
                   { icon: "⚡", text: "14-Day Free Trial" },
                   { icon: "🔒", text: "SOC-2 Type II" },
                 ].map((b) => (
-                  <div key={b.text} className="flex items-center gap-1.5 text-[11px] text-white/35 font-medium">
+                  <div key={b.text} className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-white/35 font-medium">
                     <span>{b.icon}</span> {b.text}
                   </div>
                 ))}
               </div>
 
               {/* Live stat row */}
-              <div className="animate-slide-up-d4 hidden lg:flex items-center gap-6 pt-2">
+              <div className="animate-slide-up-d4 hidden sm:flex items-center justify-center lg:justify-start gap-6 pt-2">
                 {[
                   { value: "10K+", label: "Enterprise Users", color: "text-indigo-400" },
                   { value: "99.99%", label: "Uptime SLA", color: "text-emerald-400" },
                   { value: "500+", label: "Addons", color: "text-violet-400" },
                 ].map((s, i) => (
                   <div key={s.label} className="flex items-center gap-3">
-                    {i > 0 && <div className="w-px h-8 bg-white/10" />}
+                    {i > 0 && <div className="w-px h-7 bg-white/10" />}
                     <div>
-                      <div className={`text-xl font-black font-mono ${s.color}`}>{s.value}</div>
-                      <div className="text-[10px] text-white/30 font-medium uppercase tracking-wider">{s.label}</div>
+                      <div className={`text-base sm:text-lg lg:text-xl font-black font-mono ${s.color}`}>{s.value}</div>
+                      <div className="text-[9px] sm:text-[10px] text-white/30 font-medium uppercase tracking-wider">{s.label}</div>
                     </div>
                   </div>
                 ))}
@@ -474,19 +459,16 @@ function Landing() {
             </div>
 
             {/* ══ RIGHT COLUMN — Orbital Dashboard Showcase ══════════════ */}
-            <div className="lg:col-span-6 relative flex items-center justify-center py-12 lg:py-0">
+            <div className="lg:col-span-6 relative flex items-center justify-center py-6 sm:py-10 lg:py-0 w-full overflow-hidden lg:overflow-visible">
 
-              {/* ── Outer orbital ring decoration ─────────────────────── */}
+              {/* ── Outer orbital ring decoration (Responsive size) ───── */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
-                {/* Ring 1 — slow spin */}
-                <div className="animate-ring-spin absolute w-[540px] h-[540px] rounded-full"
+                <div className="animate-ring-spin absolute w-[280px] xs:w-[360px] sm:w-[460px] lg:w-[540px] h-[280px] xs:h-[360px] sm:h-[460px] lg:h-[540px] rounded-full"
                   style={{ border: "1px solid rgba(99,102,241,0.12)" }}>
-                  {/* Dot on ring */}
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 size-2 rounded-full bg-indigo-500" style={{ boxShadow: "0 0 8px rgba(99,102,241,0.8)" }} />
                   <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 size-1.5 rounded-full bg-violet-500 opacity-60" />
                 </div>
-                {/* Ring 2 — reverse spin */}
-                <div className="animate-ring-spin-rev absolute w-[420px] h-[420px] rounded-full"
+                <div className="animate-ring-spin-rev absolute w-[220px] xs:w-[280px] sm:w-[360px] lg:w-[420px] h-[220px] xs:h-[280px] sm:h-[360px] lg:h-[420px] rounded-full"
                   style={{ border: "1px dashed rgba(16,185,129,0.1)" }}>
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 size-1.5 rounded-full bg-emerald-500 opacity-70" style={{ boxShadow: "0 0 6px rgba(16,185,129,0.8)" }} />
                 </div>
@@ -495,101 +477,61 @@ function Landing() {
               {/* ── Floating satellite KPI cards ──────────────────────── */}
 
               {/* TOP LEFT: MRR counter */}
-              <div className="animate-card-float-a absolute top-4 left-0 lg:-left-8 z-20 hidden sm:flex items-center gap-3 px-4 py-3 rounded-2xl"
+              <div className="animate-card-float-a absolute -top-2 left-0 lg:-left-6 z-20 hidden md:flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl"
                 style={{
                   background: "rgba(16,185,129,0.08)",
                   border: "1px solid rgba(16,185,129,0.25)",
                   backdropFilter: "blur(20px)",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(16,185,129,0.12)",
                 }}>
-                <div className="size-10 rounded-xl grid place-items-center" style={{ background: "rgba(16,185,129,0.15)" }}>
-                  <TrendingUp className="size-5 text-emerald-400" />
+                <div className="size-8 rounded-xl grid place-items-center" style={{ background: "rgba(16,185,129,0.15)" }}>
+                  <TrendingUp className="size-4 text-emerald-400" />
                 </div>
                 <div>
-                  <div className="text-[9px] text-white/35 font-bold uppercase tracking-widest">Realtime MRR</div>
-                  <div className="text-base font-black font-mono text-emerald-400">{formatSystemAmount(pulseRevenue, sysConfig)}</div>
-                  <div className="text-[9px] text-emerald-500/70 font-semibold">↑ +18.4% YoY</div>
+                  <div className="text-[8px] text-white/35 font-bold uppercase tracking-widest">Realtime MRR</div>
+                  <div className="text-sm font-black font-mono text-emerald-400">{formatSystemAmount(pulseRevenue, sysConfig)}</div>
                 </div>
               </div>
 
-              {/* TOP RIGHT: Active employees */}
-              <div className="animate-card-float-b absolute top-8 right-0 lg:-right-4 z-20 hidden lg:flex items-center gap-3 px-4 py-3 rounded-2xl"
-                style={{
-                  background: "rgba(99,102,241,0.08)",
-                  border: "1px solid rgba(99,102,241,0.25)",
-                  backdropFilter: "blur(20px)",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(99,102,241,0.12)",
-                }}>
-                <div className="size-10 rounded-xl grid place-items-center" style={{ background: "rgba(99,102,241,0.15)" }}>
-                  <Users className="size-5 text-indigo-400" />
-                </div>
-                <div>
-                  <div className="text-[9px] text-white/35 font-bold uppercase tracking-widest">Active Staff</div>
-                  <div className="text-base font-black font-mono text-indigo-400">1,248</div>
-                  <div className="text-[9px] text-indigo-400/70 font-semibold">98.4% Attendance</div>
-                </div>
-              </div>
-
-              {/* BOTTOM LEFT: API speed */}
-              <div className="animate-card-float-c absolute bottom-4 left-4 lg:-left-4 z-20 hidden sm:flex items-center gap-3 px-4 py-3 rounded-2xl"
+              {/* BOTTOM RIGHT: API latency */}
+              <div className="animate-card-float-c absolute -bottom-2 right-0 lg:-right-4 z-20 hidden md:flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl"
                 style={{
                   background: "rgba(139,92,246,0.08)",
                   border: "1px solid rgba(139,92,246,0.25)",
                   backdropFilter: "blur(20px)",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(139,92,246,0.12)",
                 }}>
-                <div className="size-10 rounded-xl grid place-items-center" style={{ background: "rgba(139,92,246,0.15)" }}>
-                  <Zap className="size-5 text-violet-400" />
+                <div className="size-8 rounded-xl grid place-items-center" style={{ background: "rgba(139,92,246,0.15)" }}>
+                  <Zap className="size-4 text-violet-400" />
                 </div>
                 <div>
-                  <div className="text-[9px] text-white/35 font-bold uppercase tracking-widest">API Latency</div>
-                  <div className="text-base font-black font-mono text-violet-400">14ms</div>
-                  <div className="text-[9px] text-violet-400/70 font-semibold">Global Avg</div>
-                </div>
-              </div>
-
-              {/* BOTTOM RIGHT: GST invoices */}
-              <div className="animate-card-float-a absolute bottom-8 right-0 lg:-right-6 z-20 hidden lg:flex items-center gap-3 px-4 py-3 rounded-2xl"
-                style={{
-                  background: "rgba(245,158,11,0.08)",
-                  border: "1px solid rgba(245,158,11,0.2)",
-                  backdropFilter: "blur(20px)",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-                  animationDelay: "2s",
-                }}>
-                <div className="size-10 rounded-xl grid place-items-center" style={{ background: "rgba(245,158,11,0.12)" }}>
-                  <FileText className="size-5 text-amber-400" />
-                </div>
-                <div>
-                  <div className="text-[9px] text-white/35 font-bold uppercase tracking-widest">GST Invoices</div>
-                  <div className="text-base font-black font-mono text-amber-400">1,428</div>
-                  <div className="text-[9px] text-amber-400/70 font-semibold">100% Compliant</div>
+                  <div className="text-[8px] text-white/35 font-bold uppercase tracking-widest">API Latency</div>
+                  <div className="text-sm font-black font-mono text-violet-400">14ms</div>
                 </div>
               </div>
 
               {/* ── MAIN DASHBOARD CARD ───────────────────────────────── */}
-              <div className="relative w-full max-w-[500px] animate-hero-breathe"
+              <div className="relative w-full max-w-[95vw] xs:max-w-[440px] lg:max-w-[500px] animate-hero-breathe"
                 style={{
-                  borderRadius: "28px",
+                  borderRadius: "24px",
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backdropFilter: "blur(32px) saturate(200%)",
-                  boxShadow: "0 32px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(0,0,0,0.2)",
+                  boxShadow: "0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1)",
                 }}>
 
                 {/* Card top bar — window chrome */}
-                <div className="flex items-center justify-between px-5 py-4 border-b"
+                <div className="flex items-center justify-between px-3.5 sm:px-5 py-3 sm:py-4 border-b"
                   style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                  <div className="flex items-center gap-3">
-                    {/* Traffic lights */}
+                  <div className="flex items-center gap-2.5">
                     <div className="flex gap-1.5">
-                      <div className="size-3 rounded-full bg-red-500/80" />
-                      <div className="size-3 rounded-full bg-amber-400/80" />
-                      <div className="size-3 rounded-full bg-emerald-500/80" />
+                      <div className="size-2.5 sm:size-3 rounded-full bg-red-500/80" />
+                      <div className="size-2.5 sm:size-3 rounded-full bg-amber-400/80" />
+                      <div className="size-2.5 sm:size-3 rounded-full bg-emerald-500/80" />
                     </div>
-                    <div className="text-[10px] text-white/25 font-mono">master-erp.dashboard</div>
+                    <div className="text-[9px] sm:text-[10px] text-white/25 font-mono truncate max-w-[120px] sm:max-w-none">master-erp.dashboard</div>
                   </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono text-emerald-400"
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-mono text-emerald-400"
                     style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
                     <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
                     Live · Synced
@@ -597,24 +539,24 @@ function Landing() {
                 </div>
 
                 {/* App identity row */}
-                <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="size-11 rounded-2xl grid place-items-center font-black text-xl text-white shadow-xl"
-                      style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)", boxShadow: "0 4px 16px rgba(99,102,241,0.5)" }}>M</div>
+                <div className="px-3.5 sm:px-5 pt-3.5 sm:pt-5 pb-2.5 sm:pb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
+                    <div className="size-9 sm:size-11 rounded-xl sm:rounded-2xl grid place-items-center font-black text-lg sm:text-xl text-white shadow-xl"
+                      style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>M</div>
                     <div>
-                      <div className="font-bold text-sm text-white">Master ERP Operations</div>
-                      <div className="text-[11px] text-white/35">Multi-Tenant · Enterprise Engine</div>
+                      <div className="font-bold text-xs sm:text-sm text-white">Master ERP Operations</div>
+                      <div className="text-[10px] sm:text-[11px] text-white/35">Multi-Tenant · Enterprise Engine</div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right hidden xs:block">
                     <div className="text-[10px] text-white/25 font-mono">v2.8.1</div>
                     <div className="text-[10px] text-indigo-400 font-mono">500+ modules</div>
                   </div>
                 </div>
 
                 {/* Suite tab switcher */}
-                <div className="px-5 pb-3">
-                  <div className="flex gap-1 p-1 rounded-xl overflow-x-auto"
+                <div className="px-3.5 sm:px-5 pb-2.5 sm:pb-3">
+                  <div className="flex gap-1 p-1 rounded-xl overflow-x-auto no-scrollbar"
                     style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
                     {coreSuites.map((s) => {
                       const isActive = activeSuiteId === s.id;
@@ -626,8 +568,8 @@ function Landing() {
                         <button
                           key={s.id}
                           onClick={() => setActiveSuiteId(s.id)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shrink-0 ${isActive ? "text-white shadow-sm" : "text-white/35 hover:text-white/60"}`}
-                          style={isActive ? { background: `linear-gradient(135deg, ${grad})`, boxShadow: "0 2px 10px rgba(0,0,0,0.3)" } : {}}>
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold transition-all shrink-0 ${isActive ? "text-white shadow-sm" : "text-white/35 hover:text-white/60"}`}
+                          style={isActive ? { background: `linear-gradient(135deg, ${grad})` } : {}}>
                           <s.icon className="size-3" />
                           {s.title.split(" ")[0]}
                         </button>
@@ -637,38 +579,37 @@ function Landing() {
                 </div>
 
                 {/* KPI grid */}
-                <div className="px-5 pb-3 grid grid-cols-3 gap-2">
+                <div className="px-3.5 sm:px-5 pb-2.5 sm:pb-3 grid grid-cols-3 gap-1.5 sm:gap-2">
                   {activeSuite.kpis.map((kpi, i) => (
-                    <div key={i} className="p-3 rounded-xl"
+                    <div key={i} className="p-2 sm:p-3 rounded-xl"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <div className="text-[9px] text-white/30 font-medium leading-tight mb-1">{kpi.label}</div>
-                      <div className="text-xs font-black font-mono text-white leading-tight">{kpi.value}</div>
-                      <div className={`text-[9px] font-semibold mt-0.5 ${kpi.color}`}>{kpi.note}</div>
+                      <div className="text-[8px] sm:text-[9px] text-white/30 font-medium leading-tight mb-0.5 truncate">{kpi.label}</div>
+                      <div className="text-[11px] sm:text-xs font-black font-mono text-white leading-tight truncate">{kpi.value}</div>
+                      <div className={`text-[8px] sm:text-[9px] font-semibold mt-0.5 truncate ${kpi.color}`}>{kpi.note}</div>
                     </div>
                   ))}
                 </div>
 
                 {/* Mini chart bars */}
-                <div className="px-5 pb-3">
-                  <div className="p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <div className="flex items-end justify-between gap-1 h-12">
+                <div className="px-3.5 sm:px-5 pb-2.5 sm:pb-3">
+                  <div className="p-2.5 sm:p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="flex items-end justify-between gap-1 h-9 sm:h-12">
                       {[35, 55, 42, 68, 52, 78, 61, 85, 72, 91, 69, 88].map((h, i) => (
-                        <div key={i} className="flex-1 rounded-sm transition-all duration-500"
+                        <div key={i} className="flex-1 rounded-xs transition-all duration-500"
                           style={{
                             height: `${h}%`,
                             background: `linear-gradient(to top, rgba(99,102,241,${0.3 + (h / 100) * 0.5}), rgba(139,92,246,${0.2 + (h / 100) * 0.3}))`,
-                            minWidth: "4px",
                           }} />
                       ))}
                     </div>
-                    <div className="flex items-center justify-between mt-2 text-[9px] text-white/25 font-mono">
+                    <div className="flex items-center justify-between mt-1.5 text-[8px] sm:text-[9px] text-white/25 font-mono">
                       <span>Jan</span><span>Jun</span><span>Dec</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Module pill strip */}
-                <div className="px-5 pb-5">
+                <div className="px-3.5 sm:px-5 pb-4">
                   <div className="flex flex-wrap gap-1.5">
                     {[
                       { label: "💼 Financials", col: "rgba(99,102,241,0.25)" },
@@ -677,7 +618,7 @@ function Landing() {
                       { label: "⏱️ Attendance", col: "rgba(139,92,246,0.2)" },
                       { label: "+500 Addons →", col: "rgba(99,102,241,0.35)" },
                     ].map((m) => (
-                      <span key={m.label} className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold text-white/60"
+                      <span key={m.label} className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-white/60"
                         style={{ background: m.col, border: "1px solid rgba(255,255,255,0.08)" }}>
                         {m.label}
                       </span>
@@ -688,6 +629,7 @@ function Landing() {
             </div>
           </div>
         </div>
+
 
         {/* ── Bottom fog fade ──────────────────────────────────────────── */}
         <div className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none"
@@ -1019,77 +961,71 @@ function Landing() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* 8. SCHEDULE DEMO — LIQUID GLASS CTA WIDGET */}
+      {/* 8. SCHEDULE DEMO — MOBILE RESPONSIVE CTA WIDGET       */}
       {/* ═══════════════════════════════════════════════════════ */}
-      <section className="py-24 border-t relative overflow-hidden">
+      <section className="py-12 sm:py-20 lg:py-24 border-t relative overflow-hidden">
         {/* Deep background */}
         <div className="absolute inset-0 pointer-events-none"
           style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(168,85,247,0.04) 50%, rgba(16,185,129,0.04) 100%)" }} />
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full opacity-10 pointer-events-none"
+        <div className="absolute top-0 right-0 w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full opacity-10 pointer-events-none"
           style={{ background: "radial-gradient(circle, rgba(99,102,241,0.5) 0%, transparent 70%)", filter: "blur(120px)" }} />
 
-        <div className="mx-auto max-w-6xl px-6 relative z-10">
-          <div className="rounded-3xl p-8 sm:p-14 overflow-hidden relative animate-glass-morph"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              backdropFilter: "blur(24px) saturate(180%)",
-              boxShadow: "0 24px 80px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.1)",
-            }}>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 relative z-10">
+          <div className="rounded-2xl sm:rounded-3xl p-4 sm:p-8 lg:p-12 overflow-hidden relative bg-card border border-border shadow-xl">
             {/* Inner glow */}
-            <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-20 pointer-events-none"
+            <div className="absolute top-0 right-0 w-64 sm:w-96 h-64 sm:h-96 rounded-full opacity-20 pointer-events-none"
               style={{ background: "radial-gradient(circle, rgba(99,102,241,0.6) 0%, transparent 70%)", filter: "blur(60px)" }} />
 
-            <div className="grid lg:grid-cols-12 gap-12 items-start relative z-10">
+            <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-start relative z-10">
               {/* Left Pane */}
-              <div className="lg:col-span-5 space-y-7">
+              <div className="lg:col-span-5 space-y-5 sm:space-y-7">
                 <div>
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold text-indigo-600 border border-indigo-500/30 bg-indigo-500/8 mb-4">
-                    <Sparkles className="size-3.5" /> Executive Consultation
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold text-indigo-600 border border-indigo-500/30 bg-indigo-500/8 mb-3">
+                    <Sparkles className="size-3.5 shrink-0" /> Executive Consultation
                   </div>
-                  <h2 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight">
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight text-foreground">
                     Schedule an Enterprise
                     <span className="block bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">ERP Demo</span>
                   </h2>
-                  <p className="text-sm text-muted-foreground leading-relaxed mt-3">
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed mt-2.5">
                     Questions about custom ERP workflows, multi-company consolidation, or data migration? Our solution architects are ready.
                   </p>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2.5 sm:space-y-3">
                   {[
-                    { icon: Target, color: "text-emerald-600", bg: "bg-emerald-500/10", title: "Personalized Demo Walkthrough", desc: "Tailored to your industry, headcount & use case." },
-                    { icon: Building2, color: "text-blue-600", bg: "bg-blue-500/10", title: "Custom Architecture Review", desc: "Multi-tenant isolation, API audit & integration map." },
-                    { icon: FileSpreadsheet, color: "text-purple-600", bg: "bg-purple-500/10", title: "1-on-1 Data Migration Playbook", desc: "Seamless import from legacy ERPs & spreadsheets." },
+                    { icon: Target, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10", title: "Personalized Demo Walkthrough", desc: "Tailored to your industry, headcount & use case." },
+                    { icon: Building2, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", title: "Custom Architecture Review", desc: "Multi-tenant isolation, API audit & integration map." },
+                    { icon: FileSpreadsheet, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10", title: "1-on-1 Data Migration Playbook", desc: "Seamless import from legacy ERPs & spreadsheets." },
                   ].map((item) => (
-                    <div key={item.title} className="flex items-start gap-3.5 p-4 rounded-2xl liquid-glass">
-                      <div className={`size-9 rounded-xl ${item.bg} ${item.color} grid place-items-center shrink-0`}>
+                    <div key={item.title} className="flex items-start gap-3 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-secondary/30 border border-border/60">
+                      <div className={`size-8 sm:size-9 rounded-xl ${item.bg} ${item.color} grid place-items-center shrink-0`}>
                         <item.icon className="size-4" />
                       </div>
                       <div>
-                        <div className="font-bold text-xs">{item.title}</div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">{item.desc}</div>
+                        <div className="font-bold text-xs sm:text-sm text-foreground">{item.title}</div>
+                        <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{item.desc}</div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="flex flex-wrap gap-4 text-[11px] font-mono text-muted-foreground">
-                  <span className="flex items-center gap-1.5"><Clock className="size-3.5 text-emerald-500" /> 2-Hour Response SLA</span>
-                  <span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-blue-500" /> 100% Confidential</span>
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px] sm:text-[11px] font-mono text-muted-foreground">
+                  <span className="flex items-center gap-1.5"><Clock className="size-3.5 text-emerald-500 shrink-0" /> 2-Hour Response SLA</span>
+                  <span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-blue-500 shrink-0" /> 100% Confidential</span>
                 </div>
               </div>
 
               {/* Right Form */}
-              <form onSubmit={handleSendContact} className="lg:col-span-7 space-y-4 rounded-2xl p-6 sm:p-8"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}>
-                <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-                  <div className="font-bold text-sm">Fill in your requirements</div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-mono border text-muted-foreground"
-                    style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)" }}>Instant Booking</span>
+              <form onSubmit={handleSendContact} className="lg:col-span-7 space-y-4 rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 bg-card border border-border shadow-md">
+                <div className="flex items-center justify-between pb-3 border-b border-border">
+                  <div className="font-bold text-xs sm:text-sm text-foreground">Fill in your requirements</div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-mono border border-border bg-secondary/50 text-muted-foreground">
+                    Instant Booking
+                  </span>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Full Name *</Label>
                     <Input placeholder="Anand Sharma" value={contactForm.name} onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })} className="h-10 text-xs" />
@@ -1100,7 +1036,7 @@ function Landing() {
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Company Name</Label>
                     <Input placeholder="Apex Global Ltd" value={contactForm.company} onChange={(e) => setContactForm({ ...contactForm, company: e.target.value })} className="h-10 text-xs" />
@@ -1124,7 +1060,7 @@ function Landing() {
                   <Textarea placeholder="Tell us about your current ERP tools, migration timeline, or modules required..." rows={3} value={contactForm.message} onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })} className="text-xs leading-relaxed resize-none" />
                 </div>
 
-                <Button type="submit" size="lg" disabled={isSending} className="w-full font-bold h-12 gap-2 text-sm relative overflow-hidden"
+                <Button type="submit" size="lg" disabled={isSending} className="w-full font-bold h-11 sm:h-12 gap-2 text-xs sm:text-sm relative overflow-hidden"
                   style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>
                   {isSending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                   Request Executive Demo
@@ -1134,7 +1070,7 @@ function Landing() {
           </div>
         </div>
       </section>
-
     </MarketingLayout>
   );
 }
+
