@@ -312,7 +312,8 @@ function MarketplacePage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((a) => {
               const installed = isInstalled(a.id, a.slug);
-              const isFree = (a.price_monthly || 0) === 0;
+              const priceVal = a.price_monthly !== null && a.price_monthly !== undefined ? Number(a.price_monthly) : 0;
+              const isFree = priceVal === 0 || isNaN(priceVal);
               const imageUrl = String(a.image || CATEGORY_IMAGES[a.category] || CATEGORY_IMAGES.Productivity);
 
               return (
@@ -342,7 +343,7 @@ function MarketplacePage() {
                         <Badge className="bg-emerald-500 text-white font-mono text-[9px] shadow-sm">FREE ADDON</Badge>
                       ) : (
                         <Badge className="bg-primary text-white font-mono text-[9px] shadow-sm">
-                          {formatSystemAmount(a.price_monthly, sysConfig)}/mo
+                          {formatSystemAmount(priceVal, sysConfig)}/mo
                         </Badge>
                       )}
                     </div>
@@ -420,40 +421,49 @@ function MarketplacePage() {
                 <div className="p-6 space-y-4 text-xs">
                   <p className="text-muted-foreground leading-relaxed">{selectedAddon.description}</p>
 
-                  <div className="space-y-2 p-3.5 rounded-xl border bg-secondary/30 text-xs">
-                    <div className="flex justify-between font-semibold">
-                      <span>Target Workspace:</span>
-                      <strong className="text-foreground">{profile?.tenant?.name || "Current Tenant"}</strong>
-                    </div>
-                    <div className="flex justify-between font-semibold">
-                      <span>Monthly Subscription Price:</span>
-                      <strong className="text-primary font-mono font-bold">
-                        {(selectedAddon.price_monthly || 0) === 0
-                          ? "FREE"
-                          : formatSystemAmount(selectedAddon.price_monthly, sysConfig) + " / month"}
-                      </strong>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Super-Admin Publisher:</span>
-                      <span>{selectedAddon.developer || "Master HRMS"}</span>
-                    </div>
-                  </div>
-                </div>
+                  {(() => {
+                    const selPrice = selectedAddon.price_monthly !== null && selectedAddon.price_monthly !== undefined ? Number(selectedAddon.price_monthly) : 0;
+                    const selIsFree = selPrice === 0 || isNaN(selPrice);
 
-                <DialogFooter className="p-4 pt-0 gap-2 sm:gap-0">
-                  <Button variant="outline" onClick={() => setSelectedAddon(null)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={confirmPurchase}
-                    disabled={isPurchasing}
-                    className="font-bold gap-2"
-                    style={{ background: "linear-gradient(135deg, #10b981, #0d9488)", color: "#fff" }}
-                  >
-                    {isPurchasing ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                    {(selectedAddon.price_monthly || 0) === 0 ? "Confirm & Install Now" : "Pay & Activate Addon"}
-                  </Button>
-                </DialogFooter>
+                    return (
+                      <>
+                        <div className="space-y-2 p-3.5 rounded-xl border bg-secondary/30 text-xs">
+                          <div className="flex justify-between font-semibold">
+                            <span>Target Workspace:</span>
+                            <strong className="text-foreground">{profile?.tenant?.name || "Current Tenant"}</strong>
+                          </div>
+                          <div className="flex justify-between font-semibold">
+                            <span>Monthly Subscription Price:</span>
+                            <strong className="text-primary font-mono font-bold">
+                              {selIsFree
+                                ? "FREE ADDON"
+                                : formatSystemAmount(selPrice, sysConfig) + " / month"}
+                            </strong>
+                          </div>
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Super-Admin Publisher:</span>
+                            <span>{selectedAddon.developer || "Master HRMS"}</span>
+                          </div>
+                        </div>
+
+                        <DialogFooter className="p-4 pt-0 gap-2 sm:gap-0 mt-4">
+                          <Button variant="outline" onClick={() => setSelectedAddon(null)}>
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={confirmPurchase}
+                            disabled={isPurchasing}
+                            className="font-bold gap-2"
+                            style={{ background: "linear-gradient(135deg, #10b981, #0d9488)", color: "#fff" }}
+                          >
+                            {isPurchasing ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                            {selIsFree ? "Confirm & Install Free" : `Pay ${formatSystemAmount(selPrice, sysConfig)} & Activate`}
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    );
+                  })()}
+                </div>
               </>
             )}
           </DialogContent>
