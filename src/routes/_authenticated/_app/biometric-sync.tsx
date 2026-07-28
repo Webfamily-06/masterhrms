@@ -237,6 +237,24 @@ function BiometricSyncPage() {
     }
   }, [storeData]);
 
+  // Automated background sync daemon for devices with autoSync enabled
+  useEffect(() => {
+    if (!storeData || storeData.devices.length === 0 || syncingDeviceId) return;
+
+    const intervalId = setInterval(() => {
+      const activeAutoDevices = storeDataRef.current.devices.filter(
+        (d) => d.autoSync && d.status !== "syncing"
+      );
+
+      if (activeAutoDevices.length > 0 && !syncingDeviceId) {
+        const nextDevice = activeAutoDevices[0];
+        triggerSync(nextDevice);
+      }
+    }, 60000); // Background sync check every 60 seconds
+
+    return () => clearInterval(intervalId);
+  }, [storeData, syncingDeviceId]);
+
   const devices = storeData?.devices ?? [];
   const logs = storeData?.logs ?? [];
   const allPunches = storeData?.allPunches ?? [];

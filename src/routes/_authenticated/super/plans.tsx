@@ -87,6 +87,9 @@ export type BankTransferRequest = {
   receipt_url: string;
   status: "pending" | "approved" | "rejected";
   date: string;
+  item_type?: "addon" | "plan";
+  item_id?: string;
+  item_name?: string;
 };
 
 export type InvoiceTemplate = {
@@ -622,30 +625,72 @@ function PlansMonetizationAdmin() {
       .replace(/{{PAYMENT_STATUS}}/g, "PAID · Razorpay Verified");
   }
 
-  function handleApproveTransfer(id: string) {
+  async function handleApproveTransfer(id: string) {
     const target = bankTransfers.find((b) => b.id === id);
+    if (!target) return;
+
     const updatedTransfers = bankTransfers.map((b) => (b.id === id ? { ...b, status: "approved" as const } : b));
 
-    let updatedOrders = orders;
-    if (target) {
-      const newOrder: CustomerOrder = {
-        id: `o-${Date.now()}`,
-        order_number: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-        tenant_name: target.tenant_name,
-        tenant_email: `billing@${target.tenant_name.toLowerCase().replace(/\s+/g, "")}.com`,
-        plan_name: "Annual Subscription Plan",
-        plan_description: "Enterprise Subscription with Razorpay Payment Verification",
-        amount: target.amount,
-        payment_method: "Razorpay",
-        razorpay_payment_id: `pay_${Math.random().toString(36).substring(2, 14)}`,
-        status: "paid",
-        date: new Date().toISOString().split("T")[0],
-      };
-      updatedOrders = [newOrder, ...orders];
+    // Create verified paid customer order
+    const newOrder: CustomerOrder = {
+      id: `o-${Date.now()}`,
+      order_number: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      tenant_name: target.tenant_name,
+      tenant_email: `billing@${target.tenant_name.toLowerCase().replace(/\s+/g, "")}.com`,
+      plan_name: target.item_name || "Workspace Subscription Plan",
+      plan_description: `Bank Transfer Verified (Ref: ${target.reference_no})`,
+      amount: target.amount,
+      payment_method: "Bank Transfer",
+      razorpay_payment_id: `BT-${target.reference_no}`,
+      status: "paid",
+      date: new Date().toISOString().split("T")[0],
+    };
+
+    const updatedOrders = [newOrder, ...orders];
+
+    // If requested item is an Addon, auto-activate for all tenants
+    if (target.item_id || target.item_name) {
+      try {
+        const addonSlug = target.item_id || target.item_name;
+        // Upsert addon activation in global cms_pages
+        const { data: existingAddonsData } = await supabase
+          .from("cms_pages")
+          .select("content")
+          .eq("slug", "tenant-default-purchased-addons-v2")
+          .maybeSingle();
+
+        const currentList = Array.isArray(existingAddonsData?.content) ? existingAddonsData.content : [];
+        const newItem = {
+          addonId: addonSlug,
+          addonSlug: addonSlug,
+          addonName: target.item_name || addonSlug,
+          priceMonthly: target.amount,
+          purchasedAt: new Date().toISOString(),
+          status: "active",
+        };
+
+        await supabase.from("cms_pages").upsert({
+          slug: "tenant-default-purchased-addons-v2",
+          title: `Addons Verified`,
+          content: [newItem, ...currentList] as any,
+          published: true,
+        }, { onConflict: "slug" });
+      } catch (err: any) {
+        console.warn("Auto addon activation warning:", err.message);
+      }
     }
 
     saveMonetizationMutation.mutate({ bankTransfers: updatedTransfers, orders: updatedOrders });
-    toast.success("Bank transfer approved & Razorpay order invoice generated!");
+    toast.success(`🎉 Bank transfer approved! "${target.item_name || "Plan"}" activated for ${target.tenant_name}.`);
+  }
+
+  function handleRejectTransfer(id: string) {
+    const target = bankTransfers.find((b) => b.id === id);
+    if (!target) return;
+
+    const updatedTransfers = bankTransfers.map((b) => (b.id === id ? { ...b, status: "rejected" as const } : b));
+    saveMonetizationMutation.mutate({ bankTransfers: updatedTransfers, orders: orders });
+    toast.error(`❌ Bank transfer (Ref: ${target.reference_no}) rejected.`);
   }
 
   return (
@@ -898,29 +943,74 @@ function PlansMonetizationAdmin() {
             <table className="w-full text-xs text-left">
               <thead className="bg-secondary/40 font-semibold border-b">
                 <tr>
-                  <th className="p-3">Tenant Name</th>
+                  <th className="p-3">Tenant / Customer</th>
+                  <th className="p-3">Requested Item</th>
                   <th className="p-3">Amount</th>
-                  <th className="p-3">Ref #</th>
+                  <th className="p-3">Ref / UTR #</th>
+                  <th className="p-3">Receipt Screenshot</th>
                   <th className="p-3">Status</th>
-                  <th className="p-3">Action</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {bankTransfers.map((b) => (
-                  <tr key={b.id}>
-                    <td className="p-3 font-bold">{b.tenant_name}</td>
-                    <td className="p-3 font-mono">${b.amount}</td>
-                    <td className="p-3 font-mono">{b.reference_no}</td>
-                    <td className="p-3"><Badge variant={b.status === "approved" ? "default" : "secondary"}>{b.status}</Badge></td>
-                    <td className="p-3">
-                      {b.status === "pending" && (
-                        <Button size="sm" onClick={() => handleApproveTransfer(b.id)} className="h-7 text-xs bg-emerald-600">
-                          Approve Transfer
-                        </Button>
-                      )}
+                {bankTransfers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground italic">
+                      No bank transfer requests pending review.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  bankTransfers.map((b) => (
+                    <tr key={b.id} className="hover:bg-secondary/20 transition-colors">
+                      <td className="p-3 font-bold text-foreground">
+                        <div>{b.tenant_name}</div>
+                        <div className="text-[10px] text-muted-foreground">{b.date}</div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="font-semibold text-[10px]">
+                          {b.item_name || "Subscription Upgrade"}
+                        </Badge>
+                      </td>
+                      <td className="p-3 font-mono font-extrabold text-primary">₹{b.amount.toLocaleString()}</td>
+                      <td className="p-3 font-mono font-bold text-foreground">{b.reference_no}</td>
+                      <td className="p-3">
+                        {b.receipt_url ? (
+                          <a href={b.receipt_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline font-semibold">
+                            <img src={b.receipt_url} alt="Receipt" className="size-8 object-cover rounded-md border shrink-0" />
+                            <span className="text-[10px]">View Screenshot</span>
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground italic">No image</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          className={
+                            b.status === "approved"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-bold"
+                              : b.status === "rejected"
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-bold"
+                          }
+                        >
+                          {b.status.toUpperCase()}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right">
+                        {b.status === "pending" && (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button size="sm" onClick={() => handleApproveTransfer(b.id)} className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1">
+                              <CheckCircle2 className="size-3" /> Approve
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => handleRejectTransfer(b.id)} className="h-7 text-xs text-destructive hover:bg-destructive/10 font-bold gap-1">
+                              <XCircle className="size-3" /> Reject
+                            </Button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </Card>
