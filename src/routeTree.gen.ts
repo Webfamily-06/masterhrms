@@ -28,12 +28,26 @@ import { Route as AuthenticatedSuperRouteRouteImport } from './routes/_authentic
 import { Route as AddonsSlugRouteImport } from './routes/addons.$slug'
 import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
+import { Route as AuthenticatedAppAccountingRouteImport } from './routes/_authenticated/_app/accounting'
 import { Route as AuthenticatedAppAttendanceRouteImport } from './routes/_authenticated/_app/attendance'
+import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/_app/chat'
+import { Route as AuthenticatedAppCrmRouteImport } from './routes/_authenticated/_app/crm'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/_app/dashboard'
 import { Route as AuthenticatedAppEmployeesRouteImport } from './routes/_authenticated/_app/employees'
+import { Route as AuthenticatedAppHrmRouteImport } from './routes/_authenticated/_app/hrm'
+import { Route as AuthenticatedAppInvoicesRouteImport } from './routes/_authenticated/_app/invoices'
 import { Route as AuthenticatedAppLeaveRouteImport } from './routes/_authenticated/_app/leave'
+import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/_app/marketplace'
+import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/_app/media'
 import { Route as AuthenticatedAppPayrollRouteImport } from './routes/_authenticated/_app/payroll'
+import { Route as AuthenticatedAppPosRouteImport } from './routes/_authenticated/_app/pos'
+import { Route as AuthenticatedAppProductsRouteImport } from './routes/_authenticated/_app/products'
+import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/_app/projects'
+import { Route as AuthenticatedAppProposalsRouteImport } from './routes/_authenticated/_app/proposals'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/_app/settings'
+import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_authenticated/_app/subscription'
+import { Route as AuthenticatedAppSupportRouteImport } from './routes/_authenticated/_app/support'
+import { Route as AuthenticatedAppUsersRouteImport } from './routes/_authenticated/_app/users'
 import { Route as AuthenticatedSuperIndexRouteImport } from './routes/_authenticated/super/index'
 import { Route as AuthenticatedSuperAnalyticsRouteImport } from './routes/_authenticated/super/analytics'
 import { Route as AuthenticatedSuperApiDocsRouteImport } from './routes/_authenticated/super/api-docs'
@@ -144,12 +158,28 @@ const PSlugRoute = PSlugRouteImport.update({
   path: '/p/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAppAccountingRoute =
+  AuthenticatedAppAccountingRouteImport.update({
+    id: '/accounting',
+    path: '/accounting',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppAttendanceRoute =
   AuthenticatedAppAttendanceRouteImport.update({
     id: '/attendance',
     path: '/attendance',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
+const AuthenticatedAppCrmRoute = AuthenticatedAppCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppDashboardRoute =
   AuthenticatedAppDashboardRouteImport.update({
     id: '/dashboard',
@@ -162,9 +192,31 @@ const AuthenticatedAppEmployeesRoute =
     path: '/employees',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppHrmRoute = AuthenticatedAppHrmRouteImport.update({
+  id: '/hrm',
+  path: '/hrm',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
+const AuthenticatedAppInvoicesRoute =
+  AuthenticatedAppInvoicesRouteImport.update({
+    id: '/invoices',
+    path: '/invoices',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppLeaveRoute = AuthenticatedAppLeaveRouteImport.update({
   id: '/leave',
   path: '/leave',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
+const AuthenticatedAppMarketplaceRoute =
+  AuthenticatedAppMarketplaceRouteImport.update({
+    id: '/marketplace',
+    path: '/marketplace',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppMediaRoute = AuthenticatedAppMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
 const AuthenticatedAppPayrollRoute = AuthenticatedAppPayrollRouteImport.update({
@@ -172,12 +224,51 @@ const AuthenticatedAppPayrollRoute = AuthenticatedAppPayrollRouteImport.update({
   path: '/payroll',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppPosRoute = AuthenticatedAppPosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
+const AuthenticatedAppProductsRoute =
+  AuthenticatedAppProductsRouteImport.update({
+    id: '/products',
+    path: '/products',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppProjectsRoute =
+  AuthenticatedAppProjectsRouteImport.update({
+    id: '/projects',
+    path: '/projects',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppProposalsRoute =
+  AuthenticatedAppProposalsRouteImport.update({
+    id: '/proposals',
+    path: '/proposals',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
     path: '/settings',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppSubscriptionRoute =
+  AuthenticatedAppSubscriptionRouteImport.update({
+    id: '/subscription',
+    path: '/subscription',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppSupportRoute = AuthenticatedAppSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
+const AuthenticatedAppUsersRoute = AuthenticatedAppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedSuperIndexRoute = AuthenticatedSuperIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -287,12 +378,26 @@ export interface FileRoutesByFullPath {
   '/addons/$slug': typeof AddonsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
+  '/accounting': typeof AuthenticatedAppAccountingRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/chat': typeof AuthenticatedAppChatRoute
+  '/crm': typeof AuthenticatedAppCrmRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
+  '/hrm': typeof AuthenticatedAppHrmRoute
+  '/invoices': typeof AuthenticatedAppInvoicesRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
+  '/marketplace': typeof AuthenticatedAppMarketplaceRoute
+  '/media': typeof AuthenticatedAppMediaRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
+  '/pos': typeof AuthenticatedAppPosRoute
+  '/products': typeof AuthenticatedAppProductsRoute
+  '/projects': typeof AuthenticatedAppProjectsRoute
+  '/proposals': typeof AuthenticatedAppProposalsRoute
   '/settings': typeof AuthenticatedAppSettingsRoute
+  '/subscription': typeof AuthenticatedAppSubscriptionRoute
+  '/support': typeof AuthenticatedAppSupportRoute
+  '/users': typeof AuthenticatedAppUsersRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -327,12 +432,26 @@ export interface FileRoutesByTo {
   '/addons/$slug': typeof AddonsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
+  '/accounting': typeof AuthenticatedAppAccountingRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/chat': typeof AuthenticatedAppChatRoute
+  '/crm': typeof AuthenticatedAppCrmRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
+  '/hrm': typeof AuthenticatedAppHrmRoute
+  '/invoices': typeof AuthenticatedAppInvoicesRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
+  '/marketplace': typeof AuthenticatedAppMarketplaceRoute
+  '/media': typeof AuthenticatedAppMediaRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
+  '/pos': typeof AuthenticatedAppPosRoute
+  '/products': typeof AuthenticatedAppProductsRoute
+  '/projects': typeof AuthenticatedAppProjectsRoute
+  '/proposals': typeof AuthenticatedAppProposalsRoute
   '/settings': typeof AuthenticatedAppSettingsRoute
+  '/subscription': typeof AuthenticatedAppSubscriptionRoute
+  '/support': typeof AuthenticatedAppSupportRoute
+  '/users': typeof AuthenticatedAppUsersRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -371,12 +490,26 @@ export interface FileRoutesById {
   '/addons/$slug': typeof AddonsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
+  '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
   '/_authenticated/_app/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/_authenticated/_app/chat': typeof AuthenticatedAppChatRoute
+  '/_authenticated/_app/crm': typeof AuthenticatedAppCrmRoute
   '/_authenticated/_app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/_authenticated/_app/employees': typeof AuthenticatedAppEmployeesRoute
+  '/_authenticated/_app/hrm': typeof AuthenticatedAppHrmRoute
+  '/_authenticated/_app/invoices': typeof AuthenticatedAppInvoicesRoute
   '/_authenticated/_app/leave': typeof AuthenticatedAppLeaveRoute
+  '/_authenticated/_app/marketplace': typeof AuthenticatedAppMarketplaceRoute
+  '/_authenticated/_app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/_app/payroll': typeof AuthenticatedAppPayrollRoute
+  '/_authenticated/_app/pos': typeof AuthenticatedAppPosRoute
+  '/_authenticated/_app/products': typeof AuthenticatedAppProductsRoute
+  '/_authenticated/_app/projects': typeof AuthenticatedAppProjectsRoute
+  '/_authenticated/_app/proposals': typeof AuthenticatedAppProposalsRoute
   '/_authenticated/_app/settings': typeof AuthenticatedAppSettingsRoute
+  '/_authenticated/_app/subscription': typeof AuthenticatedAppSubscriptionRoute
+  '/_authenticated/_app/support': typeof AuthenticatedAppSupportRoute
+  '/_authenticated/_app/users': typeof AuthenticatedAppUsersRoute
   '/_authenticated/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/_authenticated/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/_authenticated/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -414,12 +547,26 @@ export interface FileRouteTypes {
     | '/addons/$slug'
     | '/legal/$slug'
     | '/p/$slug'
+    | '/accounting'
     | '/attendance'
+    | '/chat'
+    | '/crm'
     | '/dashboard'
     | '/employees'
+    | '/hrm'
+    | '/invoices'
     | '/leave'
+    | '/marketplace'
+    | '/media'
     | '/payroll'
+    | '/pos'
+    | '/products'
+    | '/projects'
+    | '/proposals'
     | '/settings'
+    | '/subscription'
+    | '/support'
+    | '/users'
     | '/super/analytics'
     | '/super/api-docs'
     | '/super/backup'
@@ -454,12 +601,26 @@ export interface FileRouteTypes {
     | '/addons/$slug'
     | '/legal/$slug'
     | '/p/$slug'
+    | '/accounting'
     | '/attendance'
+    | '/chat'
+    | '/crm'
     | '/dashboard'
     | '/employees'
+    | '/hrm'
+    | '/invoices'
     | '/leave'
+    | '/marketplace'
+    | '/media'
     | '/payroll'
+    | '/pos'
+    | '/products'
+    | '/projects'
+    | '/proposals'
     | '/settings'
+    | '/subscription'
+    | '/support'
+    | '/users'
     | '/super/analytics'
     | '/super/api-docs'
     | '/super/backup'
@@ -497,12 +658,26 @@ export interface FileRouteTypes {
     | '/addons/$slug'
     | '/legal/$slug'
     | '/p/$slug'
+    | '/_authenticated/_app/accounting'
     | '/_authenticated/_app/attendance'
+    | '/_authenticated/_app/chat'
+    | '/_authenticated/_app/crm'
     | '/_authenticated/_app/dashboard'
     | '/_authenticated/_app/employees'
+    | '/_authenticated/_app/hrm'
+    | '/_authenticated/_app/invoices'
     | '/_authenticated/_app/leave'
+    | '/_authenticated/_app/marketplace'
+    | '/_authenticated/_app/media'
     | '/_authenticated/_app/payroll'
+    | '/_authenticated/_app/pos'
+    | '/_authenticated/_app/products'
+    | '/_authenticated/_app/projects'
+    | '/_authenticated/_app/proposals'
     | '/_authenticated/_app/settings'
+    | '/_authenticated/_app/subscription'
+    | '/_authenticated/_app/support'
+    | '/_authenticated/_app/users'
     | '/_authenticated/super/analytics'
     | '/_authenticated/super/api-docs'
     | '/_authenticated/super/backup'
@@ -674,11 +849,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/_app/accounting': {
+      id: '/_authenticated/_app/accounting'
+      path: '/accounting'
+      fullPath: '/accounting'
+      preLoaderRoute: typeof AuthenticatedAppAccountingRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/attendance': {
       id: '/_authenticated/_app/attendance'
       path: '/attendance'
       fullPath: '/attendance'
       preLoaderRoute: typeof AuthenticatedAppAttendanceRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/chat': {
+      id: '/_authenticated/_app/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AuthenticatedAppChatRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/crm': {
+      id: '/_authenticated/_app/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof AuthenticatedAppCrmRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/dashboard': {
@@ -695,11 +891,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppEmployeesRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/hrm': {
+      id: '/_authenticated/_app/hrm'
+      path: '/hrm'
+      fullPath: '/hrm'
+      preLoaderRoute: typeof AuthenticatedAppHrmRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/invoices': {
+      id: '/_authenticated/_app/invoices'
+      path: '/invoices'
+      fullPath: '/invoices'
+      preLoaderRoute: typeof AuthenticatedAppInvoicesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/leave': {
       id: '/_authenticated/_app/leave'
       path: '/leave'
       fullPath: '/leave'
       preLoaderRoute: typeof AuthenticatedAppLeaveRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/marketplace': {
+      id: '/_authenticated/_app/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof AuthenticatedAppMarketplaceRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/media': {
+      id: '/_authenticated/_app/media'
+      path: '/media'
+      fullPath: '/media'
+      preLoaderRoute: typeof AuthenticatedAppMediaRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/payroll': {
@@ -709,11 +933,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppPayrollRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/pos': {
+      id: '/_authenticated/_app/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof AuthenticatedAppPosRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/products': {
+      id: '/_authenticated/_app/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof AuthenticatedAppProductsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/projects': {
+      id: '/_authenticated/_app/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AuthenticatedAppProjectsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/proposals': {
+      id: '/_authenticated/_app/proposals'
+      path: '/proposals'
+      fullPath: '/proposals'
+      preLoaderRoute: typeof AuthenticatedAppProposalsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/settings': {
       id: '/_authenticated/_app/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/subscription': {
+      id: '/_authenticated/_app/subscription'
+      path: '/subscription'
+      fullPath: '/subscription'
+      preLoaderRoute: typeof AuthenticatedAppSubscriptionRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/support': {
+      id: '/_authenticated/_app/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof AuthenticatedAppSupportRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/users': {
+      id: '/_authenticated/_app/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AuthenticatedAppUsersRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/super/': {
@@ -832,21 +1105,49 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAppRouteRouteChildren {
+  AuthenticatedAppAccountingRoute: typeof AuthenticatedAppAccountingRoute
   AuthenticatedAppAttendanceRoute: typeof AuthenticatedAppAttendanceRoute
+  AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRoute
+  AuthenticatedAppCrmRoute: typeof AuthenticatedAppCrmRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
   AuthenticatedAppEmployeesRoute: typeof AuthenticatedAppEmployeesRoute
+  AuthenticatedAppHrmRoute: typeof AuthenticatedAppHrmRoute
+  AuthenticatedAppInvoicesRoute: typeof AuthenticatedAppInvoicesRoute
   AuthenticatedAppLeaveRoute: typeof AuthenticatedAppLeaveRoute
+  AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
+  AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppPayrollRoute: typeof AuthenticatedAppPayrollRoute
+  AuthenticatedAppPosRoute: typeof AuthenticatedAppPosRoute
+  AuthenticatedAppProductsRoute: typeof AuthenticatedAppProductsRoute
+  AuthenticatedAppProjectsRoute: typeof AuthenticatedAppProjectsRoute
+  AuthenticatedAppProposalsRoute: typeof AuthenticatedAppProposalsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+  AuthenticatedAppSubscriptionRoute: typeof AuthenticatedAppSubscriptionRoute
+  AuthenticatedAppSupportRoute: typeof AuthenticatedAppSupportRoute
+  AuthenticatedAppUsersRoute: typeof AuthenticatedAppUsersRoute
 }
 
 const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
+  AuthenticatedAppAccountingRoute: AuthenticatedAppAccountingRoute,
   AuthenticatedAppAttendanceRoute: AuthenticatedAppAttendanceRoute,
+  AuthenticatedAppChatRoute: AuthenticatedAppChatRoute,
+  AuthenticatedAppCrmRoute: AuthenticatedAppCrmRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
   AuthenticatedAppEmployeesRoute: AuthenticatedAppEmployeesRoute,
+  AuthenticatedAppHrmRoute: AuthenticatedAppHrmRoute,
+  AuthenticatedAppInvoicesRoute: AuthenticatedAppInvoicesRoute,
   AuthenticatedAppLeaveRoute: AuthenticatedAppLeaveRoute,
+  AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
+  AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppPayrollRoute: AuthenticatedAppPayrollRoute,
+  AuthenticatedAppPosRoute: AuthenticatedAppPosRoute,
+  AuthenticatedAppProductsRoute: AuthenticatedAppProductsRoute,
+  AuthenticatedAppProjectsRoute: AuthenticatedAppProjectsRoute,
+  AuthenticatedAppProposalsRoute: AuthenticatedAppProposalsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+  AuthenticatedAppSubscriptionRoute: AuthenticatedAppSubscriptionRoute,
+  AuthenticatedAppSupportRoute: AuthenticatedAppSupportRoute,
+  AuthenticatedAppUsersRoute: AuthenticatedAppUsersRoute,
 }
 
 const AuthenticatedAppRouteRouteWithChildren =

@@ -21,22 +21,80 @@ import {
   Settings,
   LogOut,
   ShieldCheck,
+  ShoppingCart,
+  Landmark,
+  Kanban,
+  UserCheck,
+  Store,
+  CreditCard,
+  LifeBuoy,
+  MessageSquare,
+  Package,
+  Target,
+  FileText,
+  Receipt,
+  ImageIcon,
+  Sparkles,
+  Lock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { ProfileWithRoles } from "@/lib/session";
-
 import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 
-const items = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Employees", url: "/employees", icon: Users },
-  { title: "Attendance", url: "/attendance", icon: Clock },
-  { title: "Leave", url: "/leave", icon: CalendarCheck },
-  { title: "Payroll", url: "/payroll", icon: Wallet },
-  { title: "Settings", url: "/settings", icon: Settings },
+type MenuItem = {
+  title: string;
+  url: string;
+  icon: any;
+  badge?: string;
+  badgeVariant?: "default" | "secondary" | "outline" | "destructive";
+};
+
+type MenuGroup = {
+  label: string;
+  items: MenuItem[];
+};
+
+const menuGroups: MenuGroup[] = [
+  {
+    label: "Core ERP Operations",
+    items: [
+      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+      { title: "Point of Sale (POS)", url: "/pos", icon: ShoppingCart, badge: "Free Addon", badgeVariant: "secondary" },
+      { title: "Accountant / Ledgers", url: "/accounting", icon: Landmark },
+      { title: "HRM Suite", url: "/hrm", icon: Users },
+      { title: "Products & Services", url: "/products", icon: Package },
+    ],
+  },
+  {
+    label: "Sales & CRM",
+    items: [
+      { title: "CRM & Pipelines", url: "/crm", icon: Target },
+      { title: "Proposals", url: "/proposals", icon: FileText },
+      { title: "Sales Invoices", url: "/invoices", icon: Receipt },
+    ],
+  },
+  {
+    label: "Projects & Team",
+    items: [
+      { title: "Projects & Kanban", url: "/projects", icon: Kanban },
+      { title: "Team Chat", url: "/chat", icon: MessageSquare, badge: "Free Addon", badgeVariant: "secondary" },
+      { title: "User Management", url: "/users", icon: UserCheck },
+    ],
+  },
+  {
+    label: "Addons & Platform",
+    items: [
+      { title: "Media Library", url: "/media", icon: ImageIcon },
+      { title: "Marketplace", url: "/marketplace", icon: Store, badge: "500+ Live", badgeVariant: "default" },
+      { title: "Support Tickets", url: "/support", icon: LifeBuoy },
+      { title: "Subscription & Plan", url: "/subscription", icon: CreditCard, badge: "Upgrade", badgeVariant: "outline" },
+      { title: "Settings", url: "/settings", icon: Settings },
+    ],
+  },
 ];
 
 export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
@@ -74,13 +132,13 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
             <img src={platformSettings.logoLightUrl} alt="Logo" className="h-9 max-h-11 w-full object-contain" />
           ) : (
             <div className="flex items-center gap-2 w-full">
-              <div className="size-8 rounded-lg bg-primary text-primary-foreground grid place-items-center font-bold shrink-0">
+              <div className="size-8 rounded-lg bg-primary text-primary-foreground grid place-items-center font-extrabold shrink-0 shadow-sm">
                 M
               </div>
               {!collapsed && (
                 <div className="flex flex-col leading-tight min-w-0">
-                  <span className="font-semibold text-sm truncate">{profile?.tenant?.name ?? platformSettings?.appName ?? "Master HRMS"}</span>
-                  <span className="text-xs text-muted-foreground truncate">Workspace</span>
+                  <span className="font-bold text-sm truncate">{profile?.tenant?.name ?? platformSettings?.appName ?? "Master ERP"}</span>
+                  <span className="text-[11px] text-muted-foreground truncate">Tenant Admin Portal</span>
                 </div>
               )}
             </div>
@@ -89,36 +147,50 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Manage</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => {
-                const active = path === item.url || path.startsWith(item.url + "/");
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link to={item.url} className="flex items-center gap-2">
-                        <item.icon className="size-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {menuGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const active = path === item.url || (item.url !== "/dashboard" && path.startsWith(item.url));
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={active}>
+                        <Link to={item.url} className="flex items-center justify-between w-full gap-2">
+                          <span className="flex items-center gap-2 truncate">
+                            <item.icon className="size-4 shrink-0" />
+                            {!collapsed && <span className="truncate text-xs font-medium">{item.title}</span>}
+                          </span>
+                          {!collapsed && item.badge && (
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
+                              {item.badge}
+                            </span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+
         {profile?.roles.includes("super_admin") && (
           <SidebarGroup>
-            <SidebarGroupLabel>Platform</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-[10px] font-black uppercase tracking-wider text-purple-500">
+              Super Admin Console
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={path.startsWith("/super")}>
-                    <Link to="/super" className="flex items-center gap-2">
+                    <Link to="/super" className="flex items-center gap-2 text-purple-600 font-bold">
                       <ShieldCheck className="size-4" />
-                      {!collapsed && <span>Super Admin</span>}
+                      {!collapsed && <span>Super Admin Console</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
