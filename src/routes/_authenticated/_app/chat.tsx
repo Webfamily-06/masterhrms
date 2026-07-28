@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession, useCurrentProfile } from "@/lib/session";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,20 +26,17 @@ import {
   FileText,
   MapPin,
   CheckCheck,
-  Phone,
-  Video,
-  MoreVertical,
   Shield,
   Lock,
-  User,
   Download,
   X,
-  Smile,
-  Check,
-  Bell,
-  Sparkles,
+  Mic,
+  Square,
+  Play,
+  Pause,
   Loader2,
   FolderPlus,
+  Volume2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/_app/chat")({
@@ -53,11 +50,12 @@ export type ChatMessage = {
   senderName: string;
   senderAvatar?: string;
   text: string;
-  type: "text" | "image" | "file" | "location";
+  type: "text" | "image" | "file" | "location" | "audio";
   mediaUrl?: string;
   fileName?: string;
   fileSize?: string;
   locationCoords?: string;
+  audioDuration?: string;
   timestamp: string;
   isRead: boolean;
 };
@@ -85,69 +83,9 @@ export type EmployeeUser = {
   isOnline: boolean;
 };
 
-// Default seed WhatsApp chats if none exist in Supabase yet
-const DEFAULT_THREADS: ChatThread[] = [
-  {
-    id: "group-eng",
-    isGroup: true,
-    name: "Engineering & Plant Ops",
-    avatarUrl: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80",
-    participantIds: ["all"],
-    participantNames: ["Anand Sharma", "Priya Patel", "Super Admin"],
-    groupAdminIds: ["super_admin"],
-    onlyAdminsCanSend: false,
-    unreadCount: 2,
-    lastMessage: "Q3 payroll calculations are ready for review.",
-    lastMessageTime: "10:14 AM",
-  },
-  {
-    id: "group-hr",
-    isGroup: true,
-    name: "HR & Executive Announcements",
-    avatarUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=200&q=80",
-    participantIds: ["all"],
-    participantNames: ["Priya Patel", "Super Admin"],
-    groupAdminIds: ["super_admin"],
-    onlyAdminsCanSend: true, // Only Admin Can Send
-    unreadCount: 0,
-    lastMessage: "New company holiday schedule updated for August.",
-    lastMessageTime: "Yesterday",
-  },
-];
-
-const DEFAULT_MESSAGES: Record<string, ChatMessage[]> = {
-  "group-eng": [
-    {
-      id: "m1",
-      senderId: "u1",
-      senderName: "Anand Sharma",
-      text: "Team, the Q3 payroll calculations are ready for review.",
-      type: "text",
-      timestamp: "10:14 AM",
-      isRead: true,
-    },
-    {
-      id: "m2",
-      senderId: "u2",
-      senderName: "Priya Patel",
-      text: "Awesome! I've approved all pending leave requests for the engineering dept.",
-      type: "text",
-      timestamp: "10:16 AM",
-      isRead: true,
-    },
-    {
-      id: "m3",
-      senderId: "u3",
-      senderName: "Super Admin",
-      text: "Great work! Here is the updated plant machinery inspection report.",
-      type: "file",
-      fileName: "Plant_Inspection_Report_Q3.pdf",
-      fileSize: "2.4 MB",
-      timestamp: "10:20 AM",
-      isRead: true,
-    },
-  ],
-};
+// CLEAN START: NO DUMMY VALUES!
+const DEFAULT_THREADS: ChatThread[] = [];
+const DEFAULT_MESSAGES: Record<string, ChatMessage[]> = {};
 
 function TeamWhatsAppChatAddon() {
   const qc = useQueryClient();
@@ -155,14 +93,18 @@ function TeamWhatsAppChatAddon() {
   const { data: currentProfile } = useCurrentProfile(user);
 
   const [activeTab, setActiveTab] = useState<"chats" | "groups" | "employees">("chats");
-  const [activeThreadId, setActiveThreadId] = useState<string>("group-eng");
+  const [activeThreadId, setActiveThreadId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Input Box States
   const [inputMsg, setInputMsg] = useState("");
   const [attachedImage, setAttachedImage] = useState<{ url: string; name: string } | null>(null);
   const [attachedFile, setAttachedFile] = useState<{ name: string; size: string } | null>(null);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
+
+  // Voice Note Recording State
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
 
   // New Group Modal State
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -171,12 +113,13 @@ function TeamWhatsAppChatAddon() {
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([]);
   const [onlyAdminsCanSend, setOnlyAdminsCanSend] = useState(false);
 
-  // Group Info & Permissions Modal State
+  // Group Info Modal State
   const [isGroupInfoOpen, setIsGroupInfoOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recordingTimerRef = useRef<any>(null);
 
   // 1. REALTIME QUERY: Fetch employees list from Supabase profiles
   const { data: employeesList = [] } = useQuery({
@@ -190,15 +133,10 @@ function TeamWhatsAppChatAddon() {
           email: p.email || "",
           avatar_url: p.avatar_url || undefined,
           role: "Employee",
-          isOnline: idx % 2 === 0, // Simulated online status indicator
+          isOnline: idx % 2 === 0,
         })) as EmployeeUser[];
       }
-      return [
-        { id: "u1", full_name: "Anand Sharma", email: "anand@masterhrms.com", role: "Engineering Lead", isOnline: true },
-        { id: "u2", full_name: "Priya Patel", email: "priya@masterhrms.com", role: "HR Manager", isOnline: true },
-        { id: "u3", full_name: "Rohan Verma", email: "rohan@masterhrms.com", role: "Payroll Analyst", isOnline: false },
-        { id: "u4", full_name: "Kavita Rao", email: "kavita@masterhrms.com", role: "Operations Specialist", isOnline: true },
-      ] as EmployeeUser[];
+      return [] as EmployeeUser[];
     },
   });
 
@@ -226,16 +164,36 @@ function TeamWhatsAppChatAddon() {
   const threads = chatData?.threads ?? DEFAULT_THREADS;
   const messagesMap = chatData?.messagesMap ?? DEFAULT_MESSAGES;
 
-  const currentThread = useMemo(() => {
-    return threads.find((t) => t.id === activeThreadId) || threads[0] || DEFAULT_THREADS[0];
+  // Auto select active thread
+  useEffect(() => {
+    if (!activeThreadId && threads.length > 0) {
+      setActiveThreadId(threads[0].id);
+    }
   }, [threads, activeThreadId]);
 
-  const activeMessages = messagesMap[activeThreadId] ?? [];
+  const currentThread = useMemo(() => {
+    return threads.find((t) => t.id === activeThreadId) || null;
+  }, [threads, activeThreadId]);
+
+  const activeMessages = currentThread ? (messagesMap[activeThreadId] ?? []) : [];
 
   // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages]);
+
+  // Voice Recording Timer Effect
+  useEffect(() => {
+    if (isRecordingVoice) {
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((sec) => sec + 1);
+      }, 1000);
+    } else {
+      clearInterval(recordingTimerRef.current);
+      setRecordingSeconds(0);
+    }
+    return () => clearInterval(recordingTimerRef.current);
+  }, [isRecordingVoice]);
 
   // 3. REALTIME MUTATION: Save chat state to Supabase
   const saveChatStateMutation = useMutation({
@@ -253,7 +211,7 @@ function TeamWhatsAppChatAddon() {
       const { error } = await supabase.from("cms_pages").upsert({
         slug: "system-whatsapp-chat-addon",
         title: "WhatsApp Team Chat Addon Data",
-        meta_description: "Realtime WhatsApp style chats, groups, media & location messages",
+        meta_description: "Realtime WhatsApp style chats, groups, media, voice notes & location messages",
         content: payload as any,
         published: true,
       }, { onConflict: "slug" });
@@ -273,7 +231,7 @@ function TeamWhatsAppChatAddon() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       setAttachedImage({ url: ev.target?.result as string, name: file.name });
-      toast.success(`Image "${file.name}" attached to chat message!`);
+      toast.success(`Image "${file.name}" attached!`);
     };
     reader.readAsDataURL(file);
   }
@@ -288,9 +246,47 @@ function TeamWhatsAppChatAddon() {
     toast.success(`Document "${file.name}" attached!`);
   }
 
+  // Send Voice Note Handler
+  function handleSendVoiceNote() {
+    if (!activeThreadId || !currentThread) return toast.error("Select a chat first");
+    const durationFormatted = `0:${recordingSeconds < 10 ? "0" : ""}${recordingSeconds || 5}`;
+
+    const newMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      senderId: user?.id || "super_admin",
+      senderName: currentProfile?.full_name || "Super Admin",
+      senderAvatar: currentProfile?.avatar_url || undefined,
+      text: "🎤 Voice Note",
+      type: "audio",
+      audioDuration: durationFormatted,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      isRead: true,
+    };
+
+    setIsRecordingVoice(false);
+
+    const updatedMessages = [...activeMessages, newMsg];
+    const updatedMessagesMap = { ...messagesMap, [activeThreadId]: updatedMessages };
+
+    const updatedThreads = threads.map((t) =>
+      t.id === activeThreadId
+        ? {
+            ...t,
+            lastMessage: "🎤 Voice Note",
+            lastMessageTime: newMsg.timestamp,
+            unreadCount: 0,
+          }
+        : t
+    );
+
+    saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
+    toast.success("WhatsApp Voice Note sent!");
+  }
+
   // Send Message Handler
   function handleSendMessage(e?: React.FormEvent, customType?: "location") {
     if (e) e.preventDefault();
+    if (!activeThreadId || !currentThread) return toast.error("Select a chat to send messages");
 
     // Check Group Admin Permission
     if (currentThread.isGroup && currentThread.onlyAdminsCanSend) {
@@ -339,7 +335,6 @@ function TeamWhatsAppChatAddon() {
     const updatedMessages = [...activeMessages, newMsg];
     const updatedMessagesMap = { ...messagesMap, [activeThreadId]: updatedMessages };
 
-    // Update Thread Last Message
     const updatedThreads = threads.map((t) =>
       t.id === activeThreadId
         ? {
@@ -357,14 +352,6 @@ function TeamWhatsAppChatAddon() {
     setInputMsg("");
     setAttachedImage(null);
     setAttachedFile(null);
-
-    // Browser Push Notification Simulation
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(`WhatsApp Chat: ${currentThread.name}`, {
-        body: `${newMsg.senderName}: ${newMsg.text}`,
-        icon: "/favicon.ico",
-      });
-    }
   }
 
   // Create WhatsApp Group
@@ -436,16 +423,17 @@ function TeamWhatsAppChatAddon() {
 
   // Toggle Group Admin Permission
   function handleToggleAdminPermission(val: boolean) {
+    if (!currentThread) return;
     const updatedThreads = threads.map((t) => (t.id === currentThread.id ? { ...t, onlyAdminsCanSend: val } : t));
     saveChatStateMutation.mutate({ updatedThreads });
-    toast.success(val ? "Group settings updated: Only Admins can send messages." : "Group settings updated: All participants can send messages.");
+    toast.success(val ? "Only Admins can send messages." : "All participants can send messages.");
   }
 
   return (
     <PlanGuard moduleName="Team Internal Chat" requiredPlan="starter">
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
+      <div className="h-[calc(100vh-130px)] flex flex-col space-y-3">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between border-b pb-3 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black tracking-tight flex items-center gap-2 text-emerald-600">
@@ -455,24 +443,22 @@ function TeamWhatsAppChatAddon() {
                 WhatsApp Web Concept
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Realtime WhatsApp messaging with employee directory, groups, permissions, image/file attachments & GPS location.
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Realtime messaging with voice notes 🎤, image/file attachments & GPS location.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setIsGroupModalOpen(true)} className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-              <FolderPlus className="size-4" /> + Create WhatsApp Group
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => setIsGroupModalOpen(true)} className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+            <FolderPlus className="size-4" /> + Create WhatsApp Group
+          </Button>
         </div>
 
-        {/* MAIN WHATSAPP CONTAINER (LEFT SIDEBAR + RIGHT CHAT PANEL) */}
-        <Card className="grid lg:grid-cols-12 overflow-hidden border-emerald-500/20 shadow-xl rounded-2xl min-h-[640px] max-h-[780px]">
+        {/* FULL WIDTH & HEIGHT WHATSAPP CONTAINER (WALL TO WALL) */}
+        <Card className="grid lg:grid-cols-12 overflow-hidden border-emerald-500/20 shadow-xl rounded-2xl flex-1 w-full h-full min-h-0">
           {/* LEFT SIDEBAR (WHATSAPP CHATS & EMPLOYEES) */}
-          <div className="lg:col-span-4 border-r bg-card flex flex-col justify-between">
+          <div className="lg:col-span-4 border-r bg-card flex flex-col justify-between h-full min-h-0">
             {/* Sidebar Header */}
-            <div className="p-3 bg-secondary/50 border-b flex items-center justify-between">
+            <div className="p-3 bg-secondary/50 border-b flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <Avatar className="size-9 border-2 border-emerald-500">
                   <AvatarImage src={currentProfile?.avatar_url ?? undefined} />
@@ -494,7 +480,7 @@ function TeamWhatsAppChatAddon() {
             </div>
 
             {/* Search Input Bar */}
-            <div className="p-2.5 border-b bg-background">
+            <div className="p-2.5 border-b bg-background shrink-0">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
                 <Input
@@ -507,87 +493,103 @@ function TeamWhatsAppChatAddon() {
             </div>
 
             {/* Sidebar Tabs: All Chats vs Groups vs Employee Roster */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                 <div className="px-2 pt-2">
                   <TabsList className="grid grid-cols-3 w-full h-8 text-[11px]">
-                    <TabsTrigger value="chats" className="text-[11px] py-1">Chats</TabsTrigger>
-                    <TabsTrigger value="groups" className="text-[11px] py-1">Groups</TabsTrigger>
-                    <TabsTrigger value="employees" className="text-[11px] py-1">Employees</TabsTrigger>
+                    <TabsTrigger value="chats" className="text-[11px] py-1">Chats ({threads.length})</TabsTrigger>
+                    <TabsTrigger value="groups" className="text-[11px] py-1">Groups ({threads.filter((t) => t.isGroup).length})</TabsTrigger>
+                    <TabsTrigger value="employees" className="text-[11px] py-1">Employees ({employeesList.length})</TabsTrigger>
                   </TabsList>
                 </div>
 
                 {/* TAB 1: CHATS LIST */}
                 <TabsContent value="chats" className="space-y-0.5 mt-2">
-                  {threads
-                    .filter((t) => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                    .map((t) => {
-                      const isActive = t.id === activeThreadId;
-                      return (
-                        <div
-                          key={t.id}
-                          onClick={() => setActiveThreadId(t.id)}
-                          className={`p-3 flex items-center justify-between cursor-pointer border-b/50 transition-colors ${
-                            isActive ? "bg-emerald-500/10 border-l-4 border-l-emerald-600" : "hover:bg-secondary/40"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <Avatar className="size-11 shrink-0 border">
-                              <AvatarImage src={t.avatarUrl} />
-                              <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
-                                {t.name[0].toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between">
-                                <h4 className="font-bold text-xs truncate">{t.name}</h4>
-                                <span className="text-[10px] text-muted-foreground font-mono">{t.lastMessageTime}</span>
+                  {threads.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+                      <MessageSquare className="size-8 mx-auto opacity-30 text-emerald-600" />
+                      <p className="font-bold text-foreground">No active chats yet</p>
+                      <p>Select an employee from the Employees tab to start a new chat.</p>
+                    </div>
+                  ) : (
+                    threads
+                      .filter((t) => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map((t) => {
+                        const isActive = t.id === activeThreadId;
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => setActiveThreadId(t.id)}
+                            className={`p-3 flex items-center justify-between cursor-pointer border-b/50 transition-colors ${
+                              isActive ? "bg-emerald-500/10 border-l-4 border-l-emerald-600" : "hover:bg-secondary/40"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <Avatar className="size-11 shrink-0 border">
+                                <AvatarImage src={t.avatarUrl} />
+                                <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
+                                  {t.name[0].toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-xs truncate">{t.name}</h4>
+                                  <span className="text-[10px] text-muted-foreground font-mono">{t.lastMessageTime}</span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{t.lastMessage}</p>
                               </div>
-                              <p className="text-[11px] text-muted-foreground truncate mt-0.5">{t.lastMessage}</p>
                             </div>
-                          </div>
 
-                          {t.unreadCount > 0 && (
-                            <Badge className="ml-2 bg-emerald-600 text-white text-[10px] rounded-full size-5 grid place-items-center p-0 font-bold shrink-0">
-                              {t.unreadCount}
-                            </Badge>
-                          )}
-                        </div>
-                      );
-                    })}
+                            {t.unreadCount > 0 && (
+                              <Badge className="ml-2 bg-emerald-600 text-white text-[10px] rounded-full size-5 grid place-items-center p-0 font-bold shrink-0">
+                                {t.unreadCount}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })
+                  )}
                 </TabsContent>
 
                 {/* TAB 2: GROUPS LIST */}
                 <TabsContent value="groups" className="space-y-0.5 mt-2">
-                  {threads
-                    .filter((t) => t.isGroup)
-                    .map((t) => (
-                      <div
-                        key={t.id}
-                        onClick={() => setActiveThreadId(t.id)}
-                        className={`p-3 flex items-center gap-3 cursor-pointer border-b/50 transition-colors ${
-                          t.id === activeThreadId ? "bg-emerald-500/10 border-l-4 border-l-emerald-600" : "hover:bg-secondary/40"
-                        }`}
-                      >
-                        <Avatar className="size-11 shrink-0 border">
-                          <AvatarImage src={t.avatarUrl} />
-                          <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
-                            {t.name[0].toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-bold text-xs truncate flex items-center gap-1.5">
-                            {t.name}
-                            {t.onlyAdminsCanSend && (
-                              <Badge variant="outline" className="text-[8px] font-mono text-amber-600 border-amber-500/40">
-                                Admin Only
-                              </Badge>
-                            )}
+                  {threads.filter((t) => t.isGroup).length === 0 ? (
+                    <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+                      <Users className="size-8 mx-auto opacity-30 text-emerald-600" />
+                      <p className="font-bold text-foreground">No WhatsApp groups created yet</p>
+                      <p>Click "+ Create WhatsApp Group" at top right to create your first team group.</p>
+                    </div>
+                  ) : (
+                    threads
+                      .filter((t) => t.isGroup)
+                      .map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => setActiveThreadId(t.id)}
+                          className={`p-3 flex items-center gap-3 cursor-pointer border-b/50 transition-colors ${
+                            t.id === activeThreadId ? "bg-emerald-500/10 border-l-4 border-l-emerald-600" : "hover:bg-secondary/40"
+                          }`}
+                        >
+                          <Avatar className="size-11 shrink-0 border">
+                            <AvatarImage src={t.avatarUrl} />
+                            <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
+                              {t.name[0].toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-xs truncate flex items-center gap-1.5">
+                              {t.name}
+                              {t.onlyAdminsCanSend && (
+                                <Badge variant="outline" className="text-[8px] font-mono text-amber-600 border-amber-500/40">
+                                  Admin Only
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{t.participantNames.length} Members</p>
                           </div>
-                          <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{t.participantNames.length} Members</p>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                  )}
                 </TabsContent>
 
                 {/* TAB 3: ALL EMPLOYEES DIRECTORY */}
@@ -619,7 +621,7 @@ function TeamWhatsAppChatAddon() {
                           </div>
                           <div className="min-w-0">
                             <div className="font-bold text-xs truncate">{emp.full_name}</div>
-                            <div className="text-[10px] text-muted-foreground truncate">{emp.role}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">{emp.email}</div>
                           </div>
                         </div>
 
@@ -634,178 +636,264 @@ function TeamWhatsAppChatAddon() {
           </div>
 
           {/* RIGHT CHAT PANEL (WHATSAPP WALLPAPER & MESSAGES) */}
-          <div className="lg:col-span-8 flex flex-col justify-between bg-slate-900/5 dark:bg-slate-950/40 relative">
-            {/* Chat Workspace Header */}
-            <div className="p-3 bg-secondary/80 backdrop-blur-md border-b flex items-center justify-between sticky top-0 z-10">
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar className="size-10 border">
-                  <AvatarImage src={currentThread.avatarUrl} />
-                  <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
-                    {currentThread.name[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <h3 className="font-extrabold text-sm truncate flex items-center gap-1.5">
-                    {currentThread.name}
-                    {currentThread.isGroup && (
-                      <Badge variant="outline" className="text-[9px] font-mono">
-                        Group ({currentThread.participantNames.length})
-                      </Badge>
-                    )}
-                  </h3>
-                  <p className="text-[10px] text-emerald-600 font-medium">
-                    {currentThread.isGroup ? `${currentThread.participantNames.join(", ")}` : "Online · WhatsApp Verified"}
-                  </p>
+          <div className="lg:col-span-8 flex flex-col justify-between bg-slate-900/5 dark:bg-slate-950/40 relative h-full min-h-0">
+            {!currentThread ? (
+              <div className="py-32 flex flex-col items-center justify-center text-center text-muted-foreground space-y-3 p-6">
+                <div className="size-16 rounded-full bg-emerald-500/10 grid place-items-center text-emerald-600">
+                  <MessageSquare className="size-8" />
                 </div>
+                <h3 className="font-bold text-lg text-foreground">WhatsApp Web for Master HRMS</h3>
+                <p className="text-xs max-w-sm">
+                  Send and receive end-to-end team messages, voice notes 🎤, documents & live location updates. Select a chat to begin.
+                </p>
               </div>
-
-              <div className="flex items-center gap-1">
-                <Button size="icon" variant="ghost" className="size-8" onClick={() => toast.info("Voice call connecting...")} title="Voice Call">
-                  <Phone className="size-4 text-emerald-600" />
-                </Button>
-                <Button size="icon" variant="ghost" className="size-8" onClick={() => toast.info("Video call connecting...")} title="Video Call">
-                  <Video className="size-4 text-emerald-600" />
-                </Button>
-                {currentThread.isGroup && (
-                  <Button size="icon" variant="ghost" className="size-8" onClick={() => setIsGroupInfoOpen(true)} title="Group Settings & Info">
-                    <Shield className="size-4 text-primary" />
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* WHATSAPP CHAT MESSAGES SCROLL AREA WITH BUBBLES & DOUBLE TICKS */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[420px] max-h-[540px] bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
-              {activeMessages.map((m) => {
-                const isMe = m.senderId === user?.id || m.senderName === "Super Admin" || m.senderId === "super_admin";
-
-                return (
-                  <div key={m.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-0.5">
-                      <span className="font-semibold">{m.senderName}</span>
+            ) : (
+              <>
+                {/* Chat Workspace Header (Phone and Video Call Icons Removed) */}
+                <div className="p-3 bg-secondary/80 backdrop-blur-md border-b flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="size-10 border">
+                      <AvatarImage src={currentThread.avatarUrl} />
+                      <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
+                        {currentThread.name[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <h3 className="font-extrabold text-sm truncate flex items-center gap-1.5">
+                        {currentThread.name}
+                        {currentThread.isGroup && (
+                          <Badge variant="outline" className="text-[9px] font-mono">
+                            Group ({currentThread.participantNames?.length || 0})
+                          </Badge>
+                        )}
+                      </h3>
+                      <p className="text-[10px] text-emerald-600 font-medium">
+                        {currentThread.isGroup ? `${currentThread.participantNames?.join(", ")}` : "Online · WhatsApp Verified"}
+                      </p>
                     </div>
+                  </div>
 
-                    <div
-                      className={`max-w-md p-3 rounded-2xl text-xs shadow-sm space-y-2 relative ${
-                        isMe
-                          ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-900/80 dark:text-emerald-100 rounded-tr-none border border-emerald-500/30"
-                          : "bg-card text-foreground rounded-tl-none border shadow-xs"
-                      }`}
-                    >
-                      {/* TYPE 1: IMAGE ATTACHMENT */}
-                      {m.type === "image" && m.mediaUrl && (
-                        <div className="rounded-xl overflow-hidden border bg-black/20">
-                          <img src={m.mediaUrl} alt={m.fileName || "Chat Image"} className="max-h-60 w-full object-cover" />
-                        </div>
-                      )}
+                  <div className="flex items-center gap-1">
+                    {currentThread.isGroup && (
+                      <Button size="icon" variant="ghost" className="size-8" onClick={() => setIsGroupInfoOpen(true)} title="Group Settings & Info">
+                        <Shield className="size-4 text-emerald-600" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
-                      {/* TYPE 2: FILE ATTACHMENT */}
-                      {m.type === "file" && (
-                        <div className="p-2.5 rounded-xl border bg-secondary/50 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FileText className="size-5 text-emerald-600 shrink-0" />
-                            <div className="min-w-0">
-                              <div className="font-bold text-xs truncate">{m.fileName}</div>
-                              <div className="text-[9px] text-muted-foreground font-mono">{m.fileSize}</div>
+                {/* WHATSAPP CHAT MESSAGES SCROLL AREA */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
+                  {activeMessages.length === 0 ? (
+                    <div className="py-16 text-center text-xs text-muted-foreground space-y-1">
+                      <p className="font-bold text-foreground">No messages in this chat yet.</p>
+                      <p>Type a message or record a voice note below to start the conversation.</p>
+                    </div>
+                  ) : (
+                    activeMessages.map((m) => {
+                      const isMe = m.senderId === user?.id || m.senderName === "Super Admin" || m.senderId === "super_admin";
+                      const isAudioPlaying = playingAudioId === m.id;
+
+                      return (
+                        <div key={m.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-0.5">
+                            <span className="font-semibold">{m.senderName}</span>
+                          </div>
+
+                          <div
+                            className={`max-w-md p-3 rounded-2xl text-xs shadow-sm space-y-2 relative ${
+                              isMe
+                                ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-900/80 dark:text-emerald-100 rounded-tr-none border border-emerald-500/30"
+                                : "bg-card text-foreground rounded-tl-none border shadow-xs"
+                            }`}
+                          >
+                            {/* TYPE 1: VOICE NOTE BUBBLE PLAYER 🎤 */}
+                            {m.type === "audio" && (
+                              <div className="p-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/30 flex items-center gap-3 min-w-[240px]">
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  onClick={() => {
+                                    if (isAudioPlaying) setPlayingAudioId(null);
+                                    else {
+                                      setPlayingAudioId(m.id);
+                                      toast.info(`Playing Voice Note (${m.audioDuration || "0:15"})...`);
+                                    }
+                                  }}
+                                  className="size-9 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
+                                >
+                                  {isAudioPlaying ? <Pause className="size-4" /> : <Play className="size-4 ml-0.5" />}
+                                </Button>
+
+                                <div className="flex-1 space-y-1">
+                                  {/* Waveform Visualizer Lines */}
+                                  <div className="flex items-center gap-0.5 h-4">
+                                    {[30, 60, 40, 80, 50, 90, 70, 40, 60, 100, 50, 30, 70, 40, 80, 60, 30].map((h, idx) => (
+                                      <div
+                                        key={idx}
+                                        className={`w-1 rounded-full transition-all ${
+                                          isAudioPlaying ? "bg-emerald-600 animate-pulse" : "bg-emerald-600/40"
+                                        }`}
+                                        style={{ height: `${isAudioPlaying ? Math.max(20, Math.floor(h * Math.random())) : h}%` }}
+                                      />
+                                    ))}
+                                  </div>
+                                  <div className="flex justify-between text-[9px] font-mono text-emerald-700 dark:text-emerald-300 font-bold">
+                                    <span>🎤 Voice Note</span>
+                                    <span>{m.audioDuration || "0:12"}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* TYPE 2: IMAGE ATTACHMENT */}
+                            {m.type === "image" && m.mediaUrl && (
+                              <div className="rounded-xl overflow-hidden border bg-black/20">
+                                <img src={m.mediaUrl} alt={m.fileName || "Chat Image"} className="max-h-60 w-full object-cover" />
+                              </div>
+                            )}
+
+                            {/* TYPE 3: FILE ATTACHMENT */}
+                            {m.type === "file" && (
+                              <div className="p-2.5 rounded-xl border bg-secondary/50 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <FileText className="size-5 text-emerald-600 shrink-0" />
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-xs truncate">{m.fileName}</div>
+                                    <div className="text-[9px] text-muted-foreground font-mono">{m.fileSize}</div>
+                                  </div>
+                                </div>
+                                <Button size="icon" variant="ghost" className="size-7 text-emerald-600" onClick={() => toast.success(`Downloading ${m.fileName}...`)}>
+                                  <Download className="size-3.5" />
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* TYPE 4: LIVE LOCATION CARD */}
+                            {m.type === "location" && (
+                              <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200 space-y-1">
+                                <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                                  <MapPin className="size-4 text-emerald-600" /> WhatsApp Live Location
+                                </div>
+                                <div className="text-[11px] font-mono">{m.locationCoords}</div>
+                              </div>
+                            )}
+
+                            {/* TEXT CONTENT */}
+                            {m.type !== "audio" && <p className="leading-relaxed whitespace-pre-wrap">{m.text}</p>}
+
+                            {/* TIMESTAMP & DOUBLE BLUE TICKS */}
+                            <div className="flex items-center justify-end gap-1 text-[9px] text-muted-foreground font-mono pt-0.5">
+                              <span>{m.timestamp}</span>
+                              {isMe && <CheckCheck className="size-3 text-sky-500" />}
                             </div>
                           </div>
-                          <Button size="icon" variant="ghost" className="size-7 text-emerald-600" onClick={() => toast.success(`Downloading ${m.fileName}...`)}>
-                            <Download className="size-3.5" />
-                          </Button>
                         </div>
-                      )}
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
 
-                      {/* TYPE 3: LIVE LOCATION CARD */}
-                      {m.type === "location" && (
-                        <div className="p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200 space-y-1">
-                          <div className="flex items-center gap-1.5 font-extrabold text-xs">
-                            <MapPin className="size-4 text-emerald-600" /> WhatsApp Live Location
-                          </div>
-                          <div className="text-[11px] font-mono">{m.locationCoords}</div>
+                {/* ATTACHMENT PREVIEWS & SEND BAR WITH VOICE NOTES 🎤 */}
+                <div className="p-3 bg-card border-t space-y-2 shrink-0">
+                  {/* Attachment Preview Box */}
+                  {attachedImage && (
+                    <div className="flex items-center justify-between p-2 rounded-xl border bg-secondary/40 text-xs">
+                      <div className="flex items-center gap-2">
+                        <img src={attachedImage.url} alt="Attached" className="size-8 object-cover rounded-lg border" />
+                        <span className="font-bold text-xs">{attachedImage.name}</span>
+                      </div>
+                      <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => setAttachedImage(null)}>
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {attachedFile && (
+                    <div className="flex items-center justify-between p-2 rounded-xl border bg-secondary/40 text-xs">
+                      <div className="flex items-center gap-2">
+                        <FileText className="size-5 text-emerald-600" />
+                        <div>
+                          <div className="font-bold text-xs">{attachedFile.name}</div>
+                          <div className="text-[9px] text-muted-foreground font-mono">{attachedFile.size}</div>
                         </div>
-                      )}
+                      </div>
+                      <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => setAttachedFile(null)}>
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  )}
 
-                      {/* TEXT CONTENT */}
-                      <p className="leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                  {/* VOICE RECORDING BAR VS REGULAR INPUT */}
+                  {isRecordingVoice ? (
+                    <div className="flex items-center justify-between p-2 px-4 rounded-full bg-red-500/10 border border-red-500/30 text-xs animate-pulse">
+                      <div className="flex items-center gap-2 font-bold text-red-600">
+                        <div className="size-3 rounded-full bg-red-600 animate-ping" />
+                        <span>Recording Voice Note... ({recordingSeconds}s)</span>
+                      </div>
 
-                      {/* TIMESTAMP & DOUBLE BLUE TICKS */}
-                      <div className="flex items-center justify-end gap-1 text-[9px] text-muted-foreground font-mono pt-0.5">
-                        <span>{m.timestamp}</span>
-                        {isMe && <CheckCheck className="size-3 text-sky-500" />}
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" className="text-xs text-muted-foreground h-8" onClick={() => setIsRecordingVoice(false)}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleSendVoiceNote} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 gap-1 text-xs rounded-full">
+                          <Send className="size-3" /> Send Voice Note
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
+                  ) : (
+                    <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-2">
+                      <input type="file" ref={imageInputRef} accept="image/*" onChange={handleImageSelected} className="hidden" />
+                      <input type="file" ref={fileInputRef} accept=".pdf,.doc,.docx,.xls,.xlsx,.zip" onChange={handleFileSelected} className="hidden" />
 
-            {/* ATTACHMENT PREVIEWS & INPUT BOX */}
-            <div className="p-3 bg-card border-t space-y-2">
-              {/* Attachment Preview Box */}
-              {attachedImage && (
-                <div className="flex items-center justify-between p-2 rounded-xl border bg-secondary/40 text-xs">
-                  <div className="flex items-center gap-2">
-                    <img src={attachedImage.url} alt="Attached" className="size-8 object-cover rounded-lg border" />
-                    <span className="font-bold text-xs">{attachedImage.name}</span>
-                  </div>
-                  <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => setAttachedImage(null)}>
-                    <X className="size-3.5" />
-                  </Button>
+                      <div className="flex items-center gap-1">
+                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => imageInputRef.current?.click()} title="Send Image">
+                          <ImageIcon className="size-4" />
+                        </Button>
+
+                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => fileInputRef.current?.click()} title="Send Document File">
+                          <Paperclip className="size-4" />
+                        </Button>
+
+                        <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => handleSendMessage(undefined, "location")} title="Share Location">
+                          <MapPin className="size-4" />
+                        </Button>
+                      </div>
+
+                      <Input
+                        placeholder={
+                          currentThread.isGroup && currentThread.onlyAdminsCanSend
+                            ? "Only admins can send messages in this group..."
+                            : "Type a WhatsApp message..."
+                        }
+                        disabled={currentThread.isGroup && currentThread.onlyAdminsCanSend && !currentThread.groupAdminIds?.includes(user?.id || "super_admin")}
+                        value={inputMsg}
+                        onChange={(e) => setInputMsg(e.target.value)}
+                        className="flex-1 text-xs h-10 rounded-full bg-secondary/50 border-0 px-4 focus:ring-1 focus:ring-emerald-500"
+                      />
+
+                      {/* VOICE NOTE MIC BUTTON 🎤 */}
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={() => setIsRecordingVoice(true)}
+                        className="size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-md"
+                        title="Record Voice Note"
+                      >
+                        <Mic className="size-4" />
+                      </Button>
+
+                      {inputMsg.trim() && (
+                        <Button type="submit" size="icon" className="size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-md">
+                          <Send className="size-4" />
+                        </Button>
+                      )}
+                    </form>
+                  )}
                 </div>
-              )}
-
-              {attachedFile && (
-                <div className="flex items-center justify-between p-2 rounded-xl border bg-secondary/40 text-xs">
-                  <div className="flex items-center gap-2">
-                    <FileText className="size-5 text-emerald-600" />
-                    <div>
-                      <div className="font-bold text-xs">{attachedFile.name}</div>
-                      <div className="text-[9px] text-muted-foreground font-mono">{attachedFile.size}</div>
-                    </div>
-                  </div>
-                  <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => setAttachedFile(null)}>
-                    <X className="size-3.5" />
-                  </Button>
-                </div>
-              )}
-
-              {/* INPUT FORM WITH IMAGE, FILE & LOCATION BUTTONS */}
-              <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-2">
-                <input type="file" ref={imageInputRef} accept="image/*" onChange={handleImageSelected} className="hidden" />
-                <input type="file" ref={fileInputRef} accept=".pdf,.doc,.docx,.xls,.xlsx,.zip" onChange={handleFileSelected} className="hidden" />
-
-                <div className="flex items-center gap-1">
-                  <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => imageInputRef.current?.click()} title="Send Image">
-                    <ImageIcon className="size-4" />
-                  </Button>
-
-                  <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => fileInputRef.current?.click()} title="Send Document File">
-                    <Paperclip className="size-4" />
-                  </Button>
-
-                  <Button type="button" size="icon" variant="ghost" className="size-8 text-emerald-600" onClick={() => handleSendMessage(undefined, "location")} title="Share Location">
-                    <MapPin className="size-4" />
-                  </Button>
-                </div>
-
-                <Input
-                  placeholder={
-                    currentThread.isGroup && currentThread.onlyAdminsCanSend
-                      ? "Only admins can send messages in this group..."
-                      : "Type a WhatsApp message..."
-                  }
-                  disabled={currentThread.isGroup && currentThread.onlyAdminsCanSend && !currentThread.groupAdminIds?.includes(user?.id || "super_admin")}
-                  value={inputMsg}
-                  onChange={(e) => setInputMsg(e.target.value)}
-                  className="flex-1 text-xs h-10 rounded-full bg-secondary/50 border-0 px-4 focus:ring-1 focus:ring-emerald-500"
-                />
-
-                <Button type="submit" size="icon" className="size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-md">
-                  <Send className="size-4" />
-                </Button>
-              </form>
-            </div>
+              </>
+            )}
           </div>
         </Card>
 
@@ -864,7 +952,7 @@ function TeamWhatsAppChatAddon() {
                             <AvatarImage src={emp.avatar_url} />
                             <AvatarFallback className="text-[10px]">{emp.full_name[0]}</AvatarFallback>
                           </Avatar>
-                          <span>{emp.full_name} ({emp.role})</span>
+                          <span>{emp.full_name} ({emp.email})</span>
                         </div>
                         <Checkbox checked={isChecked} />
                       </div>
@@ -901,33 +989,35 @@ function TeamWhatsAppChatAddon() {
               </DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4 py-2 text-xs">
-              <div className="text-center space-y-2">
-                <Avatar className="size-16 mx-auto border-2 border-emerald-500">
-                  <AvatarImage src={currentThread.avatarUrl} />
-                  <AvatarFallback className="bg-emerald-600 text-white font-bold text-xl">{currentThread.name[0]}</AvatarFallback>
-                </Avatar>
-                <h3 className="font-extrabold text-base">{currentThread.name}</h3>
-                <p className="text-xs text-muted-foreground">{currentThread.participantNames?.length || 0} Group Participants</p>
-              </div>
-
-              <div className="border-t pt-3 space-y-3">
-                <div className="font-bold text-xs flex items-center gap-1.5 text-primary">
-                  <Lock className="size-4 text-emerald-600" /> Group Posting Permissions
+            {currentThread && (
+              <div className="space-y-4 py-2 text-xs">
+                <div className="text-center space-y-2">
+                  <Avatar className="size-16 mx-auto border-2 border-emerald-500">
+                    <AvatarImage src={currentThread.avatarUrl} />
+                    <AvatarFallback className="bg-emerald-600 text-white font-bold text-xl">{currentThread.name[0]}</AvatarFallback>
+                  </Avatar>
+                  <h3 className="font-extrabold text-base">{currentThread.name}</h3>
+                  <p className="text-xs text-muted-foreground">{currentThread.participantNames?.length || 0} Group Participants</p>
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-xl border bg-secondary/40">
-                  <div>
-                    <p className="font-bold text-xs">Only Group Admins Can Send</p>
-                    <p className="text-[10px] text-muted-foreground">Restrict messaging to super admins only</p>
+                <div className="border-t pt-3 space-y-3">
+                  <div className="font-bold text-xs flex items-center gap-1.5 text-primary">
+                    <Lock className="size-4 text-emerald-600" /> Group Posting Permissions
                   </div>
-                  <Switch
-                    checked={currentThread.onlyAdminsCanSend ?? false}
-                    onCheckedChange={handleToggleAdminPermission}
-                  />
+
+                  <div className="flex items-center justify-between p-3 rounded-xl border bg-secondary/40">
+                    <div>
+                      <p className="font-bold text-xs">Only Group Admins Can Send</p>
+                      <p className="text-[10px] text-muted-foreground">Restrict messaging to super admins only</p>
+                    </div>
+                    <Switch
+                      checked={currentThread.onlyAdminsCanSend ?? false}
+                      onCheckedChange={handleToggleAdminPermission}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <DialogFooter>
               <Button onClick={() => setIsGroupInfoOpen(false)} className="bg-emerald-600 text-white font-bold">Done</Button>
