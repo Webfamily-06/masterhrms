@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CreditCard, Sparkles, CheckCircle2, Zap, ArrowRight, ShieldCheck, HelpCircle, Store, Boxes, Loader2 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
-import { openRazorpayCheckout } from "@/lib/razorpay";
+import { PaymentCheckoutModal } from "@/components/payment-checkout-modal";
 import { PlanLimitBar } from "@/components/plan-guard";
 import { toast } from "sonner";
 import type { SubscriptionPlan } from "@/routes/_authenticated/super/plans";
@@ -53,9 +53,11 @@ function SubscriptionPage() {
   const tenantId = profile?.tenant_id;
 
   const [currentPlanId, setCurrentPlanId] = useState("p2");
+  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<SubscriptionPlan | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
 
-  // 1. REALTIME QUERY: Fetch Super-Admin Configured Subscription Plans
+  // 1. Fetch Plans
   const { data: plansData = DEFAULT_PLANS } = useQuery({
     queryKey: ["public-plans-list"],
     queryFn: async () => {
@@ -67,7 +69,7 @@ function SubscriptionPage() {
     },
   });
 
-  // 2. REALTIME QUERY: Fetch Super-Admin Available Addons
+  // 2. Fetch Super-Admin Available Addons
   const { data: availableAddons = [] } = useQuery({
     queryKey: ["realtime-super-addons-list"],
     queryFn: async () => {
@@ -76,7 +78,7 @@ function SubscriptionPage() {
     },
   });
 
-  // 3. REALTIME QUERY: Fetch Tenant's Purchased / Activated Addons
+  // 3. Fetch Tenant's Purchased Addons
   const purchasedSlugKey = `tenant-${tenantId || "default"}-purchased-addons`;
   const { data: purchasedAddonIds = [] } = useQuery({
     queryKey: ["realtime-purchased-addons", tenantId],
@@ -99,233 +101,169 @@ function SubscriptionPage() {
     },
   });
 
-  // Upgrade Plan Handler: Triggers Razorpay Payment Gateway & Auto-Activates Bundled Default Addons
-  async function upgrade(plan: SubscriptionPlan) {
+  // Upgrade Plan Callback after Payment Verification
+  async function activatePlanAfterPayment(paymentDetails: { method: string; paymentId?: string }) {
+    if (!selectedPlanForPayment || !tenantId) return;
+
+    const plan = selectedPlanForPayment;
+    setCurrentPlanId(plan.id);
+
+    const bundledAddonIds = plan.included_addon_ids || [];
+    const mergedAddons = Array.from(new Set([...purchasedAddonIds, ...bundledAddonIds]));
+
+    await supabase.from("cms_pages").upsert({
+      slug: purchasedSlugKey,
+      title: `Purchased Addons ${tenantId}`,
+      content: { addon_ids: mergedAddons } as any,
+      published: true,
+    }, { onConflict: "slug" });
+
+    qc.invalidateQueries({ queryKey: ["realtime-purchased-addons", tenantId] });
+
+    const addonNames = availableAddons
+      .filter((a) => bundledAddonIds.includes(a.id))
+      .map((a) => a.name);
+
+    if (addonNames.length > 0) {
+      toast.success(`🎉 Payment Verified via ${paymentDetails.method}! Upgraded to "${plan.name}". Bundled addons (${addonNames.join(", ")}) activated!`);
+    } else {
+      toast.success(`🎉 Payment Verified via ${paymentDetails.method}! Plan Upgraded to "${plan.name}".`);
+    }
+
+    setSelectedPlanForPayment(null);
+  }
+
+  function handlePlanSelect(plan: SubscriptionPlan) {
     if (plan.id === currentPlanId) return toast.info(`You are currently on "${plan.name}"!`);
-    if (!tenantId) return toast.error("Workspace tenant session missing");
+    setSelectedPlanForPayment(plan);
+    const price = plan.price_monthly || 0;
 
-    setIsUpgrading(true);
-    try {
-      const price = plan.price_monthly || 0;
-      let razorpayResponse = null;
-
-      // Paid Plan Upgrade -> Trigger Razorpay Payment Gateway checkout page
-      if (price > 0) {
-        toast.info("Launching Razorpay Payment Gateway...");
-        razorpayResponse = await openRazorpayCheckout({
-          amount: price,
-          name: plan.name,
-          description: `Subscription upgrade to ${plan.name} (${plan.max_employees || "Unlimited"} employee limit)`,
-          userName: profile?.full_name || user?.email || "Workspace Admin",
-          userEmail: user?.email || "admin@workspace.com",
-          tenantId: tenantId,
-        });
-
-        if (!razorpayResponse || !razorpayResponse.razorpay_payment_id) {
-          throw new Error("Payment response is null or incomplete. Plan upgrade was not completed.");
-        }
-      }
-
-      // Payment verified or free plan -> Upgrade plan & activate bundled addons
-      setCurrentPlanId(plan.id);
-
-      const bundledAddonIds = plan.included_addon_ids || [];
-      const mergedAddons = Array.from(new Set([...purchasedAddonIds, ...bundledAddonIds]));
-
-      await supabase.from("cms_pages").upsert({
-        slug: purchasedSlugKey,
-        title: `Purchased Addons ${tenantId}`,
-        content: { addon_ids: mergedAddons } as any,
-        published: true,
-      }, { onConflict: "slug" });
-
-      // Log transaction to Razorpay logs if paid
-      if (razorpayResponse && razorpayResponse.razorpay_payment_id) {
-        try {
-          const razorpaySlug = `system-razorpay-gateway-${tenantId}`;
-          const { data: existingData } = await supabase.from("cms_pages").select("content").eq("slug", razorpaySlug).maybeSingle();
-          const p = (existingData?.content as any) || {};
-          const existingTxns = p.transactions || [];
-          const newTxn = {
-            id: `txn-${Date.now()}`,
-            paymentId: razorpayResponse.razorpay_payment_id,
-            orderId: razorpayResponse.razorpay_order_id || `ord_${Date.now()}`,
-            customer: profile?.full_name || user?.email || "Workspace Customer",
-            amount: price,
-            currency: "INR",
-            status: "captured",
-            method: "Razorpay Checkout",
-            timestamp: new Date().toLocaleString(),
-            invoiceRef: `PLAN-${plan.name}`,
-          };
-          await supabase.from("cms_pages").upsert({
-            slug: razorpaySlug,
-            title: "Razorpay Gateway Config",
-            content: { ...p, transactions: [newTxn, ...existingTxns] },
-            published: true,
-          }, { onConflict: "slug" });
-        } catch (logErr) {
-          console.warn("Transaction log error:", logErr);
-        }
-      }
-
-      qc.invalidateQueries({ queryKey: ["realtime-purchased-addons", tenantId] });
-
-      const addonNames = availableAddons
-        .filter((a) => bundledAddonIds.includes(a.id))
-        .map((a) => a.name);
-
-      if (addonNames.length > 0) {
-        toast.success(`🎉 Payment Verified (ID: ${razorpayResponse?.razorpay_payment_id || "FREE"})! Upgraded to "${plan.name}". Bundled addons (${addonNames.join(", ")}) activated!`);
-      } else {
-        toast.success(`🎉 Payment Verified (ID: ${razorpayResponse?.razorpay_payment_id || "FREE"})! Plan Upgraded to "${plan.name}".`);
-      }
-    } catch (err: any) {
-      toast.error(
-        `❌ Payment Rejected / Failed: ${err.message || "Payment was not completed. Plan upgrade aborted."}`,
-        { duration: 6000 }
-      );
-    } finally {
-      setIsUpgrading(false);
+    if (price > 0) {
+      setIsPaymentModalOpen(true);
+    } else {
+      // Free plan upgrade
+      activatePlanAfterPayment({ method: "Free Tier" });
     }
   }
 
   const activePlan = plansData.find((p) => p.id === currentPlanId) || plansData[0] || DEFAULT_PLANS[0];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-7xl">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <CreditCard className="size-6 text-primary" /> Subscription & Upgrade Console
+            <CreditCard className="size-6 text-primary" /> Subscription & Billing Console
           </h1>
-          <p className="text-xs text-muted-foreground">Manage your workspace tier, bundled default activated addons & resource limits.</p>
+          <p className="text-xs text-muted-foreground">Manage workspace tiers, Razorpay/PayPal/Bank payments & bundled default activated addons.</p>
         </div>
-        <Badge variant="outline" className="font-mono text-xs px-3 py-1 bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-          ● Active Plan: {(activePlan.name || "Growth").toUpperCase()}
-        </Badge>
       </div>
 
-      {/* Workspace Plan Limit Meters */}
-      <Card className="shadow-sm border-primary/20">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center justify-between">
-            <span>Workspace Plan Capacity & Resource Meters</span>
-            <span className="text-xs font-mono text-muted-foreground">Tenant Workspace ID: TNT-{tenantId?.slice(0, 6) || "84920"}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid sm:grid-cols-3 gap-4">
-          <PlanLimitBar used={4} limit={activePlan.max_employees || 100} label="Employee Seats" />
-          <PlanLimitBar used={18} limit={1000} label="Monthly Sales Invoices" />
-          <PlanLimitBar used={2} limit={50} label="Storage (GB)" />
-        </CardContent>
+      {/* Active Plan Banner */}
+      <Card className="p-6 border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-primary text-primary-foreground font-bold">CURRENT ACTIVE TIER</Badge>
+              <Badge variant="outline" className="font-mono text-xs">{activePlan.name}</Badge>
+            </div>
+            <h2 className="text-3xl font-black tracking-tight">{activePlan.name}</h2>
+            <p className="text-xs text-muted-foreground max-w-xl">
+              Includes access to core operations, priority infrastructure, and bundled addon modules.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-3xl font-black font-mono text-primary">
+              {formatSystemAmount(activePlan.price_monthly, sysConfig)}<span className="text-xs font-normal text-muted-foreground">/mo</span>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Capacity: {activePlan.max_employees || 25} Employees</div>
+          </div>
+        </div>
       </Card>
 
-      {/* Plans Pricing Grid */}
+      {/* Subscription Plans Grid */}
       <div className="space-y-4">
-        <div className="text-center space-y-1">
-          <h2 className="text-2xl font-black tracking-tight">Choose Your Workspace Plan</h2>
-          <p className="text-xs text-muted-foreground">Select a plan configured by Super-Admin to automatically activate bundled default addons.</p>
-        </div>
+        <h3 className="font-extrabold text-lg flex items-center gap-2">
+          <Sparkles className="size-5 text-amber-500" /> Available Workspace Plans
+        </h3>
 
-        <div className="grid lg:grid-cols-3 gap-6 pt-2">
-          {plansData.map((p) => {
-            const isCurrent = p.id === currentPlanId;
-            const bundledAddonIds = p.included_addon_ids || [];
-            const bundledAddons = availableAddons.filter((a) => bundledAddonIds.includes(a.id));
+        <div className="grid md:grid-cols-3 gap-6">
+          {plansData.map((plan) => {
+            const isCurrent = plan.id === currentPlanId;
+            const price = plan.price_monthly || 0;
 
             return (
               <Card
-                key={p.id}
-                className={`relative flex flex-col justify-between transition-all hover:shadow-xl ${
-                  p.popular ? "border-primary shadow-md scale-[1.02]" : ""
-                } ${isCurrent ? "bg-primary/5 border-emerald-500" : ""}`}
+                key={plan.id}
+                className={`flex flex-col justify-between p-6 relative transition-all ${
+                  isCurrent ? "border-2 border-primary shadow-lg" : "hover:border-primary/50"
+                }`}
               >
-                {p.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white font-mono text-[10px]">
-                    ★ RECOMMENDED ENTERPRISE TIER
+                {plan.popular && (
+                  <Badge className="absolute -top-3 right-6 bg-amber-500 text-white font-bold text-[10px]">
+                    MOST POPULAR
                   </Badge>
                 )}
 
-                <CardHeader className="pt-6">
-                  <CardTitle className="text-xl font-bold flex items-center justify-between">
-                    <span>{p.name}</span>
-                    {isCurrent && (
-                      <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-                        Current Plan
-                      </Badge>
-                    )}
-                  </CardTitle>
-
-                  <div className="mt-4">
-                    <span className="text-3xl font-black font-mono">
-                      {formatSystemAmount(p.price_monthly, sysConfig)}
-                    </span>
-                    <span className="text-xs text-muted-foreground font-normal"> / month</span>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-extrabold text-xl">{plan.name}</h4>
+                    <div className="text-2xl font-black font-mono mt-2 text-primary">
+                      {formatSystemAmount(price, sysConfig)}
+                      <span className="text-xs text-muted-foreground font-normal"> / month</span>
+                    </div>
                   </div>
 
-                  <p className="text-xs text-muted-foreground mt-2 font-mono">
-                    Includes up to {p.max_employees} employee roster seats.
-                  </p>
-                </CardHeader>
-
-                <CardContent className="space-y-4 pt-0 text-xs">
-                  {/* Standard Perks */}
-                  <div className="space-y-2 border-t pt-3">
-                    <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Plan Features</div>
-                    {p.features?.map((perk: string, idx: number) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <CheckCircle2 className="size-3.5 text-primary shrink-0" />
-                        <span>{perk}</span>
+                  <div className="space-y-2 pt-3 border-t text-xs">
+                    <div className="font-bold text-muted-foreground uppercase text-[10px]">Included Features & Addons</div>
+                    {plan.features?.map((f: string, i: number) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
+                        <span>{f}</span>
                       </div>
                     ))}
                   </div>
+                </div>
 
-                  {/* Bundled Default Activated Addons */}
-                  <div className="space-y-2 border-t pt-3">
-                    <div className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider flex items-center gap-1">
-                      <Boxes className="size-3" /> Bundled Default Addons ({bundledAddons.length})
-                    </div>
-                    {bundledAddons.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground italic">Standard plan features.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {bundledAddons.map((addon) => (
-                          <Badge key={addon.id} variant="outline" className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-                            ✓ {addon.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-
-                <CardFooter className="pt-4 border-t">
-                  <Button
-                    onClick={() => upgrade(p)}
-                    disabled={isCurrent || isUpgrading}
-                    className="w-full font-bold text-xs gap-2"
-                    variant={isCurrent ? "outline" : "default"}
-                  >
-                    {isUpgrading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : isCurrent ? (
-                      <>
-                        <CheckCircle2 className="size-4 text-emerald-600" /> Active Workspace Plan
-                      </>
-                    ) : (
-                      <>
-                        Select {p.name} <ArrowRight className="size-4" />
-                      </>
-                    )}
-                  </Button>
-                </CardFooter>
+                <div className="pt-6 border-t mt-6">
+                  {isCurrent ? (
+                    <Button disabled className="w-full font-bold text-xs" variant="secondary">
+                      <CheckCircle2 className="size-4 mr-1 text-emerald-600" /> Current Plan
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handlePlanSelect(plan)}
+                      className="w-full font-bold text-xs gap-2"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
+                    >
+                      <Zap className="size-4" /> Switch / Upgrade Plan
+                    </Button>
+                  )}
+                </div>
               </Card>
             );
           })}
         </div>
       </div>
+
+      {/* 3-Option Payment Checkout Modal (Razorpay, PayPal, Manual Bank Transfer + Screenshot Upload) */}
+      {selectedPlanForPayment && (selectedPlanForPayment.price_monthly || 0) > 0 && (
+        <PaymentCheckoutModal
+          open={isPaymentModalOpen}
+          onOpenChange={(open) => {
+            setIsPaymentModalOpen(open);
+            if (!open) setSelectedPlanForPayment(null);
+          }}
+          title="Switch / Upgrade Workspace Plan"
+          itemType="plan"
+          itemId={selectedPlanForPayment.id}
+          itemName={selectedPlanForPayment.name}
+          amount={selectedPlanForPayment.price_monthly || 0}
+          description={`Upgrade to ${selectedPlanForPayment.name} (${selectedPlanForPayment.max_employees || "Unlimited"} employee capacity)`}
+          onSuccess={activatePlanAfterPayment}
+        />
+      )}
     </div>
   );
 }
