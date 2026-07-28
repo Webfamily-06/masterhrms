@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession, useCurrentProfile } from "@/lib/session";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Store, Search, CheckCircle2, Plus, Sparkles, ArrowRight, ShieldCheck, Cpu, MessageSquare, Landmark, Lock, CreditCard, ShoppingBag, Loader2, Check } from "lucide-react";
+import { Store, Search, CheckCircle2, Plus, Sparkles, ArrowRight, ShieldCheck, Cpu, MessageSquare, Landmark, Lock, CreditCard, ShoppingBag, Loader2, Check, ImageIcon } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
 import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
 import { toast } from "sonner";
@@ -27,13 +27,90 @@ export type TenantPurchasedAddon = {
   status: "active" | "disabled";
 };
 
+const CATEGORY_IMAGES: Record<string, string> = {
+  Messaging: "https://images.unsplash.com/photo-1611746872915-64382b5c76da?auto=format&fit=crop&w=600&q=80",
+  Hardware: "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?auto=format&fit=crop&w=600&q=80",
+  Finance: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80",
+  Payments: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=600&q=80",
+  "Auth & Storage": "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?auto=format&fit=crop&w=600&q=80",
+  "AI & Automations": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80",
+  Productivity: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
+  Analytics: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80",
+};
+
 const DEFAULT_SUPER_ADMIN_ADDONS = [
-  { id: "a1", slug: "whatsapp-alerts", name: "WhatsApp Alerts & Reminders", category: "Messaging", price_monthly: 0, status: "available", description: "Instant automated WhatsApp alerts for invoices, attendance & leave approvals.", tagline: "Automated WhatsApp notifications" },
-  { id: "a2", slug: "biometric-sync", name: "Biometric Hardware Sync Engine", category: "Hardware", price_monthly: 0, status: "available", description: "Sync physical fingerprint & facial recognition attendance devices.", tagline: "Hardware attendance connector" },
-  { id: "a3", slug: "tally-importer", name: "Tally Prime Ledger Importer", category: "Finance", price_monthly: 499, status: "available", description: "One-click XML/CSV migration and live 2-way sync with Tally ERP.", tagline: "Tally Prime 2-way sync" },
-  { id: "a4", slug: "stripe-razorpay", name: "Stripe & Razorpay Gateway", category: "Payments", price_monthly: 0, status: "available", description: "Accept online client invoice payments via Credit Card, UPI & Net Banking.", tagline: "Payment gateway integration" },
-  { id: "a5", slug: "google-workspace", name: "Google Workspace SSO & Drive", category: "Auth & Storage", price_monthly: 299, status: "available", description: "OAuth 2.0 Single Sign-On and document storage sync to Google Drive.", tagline: "Google SSO & Cloud Drive" },
-  { id: "a6", slug: "ai-ocr-reader", name: "AI Invoice OCR Reader", category: "AI & Automations", price_monthly: 799, status: "available", description: "Extract line items, GST numbers, and vendor details automatically from PDFs.", tagline: "Smart AI document scanner" },
+  {
+    id: "a1",
+    slug: "whatsapp-alerts",
+    name: "WhatsApp Alerts & Reminders",
+    category: "Messaging",
+    price_monthly: 0,
+    status: "available",
+    description: "Instant automated WhatsApp alerts for invoices, attendance & leave approvals.",
+    tagline: "Automated WhatsApp notifications",
+    image: "https://images.unsplash.com/photo-1611746872915-64382b5c76da?auto=format&fit=crop&w=600&q=80",
+    developer: "Master HRMS",
+  },
+  {
+    id: "a2",
+    slug: "biometric-sync",
+    name: "Biometric Hardware Sync Engine",
+    category: "Hardware",
+    price_monthly: 0,
+    status: "available",
+    description: "Sync physical fingerprint & facial recognition attendance devices.",
+    tagline: "Hardware attendance connector",
+    image: "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?auto=format&fit=crop&w=600&q=80",
+    developer: "Master HRMS",
+  },
+  {
+    id: "a3",
+    slug: "tally-importer",
+    name: "Tally Prime Ledger Importer",
+    category: "Finance",
+    price_monthly: 499,
+    status: "available",
+    description: "One-click XML/CSV migration and live 2-way sync with Tally ERP.",
+    tagline: "Tally Prime 2-way sync",
+    image: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80",
+    developer: "FinTech Connect",
+  },
+  {
+    id: "a4",
+    slug: "stripe-razorpay",
+    name: "Stripe & Razorpay Gateway",
+    category: "Payments",
+    price_monthly: 0,
+    status: "available",
+    description: "Accept online client invoice payments via Credit Card, UPI & Net Banking.",
+    tagline: "Payment gateway integration",
+    image: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=600&q=80",
+    developer: "PaymentHub",
+  },
+  {
+    id: "a5",
+    slug: "google-workspace",
+    name: "Google Workspace SSO & Drive",
+    category: "Auth & Storage",
+    price_monthly: 299,
+    status: "available",
+    description: "OAuth 2.0 Single Sign-On and document storage sync to Google Drive.",
+    tagline: "Google SSO & Cloud Drive",
+    image: "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?auto=format&fit=crop&w=600&q=80",
+    developer: "CloudAuth Inc",
+  },
+  {
+    id: "a6",
+    slug: "ai-ocr-reader",
+    name: "AI Invoice OCR Reader",
+    category: "AI & Automations",
+    price_monthly: 799,
+    status: "available",
+    description: "Extract line items, GST numbers, and vendor details automatically from PDFs.",
+    tagline: "Smart AI document scanner",
+    image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80",
+    developer: "NeuralAI Labs",
+  },
 ];
 
 function MarketplacePage() {
@@ -65,7 +142,10 @@ function MarketplacePage() {
       if (error || !data || data.length === 0) {
         return DEFAULT_SUPER_ADMIN_ADDONS;
       }
-      return data as any[];
+      return data.map((item) => ({
+        ...item,
+        image: item.icon || (Array.isArray(item.screenshots) && item.screenshots[0]) || CATEGORY_IMAGES[item.category] || CATEGORY_IMAGES.Productivity,
+      }));
     },
   });
 
@@ -229,33 +309,53 @@ function MarketplacePage() {
             <p>No addons match your search criteria.</p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((a) => {
               const installed = isInstalled(a.id, a.slug);
               const isFree = (a.price_monthly || 0) === 0;
+              const imageUrl = String(a.image || CATEGORY_IMAGES[a.category] || CATEGORY_IMAGES.Productivity);
 
               return (
                 <Card
                   key={a.id}
-                  className={`flex flex-col justify-between transition-all hover:shadow-lg ${
+                  className={`flex flex-col justify-between overflow-hidden transition-all hover:shadow-xl group ${
                     installed ? "border-emerald-500/50 bg-emerald-500/5" : ""
                   }`}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <Badge variant="outline" className="text-[9px] font-mono">
+                  {/* Image Banner */}
+                  <div className="h-40 relative bg-secondary/40 overflow-hidden">
+                    <img
+                      src={imageUrl}
+                      alt={a.name}
+                      className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
+                    
+                    <div className="absolute top-3 left-3">
+                      <Badge variant="outline" className="text-[10px] font-mono bg-background/80 backdrop-blur-md">
                         {a.category || "General"}
                       </Badge>
+                    </div>
+
+                    <div className="absolute top-3 right-3">
                       {isFree ? (
-                        <Badge className="bg-emerald-500 text-white font-mono text-[9px]">FREE ADDON</Badge>
+                        <Badge className="bg-emerald-500 text-white font-mono text-[9px] shadow-sm">FREE ADDON</Badge>
                       ) : (
-                        <span className="font-mono font-black text-xs text-primary">
+                        <Badge className="bg-primary text-white font-mono text-[9px] shadow-sm">
                           {formatSystemAmount(a.price_monthly, sysConfig)}/mo
-                        </span>
+                        </Badge>
                       )}
                     </div>
-                    <CardTitle className="text-base pt-1 leading-snug">{a.name}</CardTitle>
-                    <CardDescription className="text-xs leading-relaxed mt-1">{a.description || a.tagline}</CardDescription>
+                  </div>
+
+                  {/* Card Content Body */}
+                  <CardHeader className="pb-3 pt-3">
+                    <CardTitle className="text-base font-bold leading-snug group-hover:text-primary transition-colors">
+                      {a.name}
+                    </CardTitle>
+                    <CardDescription className="text-xs leading-relaxed mt-1 line-clamp-2">
+                      {a.description || a.tagline}
+                    </CardDescription>
                   </CardHeader>
 
                   <CardContent className="pt-0 space-y-3">
@@ -297,49 +397,50 @@ function MarketplacePage() {
 
         {/* PURCHASE / INSTALLATION CONFIRMATION MODAL */}
         <Dialog open={!!selectedAddon} onOpenChange={(open) => !open && setSelectedAddon(null)}>
-          <DialogContent className="sm:max-w-[460px]">
+          <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden">
             {selectedAddon && (
               <>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <ShoppingBag className="size-5 text-primary" />{" "}
-                    {(selectedAddon.price_monthly || 0) === 0 ? "Install Free Addon" : "Purchase Addon License"}
-                  </DialogTitle>
-                  <DialogDescription className="text-xs">
-                    Confirm adding this Super-Admin addon to your active workspace tenant.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4 py-3 text-xs">
-                  <div className="p-3 rounded-xl border bg-secondary/30 space-y-1">
-                    <div className="flex justify-between font-bold text-sm">
-                      <span>{selectedAddon.name}</span>
-                      <span className="font-mono text-primary">
-                        {(selectedAddon.price_monthly || 0) === 0
-                          ? "FREE"
-                          : formatSystemAmount(selectedAddon.price_monthly, sysConfig) + "/mo"}
-                      </span>
-                    </div>
-                    <p className="text-muted-foreground text-xs leading-relaxed">{selectedAddon.description}</p>
+                {/* Modal Header Image Banner */}
+                <div className="h-44 relative bg-secondary/40 overflow-hidden">
+                  <img
+                    src={String(selectedAddon.image || CATEGORY_IMAGES[selectedAddon.category] || CATEGORY_IMAGES.Productivity)}
+                    alt={selectedAddon.name}
+                    className="size-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+                  
+                  <div className="absolute bottom-3 left-4 right-4">
+                    <Badge variant="outline" className="text-[10px] font-mono bg-background/80 backdrop-blur-md mb-1">
+                      {selectedAddon.category || "General"}
+                    </Badge>
+                    <h3 className="font-bold text-lg text-foreground">{selectedAddon.name}</h3>
                   </div>
+                </div>
 
-                  <div className="space-y-2 p-3 rounded-xl border bg-card text-[11px] text-muted-foreground">
-                    <div className="flex justify-between">
+                <div className="p-6 space-y-4 text-xs">
+                  <p className="text-muted-foreground leading-relaxed">{selectedAddon.description}</p>
+
+                  <div className="space-y-2 p-3.5 rounded-xl border bg-secondary/30 text-xs">
+                    <div className="flex justify-between font-semibold">
                       <span>Target Workspace:</span>
                       <strong className="text-foreground">{profile?.tenant?.name || "Current Tenant"}</strong>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Billing Cycle:</span>
-                      <strong className="text-foreground">Monthly Recurring</strong>
+                    <div className="flex justify-between font-semibold">
+                      <span>Monthly Subscription Price:</span>
+                      <strong className="text-primary font-mono font-bold">
+                        {(selectedAddon.price_monthly || 0) === 0
+                          ? "FREE"
+                          : formatSystemAmount(selectedAddon.price_monthly, sysConfig) + " / month"}
+                      </strong>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Super-Admin Developer:</span>
-                      <strong className="text-foreground">{selectedAddon.developer || "Master HRMS"}</strong>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Super-Admin Publisher:</span>
+                      <span>{selectedAddon.developer || "Master HRMS"}</span>
                     </div>
                   </div>
                 </div>
 
-                <DialogFooter className="gap-2 sm:gap-0">
+                <DialogFooter className="p-4 pt-0 gap-2 sm:gap-0">
                   <Button variant="outline" onClick={() => setSelectedAddon(null)}>
                     Cancel
                   </Button>
