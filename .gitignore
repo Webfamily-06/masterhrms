@@ -1,0 +1,49 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Production Builds
+dist/
+dist-ssr/
+server/dist/
+.output/
+.vinxi/
+.nitro/
+.tanstack/
+
+# Environment variables
+.env
+.env*.local
+.env.production
+server/.env
+server/.env.production
+.dev.vars
+
+# Temporary & Cache
+*.local
+scratch/
+.wrangler/
+.turbo/
+.cache/
+
+# IDE & OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+

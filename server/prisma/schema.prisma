@@ -1,0 +1,1459 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AppRole {
+  super_admin
+  hr_admin
+  manager
+  employee
+}
+
+enum EmploymentType {
+  full_time
+  part_time
+  contract
+  intern
+}
+
+enum EmployeeStatus {
+  active
+  on_leave
+  terminated
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  half_day
+  late
+  on_leave
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+}
+
+enum PayrollStatus {
+  draft
+  processing
+  completed
+  paid
+}
+
+model User {
+  id                    String     @id @default(uuid()) @db.VarChar(36)
+  email                 String     @unique @db.VarChar(255)
+  passwordHash          String     @map("password_hash") @db.VarChar(255)
+  twoFactorEnabled      Boolean    @default(false) @map("two_factor_enabled")
+  twoFactorSecret       String?    @map("two_factor_secret") @db.VarChar(255)
+  twoFactorBackupCodes  String?    @map("two_factor_backup_codes") @db.Text
+  twoFactorConfirmedAt  DateTime?  @map("two_factor_confirmed_at")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  profile      Profile?
+  roles        UserRole[]
+  employees    Employee[]
+
+  @@map("users")
+}
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  name      String   @db.VarChar(255)
+  slug      String   @unique @db.VarChar(100)
+  logoUrl   String?  @map("logo_url") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profiles      Profile[]
+  userRoles     UserRole[]
+  departments   Department[]
+  employees     Employee[]
+  attendance    Attendance[]
+  leaveTypes    LeaveType[]
+  leaveRequests LeaveRequest[]
+  payrollRuns   PayrollRun[]
+  payslips      Payslip[]
+  tenantAddons  TenantAddon[]
+  okrCycles            OkrCycle[]
+  okrObjectives        OkrObjective[]
+  assets               Asset[]
+  assetCategories      AssetCategory[]
+  assetRequests        AssetRequest[]
+  assetDisposalBatches AssetDisposalBatch[]
+  assetActivityLogs    AssetActivityLog[]
+  jobPostings          JobPosting[]
+  jobCandidates        JobCandidate[]
+  shiftDefinitions     ShiftDefinition[]
+  shiftRosters         ShiftRoster[]
+  shiftSwapRequests    ShiftSwapRequest[]
+  expenseCategories    ExpenseCategory[]
+  expenseClaims        ExpenseClaim[]
+  trainingCourses      TrainingCourse[]
+  courseEnrollments    CourseEnrollment[]
+  employeeExits        EmployeeExit[]
+  companyDocuments     CompanyDocument[]
+  helpdeskTickets        HelpdeskTicket[]
+  platformSupportTickets PlatformSupportTicket[]
+  announcements          Announcement[]
+  customForms            CustomForm[]
+  formSubmissions        FormSubmission[]
+  biometricDevices       BiometricDevice[]
+  biometricPunchLogs     BiometricPunchLog[]
+  chartOfAccounts        ChartOfAccount[]
+  journalEntries         JournalEntry[]
+  contracts              Contract[]
+  budgetPlans            BudgetPlan[]
+  financialGoals         FinancialGoal[]
+  @@map("tenants")
+}
+
+model Profile {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String   @unique @map("user_id") @db.VarChar(36)
+  email     String?  @db.VarChar(255)
+  fullName  String?  @map("full_name") @db.VarChar(255)
+  avatarUrl String?  @map("avatar_url") @db.VarChar(500)
+  tenantId  String?  @map("tenant_id") @db.VarChar(36)
+  phone     String?  @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  @@map("profiles")
+}
+
+model UserRole {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  role      AppRole  @default(employee)
+  tenantId  String?  @map("tenant_id") @db.VarChar(36)
+  createdAt DateTime @default(now()) @map("created_at")
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  @@unique([userId, role, tenantId])
+  @@map("user_roles")
+}
+
+model Department {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employees     Employee[]
+  jobPostings   JobPosting[]
+  announcements Announcement[]
+  customForms   CustomForm[]
+  budgetPlans   BudgetPlan[]
+
+  @@map("departments")
+}
+
+model Employee {
+  id             String         @id @default(uuid()) @db.VarChar(36)
+  tenantId       String         @map("tenant_id") @db.VarChar(36)
+  userId         String?        @map("user_id") @db.VarChar(36)
+  departmentId   String?        @map("department_id") @db.VarChar(36)
+  managerId      String?        @map("manager_id") @db.VarChar(36)
+  employeeCode   String         @map("employee_code") @db.VarChar(50)
+  firstName      String         @map("first_name") @db.VarChar(100)
+  lastName       String         @map("last_name") @db.VarChar(100)
+  email          String         @db.VarChar(255)
+  phone          String?        @db.VarChar(50)
+  position       String?        @db.VarChar(150)
+  employmentType EmploymentType @default(full_time) @map("employment_type")
+  status         EmployeeStatus @default(active)
+  salary         Decimal?       @db.Decimal(12, 2)
+  joinedAt       DateTime?      @map("joined_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  tenant                      Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                        User?                         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department                  Department?                   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  manager                     Employee?                     @relation("ManagerSubordinates", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates                Employee[]                    @relation("ManagerSubordinates")
+  attendance                  Attendance[]
+  leaveRequests               LeaveRequest[]
+  payslips                    Payslip[]
+  okrObjectives               OkrObjective[]
+  okrCheckins                 OkrCheckin[]
+  okrReviewsReceived          OkrReview[]                   @relation("OkrReviewsReceived")
+  okrReviewsGiven             OkrReview[]                   @relation("OkrReviewsGiven")
+  assignedAssets              Asset[]
+  assetAssignments            AssetAssignment[]
+  assetRequests               AssetRequest[]
+  conductedInterviews         JobCandidateInterview[]
+  shiftRosters                ShiftRoster[]
+  shiftSwapsRequested         ShiftSwapRequest[]            @relation("ShiftSwapsRequested")
+  shiftSwapsTargeted          ShiftSwapRequest[]            @relation("ShiftSwapsTargeted")
+  expenseClaims               ExpenseClaim[]
+  courseEnrollments           CourseEnrollment[]
+  employeeExits               EmployeeExit[]
+  companyDocuments            CompanyDocument[]
+  helpdeskTickets             HelpdeskTicket[]
+  announcements               Announcement[]                @relation("AnnouncementAuthor")
+  announcementAcknowledgements AnnouncementAcknowledgement[]
+  authoredForms               CustomForm[]                  @relation("FormAuthor")
+  formSubmissions             FormSubmission[]
+  biometricPunchLogs          BiometricPunchLog[]
+
+  @@index([tenantId, status])  // Perf: list active employees by tenant
+  @@index([tenantId, departmentId]) // Perf: filter by department
+  @@map("employees")
+}
+
+model Attendance {
+  id         String           @id @default(uuid()) @db.VarChar(36)
+  tenantId   String           @map("tenant_id") @db.VarChar(36)
+  employeeId String           @map("employee_id") @db.VarChar(36)
+  date       DateTime         @db.Date
+  checkIn    DateTime?        @map("check_in")
+  checkOut   DateTime?        @map("check_out")
+  hours      Decimal?         @db.Decimal(5, 2)
+  status     AttendanceStatus @default(present)
+  notes      String?          @db.Text
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, employeeId, date])
+  @@index([tenantId, date])    // Perf: daily attendance summary
+  @@index([tenantId, status])  // Perf: filter present/absent/late
+  @@map("attendance")
+}
+
+model LeaveType {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  daysPerYear Int      @default(0) @map("days_per_year")
+  color       String?  @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leaveRequests LeaveRequest[]
+
+  @@map("leave_types")
+}
+
+model LeaveRequest {
+  id          String      @id @default(uuid()) @db.VarChar(36)
+  tenantId    String      @map("tenant_id") @db.VarChar(36)
+  employeeId  String      @map("employee_id") @db.VarChar(36)
+  leaveTypeId String?     @map("leave_type_id") @db.VarChar(36)
+  approverId  String?     @map("approver_id") @db.VarChar(36)
+  startDate   DateTime    @map("start_date") @db.Date
+  endDate     DateTime    @map("end_date") @db.Date
+  days        Int         @default(1)
+  status      LeaveStatus @default(pending)
+  reason      String?     @db.Text
+  approvedAt  DateTime?   @map("approved_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee  Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType? @relation(fields: [leaveTypeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])   // Perf: pending leave count dashboard
+  @@index([tenantId, employeeId]) // Perf: per-employee leave history
+  @@map("leave_requests")
+}
+
+model PayrollRun {
+  id          String        @id @default(uuid()) @db.VarChar(36)
+  tenantId    String        @map("tenant_id") @db.VarChar(36)
+  periodMonth Int           @map("period_month")
+  periodYear  Int           @map("period_year")
+  totalAmount Decimal?      @map("total_amount") @db.Decimal(15, 2)
+  status      PayrollStatus @default(draft)
+  processedAt DateTime?     @map("processed_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payslips Payslip[]
+
+  @@index([tenantId, status])  // Perf: payroll run listing
+  @@index([tenantId, periodYear, periodMonth]) // Perf: period-based lookup
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id           String      @id @default(uuid()) @db.VarChar(36)
+  tenantId     String      @map("tenant_id") @db.VarChar(36)
+  payrollRunId String?     @map("payroll_run_id") @db.VarChar(36)
+  employeeId   String      @map("employee_id") @db.VarChar(36)
+  periodMonth  Int         @map("period_month")
+  periodYear   Int         @map("period_year")
+  grossSalary  Decimal     @map("gross_salary") @db.Decimal(12, 2)
+  deductions   Decimal     @default(0.00) @db.Decimal(12, 2)
+  netSalary    Decimal     @map("net_salary") @db.Decimal(12, 2)
+  breakdown    Json?
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payrollRun PayrollRun? @relation(fields: [payrollRunId], references: [id], onDelete: SetNull)
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("payslips")
+}
+
+model CmsPage {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  slug            String   @unique @db.VarChar(191)
+  title           String   @db.VarChar(255)
+  metaDescription String?  @map("meta_description") @db.VarChar(500)
+  published       Boolean  @default(true)
+  content         Json
+  updatedBy       String?  @map("updated_by") @db.VarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("cms_pages")
+}
+
+model Addon {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  name            String   @db.VarChar(255)
+  slug            String   @unique @db.VarChar(100)
+  tagline         String?  @db.VarChar(300)
+  description     String?  @db.Text
+  longDescription String?  @map("long_description") @db.LongText
+  category        String   @db.VarChar(100)
+  status          String   @default("active") @db.VarChar(50)
+  priceMonthly    Decimal  @default(0.00) @map("price_monthly") @db.Decimal(10, 2)
+  icon            String?  @db.VarChar(500)
+  screenshots     Json?
+  features        Json?
+  developer       String?  @db.VarChar(255)
+  version         String?  @db.VarChar(50)
+  docsUrl         String?  @map("docs_url") @db.VarChar(500)
+  galleryVideo    String?  @map("gallery_video") @db.VarChar(500)
+  installUrl      String?  @map("install_url") @db.VarChar(500)
+  featured        Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("addons")
+}
+
+// ==========================================
+// SAAS ADD-ON ENTITLEMENTS
+// ==========================================
+model TenantAddon {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  tenantId    String    @map("tenant_id") @db.VarChar(36)
+  addonSlug   String    @map("addon_slug") @db.VarChar(100)
+  status      String    @default("active") @db.VarChar(50) // trial, active, past_due, cancelled, expired
+  plan        String    @default("standard") @db.VarChar(50)
+  trialEndsAt DateTime? @map("trial_ends_at")
+  renewsAt    DateTime? @map("renews_at")
+  features    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, addonSlug])
+  @@index([tenantId, status])
+  @@map("tenant_addons")
+}
+
+// ==========================================
+// OKR & PERFORMANCE ADD-ON
+// ==========================================
+model OkrCycle {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  tenantId   String   @map("tenant_id") @db.VarChar(36)
+  name       String   @db.VarChar(255)
+  periodType String   @default("quarterly") @map("period_type") @db.VarChar(50)
+  startDate  DateTime @map("start_date") @db.Date
+  endDate    DateTime @map("end_date") @db.Date
+  status     String   @default("active") @db.VarChar(50) // draft, active, closed
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  objectives OkrObjective[]
+  reviews    OkrReview[]
+
+  @@map("okr_cycles")
+}
+
+model OkrObjective {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  tenantId      String   @map("tenant_id") @db.VarChar(36)
+  cycleId       String   @map("cycle_id") @db.VarChar(36)
+  parentId      String?  @map("parent_id") @db.VarChar(36)
+  category      String?  @default("Strategy") @db.VarChar(100)
+  title         String   @db.VarChar(255)
+  description   String?  @db.Text
+  ownerId       String   @map("owner_id") @db.VarChar(36)
+  departmentId  String?  @map("department_id") @db.VarChar(36)
+  alignmentType String   @default("individual") @map("alignment_type") @db.VarChar(50) // company, department, team, individual
+  progress      Decimal  @default(0.00) @db.Decimal(5, 2)
+  status        String   @default("in_progress") @db.VarChar(50) // not_started, in_progress, achieved, closed
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cycle      OkrCycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  parent     OkrObjective?  @relation("ObjectiveHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   OkrObjective[] @relation("ObjectiveHierarchy")
+  owner      Employee       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  keyResults OkrKeyResult[]
+
+  @@index([tenantId, cycleId])
+  @@index([tenantId, ownerId])
+  @@index([tenantId, parentId])
+  @@map("okr_objectives")
+}
+
+model OkrKeyResult {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  objectiveId     String   @map("objective_id") @db.VarChar(36)
+  title           String   @db.VarChar(255)
+  measurementType String   @default("percentage") @map("measurement_type") @db.VarChar(50) // number, percentage, currency, boolean
+  startValue      Decimal  @default(0.00) @map("start_value") @db.Decimal(12, 2)
+  targetValue     Decimal  @default(100.00) @map("target_value") @db.Decimal(12, 2)
+  currentValue    Decimal  @default(0.00) @map("current_value") @db.Decimal(12, 2)
+  weight          Decimal  @default(1.00) @db.Decimal(3, 2)
+  status          String   @default("in_progress") @db.VarChar(50)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  objective OkrObjective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  checkins  OkrCheckin[]
+
+  @@map("okr_key_results")
+}
+
+model OkrCheckin {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  keyResultId     String   @map("key_result_id") @db.VarChar(36)
+  employeeId      String   @map("employee_id") @db.VarChar(36)
+  progressValue   Decimal  @map("progress_value") @db.Decimal(12, 2)
+  confidenceScore Int      @default(8) @map("confidence_score") // 1-10
+  notes           String?  @db.Text
+  blockers        String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  keyResult OkrKeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  employee  Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("okr_checkins")
+}
+
+model OkrReview {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  cycleId      String   @map("cycle_id") @db.VarChar(36)
+  employeeId   String   @map("employee_id") @db.VarChar(36)
+  reviewerId   String   @map("reviewer_id") @db.VarChar(36)
+  reviewType   String   @default("manager") @map("review_type") @db.VarChar(50) // self, manager, peer_360
+  ratingScore  Decimal? @map("rating_score") @db.Decimal(3, 1) // e.g. 4.5 / 5.0
+  feedbackText String?  @map("feedback_text") @db.Text
+  status       String   @default("pending") @db.VarChar(50) // pending, submitted, approved
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  cycle    OkrCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee Employee @relation("OkrReviewsReceived", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer Employee @relation("OkrReviewsGiven", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@map("okr_reviews")
+}
+
+// ==========================================
+// ASSET MANAGEMENT ADD-ON
+// ==========================================
+model AssetCategory {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  slug        String   @db.VarChar(100)
+  description String?  @db.Text
+  icon        String?  @default("💻") @db.VarChar(50)
+  prefix      String   @default("AST") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assets Asset[]
+
+  @@unique([tenantId, slug])
+  @@map("asset_categories")
+}
+
+model Asset {
+  id                 String    @id @default(uuid()) @db.VarChar(36)
+  tenantId           String    @map("tenant_id") @db.VarChar(36)
+  assetTag           String    @map("asset_tag") @db.VarChar(100)
+  name               String    @db.VarChar(255)
+  category           String    @default("laptop") @db.VarChar(100)
+  categoryId         String?   @map("category_id") @db.VarChar(36)
+  brand              String?   @db.VarChar(100)
+  model              String?   @db.VarChar(100)
+  serialNumber       String?   @map("serial_number") @db.VarChar(150)
+  isBatch            Boolean   @default(false) @map("is_batch")
+  totalQuantity      Int       @default(1) @map("total_quantity")
+  availableQuantity  Int       @default(1) @map("available_quantity")
+  unit               String    @default("pcs") @db.VarChar(50)
+  location           String?   @db.VarChar(150)
+  images             Json?
+  qrCode             String?   @map("qr_code") @db.VarChar(255)
+  purchaseDate       DateTime? @map("purchase_date") @db.Date
+  purchasePrice      Decimal?  @map("purchase_price") @db.Decimal(12, 2)
+  vendor             String?   @db.VarChar(150)
+  warrantyExpiry     DateTime? @map("warranty_expiry") @db.Date
+  condition          String    @default("good") @db.VarChar(50) // new, good, fair, damaged
+  status             String    @default("available") @db.VarChar(50) // available, assigned, maintenance, retired, lost, disposed
+  assignedEmployeeId String?   @map("assigned_employee_id") @db.VarChar(36)
+  assignedAt         DateTime? @map("assigned_at")
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryRel      AssetCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedEmployee Employee?           @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  assignments      AssetAssignment[]
+  maintenanceLogs  AssetMaintenance[]
+  disposalItems    AssetDisposalItem[]
+  activityLogs     AssetActivityLog[]
+
+  @@unique([tenantId, assetTag])
+  @@index([tenantId, status])
+  @@index([tenantId, category])
+  @@map("assets")
+}
+
+model AssetAssignment {
+  id                 String    @id @default(uuid()) @db.VarChar(36)
+  assetId            String    @map("asset_id") @db.VarChar(36)
+  employeeId         String?   @map("employee_id") @db.VarChar(36)
+  departmentId       String?   @map("department_id") @db.VarChar(36)
+  locationName       String?   @map("location_name") @db.VarChar(150)
+  targetType         String    @default("employee") @map("target_type") @db.VarChar(50) // employee, department, location
+  quantity           Int       @default(1)
+  assignedAt         DateTime  @default(now()) @map("assigned_at")
+  expectedReturnDate DateTime? @map("expected_return_date") @db.Date
+  returnedAt         DateTime? @map("returned_at")
+  conditionOnAssign  String    @default("good") @map("condition_on_assign") @db.VarChar(50)
+  conditionOnReturn  String?   @map("condition_on_return") @db.VarChar(50)
+  status             String    @default("active") @db.VarChar(50) // active, returned, damaged, lost, repair
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  asset    Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("asset_assignments")
+}
+
+model AssetRequest {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  tenantId     String    @map("tenant_id") @db.VarChar(36)
+  employeeId   String    @map("employee_id") @db.VarChar(36)
+  assetId      String?   @map("asset_id") @db.VarChar(36)
+  categoryName String    @map("category_name") @db.VarChar(100)
+  itemName     String    @map("item_name") @db.VarChar(255)
+  quantity     Int       @default(1)
+  purpose      String    @db.Text
+  priority     String    @default("medium") @db.VarChar(50) // low, medium, high, urgent
+  status       String    @default("pending") @db.VarChar(50) // pending, approved, rejected, fulfilled
+  adminNotes   String?   @map("admin_notes") @db.Text
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewedBy   String?   @map("reviewed_by") @db.VarChar(100)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("asset_requests")
+}
+
+model AssetDisposalBatch {
+  id                 String    @id @default(uuid()) @db.VarChar(36)
+  tenantId           String    @map("tenant_id") @db.VarChar(36)
+  batchNumber        String    @map("batch_number") @db.VarChar(100)
+  title              String    @db.VarChar(255)
+  period             String    @default("Q4") @db.VarChar(50) // Q1, Q2, Q3, Q4, Yearly, Ad-hoc
+  status             String    @default("draft") @db.VarChar(50) // draft, pending_approval, approved, completed
+  totalItemsCount    Int       @default(0) @map("total_items_count")
+  totalBookValue     Decimal   @default(0.00) @map("total_book_value") @db.Decimal(12, 2)
+  totalRecoveryValue Decimal   @default(0.00) @map("total_recovery_value") @db.Decimal(12, 2)
+  justification      String?   @db.Text
+  approvedBy         String?   @map("approved_by") @db.VarChar(100)
+  approvedAt         DateTime? @map("approved_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  AssetDisposalItem[]
+
+  @@map("asset_disposal_batches")
+}
+
+model AssetDisposalItem {
+  id             String  @id @default(uuid()) @db.VarChar(36)
+  batchId        String  @map("batch_id") @db.VarChar(36)
+  assetId        String  @map("asset_id") @db.VarChar(36)
+  quantity       Int     @default(1)
+  reason         String  @db.Text
+  bookValue      Decimal @default(0.00) @map("book_value") @db.Decimal(12, 2)
+  disposalMethod String  @default("scrap") @map("disposal_method") @db.VarChar(50) // scrap, sale, donation, recycle
+  recoveryAmount Decimal @default(0.00) @map("recovery_amount") @db.Decimal(12, 2)
+
+  batch AssetDisposalBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  asset Asset              @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@map("asset_disposal_items")
+}
+
+model AssetMaintenance {
+  id                String   @id @default(uuid()) @db.VarChar(36)
+  assetId           String   @map("asset_id") @db.VarChar(36)
+  serviceType       String   @default("corrective") @map("service_type") @db.VarChar(50) // preventive, corrective, predictive
+  serviceDate       DateTime @default(now()) @map("service_date") @db.Date
+  nextServiceDate   DateTime? @map("next_service_date") @db.Date
+  vendor            String?  @db.VarChar(150)
+  cost              Decimal? @default(0.00) @db.Decimal(10, 2)
+  issueDescription  String   @map("issue_description") @db.Text
+  resolutionDetails String?  @map("resolution_details") @db.Text
+  status            String   @default("in_progress") @db.VarChar(50) // in_progress, completed, cancelled
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@map("asset_maintenance")
+}
+
+model AssetActivityLog {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  assetId     String?  @map("asset_id") @db.VarChar(36)
+  actionType  String   @map("action_type") @db.VarChar(50) // create, assign, return, transfer, maintenance, disposal, damage, request
+  quantity    Int      @default(1)
+  performedBy String?  @map("performed_by") @db.VarChar(100)
+  details     String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset  Asset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@map("asset_activity_logs")
+}
+
+// -------------------------------------------------------------
+// RECRUITMENT & APPLICANT TRACKING SYSTEM (ATS) MODULE
+// -------------------------------------------------------------
+
+model JobPosting {
+  id              String         @id @default(uuid()) @db.VarChar(36)
+  tenantId        String         @map("tenant_id") @db.VarChar(36)
+  departmentId    String?        @map("department_id") @db.VarChar(36)
+  title           String         @db.VarChar(200)
+  slug            String         @db.VarChar(200)
+  description     String         @db.Text
+  requirements    String?        @db.Text
+  benefits        String?        @db.Text
+  location        String         @default("Remote") @db.VarChar(150)
+  employmentType  String         @default("full_time") @map("employment_type") @db.VarChar(50) // full_time, part_time, contract, internship
+  experienceLevel String         @default("Mid-Level") @map("experience_level") @db.VarChar(50) // Entry, Mid-Level, Senior, Lead, Executive
+  salaryMin       Decimal?       @map("salary_min") @db.Decimal(12, 2)
+  salaryMax       Decimal?       @map("salary_max") @db.Decimal(12, 2)
+  openingsCount   Int            @default(1) @map("openings_count")
+  status          String         @default("published") @db.VarChar(50) // draft, published, closed, archived
+  closingDate     DateTime?      @map("closing_date") @db.Date
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  department Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  candidates JobCandidate[]
+
+  @@index([tenantId, status])
+  @@map("job_postings")
+}
+
+model JobCandidate {
+  id                    String      @id @default(uuid()) @db.VarChar(36)
+  tenantId              String      @map("tenant_id") @db.VarChar(36)
+  jobPostingId          String      @map("job_posting_id") @db.VarChar(36)
+  fullName              String      @map("full_name") @db.VarChar(150)
+  email                 String      @db.VarChar(255)
+  phone                 String?     @db.VarChar(50)
+  resumeUrl             String?     @map("resume_url") @db.VarChar(500)
+  portfolioUrl          String?     @map("portfolio_url") @db.VarChar(500)
+  coverLetter           String?     @map("cover_letter") @db.Text
+  yearsOfExperience     Float?      @default(0) @map("years_of_experience")
+  currentCompany        String?     @map("current_company") @db.VarChar(150)
+  expectedSalary        Decimal?    @map("expected_salary") @db.Decimal(12, 2)
+  stage                 String      @default("applied") @db.VarChar(50) // applied, screening, interview, offered, hired, rejected
+  rating                Float?      @default(0)
+  interviewerNotes      String?     @map("interviewer_notes") @db.Text
+  isConvertedToEmployee Boolean     @default(false) @map("is_converted_to_employee")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+
+  tenant     Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  jobPosting JobPosting                @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  interviews JobCandidateInterview[]
+
+  @@index([tenantId, stage])
+  @@index([jobPostingId, stage])
+  @@map("job_candidates")
+}
+
+model JobCandidateInterview {
+  id            String    @id @default(uuid()) @db.VarChar(36)
+  candidateId   String    @map("candidate_id") @db.VarChar(36)
+  interviewerId String?   @map("interviewer_id") @db.VarChar(36)
+  interviewType String    @default("Technical Round") @map("interview_type") @db.VarChar(100)
+  scheduledAt   DateTime  @map("scheduled_at")
+  meetingLink   String?   @map("meeting_link") @db.VarChar(500)
+  feedback      String?   @db.Text
+  status        String    @default("scheduled") @db.VarChar(50) // scheduled, completed, cancelled
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  candidate   JobCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  interviewer Employee?    @relation(fields: [interviewerId], references: [id], onDelete: SetNull)
+
+  @@map("job_candidate_interviews")
+}
+
+// -------------------------------------------------------------
+// SHIFT ROSTERING & SCHEDULING ENGINE
+// -------------------------------------------------------------
+
+model ShiftDefinition {
+  id                 String        @id @default(uuid()) @db.VarChar(36)
+  tenantId           String        @map("tenant_id") @db.VarChar(36)
+  name               String        @db.VarChar(100)
+  code               String        @db.VarChar(20) // GEN, MORN, EVE, NIGHT, OFF
+  startTime          String        @default("09:30") @map("start_time") @db.VarChar(10)
+  endTime            String        @default("18:30") @map("end_time") @db.VarChar(10)
+  breakMinutes       Int           @default(60) @map("break_minutes")
+  allowance          Decimal       @default(0.00) @db.Decimal(10, 2)
+  isOvertimeEligible Boolean       @default(true) @map("is_overtime_eligible")
+  color              String        @default("blue") @db.VarChar(50)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rosters ShiftRoster[]
+
+  @@index([tenantId, code])
+  @@map("shift_definitions")
+}
+
+model ShiftRoster {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  tenantId   String   @map("tenant_id") @db.VarChar(36)
+  employeeId String   @map("employee_id") @db.VarChar(36)
+  shiftId    String   @map("shift_id") @db.VarChar(36)
+  rosterDate DateTime @map("roster_date") @db.Date
+  notes      String?  @db.VarChar(255)
+  status     String   @default("assigned") @db.VarChar(50) // assigned, confirmed, swapped, leave
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift    ShiftDefinition @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, employeeId, rosterDate])
+  @@index([tenantId, rosterDate])
+  @@map("shift_rosters")
+}
+
+model ShiftSwapRequest {
+  id                  String    @id @default(uuid()) @db.VarChar(36)
+  tenantId            String    @map("tenant_id") @db.VarChar(36)
+  requesterEmployeeId String    @map("requester_employee_id") @db.VarChar(36)
+  targetEmployeeId    String    @map("target_employee_id") @db.VarChar(36)
+  shiftDate           DateTime  @map("shift_date") @db.Date
+  reason              String    @db.Text
+  status              String    @default("pending_peer") @db.VarChar(50) // pending_peer, pending_manager, approved, rejected
+  managerNotes        String?   @map("manager_notes") @db.Text
+  approvedAt          DateTime? @map("approved_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requesterEmployee Employee @relation("ShiftSwapsRequested", fields: [requesterEmployeeId], references: [id], onDelete: Cascade)
+  targetEmployee    Employee @relation("ShiftSwapsTargeted", fields: [targetEmployeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("shift_swap_requests")
+}
+
+// -------------------------------------------------------------
+// EXPENSE CLAIMS & REIMBURSEMENT ENGINE
+// -------------------------------------------------------------
+
+model ExpenseCategory {
+  id              String         @id @default(uuid()) @db.VarChar(36)
+  tenantId        String         @map("tenant_id") @db.VarChar(36)
+  name            String         @db.VarChar(100)
+  code            String         @db.VarChar(20) // TRV, MEL, EQP, SFT, MED, GEN
+  monthlyLimit    Decimal?       @map("monthly_limit") @db.Decimal(12, 2)
+  requiresReceipt Boolean        @default(true) @map("requires_receipt")
+  icon            String         @default("Receipt") @db.VarChar(50)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  claims ExpenseClaim[]
+
+  @@unique([tenantId, code])
+  @@map("expense_categories")
+}
+
+model ExpenseClaim {
+  id                  String    @id @default(uuid()) @db.VarChar(36)
+  tenantId            String    @map("tenant_id") @db.VarChar(36)
+  employeeId          String    @map("employee_id") @db.VarChar(36)
+  categoryId          String    @map("category_id") @db.VarChar(36)
+  claimCode           String    @map("claim_code") @db.VarChar(50)
+  title               String    @db.VarChar(200)
+  amount              Decimal   @db.Decimal(12, 2)
+  expenseDate         DateTime  @map("expense_date") @db.Date
+  merchant            String    @db.VarChar(150)
+  description         String?   @db.Text
+  receiptUrl          String?   @map("receipt_url") @db.VarChar(500)
+  receiptName         String?   @map("receipt_name") @db.VarChar(200)
+  status              String    @default("pending") @db.VarChar(50) // pending, manager_approved, finance_approved, reimbursed, rejected
+  reimbursementMethod String?   @map("reimbursement_method") @db.VarChar(50) // payroll_addition, direct_bank_transfer, petty_cash
+  payrollMonth        String?   @map("payroll_month") @db.VarChar(20) // e.g. 2026-08
+  approverNotes       String?   @map("approver_notes") @db.Text
+  approvedAt          DateTime? @map("approved_at")
+  reimbursedAt        DateTime? @map("reimbursed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  category ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, employeeId])
+  @@map("expense_claims")
+}
+
+// -------------------------------------------------------------
+// TRAINING & LMS ACADEMY SUITE
+// -------------------------------------------------------------
+
+model TrainingCourse {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  tenantId      String   @map("tenant_id") @db.VarChar(36)
+  title         String   @db.VarChar(200)
+  slug          String   @db.VarChar(200)
+  category      String   @default("Compliance & Security") @db.VarChar(100)
+  instructor    String   @default("Internal Academy") @db.VarChar(150)
+  durationHours Float    @default(4.0) @map("duration_hours")
+  isMandatory   Boolean  @default(false) @map("is_mandatory")
+  passingScore  Int      @default(80) @map("passing_score")
+  description   String?  @db.Text
+  bannerUrl     String?  @map("banner_url") @db.VarChar(500)
+  status        String   @default("published") @db.VarChar(50) // draft, published, archived
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  modules     CourseModule[]
+  enrollments CourseEnrollment[]
+
+  @@index([tenantId, category])
+  @@map("training_courses")
+}
+
+model CourseModule {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  courseId        String   @map("course_id") @db.VarChar(36)
+  orderIndex      Int      @default(1) @map("order_index")
+  title           String   @db.VarChar(200)
+  content         String?  @db.Text
+  videoUrl        String?  @map("video_url") @db.VarChar(500)
+  durationMinutes Int      @default(30) @map("duration_minutes")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  course TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, orderIndex])
+  @@map("course_modules")
+}
+
+model CourseEnrollment {
+  id              String    @id @default(uuid()) @db.VarChar(36)
+  tenantId        String    @map("tenant_id") @db.VarChar(36)
+  courseId        String    @map("course_id") @db.VarChar(36)
+  employeeId      String    @map("employee_id") @db.VarChar(36)
+  progressPercent Int       @default(0) @map("progress_percent")
+  score           Float?    @default(0)
+  status          String    @default("not_started") @db.VarChar(50) // not_started, in_progress, completed
+  certificateId   String?   @map("certificate_id") @db.VarChar(50)
+  certifiedAt     DateTime? @map("certified_at")
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  course   TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  employee Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, courseId, employeeId])
+  @@index([tenantId, status])
+  @@map("course_enrollments")
+}
+
+// -------------------------------------------------------------
+// EMPLOYEE OFFBOARDING & EXIT SETTLEMENT ENGINE
+// -------------------------------------------------------------
+
+model EmployeeExit {
+  id                  String    @id @default(uuid()) @db.VarChar(36)
+  tenantId            String    @map("tenant_id") @db.VarChar(36)
+  employeeId          String    @map("employee_id") @db.VarChar(36)
+  exitCode            String    @map("exit_code") @db.VarChar(50)
+  resignationDate     DateTime  @map("resignation_date") @db.Date
+  lastWorkingDay      DateTime  @map("last_working_day") @db.Date
+  reason              String    @db.Text
+  exitType            String    @default("resignation") @map("exit_type") @db.VarChar(50) // resignation, retirement, termination, contract_end
+  status              String    @default("serving_notice") @db.VarChar(50) // serving_notice, clearance_pending, fnf_settled, completed
+  noticePeriodDays    Int       @default(60) @map("notice_period_days")
+  itClearance         Boolean   @default(false) @map("it_clearance")
+  itNotes             String?   @map("it_notes") @db.Text
+  itClearedAt         DateTime? @map("it_cleared_at")
+  financeClearance    Boolean   @default(false) @map("finance_clearance")
+  financeNotes        String?   @map("finance_notes") @db.Text
+  financeClearedAt    DateTime? @map("finance_cleared_at")
+  hrClearance         Boolean   @default(false) @map("hr_clearance")
+  hrNotes             String?   @map("hr_notes") @db.Text
+  hrClearedAt         DateTime? @map("hr_cleared_at")
+  adminClearance      Boolean   @default(false) @map("admin_clearance")
+  adminNotes          String?   @map("admin_notes") @db.Text
+  adminClearedAt      DateTime? @map("admin_cleared_at")
+  fnfSettlementAmount Decimal?  @default(0.00) @map("fnf_settlement_amount") @db.Decimal(12, 2)
+  fnfSettlementStatus String    @default("pending") @map("fnf_settlement_status") @db.VarChar(50) // pending, paid
+  fnfSettledAt        DateTime? @map("fnf_settled_at")
+  relievingLetterCode String?   @map("relieving_letter_code") @db.VarChar(50)
+  exitInterviewNotes  String?   @map("exit_interview_notes") @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee   Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  checklists ExitChecklistItem[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, employeeId])
+  @@map("employee_exits")
+}
+
+model ExitChecklistItem {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  exitId      String    @map("exit_id") @db.VarChar(36)
+  department  String    @db.VarChar(50) // IT, Finance, HR, Admin
+  title       String    @db.VarChar(200)
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedBy String?   @map("completed_by") @db.VarChar(100)
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  exit EmployeeExit @relation(fields: [exitId], references: [id], onDelete: Cascade)
+
+  @@index([exitId, department])
+  @@map("exit_checklist_items")
+}
+
+// -------------------------------------------------------------
+// COMPANY DOCUMENT VAULT & DIGITAL E-SIGNATURES
+// -------------------------------------------------------------
+
+model CompanyDocument {
+  id                String    @id @default(uuid()) @db.VarChar(36)
+  tenantId          String    @map("tenant_id") @db.VarChar(36)
+  employeeId        String?   @map("employee_id") @db.VarChar(36)
+  documentCode      String    @map("document_code") @db.VarChar(50)
+  title             String    @db.VarChar(200)
+  category          String    @default("Employment Contract") @db.VarChar(100) // Employment Contract, NDA & IP Agreement, KYC & Identity, Company Policy, Academic Certificate
+  fileUrl           String?   @map("file_url") @db.VarChar(500)
+  fileName          String    @map("file_name") @db.VarChar(200)
+  fileSize          String    @default("1.2 MB") @map("file_size") @db.VarChar(50)
+  fileType          String    @default("application/pdf") @map("file_type") @db.VarChar(50)
+  status            String    @default("pending_signature") @db.VarChar(50) // pending_signature, signed, verified, expired
+  requiresSignature Boolean   @default(true) @map("requires_signature")
+  signatureDataUrl  String?   @map("signature_data_url") @db.LongText
+  signerName        String?   @map("signer_name") @db.VarChar(150)
+  signedAt          DateTime? @map("signed_at")
+  signerIp          String?   @map("signer_ip") @db.VarChar(100)
+  expiryDate        DateTime? @map("expiry_date") @db.Date
+  verifiedBy        String?   @map("verified_by") @db.VarChar(150)
+  verifiedAt        DateTime? @map("verified_at")
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, category])
+  @@index([tenantId, status])
+  @@index([tenantId, employeeId])
+  @@map("company_documents")
+}
+
+// -------------------------------------------------------------
+// MODULE 1: INTERNAL ORGANIZATION HELPDESK (TENANT LEVEL)
+// -------------------------------------------------------------
+
+model HelpdeskTicket {
+  id              String    @id @default(uuid()) @db.VarChar(36)
+  tenantId        String    @map("tenant_id") @db.VarChar(36)
+  employeeId      String    @map("employee_id") @db.VarChar(36)
+  ticketCode      String    @map("ticket_code") @db.VarChar(50)
+  subject         String    @db.VarChar(255)
+  category        String    @default("IT & Hardware") @db.VarChar(100) // IT & Hardware, Payroll & Salary, Leave & Attendance, HR Policies, Workplace & Facilities
+  priority        String    @default("medium") @db.VarChar(50) // low, medium, high, urgent
+  status          String    @default("open") @db.VarChar(50) // open, in_progress, resolved, closed
+  assignedAgent   String?   @map("assigned_agent") @db.VarChar(150)
+  description     String    @db.Text
+  slaHours        Int       @default(24) @map("sla_hours")
+  resolutionNotes String?   @map("resolution_notes") @db.Text
+  resolvedAt      DateTime? @map("resolved_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  comments HelpdeskComment[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, category])
+  @@index([tenantId, employeeId])
+  @@map("helpdesk_tickets")
+}
+
+model HelpdeskComment {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  ticketId   String   @map("ticket_id") @db.VarChar(36)
+  authorName String   @map("author_name") @db.VarChar(150)
+  message    String   @db.Text
+  isStaff    Boolean  @default(false) @map("is_staff")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("helpdesk_comments")
+}
+
+// -------------------------------------------------------------
+// MODULE 2: TENANT ADMIN TO SUPER ADMIN PLATFORM SUPPORT
+// -------------------------------------------------------------
+
+model PlatformSupportTicket {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  tenantId         String    @map("tenant_id") @db.VarChar(36)
+  ticketCode       String    @map("ticket_code") @db.VarChar(50)
+  subject          String    @db.VarChar(255)
+  requestType      String    @default("general_support") @map("request_type") @db.VarChar(100) // addon_upgrade, billing_invoices, technical_api, feature_request, general_support
+  targetAddonSlug  String?   @map("target_addon_slug") @db.VarChar(100) // e.g. recruitment, shifts, okr, assets, biometric_sync
+  priority         String    @default("medium") @db.VarChar(50) // low, medium, high, urgent
+  status           String    @default("open") @db.VarChar(50) // open, in_progress, resolved, closed
+  adminNotes       String?   @map("admin_notes") @db.Text
+  superAdminAction String?   @map("super_admin_action") @db.VarChar(100)
+  resolvedAt       DateTime? @map("resolved_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages PlatformTicketMessage[]
+
+  @@index([tenantId, status])
+  @@index([requestType, status])
+  @@map("platform_support_tickets")
+}
+
+model PlatformTicketMessage {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  ticketId      String   @map("ticket_id") @db.VarChar(36)
+  senderType    String   @map("sender_type") @db.VarChar(50) // tenant_admin, super_admin
+  senderName    String   @map("sender_name") @db.VarChar(150)
+  message       String   @db.Text
+  attachmentUrl String?  @map("attachment_url") @db.VarChar(500)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  ticket PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("platform_ticket_messages")
+}
+
+// -------------------------------------------------------------
+// COMPANY ANNOUNCEMENTS & BROADCAST FEEDS ENGINE
+// -------------------------------------------------------------
+
+model Announcement {
+  id                      String    @id @default(uuid()) @db.VarChar(36)
+  tenantId                String    @map("tenant_id") @db.VarChar(36)
+  title                   String    @db.VarChar(255)
+  summary                 String?   @db.VarChar(500)
+  content                 String    @db.Text
+  category                String    @default("company_news") @db.VarChar(50) // company_news, policy_update, event, celebration, urgent_alert, holiday
+  priority                String    @default("normal") @db.VarChar(50) // low, normal, high, urgent
+  targetType              String    @default("all_company") @map("target_type") @db.VarChar(50) // all_company, department, specific_roles
+  targetDepartmentId      String?   @map("target_department_id") @db.VarChar(36)
+  isPinned                Boolean   @default(false) @map("is_pinned")
+  publishDate             DateTime  @default(now()) @map("publish_date")
+  expiryDate              DateTime? @map("expiry_date")
+  authorId                String?   @map("author_id") @db.VarChar(36)
+  authorName              String    @default("Management / HR") @map("author_name") @db.VarChar(150)
+  attachmentUrl           String?   @map("attachment_url") @db.VarChar(500)
+  viewCount               Int       @default(0) @map("view_count")
+  acknowledgementRequired Boolean   @default(false) @map("acknowledgement_required")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  tenant           Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  targetDepartment Department?                   @relation(fields: [targetDepartmentId], references: [id], onDelete: SetNull)
+  author           Employee?                     @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  acknowledgements AnnouncementAcknowledgement[]
+
+  @@index([tenantId, category])
+  @@index([tenantId, isPinned])
+  @@index([tenantId, publishDate])
+  @@map("announcements")
+}
+
+model AnnouncementAcknowledgement {
+  id             String   @id @default(uuid()) @db.VarChar(36)
+  announcementId String   @map("announcement_id") @db.VarChar(36)
+  employeeId     String   @map("employee_id") @db.VarChar(36)
+  tenantId       String   @map("tenant_id") @db.VarChar(36)
+  acknowledgedAt DateTime @default(now()) @map("acknowledged_at")
+  comments       String?  @db.VarChar(255)
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, employeeId])
+  @@index([announcementId])
+  @@index([employeeId])
+  @@map("announcement_acknowledgements")
+}
+
+// -------------------------------------------------------------
+// DYNAMIC CUSTOM FORMS, SURVEYS & PULSE POLLS ENGINE
+// -------------------------------------------------------------
+
+model CustomForm {
+  id                       String    @id @default(uuid()) @db.VarChar(36)
+  tenantId                 String    @map("tenant_id") @db.VarChar(36)
+  title                    String    @db.VarChar(255)
+  description              String?   @db.Text
+  category                 String    @default("general") @db.VarChar(50) // pulse_survey, performance_review, it_request, employee_feedback, onboarding_checklist, general
+  status                   String    @default("published") @db.VarChar(50) // draft, published, closed, archived
+  targetAudience           String    @default("all_company") @map("target_audience") @db.VarChar(50) // all_company, department, specific_roles
+  targetDepartmentId       String?   @map("target_department_id") @db.VarChar(36)
+  isAnonymous              Boolean   @default(false) @map("is_anonymous")
+  allowMultipleSubmissions Boolean   @default(false) @map("allow_multiple_submissions")
+  deadline                 DateTime?
+  authorId                 String?   @map("author_id") @db.VarChar(36)
+  authorName               String    @default("HR Operations") @map("author_name") @db.VarChar(150)
+  responseCount            Int       @default(0) @map("response_count")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  targetDepartment Department?      @relation(fields: [targetDepartmentId], references: [id], onDelete: SetNull)
+  author           Employee?        @relation("FormAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  fields           FormField[]
+  submissions      FormSubmission[]
+
+  @@index([tenantId, category])
+  @@index([tenantId, status])
+  @@map("custom_forms")
+}
+
+model FormField {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  formId       String   @map("form_id") @db.VarChar(36)
+  label        String   @db.VarChar(255)
+  description  String?  @db.VarChar(500)
+  fieldType    String   @map("field_type") @db.VarChar(50) // short_text, long_text, number, select, radio, checkbox, rating_scale, date, file_upload
+  options      String?  @db.Text // JSON array or comma-separated choices for select/radio/checkbox
+  isRequired   Boolean  @default(true) @map("is_required")
+  orderIndex   Int      @default(0) @map("order_index")
+  placeholder  String?  @db.VarChar(255)
+  defaultValue String?  @map("default_value") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  form           CustomForm          @relation(fields: [formId], references: [id], onDelete: Cascade)
+  responseValues FormResponseValue[]
+
+  @@index([formId, orderIndex])
+  @@map("form_fields")
+}
+
+model FormSubmission {
+  id            String    @id @default(uuid()) @db.VarChar(36)
+  formId        String    @map("form_id") @db.VarChar(36)
+  tenantId      String    @map("tenant_id") @db.VarChar(36)
+  employeeId    String?   @map("employee_id") @db.VarChar(36) // null if anonymous
+  submittedAt   DateTime  @default(now()) @map("submitted_at")
+  status        String    @default("submitted") @db.VarChar(50) // submitted, reviewed, approved, rejected
+  reviewerNotes String?   @map("reviewer_notes") @db.Text
+  reviewedAt    DateTime? @map("reviewed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  form           CustomForm          @relation(fields: [formId], references: [id], onDelete: Cascade)
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee       Employee?           @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  responseValues FormResponseValue[]
+
+  @@index([formId])
+  @@index([tenantId, formId])
+  @@index([employeeId])
+  @@map("form_submissions")
+}
+
+model FormResponseValue {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  submissionId String   @map("submission_id") @db.VarChar(36)
+  fieldId      String   @map("field_id") @db.VarChar(36)
+  fieldLabel   String   @map("field_label") @db.VarChar(255)
+  value        String   @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  submission FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  field      FormField      @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([fieldId])
+  @@map("form_response_values")
+}
+
+// -------------------------------------------------------------
+// BIOMETRIC ATTENDANCE HARDWARE & PUNCH LOGS ENGINE
+// -------------------------------------------------------------
+
+model BiometricDevice {
+  id                  String    @id @default(uuid()) @db.VarChar(36)
+  tenantId            String    @map("tenant_id") @db.VarChar(36)
+  deviceName          String    @map("device_name") @db.VarChar(255)
+  deviceModel         String    @default("ZKTeco MB20") @map("device_model") @db.VarChar(100)
+  deviceType          String    @default("hybrid") @map("device_type") @db.VarChar(50) // fingerprint, face_recognition, rfid_card, palm_vein, hybrid
+  ipAddress           String?   @map("ip_address") @db.VarChar(100)
+  port                Int       @default(4370)
+  serialNumber        String    @map("serial_number") @db.VarChar(100)
+  location            String    @default("Main Entrance") @db.VarChar(150)
+  status              String    @default("online") @db.VarChar(50) // online, offline, syncing, error
+  syncProtocol        String    @default("push_api_webhook") @map("sync_protocol") @db.VarChar(50) // push_api_webhook, pull_tcp_ip, cloud_mqtt
+  apiKey              String    @unique @map("api_key") @db.VarChar(100)
+  lastSyncAt          DateTime? @map("last_sync_at")
+  totalPunchLogs      Int       @default(0) @map("total_punch_logs")
+  autoAttendanceSync  Boolean   @default(true) @map("auto_attendance_sync")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  punchLogs BiometricPunchLog[]
+
+  @@unique([tenantId, serialNumber])
+  @@index([tenantId, status])
+  @@map("biometric_devices")
+}
+
+model BiometricPunchLog {
+  id               String   @id @default(uuid()) @db.VarChar(36)
+  tenantId         String   @map("tenant_id") @db.VarChar(36)
+  deviceId         String   @map("device_id") @db.VarChar(36)
+  employeeCode     String   @map("employee_code") @db.VarChar(50)
+  employeeId       String?  @map("employee_id") @db.VarChar(36)
+  punchTime        DateTime @map("punch_time")
+  punchType        String   @default("auto") @map("punch_type") @db.VarChar(50) // check_in, check_out, break_out, break_in, auto
+  verificationMode String   @default("fingerprint") @map("verification_mode") @db.VarChar(50) // fingerprint, face, rfid, passcode
+  syncStatus       String   @default("processed") @map("sync_status") @db.VarChar(50) // processed, pending, unmatched_employee
+  rawPayload       String?  @map("raw_payload") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device   BiometricDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  employee Employee?       @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, punchTime])
+  @@index([tenantId, syncStatus])
+  @@index([deviceId])
+  @@index([employeeCode])
+  @@map("biometric_punch_logs")
+}
+
+// -------------------------------------------------------------
+// DOUBLE-ENTRY GENERAL LEDGER & CHART OF ACCOUNTS
+// -------------------------------------------------------------
+
+model ChartOfAccount {
+  id          String        @id @default(uuid()) @db.VarChar(36)
+  tenantId    String        @map("tenant_id") @db.VarChar(36)
+  accountCode String        @map("account_code") @db.VarChar(50)
+  accountName String        @map("account_name") @db.VarChar(150)
+  accountType String        @map("account_type") @db.VarChar(50) // asset, liability, equity, revenue, expense
+  category    String        @default("current_asset") @db.VarChar(50) // current_asset, fixed_asset, current_liability, long_term_liability, equity, direct_income, indirect_income, direct_expense, indirect_expense
+  currency    String        @default("INR") @db.VarChar(10)
+  balance     Decimal       @default(0.00) @db.Decimal(15, 2)
+  isSystem    Boolean       @default(false) @map("is_system")
+  status      String        @default("active") @db.VarChar(20)
+  description String?       @db.Text
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  journalItems JournalItem[]
+
+  @@unique([tenantId, accountCode])
+  @@index([tenantId, accountType])
+  @@map("chart_of_accounts")
+}
+
+model JournalEntry {
+  id            String        @id @default(uuid()) @db.VarChar(36)
+  tenantId      String        @map("tenant_id") @db.VarChar(36)
+  entryNumber   String        @map("entry_number") @db.VarChar(50)
+  entryDate     DateTime      @default(now()) @map("entry_date") @db.Date
+  reference     String?       @db.VarChar(150) // Invoice #, Expense #, Salary #, POS #
+  referenceType String?       @map("reference_type") @db.VarChar(50) // invoice, expense, payroll, pos, manual
+  description   String        @db.Text
+  totalAmount   Decimal       @default(0.00) @map("total_amount") @db.Decimal(15, 2)
+  status        String        @default("posted") @db.VarChar(30) // draft, posted, void
+  createdById   String?       @map("created_by_id") @db.VarChar(36)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  JournalItem[]
+
+  @@unique([tenantId, entryNumber])
+  @@index([tenantId, entryDate])
+  @@map("journal_entries")
+}
+
+model JournalItem {
+  id             String   @id @default(uuid()) @db.VarChar(36)
+  journalEntryId String   @map("journal_entry_id") @db.VarChar(36)
+  accountId      String   @map("account_id") @db.VarChar(36)
+  type           String   @db.VarChar(10) // debit, credit
+  debit          Decimal  @default(0.00) @db.Decimal(15, 2)
+  credit         Decimal  @default(0.00) @db.Decimal(15, 2)
+  notes          String?  @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_items")
+}
+
+// -------------------------------------------------------------
+// CONTRACTS & DIGITAL E-SIGNATURES
+// -------------------------------------------------------------
+
+model Contract {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  tenantId         String    @map("tenant_id") @db.VarChar(36)
+  contractNumber   String    @map("contract_number") @db.VarChar(50)
+  title            String    @db.VarChar(255)
+  subject          String?   @db.VarChar(255)
+  contractType     String    @default("employment") @map("contract_type") @db.VarChar(50) // employment, vendor, client_nda, service_agreement
+  partyName        String    @map("party_name") @db.VarChar(150)
+  partyEmail       String    @map("party_email") @db.VarChar(255)
+  partyPhone       String?   @map("party_phone") @db.VarChar(50)
+  value            Decimal   @default(0.00) @db.Decimal(15, 2)
+  startDate        DateTime  @map("start_date") @db.Date
+  endDate          DateTime? @map("end_date") @db.Date
+  status           String    @default("draft") @db.VarChar(50) // draft, sent, signed, active, expired, terminated
+  termsContent     String    @map("terms_content") @db.Text
+  signatureData    String?   @map("signature_data") @db.LongText // Base64 signature image
+  signedByName     String?   @map("signed_by_name") @db.VarChar(150)
+  signedAt         DateTime? @map("signed_at")
+  signatureIp      String?   @map("signature_ip") @db.VarChar(50)
+  documentUrl      String?   @map("document_url") @db.VarChar(500)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, contractNumber])
+  @@index([tenantId, status])
+  @@map("contracts")
+}
+
+// -------------------------------------------------------------
+// BUDGET PLANNER & FINANCIAL GOALS
+// -------------------------------------------------------------
+
+model BudgetPlan {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  tenantId        String   @map("tenant_id") @db.VarChar(36)
+  name            String   @db.VarChar(150)
+  fiscalYear      String   @map("fiscal_year") @db.VarChar(20) // e.g., 2026-2027
+  periodType      String   @default("monthly") @map("period_type") @db.VarChar(30) // monthly, quarterly, yearly
+  departmentId    String?  @map("department_id") @db.VarChar(36)
+  budgetedAmount  Decimal  @default(0.00) @map("budgeted_amount") @db.Decimal(15, 2)
+  spentAmount     Decimal  @default(0.00) @map("spent_amount") @db.Decimal(15, 2)
+  status          String   @default("active") @db.VarChar(30) // active, closed
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, fiscalYear])
+  @@map("budget_plans")
+}
+
+model FinancialGoal {
+  id            String    @id @default(uuid()) @db.VarChar(36)
+  tenantId      String    @map("tenant_id") @db.VarChar(36)
+  name          String    @db.VarChar(150)
+  goalType      String    @default("revenue") @map("goal_type") @db.VarChar(50) // revenue, profit, cost_reduction, sales_target
+  targetAmount  Decimal   @map("target_amount") @db.Decimal(15, 2)
+  currentAmount Decimal   @default(0.00) @map("current_amount") @db.Decimal(15, 2)
+  startDate     DateTime  @map("start_date") @db.Date
+  targetDate    DateTime  @map("target_date") @db.Date
+  status        String    @default("in_progress") @db.VarChar(30) // in_progress, achieved, missed
+  description   String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("financial_goals")
+}
+
+
