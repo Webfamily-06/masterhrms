@@ -365,16 +365,6 @@ function AuthPage() {
                 </p>
               </div>
 
-              {/* Demo Credentials Box */}
-              {mode === "signin" && (
-                <div className="p-3.5 rounded-lg border border-primary/20 bg-primary/5 text-xs text-primary space-y-1">
-                  <p className="font-semibold">Demo Credentials:</p>
-                  <p className="text-[11px]">
-                    Admin: <strong className="font-mono">admin@demo.com</strong> / <strong className="font-mono">admin</strong>
-                  </p>
-                </div>
-              )}
-
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === "signup" && (
                   <div className="space-y-1.5">
@@ -386,6 +376,8 @@ function AuthPage() {
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         className="h-10 pl-9 text-xs"
+                        required
+                        autoFocus
                       />
                       <User className="size-4 text-muted-foreground absolute left-3 top-3" />
                     </div>
@@ -397,11 +389,12 @@ function AuthPage() {
                   <div className="relative">
                     <Input
                       type="email"
-                      placeholder="admin@demo.com"
+                      placeholder="name@company.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="h-10 pl-9 text-xs"
                       required
+                      autoFocus={mode === "signin"}
                     />
                     <Mail className="size-4 text-muted-foreground absolute left-3 top-3" />
                   </div>
@@ -429,7 +422,7 @@ function AuthPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
@@ -442,16 +435,16 @@ function AuthPage() {
                     id="rememberMe"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="size-4 rounded border-border text-primary focus:ring-primary"
+                    className="size-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
                   />
                   <label htmlFor="rememberMe" className="text-xs text-muted-foreground font-medium cursor-pointer">
-                    Remember me
+                    Remember session
                   </label>
                 </div>
 
-                <Button type="submit" disabled={loading} className="w-full h-10 font-bold bg-primary text-primary-foreground hover:bg-primary/90">
+                <Button type="submit" disabled={loading} className="w-full h-10 font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs">
                   {loading && <Loader2 className="size-4 animate-spin mr-2" />}
-                  {mode === "signin" ? "Sign In" : "Create Account"}
+                  {mode === "signin" ? "Sign In to Workspace" : "Create Workspace Account"}
                 </Button>
               </form>
 
@@ -516,17 +509,27 @@ function AuthPage() {
               )}
 
               {/* Mode Toggle Footer */}
-              <div className="text-center pt-2">
+              <div className="text-center pt-2 space-y-2">
                 <p className="text-xs text-muted-foreground">
                   {mode === "signin" ? "New on our platform?" : "Already have an account?"}{" "}
                   <button
                     type="button"
                     onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-                    className="text-primary font-bold hover:underline"
+                    className="text-primary font-bold hover:underline cursor-pointer"
                   >
                     {mode === "signin" ? "Create an account" : "Sign in instead"}
                   </button>
                 </p>
+
+                <div className="pt-2">
+                  <Link
+                    to="/super-login"
+                    className="text-[11px] text-muted-foreground/80 hover:text-primary transition-colors inline-flex items-center gap-1 font-medium"
+                  >
+                    <ShieldCheck className="size-3" />
+                    <span>Platform Super Admin Console Access &rarr;</span>
+                  </Link>
+                </div>
               </div>
             </div>
           )}
