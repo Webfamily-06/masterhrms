@@ -16,6 +16,11 @@ import {
   EyeOff,
   Lock,
   Mail,
+  Server,
+  KeyRound,
+  CheckCircle2,
+  Cpu,
+  Layers,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -23,10 +28,10 @@ export const Route = createFileRoute("/super-login")({
   component: SuperLoginPage,
   head: () => ({
     meta: [
-      { title: "Super Admin Console Access — Master HRMS" },
+      { title: "Super Admin Console Sign In — Master HRMS & Global ERP" },
       {
         name: "description",
-        content: "Restricted platform administrator sign-in for Master HRMS & Global ERP.",
+        content: "Secure root administrator authentication portal for Master HRMS & Global ERP.",
       },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -36,8 +41,8 @@ export const Route = createFileRoute("/super-login")({
 function SuperLoginPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [email, setEmail] = useState("admin@masterhrms.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -61,23 +66,28 @@ function SuperLoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      toast.error("Please enter both administrator email and password.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await api.post("/auth/login", { email: email.trim(), password });
       const roles: string[] = res.roles || res.user?.roles || [];
       const isSuper = roles.includes("super_admin");
       if (!isSuper) {
-        toast.error("Access denied: This account is not a super administrator.");
+        toast.error("Access denied: This account lacks Super Administrator privileges.");
         setLoading(false);
         return;
       }
       setToken(res.token);
       qc.invalidateQueries({ queryKey: ["current-session-user"] });
       qc.invalidateQueries({ queryKey: ["current-profile"] });
-      toast.success("Welcome, Super Administrator");
+      toast.success("Authentication successful. Welcome to Super Console.");
       navigate({ to: "/super" });
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Super admin sign in failed");
+      toast.error(err instanceof Error ? err.message : "Super administrator authentication failed");
       setLoading(false);
     }
   }
@@ -89,7 +99,7 @@ function SuperLoginPage() {
           <div className="size-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Loader2 className="size-6 animate-spin text-primary" />
           </div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Verifying console access...</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Verifying root session...</p>
         </div>
       </div>
     );
@@ -104,7 +114,7 @@ function SuperLoginPage() {
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg border border-border/60 bg-card/60 backdrop-blur-md shadow-2xs"
         >
           <ArrowLeft className="size-3.5" />
-          <span>Back to site</span>
+          <span>Back to Home</span>
         </Link>
       </div>
 
@@ -112,60 +122,80 @@ function SuperLoginPage() {
         <ThemeToggle />
       </div>
 
-      {/* ── Left Hero / Sneat Brand Canvas (8 Cols on Desktop) ────────── */}
+      {/* ── Left Hero / Enterprise Platform Orchestrator (7-8 Cols on Desktop) ────────── */}
       <div className="hidden lg:flex lg:col-span-7 xl:col-span-8 relative bg-gradient-to-br from-primary/10 via-background to-secondary/30 items-center justify-center p-12 overflow-hidden border-r border-border/60">
-        <div className="absolute -top-24 -left-24 size-96 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+        {/* Subtle Decorative Background Glows */}
+        <div className="absolute -top-24 -left-24 size-96 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 size-96 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
 
         <div className="max-w-xl text-center space-y-8 relative z-10">
           <div className="space-y-3">
-            <Badge variant="outline" className="px-3 py-1 text-xs font-mono font-bold tracking-wider uppercase border-primary/30 text-primary bg-primary/5">
-              <ShieldCheck className="size-3.5 mr-1" /> Root Command Orchestrator
+            <Badge variant="outline" className="px-3.5 py-1 text-xs font-mono font-bold tracking-wider uppercase border-primary/30 text-primary bg-primary/5">
+              <ShieldCheck className="size-3.5 mr-1.5" /> Root Command Orchestrator
             </Badge>
             <h1 className="text-4xl xl:text-5xl font-extrabold tracking-tight text-foreground leading-tight">
-              Global Platform Administration
+              Global Platform Governance
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">
-              Multi-tenant isolation controls, global subscription tiers, hardware biometric bridges, and enterprise licensing suite.
+              Multi-tenant architecture controls, global security registries, subscription lifecycle orchestration, and hardware bridges.
             </p>
           </div>
 
-          {/* Sneat Pro 3D Dashboard Mockup Card Showcase */}
-          <div className="relative mx-auto max-w-md">
-            <Card className="border border-border/80 shadow-2xl bg-card/90 backdrop-blur-xl p-5 space-y-4 text-left transform transition-transform hover:scale-[1.01]">
-              <div className="flex items-center justify-between border-b pb-3">
+          {/* Sneat Pro 3D Platform Infrastructure Showcase */}
+          <div className="relative mx-auto max-w-lg">
+            <Card className="border border-border/80 shadow-2xl bg-card/95 backdrop-blur-xl p-6 space-y-5 text-left transform transition-transform hover:scale-[1.01]">
+              <div className="flex items-center justify-between border-b pb-3.5">
                 <div className="flex items-center gap-2.5">
-                  <div className="size-3 rounded-full bg-red-400" />
-                  <div className="size-3 rounded-full bg-amber-400" />
-                  <div className="size-3 rounded-full bg-emerald-400" />
-                  <span className="text-xs font-bold text-foreground ml-2">Root Console v2.8.4-PROD</span>
+                  <div className="size-3 rounded-full bg-red-400/80" />
+                  <div className="size-3 rounded-full bg-amber-400/80" />
+                  <div className="size-3 rounded-full bg-emerald-400/80" />
+                  <span className="text-xs font-bold text-foreground ml-2 font-mono">Root Orchestrator v2.8.4</span>
                 </div>
                 <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-0 text-[10px] font-mono font-bold">
                   Cluster Live 99.99%
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 space-y-1">
-                  <span className="text-[10px] font-semibold text-primary block">Active Workspaces</span>
-                  <div className="text-xl font-bold font-mono text-foreground">1,248</div>
-                  <span className="text-[10px] text-muted-foreground">Multi-tenant instances</span>
+              {/* Infrastructure Security Pillars */}
+              <div className="grid grid-cols-2 gap-3.5">
+                <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 space-y-1">
+                  <div className="flex items-center gap-1.5 text-primary text-xs font-bold">
+                    <Layers className="size-3.5" /> Multi-Tenant Fleet
+                  </div>
+                  <div className="text-xs text-muted-foreground leading-snug">
+                    Strict <strong className="text-foreground">tenant_id</strong> database isolation layer
+                  </div>
                 </div>
-                <div className="p-3 rounded-xl bg-[oklch(0.60_0.17_155/0.10)] border border-[oklch(0.60_0.17_155/0.20)] space-y-1">
-                  <span className="text-[10px] font-semibold text-[oklch(0.60_0.17_155)] block">Monthly Run Rate</span>
-                  <div className="text-xl font-bold font-mono text-foreground">₹24.8L</div>
-                  <span className="text-[10px] text-muted-foreground">+18.4% this month</span>
+
+                <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/20 space-y-1">
+                  <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 text-xs font-bold">
+                    <KeyRound className="size-3.5" /> Security & RBAC
+                  </div>
+                  <div className="text-xs text-muted-foreground leading-snug">
+                    Role matrix, 2FA TOTP, and token invalidation
+                  </div>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-muted/40 border space-y-1.5 text-xs">
+              {/* System Engine Specifications */}
+              <div className="p-3.5 rounded-xl bg-muted/40 border space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-muted-foreground">Database Engine</span>
-                  <span className="font-mono font-bold text-primary">MySQL Realtime</span>
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Server className="size-3.5 text-primary" /> Database Engine
+                  </span>
+                  <span className="font-mono font-bold text-foreground">MySQL Realtime 8.0</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-muted-foreground">Global RBAC</span>
-                  <span className="font-mono text-foreground font-semibold">Strict Tenant Isolation</span>
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Cpu className="size-3.5 text-purple-500" /> Biometric Hardware Bridge
+                  </span>
+                  <span className="font-mono text-foreground font-semibold">Active Sync Service</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-emerald-500" /> Platform Encryption
+                  </span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">256-Bit TLS End-to-End</span>
                 </div>
               </div>
             </Card>
@@ -188,19 +218,9 @@ function SuperLoginPage() {
           </div>
 
           <div className="space-y-1.5">
-            <h2 className="text-2xl font-bold tracking-tight">Super Admin Access</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Super Admin Sign In</h2>
             <p className="text-xs text-muted-foreground">
-              Enter authorized root administrator credentials to access platform controls.
-            </p>
-          </div>
-
-          {/* Root Admin Demo Info Box */}
-          <div className="p-3.5 rounded-xl border border-primary/25 bg-primary/5 text-xs space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-primary">
-              <ShieldCheck className="size-4" /> Root Credentials:
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Email: <strong className="font-mono text-foreground">admin@masterhrms.com</strong> / Password: <strong className="font-mono text-foreground">admin123</strong>
+              Enter authorized root credentials to access the platform orchestration console.
             </p>
           </div>
 
@@ -215,6 +235,7 @@ function SuperLoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-10 pl-9 text-xs"
                   required
+                  autoFocus
                 />
                 <Mail className="size-4 text-muted-foreground absolute left-3 top-3" />
               </div>
@@ -253,7 +274,7 @@ function SuperLoginPage() {
                 className="size-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
               />
               <label htmlFor="rememberMeSuper" className="text-xs text-muted-foreground font-medium cursor-pointer">
-                Remember session
+                Remember root session
               </label>
             </div>
 
@@ -273,13 +294,16 @@ function SuperLoginPage() {
               )}
             </Button>
 
-            <div className="text-center pt-2">
+            <div className="pt-2 text-center space-y-2">
               <Link
                 to="/auth"
-                className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                className="text-xs text-muted-foreground hover:text-primary transition-colors block"
               >
-                Switch to standard Employee / Tenant Sign In &rarr;
+                Switch to Employee / Tenant Workspace Sign In &rarr;
               </Link>
+              <p className="text-[11px] text-muted-foreground/60 font-mono">
+                All platform access attempts are audited and logged.
+              </p>
             </div>
           </form>
         </div>
