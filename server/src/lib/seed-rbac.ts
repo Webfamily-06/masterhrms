@@ -28,8 +28,14 @@ export async function seedRbac() {
     });
   }
 
+interface DbPermission {
+  id: string;
+  code: string;
+  module: string;
+}
+
   // 2. Fetch all DB permissions
-  const allDbPerms = await prisma.permission.findMany();
+  const allDbPerms: DbPermission[] = await prisma.permission.findMany();
   const permMap = new Map<string, string>();
   for (const p of allDbPerms) {
     permMap.set(p.code, p.id);
@@ -110,12 +116,12 @@ export async function seedRbac() {
     const adminRole = await setupRole(
       "Workspace Admin",
       "Full administrative access to all workspace ERP modules, settings, users, and roles",
-      allDbPerms.map((p) => p.code),
+      allDbPerms.map((p: DbPermission) => p.code),
       true
     );
 
     // 2. HR Manager
-    const hrPerms = allDbPerms.filter((p) => p.module === "hrm").map((p) => p.code);
+    const hrPerms = allDbPerms.filter((p: DbPermission) => p.module === "hrm").map((p: DbPermission) => p.code);
     hrPerms.push("analytics.dashboard.view", "analytics.reports.view");
     await setupRole(
       "HR Manager",
@@ -164,7 +170,7 @@ export async function seedRbac() {
     );
 
     // 4. Finance Manager
-    const financePerms = allDbPerms.filter((p) => p.module === "finance").map((p) => p.code);
+    const financePerms = allDbPerms.filter((p: DbPermission) => p.module === "finance").map((p: DbPermission) => p.code);
     financePerms.push("crm.quotations.approve", "analytics.dashboard.view", "procurement.purchase_orders.view");
     await setupRole(
       "Finance Manager",
@@ -173,7 +179,7 @@ export async function seedRbac() {
     );
 
     // 5. Inventory Manager
-    const invPerms = allDbPerms.filter((p) => p.module === "inventory").map((p) => p.code);
+    const invPerms = allDbPerms.filter((p: DbPermission) => p.module === "inventory").map((p: DbPermission) => p.code);
     invPerms.push("pos.terminal.view", "procurement.purchase_orders.view", "analytics.dashboard.view");
     await setupRole(
       "Inventory Manager",
