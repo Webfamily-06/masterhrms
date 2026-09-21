@@ -1,16 +1,45 @@
+import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 
 export const employeesRouter = Router();
 
+function parseEmployeeStatus(status?: any): "active" | "on_leave" | "terminated" {
+  if (!status) return "active";
+  const s = String(status).toLowerCase().trim();
+  if (s === "on_leave" || s === "onleave" || s === "leave") return "on_leave";
+  if (s === "terminated" || s === "inactive") return "terminated";
+  return "active";
+}
+
+function parseEmploymentType(type?: any): "full_time" | "part_time" | "contract" | "intern" {
+  if (!type) return "full_time";
+  const t = String(type).toLowerCase().trim();
+  if (t === "part_time" || t === "parttime") return "part_time";
+  if (t === "contract") return "contract";
+  if (t === "intern" || t === "internship") return "intern";
+  return "full_time";
+}
+
+
+/**
+ * Helper to safely extract tenantId with robust fallback
+ */
+async function getTenantId(req: AuthRequest): Promise<string> {
+  const tenantId = req.user?.tenantId;
+  if (!tenantId) throw Object.assign(new Error("Workspace context required"), { status: 403 });
+  return tenantId;
+}
+
+
 // GET /api/employees
 employeesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
-    const where = tenantId ? { tenantId } : {};
+    const tenantId = await getTenantId(req);
+    const where = { tenantId };
 
     const employees = await prisma.employee.findMany({
       where,
@@ -32,17 +61,14 @@ employeesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
 
     return res.json(employees);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
 // POST /api/employees
-employeesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create"), async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) {
-      return res.status(400).json({ error: "Tenant context is required to create employees." });
-    }
+    const tenantId = await getTenantId(req);
 
     const {
       firstName,
@@ -60,12 +86,13 @@ employeesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
       password,
     } = req.body;
 
-    // Automatically provision user credentials in DB
+    const employee = await prisma.$transaction(async (tx) => {
+    await lockWorkspaceCapacity(tx, tenantId, "employees");
     const cleanEmail = email.toLowerCase().trim();
     let userId: string | undefined;
 
     try {
-      userId = await provisionEmployeeUser(prisma, {
+      userId = await provisionEmployeeUser(tx, {
         tenantId,
         email: cleanEmail,
         firstName,
@@ -75,10 +102,10 @@ employeesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
         password: password || "Password@123",
       });
     } catch (userErr) {
-      console.warn("User auto-provisioning note:", userErr);
+      throw userErr;
     }
 
-    const employee = await prisma.employee.create({
+    const created = await tx.employee.create({
       data: {
         tenantId,
         userId: userId || null,
@@ -90,7 +117,8 @@ employeesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
         employeeCode: employeeCode || `EMP-${Date.now().toString().slice(-4)}`,
         departmentId: departmentId || null,
         managerId: managerId || null,
-        employmentType: employmentType || "full_time",
+        employmentType: parseEmploymentType(employmentType),
+        status: parseEmployeeStatus(req.body.status),
         salary: salary ? Number(salary) : null,
         joinedAt: joinedAt ? new Date(joinedAt) : new Date(),
       },
@@ -106,9 +134,12 @@ employeesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
       },
     });
 
+    return created;
+    });
+
     return res.status(201).json(employee);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -167,10 +198,10 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
         employeeCode,
         departmentId: departmentId || null,
         managerId: managerId || null,
-        employmentType,
-        status,
-        salary: salary !== undefined ? Number(salary) : undefined,
-        joinedAt: joinedAt ? new Date(joinedAt) : undefined,
+        employmentType: employmentType ? parseEmploymentType(employmentType) : undefined,
+        status: status ? parseEmployeeStatus(status) : undefined,
+        salary: salary !== undefined && salary !== "" && !isNaN(Number(salary)) ? Number(salary) : undefined,
+        joinedAt: joinedAt && !isNaN(Date.parse(joinedAt)) ? new Date(joinedAt) : undefined,
       },
       include: {
         department: true,
@@ -186,26 +217,150 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
 
     return res.json(employee);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
-// DELETE /api/employees/:id
+// DELETE /api/employees/:id (Full Cascade: removes all related employee and user records from DB)
 employeesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    await prisma.employee.delete({ where: { id } });
-    return res.json({ success: true, message: "Employee removed successfully" });
+    if (!id) return res.status(400).json({ error: "Employee ID is required" });
+
+    // Verify employee exists
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      select: { id: true, userId: true, firstName: true, lastName: true },
+    });
+    if (!employee) return res.status(404).json({ error: "Employee not found" });
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Attendance records
+      await tx.attendance.deleteMany({ where: { employeeId: id } });
+
+      // 2. Leave requests
+      await tx.leaveRequest.deleteMany({ where: { employeeId: id } });
+
+      // 3. Expense claims
+      await tx.expenseClaim.deleteMany({ where: { employeeId: id } });
+
+      // 4. Course enrollments
+      await tx.courseEnrollment.deleteMany({ where: { employeeId: id } });
+
+      // 5. OKR checkins, reviews, key results, objectives
+      await tx.okrCheckin.deleteMany({ where: { employeeId: id } });
+      await tx.okrReview.deleteMany({ where: { employeeId: id } });
+      await tx.okrReview.deleteMany({ where: { reviewerId: id } });
+      await tx.okrKeyResult.deleteMany({ where: { objective: { ownerId: id } } });
+      await tx.okrObjective.deleteMany({ where: { ownerId: id } });
+
+      // 6. Shift swaps & rosters
+      await tx.shiftSwapRequest.deleteMany({ where: { requesterEmployeeId: id } });
+      await tx.shiftSwapRequest.deleteMany({ where: { targetEmployeeId: id } });
+      await tx.shiftRoster.deleteMany({ where: { employeeId: id } });
+
+      // 7. Payslips
+      await tx.payslip.deleteMany({ where: { employeeId: id } });
+
+      // 8. Assets
+      await tx.assetRequest.deleteMany({ where: { employeeId: id } });
+      await tx.assetAssignment.deleteMany({ where: { employeeId: id } });
+      await tx.asset.updateMany({
+        where: { assignedEmployeeId: id },
+        data: { assignedEmployeeId: null, status: "available" },
+      });
+
+      // 9. Interviews conducted
+      await tx.jobCandidateInterview.deleteMany({ where: { interviewerId: id } });
+
+      // 10. Employee exits & checklist items
+      const exits = await tx.employeeExit.findMany({ where: { employeeId: id }, select: { id: true } });
+      if (exits.length > 0) {
+        await tx.exitChecklistItem.deleteMany({
+          where: { exitId: { in: exits.map((x) => x.id) } },
+        });
+        await tx.employeeExit.deleteMany({ where: { employeeId: id } });
+      }
+
+      // 11. Biometric punch logs
+      await tx.biometricPunchLog.updateMany({
+        where: { employeeId: id },
+        data: { employeeId: null },
+      });
+
+      // 12. Announcement acknowledgements & authored announcements
+      await tx.announcementAcknowledgement.deleteMany({ where: { employeeId: id } });
+      await tx.announcement.updateMany({
+        where: { authorId: id },
+        data: { authorId: null },
+      });
+
+      // 13. Helpdesk tickets & comments
+      const tickets = await tx.helpdeskTicket.findMany({
+        where: { employeeId: id },
+        select: { id: true },
+      });
+      if (tickets.length > 0) {
+        await tx.helpdeskComment.deleteMany({
+          where: { ticketId: { in: tickets.map((t) => t.id) } },
+        });
+        await tx.helpdeskTicket.deleteMany({ where: { employeeId: id } });
+      }
+
+      // 14. Company documents & custom forms
+      await tx.companyDocument.updateMany({
+        where: { employeeId: id },
+        data: { employeeId: null },
+      });
+      await tx.customForm.updateMany({
+        where: { authorId: id },
+        data: { authorId: null },
+      });
+      await tx.formSubmission.updateMany({
+        where: { employeeId: id },
+        data: { employeeId: null },
+      });
+
+      // 15. Subordinates managerId reference
+      await tx.employee.updateMany({
+        where: { managerId: id },
+        data: { managerId: null },
+      });
+
+      // 16. Finally delete the employee record from the DB
+      await tx.employee.delete({ where: { id } });
+
+      // 17. Clean up associated user account if applicable
+      if (employee.userId) {
+        const otherLinked = await tx.employee.count({
+          where: { userId: employee.userId, id: { not: id } },
+        });
+        if (otherLinked === 0) {
+          await tx.profile.deleteMany({ where: { userId: employee.userId } });
+          await tx.twoFactorOtp.deleteMany({ where: { userId: employee.userId } });
+          await tx.userRole.deleteMany({ where: { userId: employee.userId } });
+          await tx.userRoleAssignment.deleteMany({ where: { userId: employee.userId } });
+          await tx.user.delete({ where: { id: employee.userId } });
+        }
+      }
+    });
+
+    console.log("[DELETE /employees/" + id + "] Employee " + employee.firstName + " " + employee.lastName + " successfully deleted from database.");
+    return res.json({
+      success: true,
+      message: "Employee " + employee.firstName + " " + employee.lastName + " and all related records deleted permanently from database.",
+    });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    console.error("Employee delete error:", err.message);
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error during employee deletion" });
   }
 });
 
 // GET /api/employees/departments
 employeesRouter.get("/departments", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
-    const where = tenantId ? { tenantId } : {};
+    const tenantId = await getTenantId(req);
+    const where = { tenantId };
 
     let departments = await prisma.department.findMany({
       where,
@@ -217,50 +372,16 @@ employeesRouter.get("/departments", requireAuth, async (req: AuthRequest, res: R
       orderBy: { name: "asc" },
     });
 
-    // Auto-seed default departments if empty
-    if (departments.length === 0 && tenantId) {
-      const defaults = [
-        { name: "Engineering", description: "Software development & DevOps" },
-        { name: "Human Resources", description: "Talent acquisition & people operations" },
-        { name: "Sales & Marketing", description: "Revenue generation & growth" },
-        { name: "Finance & Accounting", description: "Financial reporting & payroll" },
-        { name: "Operations", description: "Business processes & logistics" },
-      ];
-
-      await Promise.all(
-        defaults.map((d) =>
-          prisma.department.create({
-            data: {
-              tenantId,
-              name: d.name,
-              description: d.description,
-            },
-          }),
-        ),
-      );
-
-      departments = await prisma.department.findMany({
-        where,
-        include: {
-          _count: { select: { employees: true } },
-        },
-        orderBy: { name: "asc" },
-      });
-    }
-
     return res.json(departments);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
 // POST /api/employees/departments
 employeesRouter.post("/departments", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) {
-      return res.status(400).json({ error: "Tenant context is required." });
-    }
+    const tenantId = await getTenantId(req);
 
     const { name, description } = req.body;
     const department = await prisma.department.create({
@@ -273,7 +394,7 @@ employeesRouter.post("/departments", requireAuth, async (req: AuthRequest, res: 
 
     return res.status(201).json(department);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -281,10 +402,11 @@ employeesRouter.post("/departments", requireAuth, async (req: AuthRequest, res: 
 employeesRouter.delete("/departments/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const tenantId = await getTenantId(req);
     await prisma.department.delete({ where: { id } });
     return res.json({ success: true, message: "Department deleted" });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -326,7 +448,7 @@ employeesRouter.post("/:id/reset-2fa", requireAuth, async (req: AuthRequest, res
       message: `Two-Factor Authentication reset for ${employee.firstName} ${employee.lastName} (${employee.email}). Account unlocked.`,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -365,7 +487,7 @@ employeesRouter.get("/:id/login-account", requireAuth, async (req: AuthRequest, 
       createdAt: user?.createdAt || null,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -391,54 +513,13 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     const email = employee.email.toLowerCase().trim();
 
-    // Upsert User
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    await prisma.$transaction(async (tx) => {
+      const userId = await provisionEmployeeUser(tx, {
+        tenantId: employee.tenantId, email, firstName: employee.firstName,
+        lastName: employee.lastName, phone: employee.phone, password: newPassword,
+      });
+      await tx.employee.update({ where: { id: employee.id }, data: { userId } });
     });
-
-    if (existingUser) {
-      await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          passwordHash,
-        },
-      });
-
-      // Link to employee record if userId was missing
-      if (!employee.userId) {
-        await prisma.employee.update({
-          where: { id: employee.id },
-          data: { userId: existingUser.id },
-        });
-      }
-    } else {
-      // Create fresh user account
-      const newUser = await prisma.user.create({
-        data: {
-          email,
-          passwordHash,
-          profile: {
-            create: {
-              fullName: `${employee.firstName} ${employee.lastName}`.trim() || email,
-              email,
-              phone: employee.phone || null,
-              tenantId: employee.tenantId,
-            },
-          },
-          roles: {
-            create: {
-              role: "employee",
-              tenantId: employee.tenantId,
-            },
-          },
-        },
-      });
-
-      await prisma.employee.update({
-        where: { id: employee.id },
-        data: { userId: newUser.id },
-      });
-    }
 
     // Log audit
     try {
@@ -460,7 +541,7 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
       email,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
 

@@ -152,14 +152,17 @@ function CrmPage() {
   });
 
   const persist = useMutation({
-    mutationFn: async (updatedLeads: CrmLead[]) => {
+    mutationFn: async (leadData: Partial<CrmLead> & { id?: string }) => {
       if (editingLead) {
-        await api.put(`/crm/leads/${editingLead.id}`, form);
-      } else if (updatedLeads.length > 0) {
-        await api.post("/crm/leads", updatedLeads[0]);
+        await api.put(`/crm/leads/${editingLead.id}`, leadData);
+      } else {
+        await api.post("/crm/leads", leadData);
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["crm-pipeline", tenantId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crm-pipeline", tenantId] });
+      setIsModalOpen(false);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -181,10 +184,12 @@ function CrmPage() {
       const matchSearch =
         !search ||
         l.name.toLowerCase().includes(search.toLowerCase()) ||
-        l.company.toLowerCase().includes(search.toLowerCase());
+        l.company.toLowerCase().includes(search.toLowerCase()) ||
+        l.email.toLowerCase().includes(search.toLowerCase()) ||
+        l.source.toLowerCase().includes(search.toLowerCase());
       return matchStage && matchSearch;
     });
-  }, [leads, filterStage, search]);
+  }, [leads, search, filterStage]);
 
   const metrics = useMemo(() => {
     const total = leads.reduce((s, l) => s + (l.value || 0), 0);
@@ -222,39 +227,33 @@ function CrmPage() {
   function handleSave() {
     if (!form.name.trim() || !form.company.trim())
       return toast.error("Name and Company are required");
-    let updated: CrmLead[];
-    if (editingLead) {
-      updated = leads.map((l) => (l.id === editingLead.id ? { ...editingLead, ...form } : l));
-      toast.success("Lead updated!");
-    } else {
-      const newLead: CrmLead = {
-        ...form,
-        id: `LD-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-      };
-      updated = [newLead, ...leads];
-      toast.success(`Lead "${form.name}" added to pipeline!`);
+    persist.mutate(form);
+    toast.success(editingLead ? "Lead updated!" : `Lead "${form.name}" added to pipeline!`);
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to remove this lead?")) return;
+    try {
+      await api.delete(`/crm/leads/${id}`);
+      qc.invalidateQueries({ queryKey: ["crm-pipeline", tenantId] });
+      toast.success("Lead removed from pipeline.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete lead");
     }
-    persist.mutate(updated);
-    setIsModalOpen(false);
   }
 
-  function handleDelete(id: string) {
-    const updated = leads.filter((l) => l.id !== id);
-    persist.mutate(updated);
-    toast.success("Lead removed from pipeline.");
-  }
-
-  function advanceStage(lead: CrmLead) {
+  async function advanceStage(lead: CrmLead) {
     const stageIds = STAGES.map((s) => s.id);
     const idx = stageIds.indexOf(lead.stage);
     if (idx >= stageIds.length - 1) return;
     const nextStage = stageIds[idx + 1];
-    const updated = leads.map((l) =>
-      l.id === lead.id ? { ...l, stage: nextStage as CrmLead["stage"] } : l,
-    );
-    persist.mutate(updated);
-    toast.success(`${lead.name} moved to ${STAGES[idx + 1].label}`);
+    try {
+      await api.put(`/crm/leads/${lead.id}`, { stage: nextStage });
+      qc.invalidateQueries({ queryKey: ["crm-pipeline", tenantId] });
+      toast.success(`${lead.name} moved to ${STAGES[idx + 1].label}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to move stage");
+    }
   }
 
   return (

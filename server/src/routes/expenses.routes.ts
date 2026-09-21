@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { autoPostExpenseToLedger } from "../services/ledger-posting.service";
 
 export const expensesRouter = Router();
 
@@ -305,6 +306,15 @@ expensesRouter.post("/claims/:id/reimburse", requireAuth, async (req: AuthReques
         category: true,
       },
     });
+
+    // ⚡ Auto-post to Double-Entry General Ledger
+    autoPostExpenseToLedger({
+      tenantId: existing.tenantId,
+      claimId: existing.id,
+      title: `${existing.claimCode} - ${existing.title}`,
+      amount: Number(existing.amount),
+      paymentMode: reimbursementMethod || "Cash",
+    }).catch((e) => console.error("Auto-post expense to ledger error:", e));
 
     return res.json({
       success: true,

@@ -1,3 +1,4 @@
+import { WorkspacePolicyDialog } from "@/components/workspace-policy-dialog";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, setToken } from "@/lib/api";
@@ -47,10 +48,13 @@ type TenantRow = {
   logo_url: string | null;
   created_at: string;
   employee_count?: number;
+  user_count?: number;
+  policy?: any;
 };
 
 function TenantsAdminStudio() {
   const navigate = useNavigate();
+  const [policyTenant, setPolicyTenant] = useState<TenantRow | null>(null);
   const qc = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [loggingInTenantId, setLoggingInTenantId] = useState<string | null>(null);
@@ -65,6 +69,7 @@ function TenantsAdminStudio() {
   const {
     data: tenants = [],
     isLoading,
+    error,
     refetch,
   } = useQuery({
     queryKey: ["super-tenants"],
@@ -79,10 +84,10 @@ function TenantsAdminStudio() {
           logo_url: t.logoUrl || t.logo_url || null,
           created_at: t.createdAt || t.created_at,
           employee_count: t._count?.employees || 0,
+          user_count: t._count?.profiles || 0,
+          policy: t.policy,
         })) as TenantRow[];
-      } catch {
-        return [];
-      }
+      } catch (error) { throw error; }
     },
   });
 
@@ -103,9 +108,7 @@ function TenantsAdminStudio() {
       const res = await api.post(`/super/impersonate/${tenant.id}`);
       if (res.token) {
         setToken(res.token);
-        qc.invalidateQueries({ queryKey: ["current-session-user"] });
-        qc.invalidateQueries({ queryKey: ["current-profile"] });
-        qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+        qc.clear();
         return { res, tenant };
       }
       throw new Error("Failed to receive authentication token");
@@ -247,6 +250,8 @@ function TenantsAdminStudio() {
         </div>
       </Card>
 
+      {policyTenant && <WorkspacePolicyDialog tenant={policyTenant} onClose={() => setPolicyTenant(null)} />}
+      {error && <div role="alert" className="p-4 border rounded-md text-destructive">Unable to load workspaces: {error.message}. <Button variant="outline" onClick={() => refetch()}>Retry</Button></div>}
       {/* Tenants Cards Grid */}
       {isLoading ? (
         <div className="py-20 grid place-items-center">
@@ -300,6 +305,12 @@ function TenantsAdminStudio() {
                     </span>
                   </div>
 
+                  <div className="space-y-2 border-t pt-3 text-xs">
+                    <div className="flex justify-between"><span>{t.policy?.planName || "Unassigned"}</span><Badge variant={t.policy?.status === "suspended" ? "destructive" : "secondary"}>{t.policy?.expiresAt && new Date(t.policy.expiresAt) <= new Date() ? "Expired" : t.policy?.status || "active"}</Badge></div>
+                    <p>Employee capacity: {t.employee_count} / {t.policy?.maxEmployees ?? "Unlimited"}</p>
+                    <p>User limit: {t.policy?.maxUsers ?? "Unlimited"}</p>
+                    <Button size="sm" variant="outline" className="w-full" onClick={() => setPolicyTenant(t)}>Subscription & limits</Button>
+                  </div>
                   {/* PROMINENT DIRECT ADMIN LOGIN BUTTON (NO PASSWORD NEEDED) */}
                   <Button
                     onClick={() => loginAsTenantAdmin.mutate(t)}

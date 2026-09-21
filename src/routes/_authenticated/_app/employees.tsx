@@ -119,8 +119,8 @@ const EMPTY_FORM = {
   position: "",
   department_id: "",
   employment_type: "full_time",
-  salary: "50000",
-  joined_at: new Date().toISOString().slice(0, 10),
+  salary: "",
+  joined_at: "",
   status: "active",
   avatar_url: "",
   emergency_name: "",
@@ -129,7 +129,7 @@ const EMPTY_FORM = {
   bank_name: "",
   bank_account: "",
   bank_ifsc: "",
-  password: "Password@123",
+  password: "",
   onboarding: [] as string[],
 };
 
@@ -602,7 +602,7 @@ function Employees() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl">
+    <div className="space-y-6 max-w-full">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
@@ -665,38 +665,75 @@ function Employees() {
 
         {/* ===================== TAB 1: STAFF DIRECTORY ===================== */}
         <TabsContent value="directory" className="space-y-6">
-          {/* Sneat Pro Widgets */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* CRM-Style KPI Widgets */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
             {[
-              { title: "Total Employees", value: employees.length.toString(), change: 29, desc: "Active Workspace Staff", icon: Users, color: "text-primary bg-primary/10" },
-              { title: "Active Staff", value: activeCount.toString(), change: 18, desc: "Confirmed on payroll", icon: UserCheck, color: "text-[oklch(0.60_0.17_155)] bg-[oklch(0.60_0.17_155/0.10)]" },
-              { title: "On Probation", value: probationCount.toString(), change: -14, desc: "Pending confirmation", icon: ShieldAlert, color: "text-[oklch(0.73_0.16_75)] bg-[oklch(0.73_0.16_75/0.10)]" },
-              { title: "New This Month", value: newHiresThisMonth.toString(), change: 42, desc: "Joined current cycle", icon: TrendingUp, color: "text-[oklch(0.60_0.20_200)] bg-[oklch(0.60_0.20_200/0.10)]" },
+              {
+                title: "Total Employees",
+                value: employees.length.toString(),
+                change: "+29%",
+                desc: "Active staff",
+                gradient: "from-success via-warning to-danger",
+                bgTint: "bg-success/5",
+                iconCircle: "bg-success",
+                iconClass: "ph-duotone ph-user",
+                isUp: true
+              },
+              {
+                title: "Active Staff",
+                value: activeCount.toString(),
+                change: "+18%",
+                desc: "On payroll",
+                gradient: "from-purple via-pink to-purple",
+                bgTint: "bg-purple/5",
+                iconCircle: "bg-purple",
+                iconClass: "ph-duotone ph-user-check",
+                isUp: true
+              },
+              {
+                title: "On Probation",
+                value: probationCount.toString(),
+                change: "-14%",
+                desc: "Pending review",
+                gradient: "from-warning via-orange to-warning",
+                bgTint: "bg-warning/5",
+                iconCircle: "bg-warning",
+                iconClass: "ph-duotone ph-shield-warning",
+                isUp: false
+              },
+              {
+                title: "New This Month",
+                value: newHiresThisMonth.toString(),
+                change: "+42%",
+                desc: "New hires",
+                gradient: "from-pink via-purple to-pink",
+                bgTint: "bg-pink/5",
+                iconCircle: "bg-pink",
+                iconClass: "ph-duotone ph-trend-up",
+                isUp: true
+              },
             ].map((m) => (
-              <Card key={m.title} className="border border-border/70 shadow-xs">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <span className="text-xs font-semibold text-muted-foreground">{m.title}</span>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-2xl font-bold tracking-tight">{m.value}</h4>
-                        <span
-                          className={cn(
-                            "text-xs font-semibold",
-                            m.change > 0 ? "text-[oklch(0.60_0.17_155)]" : "text-[oklch(0.60_0.22_25)]"
-                          )}
-                        >
-                          ({m.change > 0 ? `+${m.change}` : m.change}%)
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">{m.desc}</p>
+              <div key={m.title} className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+                <div className={`h-1 bg-gradient-to-r ${m.gradient}`}></div>
+                <div className={`p-4 ${m.bgTint}`}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-default mb-1">{m.title}</p>
+                      <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-white mb-0">{m.value}</h2>
                     </div>
-                    <div className={cn("size-10 rounded-lg flex items-center justify-center shrink-0", m.color)}>
-                      <m.icon className="size-5" />
+                    <div className={`size-10 rounded-full ${m.iconCircle} flex items-center justify-center shrink-0`}>
+                      <i className={`${m.iconClass} text-white text-lg`}></i>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={`inline-flex items-center font-semibold ${m.isUp ? "text-success" : "text-danger"}`}>
+                      <i className={`ph ${m.isUp ? "ph-arrow-up" : "ph-arrow-down"} text-[10px] me-0.5`}></i>
+                      {m.change}
+                    </span>
+                    <span className="text-default">{m.desc}</span>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
 

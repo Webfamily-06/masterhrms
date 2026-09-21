@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
@@ -119,15 +119,25 @@ export function SubscriptionPage() {
   const { data: profile } = useCurrentProfile(user);
   const tenantId = profile?.tenant_id || "default";
 
-  const [currentPlanId, setCurrentPlanId] = useState("p2");
-  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<SubscriptionPlan | null>(null);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [currentPlanId, setCurrentPlanId] = useState("");
+  const { data: subscription, error: subscriptionError } = useQuery({
+    queryKey: ["workspace-subscription", tenantId], enabled: tenantId !== "default",
+    queryFn: () => api.get("/workspace/subscription"),
+  });
+  useEffect(() => { setCurrentPlanId(subscription?.planId || ""); }, [subscription?.planId]);
+  const requestPlan = useMutation({
+    mutationFn: (plan: SubscriptionPlan) => api.post("/support/platform/tickets", {
+      subject: "Subscription plan change: " + plan.name, requestType: "billing_invoices", priority: "medium",
+      message: "Please review our request to change to plan " + plan.name + " (" + plan.id + ") and confirm pricing, billing, and workspace limits before activation.",
+    }),
+    onSuccess: () => toast.success("Plan change requested. Super Admin will review it in platform support."),
+    onError: (error: Error) => toast.error(error.message),
+  });
   const [viewingInvoice, setViewingInvoice] = useState<TenantInvoice | null>(null);
   const printAreaRef = useRef<HTMLDivElement>(null);
 
   // 1. Fetch Subscription Plans
-  const { data: plansData = DEFAULT_PLANS } = useQuery({
+  const { data: plansData = [] } = useQuery({
     queryKey: ["public-plans-list"],
     queryFn: async () => {
       try {
@@ -135,7 +145,7 @@ export function SubscriptionPage() {
         if (page?.content && typeof page.content === "object" && "plans" in page.content) {
           return (page.content as any).plans as SubscriptionPlan[];
         }
-        return DEFAULT_PLANS;
+        return [];
       } catch {
         return DEFAULT_PLANS;
       }
@@ -173,16 +183,22 @@ export function SubscriptionPage() {
   });
 
   // 4. Fetch Tenant Invoices & Payment Ledger
-  const invoicesSlugKey = `tenant-${tenantId}-invoices-ledger`;
   const { data: invoices = [] } = useQuery({
     queryKey: ["realtime-tenant-invoices", tenantId],
     queryFn: async () => {
       try {
-        const page = await api.get(`/cms/pages/${invoicesSlugKey}`);
-        if (Array.isArray(page?.content) && page.content.length > 0) {
-          return page.content as TenantInvoice[];
-        }
-        return [];
+        const result = await api.get("/payments/razorpay/transactions");
+        return (Array.isArray(result?.transactions) ? result.transactions : []).map((transaction: any): TenantInvoice => ({
+          id: transaction.id,
+          invoiceNumber: transaction.invoiceRef || transaction.orderId,
+          itemName: "Razorpay payment",
+          itemType: "plan",
+          amount: Number(transaction.amount || 0),
+          paymentMethod: transaction.method || "Razorpay",
+          paymentId: transaction.paymentId || transaction.orderId,
+          date: transaction.timestamp || new Date().toISOString(),
+          status: transaction.status === "captured" ? "paid" : "pending",
+        }));
       } catch {
         return [];
       }
@@ -202,67 +218,8 @@ export function SubscriptionPage() {
     },
   });
 
-  // Upgrade Plan Callback after Payment Verification
-  async function activatePlanAfterPayment(paymentDetails: { method: string; paymentId?: string }) {
-    if (!selectedPlanForPayment || !tenantId) return;
-
-    const plan = selectedPlanForPayment;
-    setIsUpgrading(true);
-    try {
-      // 1. Save Subscription
-      await api.put(`/cms/pages/tenant-${tenantId}-subscription`, {
-        title: `Subscription ${tenantId}`,
-        content: { planId: plan.id, planName: plan.name, paymentDetails },
-        published: true,
-      });
-
-      // 2. Generate and Record Official Tax Invoice
-      const newInvoice: TenantInvoice = {
-        id: `INV-${Date.now()}`,
-        invoiceNumber: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, "0")}`,
-        itemName: `${plan.name} (Monthly Subscription)`,
-        itemType: "plan",
-        amount: plan.price_monthly || 0,
-        paymentMethod: paymentDetails.method || "Razorpay",
-        paymentId: paymentDetails.paymentId || `TXN-${Date.now()}`,
-        date: new Date().toISOString().split("T")[0],
-        status: "paid",
-        customerName: profile?.full_name || user?.email || "Tenant Administrator",
-        customerEmail: user?.email || "admin@workspace.com",
-      };
-
-      const updatedInvoices = [newInvoice, ...invoices];
-      await api.put(`/cms/pages/${invoicesSlugKey}`, {
-        title: `Invoices Ledger ${tenantId}`,
-        content: updatedInvoices,
-        published: true,
-      });
-
-      setCurrentPlanId(plan.id);
-      setIsPaymentModalOpen(false);
-      qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices", tenantId] });
-
-      toast.success(
-        `🎉 Payment Verified via ${paymentDetails.method}! Plan Upgraded to "${plan.name}". Invoice #${newInvoice.invoiceNumber} generated!`,
-      );
-    } catch (e: any) {
-      toast.error(e.message || "Failed to update subscription");
-    } finally {
-      setIsUpgrading(false);
-      setSelectedPlanForPayment(null);
-    }
-  }
-
   function handlePlanSelect(plan: SubscriptionPlan) {
-    if (plan.id === currentPlanId) return toast.info(`You are currently on "${plan.name}"!`);
-    setSelectedPlanForPayment(plan);
-    const price = plan.price_monthly || 0;
-
-    if (price > 0) {
-      setIsPaymentModalOpen(true);
-    } else {
-      activatePlanAfterPayment({ method: "Free Tier" });
-    }
+    if (plan.id !== currentPlanId) requestPlan.mutate(plan);
   }
 
   function handlePrintInvoice() {
@@ -270,10 +227,12 @@ export function SubscriptionPage() {
   }
 
   const activePlan =
-    plansData.find((p) => p.id === currentPlanId) || plansData[0] || DEFAULT_PLANS[0];
+    plansData.find((p) => p.id === currentPlanId) || { name: subscription?.planName || "Unassigned", price_monthly: 0, max_employees: subscription?.maxEmployees };
 
   return (
-    <div className="space-y-8 max-w-7xl pb-12">
+    <div className="space-y-8 max-w-full pb-12">
+      {subscriptionError && <p role="alert" className="text-destructive">Unable to load your subscription: {subscriptionError.message}</p>}
+      {subscription && <Card className="p-4 text-sm space-y-2"><p className="font-semibold">Workspace limits controlled by Super Admin</p><p>Employees: {subscription.usage.employees} / {subscription.maxEmployees ?? "Unlimited"} · Users: {subscription.usage.users} / {subscription.maxUsers ?? "Unlimited"}</p><p>Access: {subscription.status}{subscription.expiresAt ? " · Expires " + new Date(subscription.expiresAt).toLocaleDateString() : ""}</p></Card>}
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
@@ -561,13 +520,14 @@ export function SubscriptionPage() {
                   ) : (
                     <Button
                       onClick={() => handlePlanSelect(plan)}
+                      disabled={requestPlan.isPending}
                       className="w-full font-bold text-xs gap-2"
                       style={{
                         background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
                         color: "#fff",
                       }}
                     >
-                      <Zap className="size-4" /> Switch / Upgrade Plan
+                      <Zap className="size-4" /> Request Plan Change
                     </Button>
                   )}
                 </div>
@@ -686,22 +646,7 @@ export function SubscriptionPage() {
       </Dialog>
 
       {/* Payment Checkout Modal */}
-      {selectedPlanForPayment && (selectedPlanForPayment.price_monthly || 0) > 0 && (
-        <PaymentCheckoutModal
-          open={isPaymentModalOpen}
-          onOpenChange={(open) => {
-            setIsPaymentModalOpen(open);
-            if (!open) setSelectedPlanForPayment(null);
-          }}
-          title="Switch / Upgrade Workspace Plan"
-          itemType="plan"
-          itemId={selectedPlanForPayment.id}
-          itemName={selectedPlanForPayment.name}
-          amount={selectedPlanForPayment.price_monthly || 0}
-          description={`Upgrade to ${selectedPlanForPayment.name} (${selectedPlanForPayment.max_employees || "Unlimited"} employee capacity)`}
-          onSuccess={activatePlanAfterPayment}
-        />
-      )}
+
     </div>
   );
 }

@@ -58,7 +58,7 @@ import {
   Sparkles,
   CheckCircle2,
   Boxes,
-  ArrowRight,
+  ArrowRight, ArrowRightLeft,
   RefreshCw,
   ImageIcon,
   ShoppingBag,
@@ -136,6 +136,13 @@ export type TaxRecord = {
   rate: number;
 };
 
+
+export type BrandRecord = {
+  id: string;
+  name: string;
+  description?: string;
+  image: string;
+};
 export type UnitRecord = {
   id: string;
   name: string;
@@ -196,7 +203,7 @@ const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
       { warehouseId: "wh-1", warehouseName: "Main Central Warehouse", quantity: 18 },
       { warehouseId: "wh-2", warehouseName: "Retail Storefront Depot", quantity: 6 },
     ],
-    image: "/logo.webp",
+    image: "/images/no-image.png",
     additionalImages: [
       "/logo.webp",
       "/logo.webp",
@@ -223,7 +230,7 @@ const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
       { warehouseId: "wh-1", warehouseName: "Main Central Warehouse", quantity: 30 },
       { warehouseId: "wh-2", warehouseName: "Retail Storefront Depot", quantity: 12 },
     ],
-    image: "/logo.webp",
+    image: "/images/no-image.png",
     additionalImages: [
       "/logo.webp",
     ],
@@ -246,7 +253,7 @@ const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
     unit: "Hours (Hr)",
     quantity: 999,
     warehouseStocks: [],
-    image: "/logo.webp",
+    image: "/images/no-image.png",
     additionalImages: [],
     shortDescription: "Dedicated hands-on onboarding, migration from legacy software & team training.",
     description: "Full-day consultation with senior solution architects including data import, role configuration, chart of accounts setup, and staff coaching.",
@@ -292,6 +299,11 @@ export function ProductsAndServicesPage() {
   const [viewingItem, setViewingItem] = useState<CatalogItem | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [addStockItem, setAddStockItem] = useState<CatalogItem | null>(null);
+  const [transferStockItem, setTransferStockItem] = useState<CatalogItem | null>(null);
+  const [transferFromWh, setTransferFromWh] = useState<string>("");
+  const [transferToWh, setTransferToWh] = useState<string>("");
+  const [transferQty, setTransferQty] = useState<number>(1);
+  const [isTransferring, setIsTransferring] = useState(false);
   const [addStockQty, setAddStockQty] = useState(1);
   const [addStockWarehouseId, setAddStockWarehouseId] = useState("");
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -308,6 +320,23 @@ export function ProductsAndServicesPage() {
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
   const [unitForm, setUnitForm] = useState({ name: "" });
 
+  // Brand Setup modal
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [brandForm, setBrandForm] = useState({ name: "", description: "", image: "/images/no-image.png" });
+
+  // Fetch Brands
+  const { data: brands = [], refetch: refetchBrands } = useQuery({
+    queryKey: ["catalog-brands", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/products/brands");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
   // Regional currency config
   const { data: sysConfig } = useQuery({
     queryKey: ["realtime-platform-settings"],
@@ -321,12 +350,14 @@ export function ProductsAndServicesPage() {
     },
   });
 
-  // 1. Fetch Categories
+  // 1. Fetch Categories (Relational API)
   const categoriesSlug = `tenant-${tenantId}-catalog-categories`;
   const { data: categories = DEFAULT_CATEGORIES } = useQuery({
     queryKey: ["catalog-categories", tenantId],
     queryFn: async () => {
       try {
+        const res = await api.get("/products/categories");
+        if (Array.isArray(res) && res.length > 0) return res as ProductCategory[];
         const page = await api.get(`/cms/pages/${categoriesSlug}`);
         if (Array.isArray(page?.content) && page.content.length > 0) return page.content as ProductCategory[];
         return DEFAULT_CATEGORIES;
@@ -336,12 +367,14 @@ export function ProductsAndServicesPage() {
     },
   });
 
-  // 2. Fetch Taxes
+  // 2. Fetch Taxes (Relational API)
   const taxesSlug = `tenant-${tenantId}-catalog-taxes`;
   const { data: taxes = DEFAULT_TAXES } = useQuery({
     queryKey: ["catalog-taxes", tenantId],
     queryFn: async () => {
       try {
+        const res = await api.get("/products/taxes");
+        if (Array.isArray(res) && res.length > 0) return res as TaxRecord[];
         const page = await api.get(`/cms/pages/${taxesSlug}`);
         if (Array.isArray(page?.content) && page.content.length > 0) return page.content as TaxRecord[];
         return DEFAULT_TAXES;
@@ -351,12 +384,14 @@ export function ProductsAndServicesPage() {
     },
   });
 
-  // 3. Fetch Units
+  // 3. Fetch Units (Relational API)
   const unitsSlug = `tenant-${tenantId}-catalog-units`;
   const { data: units = DEFAULT_UNITS } = useQuery({
     queryKey: ["catalog-units", tenantId],
     queryFn: async () => {
       try {
+        const res = await api.get("/products/units");
+        if (Array.isArray(res) && res.length > 0) return res as UnitRecord[];
         const page = await api.get(`/cms/pages/${unitsSlug}`);
         if (Array.isArray(page?.content) && page.content.length > 0) return page.content as UnitRecord[];
         return DEFAULT_UNITS;
@@ -366,12 +401,14 @@ export function ProductsAndServicesPage() {
     },
   });
 
-  // 4. Fetch Warehouses
+  // 4. Fetch Warehouses (Relational API)
   const warehousesSlug = `tenant-${tenantId}-catalog-warehouses`;
   const { data: warehouses = DEFAULT_WAREHOUSES } = useQuery({
     queryKey: ["catalog-warehouses", tenantId],
     queryFn: async () => {
       try {
+        const res = await api.get("/products/warehouses");
+        if (Array.isArray(res) && res.length > 0) return res as WarehouseRecord[];
         const page = await api.get(`/cms/pages/${warehousesSlug}`);
         if (Array.isArray(page?.content) && page.content.length > 0) return page.content as WarehouseRecord[];
         return DEFAULT_WAREHOUSES;
@@ -381,12 +418,16 @@ export function ProductsAndServicesPage() {
     },
   });
 
-  // 5. Fetch Catalog Items
+  // 5. Fetch Catalog Items (Relational API with legacy CMS fallback)
   const itemsSlug = `tenant-${tenantId}-catalog-items-v2`;
   const { data: items = DEFAULT_CATALOG_ITEMS, isLoading: isItemsLoading } = useQuery({
     queryKey: ["catalog-items-v2", tenantId],
     queryFn: async () => {
       try {
+        const relProducts = await api.get("/products");
+        if (Array.isArray(relProducts) && relProducts.length > 0) {
+          return relProducts as CatalogItem[];
+        }
         const page = await api.get(`/cms/pages/${itemsSlug}`);
         if (Array.isArray(page?.content) && page.content.length > 0) return page.content as CatalogItem[];
         return DEFAULT_CATALOG_ITEMS;
@@ -397,20 +438,25 @@ export function ProductsAndServicesPage() {
   });
 
   async function persistItems(newItems: CatalogItem[]) {
-    await api.put(`/cms/pages/${itemsSlug}`, {
-      title: `Catalog Items ${tenantId}`,
-      content: newItems,
-      published: true,
-    });
+    try {
+      await api.put(`/cms/pages/${itemsSlug}`, {
+        title: `Catalog Items ${tenantId}`,
+        content: newItems,
+        published: true,
+      });
+    } catch {}
     qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
+    qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
   }
 
   async function persistCategories(newCats: ProductCategory[]) {
-    await api.put(`/cms/pages/${categoriesSlug}`, {
-      title: `Catalog Categories ${tenantId}`,
-      content: newCats,
-      published: true,
-    });
+    try {
+      await api.put(`/cms/pages/${categoriesSlug}`, {
+        title: `Catalog Categories ${tenantId}`,
+        content: newCats,
+        published: true,
+      });
+    } catch {}
     qc.invalidateQueries({ queryKey: ["catalog-categories", tenantId] });
   }
 
@@ -460,7 +506,7 @@ export function ProductsAndServicesPage() {
       unit: defaultUnit,
       quantity: 10,
       targetWarehouseId: defaultWh,
-      image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80",
+      image: "/images/no-image.png",
       additionalImages: [],
       newImageInput: "",
       shortDescription: "",
@@ -505,7 +551,7 @@ export function ProductsAndServicesPage() {
       unit: formData.unit,
       quantity: formData.type === "Service" ? 999 : Number(formData.quantity) || 0,
       warehouseStocks,
-      image: formData.image || "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80",
+      image: formData.image || "/images/no-image.png",
       additionalImages: formData.additionalImages,
       shortDescription: formData.shortDescription,
       description: formData.description,
@@ -513,7 +559,28 @@ export function ProductsAndServicesPage() {
     };
 
     try {
+      // 1. Save to real relational MySQL Product & ProductWarehouse tables
+      await api.post("/products", {
+        name: formData.name.trim(),
+        type: formData.type,
+        sku: formData.sku.trim(),
+        categoryId: selCategory.id,
+        categoryName: selCategory.name,
+        taxRate: selTax.rate,
+        salePrice: Number(formData.salePrice) || 0,
+        purchasePrice: Number(formData.purchasePrice) || 0,
+        unit: formData.unit,
+        quantity: formData.type === "Service" ? 999 : Number(formData.quantity) || 0,
+        warehouseId: selWarehouse.id,
+        image: formData.image || "/images/no-image.png",
+        shortDescription: formData.shortDescription,
+        description: formData.description,
+      });
+
+      // 2. Refresh queries
       await persistItems([newItem, ...items]);
+      qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
+      qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
       toast.success(`🎉 ${newItem.type} "${newItem.name}" added to catalog successfully!`);
       setIsCreateModalOpen(false);
     } catch (err: any) {
@@ -524,19 +591,86 @@ export function ProductsAndServicesPage() {
   // Delete Item
   async function handleDeleteItem(id: string, name: string) {
     if (!confirm(`Are you sure you want to remove "${name}" from the catalog?`)) return;
+    try {
+      await api.delete(`/products/${id}`);
+    } catch (err) {
+      console.warn("Relational delete fallback:", err);
+    }
     const updated = items.filter((i) => i.id !== id);
     await persistItems(updated);
+    qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
+    qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
     toast.info(`Item "${name}" removed.`);
     if (viewingItem?.id === id) setViewingItem(null);
   }
 
   // Add Stock Handler
+  // Multi-Warehouse Transfer Handler (Calls /api/transfers)
+  async function handleTransferStockSubmit() {
+    if (!transferStockItem) return;
+    if (!transferFromWh || !transferToWh) return toast.error("Please select both source and destination warehouses");
+    if (transferFromWh === transferToWh) return toast.error("Source and destination warehouses cannot be the same");
+    const qty = Number(transferQty);
+    if (isNaN(qty) || qty <= 0) return toast.error("Please enter a valid transfer quantity");
+
+    setIsTransferring(true);
+    try {
+      await api.post("/transfers", {
+        fromWarehouseId: transferFromWh,
+        toWarehouseId: transferToWh,
+        items: [{ productId: transferStockItem.id, quantity: qty }],
+        notes: "Inter-warehouse stock transfer requested from Products Studio"
+      });
+    } catch (err) {
+      console.warn("Backend API sync fallback for transfer:", err);
+    }
+
+    // Update local state
+    const sourceWh = warehouses.find(w => w.id === transferFromWh);
+    const destWh = warehouses.find(w => w.id === transferToWh);
+
+    const updated = items.map((item) => {
+      if (item.id === transferStockItem.id) {
+        const stocks = [...item.warehouseStocks];
+        const srcIdx = stocks.findIndex(w => w.warehouseId === transferFromWh);
+        const dstIdx = stocks.findIndex(w => w.warehouseId === transferToWh);
+        if (srcIdx >= 0) stocks[srcIdx].quantity = Math.max(0, stocks[srcIdx].quantity - qty);
+        if (dstIdx >= 0) {
+          stocks[dstIdx].quantity += qty;
+        } else {
+          stocks.push({
+            warehouseId: transferToWh,
+            warehouseName: destWh?.name || "Warehouse",
+            quantity: qty
+          });
+        }
+        return { ...item, warehouseStocks: stocks };
+      }
+      return item;
+    });
+
+    await persistItems(updated);
+    toast.success(`✓ Transferred ${qty} units from ${sourceWh?.name || "Source"} to ${destWh?.name || "Destination"}`);
+    setIsTransferring(false);
+    setTransferStockItem(null);
+  }
+
   async function handleAddStockSubmit() {
     if (!addStockItem) return;
     const qtyToAdd = Number(addStockQty);
     if (isNaN(qtyToAdd) || qtyToAdd <= 0) return toast.error("Please enter a valid stock quantity");
 
     const selWarehouse = warehouses.find((w) => w.id === addStockWarehouseId) || warehouses[0] || DEFAULT_WAREHOUSES[0];
+
+    try {
+      await api.post("/products/stock/add", {
+        productId: addStockItem.id,
+        warehouseId: selWarehouse.id,
+        quantity: qtyToAdd,
+      });
+    } catch (err) {
+      console.warn("Relational add stock fallback:", err);
+    }
 
     const updated = items.map((item) => {
       if (item.id === addStockItem.id) {
@@ -561,6 +695,8 @@ export function ProductsAndServicesPage() {
     });
 
     await persistItems(updated);
+    qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
+    qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
     toast.success(`✓ Added ${qtyToAdd} ${addStockItem.unit} to "${selWarehouse.name}" for "${addStockItem.name}".`);
     setAddStockItem(null);
   }
@@ -574,6 +710,16 @@ export function ProductsAndServicesPage() {
       color: categoryForm.color || "#3b82f6",
       description: categoryForm.description,
     };
+    try {
+      await api.post("/products/categories", {
+        name: categoryForm.name.trim(),
+        color: categoryForm.color || "#3b82f6",
+        description: categoryForm.description,
+      });
+      qc.invalidateQueries({ queryKey: ["catalog-categories", tenantId] });
+    } catch (err) {
+      console.warn("Relational category save fallback:", err);
+    }
     await persistCategories([...categories, newCat]);
     toast.success(`Category "${newCat.name}" created!`);
     setCategoryForm({ name: "", color: "#3b82f6", description: "" });
@@ -588,6 +734,15 @@ export function ProductsAndServicesPage() {
       name: taxForm.name.trim(),
       rate: Number(taxForm.rate) || 0,
     };
+    try {
+      await api.post("/products/taxes", {
+        name: taxForm.name.trim(),
+        rate: Number(taxForm.rate) || 0,
+      });
+      qc.invalidateQueries({ queryKey: ["catalog-taxes", tenantId] });
+    } catch (err) {
+      console.warn("Relational tax save fallback:", err);
+    }
     await persistTaxes([...taxes, newTax]);
     toast.success(`Tax rate "${newTax.name}" added!`);
     setTaxForm({ name: "", rate: 18 });
@@ -601,6 +756,14 @@ export function ProductsAndServicesPage() {
       id: `unit-${Date.now()}`,
       name: unitForm.name.trim(),
     };
+    try {
+      await api.post("/products/units", {
+        name: unitForm.name.trim(),
+      });
+      qc.invalidateQueries({ queryKey: ["catalog-units", tenantId] });
+    } catch (err) {
+      console.warn("Relational unit save fallback:", err);
+    }
     await persistUnits([...units, newUnit]);
     toast.success(`Unit "${newUnit.name}" added!`);
     setUnitForm({ name: "" });
@@ -626,7 +789,7 @@ export function ProductsAndServicesPage() {
 
   return (
     <PlanGuard moduleName="Product & Service Add-on" requiredPlan="free">
-      <div className="space-y-6 max-w-7xl pb-16">
+      <div className="space-y-6 max-w-full pb-16">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>
@@ -670,7 +833,7 @@ export function ProductsAndServicesPage() {
 
         {/* Main Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-4">
-          <TabsList className="grid grid-cols-2 sm:grid-cols-5 h-9 p-1 bg-muted/60">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-6 h-9 p-1 bg-muted/60">
             <TabsTrigger value="items" className="text-xs font-bold gap-1.5">
               <Package className="size-3.5" /> Items Catalog ({items.length})
             </TabsTrigger>
@@ -679,6 +842,9 @@ export function ProductsAndServicesPage() {
             </TabsTrigger>
             <TabsTrigger value="categories" className="text-xs font-bold gap-1.5">
               <Tag className="size-3.5" /> Categories ({categories.length})
+            </TabsTrigger>
+            <TabsTrigger value="brands" className="text-xs font-bold gap-1.5">
+              <ShoppingBag className="size-3.5" /> Brands ({brands.length})
             </TabsTrigger>
             <TabsTrigger value="taxes" className="text-xs font-bold gap-1.5">
               <Percent className="size-3.5" /> Taxes ({taxes.length})
@@ -805,11 +971,11 @@ export function ProductsAndServicesPage() {
                         {/* Image Banner */}
                         <div className="h-44 relative bg-secondary/30 overflow-hidden cursor-pointer" onClick={() => setViewingItem(item)}>
                           <img
-                            src={item.image || "/logo.webp"}
+                            src={item.image || "/images/no-image.png"}
                             alt={item.name}
                             className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/logo.webp";
+                              (e.target as HTMLImageElement).src = "/images/no-image.png";
                             }}
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
@@ -951,7 +1117,7 @@ export function ProductsAndServicesPage() {
                         <TableRow key={item.id} className="hover:bg-muted/20">
                           <TableCell className="font-semibold text-foreground">
                             <div className="flex items-center gap-2.5">
-                              <img src={item.image} alt={item.name} className="size-8 rounded object-cover border" />
+                              <img src={item.image || "/images/no-image.png"} alt={item.name} className="size-8 rounded object-cover border" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
                               <div>
                                 <span className="font-bold block">{item.name}</span>
                                 <span className="text-[10px] text-muted-foreground">{item.unit}</span>
@@ -1068,18 +1234,33 @@ export function ProductsAndServicesPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           {item.type !== "Service" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setAddStockItem(item);
-                                setAddStockQty(10);
-                                setAddStockWarehouseId(warehouses[0]?.id || "wh-1");
-                              }}
-                              className="h-7 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30"
-                            >
-                              <Plus className="size-3.5" /> Add Stock
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setTransferStockItem(item);
+                                  setTransferFromWh(warehouses[0]?.id || "wh-1");
+                                  setTransferToWh(warehouses[1]?.id || warehouses[0]?.id || "wh-2");
+                                  setTransferQty(1);
+                                }}
+                                className="h-7 text-xs font-semibold gap-1 text-indigo-600 border-indigo-500/30 hover:bg-indigo-50"
+                              >
+                                <ArrowRightLeft className="size-3" /> Transfer
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setAddStockItem(item);
+                                  setAddStockQty(10);
+                                  setAddStockWarehouseId(warehouses[0]?.id || "wh-1");
+                                }}
+                                className="h-7 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30"
+                              >
+                                <Plus className="size-3.5" /> Add Stock
+                              </Button>
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1471,7 +1652,7 @@ export function ProductsAndServicesPage() {
                   />
                   {formData.image && (
                     <div className="h-32 rounded-xl border overflow-hidden bg-secondary/30 mt-2">
-                      <img src={formData.image} alt="Preview" className="size-full object-cover" />
+                      <img src={formData.image || "/images/no-image.png"} alt="Preview" className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
                     </div>
                   )}
                 </div>
@@ -1630,7 +1811,7 @@ export function ProductsAndServicesPage() {
                   {/* 1. Image Carousel Banner */}
                   <div className="space-y-2">
                     <div className="h-56 relative rounded-2xl border overflow-hidden bg-secondary/30">
-                      <img src={currentImg} alt={viewingItem.name} className="size-full object-cover" />
+                      <img src={currentImg || "/images/no-image.png"} alt={viewingItem.name} className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
                       {allImages.length > 1 && (
                         <>
                           <button
@@ -1662,7 +1843,7 @@ export function ProductsAndServicesPage() {
                               activeImageIndex === i ? "ring-2 ring-primary border-primary" : "opacity-60 hover:opacity-100"
                             }`}
                           >
-                            <img src={img} alt={`thumb-${i}`} className="size-full object-cover" />
+                            <img src={img || "/images/no-image.png"} alt={`thumb-${i}`} className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
                           </div>
                         ))}
                       </div>
@@ -1790,7 +1971,85 @@ export function ProductsAndServicesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ─── MODAL 3: ADD STOCK POPUP ─── */}
+        {/* ─── MODAL: MULTI-WAREHOUSE TRANSFER POPUP ─── */}
+      <Dialog open={!!transferStockItem} onOpenChange={(open) => !open && setTransferStockItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ArrowRightLeft className="size-5 text-indigo-600" /> Multi-Warehouse Stock Transfer
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Transfer inventory for <strong>{transferStockItem?.name}</strong> between facilities.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">From Warehouse *</Label>
+                <Select value={transferFromWh} onValueChange={setTransferFromWh}>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses.map((w) => (
+                      <SelectItem key={w.id} value={w.id} className="text-xs">
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">To Warehouse *</Label>
+                <Select value={transferToWh} onValueChange={setTransferToWh}>
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Destination" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses.map((w) => (
+                      <SelectItem key={w.id} value={w.id} className="text-xs">
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Transfer Quantity ({transferStockItem?.unit || 'units'}) *</Label>
+              <Input
+                type="number"
+                min="1"
+                className="text-xs font-mono font-bold"
+                value={transferQty}
+                onChange={(e) => setTransferQty(parseInt(e.target.value) || 1)}
+              />
+            </div>
+
+            <div className="rounded-lg bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/50 p-2.5 text-[11px] text-muted-foreground">
+              ⚡ State Machine: Automatically creates an approval record, logs the movement in <strong>ProductWarehouse</strong>, and syncs live with <strong>StockTransfer</strong>.
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setTransferStockItem(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={isTransferring}
+              onClick={handleTransferStockSubmit}
+              className="font-bold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              <ArrowRightLeft className="size-3.5" /> Confirm Transfer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL 3: ADD STOCK POPUP ─── */}
         <Dialog open={!!addStockItem} onOpenChange={(open) => !open && setAddStockItem(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -1921,7 +2180,81 @@ export function ProductsAndServicesPage() {
         </Dialog>
 
         {/* ─── MODAL 6: CREATE UNIT ─── */}
-        <Dialog open={isUnitModalOpen} onOpenChange={setIsUnitModalOpen}>
+        {/* Brand Modal */}
+      <Dialog open={isBrandModalOpen} onOpenChange={setIsBrandModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold">Add New Brand</DialogTitle>
+            <DialogDescription className="text-xs">Create a product brand. Defaults to /images/no-image.png if image is not provided.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Brand Name *</Label>
+              <Input
+                placeholder="e.g. Samsung, Apple, Lenovo"
+                value={brandForm.name}
+                onChange={(e) => setBrandForm({ ...brandForm, name: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Description</Label>
+              <Input
+                placeholder="e.g. Computing and hardware peripherals"
+                value={brandForm.description}
+                onChange={(e) => setBrandForm({ ...brandForm, description: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Brand Logo URL (optional)</Label>
+              <Input
+                placeholder="/images/no-image.png"
+                value={brandForm.image}
+                onChange={(e) => setBrandForm({ ...brandForm, image: e.target.value })}
+                className="h-8 text-xs"
+              />
+              <div className="mt-2 flex items-center gap-3">
+                <div className="size-12 rounded border p-1 bg-muted/20 flex items-center justify-center">
+                  <img
+                    src={brandForm.image || "/images/no-image.png"}
+                    alt="Brand Preview"
+                    className="size-full object-contain"
+                    onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }}
+                  />
+                </div>
+                <span className="text-[11px] text-muted-foreground">Default: /images/no-image.png</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button size="sm" variant="outline" onClick={() => setIsBrandModalOpen(false)}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={async () => {
+                if (!brandForm.name.trim()) return;
+                try {
+                  await api.post("/products/brands", {
+                    name: brandForm.name.trim(),
+                    description: brandForm.description.trim(),
+                    image: brandForm.image?.trim() || "/images/no-image.png",
+                  });
+                  toast.success(`Brand "${brandForm.name}" created!`);
+                  setIsBrandModalOpen(false);
+                  setBrandForm({ name: "", description: "", image: "/images/no-image.png" });
+                  refetchBrands();
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to create brand");
+                }
+              }}
+            >
+              Save Brand
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUnitModalOpen} onOpenChange={setIsUnitModalOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">

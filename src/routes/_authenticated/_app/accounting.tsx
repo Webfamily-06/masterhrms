@@ -56,6 +56,10 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Sliders,
+  AlertCircle,
+  Boxes,
+  FileDown,
+  ExternalLink,
 } from "lucide-react";
 import { PlanGuard } from "@/components/plan-guard";
 import { formatSystemAmount } from "@/lib/currency";
@@ -75,6 +79,9 @@ export function AccountingAppSuite() {
   const [activeTab, setActiveTab] = useState("overview");
   const [accountFilter, setAccountFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [trialBalanceSearch, setTrialBalanceSearch] = useState("");
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string | null>(null);
 
   // Modals
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -176,6 +183,68 @@ export function AccountingAppSuite() {
     },
   });
 
+  // 6. Fetch Trial Balance Report
+  const { data: trialBalanceData, isLoading: isTrialBalanceLoading } = useQuery({
+    queryKey: ["accounting-trial-balance", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/accounting/reports/trial-balance");
+        return res?.data || null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  // 7. Fetch Inventory Valuation Report (WAC & GL 1040 Reconciliation)
+  const { data: inventoryValuationData, isLoading: isValuationLoading } = useQuery({
+    queryKey: ["accounting-inventory-valuation", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/accounting/reports/inventory-valuation");
+        return res?.data || null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  // 8. Fetch Account Ledger Statement
+  const { data: ledgerStatement, isLoading: isLedgerLoading } = useQuery({
+    queryKey: ["accounting-account-ledger", tenantId, selectedLedgerAccount],
+    queryFn: async () => {
+      if (!selectedLedgerAccount) return null;
+      try {
+        const res = await api.get(`/accounting/reports/ledger/${selectedLedgerAccount}`);
+        return res?.data || null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!selectedLedgerAccount,
+  });
+
+  // Bank Transfer Mutation
+  const transferMutation = useMutation({
+    mutationFn: async (payload: typeof transferForm) => {
+      return await api.post("/accounting/transfers", payload);
+    },
+    onSuccess: () => {
+      toast.success("✓ Internal bank/cash transfer executed & posted to General Ledger!");
+      setIsTransferModalOpen(false);
+      setTransferForm({ fromAccount: "1020", toAccount: "1010", amount: "", reference: "", notes: "" });
+      qc.invalidateQueries({ queryKey: ["accounting-accounts", tenantId] });
+      qc.invalidateQueries({ queryKey: ["accounting-journal-entries", tenantId] });
+      qc.invalidateQueries({ queryKey: ["accounting-dashboard", tenantId] });
+      qc.invalidateQueries({ queryKey: ["accounting-financial-statements", tenantId] });
+      qc.invalidateQueries({ queryKey: ["accounting-trial-balance", tenantId] });
+      qc.invalidateQueries({ queryKey: ["accounting-inventory-valuation", tenantId] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || err.message || "Failed to execute transfer");
+    },
+  });
+
   // Create Account Mutation
   const createAccountMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -229,6 +298,72 @@ export function AccountingAppSuite() {
       acc.accountCode.includes(searchTerm);
     return matchType && matchSearch;
   });
+
+  // Filtered Trial Balance Accounts
+  const filteredTrialBalanceAccounts = (trialBalanceData?.accounts || []).filter((acc: any) => {
+    return (
+      acc.accountName.toLowerCase().includes(trialBalanceSearch.toLowerCase()) ||
+      acc.accountCode.toLowerCase().includes(trialBalanceSearch.toLowerCase())
+    );
+  });
+
+  // Filtered Inventory Valuation Products
+  const filteredValuationProducts = (inventoryValuationData?.products || []).filter((p: any) => {
+    return (
+      p.name.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+      p.sku.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+      (p.category && p.category.toLowerCase().includes(inventorySearch.toLowerCase()))
+    );
+  });
+
+  // CSV Exporters
+  const exportTrialBalanceCSV = () => {
+    if (!trialBalanceData?.accounts?.length) return;
+    const headers = ["Account Code", "Account Name", "Type", "Category", "Debit", "Credit"];
+    const rows = trialBalanceData.accounts.map((a: any) => [
+      `"${a.accountCode}"`,
+      `"${a.accountName.replace(/"/g, '""')}"`,
+      `"${a.accountType}"`,
+      `"${a.category}"`,
+      Number(a.debit || 0).toFixed(2),
+      Number(a.credit || 0).toFixed(2),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r: any[]) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Trial_Balance_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportValuationCSV = () => {
+    if (!inventoryValuationData?.products?.length) return;
+    const headers = ["SKU", "Product Name", "Category", "Unit", "On-Hand Qty", "WAC Unit Cost", "Selling Price", "Asset Valuation", "Sales Valuation", "Gross Margin %"];
+    const rows = inventoryValuationData.products.map((p: any) => [
+      `"${p.sku}"`,
+      `"${p.name.replace(/"/g, '""')}"`,
+      `"${p.category}"`,
+      `"${p.unit}"`,
+      p.onHandQuantity,
+      Number(p.weightedAverageCost || 0).toFixed(2),
+      Number(p.salePrice || 0).toFixed(2),
+      Number(p.assetValuation || 0).toFixed(2),
+      Number(p.salesValuation || 0).toFixed(2),
+      Number(p.potentialMargin || 0).toFixed(1),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r: any[]) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Inventory_Valuation_WAC_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <PlanGuard moduleName="Double-Entry Accounting" requiredPlan="starter">
@@ -287,6 +422,12 @@ export function AccountingAppSuite() {
             </TabsTrigger>
             <TabsTrigger value="statements" className="text-xs gap-1.5 py-1.5">
               <FileSpreadsheet className="size-3.5" /> Balance Sheet & P&L
+            </TabsTrigger>
+            <TabsTrigger value="trial-balance" className="text-xs gap-1.5 py-1.5">
+              <Scale className="size-3.5 text-primary" /> Trial Balance
+            </TabsTrigger>
+            <TabsTrigger value="inventory-valuation" className="text-xs gap-1.5 py-1.5">
+              <Boxes className="size-3.5 text-amber-500" /> Inventory Valuation (WAC)
             </TabsTrigger>
             <TabsTrigger value="aging" className="text-xs gap-1.5 py-1.5">
               <Clock className="size-3.5" /> Aging & Tax Reports
@@ -462,13 +603,32 @@ export function AccountingAppSuite() {
                       <th className="p-3">Category</th>
                       <th className="p-3 text-right">Current Balance</th>
                       <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-right">Statement</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {filteredAccounts.map((acc: any) => (
                       <tr key={acc.id} className="hover:bg-muted/20">
-                        <td className="p-3 font-mono font-bold text-primary">{acc.accountCode}</td>
-                        <td className="p-3 font-semibold text-foreground">{acc.accountName}</td>
+                        <td className="p-3 font-mono font-bold text-primary">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLedgerAccount(acc.id)}
+                            className="hover:underline text-left"
+                            title="View General Ledger Statement"
+                          >
+                            {acc.accountCode}
+                          </button>
+                        </td>
+                        <td className="p-3 font-semibold text-foreground">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLedgerAccount(acc.id)}
+                            className="hover:underline text-left"
+                            title="View General Ledger Statement"
+                          >
+                            {acc.accountName}
+                          </button>
+                        </td>
                         <td className="p-3">
                           <Badge
                             variant="secondary"
@@ -495,6 +655,16 @@ export function AccountingAppSuite() {
                           <Badge className="text-[9px] bg-emerald-500 text-white font-bold py-0 h-4">
                             Active
                           </Badge>
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedLedgerAccount(acc.id)}
+                            className="h-6 text-[10px] px-2 gap-1 text-primary hover:bg-primary/10 border-primary/20"
+                          >
+                            <FileText className="size-3" /> Ledger
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -773,6 +943,343 @@ export function AccountingAppSuite() {
               </Card>
             </div>
           </TabsContent>
+
+          {/* ========================================================= */}
+          {/* TAB: TRIAL BALANCE */}
+          {/* ========================================================= */}
+          <TabsContent value="trial-balance" className="space-y-4">
+            {/* Header Controls & Status Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-2xs">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold">Comprehensive Trial Balance</h3>
+                  {trialBalanceData?.isBalanced ? (
+                    <Badge className="bg-emerald-600 text-white font-bold text-xs py-0.5 px-2">
+                      ✓ BOOKS BALANCED (DR = CR)
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-rose-600 text-white font-bold text-xs py-0.5 px-2 flex items-center gap-1">
+                      <AlertCircle className="size-3" />
+                      UNBALANCED (Diff: {formatSystemAmount(trialBalanceData?.difference || 0)})
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  As of {trialBalanceData?.asOfDate || new Date().toISOString().split("T")[0]} • Strict double-entry debit & credit equation verification across all nominal, real, and personal ledger accounts.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative w-48 sm:w-60">
+                  <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search account..."
+                    value={trialBalanceSearch}
+                    onChange={(e) => setTrialBalanceSearch(e.target.value)}
+                    className="pl-8 h-8 text-xs"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={exportTrialBalanceCSV}
+                  disabled={!trialBalanceData?.accounts?.length}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                >
+                  <FileDown className="size-3.5" /> Export CSV
+                </Button>
+              </div>
+            </div>
+
+            {/* Trial Balance Table */}
+            <Card className="border shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/50 border-b text-[11px] font-bold text-muted-foreground uppercase">
+                    <tr>
+                      <th className="p-3">Code</th>
+                      <th className="p-3">Account Title</th>
+                      <th className="p-3">Classification</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3 text-right">Debit (DR)</th>
+                      <th className="p-3 text-right">Credit (CR)</th>
+                      <th className="p-3 text-right">Ledger</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y font-mono">
+                    {filteredTrialBalanceAccounts.map((row: any) => (
+                      <tr key={row.id} className="hover:bg-muted/20 font-sans">
+                        <td className="p-3 font-mono font-bold text-primary">{row.accountCode}</td>
+                        <td className="p-3 font-semibold text-foreground">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLedgerAccount(row.id)}
+                            className="hover:underline text-left"
+                            title="View Ledger Statement"
+                          >
+                            {row.accountName}
+                          </button>
+                        </td>
+                        <td className="p-3">
+                          <Badge variant="secondary" className="text-[10px] capitalize font-medium">
+                            {row.accountType}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-muted-foreground capitalize text-[11px]">
+                          {row.category?.replace("_", " ") || "General"}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-emerald-600">
+                          {row.debit > 0 ? formatSystemAmount(row.debit) : "—"}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-rose-600">
+                          {row.credit > 0 ? formatSystemAmount(row.credit) : "—"}
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedLedgerAccount(row.id)}
+                            className="h-6 text-[10px] px-2 gap-1 text-primary hover:bg-primary/10"
+                          >
+                            <FileText className="size-3" /> Ledger
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {/* Totals Summary Footer */}
+                  <tfoot className="bg-muted/70 border-t-2 font-mono font-black text-xs">
+                    <tr>
+                      <td colSpan={4} className="p-3 text-right font-sans uppercase text-muted-foreground tracking-wide">
+                        Total Summation (Debit / Credit Equation)
+                      </td>
+                      <td className="p-3 text-right text-emerald-600 font-mono text-sm">
+                        {formatSystemAmount(trialBalanceData?.totalDebits || 0)}
+                      </td>
+                      <td className="p-3 text-right text-rose-600 font-mono text-sm">
+                        {formatSystemAmount(trialBalanceData?.totalCredits || 0)}
+                      </td>
+                      <td className="p-3 text-right font-sans">
+                        {trialBalanceData?.isBalanced ? (
+                          <span className="text-[10px] text-emerald-600 font-bold">✓ Net 0.00 Diff</span>
+                        ) : (
+                          <span className="text-[10px] text-rose-600 font-bold">
+                            Diff: {formatSystemAmount(trialBalanceData?.difference || 0)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </Card>
+          </TabsContent>
+
+          {/* ========================================================= */}
+          {/* TAB: INVENTORY VALUATION (WAC & GL RECONCILIATION) */}
+          {/* ========================================================= */}
+          <TabsContent value="inventory-valuation" className="space-y-4">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="border shadow-2xs">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">Total Stock Units</span>
+                  <div className="size-7 rounded-lg bg-primary/10 text-primary grid place-items-center">
+                    <Boxes className="size-3.5" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-black tracking-tight font-mono">
+                    {inventoryValuationData?.totalStockUnits?.toLocaleString() ?? 0}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Across all warehouses</p>
+                </CardContent>
+              </Card>
+
+              <Card className="border shadow-2xs">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">Asset Valuation (WAC Cost)</span>
+                  <div className="size-7 rounded-lg bg-emerald-500/10 text-emerald-600 grid place-items-center">
+                    <DollarSign className="size-3.5" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-black tracking-tight font-mono text-emerald-600">
+                    {formatSystemAmount(inventoryValuationData?.totalAssetValuation || 0)}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Weighted Average Cost (WAC)</p>
+                </CardContent>
+              </Card>
+
+              <Card className="border shadow-2xs">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">Expected Sales Value</span>
+                  <div className="size-7 rounded-lg bg-sky-500/10 text-sky-600 grid place-items-center">
+                    <TrendingUp className="size-3.5" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-black tracking-tight font-mono text-sky-600">
+                    {formatSystemAmount(inventoryValuationData?.totalSalesValuation || 0)}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">At active retail catalog prices</p>
+                </CardContent>
+              </Card>
+
+              <Card className="border shadow-2xs">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">Unrealized Gross Profit</span>
+                  <div className="size-7 rounded-lg bg-purple-500/10 text-purple-600 grid place-items-center">
+                    <Percent className="size-3.5" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-black tracking-tight font-mono text-purple-600">
+                    {formatSystemAmount(inventoryValuationData?.unrealizedGrossProfit || 0)}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Potential gross retail profit</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* General Ledger Account #1040 Reconciliation Banner */}
+            <div className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+              inventoryValuationData?.isReconciled ? "bg-emerald-50/50 border-emerald-200" : "bg-amber-50/50 border-amber-200"
+            }`}>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={`size-5 ${inventoryValuationData?.isReconciled ? "text-emerald-600" : "text-amber-600"}`} />
+                  <span className="font-bold text-sm">
+                    {inventoryValuationData?.isReconciled
+                      ? "General Ledger Account #1040 (Merchandise Inventory) Reconciled"
+                      : "General Ledger Reconciliation Variance Detected"}
+                  </span>
+                  {inventoryValuationData?.isReconciled ? (
+                    <Badge className="bg-emerald-600 text-white text-[10px]">100% RECONCILED</Badge>
+                  ) : (
+                    <Badge className="bg-amber-600 text-white text-[10px]">VARIANCE ALERT</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  GL Account #{inventoryValuationData?.glInventoryAccount?.accountCode || "1040"} Balance:{" "}
+                  <strong className="font-mono text-foreground">
+                    {formatSystemAmount(inventoryValuationData?.glInventoryAccount?.balance || 0)}
+                  </strong>{" "}
+                  vs Physical On-Hand Stock Asset Valuation:{" "}
+                  <strong className="font-mono text-foreground">
+                    {formatSystemAmount(inventoryValuationData?.totalAssetValuation || 0)}
+                  </strong>.
+                  {!inventoryValuationData?.isReconciled && (
+                    <span className="text-amber-700 ml-1 font-semibold">
+                      Discrepancy of {formatSystemAmount(Math.abs(inventoryValuationData?.discrepancy || 0))}. You can post an inventory shrinkage/adjustment journal voucher.
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={exportValuationCSV}
+                  disabled={!inventoryValuationData?.products?.length}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                >
+                  <FileDown className="size-3.5" /> Export Valuation CSV
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setIsJournalModalOpen(true)}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                >
+                  <Scale className="size-3.5" /> Post Adjustment Entry
+                </Button>
+              </div>
+            </div>
+
+            {/* Product Valuation Breakdown Table */}
+            <Card className="border shadow-xs overflow-hidden">
+              <div className="p-3 border-b bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search product, SKU or category..."
+                    value={inventorySearch}
+                    onChange={(e) => setInventorySearch(e.target.value)}
+                    className="pl-8 h-8 text-xs"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Showing {filteredValuationProducts.length} of {inventoryValuationData?.products?.length ?? 0} SKUs
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/50 border-b text-[11px] font-bold text-muted-foreground uppercase">
+                    <tr>
+                      <th className="p-3">SKU</th>
+                      <th className="p-3">Product Name</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3 text-right">In-Stock Qty</th>
+                      <th className="p-3 text-right">WAC Cost</th>
+                      <th className="p-3 text-right">Selling Price</th>
+                      <th className="p-3 text-right">Asset Valuation</th>
+                      <th className="p-3 text-right">Sales Valuation</th>
+                      <th className="p-3 text-right">Margin %</th>
+                      <th className="p-3">Warehouse Stock Allocation</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y font-sans">
+                    {filteredValuationProducts.map((p: any) => (
+                      <tr key={p.id} className="hover:bg-muted/20">
+                        <td className="p-3 font-mono font-bold text-primary">{p.sku}</td>
+                        <td className="p-3 font-semibold text-foreground">{p.name}</td>
+                        <td className="p-3 text-muted-foreground text-[11px]">{p.category}</td>
+                        <td className="p-3 text-right font-mono font-bold">
+                          <span className={p.isLowStock ? "text-amber-600" : ""}>
+                            {p.onHandQuantity} {p.unit}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-mono text-muted-foreground">
+                          {formatSystemAmount(p.weightedAverageCost)}
+                        </td>
+                        <td className="p-3 text-right font-mono font-medium">
+                          {formatSystemAmount(p.salePrice)}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-emerald-600">
+                          {formatSystemAmount(p.assetValuation)}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-sky-600">
+                          {formatSystemAmount(p.salesValuation)}
+                        </td>
+                        <td className="p-3 text-right font-mono font-semibold text-purple-600">
+                          {p.potentialMargin.toFixed(1)}%
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1">
+                            {p.warehouseBreakdown?.length > 0 ? (
+                              p.warehouseBreakdown.map((wh: any, widx: number) => (
+                                <Badge
+                                  key={widx}
+                                  variant="outline"
+                                  className="text-[9px] font-mono py-0 h-4 bg-background"
+                                >
+                                  {wh.warehouseName}: {wh.quantity}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">No warehouse allocated</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* MODAL 1: CREATE ACCOUNT */}
@@ -1005,7 +1512,7 @@ export function AccountingAppSuite() {
                 <ArrowRightLeft className="size-4 text-primary" /> Internal Bank / Cash Transfer
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Transfer funds between checking, savings, and petty cash vaults.
+                Transfer funds between checking, savings, and petty cash vaults with double-entry audit.
               </DialogDescription>
             </DialogHeader>
 
@@ -1018,11 +1525,16 @@ export function AccountingAppSuite() {
                     onValueChange={(val) => setTransferForm({ ...transferForm, fromAccount: val })}
                   >
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
+                      <SelectValue placeholder="Source Account" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1020">1020 - Primary Bank (HDFC)</SelectItem>
-                      <SelectItem value="1010">1010 - Petty Cash Fund</SelectItem>
+                      {accounts
+                        .filter((a: any) => a.accountType === "asset")
+                        .map((a: any) => (
+                          <SelectItem key={a.id} value={a.id} className="text-xs">
+                            {a.accountCode} - {a.accountName}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1034,11 +1546,16 @@ export function AccountingAppSuite() {
                     onValueChange={(val) => setTransferForm({ ...transferForm, toAccount: val })}
                   >
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
+                      <SelectValue placeholder="Target Account" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1010">1010 - Petty Cash Fund</SelectItem>
-                      <SelectItem value="1020">1020 - Primary Bank (HDFC)</SelectItem>
+                      {accounts
+                        .filter((a: any) => a.accountType === "asset")
+                        .map((a: any) => (
+                          <SelectItem key={a.id} value={a.id} className="text-xs">
+                            {a.accountCode} - {a.accountName}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1072,14 +1589,128 @@ export function AccountingAppSuite() {
               </Button>
               <Button
                 size="sm"
-                disabled={!transferForm.amount || parseFloat(transferForm.amount) <= 0}
-                onClick={() => {
-                  toast.success(`✓ Transferred ₹${parseFloat(transferForm.amount).toLocaleString()} successfully!`);
-                  setIsTransferModalOpen(false);
-                  setTransferForm({ fromAccount: "1020", toAccount: "1010", amount: "", reference: "", notes: "" });
-                }}
+                disabled={
+                  transferMutation.isPending ||
+                  !transferForm.amount ||
+                  parseFloat(transferForm.amount) <= 0 ||
+                  transferForm.fromAccount === transferForm.toAccount
+                }
+                onClick={() => transferMutation.mutate(transferForm)}
+                className="bg-primary text-primary-foreground font-semibold"
               >
-                Process Transfer
+                {transferMutation.isPending ? "Executing Transfer..." : "Process Transfer"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* MODAL 4: ACCOUNT GENERAL LEDGER REGISTER */}
+        <Dialog open={!!selectedLedgerAccount} onOpenChange={(open) => !open && setSelectedLedgerAccount(null)}>
+          <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col">
+            <DialogHeader className="border-b pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-base flex items-center gap-2">
+                    <FileSpreadsheet className="size-4 text-primary" />
+                    Account Ledger Statement: {ledgerStatement?.account?.accountName} ({ledgerStatement?.account?.accountCode})
+                  </DialogTitle>
+                  <DialogDescription className="text-xs">
+                    Historical double-entry voucher audit register with real-time running balance.
+                  </DialogDescription>
+                </div>
+                {ledgerStatement?.account && (
+                  <Badge variant="secondary" className="capitalize text-xs font-bold font-mono">
+                    {ledgerStatement.account.accountType} • {ledgerStatement.account.category?.replace("_", " ")}
+                  </Badge>
+                )}
+              </div>
+            </DialogHeader>
+
+            {isLedgerLoading ? (
+              <div className="py-12 text-center text-xs text-muted-foreground animate-pulse">
+                Loading live ledger postings from MySQL...
+              </div>
+            ) : (
+              <div className="space-y-4 overflow-y-auto flex-1 py-2">
+                {/* Summary KPI Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-lg bg-muted/40 border">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Total Debits</span>
+                    <div className="text-sm font-black font-mono text-emerald-600 mt-0.5">
+                      {formatSystemAmount(ledgerStatement?.summary?.totalDebit || 0)}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/40 border">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Total Credits</span>
+                    <div className="text-sm font-black font-mono text-rose-600 mt-0.5">
+                      {formatSystemAmount(ledgerStatement?.summary?.totalCredit || 0)}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/40 border">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Closing Balance</span>
+                    <div className="text-sm font-black font-mono text-primary mt-0.5">
+                      {formatSystemAmount(ledgerStatement?.summary?.closingBalance || 0)}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/40 border">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Transactions</span>
+                    <div className="text-sm font-black font-mono mt-0.5">
+                      {ledgerStatement?.summary?.transactionCount ?? 0} Vouchers
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ledger Register Table */}
+                <div className="border rounded-xl overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-muted/50 border-b text-[10px] font-bold text-muted-foreground uppercase">
+                      <tr>
+                        <th className="p-2.5">Date</th>
+                        <th className="p-2.5">Voucher #</th>
+                        <th className="p-2.5">Ref / Source</th>
+                        <th className="p-2.5">Description</th>
+                        <th className="p-2.5">Offset / Counter-Account</th>
+                        <th className="p-2.5 text-right">Debit (DR)</th>
+                        <th className="p-2.5 text-right">Credit (CR)</th>
+                        <th className="p-2.5 text-right">Running Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y font-mono text-[11px]">
+                      {ledgerStatement?.transactions?.length > 0 ? (
+                        ledgerStatement.transactions.map((txn: any) => (
+                          <tr key={txn.id} className="hover:bg-muted/20 font-sans">
+                            <td className="p-2.5 font-mono text-[10px] text-muted-foreground whitespace-nowrap">{txn.entryDate}</td>
+                            <td className="p-2.5 font-mono font-bold text-primary whitespace-nowrap">{txn.entryNumber}</td>
+                            <td className="p-2.5 font-mono text-[10px] text-muted-foreground">{txn.reference || txn.referenceType || "manual"}</td>
+                            <td className="p-2.5 text-foreground max-w-xs truncate">{txn.description}</td>
+                            <td className="p-2.5 text-muted-foreground text-[11px] italic max-w-[150px] truncate">{txn.counterAccount}</td>
+                            <td className="p-2.5 text-right font-mono font-bold text-emerald-600">
+                              {txn.debit > 0 ? formatSystemAmount(txn.debit) : "—"}
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-rose-600">
+                              {txn.credit > 0 ? formatSystemAmount(txn.credit) : "—"}
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-black text-foreground">
+                              {formatSystemAmount(txn.runningBalance)}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-xs text-muted-foreground italic">
+                            No journal transactions posted to this ledger account yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="border-t pt-3">
+              <Button size="sm" variant="outline" onClick={() => setSelectedLedgerAccount(null)}>
+                Close Statement
               </Button>
             </DialogFooter>
           </DialogContent>

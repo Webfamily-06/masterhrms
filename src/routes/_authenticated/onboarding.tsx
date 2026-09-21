@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, setToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,12 +50,13 @@ function Onboarding() {
           "-" +
           Math.random().toString(36).slice(2, 6);
 
-      await api.post("/auth/bootstrap-tenant", {
+      const result = await api.post("/auth/bootstrap-tenant", {
         name,
         slug: finalSlug,
       });
 
-      qc.invalidateQueries({ queryKey: ["current-session-user"] });
+      setToken(result.token);
+      qc.clear();
       qc.invalidateQueries({ queryKey: ["current-profile"] });
 
       toast.success("Workspace created!");

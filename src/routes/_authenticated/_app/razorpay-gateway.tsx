@@ -51,14 +51,14 @@ function RazorpayGatewayPage() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile();
   const tenantId = profile?.tenant_id || "default";
-  const SLUG = `system-razorpay-gateway-${tenantId}`;
 
   const [keyId, setKeyId] = useState("");
   const [keySecret, setKeySecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [webhookSecret, setWebhookSecret] = useState("");
-  const [testAmount, setTestAmount] = useState("");
-  const [testDesc, setTestDesc] = useState("Test Payment");
+  const [testAmount, setTestAmount] = useState("500");
+  const [testDesc, setTestDesc] = useState("ERP Enterprise Subscription / Invoice");
+  const [testMethod, setTestMethod] = useState("UPI");
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -74,86 +74,87 @@ function RazorpayGatewayPage() {
     },
   });
 
-  const { data: storeData } = useQuery({
-    queryKey: ["razorpay-gateway", tenantId],
+  // Query real Razorpay API config from backend
+  const { data: configData } = useQuery({
+    queryKey: ["razorpay-config", tenantId],
     queryFn: async () => {
       try {
-        const page = await api.get(`/cms/pages/${SLUG}`);
-        if (page?.content) {
-          const p = page.content;
-          if (p.config) {
-            setKeyId(p.config.keyId || "");
-            setKeySecret(p.config.keySecret || "");
-            setWebhookSecret(p.config.webhookSecret || "");
-          }
-          return {
-            transactions: (p.transactions || []) as PaymentTransaction[],
-            config: p.config || {},
-          };
+        const res = await api.get("/payments/razorpay/config");
+        if (res?.config) {
+          setKeyId(res.config.keyId || "");
+          setWebhookSecret(res.config.webhookSecret || "");
         }
-        return { transactions: [] as PaymentTransaction[], config: {} };
+        return res?.config || {};
       } catch {
-        return { transactions: [] as PaymentTransaction[], config: {} };
+        return {};
       }
     },
   });
 
-  const transactions = storeData?.transactions ?? [];
-
-  const persist = useMutation({
-    mutationFn: async (payload: any) => {
-      await api.put(`/cms/pages/${SLUG}`, {
-        title: "Razorpay Gateway Config",
-        content: payload,
-        published: true,
-      });
+  // Query real transactions and live metrics from backend & MySQL
+  const { data: txnData, refetch: refetchTransactions } = useQuery({
+    queryKey: ["razorpay-transactions", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/payments/razorpay/transactions");
+        return {
+          transactions: (res?.transactions || []) as PaymentTransaction[],
+          metrics: res?.metrics || { total: 0, count: 0, failed: 0 },
+        };
+      } catch {
+        return {
+          transactions: [] as PaymentTransaction[],
+          metrics: { total: 0, count: 0, failed: 0 },
+        };
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["razorpay-gateway", tenantId] }),
-    onError: (e: Error) => toast.error(e.message),
   });
 
+  const transactions = txnData?.transactions ?? [];
+  const metrics = txnData?.metrics ?? {
+    total: transactions.reduce((s, t) => s + (t.status === "captured" ? t.amount : 0), 0),
+    count: transactions.filter((t) => t.status === "captured").length,
+    failed: transactions.filter((t) => t.status === "failed").length,
+  };
+
   async function saveConfig() {
-    setIsSaving(true);
-    const config = { keyId, keySecret, webhookSecret };
-    persist.mutate({ transactions, config });
-    setIsSaving(false);
-    toast.success("Razorpay API credentials saved securely!");
+    try {
+      setIsSaving(true);
+      await api.post("/payments/razorpay/config", {
+        keyId,
+        keySecret: keySecret || undefined,
+        webhookSecret,
+      });
+      qc.invalidateQueries({ queryKey: ["razorpay-config", tenantId] });
+      toast.success("Razorpay API credentials saved securely!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save configuration");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function runTestPayment() {
     const amount = parseFloat(testAmount);
     if (!amount || amount <= 0) return toast.error("Enter a valid test amount");
-    setIsTesting(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    const payId = `pay_${Math.random().toString(36).substring(2, 14).toUpperCase()}`;
-    const ordId = `order_${Math.random().toString(36).substring(2, 12).toUpperCase()}`;
-    const txn: PaymentTransaction = {
-      id: `txn-${Date.now()}`,
-      paymentId: payId,
-      orderId: ordId,
-      customer: "Test Customer",
-      amount,
-      currency: "INR",
-      status: Math.random() > 0.15 ? "captured" : "failed",
-      method: ["UPI", "Card", "Net Banking"][Math.floor(Math.random() * 3)],
-      timestamp: new Date().toLocaleString(),
-      invoiceRef: `INV-TEST-${Date.now().toString().slice(-5)}`,
-    };
-    const config = { keyId, keySecret, webhookSecret };
-    persist.mutate({ transactions: [txn, ...transactions], config });
-    setIsTesting(false);
-    if (txn.status === "captured") {
-      toast.success(`✅ Test payment of ₹${amount} captured! Payment ID: ${payId}`);
-    } else {
-      toast.error(`❌ Test payment failed. Check credentials.`);
+    try {
+      setIsTesting(true);
+      const res = await api.post("/payments/razorpay/test-payment", {
+        amount,
+        description: testDesc || "ERP Test Payment",
+        method: testMethod,
+        customerName: profile?.full_name || "Sandbox Customer",
+      });
+      qc.invalidateQueries({ queryKey: ["razorpay-transactions", tenantId] });
+      qc.invalidateQueries({ queryKey: ["accounting-journal-entries"] });
+      qc.invalidateQueries({ queryKey: ["sales"] });
+      toast.success(res.message || `Test payment of ₹${amount} captured and auto-posted to GL Ledger!`);
+    } catch (err: any) {
+      toast.error(err.message || "Test payment failed");
+    } finally {
+      setIsTesting(false);
     }
   }
-
-  const metrics = {
-    total: transactions.reduce((s, t) => s + (t.status === "captured" ? t.amount : 0), 0),
-    count: transactions.filter((t) => t.status === "captured").length,
-    failed: transactions.filter((t) => t.status === "failed").length,
-  };
 
   return (
     <PlanGuard moduleName="Stripe & Razorpay Gateway" requiredPlan="starter">
@@ -342,6 +343,27 @@ function RazorpayGatewayPage() {
                     className="text-xs"
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Payment Instrument</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {["UPI", "Card", "Net Banking"].map((m) => (
+                      <Button
+                        key={m}
+                        type="button"
+                        variant={testMethod === m ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTestMethod(m)}
+                        className="text-xs h-8"
+                      >
+                        {m}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 flex items-center gap-2 font-medium">
+                  <CheckCircle2 className="size-3.5 shrink-0" />
+                  Auto-posts double entries to Bank (1020) & Sales Revenue (4010)
+                </div>
                 <Button
                   onClick={runTestPayment}
                   disabled={isTesting}
@@ -352,7 +374,7 @@ function RazorpayGatewayPage() {
                   ) : (
                     <Play className="size-4" />
                   )}
-                  {isTesting ? "Processing Test Payment..." : "Run Test Payment"}
+                  {isTesting ? "Executing Real Sandbox Payment..." : "Run Sandbox Test Payment"}
                 </Button>
                 {transactions.length > 0 && transactions[0]?.paymentId && (
                   <div className="p-3 rounded-xl border bg-secondary/30 space-y-1 text-[11px] font-mono">
@@ -380,7 +402,26 @@ function RazorpayGatewayPage() {
           </TabsContent>
 
           {/* TRANSACTIONS TAB */}
-          <TabsContent value="transactions" className="mt-4">
+          <TabsContent value="transactions" className="mt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <History className="size-4 text-blue-600" /> Payment Transactions & Ledger Records
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Synchronized with Master ERP Sales, POS, and Double-Entry General Ledger.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchTransactions()}
+                className="gap-1.5 text-xs font-semibold"
+              >
+                <History className="size-3.5" /> Refresh
+              </Button>
+            </div>
+
             {transactions.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground space-y-2">
                 <CreditCard className="size-10 mx-auto opacity-20" />
@@ -394,6 +435,7 @@ function RazorpayGatewayPage() {
                     <tr>
                       {[
                         "Payment ID",
+                        "Invoice Ref",
                         "Order ID",
                         "Customer",
                         "Amount",
@@ -410,7 +452,10 @@ function RazorpayGatewayPage() {
                   <tbody>
                     {transactions.map((t) => (
                       <tr key={t.id} className="border-t hover:bg-secondary/20">
-                        <td className="p-2.5 font-mono text-[11px] text-primary">{t.paymentId}</td>
+                        <td className="p-2.5 font-mono text-[11px] text-primary font-semibold">{t.paymentId}</td>
+                        <td className="p-2.5 font-mono text-[11px] text-muted-foreground">
+                          {t.invoiceRef || "—"}
+                        </td>
                         <td className="p-2.5 font-mono text-[11px] text-muted-foreground">
                           {t.orderId}
                         </td>

@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+
+
+<!-- Mirrored from https://dreamserp.dreamstechnologies.com/tailwind/cash-sales.html by HTTrack Website Copier/3.x [XR&CO], Wed, 16 Sep 2026 09:17:41 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head>
+
+    <meta charset="utf-8">
+
+    <title>Cash Sales | Dreams ERP - Tailwind CSS ERP Admin Dashboard Template</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dreams ERP is a professional Tailwind CSS ERP Admin Dashboard Template featuring CRM, HRM, Inventory, Finance, Sales, Procurement, Project Management dashboards, reusable UI components, and responsive layouts.">
+    <meta name="author" content="Dreams Technologies">
+    <!-- Favicon -->
+    <link rel="shortcut icon" type="image/x-icon" href="assets/img/favicon.png">
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-icon.png">
+
+    <!-- Theme Script -->
+    <script src="assets/js/theme-script.js"></script>
+
+    <!-- Phosphor CSS -->
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/duotone/style.css">
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/regular/style.css">
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/fill/style.css">
+
+    <!-- Lucide CSS -->
+    <link rel="stylesheet" href="assets/libs/lucide-static/font/lucide.css">
+
+    <!-- Simplebar CSS -->
+    <link rel="stylesheet" href="assets/libs/simplebar/simplebar.min.css">
+
+    <!-- Prism CSS -->
+    <link rel="stylesheet" href="assets/libs/prismjs/themes/prism.min.css">
+
+    <!-- Fontawesome CSS -->
+    <link rel="stylesheet" href="assets/libs/%40fortawesome/fontawesome-free/css/fontawesome.min.css">
+    <link rel="stylesheet" href="assets/libs/%40fortawesome/fontawesome-free/css/all.min.css">
+
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="assets/libs/flatpickr/flatpickr.min.css">
+    <link rel="stylesheet" href="assets/libs/flatpickr/flatpickr.css">
+
+    <!-- Main CSS -->
+
+  <script type="module" crossorigin src="assets/js/script.js"></script>
+  <link rel="stylesheet" crossorigin href="assets/css/style.css">
+</head>
+
+<body>
+
+	<!-- Main Wrapper -->
+    <div class="main-wrapper">
+
+        <!-- Topbar Start -->
+        <header class="navbar-header flex items-center max-lg:w-full">
+            <div class="topbar-menu flex items-center justify-between w-full gap-2">
+                <div class="flex items-center gap-3">
+
+                    <!-- Sidebar Mobile Button -->
+                    <a id="mobile_btn" class="mobile-btn lg:hidden" href="#sidebar" aria-label="menu">
+                        <i class="icon icon-menu"></i>
+                    </a>   
+                    
+                    <!-- Logo -->
+                    <a href="index.html" class="logo">
+
+                        <!-- Logo Normal -->
+                        <span class="logo-light">
+                            <span class="logo-lg"><img src="assets/img/logo.svg" alt="logo"></span>
+                            <span class="logo-sm"><img src="assets/img/logo-small.svg" alt="small logo"></span>
+                        </span>
+
+                        <!-- Logo Dark -->
+                        <span class="logo-dark">
+                            <span class="logo-lg"><img src="assets/img/logo-white.svg" alt="dark logo"></span>
+                        </span>
+                    </a> 
+
+                    <button class="sidenav-toggle-btn topbar-link shrink-0 size-9 text-[20px] items-center justify-center rounded-full" id="toggle_btn2"> 
+                        <i class="ph-duotone ph-arrow-left"></i>
+                    </button>
+                    
+                </div>
+
+                <div class="flex items-center gap-2 lg:w-full">
+                    
+                    <!-- Company Dropdown -->
+                    <div class="header-item hs-dropdown [--placement:bottom-left] [--auto-close:inside] hidden lg:flex relative company-dropdown me-auto">
+                        <div class="hs-dropdown-toggle bg-white border border-border-color rounded-md py-[6px] px-2 flex items-center justify-between gap-2 cursor-pointer">
+                            <div class="flex items-center gap-2">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company.svg" alt="company">
+                                </div>
+                                <p class="text-[13px] text-title">Falcon LLP</p>
+                            </div>
+                            <p><i class="icon icon-ellipsis"></i></p>
+                        </div>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-47 p-3 bg-white border border-border-color shadow rounded-md mt-0 z-1 space-y-1" role="menu" aria-orientation="vertical">
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company-02.svg" alt="CloneMind AI">
+                                </div>
+                                <p class="text-[13px] text-title">CloneMind AI</p>
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company.svg" alt="Falcon LLP">
+                                </div>
+                                <p class="text-[13px] text-title">Falcon LLP</p>
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company-03.svg" alt="Replicon Labs">
+                                </div>
+                                <p class="text-[13px] text-title">Replicon Labs</p>
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company-04.svg" alt="CloneSphere">
+                                </div>
+                                <p class="text-[13px] text-title">CloneSphere</p>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Light/Dark Mode Button -->
+                    <div class="header-item">
+                        <button class="topbar-link items-center justify-center light-dark-mode" type="button">
+                            <i class="ph-duotone ph-moon"></i>
+                        </button>
+                    </div>
+
+                    <!-- Search (icon button — opens modal) -->
+                    <div class="header-item">
+                        <button type="button" class="topbar-link items-center justify-center" data-hs-overlay="#search_modal" aria-label="Search">
+                            <i class="ph-duotone ph-magnifying-glass"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Language Dropdown -->
+                    <div class="header-item hs-dropdown [--placement:bottom-right] [--auto-close:inside] hidden lg:flex">
+                        <button type="button" class="topbar-link items-center justify-center">
+                            <i class="ph-duotone ph-translate"></i>
+                        </button>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-30 p-3 bg-white border border-border-color shadow rounded-md mt-[-8px]! z-1 space-y-1" role="menu" aria-orientation="vertical">
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <img src="assets/img/icons/us.svg" class="size-4 rounded-full" alt="flag">ENG
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <img src="assets/img/icons/arab.svg" class="size-4 rounded-full" alt="flag">ARB
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <img src="assets/img/icons/germany.svg" class="size-4 rounded-full" alt="flag">GER
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Notification Dropdown -->
+                    <div class="header-item hs-dropdown [--placement:bottom-right] [--auto-close:inside] hidden relative sm:flex" id="notification-dropdown">
+                        <button class="bg-light border border-border-color rounded-md size-8 flex items-center justify-center relative cursor-pointer">
+                            <i class="ph-duotone ph-bell"></i>
+                            <span class="absolute top-1 end-1 size-2 bg-danger-transparent rounded-full flex items-center justify-center">
+                                <span class="size-1 bg-danger rounded-full"></span>
+                            </span>
+                        </button>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-102 p-5 mt-[-8px]! bg-white border border-border-color shadow rounded-lg z-1 notification-dropdown" role="menu" aria-orientation="vertical">
+
+                            <div class="flex items-center justify-between border-b border-border-color pb-3">
+                                <p class="text-base font-bold text-title">Notifications</p>
+                                <div class="flex items-center gap-3">
+                                    <!-- The Toggle -->
+                                    <div class="flex items-center gap-1">
+                                        <label for="read" class="relative inline-block w-7 h-4 cursor-pointer">
+                                            <input type="checkbox" id="read" class="sr-only">
+                                            <span id="switch-track" class="absolute inset-0 bg-gray-200 rounded-full transition-colors duration-200"></span>
+                                            <span id="switch-thumb" class="absolute top-1/2 start-1 -translate-y-1/2 size-2.5 bg-white rounded-full transition-transform duration-200"></span>
+                                        </label>
+                                        <label for="read" class="cursor-pointer">Only Unread</label>
+                                    </div>
+                                    <button type="button" class="size-8 inline-flex justify-center items-center rounded-md border border-border-color bg-white text-gray-900 text-base hover:bg-danger hover:border-danger hover:text-white dark:hover:text-dark focus:outline-hidden focus:bg-danger cursor-pointer" aria-label="Close" id="close-notification">
+                                        <i class="icon-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div data-simplebar>
+                                <div id="all-notifications">
+                                    <div class="py-5 space-y-3">
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 shrink-0 me-2">
+                                                    <img src="assets/img/avatar/avatar-03.jpg" class="rounded-full border border-border-color" alt="user">
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Project Deadline<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Project <span class="text-primary font-medium">‘ERP Upgrade’</span> is due in 3 days.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-secondary-transparent text-secondary rounded-full flex items-center justify-center me-2">
+                                                    AD
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">New Order Placed<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Order <span class="text-primary font-medium">#SO-2345</span> has been placed by Adrian.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">25 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 shrink-0 me-2">
+                                                    <img src="assets/img/avatar/avatar-07.jpg" class="rounded-full border border-border-color" alt="user">
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Quotation Sent</p>
+                                                    <p class="text-[13px] mb-0">Quotation <span class="text-primary font-medium">#QT-451</span> sent to Hendy Jade.</p>
+                                                    <div class="flex items-center gap-2 mt-2">
+                                                        <a href="#" class="inline-flex items-center btn-xsmall bg-dark border border-dark text-white  hover:bg-primary hover:border-primary hover:text-white">View Quotation</a>
+                                                        <a href="#" class="inline-flex items-center btn-xsmall bg-white border border-border-color text-gray-900  hover:bg-primary hover:border-primary hover:text-white dark:hover:text-white">Edit Quotation</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>                                        
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-warning text-white rounded-full flex items-center justify-center me-2">
+                                                    <i class="icon icon-pc-case"></i>
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Low Stock Alert</p>
+                                                    <p class="text-[13px] mb-0">Stock for Product A has dropped below the minimum threshold  <span class="text-primary font-medium">(15 units left).</span></p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-primary-transparent text-primary rounded-full flex items-center justify-center me-2">
+                                                    SJ
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Expense Added</p>
+                                                    <p class="text-[13px] mb-0">New expense entry <span class="text-primary font-medium">‘Office Supplies’</span> worth $250 has been recorded.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">2 hrs ago</p>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                                <div class="hidden" id="unread-only">
+                                    <div class="py-5 space-y-3">
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 shrink-0 me-2">
+                                                    <img src="assets/img/avatar/avatar-03.jpg" class="rounded-full border border-border-color" alt="user">
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Project Deadline<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Project <span class="text-primary font-medium">‘ERP Upgrade’</span> is due in 3 days.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-secondary-transparent text-secondary rounded-full flex items-center justify-center me-2">
+                                                    AD
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">New Order Placed<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Order <span class="text-primary font-medium">#SO-2345</span> has been placed by Adrian.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">25 min</p>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pt-3 border-t border-border-color flex items-center justify-between">
+                                <a href="#" class="text-default fw-medium">Mark all as read</a>
+                                <a href="#" class="text-primary font-medium hover:text-primary-hover">
+                                View all Notifications
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mail / Inbox -->
+                    <div class="header-item hidden sm:flex">
+                        <a href="email.html" class="topbar-link items-center justify-center relative">
+                            <i class="ph-duotone ph-envelope"></i>
+                            <span class="absolute top-1 end-1 size-2 bg-success-transparent rounded-full flex items-center justify-center">
+                                <span class="size-1 bg-success rounded-full"></span>
+                            </span>
+                        </a>
+                    </div>
+
+                    <!-- User Dropdown -->
+                    <div class="profile-dropdown hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative">
+                        <a href="#" class="hs-dropdown-toggle relative flex items-center justify-center rounded-full lg:ms-2" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+                            <div class="size-8 rounded-full overflow-hidden border border-border-color">
+                                <img src="assets/img/avatar/avatar-01.jpg" class="size-full object-cover" alt="user-image">
+                            </div>
+                        </a>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 p-5 bg-white border border-border-color shadow rounded-md mt-2 z-1 divide-y divide-border-color" role="menu" aria-orientation="vertical">
+                            <div class="flex items-center pb-3">
+                                <div class="size-10 rounded-full relative me-2">
+                                    <img src="assets/img/avatar/avatar-01.jpg" class="rounded-full border border-border-color" alt="user-image">
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-title mb-1">Jamie Anderson</p>
+                                    <p class="text-[13px] mb-0">Administrator</p>
+                                </div>
+                            </div>
+                            <div class="py-3 space-y-1">
+                                <a href="profile.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-user-round text-base me-2"></i>View Profile
+                                </a>
+                                <a href="edit-profile.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-user-pen text-base me-2"></i>Edit Profile
+                                </a>
+                                <a href="general-settings.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-cog text-base me-2"></i>Settings
+                                </a>
+                                <a href="tickets.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-align-start-horizontal text-base me-2"></i>Support Tickets
+                                </a>
+                            </div>
+                            <div class="pt-3">
+                                <a href="lock-screen.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-user-cog text-base me-2"></i>Lock Screen
+                                </a>
+                                <a href="login.html" class="flex items-center px-2 py-[6px] rounded-md text-danger hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-log-out text-base me-2"></i>Log Out
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                        
+                </div>
+            </div>
+        </header>
+        <!-- Topbar End -->
+
+        <!-- Search Start -->
+        <div id="search_modal" class="hs-overlay hs-overlay-open:opacity-100 hs-overlay-open:duration-500 hidden size-full fixed top-0 start-0 z-80 opacity-0 overflow-x-hidden transition-all overflow-y-auto pointer-events-none" role="dialog" tabindex="-1">
+            <div class="min-h-screen flex items-center justify-center px-4"> 
+                <div class="max-w-[630px] w-full mx-auto">
+                    <div class="flex flex-col bg-white border p-6 border-border-color rounded-lg pointer-events-auto m-5">
+                        <div class="flex justify-between items-center mb-5">
+                            <p class="text-lg font-bold text-title">Search</p>
+                            <button type="button" class="size-8 inline-flex justify-center items-center rounded-md border border-border-color bg-white text-gray-900 text-base hover:bg-danger hover:border-danger hover:text-white dark:hover:text-dark focus:outline-hidden focus:bg-danger cursor-pointer" aria-label="Close" data-hs-overlay="#search_modal">
+                                <i class="icon-x"></i>
+                            </button>
+                        </div> 
+                        <div class="relative mb-5">
+                            <input type="text" class="w-full ps-3 pe-12 py-1 h-8 bg-white border border-border-color text-title rounded-md focus:border-(--topbar-input-border) placeholder:(-topbar-input-placeholder) focus:ring-0 shadow" placeholder="Search Keywords" autocomplete="off">		
+                            <button type="button" class="cursor-pointer w-8 p-1 text-xs gap-1  flex items-center justify-center absolute end-1 top-1/2 -translate-y-1/2">
+                                <i id="shortcutIcon" class="icon-search"></i>
+                            </button>							
+                        </div>
+                        <div class="mb-5">
+                            <p class="text-title font-semibold mb-2">I’m Looking For</p>
+                            <div class="flex items-center flex-wrap gap-3">
+                                <a href="employees.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Employees</a>
+                                <a href="deals.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Deals</a>
+                                <a href="pos.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">POS</a>
+                                <a href="expenses.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Finance</a>
+                                <a href="cash-sales.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Cash Sales</a>
+                            </div>
+                        </div>
+                        <p class="text-title font-semibold mb-2">Quick Actions</p>
+                        <div class="space-y-1 mb-5">
+                            <a href="general-settings.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-cog text-base text-default group-hover:text-title"></i>Settings</a>
+                            <a href="add-product.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-circle-plus text-base text-default group-hover:text-title"></i>Create Products</a>
+                            <a href="deals.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-circle-plus text-base text-default group-hover:text-title"></i>Create Deals</a>
+                            <a href="expenses.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-circle-plus text-base text-default group-hover:text-title"></i>Create Expense</a>
+                        </div>
+                        <p class="text-title font-semibold mb-2">Search</p>
+                        <div class="space-y-1">
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Anderson</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Oneplus 11G</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Oneplus 11G</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>#INV45879</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Knowledge Base</a>
+                        </div>
+                    </div>
+                </div>
+            </div>  
+        </div>
+        <!-- Search End -->
+
+        <!-- Sidenav Menu Start -->
+        <aside class="sidebar" id="sidebar">
+                    
+            <!-- Start Logo -->
+            <div class="sidebar-logo">
+                <div class="flex items-center">
+                    <!-- Logo Normal -->
+                    <a href="index.html" class="logo logo-normal">
+                        <img src="assets/img/logo.svg" alt="Logo">
+                    </a>
+
+                    <!-- Logo Small -->
+                    <a href="index.html" class="logo-small">
+                        <img src="assets/img/logo-small.svg" alt="Logo">
+                    </a>
+
+                    <!-- Logo Dark -->
+                    <a href="index.html" class="dark-logo">
+                        <img src="assets/img/logo-white.svg" alt="Logo">
+                    </a>
+                </div>
+                <button class="sidenav-toggle-btn btn border-0 p-0 active" id="toggle_btn" aria-label="toggle"> 
+                    <i class="icon icon-panel-right-open align-middle"></i>
+                </button> 
+
+                <!-- Sidebar Menu Close -->
+                <button type="button" class="sidebar-close" aria-label="close">
+                    <i class="icon icon-x align-middle"></i>
+                </button>                
+            </div>
+            <!-- End Logo -->
+
+            <!-- Sidenav Menu -->
+            <div class="sidebar-inner" data-simplebar>                
+                <div id="sidebar-menu" class="sidebar-menu">
+
+                    <ul role="menu" aria-label="Main navigation menu">
+                        <li class="menu-title" aria-disabled="true"><span>Main</span></li>
+
+                        <li class="submenu">
+                            <a href="#" class="active subdrop">
+                                <i class="ph-duotone ph-squares-four"></i><span>Dashboard</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="index.html" class="active">HRM Dashboard</a></li>
+                                <li><a href="inventory-dashboard.html">Inventory Dashboard</a></li>
+                                <li><a href="crm-dashboard.html">CRM Dashboard</a></li>
+                                <li><a href="pos-dashboard.html">POS Dashboard</a></li>
+                                <li><a href="finance-dashboard.html">Finance Dashboard</a></li>
+                                <li><a href="sales-dashboard.html">Sales Dashboard</a></li>
+                                <li><a href="procurement-dashboard.html">Procurement Dashboard</a></li>
+                                <li><a href="project-dashboard.html">Project Dashboard</a></li>
+                                <li><a href="support-dashboard.html">Support Dashboard</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-house"></i><span>Applications</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="chat.html">Chat</a></li>
+                                <li class="submenu submenu-two">
+                                    <a href="#">Calls<span class="menu-arrow inside-submenu"></span></a>
+                                    <ul>
+                                        <li><a href="voice-call.html">Voice Call</a></li>
+                                        <li><a href="video-call.html">Video Call</a></li>
+                                    </ul>
+                                </li>
+                                <li><a href="calendar.html">Calendar</a></li>	
+                                <li><a href="email.html">Email</a></li>
+                                <li><a href="file-manager.html">File Manager</a></li>
+                                <li><a href="notes.html">Notes</a></li>	
+                                <li><a href="todo.html">To Do</a></li>
+                                <li><a href="workflow-approvals.html">Workflow & Approvals</a></li>
+                            </ul>  
+                        </li>      
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-cube"></i><span>Layouts</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="layout-mini.html">Mini Sidebar</a></li>
+                                <li><a href="layout-hoverview.html">Hover View</a></li>
+                                <li><a href="layout-hidden.html">Hidden Menu</a></li>
+                                <li><a href="layout-fullwidth.html">Full Width</a></li>
+                                <li><a href="layout-rtl.html">RTL</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Inventory</span></li>
+
+                        <li>
+                            <a href="products.html">
+                                <i class="ph-duotone ph-cube"></i><span>Products</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="categories.html">
+                                <i class="ph-duotone ph-envelope"></i><span>Categories</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="brands.html">
+                                <i class="ph-duotone ph-triangle"></i><span>Brands</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="units.html">
+                                <i class="ph-duotone ph-compass"></i><span>Units</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="inventory.html">
+                                <i class="ph-duotone ph-subtract"></i><span>Inventory</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="suppliers.html">
+                                <i class="ph-duotone ph-user"></i><span>Suppliers</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="warehouse.html">
+                                <i class="ph-duotone ph-house-simple"></i><span>Warehouse</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-arrow-square-out"></i><span>Stock</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="manage-stock.html">Manage Stock</a></li>
+                                <li><a href="stock-adjustment.html">Stock Adjustment</a></li>
+                                <li><a href="stock-transfer.html">Stock Transfer</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Sales</span></li>
+
+                        <li>
+                            <a href="customers.html">
+                                <i class="ph-duotone ph-address-book"></i><span>Customers</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sales-orders.html" data-sidebar-group="sales-orders">
+                                <i class="ph-duotone ph-stack"></i><span>Sales Orders</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="recurring-invoices.html" data-sidebar-group="recurring-invoices">
+                                <i class="ph-duotone ph-note"></i><span>Recurring Invoices</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="invoice-templates.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Invoice Templates</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="credit-notes.html" data-sidebar-group="credit-notes">
+                                <i class="ph-duotone ph-money-wavy"></i><span>Credit Notes</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sales-quotes.html">
+                                <i class="ph-duotone ph-notification"></i><span>Sales Quotes</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="cash-sales.html">
+                                <i class="ph-duotone ph-wallet"></i><span>Cash Sales</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="refunds.html">
+                                <i class="ph-duotone ph-currency-circle-dollar"></i><span>Refunds</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="delivery-notes.html" data-sidebar-group="delivery-notes">
+                                <i class="ph-duotone ph-file"></i><span>Delivery Notes</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sales-analytics.html">
+                                <i class="ph-duotone ph-tray"></i><span>Sales Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Purchase</span></li>
+
+                        <li>
+                            <a href="purchases.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Purchases</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="purchase-orders.html">
+                                <i class="ph-duotone ph-note"></i><span>Purchase Orders</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="purchase-return.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Purchase Return</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="vendors.html">
+                                <i class="ph-duotone ph-users"></i><span>Vendors</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="procurement-analytics.html">
+                                <i class="ph-duotone ph-package"></i><span>Procurement Analytics</span>
+                            </a>
+                        </li>
+
+<li class="menu-title" aria-disabled="true"><span>Finance</span></li>
+
+                        <li>
+                            <a href="expenses.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Expenses</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="expense-category.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Expense Category</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="payments.html">
+                                <i class="ph-duotone ph-credit-card"></i><span>Payments</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="cashflow.html">
+                                <i class="ph-duotone ph-trend-up"></i><span>Cashflow</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="budgeting.html">
+                                <i class="ph-duotone ph-chart-bar"></i><span>Budgeting</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="taxes.html">
+                                <i class="ph-duotone ph-percent "></i><span>Taxes</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-chart-pie-slice"></i><span>Reports</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="expense-summary.html">Expense Summary</a></li>
+                                <li><a href="income-summary.html">Income Summary</a></li>
+                                <li><a href="profit-loss.html">Profit & Loss</a></li>
+                                <li><a href="income-expense.html">Income vs Expense</a></li>
+                                <li><a href="tax-summary.html">Tax Summary</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>HRM</span></li>
+
+                        <li>
+                            <a href="employees-grid.html" data-sidebar-group="employees">
+                                <i class="ph-duotone ph-user-square"></i><span>Employees</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="departments.html">
+                                <i class="ph-duotone ph-buildings"></i><span>Departments</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="designations-roles.html">
+                                <i class="ph-duotone ph-user-check"></i><span>Designations / Roles</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="attendance.html">
+                                <i class="ph-duotone ph-calendar-check"></i><span>Attendance</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-calendar-plus"></i><span>Leave</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="leave.html">Leaves</a></li>
+                                <li><a href="leave-types.html">Leave Types</a></li>
+                            </ul>
+                        </li>
+
+                        <li>
+                            <a href="holidays.html">
+                                <i class="ph-duotone ph-squares-four"></i><span>Holidays</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="payroll.html" data-sidebar-group="payroll">
+                                <i class="ph-duotone ph-money-wavy"></i><span>Payroll</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="recruitment.html" data-sidebar-group="recruitment">
+                                <i class="ph-duotone ph-users-three"></i><span>Recruitment</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="performance-appraisal.html">
+                                <i class="ph-duotone ph-seal-check"></i><span>Performance & Appraisal</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="training-development.html">
+                                <i class="ph-duotone ph-shield-check"></i><span>Training & Development</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="hr-analytics.html">
+                                <i class="ph-duotone ph-chart-line-up"></i><span>HR Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>CRM</span></li>
+
+                        <li>
+                            <a href="contacts-grid.html" data-sidebar-group="contacts">
+                                <i class="ph-duotone ph-users"></i><span>Contacts</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="leads-grid.html" data-sidebar-group="leads">
+                                <i class="ph-duotone ph-user-square"></i><span>Leads</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="deals-grid.html" data-sidebar-group="deals">
+                                <i class="ph-duotone ph-handshake"></i><span>Deals</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="pipeline.html">
+                                <i class="ph-duotone ph-stack"></i><span>Pipeline</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="campaigns.html">
+                                <i class="ph-duotone ph-megaphone"></i><span>Campaigns</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="customer-feedback.html">
+                                <i class="ph-duotone ph-question"></i><span>Customer Feedback</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="customer-analytics.html">
+                                <i class="ph-duotone ph-chat-teardrop-text"></i><span>Customer Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Projects</span></li>
+
+                        <li>
+                            <a href="projects-grid.html" data-sidebar-group="projects">
+                                <i class="ph-duotone ph-folder-user"></i><span>Projects</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="tasks-grid.html" data-sidebar-group="tasks">
+                                <i class="ph-duotone ph-checks"></i><span>Tasks</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="timesheet.html">
+                                <i class="ph-duotone ph-clock"></i><span>Timesheet</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="milestones.html">
+                                <i class="ph-duotone ph-flag"></i><span>Milestones</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="resource-allocation.html">
+                                <i class="ph-duotone ph-users"></i><span>Resource Allocation</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="project-analytics.html">
+                                <i class="ph-duotone ph-note-pencil"></i><span>Project Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>POS</span></li>
+
+                        <li>
+                            <a href="pos.html">
+                                <i class="ph-duotone ph-monitor"></i><span>POS</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="pos-orders.html">
+                                <i class="ph-duotone ph-stack"></i><span>POS Orders</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="barcode-print.html">
+                                <i class="ph-duotone ph-barcode"></i><span>Barcode Print</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="qr-code-print.html">
+                                <i class="ph-duotone ph-qr-code"></i><span>QR Code Print</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="print-settings.html">
+                                <i class="ph-duotone ph-printer"></i><span>Print Settings</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Assets</span></li>
+
+                        <li>
+                            <a href="asset-register.html">
+                                <i class="ph ph-archive-box"></i><span>Asset Register</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="assignments.html">
+                                <i class="ph-duotone ph-stack"></i><span>Assignments</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="depreciation.html">
+                                <i class="ph-duotone ph-trend-down"></i><span>Depreciation</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="maintenance.html">
+                                <i class="ph-duotone ph-wrench"></i><span>Maintenance</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="disposal.html">
+                                <i class="ph-duotone ph-trash"></i><span>Disposal</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="asset-analytics.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Asset Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Documents</span></li>
+
+                        <li>
+                            <a href="document-repository.html">
+                                <i class="ph-duotone ph-user"></i><span>Document Repository</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="policies-manuals.html">
+                                <i class="ph-duotone ph-stack"></i><span>Policies & Manuals</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="compliance-docs.html">
+                                <i class="ph-duotone ph-gear"></i><span>Compliance Docs</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="document-workflows.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Document Workflows</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Support</span></li>
+
+                        <li>
+                            <a href="contact-messages.html">
+                                <i class="ph-duotone ph-user"></i><span>Contact Messages</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="tickets.html">
+                                <i class="ph-duotone ph-stack"></i><span>Tickets</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="knowledge-base.html">
+                                <i class="ph-duotone ph-gear"></i><span>Knowledge Base</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sla-management.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>SLA Management</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Membership</span></li>
+
+                        <li>
+                            <a href="membership-plans.html" data-sidebar-group="membership-plans">
+                                <i class="ph-duotone ph-user"></i><span>Membership Plans</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="membership-addons.html">
+                                <i class="ph-duotone ph-stack"></i><span>Membership Addons</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="transactions.html">
+                                <i class="ph-duotone ph-gear"></i><span>Transactions</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>System</span></li>
+
+                        <li>
+                            <a href="user-management.html">
+                                <i class="ph-duotone ph-user"></i><span>User Management</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="roles-permissions.html">
+                                <i class="ph-duotone ph-stack"></i><span>Roles & Permissions</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="delete-requests.html">
+                                <i class="ph-duotone ph-gear"></i><span>Delete Requests</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Settings</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="general-settings.html">General</a></li>
+                                <li><a href="security-settings.html">Security</a></li>
+                                <li><a href="notifications-settings.html">Notifications</a></li>
+                                <li><a href="integrations-settings.html">Integrations</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>PAGES</span></li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-user"></i><span>Authentication</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>    
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Login
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="login-cover.html">Cover</a></li>
+                                        <li><a href="login-illustration.html">Illustration</a></li>
+                                        <li><a href="login.html">Basic</a></li>
+                                    </ul>
+                                </li>
+                        
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Register
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="register-cover.html">Cover</a></li>
+                                        <li><a href="register-illustration.html">Illustration</a></li>
+                                        <li><a href="register.html">Basic</a></li>
+                                    </ul>
+                                </li>
+
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Forgot Password
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="forgot-password-cover.html">Cover</a></li>
+                                        <li><a href="forgot-password-illustration.html">Illustration</a></li>
+                                        <li><a href="forgot-password.html">Basic</a></li>
+                                    </ul>
+                                </li>
+
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Reset Password
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="reset-password-cover.html">Cover</a></li>
+                                        <li><a href="reset-password-illustration.html">Illustration</a></li>
+                                        <li><a href="reset-password.html">Basic</a></li>
+                                    </ul>
+                                </li>
+
+                            <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Email Verification
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="email-verification-cover.html">Cover</a></li>
+                                        <li><a href="email-verification-illustration.html">Illustration</a></li>
+                                        <li><a href="email-verification.html">Basic</a></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>    
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-warning-circle"></i><span>Error Pages</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="error-404.html">Error 404</a></li>
+                                <li><a href="error-500.html">Error 500</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-wrench"></i><span>Utilities</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="blank-page.html">Blank Page</a></li>
+                                <li><a href="coming-soon.html">Coming Soon</a></li>
+                            </ul>
+                        </li>   
+
+                        <li class="menu-title" aria-disabled="true"><span>UI Interface</span></li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-squares-four"></i><span>Base UI</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="ui-alerts.html">Alerts</a></li>
+                                <li><a href="ui-accordion.html">Accordion</a></li>
+                                <li><a href="ui-avatar.html">Avatar</a></li>
+                                <li><a href="ui-badges.html">Badges</a></li>
+                                <li><a href="ui-buttons.html">Buttons</a></li>
+                                <li><a href="ui-buttons-group.html">Button Group</a></li>
+                                <li><a href="ui-breadcrumb.html">Breadcrumb</a></li>
+                                <li><a href="ui-cards.html">Card</a></li>
+                                <li><a href="ui-colors.html">Colors</a></li>
+                                <li><a href="ui-collapse.html">Collapse</a></li>
+                                <li><a href="ui-dropdowns.html">Dropdowns</a></li>
+                                <li><a href="ui-grid.html">Grid</a></li>
+                                <li><a href="ui-images.html">Images</a></li>
+                                <li><a href="ui-modals.html">Modals</a></li>
+                                <li><a href="ui-offcanvas.html">Offcanvas</a></li>
+                                <li><a href="ui-pagination.html">Pagination</a></li>
+                                <li><a href="ui-popovers.html">Popovers</a></li>
+                                <li><a href="ui-progress.html">Progress</a></li>
+                                <li><a href="ui-nav-tabs.html">Tabs</a></li>
+                                <li><a href="ui-typography.html">Typography</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-shooting-star"></i><span>Advanced UI</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="ui-dragula.html">Dragula</a></li>
+                                <li><a href="ui-clipboard.html">Clipboard</a></li>
+                                <li><a href="ui-rangeslider.html">Range Slider</a></li>
+                                <li><a href="ui-lightbox.html">Lightbox</a></li>
+                            </ul>
+                        </li> 
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-note-pencil"></i><span>Forms</span><span class="menu-arrow"></span>
+                            </a>
+                                    <ul>
+                                        <li><a href="form-elements.html">Form Elements</a></li>
+                                        <li><a href="form-select2.html">Select2</a></li>
+                                        <li><a href="form-editors.html">Form Editor</a></li>
+                                        <li><a href="form-pickers.html">Form Picker</a></li>
+                                    </ul>
+                                </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-table"></i><span>Tables</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="tables-basic.html">Basic Tables </a></li>
+                                <li><a href="data-tables.html">Data Table </a></li>
+                            </ul>
+                        </li> 
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-chart-pie-slice"></i><span>Charts</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="chart-apex.html">Apex Charts</a></li>
+                                <li><a href="chart-js.html">Chart Js</a></li>
+                            </ul>
+                        </li> 
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-shapes"></i><span>Icons</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="icon-fontawesome.html">Fontawesome Icons</a></li>
+                                <li><a href="icon-tabler.html">Tabler Icons</a></li>
+                                <li><a href="icon-lucide.html">Lucide</a></li>
+                                <li><a href="icon-phosphor.html">Phosphor</a></li>
+                            </ul>
+                        </li>  
+
+                        <li class="menu-title" aria-disabled="true"><span>HELP</span></li>
+
+                        <li>
+                            <a href="https://dreamserp.dreamstechnologies.com/documentation/index.html" target="_blank"><i class="ph-duotone ph-file-text"></i><span>Documentation</span></a>
+                        </li> 
+
+                        <li>
+                            <a href="https://dreamserp.dreamstechnologies.com/documentation/changelog.html" target="_blank"><i class="ph-duotone ph-git-branch"></i>
+                                <span>Changelog</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-list-numbers"></i><span>Multi Level</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="#">Multilevel 1</a></li>
+                                <li class="submenu submenu-two">
+                                    <a href="#">Multilevel 2<span class="menu-arrow inside-submenu"></span></a>
+                                    <ul>
+                                        <li><a href="#">Multilevel 2.1</a></li>
+                                        <li class="submenu submenu-two submenu-three">
+                                            <a href="#">Multilevel 2.2<span class="menu-arrow inside-submenu inside-submenu-two"></span></a>
+                                            <ul>
+                                                <li><a href="#">Multilevel 2.2.1</a></li>
+                                                <li><a href="#">Multilevel 2.2.2</a></li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li><a href="#">Multilevel 3</a></li>
+                            </ul>
+                        </li>
+
+                    </ul>                   
+                </div>
+            </div>
+
+        </aside>
+        <!-- Sidenav Menu End -->
+
+        <!-- Start Page Content -->
+		<div class="page-wrapper">
+
+			<main>
+
+				<div class="p-3 lg:py-6 lg:px-0">
+                    
+					<div class="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+						<h1 class="text-gray-900 text-xl max-lg:text-lg font-bold mb-0">Cash Sales</h1>
+						<div class="flex items-center flex-wrap gap-2">
+							<button type="button" class="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-light cursor-pointer"><i class="ph-duotone ph-printer"></i>Print</button>
+							<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+								<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+									<i class="icon-download font-normal"></i> Export <i class="icon-chevron-down"></i>
+								</button>
+								<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+									<div class="p-2 space-y-1">
+										<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+											Export as PDF
+										</a>
+										<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+											Export as Excel
+										</a>
+									</div>
+								</div>
+							</div>
+							<a href="add-cash-sales.html" class="btn-sm bg-dark text-white border border-dark inline-flex items-center gap-2 hover:bg-primary-hover cursor-pointer"><i class="ph ph-plus"></i> Add New</a>
+						</div>
+					</div>
+					<div class="bg-white border border-border-color rounded-md p-4">
+						<div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <div class="relative w-64 search-input">
+                                    <i class="ph ph-magnifying-glass absolute right-2.5 top-1/2 -translate-y-1/2 text-default text-sm"></i>
+                                    <input type="text" class="w-full px-3 pe-8 py-2 h-7 text-[12px]! border border-border-color rounded-md bg-white focus:outline-none focus:ring-0" placeholder="Search">
+                                </div>
+                                <div class="relative rangepicker-input w-[174px] h-[28px] leading-none">
+                                    <span class="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground text-dark text-sm!">
+                                        <i class="icon-calendar"></i>
+                                    </span>
+                                    <input type="text" class="form-input text-sm! h-[28px] inline-block w-full bg-light border-border-color rounded-md focus:ring-0 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:border-border-color pl-8! ps-8!" data-provider="flatpickr" data-date-format="d M y" data-range-date="true" value="01 Jan 26 to 20 Jan 26" id="picker">
+                                </div>
+                            </div>
+							<div class="flex items-center flex-wrap gap-2">
+								<div class="hs-dropdown [--placement:bottom-left] [--auto-close:inside] relative inline-flex">
+                                    <button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+                                        <i class="icon-funnel font-normal"></i> Filter <i class="icon-chevron-down"></i>
+                                    </button>
+                                    <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+                                        <div class="p-2 space-y-1">
+                                            <label class="flex items-center gap-2 text-sm cursor-pointer px-2 py-1.5 rounded-md hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white">
+												<input type="checkbox" class="size-4 rounded border-border-color text-primary focus:ring-0" checked> Alexander Hayes
+											</label>
+                                            <label class="flex items-center gap-2 text-sm cursor-pointer px-2 py-1.5 rounded-md hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white">
+												<input type="checkbox" class="size-4 rounded border-border-color text-primary focus:ring-0"> Ava Mitchell
+											</label>
+                                            <label class="flex items-center gap-2 text-sm cursor-pointer px-2 py-1.5 rounded-md hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white">
+												<input type="checkbox" class="size-4 rounded border-border-color text-primary focus:ring-0"> Andrew Collins 
+											</label>
+                                            <label class="flex items-center gap-2 text-sm cursor-pointer px-2 py-1.5 rounded-md hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white">
+												<input type="checkbox" class="size-4 rounded border-border-color text-primary focus:ring-0"> Amelia Scott 
+											</label>
+                                            <label class="flex items-center gap-2 text-sm cursor-pointer px-2 py-1.5 rounded-md hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white">
+												<input type="checkbox" class="size-4 rounded border-border-color text-primary focus:ring-0"> Anthony Walker 
+											</label> 
+                                            <div class="flex items-center justify-between gap-2 mt-3">
+                                                <button type="button" class="btn-sm bg-white w-full border border-border-color text-gray-900 flex items-center justify-center hover:bg-light cursor-pointer">Cancel</button>
+                                                <button type="button" class="btn-sm bg-dark w-full border border-dark text-white flex items-center justify-center hover:bg-primary hover:border-primary hover:text-white cursor-pointer">Apply</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+								<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+									<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+										<i class="icon-arrow-up-down font-normal"></i> Sort By <i class="icon-chevron-down"></i>
+									</button>
+									<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+										<div class="p-2 space-y-1">
+											<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												A - Z
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Z - A
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Newest
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Oldest
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												High
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Low
+											</a>
+										</div>
+									</div>
+								</div>
+								<button type="button" class="size-7 rounded-md border border-border-color flex items-center justify-center text-default hover:bg-light cursor-pointer"><i class="ph-duotone ph-columns"></i>
+								</button>
+								<button type="button" class="size-7 rounded-md border border-border-color flex items-center justify-center text-default hover:bg-light cursor-pointer"><i class="ph ph-arrow-clockwise"></i>
+								</button>
+							</div>
+						</div>
+
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="text-sm text-default border-b border-border-color">
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Receipt ID</th>
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Customer</th>
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Date</th>
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Items</th>
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Amount</th>
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Payment Method</th>
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Status</th>
+										<th class="text-left py-2 px-2 font-semibold text-gray-900">Action</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0020</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Alexander Kenn</td>
+										<td class="py-2.5 px-2 text-sm text-default">11 Sep 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">3</td>
+										<td class="py-2.5 px-2 text-sm text-default">$1,250</td>
+										<td class="py-2.5 px-2 text-sm text-default">Cash</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> 
+															<i class="icon-eye"></i> Preview 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0019</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Gabriella White</td>
+										<td class="py-2.5 px-2 text-sm text-default">05 Sep 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">2</td>
+										<td class="py-2.5 px-2 text-sm text-default">$870</td>
+										<td class="py-2.5 px-2 text-sm text-default">Credit Card</td>
+										<td class="py-2.5 px-2"><span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span></td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> 
+															<i class="icon-eye"></i> Preview 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0018</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Christopher Rey</td>
+										<td class="py-2.5 px-2 text-sm text-default">27 Aug 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">5</td>
+										<td class="py-2.5 px-2 text-sm text-default">$1,560</td>
+										<td class="py-2.5 px-2 text-sm text-default">Debit Card</td>
+										<td class="py-2.5 px-2"><span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span></td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> <i class="icon-eye"></i> Preview </a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0017</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Penelope Ton</td>
+										<td class="py-2.5 px-2 text-sm text-default">16 Aug 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">1</td>
+										<td class="py-2.5 px-2 text-sm text-default">$320</td>
+										<td class="py-2.5 px-2 text-sm text-default">UPI</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-warning-transparent text-warning px-2 py-0.5 rounded">Pending</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> <i class="icon-eye"></i> Preview </a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0016</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Daniel Foster</td>
+										<td class="py-2.5 px-2 text-sm text-default">25 Jul 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">4</td>
+										<td class="py-2.5 px-2 text-sm text-default">$2,240</td>
+										<td class="py-2.5 px-2 text-sm text-default">Cash</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> <i class="icon-eye"></i> Preview </a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0015</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Anastasia Leton</td>
+										<td class="py-2.5 px-2 text-sm text-default">12 Jul 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">2</td>
+										<td class="py-2.5 px-2 text-sm text-default">$640</td>
+										<td class="py-2.5 px-2 text-sm text-default">Credit Card</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded">Refunded</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> 
+															<i class="icon-eye"></i> Preview 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0014</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Noah Bennett</td>
+										<td class="py-2.5 px-2 text-sm text-default">23 Jun 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">6</td>
+										<td class="py-2.5 px-2 text-sm text-default">$1,130</td>
+										<td class="py-2.5 px-2 text-sm text-default">Bank Transfer</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> 
+															<i class="icon-eye"></i> Preview 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0013</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Victoria Ellsworth</td>
+										<td class="py-2.5 px-2 text-sm text-default">07 Jun 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">3</td>
+										<td class="py-2.5 px-2 text-sm text-default">$785</td>
+										<td class="py-2.5 px-2 text-sm text-default">Cash</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> 
+															<i class="icon-eye"></i> Preview 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color">
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0012</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Noah Kensington</td>
+										<td class="py-2.5 px-2 text-sm text-default">28 May 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">8</td>
+										<td class="py-2.5 px-2 text-sm text-default">$1,340</td>
+										<td class="py-2.5 px-2 text-sm text-default">UPI</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> 
+															<i class="icon-eye"></i> Preview 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+									<tr>
+										<td class="py-2.5 px-2">
+											<a href="cash-sales-details.html" class="text-sm text-default hover:text-primary">#CS0011</a>
+										</td>
+										<td class="py-2.5 px-2 text-sm font-semibold text-title">Catherine Lan</td>
+										<td class="py-2.5 px-2 text-sm text-default">18 May 2025</td>
+										<td class="py-2.5 px-2 text-sm text-default">2</td>
+										<td class="py-2.5 px-2 text-sm text-default">$490</td>
+										<td class="py-2.5 px-2 text-sm text-default">Cash</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Paid</span>
+										</td>
+										<td class="py-2.5 px-2">
+											<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+												<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm size-7 bg-white border border-border-color text-gray-600 inline-flex items-center justify-center hover:bg-light hover:border-light hover:text-gray-900 focus:bg-light focus:border-light focus:text-gray-900  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown"> 
+													<i class="icon-ellipsis-vertical font-normal"></i> 
+												</button>
+												<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+													<div class="p-2 space-y-1">
+                                                        <a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="cash-sales-details.html"> 
+															<i class="icon-eye"></i> Preview 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="edit-cash-sales.html"> 
+															<i class="icon-pencil-line"></i> Edit 
+														</a>
+														<a class="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-danger hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#" data-hs-overlay="#delete-modal"> 
+															<i class="icon-trash-2"></i> Delete 
+														</a>
+													</div>
+												</div>
+											</div>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
+						<!-- Pagination -->
+						<div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border-color">
+							<div class="flex items-center gap-2">
+								<span class="text-sm text-default">Showing</span>
+								<select class="px-2 py-1 text-sm border border-border-color rounded-md bg-white focus:outline-none focus:ring-0 w-28">
+									<option>10 / Pages</option>
+									<option>25 / Pages</option>
+									<option>50 / Pages</option>
+									<option>100 / Pages</option>
+								</select>
+							</div>
+							<div class="flex items-center gap-1">
+								<button class="size-7 rounded-md text-sm bg-dark text-white flex items-center justify-center cursor-pointer">1</button>
+								<button class="size-7 rounded-md text-sm text-gray-900 hover:bg-light flex items-center justify-center cursor-pointer">2</button>
+								<button class="size-7 rounded-md text-sm text-gray-900 hover:bg-light flex items-center justify-center cursor-pointer">3</button>
+								<button class="size-7 rounded-md text-sm border border-border-color flex items-center justify-center cursor-pointer text-default hover:bg-light ml-1">
+									<i class="ph ph-caret-left text-sm"></i>
+								</button>
+								<button class="size-7 rounded-md text-sm border border-border-color flex items-center justify-center cursor-pointer text-default hover:bg-light">
+									<i class="ph ph-caret-right text-sm"></i>
+								</button>
+							</div>
+						</div>
+
+					</div>
+
+				</div>
+			</main>
+
+			<!-- Footer -->
+            <footer class="footer px-6 pb-3 flex items-center justify-center gap-2">
+                <p>2026 &copy; Dreams ERP. All Rights Reserved</p>
+            </footer>
+            <!-- End Footer -->
+
+		</div>
+		<!-- End Page Content -->
+
+	</div>
+    <!-- End Main Wrapper -->    
+
+    <!-- Delete Modal -->
+    <div id="delete-modal" class="hs-overlay hidden size-full fixed top-0 start-0 z-[80] overflow-x-hidden overflow-y-auto pointer-events-none">
+        <div class="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 mt-0 opacity-0 ease-out transition-all sm:max-w-sm sm:w-full m-3 max-w-[300px]! mx-auto pointer-events-auto min-h-screen flex items-center justify-center">
+            <div class="flex flex-col bg-white border shadow-sm rounded-md border-border-color p-6">
+                <div class="bg-danger-transparent size-10 rounded-lg flex items-center justify-center mx-auto">
+                    <i class="icon-trash-2 text-danger text-[20px]!"></i>
+                </div>
+                <div class="my-5 text-center">
+                    <p class="text-base font-bold text-title mb-1">Delete Confirmation</p>
+                    <p class="mb-0 text-sm">Are you sure, do you want to delete ?</p>
+                </div>
+                <div class="flex justify-between items-center gap-2 flex-col">
+                    <button type="button" class="btn-sm w-full bg-danger text-white border border-danger hover:bg-danger-hover cursor-pointer">Yes, Delete</button>
+                    <button type="button" class="btn-sm w-full bg-white border border-border-color text-gray-900 hover:bg-light cursor-pointer" data-hs-overlay="#delete-modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Simplebar JS -->
+    <script  src="assets/libs/simplebar/simplebar.min.js"></script>
+
+    <!-- Preline JS -->
+    <script src="assets/libs/preline/preline.js"></script>
+
+    <!-- Flatpickr JS -->
+    <script src="assets/libs/flatpickr/flatpickr.min.js"></script>
+
+    <!-- Custom JS -->
+
+</body>
+
+
+<!-- Mirrored from https://dreamserp.dreamstechnologies.com/tailwind/cash-sales.html by HTTrack Website Copier/3.x [XR&CO], Wed, 16 Sep 2026 09:17:42 GMT -->
+</html>

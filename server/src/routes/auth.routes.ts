@@ -1,3 +1,6 @@
+import { sendTwoFactorOtpEmail } from "../lib/email";
+import { createOrReplaceOtp, verifyOtpCode, checkResendEligibility, maskEmail } from "../lib/otp";
+import { ERP_MODULES } from "../lib/erp-modules";
 import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -5,7 +8,7 @@ import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import { prisma } from "../prisma";
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 
 export const authRouter = Router();
 
@@ -81,7 +84,7 @@ authRouter.post("/register", async (req, res) => {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: err.errors[0].message });
     }
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -100,108 +103,49 @@ authRouter.post("/login", async (req, res) => {
       },
     });
 
-    if (!user) {
-      // Check if an employee exists with this email who hasn't had their user account initialized yet
-      const employee = await prisma.employee.findFirst({
-        where: { email: normalizedEmail },
-      });
-
-      if (employee) {
-        // If employee logs in with initial default password "Password@123"
-        if (password === "Password@123") {
-          const passwordHash = await bcrypt.hash(password, 10);
-          user = await prisma.user.create({
-            data: {
-              email: normalizedEmail,
-              passwordHash,
-              profile: {
-                create: {
-                  fullName: `${employee.firstName} ${employee.lastName}`.trim() || normalizedEmail,
-                  email: normalizedEmail,
-                  phone: employee.phone || null,
-                  tenantId: employee.tenantId,
-                },
-              },
-              roles: {
-                create: {
-                  role: "employee",
-                  tenantId: employee.tenantId,
-                },
-              },
-            },
-            include: {
-              profile: true,
-              roles: true,
-              employees: true,
-            },
-          });
-
-          await prisma.employee.update({
-            where: { id: employee.id },
-            data: { userId: user.id },
-          });
-        } else {
-          return res.status(400).json({
-            error:
-              "Invalid email or password. Default initial employee password is Password@123.",
-          });
-        }
-      } else {
-        return res.status(400).json({ error: "Invalid email or password." });
-      }
-    }
+    if (!user) return res.status(401).json({ error: "Invalid email or password." });
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
-    // 2-Step Authenticator (2FA) Check
-    if (user.twoFactorEnabled && user.twoFactorSecret) {
-      const mfaToken = generateMfaToken({ userId: user.id, email: user.email });
-      return res.json({
-        requires2FA: true,
-        mfaToken,
-        email: user.email,
-        message: "Two-factor authentication code required.",
-      });
-    }
+    // Mandatory Email OTP Two-Factor Authentication on EVERY login
+    const isSetup = !user.twoFactorEnabled;
+    const { otp } = await createOrReplaceOtp(user.id);
 
-    const roles =
-      user.roles && user.roles.length > 0
-        ? user.roles.map((r) => r.role)
-        : ["employee"];
-    const tenantId =
-      user.profile?.tenantId || (user.employees && user.employees[0]?.tenantId) || null;
-
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      tenantId,
-      roles,
+    await sendTwoFactorOtpEmail({
+      toEmail: user.email,
+      otp,
+      fullName: user.profile?.fullName || undefined,
+      isSetup,
     });
 
+    const mfaToken = generateMfaToken({ userId: user.id, email: user.email });
+
+    // Return temporary 2FA state - NO full session token issued before OTP verification
     return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        profile: user.profile,
-        roles,
-      },
-      roles,
-      token,
+      requires2FA: true,
+      isSetup,
+      mfaToken,
+      email: user.email,
+      maskedEmail: maskEmail(user.email),
+      twoFactorMethod: "EMAIL_OTP",
+      message: isSetup
+        ? "2FA Setup Required: A 6-digit verification code has been sent to your registered email."
+        : "A 6-digit verification code has been sent to your registered email.",
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ error: err.errors[0].message });
     }
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
   }
 });
 
 /**
  * -------------------------------------------------------------
- * 2FA ENDPOINTS (TOTP + BACKUP CODES)
+ * 2FA ENDPOINTS (EMAIL OTP & SECURITY)
  * -------------------------------------------------------------
  */
 
@@ -211,64 +155,52 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
     const { mfaToken, code } = req.body;
 
     if (!mfaToken || !code) {
-      return res.status(400).json({ error: "MFA session token and authentication code are required." });
+      return res.status(400).json({ error: "MFA session token and 6-digit verification code are required." });
     }
 
     let payload: any;
     try {
       payload = verifyMfaToken(mfaToken);
     } catch {
-      return res.status(401).json({ error: "2FA session expired. Please sign in again." });
+      return res.status(401).json({ error: "2FA session has expired. Please sign in again." });
     }
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       include: {
-        profile: true,
+        profile: {
+          include: {
+            tenant: true,
+          },
+        },
         roles: true,
+        employees: true,
       },
     });
 
-    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
-      return res.status(400).json({ error: "Invalid user or 2FA is not enabled." });
+    if (!user) {
+      return res.status(400).json({ error: "User account not found." });
     }
 
-    const cleanCode = String(code).trim().replace(/\s+/g, "");
-    let isValid = false;
+    // Verify submitted 6-digit Email OTP against database hash
+    const verification = await verifyOtpCode(user.id, String(code));
+    if (!verification.valid) {
+      return res.status(400).json({ error: verification.error || "Invalid verification code." });
+    }
 
-    // 1. Verify standard 6-digit TOTP token
-    if (/^\d{6}$/.test(cleanCode)) {
-      isValid = speakeasy.totp.verify({
-        secret: user.twoFactorSecret,
-        encoding: "base32",
-        token: cleanCode,
-        window: 1, // +/- 30 seconds clock drift allowance
+    // If first-time 2FA setup, mark enabled and record confirmation timestamp
+    const wasSetup = !user.twoFactorEnabled;
+    if (wasSetup) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorEnabled: true,
+          twoFactorConfirmedAt: new Date(),
+        },
       });
     }
 
-    // 2. Check emergency backup code if TOTP failed
-    if (!isValid && user.twoFactorBackupCodes) {
-      try {
-        const backupCodes: string[] = JSON.parse(user.twoFactorBackupCodes);
-        const index = backupCodes.indexOf(cleanCode);
-        if (index !== -1) {
-          isValid = true;
-          // Consume and remove the used backup code
-          backupCodes.splice(index, 1);
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { twoFactorBackupCodes: JSON.stringify(backupCodes) },
-          });
-        }
-      } catch (e) {
-        console.error("Backup code parse error:", e);
-      }
-    }
-
-    if (!isValid) {
-      return res.status(400).json({ error: "Invalid 6-digit authenticator code or emergency backup code." });
-    }
-
+    // Create full authenticated session token
     const roles = user.roles.map((r) => r.role);
     const token = generateToken({
       userId: user.id,
@@ -278,19 +210,82 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
     });
 
     return res.json({
+      success: true,
       user: {
         id: user.id,
         email: user.email,
         profile: user.profile,
         roles,
+        twoFactorEnabled: true,
       },
       roles,
       token,
-      message: "Two-step verification succeeded.",
+      message: wasSetup
+        ? "Two-Factor Authentication setup complete. Welcome to your workspace!"
+        : "Verification successful. Welcome back!",
     });
   } catch (err: any) {
     console.error("[2fa/verify-login] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to verify 2FA code." });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to verify 2FA code." });
+  }
+});
+
+// POST /api/auth/2fa/resend
+authRouter.post("/2fa/resend", async (req, res) => {
+  try {
+    const { mfaToken } = req.body;
+
+    if (!mfaToken) {
+      return res.status(400).json({ error: "MFA session token is required to resend verification code." });
+    }
+
+    let payload: any;
+    try {
+      payload = verifyMfaToken(mfaToken);
+    } catch {
+      return res.status(401).json({ error: "2FA session has expired. Please sign in again." });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      include: {
+        profile: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // Enforce 30-second resend cooldown
+    const eligibility = await checkResendEligibility(user.id);
+    if (!eligibility.allowed) {
+      return res.status(429).json({
+        error: `Please wait ${eligibility.secondsRemaining} second${eligibility.secondsRemaining === 1 ? "" : "s"} before requesting a new code.`,
+        secondsRemaining: eligibility.secondsRemaining,
+      });
+    }
+
+    // Invalidate prior unused OTP and generate a fresh one
+    const { otp } = await createOrReplaceOtp(user.id);
+
+    // Send fresh OTP email
+    await sendTwoFactorOtpEmail({
+      toEmail: user.email,
+      otp,
+      fullName: user.profile?.fullName || undefined,
+      isSetup: !user.twoFactorEnabled,
+    });
+
+    return res.json({
+      success: true,
+      message: "A fresh 6-digit verification code has been sent to your registered email.",
+      maskedEmail: maskEmail(user.email),
+      cooldownSeconds: 30,
+    });
+  } catch (err: any) {
+    console.error("[2fa/resend] error:", err);
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to resend verification code." });
   }
 });
 
@@ -300,9 +295,10 @@ authRouter.get("/2fa/status", requireAuth, async (req: AuthRequest, res: Respons
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
       select: {
+        id: true,
+        email: true,
         twoFactorEnabled: true,
         twoFactorConfirmedAt: true,
-        twoFactorBackupCodes: true,
       },
     });
 
@@ -310,238 +306,93 @@ authRouter.get("/2fa/status", requireAuth, async (req: AuthRequest, res: Respons
       return res.status(404).json({ error: "User not found." });
     }
 
-    let remainingBackupCodesCount = 0;
-    if (user.twoFactorBackupCodes) {
-      try {
-        const codes = JSON.parse(user.twoFactorBackupCodes);
-        remainingBackupCodesCount = Array.isArray(codes) ? codes.length : 0;
-      } catch {}
-    }
-
     return res.json({
       twoFactorEnabled: Boolean(user.twoFactorEnabled),
+      twoFactorMethod: "EMAIL_OTP",
       confirmedAt: user.twoFactorConfirmedAt,
-      remainingBackupCodesCount,
+      registeredEmail: user.email,
+      maskedEmail: maskEmail(user.email),
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to get 2FA status." });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to get 2FA status." });
   }
 });
 
-// POST /api/auth/2fa/generate
-authRouter.post("/2fa/generate", requireAuth, async (req: AuthRequest, res: Response) => {
+// POST /api/auth/2fa/setup-initiate
+authRouter.post("/2fa/setup-initiate", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
+      include: { profile: true },
     });
 
     if (!user) {
       return res.status(404).json({ error: "User not found." });
     }
 
-    // Generate RFC 6238 Base32 Secret Key
-    const secret = speakeasy.generateSecret({
-      name: `Master HRMS (${user.email})`,
-      issuer: "Master HRMS",
-      length: 20,
+    const eligibility = await checkResendEligibility(user.id);
+    if (!eligibility.allowed) {
+      return res.status(429).json({
+        error: `Please wait ${eligibility.secondsRemaining} seconds before requesting a new code.`,
+        secondsRemaining: eligibility.secondsRemaining,
+      });
+    }
+
+    const { otp } = await createOrReplaceOtp(user.id);
+
+    await sendTwoFactorOtpEmail({
+      toEmail: user.email,
+      otp,
+      fullName: user.profile?.fullName || undefined,
+      isSetup: true,
     });
 
-    // Generate standard QR code data URI for mobile camera scan
-    const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url || "");
-
-    // Temporarily persist unconfirmed secret
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { twoFactorSecret: secret.base32 },
-    });
+    const mfaToken = generateMfaToken({ userId: user.id, email: user.email });
 
     return res.json({
-      secret: secret.base32,
-      qrCodeDataUrl,
-      otpauthUrl: secret.otpauth_url,
+      success: true,
+      mfaToken,
+      maskedEmail: maskEmail(user.email),
+      message: "A 6-digit setup verification code has been sent to your registered email.",
     });
   } catch (err: any) {
-    console.error("[2fa/generate] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to generate 2FA secret." });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to initiate 2FA setup." });
   }
 });
 
-// POST /api/auth/2fa/enable
-authRouter.post("/2fa/enable", requireAuth, async (req: AuthRequest, res: Response) => {
+// POST /api/auth/2fa/setup-confirm
+authRouter.post("/2fa/setup-confirm", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { token, password } = req.body;
+    const { code } = req.body;
+    const userId = req.user!.userId;
 
-    if (!token || !password) {
-      return res.status(400).json({ error: "Current password and 6-digit TOTP code are required." });
+    if (!code) {
+      return res.status(400).json({ error: "Verification code is required." });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
-    });
-
-    if (!user || !user.twoFactorSecret) {
-      return res.status(400).json({ error: "Please generate a 2FA QR code before enabling." });
+    const verification = await verifyOtpCode(userId, String(code));
+    if (!verification.valid) {
+      return res.status(400).json({ error: verification.error || "Invalid verification code." });
     }
 
-    // 1. Verify account password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      return res.status(400).json({ error: "Incorrect account password." });
-    }
-
-    // 2. Verify 6-digit TOTP token
-    const cleanToken = String(token).trim();
-    const isTokenValid = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
-      encoding: "base32",
-      token: cleanToken,
-      window: 1,
-    });
-
-    if (!isTokenValid) {
-      return res.status(400).json({ error: "Invalid 6-digit code. Please check your Authenticator app clock." });
-    }
-
-    // 3. Generate 8 single-use recovery backup codes
-    const backupCodes = generateBackupCodes(8);
-
-    // 4. Activate 2FA on user account
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: userId },
       data: {
         twoFactorEnabled: true,
-        twoFactorBackupCodes: JSON.stringify(backupCodes),
         twoFactorConfirmedAt: new Date(),
       },
     });
 
     return res.json({
-      message: "Two-Factor Authentication is now enabled!",
-      backupCodes,
+      success: true,
       twoFactorEnabled: true,
+      message: "Two-Factor Authentication is now enabled on your account.",
     });
   } catch (err: any) {
-    console.error("[2fa/enable] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to enable 2FA." });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to confirm 2FA setup." });
   }
 });
 
-// POST /api/auth/2fa/disable
-authRouter.post("/2fa/disable", requireAuth, async (req: AuthRequest, res: Response) => {
-  try {
-    const { password, token } = req.body;
-
-    if (!password) {
-      return res.status(400).json({ error: "Account password is required to disable 2FA." });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found." });
-    }
-
-    // 1. Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      return res.status(400).json({ error: "Incorrect account password." });
-    }
-
-    // 2. Verify TOTP or backup code if token provided
-    if (token && user.twoFactorSecret) {
-      const cleanToken = String(token).trim();
-      let isValid = speakeasy.totp.verify({
-        secret: user.twoFactorSecret,
-        encoding: "base32",
-        token: cleanToken,
-        window: 1,
-      });
-
-      if (!isValid && user.twoFactorBackupCodes) {
-        try {
-          const backupCodes: string[] = JSON.parse(user.twoFactorBackupCodes);
-          isValid = backupCodes.includes(cleanToken);
-        } catch {}
-      }
-
-      if (!isValid) {
-        return res.status(400).json({ error: "Invalid authenticator or backup code." });
-      }
-    }
-
-    // 3. Disable 2FA
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        twoFactorEnabled: false,
-        twoFactorSecret: null,
-        twoFactorBackupCodes: null,
-        twoFactorConfirmedAt: null,
-      },
-    });
-
-    return res.json({
-      message: "Two-Factor Authentication has been disabled.",
-      twoFactorEnabled: false,
-    });
-  } catch (err: any) {
-    console.error("[2fa/disable] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to disable 2FA." });
-  }
-});
-
-// POST /api/auth/2fa/backup-codes/regenerate
-authRouter.post("/2fa/backup-codes/regenerate", requireAuth, async (req: AuthRequest, res: Response) => {
-  try {
-    const { password, token } = req.body;
-
-    const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
-    });
-
-    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
-      return res.status(400).json({ error: "2FA is not enabled on this account." });
-    }
-
-    // Verify password
-    if (password) {
-      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-      if (!isPasswordValid) {
-        return res.status(400).json({ error: "Incorrect password." });
-      }
-    }
-
-    // Verify TOTP token
-    if (token) {
-      const cleanToken = String(token).trim();
-      const isTokenValid = speakeasy.totp.verify({
-        secret: user.twoFactorSecret,
-        encoding: "base32",
-        token: cleanToken,
-        window: 1,
-      });
-      if (!isTokenValid) {
-        return res.status(400).json({ error: "Invalid 6-digit authenticator code." });
-      }
-    }
-
-    const backupCodes = generateBackupCodes(8);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { twoFactorBackupCodes: JSON.stringify(backupCodes) },
-    });
-
-    return res.json({
-      message: "New recovery backup codes generated.",
-      backupCodes,
-    });
-  } catch (err: any) {
-    console.error("[2fa/backup-codes:regenerate] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to regenerate backup codes." });
-  }
-});
 
 // GET /api/auth/me
 authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -562,85 +413,136 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (!user.profile) {
-      let defaultTenant = await prisma.tenant.findFirst({
-        where: { slug: "default-workspace" },
-      });
-      if (!defaultTenant) {
-        defaultTenant = await prisma.tenant.create({
-          data: {
-            name: "Master Workspace",
-            slug: "default-workspace",
-          },
-        });
-      }
-
-      await prisma.profile.create({
-        data: {
-          userId: user.id,
-          email: user.email,
-          fullName: user.email.split("@")[0],
-          tenantId: defaultTenant.id,
-        },
-      });
-
-      user = await prisma.user.findUnique({
-        where: { id: req.user!.userId },
-        include: {
-          profile: {
-            include: {
-              tenant: true,
-            },
-          },
-          roles: true,
-        },
-      });
-    } else if (!user.profile.tenantId) {
-      let defaultTenant = await prisma.tenant.findFirst({
-        where: { slug: "default-workspace" },
-      });
-      if (!defaultTenant) {
-        defaultTenant = await prisma.tenant.create({
-          data: {
-            name: "Master Workspace",
-            slug: "default-workspace",
-          },
-        });
-      }
-
-      await prisma.profile.update({
-        where: { userId: user.id },
-        data: { tenantId: defaultTenant.id },
-      });
-
-      user = await prisma.user.findUnique({
-        where: { id: req.user!.userId },
-        include: {
-          profile: {
-            include: {
-              tenant: true,
-            },
-          },
-          roles: true,
-        },
-      });
-    }
-
     const roles = user!.roles.map((r) => r.role);
+    const tenantId = user!.profile?.tenantId;
+
+    let workspaceRole: any = null;
+    let permissions: string[] = [];
+    let enabledModules: string[] = [];
+    let allowedDashboards: string[] = [];
+
+    if (tenantId) {
+      const tenantMods = await prisma.tenantModule.findMany({
+        where: { tenantId },
+      });
+      const disabledKeySet = new Set(
+        tenantMods.filter((m) => !m.isEnabled).map((m) => m.moduleKey)
+      );
+      enabledModules = ERP_MODULES.filter((m) => !disabledKeySet.has(m.key)).map((m) => m.key);
+
+      const isSuper = roles.includes("super_admin");
+
+      if (isSuper) {
+        const allPerms = await prisma.permission.findMany({ select: { code: true } });
+        permissions = allPerms.map((p) => p.code);
+        workspaceRole = {
+          id: "super_admin_role",
+          name: "Super Administrator",
+          description: "Global Platform Administrator with full system control",
+          isActive: true,
+          isSystem: true,
+        };
+        allowedDashboards = ERP_MODULES.map((m) => m.key);
+      } else {
+        let assignment = await prisma.userRoleAssignment.findUnique({
+          where: {
+            userId_tenantId: {
+              userId: user!.id,
+              tenantId,
+            },
+          },
+          include: {
+            role: {
+              include: {
+                permissions: {
+                  include: { permission: true },
+                },
+              },
+            },
+          },
+        });
+
+        if (!assignment && ((roles as string[]).includes("admin") || (roles as string[]).includes("workspace_admin"))) {
+          const adminRole = await prisma.workspaceRole.findUnique({
+            where: { tenantId_name: { tenantId, name: "Workspace Admin" } },
+            include: {
+              permissions: { include: { permission: true } },
+            },
+          });
+          if (adminRole) {
+            await prisma.userRoleAssignment.create({
+              data: {
+                userId: user!.id,
+                tenantId,
+                roleId: adminRole.id,
+              },
+            });
+            assignment = { role: adminRole } as any;
+          }
+        }
+
+        if (assignment?.role && assignment.role.isActive) {
+          workspaceRole = {
+            id: assignment.role.id,
+            name: assignment.role.name,
+            description: assignment.role.description,
+            isActive: assignment.role.isActive,
+            isSystem: assignment.role.isSystem,
+          };
+
+          if (assignment.role.name === "Workspace Admin") {
+            const allPerms = await prisma.permission.findMany({ select: { code: true } });
+            permissions = allPerms.map((p) => p.code);
+          } else {
+            permissions = assignment.role.permissions.map((rp) => rp.permission.code);
+          }
+        } else {
+          const employeeRole = await prisma.workspaceRole.findUnique({
+            where: { tenantId_name: { tenantId, name: "Employee" } },
+            include: {
+              permissions: { include: { permission: true } },
+            },
+          });
+          if (employeeRole && employeeRole.isActive) {
+            workspaceRole = {
+              id: employeeRole.id,
+              name: employeeRole.name,
+              description: employeeRole.description,
+              isActive: employeeRole.isActive,
+              isSystem: employeeRole.isSystem,
+            };
+            permissions = employeeRole.permissions.map((rp) => rp.permission.code);
+          }
+        }
+
+        allowedDashboards = ERP_MODULES.filter((mod) => {
+          const isModEnabled = enabledModules.includes(mod.key);
+          const hasDashboardPerm =
+            workspaceRole?.name === "Workspace Admin" ||
+            permissions.includes(mod.permission);
+          return isModEnabled && hasDashboardPerm;
+        }).map((m) => m.key);
+      }
+    }
 
     return res.json({
       id: user!.id,
       email: user!.email,
       profile: user!.profile,
       roles,
+      workspaceRole,
+      permissions,
+      enabledModules,
+      allowedDashboards,
+      twoFactorEnabled: user!.twoFactorEnabled,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
   }
 });
 
 // POST /api/auth/claim-super-admin
-authRouter.post("/claim-super-admin", requireAuth, async (req: AuthRequest, res: Response) => {
+authRouter.post("/claim-super-admin", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const existingSuper = await prisma.userRole.findFirst({
       where: { role: "super_admin" },
@@ -663,58 +565,32 @@ authRouter.post("/claim-super-admin", requireAuth, async (req: AuthRequest, res:
 
     return res.json({ success: true, message: "Super admin claimed successfully." });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
   }
 });
 
 // POST /api/auth/bootstrap-tenant
 authRouter.post("/bootstrap-tenant", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, slug } = req.body;
-    const finalName = name || "Primary Workspace";
-    const finalSlug =
-      slug ||
-      finalName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") +
-        "-" +
-        Math.random().toString(36).slice(2, 6);
-
-    const tenant = await prisma.tenant.create({
-      data: {
-        name: finalName,
-        slug: finalSlug,
-      },
+    const { name, slug } = z.object({ name: z.string().trim().min(1).max(255), slug: z.string().min(1).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) }).parse(req.body);
+    const tenant = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${req.user!.userId} FOR UPDATE`;
+      const profile = await tx.profile.findUnique({ where: { userId: req.user!.userId } });
+      if (profile?.tenantId) throw Object.assign(new Error("Your account already belongs to a workspace."), { status: 409 });
+      const created = await tx.tenant.create({ data: { name, slug } });
+      await tx.profile.upsert({ where: { userId: req.user!.userId },
+        create: { userId: req.user!.userId, email: req.user!.email, tenantId: created.id },
+        update: { tenantId: created.id },
+      });
+      await tx.userRole.create({ data: { userId: req.user!.userId, tenantId: created.id, role: "hr_admin" } });
+      const role = await tx.workspaceRole.create({ data: { tenantId: created.id, name: "Workspace Admin", isSystem: true, isActive: true } });
+      await tx.userRoleAssignment.create({ data: { tenantId: created.id, userId: req.user!.userId, roleId: role.id } });
+      return created;
     });
-
-    // Link profile to tenant
-    await prisma.profile.update({
-      where: { userId: req.user!.userId },
-      data: { tenantId: tenant.id },
-    });
-
-    // Assign hr_admin role
-    await prisma.userRole.upsert({
-      where: {
-        userId_role_tenantId: {
-          userId: req.user!.userId,
-          role: "hr_admin",
-          tenantId: tenant.id,
-        },
-      },
-      update: {},
-      create: {
-        id: crypto.randomUUID(),
-        userId: req.user!.userId,
-        role: "hr_admin",
-        tenantId: tenant.id,
-      },
-    });
-
-    return res.json({ success: true, tenant });
+    const token = generateToken({ userId: req.user!.userId, email: req.user!.email, tenantId: tenant.id, roles: ["hr_admin"] });
+    return res.json({ success: true, tenant, token });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -763,7 +639,7 @@ authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) 
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
   }
 });
 
@@ -851,7 +727,7 @@ authRouter.get("/oauth/config", async (req, res) => {
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to fetch OAuth config" });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to fetch OAuth config" });
   }
 });
 
@@ -1044,16 +920,6 @@ async function handleOAuthCallback(req: any, res: Response) {
     });
 
     if (!user) {
-      // Get or create default workspace tenant
-      let defaultTenant = await prisma.tenant.findFirst({
-        where: { slug: "default-workspace" },
-      });
-      if (!defaultTenant) {
-        defaultTenant = await prisma.tenant.create({
-          data: { name: "Master Workspace", slug: "default-workspace" },
-        });
-      }
-
       const randomPassword = await bcrypt.hash(crypto.randomUUID(), 10);
 
       user = await prisma.user.create({
@@ -1066,16 +932,10 @@ async function handleOAuthCallback(req: any, res: Response) {
               email,
               fullName: fullName || email.split("@")[0],
               avatarUrl: avatarUrl || null,
-              tenantId: defaultTenant.id,
+
             },
           },
-          roles: {
-            create: {
-              id: crypto.randomUUID(),
-              role: "employee",
-              tenantId: defaultTenant.id,
-            },
-          },
+
         },
         include: {
           profile: { include: { tenant: true } },
@@ -1119,18 +979,19 @@ authRouter.put("/tenant", requireAuth, async (req: AuthRequest, res: Response) =
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    const { name, logoUrl } = req.body;
+    const { name, logoUrl, timezone } = req.body;
     const updated = await prisma.tenant.update({
       where: { id: tenantId },
       data: {
         ...(name && { name: String(name).trim() }),
         ...(logoUrl !== undefined && { logoUrl }),
+        ...(timezone && { timezone: String(timezone).trim() }),
       },
     });
 
     return res.json({ success: true, tenant: updated });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to update tenant organization." });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to update tenant organization." });
   }
 });
 
@@ -1168,7 +1029,7 @@ authRouter.post("/change-password", requireAuth, async (req: AuthRequest, res: R
 
     return res.json({ success: true, message: "Your password has been changed successfully." });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to update password." });
+    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to update password." });
   }
 });
 

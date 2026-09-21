@@ -146,6 +146,7 @@ const EMPTY_TASK: Omit<ProjectTask, "id" | "createdAt" | "projectId"> = {
 };
 
 function ProjectsPage() {
+  const [isSaving, setIsSaving] = useState(false);
   const qc = useQueryClient();
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);
@@ -174,12 +175,11 @@ function ProjectsPage() {
     queryKey: ["projects-kanban", tenantId],
     queryFn: async () => {
       try {
-        const page = await api.get(`/cms/pages/${SLUG}`);
-        if (page?.content) {
-          const parsed = page.content as any;
+        const res = await api.get("/projects");
+        if (res && res.projects) {
           return {
-            projects: (parsed.projects || []) as Project[],
-            tasks: (parsed.tasks || []) as ProjectTask[],
+            projects: (res.projects || []) as Project[],
+            tasks: (res.tasks || []) as ProjectTask[],
           };
         }
         return { projects: [] as Project[], tasks: [] as ProjectTask[] };
@@ -192,18 +192,6 @@ function ProjectsPage() {
   const projects = storeData?.projects ?? [];
   const tasks = storeData?.tasks ?? [];
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? projects[0] ?? null;
-
-  const persist = useMutation({
-    mutationFn: async (payload: { projects: Project[]; tasks: ProjectTask[] }) => {
-      await api.put(`/cms/pages/${SLUG}`, {
-        title: "Projects Kanban Data",
-        content: payload,
-        published: true,
-      });
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects-kanban", tenantId] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const boardTasks = useMemo(() => {
     if (!activeProject) return [];
@@ -245,50 +233,51 @@ function ProjectsPage() {
     setIsViewModalOpen(true);
   }
 
-  function saveTask() {
+  async function saveTask() {
     if (!taskForm.title.trim()) return toast.error("Task title is required");
     if (!activeProject) return toast.error("Select a project first");
-    let updatedTasks: ProjectTask[];
-    if (editingTask) {
-      updatedTasks = tasks.map((t) =>
-        t.id === editingTask.id ? { ...editingTask, ...taskForm } : t,
-      );
-      if (viewingTask?.id === editingTask.id) {
-        setViewingTask({ ...editingTask, ...taskForm });
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      if (editingTask) {
+        await api.put(`/projects/tasks/${editingTask.id}`, taskForm);
+        toast.success("Task updated!");
+      } else {
+        await api.post(`/projects/${activeProject.id}/tasks`, taskForm);
+        toast.success(`Task "${taskForm.title}" created!`);
       }
-      toast.success("Task updated!");
-    } else {
-      const newTask: ProjectTask = {
-        ...taskForm,
-        id: `TSK-${Date.now()}`,
-        projectId: activeProject.id,
-        createdAt: new Date().toISOString(),
-      };
-      updatedTasks = [newTask, ...tasks];
-      toast.success(`Task "${taskForm.title}" created!`);
-    }
-    persist.mutate({ projects, tasks: updatedTasks });
-    setIsTaskModalOpen(false);
+      qc.invalidateQueries({ queryKey: ["projects-kanban", tenantId] });
+      setIsTaskModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save task");
+    } finally { setIsSaving(false); }
   }
 
-  function deleteTask(id: string) {
-    persist.mutate({ projects, tasks: tasks.filter((t) => t.id !== id) });
-    if (viewingTask?.id === id) {
-      setIsViewModalOpen(false);
-      setViewingTask(null);
+  async function deleteTask(id: string) {
+    if (!confirm("Are you sure you want to delete this task?")) return;
+    try {
+      await api.delete(`/projects/tasks/${id}`);
+      qc.invalidateQueries({ queryKey: ["projects-kanban", tenantId] });
+      if (viewingTask?.id === id) {
+        setIsViewModalOpen(false);
+        setViewingTask(null);
+      }
+      toast.success("Task deleted.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete task");
     }
-    toast.success("Task deleted.");
   }
 
-  function moveTask(task: ProjectTask, newStatus: ProjectTask["status"]) {
+  async function moveTask(task: ProjectTask, newStatus: ProjectTask["status"]) {
     if (task.status === newStatus) return;
-    const updated = tasks.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t));
-    if (viewingTask?.id === task.id) {
-      setViewingTask({ ...viewingTask, status: newStatus });
+    try {
+      await api.put(`/projects/tasks/${task.id}`, { status: newStatus });
+      qc.invalidateQueries({ queryKey: ["projects-kanban", tenantId] });
+      const targetCol = COLUMNS.find((c) => c.id === newStatus);
+      toast.success(`Moved to ${targetCol?.label || newStatus}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to move task");
     }
-    persist.mutate({ projects, tasks: updated });
-    const targetCol = COLUMNS.find((c) => c.id === newStatus);
-    toast.success(`Moved to ${targetCol?.label || newStatus}`);
   }
 
   function handleDropTask(taskId: string, targetStatus: ProjectTask["status"]) {
@@ -298,30 +287,35 @@ function ProjectsPage() {
     moveTask(task, targetStatus);
   }
 
-  function createProject() {
+  async function createProject() {
     if (!projectName.trim()) return toast.error("Project name is required");
-    const newProject: Project = {
-      id: `PRJ-${Date.now()}`,
-      name: projectName.trim(),
-      description: projectDesc,
-      color: projectColor,
-      createdAt: new Date().toISOString(),
-    };
-    const updatedProjects = [newProject, ...projects];
-    persist.mutate({ projects: updatedProjects, tasks });
-    setActiveProjectId(newProject.id);
-    setIsProjectModalOpen(false);
-    setProjectName("");
-    setProjectDesc("");
-    toast.success(`Project "${projectName}" created!`);
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const created = await api.post("/projects", {
+        name: projectName.trim(),
+        description: projectDesc.trim(),
+      });
+      if (created?.id) setActiveProjectId(created.id);
+      qc.invalidateQueries({ queryKey: ["projects-kanban", tenantId] });
+      setIsProjectModalOpen(false);
+      setProjectName("");
+      setProjectDesc("");
+      toast.success(`Project "${projectName}" created!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create project");
+    } finally { setIsSaving(false); }
   }
 
-  function deleteProject(projectId: string) {
-    const updatedProjects = projects.filter((p) => p.id !== projectId);
-    const updatedTasks = tasks.filter((t) => t.projectId !== projectId);
-    persist.mutate({ projects: updatedProjects, tasks: updatedTasks });
-    if (activeProjectId === projectId) setActiveProjectId(updatedProjects[0]?.id ?? null);
-    toast.success("Project deleted.");
+  async function deleteProject(projectId: string) {
+    if (!confirm("Are you sure you want to delete this project and all its tasks?")) return;
+    try {
+      await api.delete(`/projects/${projectId}`);
+      qc.invalidateQueries({ queryKey: ["projects-kanban", tenantId] });
+      toast.success("Project deleted.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete project");
+    }
   }
 
   return (
@@ -1000,8 +994,8 @@ function ProjectsPage() {
               <Button variant="outline" onClick={() => setIsTaskModalOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={saveTask} disabled={persist.isPending} className="font-bold gap-2">
-                {persist.isPending && <Loader2 className="size-4 animate-spin" />}
+              <Button onClick={saveTask} disabled={isSaving} className="font-bold gap-2">
+                {isSaving && <Loader2 className="size-4 animate-spin" />}
                 {editingTask ? "Save Changes" : "Create Task"}
               </Button>
             </DialogFooter>
@@ -1062,10 +1056,10 @@ function ProjectsPage() {
               </Button>
               <Button
                 onClick={createProject}
-                disabled={persist.isPending}
+                disabled={isSaving}
                 className="font-bold gap-2"
               >
-                {persist.isPending && <Loader2 className="size-4 animate-spin" />}
+                {isSaving && <Loader2 className="size-4 animate-spin" />}
                 Create Project
               </Button>
             </DialogFooter>

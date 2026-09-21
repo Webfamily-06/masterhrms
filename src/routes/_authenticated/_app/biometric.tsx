@@ -106,6 +106,7 @@ export function BiometricPage() {
     deviceName: "",
     deviceModel: "Universal Biometric Device",
     deviceType: "hybrid",
+    purpose: "both",
     ipAddress: "",
     port: "4370",
     serialNumber: "",
@@ -299,6 +300,17 @@ export function BiometricPage() {
     onError: (e: any) => toast.error(e.message || "Failed to delete device"),
   });
 
+  const updateDevicePurposeMut = useMutation({
+    mutationFn: async ({ id, purpose }: { id: string; purpose: string }) =>
+      api.put(`/biometric/devices/${id}`, { purpose }),
+    onSuccess: () => {
+      toast.success("Device terminal role updated successfully!");
+      qc.invalidateQueries({ queryKey: ["biometric-devices"] });
+      qc.invalidateQueries({ queryKey: ["biometric-summary"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update terminal role"),
+  });
+
   const simulatePunchMut = useMutation({
     mutationFn: async (payload: any) => api.post("/biometric/simulate", payload),
     onSuccess: (res: any) => {
@@ -318,6 +330,7 @@ export function BiometricPage() {
       deviceName: "",
       deviceModel: "Universal Biometric Device",
       deviceType: "hybrid",
+      purpose: "both",
       ipAddress: "",
       port: "4370",
       serialNumber: "",
@@ -374,7 +387,7 @@ export function BiometricPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-7xl pb-12">
+    <div className="space-y-6 max-w-full pb-12">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
@@ -612,6 +625,23 @@ export function BiometricPage() {
 
                       <Badge variant="outline" className="text-[9px] font-mono text-muted-foreground">
                         SN: {dev.serialNumber}
+                      </Badge>
+
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] font-semibold h-4.5 px-1.5 gap-1 ${
+                          dev.purpose === "check_in_only"
+                            ? "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400"
+                            : dev.purpose === "check_out_only"
+                            ? "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400"
+                            : "bg-purple-500/10 text-purple-700 border-purple-500/30 dark:text-purple-400"
+                        }`}
+                      >
+                        {dev.purpose === "check_in_only"
+                          ? "Entrance (In Only)"
+                          : dev.purpose === "check_out_only"
+                          ? "Exit (Out Only)"
+                          : "Dual (In & Out)"}
                       </Badge>
                     </div>
 
@@ -1506,6 +1536,24 @@ export function BiometricPage() {
               </div>
             </div>
 
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Terminal Role / Attendance Purpose *</Label>
+              <Select
+                value={registerForm.purpose}
+                onValueChange={(v) => setRegisterForm({ ...registerForm, purpose: v })}
+              >
+                <SelectTrigger className="h-8 text-xs font-medium"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">Both (Check-In & Check-Out Terminal - Standard)</SelectItem>
+                  <SelectItem value="check_in_only">Entrance Gate (Check-In Only / 1st Punch of Day)</SelectItem>
+                  <SelectItem value="check_out_only">Exit Gate (Check-Out Only / Last Punch of Day)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Set role for dual-device setups (e.g. Entrance Terminal for 1st Punch In, Exit Terminal for Last Punch Out).
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">IP Address (Optional for Cloud Push)</Label>
@@ -1622,7 +1670,7 @@ export function BiometricPage() {
                 <SelectContent>
                   {devices.map((d: any) => (
                     <SelectItem key={d.id} value={d.id}>
-                      {d.deviceName} ({d.location})
+                      {d.deviceName} ({d.purpose === 'check_in_only' ? 'Entrance / In Only' : d.purpose === 'check_out_only' ? 'Exit / Out Only' : 'Both In & Out'} - {d.location})
                     </SelectItem>
                   ))}
                 </SelectContent>

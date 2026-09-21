@@ -199,529 +199,540 @@ export function HrmHubPage() {
           </div>
         </div>
 
-        {/* ─── 2. COMPACT 4-COLUMN KPI ROW (100% REAL DB DATA) ─── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* ─── 2. EXACT CRM-STYLE 4-COLUMN KPI ROW (100% REAL DB DATA) ─── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
+
           {/* Total Employees */}
-          <Card className="p-4 border shadow-2xs bg-card hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Total Employees
-              </span>
-              <div className="size-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 grid place-items-center">
-                <Users className="size-3.5" />
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+            <div className="h-1 bg-gradient-to-r from-success via-warning to-danger"></div>
+            <div className="p-4 bg-success/5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs text-default mb-1">Total Employees</p>
+                  <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-white mb-0">{totalEmployees}</h2>
+                </div>
+                <div className="size-10 rounded-full bg-success flex items-center justify-center shrink-0">
+                  <i className="ph-duotone ph-user text-white text-lg"></i>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="inline-flex items-center font-semibold text-success">
+                  <i className="ph ph-arrow-up text-[10px] me-0.5"></i>+{newEmployeesThisMonth}
+                </span>
+                <span className="text-default">this month</span>
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-black tracking-tight text-foreground">
-                {totalEmployees}
-              </span>
-              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-                <TrendingUp className="size-3" /> +{newEmployeesThisMonth} this month
-              </span>
-            </div>
-          </Card>
+          </div>
 
           {/* Present Today */}
-          <Card className="p-4 border shadow-2xs bg-card hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Present Today
-              </span>
-              <div className="size-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 grid place-items-center">
-                <Clock className="size-3.5" />
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+            <div className="h-1 bg-gradient-to-r from-purple via-pink to-purple"></div>
+            <div className="p-4 bg-purple/5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs text-default mb-1">Present Today</p>
+                  <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-white mb-0">{presentToday}</h2>
+                </div>
+                <div className="size-10 rounded-full bg-purple flex items-center justify-center shrink-0">
+                  <i className="ph-duotone ph-info text-white text-lg"></i>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="inline-flex items-center font-semibold text-success">
+                  <i className="ph ph-arrow-up text-[10px] me-0.5"></i>{presentPercentage}%
+                </span>
+                <span className="text-default">attendance</span>
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-black tracking-tight text-foreground">
-                {presentToday}
-              </span>
-              <span className="text-[11px] font-semibold text-muted-foreground">
-                {presentPercentage}% attendance
-              </span>
-            </div>
-          </Card>
+          </div>
 
           {/* On Leave */}
-          <Card className="p-4 border shadow-2xs bg-card hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                On Leave
-              </span>
-              <div className="size-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 grid place-items-center">
-                <CalendarCheck className="size-3.5" />
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+            <div className="h-1 bg-gradient-to-r from-warning via-orange to-warning"></div>
+            <div className="p-4 bg-warning/5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs text-default mb-1">On Leave</p>
+                  <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-white mb-0">{onLeaveToday}</h2>
+                </div>
+                <div className="size-10 rounded-full bg-warning flex items-center justify-center shrink-0">
+                  <i className="ph-duotone ph-medal text-white text-lg"></i>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="inline-flex items-center font-semibold text-warning">
+                  <i className="ph ph-clock text-[10px] me-0.5"></i>Today
+                </span>
+                <span className="text-default">approved leave</span>
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-black tracking-tight text-foreground">
-                {onLeaveToday}
-              </span>
-              <span className="text-[11px] font-medium text-muted-foreground">
-                Today
-              </span>
-            </div>
-          </Card>
+          </div>
 
           {/* Pending Approvals */}
-          <Card className="p-4 border shadow-2xs bg-card hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Pending Approvals
-              </span>
-              <div className="size-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 grid place-items-center">
-                <AlertCircle className="size-3.5" />
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+            <div className="h-1 bg-gradient-to-r from-pink via-purple to-pink"></div>
+            <div className="p-4 bg-pink/5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs text-default mb-1">Pending Approvals</p>
+                  <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-white mb-0">{totalPending}</h2>
+                </div>
+                <div className="size-10 rounded-full bg-pink flex items-center justify-center shrink-0">
+                  <i className="ph-duotone ph-credit-card text-white text-lg"></i>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`inline-flex items-center font-semibold ${totalPending > 0 ? "text-danger" : "text-success"}`}>
+                  <i className={`ph ${totalPending > 0 ? "ph-arrow-down" : "ph-arrow-up"} text-[10px] me-0.5`}></i>
+                  {totalPending > 0 ? `+${totalPending}` : "0"}
+                </span>
+                <span className="text-default">{totalPending > 0 ? "requires action" : "All cleared"}</span>
               </div>
             </div>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-black tracking-tight text-foreground">
-                {totalPending}
-              </span>
-              <span className={`text-[11px] font-semibold ${totalPending > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>
-                {totalPending > 0 ? "Requires action" : "All cleared"}
-              </span>
-            </div>
-          </Card>
+          </div>
+
         </div>
 
-        {/* ─── 3. MAIN OPERATIONAL 2-COLUMN SECTION (100% REAL DB DATA) ─── */}
+        {/* ─── 3. MAIN OPERATIONAL 2-COLUMN SECTION (EXACT CRM CONTAINER UI) ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left: Attendance Today */}
-          <Card className="p-4 border shadow-2xs bg-card flex flex-col justify-between space-y-3.5">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b pb-2.5">
-                <div className="flex items-center gap-2">
-                  <Clock className="size-4 text-primary" />
-                  <h3 className="font-bold text-sm text-foreground">Attendance Today</h3>
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border flex flex-col justify-between">
+            <div className="p-4 flex flex-col justify-between flex-1 space-y-4">
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between border-b border-border-color pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-full bg-success flex items-center justify-center shrink-0">
+                      <i className="ph-duotone ph-clock text-white text-base"></i>
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-sm text-gray-900 dark:text-white">Attendance Today</h5>
+                      <p className="text-[11px] text-default">Real-time attendance & live punch status</p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center text-[10px] font-semibold text-success bg-success/10 border border-success/30 px-2 py-0.5 rounded-full">
+                    <span className="size-1.5 rounded-full bg-success me-1 animate-pulse"></span> MySQL Real-Time
+                  </span>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/5">
-                  MySQL Real-Time
-                </Badge>
-              </div>
 
-              {/* Attendance Breakdown Grid */}
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-0.5">
-                  <span className="text-[11px] font-semibold text-muted-foreground block">Present</span>
-                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                    {presentToday}
-                  </span>
+                {/* Attendance Breakdown Grid - 4 Sub-Boxes */}
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="p-2.5 rounded-md bg-success/5 border border-success/20">
+                    <span className="text-[11px] font-semibold text-default block">Present</span>
+                    <span className="text-lg font-bold text-success">{presentToday}</span>
+                  </div>
+                  <div className="p-2.5 rounded-md bg-warning/5 border border-warning/20">
+                    <span className="text-[11px] font-semibold text-default block">Late</span>
+                    <span className="text-lg font-bold text-warning">{lateToday}</span>
+                  </div>
+                  <div className="p-2.5 rounded-md bg-danger/5 border border-danger/20">
+                    <span className="text-[11px] font-semibold text-default block">Absent</span>
+                    <span className="text-lg font-bold text-danger">{absentToday}</span>
+                  </div>
+                  <div className="p-2.5 rounded-md bg-purple/5 border border-purple/20">
+                    <span className="text-[11px] font-semibold text-default block">On Leave</span>
+                    <span className="text-lg font-bold text-purple">{onLeaveToday}</span>
+                  </div>
                 </div>
-                <div className="p-2 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-0.5">
-                  <span className="text-[11px] font-semibold text-muted-foreground block">Late</span>
-                  <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                    {lateToday}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-rose-500/5 border border-rose-500/20 space-y-0.5">
-                  <span className="text-[11px] font-semibold text-muted-foreground block">Absent</span>
-                  <span className="text-lg font-bold text-rose-600 dark:text-rose-400">
-                    {absentToday}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-0.5">
-                  <span className="text-[11px] font-semibold text-muted-foreground block">On Leave</span>
-                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                    {onLeaveToday}
-                  </span>
-                </div>
-              </div>
 
-              {/* Segmented Progress Bar */}
-              <div className="space-y-1.5 pt-1">
-                <div className="h-2 w-full rounded-full bg-muted overflow-hidden flex">
-                  <div style={{ width: `${totalEmployees > 0 ? (presentToday / totalEmployees) * 100 : 0}%` }} className="bg-emerald-500" title={`Present: ${presentToday}`} />
-                  <div style={{ width: `${totalEmployees > 0 ? (lateToday / totalEmployees) * 100 : 0}%` }} className="bg-amber-500" title={`Late: ${lateToday}`} />
-                  <div style={{ width: `${totalEmployees > 0 ? (absentToday / totalEmployees) * 100 : 0}%` }} className="bg-rose-500" title={`Absent: ${absentToday}`} />
-                  <div style={{ width: `${totalEmployees > 0 ? (onLeaveToday / totalEmployees) * 100 : 0}%` }} className="bg-blue-500" title={`On Leave: ${onLeaveToday}`} />
+                {/* Visual Proportion Bar */}
+                <div className="space-y-1.5">
+                  <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-muted/30 overflow-hidden flex">
+                    <div style={{ width: `${totalEmployees > 0 ? (presentToday / totalEmployees) * 100 : 0}%` }} className="bg-success transition-all duration-500" title={`Present: ${presentToday}`} />
+                    <div style={{ width: `${totalEmployees > 0 ? (lateToday / totalEmployees) * 100 : 0}%` }} className="bg-warning transition-all duration-500" title={`Late: ${lateToday}`} />
+                    <div style={{ width: `${totalEmployees > 0 ? (absentToday / totalEmployees) * 100 : 0}%` }} className="bg-danger transition-all duration-500" title={`Absent: ${absentToday}`} />
+                    <div style={{ width: `${totalEmployees > 0 ? (onLeaveToday / totalEmployees) * 100 : 0}%` }} className="bg-purple transition-all duration-500" title={`On Leave: ${onLeaveToday}`} />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-default font-mono">
+                    <span>{presentPercentage}% Attendance Rate</span>
+                    <span>{totalEmployees} Total Staff</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-                  <span>{presentPercentage}% Attendance Rate</span>
-                  <span>{totalEmployees} Total Staff</span>
-                </div>
-              </div>
 
-              {/* Today's Live Clock-in Roster */}
-              {stats?.todayRoster && stats.todayRoster.length > 0 && (
-                <div className="space-y-1 pt-2 border-t">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    Live Clock-In Stream Today
-                  </span>
-                  <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                    {stats.todayRoster.slice(0, 4).map((r: any) => (
-                      <div key={r.id} className="flex items-center justify-between text-[11px] p-1.5 rounded-lg bg-muted/20 border">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-foreground">{r.name}</span>
-                          <span className="text-muted-foreground font-mono text-[9px]">#{r.employeeCode}</span>
+                {/* Today's Live Clock-in Roster */}
+                {stats?.todayRoster && stats.todayRoster.length > 0 && (
+                  <div className="space-y-1.5 pt-3 border-t border-border-color">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-default block">
+                      Live Clock-In Stream Today
+                    </span>
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                      {stats.todayRoster.slice(0, 4).map((r: any) => (
+                        <div key={r.id} className="flex items-center justify-between text-[11px] p-2 rounded-md bg-gray-50/70 dark:bg-muted/20 border border-border-color">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-gray-900 dark:text-white">{r.name}</span>
+                            <span className="text-default font-mono text-[10px]">#{r.employeeCode}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-success font-bold">
+                              {r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded border border-success/30 text-success bg-success/10 font-bold">
+                              PUNCH IN
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-emerald-600 font-bold">
-                            {r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                          </span>
-                          <Badge variant="outline" className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-500/5 font-bold">
-                            PUNCH IN
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-2 border-t flex justify-end">
-              <Link
-                to="/attendance"
-                className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-              >
-                View Full Attendance Sheet <ArrowRight className="size-3" />
-              </Link>
-            </div>
-          </Card>
-
-          {/* Right: Pending Approvals */}
-          <Card className="p-4 border shadow-2xs bg-card flex flex-col justify-between space-y-3.5">
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between border-b pb-2.5">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="size-4 text-rose-500" />
-                  <h3 className="font-bold text-sm text-foreground">Pending Approvals</h3>
-                </div>
-                <Badge variant="secondary" className="text-[10px] font-mono font-bold">
-                  {totalPending} Actionable
-                </Badge>
+                )}
               </div>
 
-              {/* Clickable Real Approval Rows */}
-              <div className="space-y-1.5">
-                <Link
-                  to="/leave"
-                  className="flex items-center justify-between p-2 rounded-xl border bg-muted/20 hover:bg-muted/60 transition-colors text-xs group"
-                >
-                  <span className="flex items-center gap-2 text-foreground font-medium">
-                    <CalendarCheck className="size-3.5 text-amber-500" />
-                    <span>Leave Requests</span>
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className={`text-[10px] font-mono h-4.5 px-1.5 ${pendingLeaves > 0 ? "border-amber-500/30 text-amber-600 bg-amber-500/10" : "text-muted-foreground"}`}>
-                      {pendingLeaves}
-                    </Badge>
-                    <ChevronRight className="size-3 text-muted-foreground group-hover:text-foreground transition-transform group-hover:translate-x-0.5" />
-                  </div>
-                </Link>
-
-                <Link
-                  to="/expenses"
-                  className="flex items-center justify-between p-2 rounded-xl border bg-muted/20 hover:bg-muted/60 transition-colors text-xs group"
-                >
-                  <span className="flex items-center gap-2 text-foreground font-medium">
-                    <Receipt className="size-3.5 text-rose-500" />
-                    <span>Expense Claims</span>
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className={`text-[10px] font-mono h-4.5 px-1.5 ${pendingExpenses > 0 ? "border-rose-500/30 text-rose-600 bg-rose-500/10" : "text-muted-foreground"}`}>
-                      {pendingExpenses}
-                    </Badge>
-                    <ChevronRight className="size-3 text-muted-foreground group-hover:text-foreground transition-transform group-hover:translate-x-0.5" />
-                  </div>
-                </Link>
-
+              <div className="pt-3 border-t border-border-color flex justify-end">
                 <Link
                   to="/attendance"
-                  className="flex items-center justify-between p-2 rounded-xl border bg-muted/20 hover:bg-muted/60 transition-colors text-xs group"
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
                 >
-                  <span className="flex items-center gap-2 text-foreground font-medium">
-                    <Clock className="size-3.5 text-blue-500" />
-                    <span>Attendance Corrections</span>
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="text-[10px] font-mono h-4.5 px-1.5 text-muted-foreground">
-                      {pendingAttendance}
-                    </Badge>
-                    <ChevronRight className="size-3 text-muted-foreground group-hover:text-foreground transition-transform group-hover:translate-x-0.5" />
-                  </div>
-                </Link>
-
-                <Link
-                  to="/documents"
-                  className="flex items-center justify-between p-2 rounded-xl border bg-muted/20 hover:bg-muted/60 transition-colors text-xs group"
-                >
-                  <span className="flex items-center gap-2 text-foreground font-medium">
-                    <FolderLock className="size-3.5 text-indigo-500" />
-                    <span>Document Sign-Offs</span>
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="text-[10px] font-mono h-4.5 px-1.5 text-muted-foreground">
-                      {pendingDocs}
-                    </Badge>
-                    <ChevronRight className="size-3 text-muted-foreground group-hover:text-foreground transition-transform group-hover:translate-x-0.5" />
-                  </div>
+                  View Full Attendance Sheet <i className="ph ph-arrow-right text-[11px]"></i>
                 </Link>
               </div>
             </div>
+          </div>
 
-            <div className="pt-2 border-t flex justify-end">
-              <Link
-                to="/leave"
-                className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-              >
-                View All Approvals <ArrowRight className="size-3" />
-              </Link>
+          {/* Right: Pending Approvals */}
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border flex flex-col justify-between">
+            <div className="p-4 flex flex-col justify-between flex-1 space-y-4">
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between border-b border-border-color pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-full bg-purple flex items-center justify-center shrink-0">
+                      <i className="ph-duotone ph-bell-ringing text-white text-base"></i>
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-sm text-gray-900 dark:text-white">Pending Approvals</h5>
+                      <p className="text-[11px] text-default">Administrative requests requiring action</p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center text-[10px] font-mono font-bold text-purple bg-purple/10 border border-purple/30 px-2 py-0.5 rounded-full">
+                    {totalPending} Actionable
+                  </span>
+                </div>
+
+                {/* Clickable Real Approval Rows */}
+                <div className="space-y-2">
+                  <Link
+                    to="/leave"
+                    className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-warning/50 hover:bg-warning/5 transition-all text-xs group"
+                  >
+                    <span className="flex items-center gap-2.5 text-gray-900 dark:text-white font-medium">
+                      <div className="size-7 rounded-md bg-warning/10 text-warning flex items-center justify-center">
+                        <i className="ph-duotone ph-calendar-check text-sm"></i>
+                      </div>
+                      <span>Leave Requests</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${pendingLeaves > 0 ? "border border-warning/30 text-warning bg-warning/10" : "text-default bg-gray-100 dark:bg-muted/30"}`}>
+                        {pendingLeaves}
+                      </span>
+                      <i className="ph ph-caret-right text-default text-xs group-hover:translate-x-0.5 transition-transform"></i>
+                    </div>
+                  </Link>
+
+                  <Link
+                    to="/expenses"
+                    className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-danger/50 hover:bg-danger/5 transition-all text-xs group"
+                  >
+                    <span className="flex items-center gap-2.5 text-gray-900 dark:text-white font-medium">
+                      <div className="size-7 rounded-md bg-danger/10 text-danger flex items-center justify-center">
+                        <i className="ph-duotone ph-receipt text-sm"></i>
+                      </div>
+                      <span>Expense Claims</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${pendingExpenses > 0 ? "border border-danger/30 text-danger bg-danger/10" : "text-default bg-gray-100 dark:bg-muted/30"}`}>
+                        {pendingExpenses}
+                      </span>
+                      <i className="ph ph-caret-right text-default text-xs group-hover:translate-x-0.5 transition-transform"></i>
+                    </div>
+                  </Link>
+
+                  <Link
+                    to="/attendance"
+                    className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-primary/50 hover:bg-primary/5 transition-all text-xs group"
+                  >
+                    <span className="flex items-center gap-2.5 text-gray-900 dark:text-white font-medium">
+                      <div className="size-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                        <i className="ph-duotone ph-clock-user text-sm"></i>
+                      </div>
+                      <span>Attendance Corrections</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold text-default bg-gray-100 dark:bg-muted/30">
+                        {pendingAttendance}
+                      </span>
+                      <i className="ph ph-caret-right text-default text-xs group-hover:translate-x-0.5 transition-transform"></i>
+                    </div>
+                  </Link>
+
+                  <Link
+                    to="/documents"
+                    className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-purple/50 hover:bg-purple/5 transition-all text-xs group"
+                  >
+                    <span className="flex items-center gap-2.5 text-gray-900 dark:text-white font-medium">
+                      <div className="size-7 rounded-md bg-purple/10 text-purple flex items-center justify-center">
+                        <i className="ph-duotone ph-file-lock text-sm"></i>
+                      </div>
+                      <span>Document Sign-Offs</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold text-default bg-gray-100 dark:bg-muted/30">
+                        {pendingDocs}
+                      </span>
+                      <i className="ph ph-caret-right text-default text-xs group-hover:translate-x-0.5 transition-transform"></i>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-border-color flex justify-end">
+                <Link
+                  to="/leave"
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                >
+                  View All Approvals <i className="ph ph-arrow-right text-[11px]"></i>
+                </Link>
+              </div>
             </div>
-          </Card>
+          </div>
         </div>
 
-        {/* ─── 4. PAYROLL & ALERTS 2-COLUMN SECTION (100% REAL DB DATA) ─── */}
+        {/* ─── 4. PAYROLL & ALERTS 2-COLUMN SECTION (EXACT CRM CONTAINER UI) ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Payroll Status Card */}
-          <Card className="p-4 border shadow-2xs bg-card flex flex-col justify-between space-y-3.5 min-w-0 overflow-hidden">
-            <div className="space-y-3 min-w-0">
-              <div className="flex items-center justify-between border-b pb-2.5 gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Wallet className="size-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <h3 className="font-bold text-sm text-foreground truncate">
-                    Payroll — {currentMonthYear}
-                  </h3>
-                </div>
-                <Badge
-                  className={`text-[10px] font-semibold shrink-0 ${
-                    payrollStatus === "PAID"
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300"
-                      : payrollStatus === "APPROVED"
-                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300"
-                      : "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300"
-                  }`}
-                >
-                  {payrollStatus}
-                </Badge>
-              </div>
-
-              {/* 2x2 Spacious Key-Value Grid */}
-              <div className="grid grid-cols-2 gap-2.5 text-xs min-w-0">
-                {/* Staff Included */}
-                <div className="p-2.5 rounded-xl border bg-muted/20 space-y-1 min-w-0 overflow-hidden">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block truncate">
-                    Staff Included
-                  </span>
-                  <span className="text-xs sm:text-sm font-bold text-foreground block truncate">
-                    {payrollEmployees} Staff
-                  </span>
-                </div>
-
-                {/* Status */}
-                <div className="p-2.5 rounded-xl border bg-muted/20 space-y-1 min-w-0 overflow-hidden">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block truncate">
-                    Payroll Status
-                  </span>
-                  <span className="text-xs sm:text-sm font-bold text-foreground block truncate">
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border flex flex-col justify-between min-w-0">
+            <div className="p-4 flex flex-col justify-between flex-1 space-y-4">
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between border-b border-border-color pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-full bg-warning flex items-center justify-center shrink-0">
+                      <i className="ph-duotone ph-wallet text-white text-base"></i>
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-sm text-gray-900 dark:text-white">Payroll — {currentMonthYear}</h5>
+                      <p className="text-[11px] text-default">Current cycle disbursement & processing status</p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    payrollStatus === "Processed"
+                      ? "border-success/30 text-success bg-success/10"
+                      : payrollStatus === "Pending"
+                      ? "border-warning/30 text-warning bg-warning/10"
+                      : "border-border-color text-default bg-gray-100 dark:bg-muted/30"
+                  }`}>
                     {payrollStatus}
                   </span>
                 </div>
 
-                {/* Gross Payroll */}
-                <div className="p-2.5 rounded-xl border bg-muted/20 space-y-1 min-w-0 overflow-hidden">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block truncate">
-                    Gross Payroll
-                  </span>
-                  <span
-                    className="text-xs sm:text-sm font-bold text-foreground block truncate font-mono"
-                    title={formatSystemAmount(grossPayroll, sysConfig)}
-                  >
-                    {formatSystemAmount(grossPayroll, sysConfig)}
-                  </span>
-                </div>
-
-                {/* Net Payroll */}
-                <div className="p-2.5 rounded-xl border bg-muted/20 space-y-1 min-w-0 overflow-hidden">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block truncate">
-                    Net Payroll
-                  </span>
-                  <span
-                    className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 block truncate font-mono"
-                    title={formatSystemAmount(netPayroll, sysConfig)}
-                  >
-                    {formatSystemAmount(netPayroll, sysConfig)}
-                  </span>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-3 rounded-md bg-purple/5 border border-purple/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-default block">Staff Included</span>
+                    <span className="text-base font-bold text-gray-900 dark:text-white mt-1 block">{payrollEmployees} Staff</span>
+                  </div>
+                  <div className="p-3 rounded-md bg-warning/5 border border-warning/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-default block">Payroll Status</span>
+                    <span className="text-base font-bold text-warning mt-1 block">{payrollStatus}</span>
+                  </div>
+                  <div className="p-3 rounded-md bg-success/5 border border-success/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-default block">Gross Payroll</span>
+                    <span className="text-base font-bold text-success mt-1 block">${grossPayroll.toLocaleString()}</span>
+                  </div>
+                  <div className="p-3 rounded-md bg-pink/5 border border-pink/20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-default block">Net Payroll</span>
+                    <span className="text-base font-bold text-pink mt-1 block">${netPayroll.toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-2.5 border-t flex justify-end">
-              <Link
-                to="/payroll"
-                className="text-xs font-bold text-primary hover:underline flex items-center gap-1.5 shrink-0"
-              >
-                <span>Open Payroll</span>
-                <ArrowRight className="size-3" />
-              </Link>
+              <div className="pt-3 border-t border-border-color flex justify-end">
+                <Link
+                  to="/payroll"
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                >
+                  Open Payroll <i className="ph ph-arrow-right text-[11px]"></i>
+                </Link>
+              </div>
             </div>
-          </Card>
+          </div>
 
           {/* Alerts & Reminders */}
-          <Card className="p-4 border shadow-2xs bg-card flex flex-col justify-between space-y-3 min-w-0 overflow-hidden">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between border-b pb-2.5">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="size-4 text-amber-500" />
-                  <h3 className="font-bold text-sm text-foreground">Alerts & Reminders</h3>
-                </div>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  {dynamicAlerts.length} Notices
-                </Badge>
-              </div>
-
-              <div className="space-y-1.5">
-                {dynamicAlerts.length > 0 ? (
-                  dynamicAlerts.map((alt) => (
-                    <div
-                      key={alt.id}
-                      className="flex items-center justify-between p-2 rounded-xl border bg-muted/20 text-xs gap-2"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-amber-500 font-bold shrink-0">⚠️</span>
-                        <span className="text-muted-foreground truncate">{alt.text}</span>
-                      </div>
-                      <Link
-                        to={alt.url}
-                        className="text-[11px] font-bold text-primary hover:underline shrink-0 whitespace-nowrap"
-                      >
-                        {alt.actionLabel} →
-                      </Link>
+          <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border flex flex-col justify-between min-w-0">
+            <div className="p-4 flex flex-col justify-between flex-1 space-y-4">
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between border-b border-border-color pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-full bg-pink flex items-center justify-center shrink-0">
+                      <i className="ph-duotone ph-warning-diamond text-white text-base"></i>
                     </div>
-                  ))
-                ) : (
-                  <div className="p-3 text-center rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                    ✨ All HR operations are clear! No pending alerts or overdue actions.
+                    <div>
+                      <h5 className="font-bold text-sm text-gray-900 dark:text-white">Alerts & Reminders</h5>
+                      <p className="text-[11px] text-default">System notices and overdue tasks requiring action</p>
+                    </div>
                   </div>
-                )}
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-pink/30 text-pink bg-pink/10">
+                    {dynamicAlerts.length} Notices
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {dynamicAlerts.length > 0 ? (
+                    dynamicAlerts.map((alt) => (
+                      <div
+                        key={alt.id}
+                        className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 text-xs gap-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <i className="ph-duotone ph-warning text-warning text-base shrink-0"></i>
+                          <span className="text-gray-900 dark:text-gray-200 truncate">{alt.text}</span>
+                        </div>
+                        <Link
+                          to={alt.url}
+                          className="text-[11px] font-bold text-primary hover:underline shrink-0 whitespace-nowrap"
+                        >
+                          {alt.actionLabel} →
+                        </Link>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center rounded-md bg-success/5 border border-success/20 text-xs text-success font-medium">
+                      <i className="ph-duotone ph-check-circle text-lg block mb-1"></i>
+                      All HR operations are clear! No pending alerts or overdue actions.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
 
-        {/* ─── 5. QUICK ACTIONS SECTION ─── */}
-        <Card className="p-3.5 border shadow-2xs bg-card">
-          <div className="flex items-center justify-between border-b pb-2 mb-2.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Quick Operations
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate({ to: "/employees" })}
-              className="h-9 text-xs justify-start gap-2 shadow-2xs hover:border-primary/40 font-medium"
-            >
-              <UserPlus className="size-3.5 text-blue-500 shrink-0" />
-              <span className="truncate">Add Employee</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate({ to: "/attendance" })}
-              className="h-9 text-xs justify-start gap-2 shadow-2xs hover:border-primary/40 font-medium"
-            >
-              <Clock className="size-3.5 text-emerald-500 shrink-0" />
-              <span className="truncate">Clock In/Out</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate({ to: "/leave" })}
-              className="h-9 text-xs justify-start gap-2 shadow-2xs hover:border-primary/40 font-medium"
-            >
-              <CalendarCheck className="size-3.5 text-amber-500 shrink-0" />
-              <span className="truncate">Apply Leave</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate({ to: "/payroll" })}
-              className="h-9 text-xs justify-start gap-2 shadow-2xs hover:border-primary/40 font-medium"
-            >
-              <Wallet className="size-3.5 text-indigo-500 shrink-0" />
-              <span className="truncate">Run Payroll</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate({ to: "/announcements" })}
-              className="h-9 text-xs justify-start gap-2 shadow-2xs hover:border-primary/40 font-medium"
-            >
-              <Megaphone className="size-3.5 text-purple-500 shrink-0" />
-              <span className="truncate">Announcement</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate({ to: "/expenses" })}
-              className="h-9 text-xs justify-start gap-2 shadow-2xs hover:border-primary/40 font-medium"
-            >
-              <Receipt className="size-3.5 text-rose-500 shrink-0" />
-              <span className="truncate">Create Expense</span>
-            </Button>
-          </div>
-        </Card>
-
-        {/* ─── 6. RECENT HR ACTIVITY (100% REAL DB AUDIT TRAIL) ─── */}
-        <Card className="p-4 border shadow-2xs bg-card space-y-3">
-          <div className="flex items-center justify-between border-b pb-2.5">
-            <div>
-              <h3 className="font-bold text-sm text-foreground">Recent HR Activity</h3>
-              <p className="text-[11px] text-muted-foreground">
-                Real-time operational audit trail fetched directly from your MySQL database.
-              </p>
+        {/* ─── 5. QUICK ACTIONS SECTION (EXACT CRM CONTAINER UI) ─── */}
+        <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+          <div className="p-4">
+            <div className="flex items-center justify-between border-b border-border-color pb-3 mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                  <i className="ph-duotone ph-lightning text-white text-base"></i>
+                </div>
+                <h5 className="font-bold text-sm text-gray-900 dark:text-white">Quick Operations</h5>
+              </div>
             </div>
-            <Badge variant="outline" className="text-[10px] font-mono">
-              Live Feed
-            </Badge>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/employees" })}
+                className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-primary/50 hover:bg-primary/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
+              >
+                <i className="ph-duotone ph-user-plus text-primary text-base shrink-0"></i>
+                <span className="truncate">Add Employee</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/attendance" })}
+                className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-success/50 hover:bg-success/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
+              >
+                <i className="ph-duotone ph-clock text-success text-base shrink-0"></i>
+                <span className="truncate">Clock In/Out</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/leave" })}
+                className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-warning/50 hover:bg-warning/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
+              >
+                <i className="ph-duotone ph-calendar-check text-warning text-base shrink-0"></i>
+                <span className="truncate">Apply Leave</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/payroll" })}
+                className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-purple/50 hover:bg-purple/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
+              >
+                <i className="ph-duotone ph-wallet text-purple text-base shrink-0"></i>
+                <span className="truncate">Run Payroll</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/announcements" })}
+                className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-pink/50 hover:bg-pink/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
+              >
+                <i className="ph-duotone ph-megaphone text-pink text-base shrink-0"></i>
+                <span className="truncate">Announcement</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate({ to: "/expenses" })}
+                className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-danger/50 hover:bg-danger/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
+              >
+                <i className="ph-duotone ph-receipt text-danger text-base shrink-0"></i>
+                <span className="truncate">Create Expense</span>
+              </button>
+            </div>
           </div>
+        </div>
 
-          {activities.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b text-muted-foreground font-semibold text-[11px]">
-                    <th className="pb-2 text-left w-20">Time</th>
-                    <th className="pb-2 text-left w-36">User / Staff</th>
-                    <th className="pb-2 text-left">Action</th>
-                    <th className="pb-2 text-left w-28">Module</th>
-                    <th className="pb-2 text-right w-28">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {activities.map((act: any, i: number) => (
-                    <tr key={i} className="hover:bg-muted/30 transition-colors">
-                      <td className="py-2.5 font-mono text-[11px] text-muted-foreground">{act.time}</td>
-                      <td className="py-2.5 font-semibold text-foreground">{act.user}</td>
-                      <td className="py-2.5 text-muted-foreground">{act.action}</td>
-                      <td className="py-2.5">
-                        <Badge variant="secondary" className="text-[10px] font-normal">
-                          {act.module}
-                        </Badge>
-                      </td>
-                      <td className="py-2.5 text-right">
-                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${act.badgeClass}`}>
-                          {act.status}
-                        </Badge>
-                      </td>
+        {/* ─── 6. RECENT HR ACTIVITY (EXACT CRM CONTAINER UI) ─── */}
+        <div className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-border-color pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-full bg-success flex items-center justify-center shrink-0">
+                  <i className="ph-duotone ph-clock-counter-clockwise text-white text-base"></i>
+                </div>
+                <div>
+                  <h5 className="font-bold text-sm text-gray-900 dark:text-white">Recent HR Activity</h5>
+                  <p className="text-[11px] text-default">
+                    Real-time operational audit trail fetched directly from your MySQL database.
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-success/30 text-success bg-success/10">
+                Live Feed
+              </span>
+            </div>
+
+            {activities.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border-color text-default font-semibold text-[11px]">
+                      <th className="pb-2 text-left w-20">Time</th>
+                      <th className="pb-2 text-left w-36">User / Staff</th>
+                      <th className="pb-2 text-left">Action</th>
+                      <th className="pb-2 text-left w-28">Module</th>
+                      <th className="pb-2 text-right w-28">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="py-8 text-center space-y-2">
-              <Inbox className="size-8 text-muted-foreground/40 mx-auto" />
-              <p className="text-xs text-muted-foreground font-medium">
-                No recent HR activity found in the database.
-              </p>
-              <p className="text-[11px] text-muted-foreground/70">
-                Actions like clock-ins, leave submissions, and new employee onboarding will appear here in real-time.
-              </p>
-            </div>
-          )}
-        </Card>
+                  </thead>
+                  <tbody className="divide-y divide-border-color/50">
+                    {activities.map((act: any, i: number) => (
+                      <tr key={i} className="hover:bg-gray-50/60 dark:hover:bg-muted/30 transition-colors">
+                        <td className="py-2.5 font-mono text-[11px] text-default">{act.time}</td>
+                        <td className="py-2.5 font-semibold text-gray-900 dark:text-white">{act.user}</td>
+                        <td className="py-2.5 text-default">{act.action}</td>
+                        <td className="py-2.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border border-border-color text-default bg-gray-100 dark:bg-muted/30">
+                            {act.module}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${act.badgeClass}`}>
+                            {act.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-8 text-center space-y-2">
+                <i className="ph-duotone ph-tray text-3xl text-default/50 block"></i>
+                <p className="text-xs text-default font-medium">
+                  No recent HR activity found in the database.
+                </p>
+                <p className="text-[11px] text-default/70">
+                  Actions like clock-ins, leave submissions, and new employee onboarding will appear here in real-time.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </PlanGuard>
+      </PlanGuard>
   );
 }

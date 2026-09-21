@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { broadcastToTenant } from "../socket";
+import { autoPostPayrollToLedger } from "../services/ledger-posting.service";
 import crypto from "crypto";
 
 export const payrollRouter = Router();
@@ -480,8 +481,26 @@ payrollRouter.patch("/runs/:id/status", requireAuth, async (req: AuthRequest, re
     const run = await prisma.payrollRun.update({
       where: { id },
       data: { status },
-      include: { _count: { select: { payslips: true } } },
+      include: {
+        _count: { select: { payslips: true } },
+        payslips: { select: { grossSalary: true, netSalary: true } },
+      },
     });
+
+    if (["completed", "paid"].includes(status)) {
+      const gross = run.payslips.reduce((sum, p) => sum + Number(p.grossSalary || 0), 0) || Number(run.totalAmount || 0);
+      const net = run.payslips.reduce((sum, p) => sum + Number(p.netSalary || 0), 0) || Math.round(gross * 0.9);
+      const deductions = Math.max(0, gross - net);
+
+      autoPostPayrollToLedger({
+        tenantId,
+        payrollRunId: run.id,
+        period: `${run.periodMonth}/${run.periodYear}`,
+        totalGross: gross,
+        totalNet: net,
+        totalDeductions: deductions,
+      }).catch((e) => console.error("Auto-post payroll to ledger error:", e));
+    }
 
     broadcastToTenant(tenantId, "payroll:updated", run);
     return res.json(run);
@@ -705,6 +724,16 @@ payrollRouter.post("/generate", requireAuth, async (req: AuthRequest, res: Respo
       type: "payroll",
       timestamp: new Date().toISOString(),
     });
+
+    // ⚡ Auto-post to Double-Entry General Ledger
+    autoPostPayrollToLedger({
+      tenantId,
+      payrollRunId: completedRun.id,
+      period: `${periodMonth}/${periodYear}`,
+      totalGross: totalPayrollAmount,
+      totalNet: totalNetDisbursed,
+      totalDeductions: Math.max(0, totalPayrollAmount - totalNetDisbursed),
+    }).catch((e) => console.error("Auto-post payroll to ledger error:", e));
 
     return res.status(201).json({
       run: completedRun,

@@ -172,7 +172,7 @@ formsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    await ensureSeedForms(tenantId);
+    // seed disabled
 
     const { category, status, search, departmentId } = req.query;
     const where: any = { tenantId };

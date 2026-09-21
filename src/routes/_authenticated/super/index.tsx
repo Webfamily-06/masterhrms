@@ -1,3 +1,6 @@
+import { formatSystemAmount } from "@/lib/currency";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { setToken, ApiError } from "@/lib/api";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -88,78 +91,25 @@ function SuperOverview() {
   const {
     data: stats,
     isLoading,
+    error,
     refetch,
   } = useQuery({
     queryKey: ["super-realtime-stats"],
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      try {
-        const [superStats, tenants, addons, platformSettings] = await Promise.all([
-          api.get("/super/stats").catch(() => ({ totalUsers: 1, totalTenants: 1, mrr: 14850 })),
-          api.get("/super/tenants").catch(() => []),
-          api.get("/cms/addons").catch(() => []),
-          api.get("/cms/pages/system-platform-settings").catch(() => null),
-        ]);
-
-        const tenantsList = Array.isArray(tenants) ? tenants : [];
-        const addonsList = Array.isArray(addons) ? addons : [];
-        const tenantsCount = superStats?.totalTenants ?? tenantsList.length ?? 1;
-        const usersCount = superStats?.totalUsers ?? 1;
-
-        const baseMrr = tenantsCount * 14850;
-        const mrr = baseMrr > 0 ? baseMrr : 14850;
-        const arr = mrr * 12;
-        const arpu = tenantsCount > 0 ? Math.round(mrr / tenantsCount) : 14850;
-
-        const liveLogs = tenantsList.slice(0, 4).map((t: any) => ({
-          event: "ERP Workspace Provisioned",
-          detail: `Tenant ${t.name} (slug: ${t.slug})`,
-          time: new Date(t.createdAt || t.created_at || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          status: "success",
-        }));
-
-        if (liveLogs.length === 0) {
-          liveLogs.push({
-            event: "Primary MySQL Engine Active",
-            detail: `Connected to MySQL master_hrms on localhost:3306`,
-            time: "Just now",
-            status: "info",
-          });
-        }
-
-        const platformConfig = platformSettings?.content || {};
-
-        return {
-          tenants: tenantsCount,
-          tenantsList,
-          users: usersCount,
-          addonsCount: addonsList.length,
-          addonsList,
-          openTickets: 0,
-          mrr,
-          arr,
-          arpu,
-          liveLogs,
-          smtpHost: platformConfig.smtpHost || "smtp.mailgun.org",
-          maintenanceMode: !!platformConfig.maintenanceMode,
-        };
-      } catch (err: any) {
-        return {
-          tenants: 1,
-          tenantsList: [],
-          users: 1,
-          addonsCount: 4,
-          addonsList: [],
-          openTickets: 0,
-          mrr: 14850,
-          arr: 178200,
-          arpu: 14850,
-          liveLogs: [{ event: "Master Engine Active", detail: "MySQL 8.0 Connected", time: "Just now", status: "info" }],
-          smtpHost: "smtp.mailgun.org",
-          maintenanceMode: false,
-        };
-      }
+      const [superStats, tenants, addons, platformSettings] = await Promise.all([
+        api.get("/super/stats"), api.get("/super/tenants"), api.get("/cms/addons"),
+        api.get("/cms/pages/system-platform-settings").catch((error) => { if (error instanceof ApiError && error.status === 404) return null; throw error; }),
+      ]);
+      return {
+        ...superStats, tenants: superStats.totalTenants, users: superStats.totalUsers,
+        tenantsList: tenants, addonsList: addons, addonsCount: addons.length,
+        liveLogs: tenants.slice(0, 4).map((t: any) => ({ event: "Workspace provisioned", detail: t.name, time: new Date(t.createdAt).toLocaleString(), status: "success" })),
+        smtpHost: platformSettings?.content?.smtpHost || "Not configured",
+        maintenanceMode: !!platformSettings?.content?.maintenanceMode,
+        currency: platformSettings?.content || {},
+      };
     },
   });
 
@@ -171,9 +121,8 @@ function SuperOverview() {
     },
     onSuccess: (data) => {
       if (data.token) {
-        localStorage.setItem("hrms_auth_token", data.token);
-        localStorage.setItem("auth_token", data.token);
-        sessionStorage.setItem("auth_token", data.token);
+        setToken(data.token);
+        qc.clear();
         toast.success(`Logged into ${data.tenant?.name || "Tenant"} workspace!`);
         navigate({ to: "/dashboard" });
       }
@@ -249,14 +198,14 @@ function SuperOverview() {
       value: stats?.addonsCount ?? 0,
       icon: Store,
       color: "text-blue-600 dark:text-blue-400 bg-blue-500/10",
-      hint: "500+ ecosystem plugins",
+      hint: "Published catalog records",
     },
     {
       label: "Open Support Tickets",
       value: stats?.openTickets ?? 0,
       icon: LifeBuoy,
       color: "text-amber-600 dark:text-amber-400 bg-amber-500/10",
-      hint: "All queues operational",
+      hint: "Unresolved platform tickets",
     },
   ];
 
@@ -266,7 +215,7 @@ function SuperOverview() {
       title: "Tenant Workspaces Hub",
       desc: "Provision instances, inspect MySQL schemas, and 1-click passwordless login.",
       icon: Building2,
-      tag: `${stats?.tenants || 1} Workspaces`,
+      tag: `${stats?.tenants ?? 0} Workspaces`,
       color: "from-purple-500 to-indigo-600",
     },
     {
@@ -360,7 +309,8 @@ function SuperOverview() {
   ];
 
   return (
-    <div className="space-y-8 max-w-7xl">
+    <div className="space-y-8 max-w-full">
+      {error && <div role="alert" className="p-4 border rounded-md text-destructive">Unable to load platform data: {error.message}. <Button variant="outline" onClick={() => refetch()}>Retry</Button></div>}
       {/* Top Console Header & Live Ticker Widget */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
         <div>
@@ -437,7 +387,7 @@ function SuperOverview() {
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <span className="flex items-center gap-1.5 font-mono text-muted-foreground">
               <span className="size-2 rounded-full bg-emerald-500" /> Database:{" "}
-              <strong className="text-foreground font-semibold">MySQL 8.0 Active</strong>
+              <strong className="text-foreground font-semibold">{stats ? "Query successful" : "Unavailable"}</strong>
             </span>
 
             <span className="flex items-center gap-1.5 font-mono text-muted-foreground">
@@ -447,7 +397,7 @@ function SuperOverview() {
 
             <span className="flex items-center gap-1.5 font-mono text-muted-foreground">
               <span className="size-2 rounded-full bg-purple-500" /> WebSocket API:{" "}
-              <strong className="text-foreground font-semibold">Ready (Port 4000)</strong>
+              <strong className="text-foreground font-semibold">Not monitored</strong>
             </span>
 
             <span className="flex items-center gap-1.5 font-mono text-muted-foreground">
@@ -491,6 +441,9 @@ function SuperOverview() {
         ))}
       </div>
 
+      <Card><CardHeader><CardTitle className="text-base">New workspaces by month (UTC)</CardTitle><CardDescription>Provisioning activity for the last six months</CardDescription></CardHeader><CardContent>
+        {stats ? <div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={stats.growth}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey="workspaces" fill="var(--primary)" /></BarChart></ResponsiveContainer></div> : <p className="text-sm text-muted-foreground">{isLoading ? "Loading workspace activity…" : "Workspace activity unavailable"}</p>}
+      </CardContent></Card>
       {/* ACTIVE TENANTS & DIRECT 1-CLICK IMPERSONATION HUB */}
       <Card className="shadow-sm border">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -535,7 +488,7 @@ function SuperOverview() {
                       <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5 font-mono">
                         <span>Created: {new Date(tenant.createdAt || tenant.created_at || Date.now()).toLocaleDateString()}</span>
                         <span>•</span>
-                        <span className="text-emerald-600 font-semibold">Active License</span>
+                        <span className="text-emerald-600 font-semibold">{tenant.policy?.status || "Unassigned"}</span>
                       </div>
                     </div>
                   </div>
@@ -564,7 +517,7 @@ function SuperOverview() {
 
       {/* DYNAMIC REAL-TIME ANALYTICS WIDGET SUITE */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* WIDGET 1: Financial & MRR Analytics (INR ₹) */}
+        {/* WIDGET 1: Financial & MRR Analytics */}
         <Card className="lg:col-span-2 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
@@ -573,8 +526,7 @@ function SuperOverview() {
                 Analytics (INR ₹)
               </CardTitle>
               <CardDescription className="text-xs">
-                Real-time calculated recurring revenue & platform subscription metrics from active
-                workspaces.
+                Subscription run-rate from assigned plan prices and active workspace policies. This is not a payment collection report.
               </CardDescription>
             </div>
             <Badge
@@ -589,7 +541,7 @@ function SuperOverview() {
               <div>
                 <div className="text-[11px] text-muted-foreground font-semibold">Monthly MRR</div>
                 <div className="text-2xl font-extrabold font-mono text-emerald-600 mt-0.5">
-                  ₹{(stats?.mrr ?? 0).toLocaleString()}
+                  {stats ? formatSystemAmount(stats.mrr, stats.currency) : "—"}
                 </div>
                 <div className="text-[10px] text-emerald-500 font-semibold mt-0.5">
                   Calculated run-rate
@@ -598,7 +550,7 @@ function SuperOverview() {
               <div>
                 <div className="text-[11px] text-muted-foreground font-semibold">Annual ARR</div>
                 <div className="text-2xl font-extrabold font-mono text-blue-600 mt-0.5">
-                  ₹{(stats?.arr ?? 0).toLocaleString()}
+                  {stats ? formatSystemAmount(stats.arr, stats.currency) : "—"}
                 </div>
                 <div className="text-[10px] text-blue-500 font-semibold mt-0.5">
                   Annualized metric
@@ -609,7 +561,7 @@ function SuperOverview() {
                   Avg ARPU / Tenant
                 </div>
                 <div className="text-2xl font-extrabold font-mono text-purple-600 mt-0.5">
-                  ₹{(stats?.arpu ?? 0).toLocaleString()}
+                  {stats ? formatSystemAmount(stats.arpu, stats.currency) : "—"}
                 </div>
                 <div className="text-[10px] text-purple-500 font-semibold mt-0.5">
                   Per workspace / mo
@@ -634,34 +586,13 @@ function SuperOverview() {
                   {stats?.tenants ?? 0} Active ERP Workspaces
                 </span>
               </div>
-              <div className="h-3 w-full rounded-full bg-secondary overflow-hidden flex">
-                <div
-                  className="bg-emerald-500 h-full"
-                  style={{ width: "50%" }}
-                  title="Growth Plan: 50%"
-                />
-                <div
-                  className="bg-blue-600 h-full"
-                  style={{ width: "30%" }}
-                  title="Starter Plan: 30%"
-                />
-                <div
-                  className="bg-purple-600 h-full"
-                  style={{ width: "20%" }}
-                  title="Enterprise Plan: 20%"
-                />
-              </div>
-              <div className="flex justify-between text-xs text-muted-foreground font-mono pt-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-emerald-500" /> Growth Tier (50%)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-blue-600" /> Starter Tier (30%)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-purple-600" /> Enterprise Tier (20%)
-                </span>
-              </div>
+              {(stats?.planDistribution || []).map((plan: any) => (
+                <div key={plan.name} className="space-y-1">
+                  <div className="flex justify-between text-xs"><span>{plan.name}</span><span>{plan.count} workspaces</span></div>
+                  <Progress value={stats?.tenants ? plan.count / stats.tenants * 100 : 0} className="h-2" />
+                </div>
+              ))}
+              {!stats?.planDistribution?.length && <p className="text-xs text-muted-foreground">No workspace subscriptions to display.</p>}
             </div>
           </CardContent>
         </Card>
@@ -680,11 +611,11 @@ function SuperOverview() {
             <div className="space-y-2 border-b pb-3">
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground font-medium">Database State:</span>
-                <span className="font-bold font-mono text-emerald-600">Connected & Synced</span>
+                <span className="font-bold font-mono text-emerald-600">{stats ? "Query successful" : "Unavailable"}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground font-medium">Avg API Latency:</span>
-                <span className="font-bold font-mono text-blue-600">18.4 ms (Optimal)</span>
+                <span className="text-muted-foreground font-medium">Statistics query duration:</span>
+                <span className="font-bold font-mono text-blue-600">{stats ? `${stats.queryDurationMs} ms` : "—"}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground font-medium">Open Support Tickets:</span>
@@ -696,10 +627,10 @@ function SuperOverview() {
 
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-semibold">
-                <span>MySQL Connection Pool</span>
-                <span className="font-mono text-xs">Active</span>
+                <span>Suspended workspaces</span>
+                <span className="font-mono text-xs">{stats?.suspendedTenants ?? "—"}</span>
               </div>
-              <Progress value={28} className="h-2" />
+              <Progress value={stats?.tenants ? stats.suspendedTenants / stats.tenants * 100 : 0} className="h-2" />
             </div>
 
             <div className="space-y-2 pt-1">
@@ -707,7 +638,7 @@ function SuperOverview() {
                 <span>Marketplace Catalog Load</span>
                 <span className="font-mono text-xs">{stats?.addonsCount ?? 0} Modules</span>
               </div>
-              <Progress value={85} className="h-2" />
+              
             </div>
           </CardContent>
         </Card>

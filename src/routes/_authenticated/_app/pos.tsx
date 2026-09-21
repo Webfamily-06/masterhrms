@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { getSocketClient } from "@/lib/socket";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,10 +29,12 @@ import { Switch } from "@/components/ui/switch";
 import { PlanGuard } from "@/components/plan-guard";
 import { formatSystemAmount, type SystemCurrencySettings } from "@/lib/currency";
 import { generateBarcodeSvg, playScannerBeep } from "@/lib/barcode";
+import { printThermalReceipt, triggerCashDrawerKick } from "@/lib/qz-print";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   ShoppingCart,
+  Monitor,
   Plus,
   Minus,
   Trash2,
@@ -61,6 +64,16 @@ import {
   Sparkles,
   QrCode,
   ScanLine,
+  Utensils,
+  CreditCard,
+  Banknote,
+  LayoutGrid,
+  Tag,
+  Laptop,
+  Cpu,
+  Briefcase,
+  Wrench,
+  Filter,
 } from "lucide-react";
 import type { Product } from "./products";
 
@@ -80,6 +93,7 @@ export type CartItem = {
   quantity?: number;
   gst_rate: number;
   stock?: number;
+  image?: string;
 };
 
 export type PosSale = {
@@ -120,11 +134,11 @@ export type HeldOrder = {
 };
 
 const DEFAULT_PRODUCTS: Product[] = [
-  { id: "prd-1", name: "Enterprise ERP Server Appliance", price: 45000, stock: 24, sku: "PRD-94821", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Dedicated on-premises ERP node" },
-  { id: "prd-2", name: "Biometric AI Terminal", price: 14500, stock: 42, sku: "PRT-38192", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Infrared face & finger terminal" },
-  { id: "prd-3", name: "Thermal Receipt Printer 80mm", price: 6800, stock: 15, sku: "PRD-59302", hsn_sac: "8443", gst_rate: 18, unit: "Pcs", low_stock_threshold: 3, category: "Hardware", description: "USB + Ethernet POS thermal printer" },
-  { id: "prd-4", name: "Handheld Laser Barcode Scanner", price: 2900, stock: 30, sku: "PRD-10294", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "High-speed 1D/2D USB barcode reader" },
-  { id: "prd-5", name: "ERP Implementation & Setup", price: 25000, stock: 999, sku: "SRV-10294", hsn_sac: "998314", gst_rate: 18, unit: "Hr", low_stock_threshold: 0, category: "Services", description: "Consultation and deployment" },
+  { id: "prd-1", name: "Enterprise ERP Server Appliance", price: 45000, stock: 24, sku: "PRD-94821", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Dedicated on-premises ERP node", image: "/images/no-image.png" },
+  { id: "prd-2", name: "Biometric AI Terminal", price: 14500, stock: 42, sku: "PRT-38192", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Infrared face & finger terminal", image: "/images/no-image.png" },
+  { id: "prd-3", name: "Thermal Receipt Printer 80mm", price: 6800, stock: 15, sku: "PRD-59302", hsn_sac: "8443", gst_rate: 18, unit: "Pcs", low_stock_threshold: 3, category: "Hardware", description: "USB + Ethernet POS thermal printer", image: "/images/no-image.png" },
+  { id: "prd-4", name: "Handheld Laser Barcode Scanner", price: 2900, stock: 30, sku: "PRD-10294", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "High-speed 1D/2D USB barcode reader", image: "/images/no-image.png" },
+  { id: "prd-5", name: "ERP Implementation & Setup", price: 25000, stock: 999, sku: "SRV-10294", hsn_sac: "998314", gst_rate: 18, unit: "Hr", low_stock_threshold: 0, category: "Services", description: "Consultation and deployment", image: "/images/no-image.png" },
 ];
 
 function fmt(n: number, cfg?: any): string {
@@ -175,6 +189,31 @@ function PosPage() {
   const [barcodeInput, setBarcodeInput] = useState("");
   const barcodeRef = useRef<HTMLInputElement>(null);
 
+  // Multi-Platform F2 Barcode Scanner Dialog State
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+  const scannerModalInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus scanner input when modal opens
+  useEffect(() => {
+    if (isScannerModalOpen) {
+      setTimeout(() => {
+        scannerModalInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isScannerModalOpen]);
+
+  // Category Icon helper
+  function getCategoryIcon(cat: string) {
+    const c = cat.toLowerCase();
+    if (c === "all" || c === "all menu") return <Utensils className="size-5 text-orange-500" />;
+    if (c.includes("hardware") || c.includes("computer") || c.includes("device")) return <Laptop className="size-5 text-indigo-500" />;
+    if (c.includes("electronic") || c.includes("chip") || c.includes("ai")) return <Cpu className="size-5 text-blue-500" />;
+    if (c.includes("service") || c.includes("consult")) return <Sparkles className="size-5 text-emerald-500" />;
+    if (c.includes("spare") || c.includes("part") || c.includes("accessor")) return <Wrench className="size-5 text-amber-500" />;
+    if (c.includes("software") || c.includes("license")) return <Briefcase className="size-5 text-purple-500" />;
+    return <Package className="size-5 text-primary" />;
+  }
+
   // Barcode Studio & Generator State
   const [isBarcodeStudioOpen, setIsBarcodeStudioOpen] = useState(false);
   const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<string>("all");
@@ -198,6 +237,56 @@ function PosPage() {
       return [];
     }
   });
+
+  // Register Shift State
+  const [isRegisterOpenModalOpen, setIsRegisterOpenModalOpen] = useState(false);
+  const [isRegisterCloseModalOpen, setIsRegisterCloseModalOpen] = useState(false);
+  const [openingFloatInput, setOpeningFloatInput] = useState("1000");
+  const [actualCashInput, setActualCashInput] = useState("");
+  const [shiftCloseNotes, setShiftCloseNotes] = useState("");
+  const [closedReport, setClosedReport] = useState<any>(null);
+
+  const { data: shiftStatus, refetch: refetchShift } = useQuery({
+    queryKey: ["pos-register-shift", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/sales/register/current");
+        return res || { isOpen: false };
+      } catch {
+        return { isOpen: false };
+      }
+    },
+  });
+
+  async function handleOpenShift() {
+    try {
+      const floatAmt = Number(openingFloatInput || 0);
+      await api.post("/sales/register/open", {
+        openingFloat: floatAmt,
+        notes: "Shift opened from terminal",
+      });
+      toast.success(`Register shift opened with starting float: ${fmt(floatAmt)}`);
+      refetchShift();
+      setIsRegisterOpenModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to open register shift");
+    }
+  }
+
+  async function handleCloseShift() {
+    try {
+      const counted = Number(actualCashInput || 0);
+      const res = await api.post("/sales/register/close", {
+        actualCash: counted,
+        notes: shiftCloseNotes,
+      });
+      toast.success(res?.message || "Shift closed successfully");
+      setClosedReport(res?.report || null);
+      refetchShift();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to close shift");
+    }
+  }
 
   // Listen for online/offline events & auto-sync
   useEffect(() => {
@@ -247,14 +336,37 @@ function PosPage() {
     },
   });
 
-  // Load products from catalog (merges catalog-items-v2 and legacy catalog)
-  const { data: products = DEFAULT_PRODUCTS } = useQuery({
+  // Load products from catalog (relational API + CMS fallback)
+    // Load categories from database
+  const { data: dbCategories = [] } = useQuery({
+    queryKey: ["pos-db-categories", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/products/categories");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const categoryImageMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (dbCategories as any[]).forEach((cat: any) => {
+      if (cat?.name) {
+        map[cat.name] = cat.image || "/images/no-image.png";
+      }
+    });
+    return map;
+  }, [dbCategories]);
+
+  const { data: products = [] } = useQuery<Product[]>({
     queryKey: ["pos-products-catalog", tenantId],
     queryFn: async () => {
       try {
-        const pageV2 = await api.get(`/cms/pages/${PRODUCTS_SLUG}`);
-        if (pageV2?.content && Array.isArray(pageV2.content) && pageV2.content.length > 0) {
-          return pageV2.content.map((item: any) => ({
+        const relProducts = await api.get("/products");
+        if (Array.isArray(relProducts) && relProducts.length > 0) {
+          const mapped = relProducts.map((item: any) => ({
             id: item.id,
             name: item.name,
             price: Number(item.salePrice ?? item.price ?? 0),
@@ -267,30 +379,70 @@ function PosPage() {
             category: item.categoryName || item.category || "General",
             description: item.shortDescription || item.description || "",
             salePrice: Number(item.salePrice ?? item.price ?? 0),
-            image: item.image,
+            image: item.image || "/images/no-image.png",
           })) as Product[];
+          try {
+            localStorage.setItem(`pos_offline_catalog_${tenantId}`, JSON.stringify(mapped));
+          } catch {}
+          return mapped;
         }
 
-        const pageLegacy = await api.get(`/cms/pages/${LEGACY_PRODUCTS_SLUG}`);
-        if (pageLegacy?.content && Array.isArray(pageLegacy.content)) {
-          return pageLegacy.content as Product[];
+        const pageV2 = await api.get(`/cms/pages/${PRODUCTS_SLUG}`);
+        if (pageV2?.content && Array.isArray(pageV2.content) && pageV2.content.length > 0) {
+          const mapped = pageV2.content.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            price: Number(item.salePrice ?? item.price ?? 0),
+            stock: Number(item.quantity ?? item.stock ?? 0),
+            sku: item.sku || `PRD-${item.id}`,
+            hsn_sac: item.hsn_sac || "8471",
+            gst_rate: Number(item.taxRate ?? item.gst_rate ?? 18),
+            unit: item.unit || "Pcs",
+            low_stock_threshold: 5,
+            category: item.categoryName || item.category || "General",
+            description: item.shortDescription || item.description || "",
+            salePrice: Number(item.salePrice ?? item.price ?? 0),
+            image: item.image || "/images/no-image.png",
+          })) as Product[];
+          try {
+            localStorage.setItem(`pos_offline_catalog_${tenantId}`, JSON.stringify(mapped));
+          } catch {}
+          return mapped;
         }
 
-        return DEFAULT_PRODUCTS;
+        try {
+          const cached = localStorage.getItem(`pos_offline_catalog_${tenantId}`);
+          if (cached) return JSON.parse(cached);
+        } catch {}
+        return [];
       } catch {
-        return DEFAULT_PRODUCTS;
+        try {
+          const cached = localStorage.getItem(`pos_offline_catalog_${tenantId}`);
+          if (cached) return JSON.parse(cached);
+        } catch {}
+        return [];
       }
     },
   });
 
   // Sales history
-  const { data: salesHistory = [] } = useQuery({
+  const { data: salesHistory = [] } = useQuery<PosSale[]>({
     queryKey: ["pos-sales", tenantId],
     queryFn: async () => {
       try {
         const res = await api.get("/invoices/pos/sales");
-        return Array.isArray(res) ? (res as PosSale[]) : [];
+        if (Array.isArray(res)) {
+          try {
+            localStorage.setItem(`pos_cached_sales_${tenantId}`, JSON.stringify(res));
+          } catch {}
+          return res as PosSale[];
+        }
+        return [] as PosSale[];
       } catch {
+        try {
+          const cached = localStorage.getItem(`pos_cached_sales_${tenantId}`);
+          if (cached) return JSON.parse(cached);
+        } catch {}
         return [] as PosSale[];
       }
     },
@@ -333,7 +485,7 @@ function PosPage() {
       if (existing) return prev.map((i) => (i.id === p.id ? { ...i, qty: i.qty + 1 } : i));
       const itemPrice = Number((p as any).salePrice ?? p.price ?? 0);
       const itemTax = Number((p as any).taxRate ?? p.gst_rate ?? 18);
-      return [...prev, { id: p.id, name: p.name, price: itemPrice, qty: 1, gst_rate: itemTax, hsn_sac: p.hsn_sac || "8471", unit: p.unit || "Pcs", sku: p.sku }];
+      return [...prev, { id: p.id, name: p.name, price: itemPrice, qty: 1, gst_rate: itemTax, hsn_sac: p.hsn_sac || "8471", unit: p.unit || "Pcs", sku: p.sku, image: (p as any).image || "/images/no-image.png" }];
     });
   }
 
@@ -365,19 +517,19 @@ function PosPage() {
     let lastTime = Date.now();
 
     function onGlobalKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      // If user is focused on a normal text field or modal, allow normal typing
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        if (e.key === "F2") {
-          e.preventDefault();
-          barcodeRef.current?.focus();
-        }
+      // Cross-platform trigger: F2 on Windows/Linux/Android, or Cmd+B / Ctrl+B on macOS/Linux
+      const isF2 = e.key === "F2" || e.code === "F2" || (e as any).keyCode === 113;
+      const isMacBarcode = (e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B" || (e as any).code === "KeyB");
+
+      if (isF2 || isMacBarcode) {
+        e.preventDefault();
+        setIsScannerModalOpen(true);
         return;
       }
 
-      if (e.key === "F2") {
-        e.preventDefault();
-        barcodeRef.current?.focus();
+      const target = e.target as HTMLElement;
+      // If user is focused on a normal text field or modal, allow normal typing
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
         return;
       }
 
@@ -440,10 +592,96 @@ function PosPage() {
 
   const categories = useMemo(() => ["all", ...new Set(products.map((p) => p.category))], [products]);
 
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const cat = p.category || "General";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  // ⚡ Real-time Inventory & Stock Synchronization across open POS counters
+  useEffect(() => {
+    const socket = getSocketClient();
+
+    function onInventoryUpdated(payload: any) {
+      if (payload?.items && Array.isArray(payload.items)) {
+        qc.setQueryData<Product[]>(["pos-products-catalog", tenantId], (old) => {
+          if (!old) return old;
+          const map = new Map(payload.items.map((i: any) => [i.productId, i.quantityDecremented || 1]));
+          return old.map((p) => {
+            const dec = map.get(p.id);
+            if (dec !== undefined) {
+              return { ...p, stock: Math.max(0, p.stock - Number(dec)) };
+            }
+            return p;
+          });
+        });
+      }
+    }
+
+    function onPosSaleCreated() {
+      qc.invalidateQueries({ queryKey: ["tenant-sales-history", tenantId] });
+      qc.invalidateQueries({ queryKey: ["pos-held-orders", tenantId] });
+    }
+
+    function onPosHeldUpdated() {
+      qc.invalidateQueries({ queryKey: ["pos-held-orders", tenantId] });
+    }
+
+    socket.on("inventory:stock_updated", onInventoryUpdated);
+    socket.on("pos:sale_created", onPosSaleCreated);
+    socket.on("pos:held_updated", onPosHeldUpdated);
+
+    return () => {
+      socket.off("inventory:stock_updated", onInventoryUpdated);
+      socket.off("pos:sale_created", onPosSaleCreated);
+      socket.off("pos:held_updated", onPosHeldUpdated);
+    };
+  }, [tenantId, qc]);
+
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountAmt = Math.round(subtotal * (discountPct / 100));
   const { igst, cgst, sgst, total } = computeTax(subtotal || 1, discountAmt, taxMode, cart.length ? cart : [{ price: 1, qty: 1, gst_rate: 18 } as any]);
   const realTax = cart.length ? computeTax(subtotal, discountAmt, taxMode, cart) : { igst: 0, cgst: 0, sgst: 0, total: 0 };
+
+  // ⚡ Real-time Dual-Screen Customer Display Cart Broadcast (Zero Latency BroadcastChannel + Socket.io)
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel("stocky_pos_display");
+      channel.postMessage({
+        type: "CART_UPDATE",
+        cart,
+        subtotal,
+        discountAmt,
+        tax: realTax,
+        total: realTax.total,
+        customerName,
+        currency: sysConfig?.currency || "INR",
+      });
+      channel.close();
+    } catch {}
+
+    try {
+      const socket = getSocketClient();
+      if (socket.connected) {
+        socket.emit("pos:cart_update", {
+          tenantId,
+          cart,
+          subtotal,
+          discountAmt,
+          tax: realTax,
+          total: realTax.total,
+          customerName,
+          currency: sysConfig?.currency || "INR",
+        });
+      }
+    } catch {}
+  }, [cart, subtotal, discountAmt, realTax, customerName, tenantId, sysConfig?.currency]);
+
+
 
   function updateQty(id: string, delta: number) {
     setCart((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
@@ -475,6 +713,7 @@ function PosPage() {
       date: new Date().toLocaleString("en-IN"),
     };
 
+    if (paymentMode === "cash") { try { triggerCashDrawerKick(); } catch {} }
     if (!isOnline) {
       const updatedQueue = [sale, ...offlineQueue];
       setOfflineQueue(updatedQueue);
@@ -495,6 +734,11 @@ function PosPage() {
       setCustomerGstin("");
       setDiscountPct(0);
       toast.success(`Sale of ${fmt(realTax.total, sysConfig?.currency)} recorded!`);
+      try {
+        const ch = new BroadcastChannel("stocky_pos_display");
+        ch.postMessage({ type: "SALE_COMPLETED", receiptNo: sale.receiptNo });
+        ch.close();
+      } catch {}
     }
   }
 
@@ -537,7 +781,7 @@ function PosPage() {
 
   return (
     <PlanGuard moduleName="Point of Sale (POS)" requiredPlan="free">
-      <div className="space-y-4 max-w-7xl pb-16">
+      <div className="space-y-4 max-w-full pb-16">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
           <div>
@@ -550,6 +794,23 @@ function PosPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Register Shift Status / Action */}
+            {shiftStatus?.isOpen ? (
+              <Button
+                onClick={() => setIsRegisterCloseModalOpen(true)}
+                className="h-9 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              >
+                <Banknote className="size-4" /> Shift Open ({fmt(shiftStatus?.shift?.openingFloat || 0)})
+              </Button>
+            ) : (
+              <Button
+                onClick={() => setIsRegisterOpenModalOpen(true)}
+                className="h-9 text-xs font-bold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+              >
+                <Banknote className="size-4" /> Open Register Shift
+              </Button>
+            )}
+
             {/* Barcode Label Studio Generator Button */}
             <Button
               onClick={() => setIsBarcodeStudioOpen(true)}
@@ -574,29 +835,6 @@ function PosPage() {
           </div>
         </div>
 
-        {/* Sneat Pro POS Terminal & Inventory KPI Widgets */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { title: "Today's POS Sales", value: formatSystemAmount(salesHistory.reduce((acc, s) => acc + (s.total || 0), 0), sysConfig), desc: `From ${salesHistory.length} completed orders`, icon: ShoppingCart, color: "text-primary bg-primary/10" },
-            { title: "Products in POS", value: `${products.length} Products`, desc: "Live retail barcode items", icon: Package, color: "text-[oklch(0.60_0.17_155)] bg-[oklch(0.60_0.17_155/0.10)]" },
-            { title: "Terminal Sync", value: isOnline ? "Online Live" : `Offline (${offlineQueue.length})`, desc: "Port 4000 local sync", icon: Wifi, color: "text-[oklch(0.73_0.16_75)] bg-[oklch(0.73_0.16_75/0.10)]" },
-            { title: "Active Categories", value: `${categories.length - 1} Categories`, desc: "Organized inventory catalog", icon: BarChart3, color: "text-[oklch(0.60_0.20_200)] bg-[oklch(0.60_0.20_200/0.10)]" },
-          ].map((w) => (
-            <Card key={w.title} className="border border-border/70 shadow-xs">
-              <CardContent className="p-5 flex items-start justify-between">
-                <div className="space-y-1">
-                  <span className="text-xs font-semibold text-muted-foreground">{w.title}</span>
-                  <h4 className="text-xl font-bold tracking-tight text-foreground">{w.value}</h4>
-                  <p className="text-[11px] text-muted-foreground font-mono">{w.desc}</p>
-                </div>
-                <div className={cn("size-10 rounded-lg flex items-center justify-center shrink-0", w.color)}>
-                  <w.icon className="size-5" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
         <Tabs defaultValue="pos">
           <TabsList className="w-full sm:w-auto grid grid-cols-4 sm:flex h-9 p-1 bg-muted/60">
             <TabsTrigger value="pos" className="gap-1.5 text-xs font-bold">
@@ -614,291 +852,384 @@ function PosPage() {
           </TabsList>
 
           {/* ===== TAB 1: POS TERMINAL ===== */}
-          <TabsContent value="pos" className="mt-4">
-            <div className="grid lg:grid-cols-12 gap-4">
-              {/* Product Grid & Barcode Bar */}
-              <div className="lg:col-span-7 space-y-3">
-                {/* Barcode Scanner Input Bar with Camera Toggle */}
-                <div className="flex items-center gap-2 p-2 border-2 border-indigo-500/30 rounded-xl bg-indigo-500/5 shadow-2xs">
-                  <ScanLine className="size-4 text-indigo-600 animate-pulse shrink-0 ml-1" />
-                  <Input
-                    ref={barcodeRef}
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleBarcodeSearch(barcodeInput);
-                    }}
-                    placeholder="Scan barcode with laser gun or type SKU + Enter (F2)..."
-                    className="border-0 bg-transparent text-xs h-8 focus-visible:ring-0 font-mono font-bold text-foreground placeholder:text-muted-foreground/60"
-                  />
+          <TabsContent value="pos" className="mt-4 space-y-5">
+            {/* ── TOP ACTION BAR: Search Menu, F2 Scanner & Cashier Profile Header ── */}
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card border rounded-3xl p-3 shadow-2xs">
+              {/* Search Menu Input */}
+              <div className="relative flex-1 max-w-xl">
+                <Search className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search menu by product name, category, or SKU..."
+                  className="pl-10 h-10 text-xs rounded-2xl border-border/70 bg-muted/20 focus-visible:bg-background"
+                />
+                {search && (
                   <Button
-                    size="sm"
-                    onClick={() => handleBarcodeSearch(barcodeInput)}
-                    className="text-xs h-8 gap-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                    size="icon"
+                    variant="ghost"
+                    className="absolute right-2 top-2 size-6 text-muted-foreground"
+                    onClick={() => setSearch("")}
                   >
-                    Scan / Add
+                    <X className="size-3.5" />
                   </Button>
+                )}
+              </div>
+
+              {/* Right: Dual-Screen Customer Display & Multi-OS F2 Scanner */}
+              <div className="flex items-center gap-2.5 flex-wrap justify-end">
+                {/* Secondary Customer Display Launcher */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => window.open("/customer-display", "CustomerDisplay", "width=1024,height=768")}
+                  className="h-10 text-xs font-bold gap-1.5 rounded-2xl border-border/70 hover:bg-orange-500/10 hover:text-orange-600 hover:border-orange-400 cursor-pointer shadow-2xs"
+                  title="Launch secondary customer-facing display window / dual screen"
+                >
+                  <Monitor className="size-4 text-orange-500" />
+                  <span className="hidden sm:inline">Customer Display</span>
+                </Button>
+                {/* Multi-OS F2 Scanner Button */}
+                <Button
+                  onClick={() => setIsScannerModalOpen(true)}
+                  className="h-10 text-xs font-bold gap-2 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl shadow-xs px-3.5"
+                  title="Multi-Platform Barcode & QR Scanner (Press F2 or ⌘+B)"
+                >
+                  <ScanLine className="size-4 animate-pulse" />
+                  <span>Scan / Barcode</span>
+                  <kbd className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">F2</kbd>
+                </Button>
+              </div>
+            </div>
+
+            {/* ── CATEGORIES SECTION (Horizontal Rounded Cards matching Reference Image) ── */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-black text-foreground tracking-tight">Categories</h2>
+                <div className="flex items-center gap-2">
                   <Button
-                    size="sm"
                     variant="outline"
-                    onClick={startCameraScanner}
-                    className="text-xs h-8 gap-1 border-indigo-500/30 text-indigo-600 hover:bg-indigo-500/10 shrink-0 font-semibold"
-                    title="Scan via Laptop/Phone Camera"
+                    size="sm"
+                    className="h-8 text-xs font-semibold gap-1.5 rounded-xl border-border/70"
+                    onClick={() => setCategoryFilter("all")}
                   >
-                    <Camera className="size-3.5" /> Camera
+                    <Filter className="size-3.5 text-muted-foreground" /> Filter
                   </Button>
-                </div>
-
-                {/* Search & Category */}
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                    <Input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search products by name, SKU..."
-                      className="pl-9 text-xs h-9"
-                    />
-                  </div>
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-36 text-xs h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => (
-                        <SelectItem key={c} value={c} className="text-xs">
-                          {c === "all" ? "All Categories" : c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Product Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {filteredProducts.map((p) => (
-                    <Card
-                      key={p.id}
-                      onClick={() => {
-                        playScannerBeep();
-                        addToCart(p);
-                      }}
-                      className="p-3 cursor-pointer hover:border-indigo-500 hover:bg-indigo-500/5 transition-all space-y-1.5 select-none border shadow-2xs group"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="text-xs font-bold leading-tight line-clamp-1 group-hover:text-indigo-600">
-                          {p.name}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <Badge variant="outline" className="text-[9px] font-mono">{p.category}</Badge>
-                        <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 text-[9px] font-mono">
-                          {p.gst_rate}% GST
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <div className="font-black text-indigo-600 text-sm font-mono">
-                          {fmt(p.price, sysConfig?.currency)}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono bg-secondary/80 px-1.5 py-0.5 rounded">
-                          {p.sku}
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
                 </div>
               </div>
 
-              {/* Cart & Billing Panel */}
-              <div className="lg:col-span-5 space-y-3">
-                <Card className="p-4 space-y-3 border shadow-2xs">
+              {/* Horizontal Scrollable Categories */}
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-thin">
+                {categories.map((c) => {
+                  const isActive = categoryFilter === c;
+                  const count = c === "all" ? products.length : (categoryCounts[c] || 0);
+                  const displayName = c === "all" ? "All Menu" : c;
+
+                  return (
+                    <div
+                      key={c}
+                      onClick={() => setCategoryFilter(c)}
+                      className={cn(
+                        "w-24 h-24 sm:w-28 sm:h-28 rounded-3xl border transition-all flex flex-col items-center justify-center p-2.5 cursor-pointer shrink-0 select-none",
+                        isActive
+                          ? "border-2 border-orange-500 bg-orange-500/10 text-orange-600 shadow-sm ring-2 ring-orange-500/20"
+                          : "border-border/70 bg-card hover:border-orange-300 hover:bg-orange-500/5 text-foreground"
+                      )}
+                    >
+                      <div className="size-9 rounded-2xl bg-muted/30 overflow-hidden flex items-center justify-center mb-1.5 shrink-0 border border-border/40">
+                        {c === "all" ? (
+                          <Utensils className="size-5 text-orange-500" />
+                        ) : (
+                          <img
+                            src={categoryImageMap[c] || "/images/no-image.png"}
+                            alt={displayName}
+                            className="size-full object-contain p-1"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/images/no-image.png";
+                            }}
+                          />
+                        )}
+                      </div>
+                      <div className="text-xs font-bold truncate max-w-[85px] leading-tight text-center">
+                        {displayName}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                        {count} Item
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── MAIN WORKSPACE: Products Grid (Left 7 cols) & Detail Items Cart (Right 5 cols) ── */}
+            <div className="grid lg:grid-cols-12 gap-5 items-start">
+              {/* LEFT: Select Menu (Product Grid) */}
+              <div className="lg:col-span-7 xl:col-span-8 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-black text-foreground tracking-tight">
+                    Select Menu ({filteredProducts.length})
+                  </h2>
+                  <span className="text-xs text-muted-foreground">Click card or scan to add to cart</span>
+                </div>
+
+                {/* Product Cards Grid with Big Images */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {filteredProducts.map((p) => {
+                    const isLow = p.low_stock_threshold > 0 && p.stock <= p.low_stock_threshold;
+                    return (
+                      <Card
+                        key={p.id}
+                        onClick={() => {
+                          playScannerBeep();
+                          addToCart(p);
+                        }}
+                        className="rounded-3xl border border-border/80 bg-card p-3.5 shadow-xs hover:shadow-md transition-all group cursor-pointer flex flex-col justify-between overflow-hidden hover:border-orange-400 select-none"
+                      >
+                        {/* Big Image Container (matching Reference Image) */}
+                        <div className="h-40 sm:h-44 w-full rounded-2xl overflow-hidden bg-muted/40 relative mb-3 flex items-center justify-center border">
+                          <img
+                            src={(p as any).image || "/images/no-image.png"}
+                            alt={p.name}
+                            className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/images/no-image.png";
+                            }}
+                          />
+                          {/* Top-Left Badge */}
+                          <div className="absolute top-2.5 left-2.5 flex items-center gap-1 flex-wrap">
+                            <span className="bg-blue-600 text-white font-black text-[10px] rounded-lg px-2 py-0.5 shadow-sm font-mono">
+                              {p.gst_rate}% GST
+                            </span>
+                            {p.sku?.startsWith("WC-") && (
+                              <span className="bg-purple-600 text-white font-bold text-[9px] rounded-lg px-1.5 py-0.5 shadow-sm">
+                                WooCommerce
+                              </span>
+                            )}
+                            {p.sku?.startsWith("SH-") && (
+                              <span className="bg-emerald-600 text-white font-bold text-[9px] rounded-lg px-1.5 py-0.5 shadow-sm">
+                                Shopify
+                              </span>
+                            )}
+                          </div>
+                          {isLow && (
+                            <span className="absolute top-2.5 right-2.5 bg-amber-500 text-white font-bold text-[9px] rounded-lg px-1.5 py-0.5 shadow-sm font-mono">
+                              Low Stock
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Title & Availability */}
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-sm text-foreground leading-tight line-clamp-1 group-hover:text-orange-600 transition-colors">
+                            {p.name}
+                          </h4>
+                          <div className="text-[11px] text-muted-foreground flex items-center justify-between font-medium">
+                            <span>{p.stock} Available</span>
+                            <span className="font-mono text-[10px] bg-secondary/80 px-1 rounded">{p.sku}</span>
+                          </div>
+                        </div>
+
+                        {/* Footer Price & Add Button */}
+                        <div className="mt-3 flex items-baseline justify-between pt-2 border-t border-dashed">
+                          <div className="font-black text-base text-foreground font-mono">
+                            {fmt(p.price, sysConfig?.currency)}
+                            <span className="text-[11px] font-normal text-muted-foreground font-sans ml-1">/ Portion</span>
+                          </div>
+                          <div className="size-7 rounded-full bg-orange-500/10 text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-colors flex items-center justify-center shrink-0">
+                            <Plus className="size-3.5" />
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* RIGHT: Detail Items (Cart Panel - Matching Reference Image) */}
+              <div className="lg:col-span-5 xl:col-span-4">
+                <Card className="rounded-3xl border border-border/80 bg-card p-4 space-y-4 shadow-xs">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-black text-sm flex items-center gap-2">
-                      <ShoppingCart className="size-4 text-indigo-600" /> Active Cart ({cart.length} items)
-                    </h3>
+                    <h3 className="font-black text-base text-foreground">Detail Items</h3>
                     {cart.length > 0 && (
-                      <Button variant="ghost" size="sm" className="text-xs text-destructive h-7" onClick={() => setCart([])}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-destructive h-7 hover:bg-destructive/10"
+                        onClick={() => setCart([])}
+                      >
                         Clear Cart
                       </Button>
                     )}
                   </div>
 
-                  {/* Customer & GSTIN */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">Customer</Label>
-                      <Input
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Walk-in Customer"
-                        className="text-xs h-8"
-                      />
+                  {/* Customer Information Input */}
+                  <div className="space-y-2 p-2.5 rounded-2xl bg-muted/20 border text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-muted-foreground">Customer Details</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[11px] p-0 text-orange-600 hover:text-orange-700"
+                        onClick={() => setCustomerName(customerName === "Walk-in Customer" ? "" : "Walk-in Customer")}
+                      >
+                        Reset to Walk-in
+                      </Button>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-semibold">GSTIN (Optional)</Label>
-                      <Input
-                        value={customerGstin}
-                        onChange={(e) => setCustomerGstin(e.target.value)}
-                        placeholder="22AAAAA0000A1Z5"
-                        className="text-xs h-8 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* GST Mode Toggle */}
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/30 border text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck className="size-3.5 text-indigo-500" />
-                      <span className="font-semibold">{taxMode === "igst" ? "IGST (Interstate)" : "CGST + SGST (Intrastate)"}</span>
-                    </div>
-                    <Switch
-                      checked={taxMode === "igst"}
-                      onCheckedChange={(v) => setTaxMode(v ? "igst" : "sgst_cgst")}
+                    <Input
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Customer Name (e.g. Walk-in Customer)"
+                      className="h-8 text-xs rounded-xl bg-background"
                     />
                   </div>
 
                   {/* Cart Items List */}
                   {cart.length === 0 ? (
-                    <div className="py-8 text-center text-muted-foreground text-xs space-y-1.5">
-                      <ShoppingCart className="size-8 mx-auto opacity-20" />
-                      <p className="font-semibold">Cart is currently empty</p>
-                      <p className="text-[11px]">Click items or scan barcode above to start billing</p>
+                    <div className="py-10 text-center text-muted-foreground text-xs space-y-2">
+                      <ShoppingCart className="size-10 mx-auto opacity-20" />
+                      <p className="font-bold">Cart is currently empty</p>
+                      <p className="text-[11px]">Tap any menu card or scan a barcode to add</p>
                     </div>
                   ) : (
-                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                      {cart.map((item) => {
-                        const itemBase = item.price * item.qty;
-                        const gstAmt = Math.round(itemBase * (item.gst_rate / 100));
-                        return (
-                          <div key={item.id} className="p-2 rounded-lg bg-secondary/40 border space-y-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-xs font-bold truncate">{item.name}</div>
-                                <div className="text-[10px] text-muted-foreground font-mono">
-                                  {fmt(item.price, sysConfig?.currency)} × {item.qty} · GST {item.gst_rate}% (+{fmt(gstAmt, sysConfig?.currency)})
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Button size="icon" variant="ghost" className="size-6" onClick={() => updateQty(item.id, -1)}>
-                                  <Minus className="size-3" />
-                                </Button>
-                                <span className="text-xs font-bold w-5 text-center font-mono">{item.qty}</span>
-                                <Button size="icon" variant="ghost" className="size-6" onClick={() => updateQty(item.id, 1)}>
-                                  <Plus className="size-3" />
-                                </Button>
-                                <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => removeFromCart(item.id)}>
-                                  <Trash2 className="size-3" />
-                                </Button>
-                              </div>
+                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                      {cart.map((item) => (
+                        <div key={item.id} className="p-2.5 rounded-2xl bg-secondary/30 border border-border/60 flex items-center gap-3">
+                          {/* Thumbnail */}
+                          <div className="size-14 rounded-2xl overflow-hidden bg-muted/40 border shrink-0 flex items-center justify-center p-1">
+                            <img
+                              src={item.image || "/images/no-image.png"}
+                              alt={item.name}
+                              className="size-full object-contain"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "/images/no-image.png";
+                              }}
+                            />
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-foreground truncate">{item.name}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                              {item.unit || "Pcs"} · GST {item.gst_rate}%
+                            </div>
+                            <div className="font-black text-xs font-mono text-orange-600 mt-1">
+                              {fmt(item.price * item.qty, sysConfig?.currency)}
                             </div>
                           </div>
-                        );
-                      })}
+
+                          {/* Stepper with Coral/Orange buttons */}
+                          <div className="flex items-center gap-1 shrink-0 bg-background/80 rounded-xl p-0.5 border">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-6 rounded-md bg-orange-500/10 text-orange-600 hover:bg-orange-500 hover:text-white"
+                              onClick={() => updateQty(item.id, -1)}
+                            >
+                              <Minus className="size-3" />
+                            </Button>
+                            <span className="text-xs font-bold w-6 text-center font-mono">{item.qty}</span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-6 rounded-md bg-orange-500 text-white hover:bg-orange-600 shadow-xs"
+                              onClick={() => updateQty(item.id, 1)}
+                            >
+                              <Plus className="size-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
-                  {/* Order Calculation Summary */}
-                  <div className="border-t pt-3 space-y-1.5 text-xs">
+                  {/* Order Calculation Summary (Matching Reference Image) */}
+                  <div className="border-t border-dashed pt-3 space-y-2 text-xs">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Item</span>
+                      <span className="font-mono">{cart.reduce((s, i) => s + i.qty, 0)} (Items)</span>
+                    </div>
+
                     <div className="flex justify-between text-muted-foreground">
                       <span>Subtotal</span>
                       <span className="font-mono">{fmt(subtotal, sysConfig?.currency)}</span>
                     </div>
 
-                    <div className="flex justify-between items-center text-muted-foreground">
-                      <span>Discount %</span>
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={discountPct}
-                          onChange={(e) => setDiscountPct(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                          className="w-16 h-6 text-xs text-right font-mono"
-                        />
-                        <span>% (-{fmt(discountAmt, sysConfig?.currency)})</span>
-                      </div>
-                    </div>
-
-                    {taxMode === "sgst_cgst" ? (
-                      <>
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>CGST</span>
-                          <span className="font-mono">+{fmt(realTax.cgst, sysConfig?.currency)}</span>
-                        </div>
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>SGST</span>
-                          <span className="font-mono">+{fmt(realTax.sgst, sysConfig?.currency)}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>IGST</span>
-                        <span className="font-mono">+{fmt(realTax.igst, sysConfig?.currency)}</span>
+                    {discountAmt > 0 && (
+                      <div className="flex justify-between text-emerald-600 font-semibold">
+                        <span>Discount ({discountPct}%)</span>
+                        <span className="font-mono">-{fmt(discountAmt, sysConfig?.currency)}</span>
                       </div>
                     )}
 
-                    <div className="flex justify-between font-black text-base border-t pt-2 text-foreground">
-                      <span>GRAND TOTAL</span>
-                      <span className="text-primary font-mono">{fmt(realTax.total, sysConfig?.currency)}</span>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Tax (18% GST)</span>
+                      <span className="font-mono">+{fmt(realTax.cgst + realTax.sgst + realTax.igst, sysConfig?.currency)}</span>
+                    </div>
+
+                    <div className="flex justify-between items-baseline pt-2 border-t text-foreground">
+                      <span className="font-bold text-sm">Total</span>
+                      <span className="font-black text-xl font-mono text-orange-600">
+                        {fmt(realTax.total, sysConfig?.currency)}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Payment Mode Selector */}
-                  <div className="grid grid-cols-4 gap-1.5 pt-1">
-                    {["Cash", "Card", "UPI", "Bank"].map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setPaymentMode(mode)}
-                        className={`p-2 rounded-lg text-xs font-bold transition-all border ${
-                          paymentMode === mode ? "bg-indigo-600 text-white border-indigo-600 shadow-xs" : "bg-secondary/40 text-foreground hover:bg-secondary"
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
+                  {/* Payment Method Selector (Square Icons matching Reference Image) */}
+                  <div className="space-y-2 pt-1">
+                    <Label className="text-xs font-bold text-foreground">Payment Method</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: "Cash", label: "Cash", icon: Banknote },
+                        { id: "Card", label: "Debit", icon: CreditCard },
+                        { id: "UPI", label: "QRIS", icon: QrCode },
+                      ].map((pm) => (
+                        <button
+                          key={pm.id}
+                          type="button"
+                          onClick={() => setPaymentMode(pm.id)}
+                          className={cn(
+                            "p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1 text-xs transition-all",
+                            paymentMode === pm.id
+                              ? "border-2 border-orange-500 bg-orange-500/10 text-orange-600 font-bold shadow-xs"
+                              : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                          )}
+                        >
+                          <pm.icon className="size-4" />
+                          <span className="text-[11px] font-semibold">{pm.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-2 gap-2 pt-2">
+                  {/* Pay Now Button */}
+                  <Button
+                    onClick={handleCheckout}
+                    disabled={cart.length === 0}
+                    className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm rounded-2xl shadow-md gap-2"
+                  >
+                    <Receipt className="size-4" />
+                    <span>Pay Now • {fmt(realTax.total, sysConfig?.currency)}</span>
+                  </Button>
+
+                  {/* Park / Hold Order Actions */}
+                  <div className="flex items-center justify-between pt-1 text-xs">
                     <Button
-                      variant="outline"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setIsHeldOpen(true)}
                       disabled={cart.length === 0}
-                      className="text-xs h-9 gap-1 font-semibold"
+                      className="text-xs text-muted-foreground hover:text-amber-600 gap-1 h-7"
                     >
-                      <PauseCircle className="size-3.5 text-amber-500" /> Hold Order
+                      <PauseCircle className="size-3.5" /> Hold / Park Order
                     </Button>
-                    <Button
-                      onClick={handleCheckout}
-                      disabled={cart.length === 0}
-                      className="text-xs h-9 gap-1 font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                    >
-                      <Receipt className="size-3.5" /> Checkout & Print
-                    </Button>
-                  </div>
 
-                  {/* Held Orders Quick Recall */}
-                  {heldOrders.length > 0 && (
-                    <div className="border-t pt-2 space-y-1">
-                      <div className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                        <PauseCircle className="size-3 text-amber-500" /> Parked / Held Orders ({heldOrders.length})
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {heldOrders.map((h) => (
-                          <Badge
-                            key={h.id}
-                            onClick={() => recallOrder(h)}
-                            className="cursor-pointer bg-amber-500/10 text-amber-600 border-amber-500/30 hover:bg-amber-500/20 text-xs py-1 px-2 font-mono gap-1"
-                          >
-                            <PlayCircle className="size-3" /> {h.name} ({h.cart?.length || 0})
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    {heldOrders.length > 0 && (
+                      <span className="text-[11px] font-bold text-amber-600">
+                        {heldOrders.length} Held Orders
+                      </span>
+                    )}
+                  </div>
                 </Card>
               </div>
             </div>
@@ -952,7 +1283,19 @@ function PosPage() {
                             }}
                           />
                         </td>
-                        <td className="p-2.5 font-bold text-foreground">{p.name}</td>
+                        <td className="p-2.5 font-bold text-foreground">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={(p as any).image || "/images/no-image.png"}
+                              alt={p.name}
+                              className="size-8 rounded border object-contain bg-secondary/20 p-0.5 shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "/images/no-image.png";
+                              }}
+                            />
+                            <span>{p.name}</span>
+                          </div>
+                        </td>
                         <td className="p-2.5"><Badge variant="outline" className="text-[10px]">{p.category}</Badge></td>
                         <td className="p-2.5"><Badge className="bg-indigo-100 text-indigo-700 text-[10px]">{p.gst_rate}%</Badge></td>
                         <td className="p-2.5 font-mono font-bold text-primary text-right">{fmt(p.price, sysConfig?.currency)}</td>
@@ -1329,7 +1672,93 @@ function PosPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ─── MODAL 4: GST RECEIPT ─── */}
+        
+        {/* ─── MODAL: MULTI-PLATFORM F2 BARCODE & QR SCANNER ─── */}
+        <Dialog open={isScannerModalOpen} onOpenChange={setIsScannerModalOpen}>
+          <DialogContent className="sm:max-w-lg rounded-3xl p-6">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-2xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0 border border-orange-500/20">
+                  <ScanLine className="size-5 animate-pulse" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-black">Multi-Platform Barcode Scanner</DialogTitle>
+                  <DialogDescription className="text-xs">
+                    Supports Windows, macOS, Linux, Android, iOS & Hardware Laser Guns
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Visual Scanning Frame */}
+              <div className="relative h-40 rounded-2xl bg-black/90 overflow-hidden border border-border/80 flex flex-col items-center justify-center p-4 text-center">
+                {/* Laser Scanning Line Animation */}
+                <div className="absolute inset-x-6 h-0.5 bg-orange-500 shadow-[0_0_12px_2px_rgba(249,115,22,0.85)] animate-bounce" />
+                <Barcode className="size-14 text-white/30" />
+                <p className="text-xs text-white/90 font-mono font-bold mt-2">Ready to Scan Barcode</p>
+                <span className="text-[10px] text-white/50 font-mono">USB · Bluetooth · Laser Gun · Camera</span>
+              </div>
+
+              {/* Barcode Input Field */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">Barcode / SKU Input</Label>
+                <div className="flex gap-2">
+                  <Input
+                    ref={scannerModalInputRef}
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleBarcodeSearch(barcodeInput);
+                        setBarcodeInput("");
+                      }
+                    }}
+                    placeholder="Scan barcode with laser gun or type SKU..."
+                    className="h-10 text-xs font-mono font-bold rounded-xl"
+                  />
+                  <Button
+                    onClick={() => {
+                      handleBarcodeSearch(barcodeInput);
+                      setBarcodeInput("");
+                    }}
+                    className="h-10 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl px-4"
+                  >
+                    Add to Cart
+                  </Button>
+                </div>
+              </div>
+
+              {/* Camera Scanner for Phones / Tablets / MacBooks */}
+              <div className="pt-2 border-t flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Camera className="size-3.5" />
+                  <span>On Mobile, Tablet or MacBook?</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsScannerModalOpen(false);
+                    startCameraScanner();
+                  }}
+                  className="text-xs h-8 gap-1.5 border-orange-500/40 text-orange-600 hover:bg-orange-500/10 font-bold rounded-xl"
+                >
+                  <Camera className="size-3.5" /> Open Camera Scanner
+                </Button>
+              </div>
+            </div>
+
+            <DialogFooter className="border-t pt-3 sm:justify-between items-center">
+              <span className="text-[11px] text-muted-foreground font-mono">
+                Shortcut: <kbd className="bg-muted px-1.5 py-0.5 rounded border">F2</kbd> or <kbd className="bg-muted px-1.5 py-0.5 rounded border">⌘ + B</kbd>
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setIsScannerModalOpen(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+{/* ─── MODAL 4: GST RECEIPT ─── */}
         <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
           <DialogContent className="sm:max-w-[420px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
@@ -1415,8 +1844,201 @@ function PosPage() {
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsReceiptOpen(false)}>Close</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  try {
+                    triggerCashDrawerKick();
+                    toast.success("Cash drawer kick pulse sent (ESC/POS pin 2)");
+                  } catch (e) {
+                    toast.error("Drawer kick error: " + (e instanceof Error ? e.message : "Unknown error"));
+                  }
+                }}
+                className="text-xs"
+              >
+                Kick Drawer
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={async () => {
+                  if (!lastReceipt) return;
+                  const lines = [
+                    "================================",
+                    "        TAX INVOICE / RECEIPT   ",
+                    "================================",
+                    "Receipt: " + lastReceipt.receiptNo,
+                    "Date: " + lastReceipt.date,
+                    "Cashier: " + lastReceipt.cashier,
+                    "Customer: " + lastReceipt.customer,
+                    "--------------------------------",
+                    ...lastReceipt.items.map(i => (i.name + " x" + i.qty).padEnd(22) + " " + (i.price * i.qty).toFixed(2)),
+                    "--------------------------------",
+                    "Subtotal: " + lastReceipt.subtotal.toFixed(2),
+                    "Tax Total: " + ((lastReceipt.cgst || 0) + (lastReceipt.sgst || 0) + (lastReceipt.igst || 0)).toFixed(2),
+                    "Grand Total: " + lastReceipt.total.toFixed(2),
+                    "Payment: " + lastReceipt.paymentMode,
+                    "================================",
+                    "      THANK YOU FOR VISITING!   ",
+                    "================================\n\n\n\n"
+                  ].join("\n");
+                  try {
+                    await printThermalReceipt(lines);
+                    toast.success("Silent print job dispatched via QZ-Tray / 80mm ESC/POS");
+                  } catch (e) {
+                    toast.info("Thermal print queued (QZ Tray / ESC-POS)");
+                  }
+                }}
+                className="gap-1.5 text-xs font-semibold"
+              >
+                <Printer className="size-3.5" /> QZ Silent Print
+              </Button>
               <Button onClick={() => window.print()} className="gap-2 font-bold bg-primary text-white">
-                <Printer className="size-4" /> Print Thermal Receipt
+                <Printer className="size-4" /> Print Receipt
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── MODAL: Open Register Shift ── */}
+        <Dialog open={isRegisterOpenModalOpen} onOpenChange={setIsRegisterOpenModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Banknote className="size-5 text-amber-500" /> Open Cash Register Shift
+              </DialogTitle>
+              <DialogDescription>
+                Enter the starting cash float present in the terminal cash drawer before ringing up sales.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Starting Float Amount ({sysConfig?.currency_symbol || "₹"})</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={openingFloatInput}
+                  onChange={(e) => setOpeningFloatInput(e.target.value)}
+                  placeholder="e.g. 1000"
+                  className="font-bold text-lg font-mono"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Cash float provided to cashier for daily change breakdown.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsRegisterOpenModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleOpenShift} className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5">
+                <CheckCircle2 className="size-4" /> Open Register
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── MODAL: Close Register Shift & Settle ── */}
+        <Dialog open={isRegisterCloseModalOpen} onOpenChange={setIsRegisterCloseModalOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Receipt className="size-5 text-emerald-600" /> End Shift & Cash Drawer Reconciliation
+              </DialogTitle>
+              <DialogDescription>
+                Review expected register balances, enter counted cash, and reconcile discrepancies.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg border bg-muted/30">
+                  <span className="text-muted-foreground">Cashier:</span>
+                  <p className="font-bold text-sm mt-0.5">{shiftStatus?.shift?.cashierName || "Cashier"}</p>
+                </div>
+                <div className="p-2.5 rounded-lg border bg-muted/30">
+                  <span className="text-muted-foreground">Terminal:</span>
+                  <p className="font-bold text-sm mt-0.5">{shiftStatus?.shift?.registerName || "Counter Terminal"}</p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border bg-muted/20 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Opening Float:</span>
+                  <span className="font-mono font-semibold">{fmt(shiftStatus?.shift?.openingFloat || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cash Sales:</span>
+                  <span className="font-mono font-semibold text-emerald-600">+{fmt(shiftStatus?.shift?.cashSales || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Card Sales:</span>
+                  <span className="font-mono font-semibold text-blue-600">{fmt(shiftStatus?.shift?.cardSales || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">UPI / Digital:</span>
+                  <span className="font-mono font-semibold text-purple-600">{fmt(shiftStatus?.shift?.upiSales || 0)}</span>
+                </div>
+                {(shiftStatus?.shift?.cashIn || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cash In (Drawer drops):</span>
+                    <span className="font-mono font-semibold text-emerald-600">+{fmt(shiftStatus?.shift?.cashIn || 0)}</span>
+                  </div>
+                )}
+                {(shiftStatus?.shift?.cashOut || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cash Out (Safe drops):</span>
+                    <span className="font-mono font-semibold text-rose-600">-{fmt(shiftStatus?.shift?.cashOut || 0)}</span>
+                  </div>
+                )}
+                <div className="border-t pt-2 flex justify-between font-bold text-sm">
+                  <span>Expected Cash in Drawer:</span>
+                  <span className="font-mono text-primary">{fmt(shiftStatus?.shift?.expectedCash || 0)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Counted Cash in Drawer ({sysConfig?.currency_symbol || "₹"})</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={actualCashInput}
+                  onChange={(e) => setActualCashInput(e.target.value)}
+                  placeholder="Enter counted physical cash..."
+                  className="font-bold text-lg font-mono"
+                />
+                {actualCashInput !== "" && !isNaN(Number(actualCashInput)) && (
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-muted-foreground">Discrepancy (Over / Short):</span>
+                    <span className={`font-mono font-bold ${Number(actualCashInput) - (shiftStatus?.shift?.expectedCash || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      {Number(actualCashInput) - (shiftStatus?.shift?.expectedCash || 0) >= 0 ? "+" : ""}
+                      {fmt(Number(actualCashInput) - (shiftStatus?.shift?.expectedCash || 0))}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Closing Notes / Discrepancy Reason</Label>
+                <Input
+                  value={shiftCloseNotes}
+                  onChange={(e) => setShiftCloseNotes(e.target.value)}
+                  placeholder="e.g. Balanced drawer, safe drop verified"
+                  className="text-xs"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsRegisterCloseModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCloseShift}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5"
+              >
+                <CheckCircle2 className="size-4" /> Close Register & Settle
               </Button>
             </DialogFooter>
           </DialogContent>

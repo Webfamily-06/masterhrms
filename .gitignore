@@ -47,3 +47,41 @@ scratch/
 *.sw?
 Thumbs.db
 
+
+# Database dumps
+master_hrms_production_dump.sql
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies / builds
+node_modules/
+.next/
+dist/
+build/
+
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build output
+.next/
+.output/
+dist/
+build/
+
+# IDE / AI tools
+.agents/
+.cursor/
+
+# Database dumps
+master_hrms_production_dump.sql
+

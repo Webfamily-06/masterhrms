@@ -1,3 +1,5 @@
+import { NotFoundView } from "@/components/error-pages/not-found-view";
+import { ServerErrorView } from "@/components/error-pages/server-error-view";
 import type { ReactNode } from "react";
 import "@/styles.css";
 import {
@@ -15,55 +17,11 @@ import { api } from "@/lib/api";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Go home
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
+  return <NotFoundView />;
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
-  const router = useRouter();
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold">Something went wrong</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Try again or go back home.</p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Try again
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-          >
-            Home
-          </a>
-        </div>
-      </div>
-    </div>
-  );
+  return <ServerErrorView error={error} reset={reset} />;
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -89,10 +47,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/webp", href: "/favicon.webp" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@400;500;600;700;800&display=swap",
-      },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@400;500;600;700;800&display=swap" },
+      { rel: "stylesheet", href: "/ui-assets/libs/@phosphor-icons/web/duotone/style.css" },
+      { rel: "stylesheet", href: "/ui-assets/libs/@phosphor-icons/web/regular/style.css" },
+      { rel: "stylesheet", href: "/ui-assets/libs/@phosphor-icons/web/fill/style.css" },
+      { rel: "stylesheet", href: "/ui-assets/libs/lucide-static/font/lucide.css" },
+      { rel: "stylesheet", href: "/ui-assets/libs/@fortawesome/fontawesome-free/css/fontawesome.min.css" },
+      { rel: "stylesheet", href: "/ui-assets/libs/@fortawesome/fontawesome-free/css/all.min.css" },
+      { rel: "stylesheet", href: "/ui-assets/css/style.css" }
     ],
   }),
   shellComponent: RootShell,
@@ -114,9 +76,9 @@ function RootShell({ children }: { children: ReactNode }) {
                 try {
                   var theme = localStorage.getItem("theme");
                   if (theme === "dark" || (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-                    document.documentElement.classList.add("dark");
+                    document.documentElement.classList.add("dark"); document.documentElement.setAttribute("data-theme", "dark");
                   } else {
-                    document.documentElement.classList.remove("dark");
+                    document.documentElement.classList.remove("dark"); document.documentElement.removeAttribute("data-theme");
                   }
                   var c = localStorage.getItem("master_hrms_primary_color");
                   if (c) document.documentElement.style.setProperty("--primary", c);

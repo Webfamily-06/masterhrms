@@ -141,39 +141,83 @@ function AiOcrPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const [isSaving, setIsSaving] = useState(false);
+
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsProcessing(true);
     setCurrentExtraction(null);
-    toast.info(`Processing "${file.name}" with AI OCR...`);
-    await new Promise((r) => setTimeout(r, 2500));
-    // Simulate AI extraction with mock data + slight variation
-    const extracted: OcrExtracted = {
-      ...MOCK_EXTRACTION,
-      invoiceNumber: `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      invoiceDate: new Date().toISOString().split("T")[0],
+    toast.info(`Scanning "${file.name}" with Neural OCR Engine...`);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const fileBase64 = reader.result as string;
+        const res: any = await api.post("/ai/ocr/extract", {
+          fileBase64,
+          fileName: file.name,
+        });
+
+        if (res?.data) {
+          setCurrentExtraction({ fileName: file.name, data: res.data });
+          setEditData(res.data);
+          toast.success(
+            `AI extracted ${res.data.lineItems?.length || 0} line items with ${formatSystemAmount(
+              res.data.total || 0,
+              sysConfig?.currency
+            )} total!`
+          );
+        } else {
+          toast.error("Failed to parse invoice content.");
+        }
+      } catch (err: any) {
+        console.error("OCR Extraction failed:", err);
+        toast.error("OCR Extraction failed: " + (err.message || "Unknown error"));
+      } finally {
+        setIsProcessing(false);
+      }
     };
-    setCurrentExtraction({ fileName: file.name, data: extracted });
-    setEditData(extracted);
-    setIsProcessing(false);
-    toast.success(`AI extracted ${extracted.lineItems.length} line items from "${file.name}"!`);
+    reader.onerror = () => {
+      setIsProcessing(false);
+      toast.error("Failed to read file.");
+    };
+    reader.readAsDataURL(file);
     if (e.target) e.target.value = "";
   }
 
-  function saveToInvoices() {
+  async function handleSaveRecord(targetType: "purchase" | "invoice") {
     if (!currentExtraction || !editData) return;
-    const record: OcrRecord = {
-      id: `ocr-${Date.now()}`,
-      fileName: currentExtraction.fileName,
-      status: "saved",
-      extracted: editData,
-      savedAt: new Date().toLocaleString(),
-    };
-    persist.mutate([record, ...records]);
-    setCurrentExtraction(null);
-    setEditData(null);
-    toast.success(`Invoice "${editData.invoiceNumber}" saved to Invoices!`);
+    try {
+      setIsSaving(true);
+      const res: any = await api.post("/ai/ocr/save", {
+        type: targetType,
+        extracted: editData,
+        fileName: currentExtraction.fileName,
+      });
+
+      const record: OcrRecord = {
+        id: `ocr-${Date.now()}`,
+        fileName: currentExtraction.fileName,
+        status: targetType === "purchase" ? "saved_as_expense" : "saved",
+        extracted: editData,
+        savedAt: new Date().toLocaleString(),
+      };
+      persist.mutate([record, ...records]);
+      setCurrentExtraction(null);
+      setEditData(null);
+      toast.success(
+        res?.message ||
+          `Successfully saved as ${targetType === "purchase" ? "Purchase Order" : "Invoice"} & auto-posted to General Ledger!`
+      );
+      qc.invalidateQueries({ queryKey: ["purchases"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+    } catch (err: any) {
+      console.error("Save OCR record error:", err);
+      toast.error("Failed to save record: " + (err.message || "Unknown error"));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function deleteRecord(id: string) {
@@ -350,10 +394,10 @@ function AiOcrPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-2 border-t">
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-2 border-t">
                   <Button
                     variant="outline"
-                    className="flex-1 text-xs"
+                    className="text-xs"
                     onClick={() => {
                       setCurrentExtraction(null);
                       setEditData(null);
@@ -362,16 +406,28 @@ function AiOcrPage() {
                     Discard
                   </Button>
                   <Button
-                    onClick={saveToInvoices}
-                    disabled={persist.isPending}
-                    className="flex-1 font-bold gap-2 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                    onClick={() => handleSaveRecord("purchase")}
+                    disabled={isSaving}
+                    className="flex-1 font-bold gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
                   >
-                    {persist.isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
+                    {isSaving ? (
+                      <Loader2 className="size-3.5 animate-spin" />
                     ) : (
-                      <Save className="size-4" />
+                      <Save className="size-3.5" />
                     )}
-                    Save to Invoices
+                    Save as Vendor Purchase Bill (PO)
+                  </Button>
+                  <Button
+                    onClick={() => handleSaveRecord("invoice")}
+                    disabled={isSaving}
+                    className="flex-1 font-bold gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="size-3.5" />
+                    )}
+                    Save as Customer Invoice
                   </Button>
                 </div>
               </Card>

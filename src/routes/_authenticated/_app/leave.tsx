@@ -40,7 +40,7 @@ import {
   Clock,
   UserX,
   Users,
-  CalendarDays,
+  CalendarDays, LayoutGrid, List,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -73,6 +73,7 @@ function Leave() {
 
   const [open, setOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [halfDay, setHalfDay] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<{ id: string; name: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -229,7 +230,7 @@ function Leave() {
   });
 
   return (
-    <div className="space-y-6 max-w-7xl">
+    <div className="space-y-6 max-w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>

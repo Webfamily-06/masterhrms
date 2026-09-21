@@ -123,6 +123,8 @@ function TallyImporterPage() {
   const [step, setStep] = useState<WizardStep>("upload");
   const [uploadedFile, setUploadedFile] = useState<{ name: string; rows: number } | null>(null);
   const [fieldMap, setFieldMap] = useState<Record<string, string>>({});
+  const [parsedRows, setParsedRows] = useState<any[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -167,47 +169,95 @@ function TallyImporterPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!["csv", "xml", "xlsx"].includes(ext || ""))
-      return toast.error("Only CSV, XML, or XLSX files are supported");
-    setUploadedFile({ name: file.name, rows: Math.floor(50 + Math.random() * 500) });
-    const initialMap: Record<string, string> = {};
-    TALLY_FIELDS.forEach((f, i) => {
-      initialMap[f] = ERP_FIELDS[i] || "";
-    });
-    setFieldMap(initialMap);
-    setStep("map");
-    toast.success(`File "${file.name}" loaded! Map your fields.`);
+    if (!["csv", "xml", "xlsx", "txt"].includes(ext || ""))
+      return toast.error("Only CSV, XML, or text files are supported");
+
+    setIsParsing(true);
+    toast.info(`Reading and parsing "${file.name}"...`);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const fileContent = reader.result as string;
+        const res: any = await api.post("/accounting/tally/preview", {
+          fileContent,
+          fileName: file.name,
+        });
+
+        if (res?.success && Array.isArray(res.rows)) {
+          setUploadedFile({ name: file.name, rows: res.totalRows });
+          setParsedRows(res.rows);
+
+          const initialMap: Record<string, string> = {};
+          TALLY_FIELDS.forEach((f, i) => {
+            initialMap[f] = ERP_FIELDS[i] || "";
+          });
+          setFieldMap(initialMap);
+          setStep("map");
+          toast.success(`Successfully parsed ${res.totalRows} transactions from "${file.name}"!`);
+        } else {
+          toast.error("Failed to parse file format.");
+        }
+      } catch (err: any) {
+        console.error("Tally preview error:", err);
+        toast.error("Error parsing Tally file: " + (err.message || "Unknown error"));
+      } finally {
+        setIsParsing(false);
+      }
+    };
+    reader.onerror = () => {
+      setIsParsing(false);
+      toast.error("Could not read uploaded file.");
+    };
+    reader.readAsText(file);
     if (e.target) e.target.value = "";
   }
 
   async function handleImport() {
-    if (!uploadedFile) return;
+    if (!uploadedFile || parsedRows.length === 0) return;
     setIsImporting(true);
-    await new Promise((r) => setTimeout(r, 3000));
-    const errors = Math.floor(Math.random() * 3);
-    const imported = uploadedFile.rows - errors;
-    const record: ImportRecord = {
-      id: `imp-${Date.now()}`,
-      fileName: uploadedFile?.name || "Unknown",
-      status: errors === 0 ? "success" : errors < 5 ? "partial" : "failed",
-      totalRows: uploadedFile.rows,
-      importedRows: imported,
-      errors,
-      importedAt: new Date().toLocaleString(),
-      fieldMap,
-    };
-    persist.mutate([record, ...importHistory]);
-    setIsImporting(false);
-    setStep("done");
-    toast.success(
-      `${imported} ledger entries imported successfully${errors > 0 ? `, ${errors} errors skipped` : ""}!`,
-    );
+    try {
+      const res: any = await api.post("/accounting/tally/import", {
+        fileName: uploadedFile.name,
+        rows: parsedRows,
+        fieldMap,
+      });
+
+      const imported = res?.importedRows || parsedRows.length;
+      const errors = res?.errors || 0;
+      const record: ImportRecord = {
+        id: `imp-${Date.now()}`,
+        fileName: uploadedFile?.name || "Unknown",
+        status: errors === 0 ? "success" : errors < 5 ? "partial" : "failed",
+        totalRows: uploadedFile.rows,
+        importedRows: imported,
+        errors,
+        importedAt: new Date().toLocaleString(),
+        fieldMap,
+      };
+
+      persist.mutate([record, ...importHistory]);
+      qc.invalidateQueries({ queryKey: ["accounting-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+      qc.invalidateQueries({ queryKey: ["journal-entries"] });
+
+      setIsImporting(false);
+      setStep("done");
+      toast.success(
+        res?.message || `${imported} ledger entries committed to MySQL General Ledger!`
+      );
+    } catch (err: any) {
+      setIsImporting(false);
+      console.error("Tally import error:", err);
+      toast.error("Import failed: " + (err.message || "Unknown error"));
+    }
   }
 
   function resetWizard() {
     setStep("upload");
     setUploadedFile(null);
     setFieldMap({});
+    setParsedRows([]);
   }
 
   return (
@@ -353,14 +403,15 @@ function TallyImporterPage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-bold flex items-center gap-2">
-                    <Database className="size-4 text-primary" /> Preview ({MOCK_PREVIEW_ROWS.length}{" "}
-                    of {uploadedFile?.rows} rows)
+                    <Database className="size-4 text-primary" /> Preview (
+                    {parsedRows.length > 0 ? Math.min(15, parsedRows.length) : MOCK_PREVIEW_ROWS.length}{" "}
+                    of {uploadedFile?.rows || parsedRows.length} rows)
                   </div>
                   <Badge
                     variant="outline"
                     className="text-[10px] text-emerald-600 border-emerald-500/30"
                   >
-                    <CheckCircle2 className="size-3 mr-1" /> No validation errors
+                    <CheckCircle2 className="size-3 mr-1" /> Validated format
                   </Badge>
                 </div>
                 <div className="overflow-x-auto rounded-xl border">
@@ -375,7 +426,7 @@ function TallyImporterPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {MOCK_PREVIEW_ROWS.map((r, i) => (
+                      {(parsedRows.length > 0 ? parsedRows.slice(0, 15) : MOCK_PREVIEW_ROWS).map((r, i) => (
                         <tr key={i} className="border-t hover:bg-secondary/20">
                           <td className="p-2.5 font-semibold">{r.ledger}</td>
                           <td className="p-2.5 font-mono text-muted-foreground">{r.date}</td>
@@ -385,10 +436,10 @@ function TallyImporterPage() {
                             </Badge>
                           </td>
                           <td className="p-2.5 font-mono text-red-600">
-                            {r.debit ? `₹${parseInt(r.debit).toLocaleString()}` : "—"}
+                            {r.debit ? `₹${parseFloat(r.debit).toLocaleString()}` : "—"}
                           </td>
                           <td className="p-2.5 font-mono text-emerald-600">
-                            {r.credit ? `₹${parseInt(r.credit).toLocaleString()}` : "—"}
+                            {r.credit ? `₹${parseFloat(r.credit).toLocaleString()}` : "—"}
                           </td>
                           <td className="p-2.5 text-muted-foreground">{r.narration}</td>
                         </tr>

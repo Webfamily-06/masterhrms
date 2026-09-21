@@ -1,3 +1,4 @@
+import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
@@ -51,7 +52,7 @@ recruitmentRouter.get("/jobs", requireAuth, async (req: AuthRequest, res: Respon
 
     return res.json(jobs);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to list job postings." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to list job postings." });
   }
 });
 
@@ -115,7 +116,7 @@ recruitmentRouter.post("/jobs", requireAuth, async (req: AuthRequest, res: Respo
 
     return res.status(201).json(job);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to create job posting." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to create job posting." });
   }
 });
 
@@ -150,7 +151,7 @@ recruitmentRouter.get("/jobs/:id", requireAuth, async (req: AuthRequest, res: Re
 
     return res.json(job);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to get job posting." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to get job posting." });
   }
 });
 
@@ -205,7 +206,7 @@ recruitmentRouter.put("/jobs/:id", requireAuth, async (req: AuthRequest, res: Re
 
     return res.json(updated);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to update job posting." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to update job posting." });
   }
 });
 
@@ -223,7 +224,7 @@ recruitmentRouter.delete("/jobs/:id", requireAuth, async (req: AuthRequest, res:
     await prisma.jobPosting.delete({ where: { id } });
     return res.json({ success: true, message: "Job posting deleted successfully." });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to delete job posting." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to delete job posting." });
   }
 });
 
@@ -273,7 +274,7 @@ recruitmentRouter.get("/candidates", requireAuth, async (req: AuthRequest, res: 
 
     return res.json(candidates);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to list candidates." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to list candidates." });
   }
 });
 
@@ -333,7 +334,7 @@ recruitmentRouter.post("/candidates", requireAuth, async (req: AuthRequest, res:
 
     return res.status(201).json(candidate);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to create candidate." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to create candidate." });
   }
 });
 
@@ -366,7 +367,7 @@ recruitmentRouter.put("/candidates/:id/stage", requireAuth, async (req: AuthRequ
 
     return res.json(updated);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to update candidate stage." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to update candidate stage." });
   }
 });
 
@@ -395,7 +396,7 @@ recruitmentRouter.put("/candidates/:id/scorecard", requireAuth, async (req: Auth
 
     return res.json(updated);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to update scorecard." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to update scorecard." });
   }
 });
 
@@ -433,6 +434,7 @@ recruitmentRouter.post("/candidates/:id/convert-to-employee", requireAuth, async
 
     // Execute Prisma Transaction: Create Employee, auto-provision User, and mark candidate converted
     const result = await prisma.$transaction(async (tx: any) => {
+      await lockWorkspaceCapacity(tx, candidate.tenantId, "employees");
       const cleanEmail = candidate.email.toLowerCase().trim();
       let userId: string | undefined;
       try {
@@ -444,7 +446,7 @@ recruitmentRouter.post("/candidates/:id/convert-to-employee", requireAuth, async
           phone: candidate.phone,
           password: "Password@123",
         });
-      } catch (e) {}
+      } catch (e) { throw e; }
 
       const employee = await tx.employee.create({
         data: {
@@ -486,7 +488,7 @@ recruitmentRouter.post("/candidates/:id/convert-to-employee", requireAuth, async
     });
   } catch (err: any) {
     console.error("[convert-to-employee] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to convert candidate to employee." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to convert candidate to employee." });
   }
 });
 
@@ -529,7 +531,7 @@ recruitmentRouter.post("/candidates/:id/interviews", requireAuth, async (req: Au
 
     return res.status(201).json(interview);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to schedule interview." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to schedule interview." });
   }
 });
 
@@ -578,7 +580,7 @@ publicJobsRouter.get("/:tenantSlug", async (req, res) => {
       jobs,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to fetch careers." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch careers." });
   }
 });
 
@@ -619,7 +621,7 @@ publicJobsRouter.get("/:tenantSlug/:jobSlug", async (req, res) => {
       job,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to fetch job details." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch job details." });
   }
 });
 
@@ -687,6 +689,6 @@ publicJobsRouter.post("/:jobId/apply", async (req, res) => {
     });
   } catch (err: any) {
     console.error("[public/jobs/apply] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to submit application." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to submit application." });
   }
 });

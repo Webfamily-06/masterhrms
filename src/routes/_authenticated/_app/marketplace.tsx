@@ -563,7 +563,7 @@ function MarketplacePage() {
 
   return (
     <PlanGuard moduleName="Addons Marketplace" requiredPlan="free">
-      <div className="space-y-6 max-w-7xl pb-12">
+      <div className="space-y-6 max-w-full pb-12">
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
           <div>

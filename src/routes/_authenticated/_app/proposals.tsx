@@ -14,6 +14,10 @@ import {
   Loader2,
   Trash2,
   Receipt,
+  ExternalLink,
+  Copy,
+  Check,
+  Globe,
 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
 import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
@@ -26,12 +30,18 @@ export const Route = createFileRoute("/_authenticated/_app/proposals")({
 
 export type ProposalRecord = {
   id: string;
+  proposalNo?: string;
   title: string;
   client: string;
+  clientName?: string;
+  clientEmail?: string;
+  clientGstin?: string;
   amount: number;
   date: string;
-  status: "draft" | "sent" | "accepted";
+  status: "draft" | "sent" | "accepted" | "rejected" | "converted";
   created_at: string;
+  terms?: string;
+  notes?: string;
 };
 
 const DEFAULT_SEED_PROPOSALS: ProposalRecord[] = [];
@@ -44,7 +54,9 @@ function ProposalsPage() {
 
   const [propTitle, setPropTitle] = useState("");
   const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [amountInput, setAmountInput] = useState("");
+  const [termsInput, setTermsInput] = useState("Standard 30 days quotation validity. Net 15 days payment.");
   const [isSaving, setIsSaving] = useState(false);
 
   const { data: sysConfig } = useQuery({
@@ -83,20 +95,19 @@ function ProposalsPage() {
 
     setIsSaving(true);
     try {
-      const newProp: ProposalRecord = {
-        id: `PRP-${Date.now().toString().slice(-6)}`,
+      await api.post("/crm/proposals", {
         title: propTitle.trim(),
         client: clientName.trim(),
+        clientEmail: clientEmail.trim() || undefined,
         amount: amt,
         date: new Date().toISOString().slice(0, 10),
         status: "sent",
-        created_at: new Date().toISOString(),
-      };
-      const updatedList = [newProp, ...proposals];
-      await api.post("/crm/proposals", { proposals: updatedList });
+        terms: termsInput.trim(),
+      });
       toast.success(`Proposal "${propTitle}" created & sent!`);
       setPropTitle("");
       setClientName("");
+      setClientEmail("");
       setAmountInput("");
       qc.invalidateQueries({ queryKey: ["realtime-tenant-proposals", tenantId] });
     } catch (e: any) {
@@ -110,8 +121,7 @@ function ProposalsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to remove this proposal?")) return;
     try {
-      const updatedList = proposals.filter((p) => p.id !== id);
-      await api.post("/crm/proposals", { proposals: updatedList });
+      await api.delete(`/crm/proposals/${id}`);
       toast.success("Proposal deleted");
       qc.invalidateQueries({ queryKey: ["realtime-tenant-proposals", tenantId] });
     } catch (e: any) {
@@ -121,9 +131,8 @@ function ProposalsPage() {
 
   async function updateStatus(id: string, newStatus: ProposalRecord["status"]) {
     try {
-      const updated = proposals.map((p) => (p.id === id ? { ...p, status: newStatus } : p));
-      await api.post("/crm/proposals", { proposals: updated });
-      toast.success(`Proposal ${id} status updated to ${newStatus.toUpperCase()}!`);
+      await api.patch(`/crm/proposals/${id}`, { status: newStatus });
+      toast.success(`Proposal status updated to ${newStatus.toUpperCase()}!`);
       qc.invalidateQueries({ queryKey: ["realtime-tenant-proposals", tenantId] });
     } catch (err: any) {
       toast.error(err.message || "Failed to update status");
@@ -131,40 +140,46 @@ function ProposalsPage() {
   }
 
   async function deleteProposal(id: string) {
-    try {
-      const updated = proposals.filter((p) => p.id !== id);
-      await api.post("/crm/proposals", { proposals: updated });
-      toast.success(`Proposal ${id} deleted`);
-      qc.invalidateQueries({ queryKey: ["realtime-tenant-proposals", tenantId] });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete proposal");
-    }
+    await handleDelete(id);
+  }
+
+  function copyPublicLink(id: string) {
+    const link = `${window.location.origin}/portal/proposals/${id}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Public Quotation link copied to clipboard!");
   }
 
   async function handleConvertToInvoice(p: ProposalRecord) {
     try {
-      const invPayload = {
-        invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
-        customer: p.client,
-        issueDate: new Date().toISOString().slice(0, 10),
-        dueDate: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-        amount: p.amount,
-        status: "sent",
-        items: [
-          {
-            description: p.title,
-            quantity: 1,
-            rate: p.amount,
-            amount: p.amount,
-          },
-        ],
-      };
-      await api.post("/invoices", invPayload);
-      toast.success(`Proposal ${p.id} successfully converted to Invoice ${invPayload.invoiceNumber}! Check the Invoices section.`);
+      const res = await api.post(`/crm/proposals/${p.id}/convert`);
+      toast.success(res?.message || `Proposal ${p.id} successfully converted to invoice!`);
       qc.invalidateQueries({ queryKey: ["realtime-tenant-proposals", tenantId] });
-      qc.invalidateQueries({ queryKey: ["system-invoices-records"] });
+      qc.invalidateQueries({ queryKey: ["pos-sales", tenantId] });
     } catch (err: any) {
-      toast.error(err.message || "Failed to convert proposal to invoice");
+      // Fallback to standard invoice creation if needed
+      try {
+        const invPayload = {
+          number: `INV-${Date.now().toString().slice(-6)}`,
+          client: p.client,
+          date: new Date().toISOString().slice(0, 10),
+          dueDate: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+          amount: p.amount,
+          status: "unpaid",
+          lines: [
+            {
+              description: p.title,
+              qty: 1,
+              rate: p.amount,
+              amount: p.amount,
+            },
+          ],
+        };
+        await api.post("/invoices", invPayload);
+        toast.success(`Proposal converted to Invoice ${invPayload.number}!`);
+        qc.invalidateQueries({ queryKey: ["realtime-tenant-proposals", tenantId] });
+      } catch (inner: any) {
+        toast.error(inner.message || "Failed to convert proposal to invoice");
+      }
     }
   }
 
@@ -218,6 +233,17 @@ function ProposalsPage() {
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Client Email (For Digital Delivery)</label>
+                <Input
+                  type="email"
+                  placeholder="finance@apexglobal.com"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-xs font-semibold">
                   Quoted Amount ({sysConfig?.currencySymbol || "₹"}) *
                 </label>
@@ -227,6 +253,16 @@ function ProposalsPage() {
                   value={amountInput}
                   onChange={(e) => setAmountInput(e.target.value)}
                   className="h-9 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Terms & Conditions</label>
+                <Input
+                  placeholder="Standard 30 days validity"
+                  value={termsInput}
+                  onChange={(e) => setTermsInput(e.target.value)}
+                  className="h-9 text-xs"
                 />
               </div>
 
@@ -241,7 +277,7 @@ function ProposalsPage() {
                 ) : (
                   <Plus className="size-4" />
                 )}{" "}
-                Save Proposal Draft
+                Save & Dispatch Proposal
               </Button>
             </CardContent>
           </Card>
@@ -283,25 +319,63 @@ function ProposalsPage() {
                     >
                       <div className="space-y-1 pr-4">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-primary">{p.id}</span>
+                          <span className="font-mono font-bold text-primary">
+                            {p.proposalNo || p.id}
+                          </span>
                           <Badge variant="outline" className="text-[9px]">
                             {p.date}
                           </Badge>
                         </div>
                         <p className="font-bold text-foreground text-sm">{p.title}</p>
-                        <p className="text-[11px] text-muted-foreground">Client: {p.client}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Client: {p.clientName || p.client}{" "}
+                          {p.clientEmail ? `(${p.clientEmail})` : ""}
+                        </p>
                       </div>
 
                       <div className="text-right space-y-1.5 shrink-0">
                         <p className="font-mono font-black text-sm text-emerald-600">
                           {formatSystemAmount(p.amount, sysConfig)}
                         </p>
-                        <div className="flex items-center gap-2 justify-end">
+                        <div className="flex items-center gap-1.5 justify-end">
                           <Badge
-                            className={`text-[9px] font-mono capitalize ${p.status === "accepted" ? "bg-emerald-500 text-white" : p.status === "sent" ? "bg-blue-500 text-white" : "bg-secondary text-foreground"}`}
+                            className={`text-[9px] font-mono capitalize ${
+                              p.status === "accepted"
+                                ? "bg-emerald-500 text-white"
+                                : p.status === "sent"
+                                  ? "bg-blue-500 text-white"
+                                  : p.status === "converted"
+                                    ? "bg-purple-500 text-white"
+                                    : p.status === "rejected"
+                                      ? "bg-rose-500 text-white"
+                                      : "bg-secondary text-foreground"
+                            }`}
                           >
                             {p.status}
                           </Badge>
+
+                          {/* Copy Public Portal Link */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-6 text-muted-foreground hover:text-primary"
+                            title="Copy Public Customer Portal Link"
+                            onClick={() => copyPublicLink(p.id)}
+                          >
+                            <Copy className="size-3" />
+                          </Button>
+
+                          {/* Open Public Portal in New Tab */}
+                          <a
+                            href={`/portal/proposals/${p.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="size-6 inline-flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                            title="Preview Public Customer Quotation"
+                          >
+                            <ExternalLink className="size-3" />
+                          </a>
+
                           {p.status === "draft" && (
                             <Button
                               size="sm"

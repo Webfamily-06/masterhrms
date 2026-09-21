@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { getSocketClient } from "@/lib/socket";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,7 +257,88 @@ function TeamWhatsAppChatAddon() {
   // Current User ID
   const myUserId = user?.id || "super_admin";
 
-  // 1. REALTIME QUERY: Fetch employees list & active attendance from MySQL
+  // ⚡ Persistent Thread Messages Query from MySQL
+  const { data: dbThreadMessages } = useQuery({
+    queryKey: ["db-chat-messages", activeThreadId],
+    queryFn: async () => {
+      if (!activeThreadId) return [];
+      try {
+        const res = await api.get(`/chat/messages/${activeThreadId}`);
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!activeThreadId,
+  });
+
+  useEffect(() => {
+    if (dbThreadMessages && dbThreadMessages.length > 0 && activeThreadId) {
+      setLocalMessagesMap((prev) => {
+        const existing = prev[activeThreadId] || [];
+        const existingIds = new Set(existing.map((m) => m.id));
+        const newOnes = dbThreadMessages
+          .filter((dbMsg: any) => !existingIds.has(dbMsg.id))
+          .map((dbMsg: any) => ({
+            id: dbMsg.id,
+            senderId: dbMsg.senderId,
+            senderName: dbMsg.senderName,
+            senderAvatar: dbMsg.senderAvatar || undefined,
+            text: dbMsg.content,
+            type: "text" as const,
+            timestamp: new Date(dbMsg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            status: "delivered" as const,
+            isRead: true,
+          }));
+
+        if (newOnes.length === 0) return prev;
+        return {
+          ...prev,
+          [activeThreadId]: [...existing, ...newOnes],
+        };
+      });
+    }
+  }, [dbThreadMessages, activeThreadId]);
+
+  // ⚡ Real-time Socket.IO Listener for Incoming Messages
+  useEffect(() => {
+    const socket = getSocketClient();
+
+    function onSocketMessage(payload: any) {
+      if (!payload || !payload.threadId || !payload.message) return;
+      const tId = payload.threadId;
+      const msg = payload.message;
+
+      setLocalMessagesMap((prevMap) => {
+        const existing = prevMap[tId] || [];
+        if (existing.some((m) => m.id === msg.id)) return prevMap;
+
+        const incomingMsg: ChatMessage = {
+          id: msg.id || `msg-${Date.now()}`,
+          senderId: msg.senderId || msg.sender_id || "user",
+          senderName: msg.senderName || msg.sender_name || "User",
+          senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,
+          text: msg.content || msg.text || "",
+          type: "text",
+          timestamp: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          status: "delivered",
+          isRead: activeThreadId === tId,
+        };
+
+        return {
+          ...prevMap,
+          [tId]: [...existing, incomingMsg],
+        };
+      });
+    }
+
+    socket.on("chat:message", onSocketMessage);
+    return () => {
+      socket.off("chat:message", onSocketMessage);
+    };
+  }, [activeThreadId]);
+
+    // 1. REALTIME QUERY: Fetch employees list & active attendance from MySQL
   const { data: employeesList = [] } = useQuery({
     queryKey: ["realtime-chat-employees-with-attendance"],
     queryFn: async () => {
@@ -616,6 +698,21 @@ function TeamWhatsAppChatAddon() {
     setLocalMessagesMap(updatedMessagesMap);
     setLocalThreads(updatedThreads);
     saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
+
+    // ⚡ Realtime WebSocket & MySQL Persistence
+    try {
+      const socket = getSocketClient();
+      socket.emit("chat:send", {
+        tenantId: currentProfile?.tenant_id || "default",
+        threadId: activeThreadId,
+        message: newMsg,
+      });
+      api.post("/chat/messages", {
+        threadId: activeThreadId,
+        content: newMsg.text,
+        attachments: newMsg.mediaUrl ? [{ url: newMsg.mediaUrl, name: newMsg.fileName }] : null,
+      }).catch(() => null);
+    } catch {}
     toast.success("Voice Note sent!");
 
     // Realtime Tick Progression (Sent -> Delivered -> Read)

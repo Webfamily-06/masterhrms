@@ -1,3 +1,4 @@
+import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Request, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
@@ -15,6 +16,22 @@ export const iclockRouter = Router();
 export const deviceCommandQueue = new Map<string, string>();
 
 // Core helper: Process Biometric Punch & Atomic Attendance Record Synchronization
+// ─────────────────────────────────────────────────────────────────────────────
+// RULES (First-In / Last-Out model):
+//   • FIRST punch of the day  → sets checkIn (creates attendance record)
+//   • MIDDLE punches          → recorded in punch log only; they do NOT change
+//                               checkIn or checkOut unless they are the new min/max
+//   • LAST punch of the day   → updates checkOut to the latest timestamp seen
+//
+// Device purpose override:
+//   • purpose = "check_in_only"  → every punch from this device forces checkIn
+//   • purpose = "check_out_only" → every punch from this device forces checkOut
+//   • purpose = "both" (default) → auto first-in / last-out logic applies
+//
+// Explicit punchType override (from ZKTeco status byte or API caller):
+//   • punchType = "check_in"  → always set / update checkIn
+//   • punchType = "check_out" → always set / update checkOut
+//   • punchType = "auto"      → first-in / last-out based on timestamps
 export async function processBiometricPunch({
   tenantId,
   deviceId,
@@ -32,7 +49,7 @@ export async function processBiometricPunch({
   verificationMode?: string;
   rawPayload?: string;
 }) {
-  // 1. Find employee by employeeCode or phone/email matching
+  // ── 1. Resolve Employee ───────────────────────────────────────────────────
   const strippedCode = employeeCode.replace(/^0+/, "") || employeeCode;
   const employee = await prisma.employee.findFirst({
     where: {
@@ -55,30 +72,32 @@ export async function processBiometricPunch({
   const employeeId = employee ? employee.id : null;
   const syncStatus = employee ? "processed" : "unmatched_employee";
 
-  // 2. Resolve target device
-  let deviceRecord = null;
+  // ── 2. Resolve Device (with purpose field) ────────────────────────────────
+  let deviceRecord: { id: string; deviceName: string; purpose: string } | null = null;
   if (deviceId) {
-    deviceRecord = await prisma.biometricDevice.findUnique({ where: { id: deviceId } });
-  } else {
-    deviceRecord = await prisma.biometricDevice.findFirst({ where: { tenantId } });
+    deviceRecord = await prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, deviceName: true, purpose: true, location: true },
+    }) as any;
+  }
+  if (!deviceRecord) {
+    deviceRecord = await prisma.biometricDevice.findFirst({
+      where: { tenantId },
+      select: { id: true, deviceName: true, purpose: true, location: true },
+    }) as any;
   }
 
-  const resolvedDeviceId = deviceRecord ? deviceRecord.id : (await prisma.biometricDevice.findFirst({ where: { tenantId } }))?.id;
-
-  if (!resolvedDeviceId) {
+  if (!deviceRecord) {
     throw new Error("No registered biometric device found for this organization.");
   }
 
-  // Check if punch log already recorded for this exact timestamp
+  // ── 3. Deduplicate — skip exact same timestamp already recorded ───────────
   const existingLog = await prisma.biometricPunchLog.findFirst({
-    where: {
-      tenantId,
-      employeeCode,
-      punchTime,
-    },
+    where: { tenantId, employeeCode, punchTime },
   });
 
   if (existingLog) {
+    // Backfill employeeId if it was previously unmatched
     if (employee && existingLog.syncStatus !== "processed") {
       await prisma.biometricPunchLog.update({
         where: { id: existingLog.id },
@@ -88,30 +107,38 @@ export async function processBiometricPunch({
     return existingLog;
   }
 
-  // 3. Record raw BiometricPunchLog
+  // ── 4. Apply device purpose → override punchType if device is dedicated ──
+  //   Device purpose takes priority over the incoming punchType when the
+  //   device is dedicated to check-in or check-out only.
+  let resolvedPunchType = punchType;
+  if (deviceRecord.purpose === "check_in_only") {
+    resolvedPunchType = "check_in";
+  } else if (deviceRecord.purpose === "check_out_only") {
+    resolvedPunchType = "check_out";
+  }
+
+  // ── 5. Save Raw BiometricPunchLog ─────────────────────────────────────────
   const punchLog = await prisma.biometricPunchLog.create({
     data: {
       tenantId,
-      deviceId: resolvedDeviceId,
+      deviceId: deviceRecord.id,
       employeeCode,
       employeeId,
       punchTime,
-      punchType,
+      punchType: resolvedPunchType,
       verificationMode,
       syncStatus,
       rawPayload: rawPayload || JSON.stringify({ employeeCode, punchTime, verificationMode }),
     },
     include: {
       device: true,
-      employee: {
-        include: { department: true },
-      },
+      employee: { include: { department: true } },
     },
   });
 
-  // Increment device punch count & update lastSyncAt
+  // Update device heartbeat counter
   await prisma.biometricDevice.update({
-    where: { id: resolvedDeviceId },
+    where: { id: deviceRecord.id },
     data: {
       totalPunchLogs: { increment: 1 },
       lastSyncAt: new Date(),
@@ -119,11 +146,16 @@ export async function processBiometricPunch({
     },
   });
 
-  // 4. Auto-sync with Attendance Table if employee is matched
+  // ── 6. Sync Attendance — First-In / Last-Out logic ────────────────────────
   if (employee) {
-    const punchDateOnly = new Date(punchTime.getFullYear(), punchTime.getMonth(), punchTime.getDate(), 0, 0, 0);
+    // Normalize punch date to midnight UTC so it matches the @@unique key
+    const punchDateOnly = new Date(Date.UTC(
+      punchTime.getFullYear(),
+      punchTime.getMonth(),
+      punchTime.getDate(),
+    ));
 
-    const existingAttendance = await prisma.attendance.findUnique({
+    const existing = await prisma.attendance.findUnique({
       where: {
         tenantId_employeeId_date: {
           tenantId,
@@ -133,8 +165,10 @@ export async function processBiometricPunch({
       },
     });
 
-    if (!existingAttendance) {
-      // First punch of the day -> Mark checkIn
+    if (!existing) {
+      // ── No record yet: this is the very first punch of the day ──────────
+      // Always becomes checkIn regardless of punchType — you can't check out
+      // before checking in on the same day.
       await prisma.attendance.create({
         data: {
           tenantId,
@@ -142,62 +176,116 @@ export async function processBiometricPunch({
           date: punchDateOnly,
           checkIn: punchTime,
           status: "present",
-          notes: `Biometric [${deviceRecord?.deviceName || "Terminal"}] (${verificationMode})`,
+          notes: `Biometric check-in via [${deviceRecord.deviceName}] (${verificationMode})`,
         },
       });
     } else {
-      // Multiple punches -> Update checkIn (earliest) and checkOut (latest)
-      const currentCheckIn = existingAttendance.checkIn ? new Date(existingAttendance.checkIn) : punchTime;
-      const currentCheckOut = existingAttendance.checkOut ? new Date(existingAttendance.checkOut) : null;
+      // ── Existing record: apply first-in / last-out rules ─────────────────
+      const currentCheckIn  = existing.checkIn  ? new Date(existing.checkIn)  : null;
+      const currentCheckOut = existing.checkOut ? new Date(existing.checkOut) : null;
 
-      const newCheckIn = punchTime < currentCheckIn ? punchTime : currentCheckIn;
+      let newCheckIn  = currentCheckIn;
       let newCheckOut = currentCheckOut;
 
-      if (!currentCheckOut) {
-        if (punchTime > newCheckIn) newCheckOut = punchTime;
+      if (resolvedPunchType === "check_in") {
+        // Explicit check-in: always update checkIn
+        newCheckIn = currentCheckIn
+          ? (punchTime < currentCheckIn ? punchTime : currentCheckIn)
+          : punchTime;
+
+      } else if (resolvedPunchType === "check_out") {
+        // Explicit check-out: always update checkOut to the latest
+        newCheckOut = currentCheckOut
+          ? (punchTime > currentCheckOut ? punchTime : currentCheckOut)
+          : punchTime;
+
       } else {
-        if (punchTime > currentCheckOut) newCheckOut = punchTime;
+        // Auto mode — strict First-In / Last-Out:
+        //   • checkIn  = earliest timestamp ever seen for this employee+day
+        //   • checkOut = latest  timestamp ever seen for this employee+day
+        //   • Middle punches that fall between existing checkIn and checkOut
+        //     are silently recorded in the punch log but do NOT update either
+        //     boundary (they are "interior" punches).
+
+        if (currentCheckIn) {
+          // Update checkIn only if this punch is EARLIER than the current min
+          if (punchTime < currentCheckIn) {
+            newCheckIn = punchTime;
+          }
+          // Update checkOut only if this punch is LATER than the current max
+          if (currentCheckOut) {
+            if (punchTime > currentCheckOut) {
+              newCheckOut = punchTime;
+            }
+            // else: interior punch — ignore for attendance boundaries
+          } else {
+            // No checkOut yet: set it only if punch is after checkIn
+            if (punchTime > currentCheckIn) {
+              newCheckOut = punchTime;
+            }
+          }
+        } else {
+          // No checkIn at all (edge case — record was created without one)
+          newCheckIn = punchTime;
+        }
       }
 
-      let calculatedHours = 0;
-      if (newCheckIn && newCheckOut) {
+      // ── Calculate hours (checkIn to checkOut only) ──────────────────────
+      let calculatedHours: number = existing.hours != null ? Number(existing.hours) : 0;
+      if (newCheckIn && newCheckOut && newCheckOut.getTime() > newCheckIn.getTime()) {
         const diffMs = newCheckOut.getTime() - newCheckIn.getTime();
         calculatedHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
       }
 
-      let calculatedStatus: any = "present";
-      if (calculatedHours < 4 && calculatedHours > 0) {
+      // Status based on hours worked
+      let calculatedStatus: string = existing.status ?? "present";
+      if (calculatedHours >= 4) {
+        calculatedStatus = "present";
+      } else if (calculatedHours > 0 && calculatedHours < 4) {
         calculatedStatus = "half_day";
       }
 
-      await prisma.attendance.update({
-        where: { id: existingAttendance.id },
-        data: {
-          checkIn: newCheckIn,
-          checkOut: newCheckOut,
-          hours: calculatedHours,
-          status: calculatedStatus,
-          notes: `${existingAttendance.notes || ""} | Out: [${deviceRecord?.deviceName || "Terminal"}]`,
-        },
-      });
+      // ── Only write back if something actually changed ─────────────────────
+      const checkInChanged  = newCheckIn?.getTime()  !== currentCheckIn?.getTime();
+      const checkOutChanged = newCheckOut?.getTime() !== currentCheckOut?.getTime();
+
+      if (checkInChanged || checkOutChanged) {
+        const deviceLabel = `[${deviceRecord.deviceName}]`;
+        const punchLabel  = resolvedPunchType === "check_in"  ? "In"
+                          : resolvedPunchType === "check_out" ? "Out"
+                          : (checkOutChanged ? "Out" : "In");
+
+        await prisma.attendance.update({
+          where: { id: existing.id },
+          data: {
+            checkIn:  newCheckIn,
+            checkOut: newCheckOut,
+            hours:    calculatedHours,
+            status:   calculatedStatus as any,
+            notes: `${existing.notes ? existing.notes + " | " : ""}${punchLabel}: ${deviceLabel} ${punchTime.toTimeString().slice(0, 5)}`,
+          },
+        });
+      }
     }
 
-    // Broadcast WebSocket live punch update to tenant room
+    // ── 7. Real-time WebSocket broadcast ─────────────────────────────────────
     try {
       broadcastToTenant(tenantId, "biometric:punch", {
         punchLog,
         employeeName: `${employee.firstName} ${employee.lastName}`,
-        department: employee.departmentId,
-        punchTime: punchTime.toISOString(),
+        department:   employee.departmentId,
+        punchTime:    punchTime.toISOString(),
+        punchType:    resolvedPunchType,
+        deviceName:   deviceRecord.deviceName,
+        devicePurpose: deviceRecord.purpose,
       });
     } catch {
-      // Socket fail-safe
+      // Socket broadcast failure is non-fatal
     }
   }
 
   return punchLog;
 }
-
 /**
  * GET /api/biometric/devices
  * List all real biometric terminals registered for tenant
@@ -220,7 +308,7 @@ biometricRouter.get("/devices", requireAuth, async (req: AuthRequest, res: Respo
     return res.json(devices);
   } catch (err: any) {
     console.error("[GET /api/biometric/devices] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to fetch biometric devices." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch biometric devices." });
   }
 });
 
@@ -251,7 +339,7 @@ biometricRouter.get("/cloud-config", requireAuth, async (req: AuthRequest, res: 
       protocolsSupported: ["iClock ADMS Push (ZKTeco/eSSL/Realtime)", "Direct TCP/IP (4370)", "JSON HTTP Webhook", "Hikvision ISUP / Cloud"],
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to fetch cloud config." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch cloud config." });
   }
 });
 
@@ -294,7 +382,7 @@ biometricRouter.get("/summary/stats", requireAuth, async (req: AuthRequest, res:
     });
   } catch (err: any) {
     console.error("[GET /api/biometric/summary/stats] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to fetch biometric metrics." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch biometric metrics." });
   }
 });
 
@@ -393,7 +481,7 @@ biometricRouter.get("/devices/:id/passport", requireAuth, async (req: AuthReques
     });
   } catch (err: any) {
     console.error("[GET /api/biometric/devices/:id/passport] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to fetch device passport." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch device passport." });
   }
 });
 
@@ -460,7 +548,7 @@ biometricRouter.post("/devices/:id/sync-now", requireAuth, async (req: AuthReque
       device: updated,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Sync failed." });
+    return res.status(err.status || 500).json({ error: err.message || "Sync failed." });
   }
 });
 
@@ -538,7 +626,7 @@ biometricRouter.get("/devices/:id/hardware-users", requireAuth, async (req: Auth
     });
   } catch (err: any) {
     console.error("[GET /api/biometric/devices/:id/hardware-users] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to fetch hardware users." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch hardware users." });
   }
 });
 
@@ -594,18 +682,20 @@ biometricRouter.post("/devices/:id/apply-sync", requireAuth, async (req: AuthReq
           const lastName = nameParts.slice(1).join(" ") || bioId;
           const cleanEmailSlug = rawName.toLowerCase().replace(/[^a-z0-9]/g, "") || `staff${bioId}`;
           const cleanEmail = `${cleanEmailSlug}@tsvhomes.in`;
+          const created = await prisma.$transaction(async (tx) => {
+          await lockWorkspaceCapacity(tx, tenantId, "employees");
           let userId: string | undefined;
           try {
-            userId = await provisionEmployeeUser(prisma, {
+            userId = await provisionEmployeeUser(tx, {
               tenantId,
               email: cleanEmail,
               firstName,
               lastName,
               password: "Password@123",
             });
-          } catch (e) {}
+          } catch (e) { throw e; }
 
-          const created = await prisma.employee.create({
+          const employee = await tx.employee.create({
             data: {
               tenantId,
               userId: userId || null,
@@ -616,6 +706,8 @@ biometricRouter.post("/devices/:id/apply-sync", requireAuth, async (req: AuthReq
               status: "active",
               employmentType: "full_time",
             },
+          });
+          return employee;
           });
           existingEmployees.push(created);
           createdEmployeesCount++;
@@ -762,7 +854,7 @@ biometricRouter.post("/devices/:id/apply-sync", requireAuth, async (req: AuthReq
     });
   } catch (err: any) {
     console.error("[POST /api/biometric/devices/:id/apply-sync] error:", err);
-    return res.status(500).json({ error: err.message || "Hardware apply-sync failed." });
+    return res.status(err.status || 500).json({ error: err.message || "Hardware apply-sync failed." });
   }
 });
 
@@ -804,7 +896,7 @@ biometricRouter.post("/devices/:id/map-employee", requireAuth, async (req: AuthR
       employee: updatedEmployee,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to map employee." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to map employee." });
   }
 });
 
@@ -845,7 +937,7 @@ biometricRouter.get("/logs", requireAuth, async (req: AuthRequest, res: Response
     return res.json(logs);
   } catch (err: any) {
     console.error("[GET /api/biometric/logs] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to fetch biometric punch logs." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch biometric punch logs." });
   }
 });
 
@@ -946,7 +1038,7 @@ biometricRouter.post("/probe", requireAuth, async (req: AuthRequest, res: Respon
     });
   } catch (err: any) {
     console.error("[POST /api/biometric/probe] error:", err);
-    return res.status(500).json({ error: err.message || "Probe execution failed." });
+    return res.status(err.status || 500).json({ error: err.message || "Probe execution failed." });
   }
 });
 
@@ -963,6 +1055,7 @@ biometricRouter.post("/devices", requireAuth, async (req: AuthRequest, res: Resp
       deviceName,
       deviceModel,
       deviceType,
+      purpose,
       ipAddress,
       port,
       serialNumber,
@@ -984,6 +1077,7 @@ biometricRouter.post("/devices", requireAuth, async (req: AuthRequest, res: Resp
         deviceName: deviceName.trim(),
         deviceModel: deviceModel?.trim() || "Universal Biometric Reader",
         deviceType: deviceType || "hybrid",
+        purpose: purpose || "both",
         ipAddress: ipAddress ? ipAddress.trim() : null,
         port: Number(port) || 4370,
         serialNumber: resolvedSerialNumber,
@@ -999,7 +1093,7 @@ biometricRouter.post("/devices", requireAuth, async (req: AuthRequest, res: Resp
     return res.status(201).json(newDevice);
   } catch (err: any) {
     console.error("[POST /api/biometric/devices] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to register biometric device." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to register biometric device." });
   }
 });
 
@@ -1014,6 +1108,7 @@ biometricRouter.put("/devices/:id", requireAuth, async (req: AuthRequest, res: R
       deviceName,
       deviceModel,
       deviceType,
+      purpose,
       ipAddress,
       port,
       serialNumber,
@@ -1028,6 +1123,7 @@ biometricRouter.put("/devices/:id", requireAuth, async (req: AuthRequest, res: R
         deviceName,
         deviceModel,
         deviceType,
+        purpose: purpose ? String(purpose) : undefined,
         ipAddress: ipAddress ? ipAddress.trim() : undefined,
         port: port ? Number(port) : undefined,
         serialNumber,
@@ -1039,7 +1135,7 @@ biometricRouter.put("/devices/:id", requireAuth, async (req: AuthRequest, res: R
 
     return res.json(updated);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to update device." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to update device." });
   }
 });
 
@@ -1053,7 +1149,7 @@ biometricRouter.delete("/devices/:id", requireAuth, async (req: AuthRequest, res
     await prisma.biometricDevice.delete({ where: { id } });
     return res.json({ success: true, message: "Biometric device removed." });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to delete device." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to delete device." });
   }
 });
 
@@ -1134,7 +1230,7 @@ biometricRouter.post("/devices/:id/ping", requireAuth, async (req: AuthRequest, 
       });
     }
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Ping execution failed." });
+    return res.status(err.status || 500).json({ error: err.message || "Ping execution failed." });
   }
 });
 
@@ -1174,7 +1270,7 @@ biometricRouter.post("/simulate", requireAuth, async (req: AuthRequest, res: Res
     });
   } catch (err: any) {
     console.error("[POST /api/biometric/simulate] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to simulate biometric punch." });
+    return res.status(err.status || 500).json({ error: err.message || "Failed to simulate biometric punch." });
   }
 });
 
@@ -1266,12 +1362,63 @@ async function handleAdmsPush(req: Request, res: Response) {
 
       // Parse standard ADMS tab/space delimited punch log lines:
       // Format: <PIN/Card/EmployeeCode>\t<YYYY-MM-DD HH:mm:ss>\t<Status>\t<VerifyType>
+      // ZKTeco / eSSL ADMS ATTLOG line format:
+      //   PIN<TAB>YYYY-MM-DD<TAB>HH:mm:ss<TAB>Status<TAB>VerifyType
+      // or compact:
+      //   PIN<TAB>YYYY-MM-DD HH:mm:ss<TAB>Status<TAB>VerifyType
+      //
+      // Status byte mapping (ZKTeco standard):
+      //   0 = Check-In   1 = Check-Out
+      //   4 = Break-Out  5 = Break-In
+      //   255 = Unknown
+      function mapZkStatusToPunchType(statusByte: string): string {
+        switch (statusByte.trim()) {
+          case "0": return "check_in";
+          case "1": return "check_out";
+          case "4": return "break_out";
+          case "5": return "break_in";
+          default:  return "auto";
+        }
+      }
+
       for (const line of lines) {
-        const parts = line.trim().split(/[\t\s]+/);
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Split on tab first, then fall back to spaces
+        const parts = trimmed.includes("\t") ? trimmed.split("\t") : trimmed.split(/\s+/);
+
+        let empCode: string;
+        let punchDate: Date;
+        let statusByte = "255"; // default unknown
+        let verifyType = "fingerprint";
+
         if (parts.length >= 2) {
-          const empCode = parts[0];
-          const timeStr = `${parts[1]} ${parts[2] || ""}`.trim();
-          const punchDate = new Date(timeStr);
+          empCode = parts[0];
+
+          // Try parsing date: either "YYYY-MM-DD HH:mm:ss" in one part or split across parts[1]+parts[2]
+          if (parts[1] && parts[1].includes(" ")) {
+            // Single part "2024-01-15 09:30:00"
+            punchDate = new Date(parts[1]);
+            statusByte = parts[2] ?? "255";
+            verifyType = parts[3] ? mapVerifyType(parts[3]) : "fingerprint";
+          } else if (parts.length >= 3 && parts[1] && parts[2]) {
+            // Separate date + time: parts[1]="2024-01-15", parts[2]="09:30:00"
+            punchDate = new Date(`${parts[1]} ${parts[2]}`);
+            statusByte = parts[3] ?? "255";
+            verifyType = parts[4] ? mapVerifyType(parts[4]) : "fingerprint";
+          } else {
+            continue;
+          }
+
+          function mapVerifyType(v: string): string {
+            const n = parseInt(v, 10);
+            if (n === 1) return "fingerprint";
+            if (n === 4) return "password";
+            if (n === 6) return "face";
+            if (n === 8) return "rfid";
+            return "fingerprint";
+          }
 
           if (empCode && !isNaN(punchDate.getTime())) {
             await processBiometricPunch({
@@ -1279,9 +1426,9 @@ async function handleAdmsPush(req: Request, res: Response) {
               deviceId: device?.id,
               employeeCode: empCode,
               punchTime: punchDate,
-              punchType: "auto",
-              verificationMode: "fingerprint",
-              rawPayload: line,
+              punchType: mapZkStatusToPunchType(statusByte),
+              verificationMode: verifyType,
+              rawPayload: trimmed,
             });
             processedCount++;
           }
@@ -1389,6 +1536,8 @@ publicBiometricRouter.post("/push", async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error("[POST /api/public/biometric/push] error:", err);
-    return res.status(500).json({ error: err.message || "Hardware push processing failed." });
+    return res.status(err.status || 500).json({ error: err.message || "Hardware push processing failed." });
   }
 });
+
+

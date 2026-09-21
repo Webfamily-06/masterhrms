@@ -110,7 +110,7 @@ function AttendancePage() {
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [matrixMonth, setMatrixMonth] = useState(() => format(new Date(), "yyyy-MM"));
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"table" | "matrix">("table");
+  const [viewMode, setViewMode] = useState<"table" | "grid" | "matrix">("table");
   const [search, setSearch] = useState("");
   const [regularizeTarget, setRegularizeTarget] = useState<any | null>(null);
   const [regularizeNote, setRegularizeNote] = useState("");
@@ -568,7 +568,7 @@ function AttendancePage() {
   }, [dbEmployees, monthlyRecords, rawLeaves, matrixMonth, matrixDaysCount, shiftStartTime, shiftGraceMinutes, shiftHalfDayHours]);
 
   return (
-    <div className="space-y-6 max-w-7xl pb-12">
+    <div className="space-y-6 max-w-full pb-12">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
@@ -754,7 +754,7 @@ function AttendancePage() {
           </Button>
         </div>
 
-        {viewMode === "table" ? (
+        {viewMode !== "matrix" ? (
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
@@ -798,7 +798,84 @@ function AttendancePage() {
         )}
       </div>
 
-      {/* ===== TABLE VIEW ===== */}
+      
+        {/* ===== GRID VIEW ===== */}
+        {viewMode === "grid" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredAttendance.length === 0 ? (
+              <div className="col-span-full text-center text-muted-foreground py-12 italic text-xs bg-card rounded-lg border">
+                No attendance records found for {selectedDate}. Click "Download & Sync Biometric Logs" to pull hardware punches.
+              </div>
+            ) : (
+              filteredAttendance.map((row: any) => (
+                <Card key={row.id} className="border shadow-sm hover:shadow-md transition-shadow">
+                  <CardHeader className="p-4 pb-2 border-b">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="size-8 border">
+                          <AvatarFallback className="font-bold text-xs bg-primary/10 text-primary">
+                            {row.name.split(" ")[0]?.[0]}{row.name.split(" ")[1]?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-bold text-sm text-foreground leading-tight">{row.name}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono">{row.employee_code} • {row.department}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Badge className={`font-bold text-[10px] border-0 ${STATUS_BADGE[row.status] ?? ""}`}>
+                        {row.status.replace("_", " ").toUpperCase()}
+                      </Badge>
+                      {row.isBiometricVerified ? (
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-[10px] gap-1 px-1.5">
+                          <Fingerprint className="size-3" /> Bio
+                        </Badge>
+                      ) : row.checkIn ? (
+                        <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-[10px] gap-1 px-1.5">
+                          <LogIn className="size-3" /> Web
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 bg-muted/10 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold mb-0.5">CHECK IN</p>
+                        <p className="font-mono text-xs">
+                          {row.checkIn ? (
+                            <span className={`font-bold ${row.late ? "text-amber-500" : "text-emerald-600"}`}>
+                              {row.checkIn ? new Date(row.checkIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "-"}
+                            </span>
+                          ) : <span className="text-muted-foreground italic">-</span>}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-bold mb-0.5">CHECK OUT</p>
+                        <p className="font-mono text-xs">
+                          {row.checkOut ? (
+                            <span className="font-bold text-indigo-600">
+                              {row.checkOut ? new Date(row.checkOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "-"}
+                            </span>
+                          ) : <span className="text-muted-foreground italic">-</span>}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <p className="text-[10px] text-muted-foreground font-bold">TOTAL HOURS</p>
+                      <p className="font-mono text-sm font-black text-foreground">
+                        {row.hours > 0 ? `${row.hours}h` : "-"}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ===== TABLE VIEW ===== */}
       {viewMode === "table" && (
         <Card className="border shadow-2xs">
           <CardContent className="p-0 overflow-x-auto">

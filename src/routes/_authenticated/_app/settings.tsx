@@ -1,3 +1,4 @@
+import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ import {
   Shield,
   ShieldCheck,
   ShieldAlert,
+  HelpCircle,
   KeyRound,
   Smartphone,
   Copy,
@@ -116,7 +118,7 @@ function Settings() {
   const [orgPhone, setOrgPhone] = useState("");
   const [orgAddress, setOrgAddress] = useState("");
   const [orgCurrency, setOrgCurrency] = useState("INR");
-  const [orgTimezone, setOrgTimezone] = useState("Asia/Kolkata");
+  const [orgTimezone, setOrgTimezone] = useState(profile?.tenant?.timezone || "Asia/Kolkata");
 
   const tenantId = profile?.tenant_id || "default";
   const [aiSettings, setAiSettings] = useState({
@@ -191,6 +193,7 @@ function Settings() {
   useEffect(() => {
     if (profile?.tenant) {
       setOrgName(profile.tenant.name || "");
+      if (profile.tenant.timezone) setOrgTimezone(profile.tenant.timezone);
     }
   }, [profile]);
 
@@ -264,6 +267,7 @@ function Settings() {
     mutationFn: async () => {
       await api.put("/auth/tenant", {
         name: orgName,
+        timezone: orgTimezone,
       });
     },
     onSuccess: () => {
@@ -522,7 +526,7 @@ function Settings() {
   ];
 
   return (
-    <div className="space-y-6 max-w-5xl pb-16">
+    <div className="space-y-6 max-w-full pb-16">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>
@@ -543,6 +547,11 @@ function Settings() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-muted/40 h-10 p-1 flex flex-wrap gap-1 w-full justify-start border">
+          <TabsTrigger value="workspace" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+            <Shield className="size-3.5 text-orange-500" />
+            <span>Workspace (Roles & Modules)</span>
+          </TabsTrigger>
+
           <TabsTrigger value="organization" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
             <Building2 className="size-3.5 text-primary" />
             <span>Organization & Office Timing</span>
@@ -576,6 +585,11 @@ function Settings() {
             <span>AI & ChatGPT Settings</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* ===================== TAB 0: WORKSPACE ADMIN (ROLES & MODULES) ===================== */}
+        <TabsContent value="workspace" className="space-y-5">
+          <WorkspaceAdminSettings />
+        </TabsContent>
 
         {/* ===================== TAB 1: ORGANIZATION & OFFICE TIMINGS ===================== */}
         <TabsContent value="organization" className="space-y-5">
@@ -964,12 +978,24 @@ function Settings() {
                     <SelectTrigger className="text-xs h-9">
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST - UTC+05:30)</SelectItem>
-                      <SelectItem value="Asia/Dubai">Asia/Dubai (GST - UTC+04:00)</SelectItem>
-                      <SelectItem value="Asia/Singapore">Asia/Singapore (SGT - UTC+08:00)</SelectItem>
-                      <SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
-                      <SelectItem value="America/New_York">America/New_York (EST/EDT)</SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {typeof Intl !== "undefined" && Intl.supportedValuesOf ? (
+                        Intl.supportedValuesOf("timeZone").map((tz) => {
+                          let offset = "";
+                          try {
+                            const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(new Date());
+                            const tzPart = parts.find((p) => p.type === 'timeZoneName');
+                            if (tzPart) offset = ` (${tzPart.value})`;
+                          } catch (e) {}
+                          return (
+                            <SelectItem key={tz} value={tz}>
+                              {tz}{offset}
+                            </SelectItem>
+                          );
+                        })
+                      ) : (
+                        <SelectItem value="Asia/Kolkata">Asia/Kolkata (UTC+05:30)</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1245,15 +1271,15 @@ function Settings() {
         {/* ===================== TAB 5: SECURITY & 2FA ===================== */}
         <TabsContent value="security" className="space-y-4">
           <Card className="border shadow-2xs bg-card">
-            <CardHeader className="py-3 px-4 border-b bg-muted/20">
+            <CardHeader className="py-3.5 px-5 border-b bg-muted/20">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
-                    <Shield className="size-4 text-emerald-500" />
-                    <span>Two-Step Verification (2FA / TOTP)</span>
+                    <ShieldCheck className="size-4 text-emerald-500" />
+                    <span>Two-Factor Authentication (Email OTP)</span>
                   </CardTitle>
                   <CardDescription className="text-xs mt-0.5">
-                    Protect your account with an extra layer of security using Google Authenticator, Microsoft Authenticator, or Authy.
+                    Protect your enterprise account with a mandatory 6-digit verification code sent to your registered email on every sign-in.
                   </CardDescription>
                 </div>
 
@@ -1261,53 +1287,96 @@ function Settings() {
                   variant="outline"
                   className={`text-xs font-mono font-bold px-2.5 py-0.5 ${
                     twoFactorStatus?.twoFactorEnabled
-                      ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
-                      : "border-muted-foreground/30 text-muted-foreground bg-muted/20"
+                      ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                      : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
                   }`}
                 >
-                  {twoFactorStatus?.twoFactorEnabled ? "Active & Protected" : "Disabled"}
+                  {twoFactorStatus?.twoFactorEnabled ? "● Enabled" : "○ Not Configured"}
                 </Badge>
               </div>
             </CardHeader>
 
-            <CardContent className="space-y-4 p-4 text-xs">
+            <CardContent className="space-y-5 p-5 text-xs">
               {twoFactorStatus?.twoFactorEnabled ? (
                 <div className="space-y-4">
-                  <div className="p-3.5 rounded-xl border bg-emerald-500/5 border-emerald-500/20 flex items-start gap-3">
-                    <CheckCircle2 className="size-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="p-4 rounded-xl border bg-emerald-500/5 border-emerald-500/20 flex items-start gap-3.5">
+                    <div className="size-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="size-5" />
+                    </div>
                     <div className="space-y-1">
-                      <strong className="font-bold text-foreground text-xs block">Your account is fortified with 2FA</strong>
-                      <p className="text-muted-foreground text-[11px] leading-relaxed">
-                        Authenticator app verification will be required whenever you sign in to this account.
+                      <strong className="font-bold text-foreground text-xs block">
+                        Email OTP Authentication Active & Enforced
+                      </strong>
+                      <p className="text-muted-foreground text-xs leading-relaxed">
+                        Your account requires a 6-digit verification code every time you sign in. This ensures that unauthorized access is blocked even if your password is compromised.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setIsDisableModalOpen(true)}
-                      className="text-rose-600 hover:bg-rose-50 border-rose-200 text-xs font-semibold h-8"
-                    >
-                      Disable 2FA Protection
-                    </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+                    <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                        Verification Method
+                      </span>
+                      <div className="flex items-center gap-1.5 font-bold text-foreground text-xs">
+                        <Mail className="size-3.5 text-primary" />
+                        <span>Email OTP (6-digit numeric)</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                        Registered Email
+                      </span>
+                      <div className="flex items-center gap-1.5 font-mono font-bold text-foreground text-xs">
+                        <span>{twoFactorStatus?.maskedEmail || profile?.email || "••••@company.com"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center gap-3 flex-wrap">
+                    <Link to="/setup-notes">
+                      <Button size="sm" variant="outline" className="text-xs font-bold gap-1.5 h-8">
+                        <HelpCircle className="size-3.5 text-primary" />
+                        <span>View 2FA Setup & Login Guide</span>
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <p className="text-muted-foreground text-xs leading-relaxed">
-                    Two-Factor Authentication (2FA) significantly strengthens account security by requiring both your password and a time-based verification code from your mobile authenticator app.
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => generateQrMutation.mutate()}
-                    disabled={generateQrMutation.isPending}
-                    className="bg-primary text-primary-foreground font-bold text-xs h-8 gap-1.5"
-                  >
-                    <Smartphone className="size-3.5" />
-                    <span>Setup Two-Factor Authentication</span>
-                  </Button>
+                <div className="space-y-4 max-w-xl">
+                  <div className="p-4 rounded-xl border bg-amber-500/5 border-amber-500/20 flex items-start gap-3.5">
+                    <div className="size-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                      <ShieldAlert className="size-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <strong className="font-bold text-foreground text-xs block">
+                        Security Setup Required
+                      </strong>
+                      <p className="text-muted-foreground text-xs leading-relaxed">
+                        Protect your account with email verification. A 6-digit OTP will be sent to your registered email address every time you sign in.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                      Registered Delivery Destination
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono font-bold text-foreground text-xs">
+                      <Mail className="size-3.5 text-primary" />
+                      <span>{twoFactorStatus?.maskedEmail || profile?.email || "••••@company.com"}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 flex items-center gap-2">
+                    <Link to="/setup-notes">
+                      <Button size="sm" className="bg-primary text-primary-foreground font-bold text-xs h-8 gap-1.5">
+                        <ShieldCheck className="size-3.5" />
+                        <span>Read 2FA Setup Guide</span>
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               )}
             </CardContent>

@@ -268,52 +268,58 @@ function WhatsAppAlertsPage() {
   async function sendTestMessage() {
     if (!testPhone.trim()) return toast.error("Enter a test phone number");
     setIsSendingTest(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    const newLog: WaDeliveryLog = {
-      id: `log-${Date.now()}`,
-      recipient: "Test Recipient",
-      phone: testPhone,
-      template: templates[0]?.name || "Outbound Alert",
-      status: "sent",
-      timestamp: new Date().toLocaleString(),
-      direction: "outbound",
-    };
-    persist.mutate({ templates, botRules, logs: [newLog, ...logs], config });
-    setIsSendingTest(false);
-    toast.success(`Test WhatsApp message sent to ${testPhone}!`);
+    try {
+      const res: any = await api.post("/alerts/whatsapp/send", {
+        phone: testPhone,
+        message: templates[0]?.body || "Automated alert from Master ERP notification gateway.",
+        templateName: templates[0]?.name || "Outbound Alert",
+        recipient: "Verified Contact",
+      });
+
+      if (res?.log) {
+        qc.invalidateQueries({ queryKey: ["whatsapp-alerts", tenantId] });
+        toast.success(res?.message || `WhatsApp message dispatched to ${testPhone}!`);
+      }
+    } catch (err: any) {
+      console.error("WhatsApp send error:", err);
+      toast.error("Failed to send: " + (err.message || "Gateway error"));
+    } finally {
+      setIsSendingTest(false);
+    }
   }
 
-  // Simulate Inbound Bot Reply
-  function handleSimulateBotMessage() {
+  // Live Inbound Bot Reply via Backend Engine
+  async function handleSimulateBotMessage() {
     if (!simKeyword.trim()) return;
     const kw = simKeyword.trim().toUpperCase();
-    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-    // User message
-    const userMsg = { sender: "user" as const, text: kw, time: timeStr };
-
-    // Find matching bot rule
-    const matchedRule = botRules.find((r) => r.enabled && r.keyword.toUpperCase() === kw);
-    const replyText = matchedRule
-      ? matchedRule.replyText
-      : `🤖 Sorry, I didn't recognize "${kw}". Type HELP to see available commands.`;
-
-    const botMsg = { sender: "bot" as const, text: replyText, time: timeStr };
-
-    setSimChatHistory((prev) => [...prev, userMsg, botMsg]);
+    const currentKw = kw;
     setSimKeyword("");
 
-    // Add log
-    const inboundLog: WaDeliveryLog = {
-      id: `log-in-${Date.now()}`,
-      recipient: "Inbound User",
-      phone: "+91 98765 43210",
-      template: `Bot Reply (${kw})`,
-      status: "sent",
-      timestamp: new Date().toLocaleString(),
-      direction: "inbound",
-    };
-    persist.mutate({ templates, botRules, logs: [inboundLog, ...logs], config });
+    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const userMsg = { sender: "user" as const, text: currentKw, time: timeStr };
+
+    try {
+      const res: any = await api.post("/alerts/whatsapp/simulate", {
+        keyword: currentKw,
+        phone: testPhone || "+91 98765 43210",
+        sender: profile?.full_name || "Staff Member",
+      });
+
+      const replyText = res?.replyText || "Bot response received.";
+      const botMsg = { sender: "bot" as const, text: replyText, time: res?.time || timeStr };
+
+      setSimChatHistory((prev) => [...prev, userMsg, botMsg]);
+      qc.invalidateQueries({ queryKey: ["whatsapp-alerts", tenantId] });
+      toast.success(`Inbound command "${currentKw}" processed!`);
+    } catch (err: any) {
+      console.error("Bot simulation error:", err);
+      const fallbackMsg = {
+        sender: "bot" as const,
+        text: `🤖 Error querying server. Type HELP to see available commands.`,
+        time: timeStr,
+      };
+      setSimChatHistory((prev) => [...prev, userMsg, fallbackMsg]);
+    }
   }
 
   const webhookUrl = `https://masterhrms.com/api/v1/whatsapp/webhook/${tenantId}`;

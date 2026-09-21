@@ -368,7 +368,7 @@ function RecruitmentHub() {
   const activeJobsCount = jobs.filter((j: any) => j.status === "published").length;
 
   return (
-    <div className="space-y-6 max-w-7xl pb-12">
+    <div className="space-y-6 max-w-full pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>

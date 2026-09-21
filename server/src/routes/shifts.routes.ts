@@ -43,7 +43,7 @@ shiftsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    await ensureSeedShifts(tenantId);
+    // seed disabled
 
     const shifts = await prisma.shiftDefinition.findMany({
       where: { tenantId },

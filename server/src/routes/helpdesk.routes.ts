@@ -78,7 +78,7 @@ helpdeskRouter.get("/tickets", requireAuth, async (req: AuthRequest, res: Respon
     // Find any employee for seeding if empty
     const firstEmp = await prisma.employee.findFirst({ where: { tenantId } });
     if (firstEmp) {
-      await ensureSeedInternalTickets(tenantId, firstEmp.id);
+      // seed disabled
     }
 
     const { category, priority, status, employeeId, search } = req.query;

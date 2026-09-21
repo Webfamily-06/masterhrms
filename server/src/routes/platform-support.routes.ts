@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 
 export const platformSupportRouter = Router();
 
@@ -65,10 +65,10 @@ async function ensureSeedPlatformTickets(tenantId: string) {
 platformSupportRouter.get("/tickets", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
-    const isSuperAdmin = req.user?.roles?.includes("super_admin") || req.user?.email === "admin@hrms.com" || req.query.isSuper === "true";
+    const isSuperAdmin = req.user?.roles?.includes("super_admin");
 
     if (!isSuperAdmin && tenantId) {
-      await ensureSeedPlatformTickets(tenantId);
+      // seed disabled
     }
 
     const { requestType, priority, status, search, targetTenantId } = req.query;
@@ -171,7 +171,7 @@ platformSupportRouter.get("/tickets/:id", requireAuth, async (req: AuthRequest, 
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
-    const isSuperAdmin = req.user?.roles?.includes("super_admin") || req.user?.email === "admin@hrms.com";
+    const isSuperAdmin = req.user?.roles?.includes("super_admin");
 
     const ticket = await prisma.platformSupportTicket.findUnique({
       where: { id },
@@ -195,7 +195,11 @@ platformSupportRouter.get("/tickets/:id", requireAuth, async (req: AuthRequest, 
 platformSupportRouter.post("/tickets/:id/messages", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { message, attachmentUrl, senderType } = req.body;
+    const { message, attachmentUrl } = req.body;
+    const isSuperAdmin = req.user!.roles.includes("super_admin");
+    const target = await prisma.platformSupportTicket.findFirst({ where: { id, ...(isSuperAdmin ? {} : { tenantId: req.user!.tenantId! }) } });
+    if (!target) return res.status(404).json({ error: "Ticket not found" });
+    const senderType = isSuperAdmin ? "super_admin" : "tenant_admin";
     const senderName = req.user?.email || (senderType === "super_admin" ? "Platform Super Admin" : "Tenant Admin");
 
     if (!message || !message.trim()) {
@@ -228,7 +232,7 @@ platformSupportRouter.post("/tickets/:id/messages", requireAuth, async (req: Aut
 });
 
 // POST /api/support/platform/tickets/:id/action (Super Admin 1-Click Action / Resolution)
-platformSupportRouter.post("/tickets/:id/action", requireAuth, async (req: AuthRequest, res: Response) => {
+platformSupportRouter.post("/tickets/:id/action", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { action, status, adminNotes, replyMessage } = req.body;
@@ -329,7 +333,7 @@ platformSupportRouter.delete("/tickets/:id", requireAuth, async (req: AuthReques
 platformSupportRouter.get("/summary/stats", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
-    const isSuperAdmin = req.user?.roles?.includes("super_admin") || req.user?.email === "admin@hrms.com" || req.query.isSuper === "true";
+    const isSuperAdmin = req.user?.roles?.includes("super_admin");
 
     const where: any = {};
     if (!isSuperAdmin && tenantId) {

@@ -14,11 +14,18 @@ export function getSocketClient(): Socket {
   if (!globalSocket) {
     globalSocket = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
+      auth: (callback) => callback({ token: localStorage.getItem("hrms_auth_token") }),
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
     });
+    const reconnect = () => {
+      globalSocket?.disconnect();
+      if (localStorage.getItem("hrms_auth_token")) globalSocket?.connect();
+    };
+    window.addEventListener("auth-token-changed", reconnect);
+    window.addEventListener("storage", (event) => { if (event.key === "hrms_auth_token") reconnect(); });
   }
   return globalSocket;
 }

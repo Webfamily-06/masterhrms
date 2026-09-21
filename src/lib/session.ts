@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, clearToken } from "./api";
+import { api, ApiError, clearToken } from "./api";
 
 export type SessionUser = {
   id: string;
   email: string;
+};
+
+export type WorkspaceRoleInfo = {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  isSystem?: boolean;
 };
 
 export type ProfileWithRoles = {
@@ -13,8 +21,13 @@ export type ProfileWithRoles = {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  tenant: { id: string; name: string; slug: string } | null;
+  tenant: { id: string; name: string; slug: string; timezone?: string } | null;
   roles: string[];
+  workspaceRole: WorkspaceRoleInfo | null;
+  permissions: string[];
+  enabledModules: string[];
+  allowedDashboards: string[];
+  twoFactorEnabled?: boolean;
 };
 
 /**
@@ -31,7 +44,8 @@ function useSessionQuery() {
   useEffect(() => {
     const handleStorage = () => setTokenState(localStorage.getItem("hrms_auth_token"));
     window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    window.addEventListener("auth-token-changed", handleStorage);
+    return () => { window.removeEventListener("storage", handleStorage); window.removeEventListener("auth-token-changed", handleStorage); };
   }, []);
 
   const query = useQuery({
@@ -45,10 +59,12 @@ function useSessionQuery() {
       try {
         const res = await api.get("/auth/me");
         return res;
-      } catch {
-        clearToken();
-        setTokenState(null);
-        return null;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          clearToken();
+          setTokenState(null);
+        }
+        throw error;
       }
     },
   });
@@ -96,13 +112,18 @@ export function useCurrentProfile(user?: SessionUser | null | undefined) {
       email: rawUser.email,
       avatar_url: p?.avatarUrl ?? null,
       tenant: p?.tenant
-        ? { id: p.tenant.id, name: p.tenant.name, slug: p.tenant.slug }
+        ? { id: p.tenant.id, name: p.tenant.name, slug: p.tenant.slug, timezone: (p.tenant as any).timezone || "Asia/Kolkata" }
         : null,
       roles: rawUser.roles ?? [],
+      workspaceRole: rawUser.workspaceRole ?? null,
+      permissions: rawUser.permissions ?? [],
+      enabledModules: rawUser.enabledModules ?? [],
+      allowedDashboards: rawUser.allowedDashboards ?? [],
+      twoFactorEnabled: Boolean(rawUser.twoFactorEnabled),
     };
   }, [rawUser]);
 
-  return { data, isLoading };
+  return { data, isLoading, error: query.error, refetch: query.refetch };
 }
 
 export function hasRole(profile: ProfileWithRoles | null | undefined, role: string) {

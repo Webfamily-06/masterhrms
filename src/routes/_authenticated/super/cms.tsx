@@ -632,7 +632,7 @@ function PageEditorForm({
             <div
               className={`bg-background border rounded-2xl shadow-xl transition-all duration-300 overflow-hidden ${
                 previewDevice === "desktop"
-                  ? "w-full max-w-5xl"
+                  ? "w-full max-w-full"
                   : previewDevice === "tablet"
                     ? "w-[768px]"
                     : "w-[375px]"

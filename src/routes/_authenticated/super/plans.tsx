@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,7 @@ export type SubscriptionPlan = {
   price_monthly: number;
   price_annual: number;
   max_employees: number;
+  max_users?: number | null;
   features: string[];
   included_addon_ids?: string[];
   popular?: boolean;
@@ -510,6 +511,7 @@ function PlansMonetizationAdmin() {
   // 1. REALTIME QUERY: Fetch plans, orders & invoice templates from MySQL API
   const {
     data: monetizationData,
+    error: monetizationError,
     isLoading,
     refetch,
   } = useQuery({
@@ -520,25 +522,26 @@ function PlansMonetizationAdmin() {
         if (page?.content) {
           const parsed = page.content;
           return {
-            plans: (parsed.plans ?? DEFAULT_PLANS) as SubscriptionPlan[],
+            plans: (parsed.plans ?? []) as SubscriptionPlan[],
             coupons: (parsed.coupons ?? []) as PromoCoupon[],
-            orders: (parsed.orders ?? DEFAULT_ORDERS) as CustomerOrder[],
+            orders: (parsed.orders ?? []) as CustomerOrder[],
             bankTransfers: (parsed.bankTransfers ?? []) as BankTransferRequest[],
             templates: (parsed.templates ?? DEFAULT_INVOICE_TEMPLATES) as InvoiceTemplate[],
           };
         }
         return {
-          plans: DEFAULT_PLANS,
+          plans: [] as SubscriptionPlan[],
           coupons: [],
-          orders: DEFAULT_ORDERS,
+          orders: [] as CustomerOrder[],
           bankTransfers: [],
           templates: DEFAULT_INVOICE_TEMPLATES,
         };
-      } catch {
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
         return {
-          plans: DEFAULT_PLANS,
+          plans: [] as SubscriptionPlan[],
           coupons: [],
-          orders: DEFAULT_ORDERS,
+          orders: [] as CustomerOrder[],
           bankTransfers: [],
           templates: DEFAULT_INVOICE_TEMPLATES,
         };
@@ -573,9 +576,9 @@ function PlansMonetizationAdmin() {
     },
   });
 
-  const plans = monetizationData?.plans ?? DEFAULT_PLANS;
+  const plans = monetizationData?.plans ?? [];
   const coupons = monetizationData?.coupons ?? [];
-  const orders = monetizationData?.orders ?? DEFAULT_ORDERS;
+  const orders = monetizationData?.orders ?? [];
   const bankTransfers = monetizationData?.bankTransfers ?? [];
   const templates = monetizationData?.templates ?? DEFAULT_INVOICE_TEMPLATES;
 
@@ -631,6 +634,7 @@ function PlansMonetizationAdmin() {
   }
 
   function handleSavePlan() {
+    if ([editingPlan?.price_monthly, editingPlan?.price_annual, editingPlan?.max_employees, editingPlan?.max_users].some((value) => value != null && (!Number.isFinite(value) || value < 0))) return toast.error("Prices and limits cannot be negative");
     if (!editingPlan?.name) return toast.error("Plan name is required");
     let updatedPlans: SubscriptionPlan[];
     if (editingPlan.id) {
@@ -641,18 +645,21 @@ function PlansMonetizationAdmin() {
       const newP: SubscriptionPlan = {
         id: `p-${Date.now()}`,
         name: editingPlan.name,
-        price_monthly: editingPlan.price_monthly || 99,
-        price_annual: editingPlan.price_annual || 990,
-        max_employees: editingPlan.max_employees || 50,
+        price_monthly: editingPlan.price_monthly ?? 0,
+        price_annual: editingPlan.price_annual ?? 0,
+        max_employees: editingPlan.max_employees ?? 0,
+        max_users: editingPlan.max_users ?? null,
         features: editingPlan.features || ["Core HR", "Attendance"],
         included_addon_ids: editingPlan.included_addon_ids || [],
       };
       updatedPlans = [...plans, newP];
     }
-    saveMonetizationMutation.mutate({ plans: updatedPlans });
-    setIsPlanModalOpen(false);
-    setEditingPlan(null);
-    toast.success("Subscription Plan & default activated addons saved!");
+    saveMonetizationMutation.mutate({ plans: updatedPlans }, { onSuccess: () => {
+      setIsPlanModalOpen(false); setEditingPlan(null);
+      qc.invalidateQueries({ queryKey: ["workspace-policy-plans"] });
+      qc.invalidateQueries({ queryKey: ["public-plans-list"] });
+      toast.success("Subscription plan saved");
+    } });
   }
 
   function handleSaveHtmlTemplate() {
@@ -786,6 +793,7 @@ function PlansMonetizationAdmin() {
 
   return (
     <div className="space-y-6">
+      {monetizationError && <p role="alert" className="p-4 text-destructive">Unable to load plans: {monetizationError.message}. <Button variant="outline" onClick={() => refetch()}>Retry</Button></p>}
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
@@ -1307,7 +1315,7 @@ function PlansMonetizationAdmin() {
                   <Label className="text-xs font-semibold">Max Employee Seats</Label>
                   <Input
                     type="number"
-                    value={editingPlan.max_employees ?? 50}
+                    value={editingPlan.max_employees ?? 0}
                     onChange={(e) =>
                       setEditingPlan({
                         ...editingPlan,
@@ -1316,6 +1324,7 @@ function PlansMonetizationAdmin() {
                     }
                   />
                 </div>
+                <div className="space-y-2"><Label>User capacity (blank = unlimited)</Label><Input type="number" min="0" step="1" value={editingPlan.max_users ?? ""} onChange={(e) => setEditingPlan({ ...editingPlan, max_users: e.target.value === "" ? null : Number(e.target.value) })} /></div>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-3">

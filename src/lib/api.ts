@@ -10,10 +10,16 @@ function getToken(): string | null {
 
 export function setToken(token: string) {
   localStorage.setItem("hrms_auth_token", token);
+  window.dispatchEvent(new Event("auth-token-changed"));
 }
 
 export function clearToken() {
   localStorage.removeItem("hrms_auth_token");
+  window.dispatchEvent(new Event("auth-token-changed"));
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); }
 }
 
 export async function apiRequest<T = any>(
@@ -31,13 +37,17 @@ export async function apiRequest<T = any>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  let cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (API_BASE.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
+    cleanEndpoint = cleanEndpoint.substring(4);
+  }
+  const url = `${API_BASE}${cleanEndpoint}`;
   const response = await fetch(url, { ...options, headers });
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || `Request failed with status ${response.status}`);
+    throw new ApiError(data.error || `Request failed with status ${response.status}`, response.status);
   }
 
   return data as T;

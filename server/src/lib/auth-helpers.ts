@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { lockWorkspaceCapacity, WorkspacePolicyError } from "../services/workspace-policy.service";
 
 interface ProvisionOptions {
   tenantId: string;
@@ -28,6 +29,11 @@ export async function provisionEmployeeUser(
     where: { email },
     include: { profile: true, roles: true },
   });
+
+  if (user && (user.profile?.tenantId !== options.tenantId || user.roles.some((r: any) => r.role === "super_admin"))) {
+    throw new WorkspacePolicyError("This email belongs to another account and cannot be linked or reset from this workspace.", 409);
+  }
+  if (!user) await lockWorkspaceCapacity(prisma, options.tenantId, "users");
 
   if (!user) {
     user = await prisma.user.create({

@@ -53,42 +53,11 @@ type DriveFile = {
   size: string;
   modified: string;
   owner: string;
+  category?: string;
+  fileUrl?: string | null;
+  documentCode?: string;
+  status?: string;
 };
-
-const MOCK_DRIVE_FILES: DriveFile[] = [
-  {
-    id: "f1",
-    name: "Master HRMS Employee Contracts 2026",
-    type: "folder",
-    size: "—",
-    modified: "2026-07-28",
-    owner: "admin@company.com",
-  },
-  {
-    id: "f2",
-    name: "Q2 Financial Audited Report.spreadsheet",
-    type: "spreadsheet",
-    size: "4.2 MB",
-    modified: "2026-07-25",
-    owner: "finance@company.com",
-  },
-  {
-    id: "f3",
-    name: "Offer Letter Template - India.document",
-    type: "document",
-    size: "820 KB",
-    modified: "2026-07-20",
-    owner: "hr@company.com",
-  },
-  {
-    id: "f4",
-    name: "Company Incorporation Deed.pdf",
-    type: "pdf",
-    size: "1.8 MB",
-    modified: "2026-07-15",
-    owner: "admin@company.com",
-  },
-];
 
 const FILE_ICONS: Record<DriveFile["type"], string> = {
   folder: "📁",
@@ -102,7 +71,6 @@ function GoogleWorkspacePage() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile();
   const tenantId = profile?.tenant_id || "default";
-  const SLUG = `system-google-workspace-${tenantId}`;
 
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -112,22 +80,21 @@ function GoogleWorkspacePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Fetch real Google Workspace config from backend API
   const { data: storeData } = useQuery({
-    queryKey: ["google-workspace", tenantId],
+    queryKey: ["google-workspace-config", tenantId],
     queryFn: async () => {
       try {
-        const page = await api.get(`/cms/pages/${SLUG}`);
-        if (page?.content) {
-          const p = page.content;
-          if (p.config) {
-            setClientId(p.config.clientId || "");
-            setClientSecret(p.config.clientSecret || "");
-            setSsoEnabled(p.config.ssoEnabled || false);
-            setDriveEnabled(p.config.driveEnabled || false);
-          }
-          return { accounts: (p.accounts || []) as ConnectedAccount[], config: p.config || {} };
+        const res = await api.get("/workspace/google/config");
+        if (res?.config) {
+          setClientId(res.config.clientId || "");
+          setSsoEnabled(res.config.ssoEnabled || false);
+          setDriveEnabled(res.config.driveEnabled || false);
         }
-        return { accounts: [] as ConnectedAccount[], config: {} };
+        return {
+          accounts: (res?.accounts || []) as ConnectedAccount[],
+          config: res?.config || {},
+        };
       } catch {
         return { accounts: [] as ConnectedAccount[], config: {} };
       }
@@ -136,55 +103,80 @@ function GoogleWorkspacePage() {
 
   const accounts = storeData?.accounts ?? [];
 
-  const persist = useMutation({
-    mutationFn: async (payload: any) => {
-      await api.put(`/cms/pages/${SLUG}`, {
-        title: "Google Workspace Config",
-        content: payload,
-        published: true,
-      });
+  // Fetch real Drive & Company Documents from MySQL
+  const {
+    data: driveFiles = [],
+    isLoading: isLoadingDrive,
+    refetch: refetchDrive,
+  } = useQuery({
+    queryKey: ["google-drive-files", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/workspace/google/drive-files");
+        return (res || []) as DriveFile[];
+      } catch {
+        return [] as DriveFile[];
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["google-workspace", tenantId] }),
-    onError: (e: Error) => toast.error(e.message),
+    enabled: driveEnabled || storeData?.config?.driveEnabled,
   });
 
   async function saveConfig() {
-    setIsSaving(true);
-    const config = { clientId, clientSecret, ssoEnabled, driveEnabled };
-    persist.mutate({ accounts, config });
-    setIsSaving(false);
-    toast.success("Google Workspace configuration saved!");
+    try {
+      setIsSaving(true);
+      await api.post("/workspace/google/config", {
+        clientId,
+        clientSecret: clientSecret || undefined,
+        ssoEnabled,
+        driveEnabled,
+      });
+      qc.invalidateQueries({ queryKey: ["google-workspace-config", tenantId] });
+      toast.success("Google Workspace configuration saved successfully!");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save configuration");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function connectGoogleAccount() {
-    toast.info("Redirecting to Google OAuth consent screen...");
-    await new Promise((r) => setTimeout(r, 1500));
-    const newAccount: ConnectedAccount = {
-      id: `ga-${Date.now()}`,
-      email: user?.email || "admin@workspace.com",
-      name: profile?.full_name || "Admin User",
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || "Admin")}&background=4285F4&color=fff`,
-      role: "Admin",
-      connectedAt: new Date().toLocaleString(),
-      driveQuotaUsed: 8.2,
-      driveQuotaTotal: 15,
-    };
-    const config = { clientId, clientSecret, ssoEnabled, driveEnabled };
-    persist.mutate({ accounts: [newAccount, ...accounts], config });
-    toast.success("Google Workspace account connected successfully!");
+    try {
+      toast.info("Connecting Google account to workspace...");
+      const res = await api.post("/workspace/google/connect-account", {
+        email: user?.email || "admin@workspace.com",
+        name: profile?.full_name || "Workspace Admin",
+      });
+      qc.invalidateQueries({ queryKey: ["google-workspace-config", tenantId] });
+      toast.success(res?.message || "Google Workspace account connected successfully!");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to connect Google account");
+    }
   }
 
-  function disconnectAccount(id: string) {
-    const config = { clientId, clientSecret, ssoEnabled, driveEnabled };
-    persist.mutate({ accounts: accounts.filter((a) => a.id !== id), config });
-    toast.success("Google account disconnected.");
+  async function disconnectAccount(id: string) {
+    try {
+      await api.delete(`/workspace/google/accounts/${id}`);
+      qc.invalidateQueries({ queryKey: ["google-workspace-config", tenantId] });
+      toast.success("Google account disconnected.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to disconnect account");
+    }
   }
 
   async function syncDirectory() {
-    setIsSyncing(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setIsSyncing(false);
-    toast.success("Google Workspace directory synced! Employee emails updated.");
+    try {
+      setIsSyncing(true);
+      const res = await api.post("/workspace/google/sync-directory");
+      qc.invalidateQueries({ queryKey: ["google-workspace-config", tenantId] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      toast.success(
+        res?.message || `Google Workspace directory synced! ${res?.totalEmployees ?? 0} employee records updated.`
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to synchronize directory");
+    } finally {
+      setIsSyncing(false);
+    }
   }
 
   return (
@@ -415,37 +407,65 @@ function GoogleWorkspacePage() {
           {/* DRIVE BROWSER TAB */}
           <TabsContent value="drive" className="mt-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm flex items-center gap-2">
-                <HardDrive className="size-4 text-blue-600" /> Google Drive — Shared Files
-              </h3>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                <RefreshCw className="size-3.5" /> Refresh
+              <div>
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <HardDrive className="size-4 text-blue-600" /> Google Drive & Company Document Cloud
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Synchronized with Master ERP company documents & cloud storage.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchDrive()}
+                disabled={isLoadingDrive}
+                className="gap-1.5 text-xs"
+              >
+                <RefreshCw className={`size-3.5 ${isLoadingDrive ? "animate-spin" : ""}`} /> Refresh
               </Button>
             </div>
             {!driveEnabled ? (
               <div className="py-16 text-center text-muted-foreground space-y-2">
                 <HardDrive className="size-10 mx-auto opacity-20" />
                 <p className="font-bold text-foreground">Drive integration disabled</p>
-                <p className="text-sm">Enable Google Drive in the OAuth Config tab.</p>
+                <p className="text-sm">Enable Google Drive in the OAuth Config tab to view shared files.</p>
+              </div>
+            ) : driveFiles.length === 0 ? (
+              <div className="py-16 text-center text-muted-foreground space-y-2">
+                <HardDrive className="size-10 mx-auto opacity-20" />
+                <p className="font-bold text-foreground">No documents in Drive</p>
+                <p className="text-sm">Upload company documents or connect Google Drive to populate files.</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border">
                 <table className="w-full text-xs">
                   <thead className="bg-secondary/50 text-muted-foreground">
                     <tr>
-                      {["Name", "Type", "Size", "Modified", "Owner"].map((h) => (
-                        <th key={h} className="p-2.5 text-left font-semibold">
-                          {h}
-                        </th>
-                      ))}
+                      {["Document Name", "Category", "Type", "Size", "Modified", "Verified / Owner", "Status"].map(
+                        (h) => (
+                          <th key={h} className="p-2.5 text-left font-semibold">
+                            {h}
+                          </th>
+                        )
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {MOCK_DRIVE_FILES.map((f) => (
+                    {driveFiles.map((f) => (
                       <tr key={f.id} className="border-t hover:bg-secondary/20 cursor-pointer">
                         <td className="p-2.5 font-semibold flex items-center gap-2">
-                          <span className="text-base">{FILE_ICONS[f.type]}</span> {f.name}
+                          <span className="text-base">{FILE_ICONS[f.type] || "📄"}</span>
+                          <div>
+                            <div>{f.name}</div>
+                            {f.documentCode && (
+                              <span className="text-[10px] font-mono text-muted-foreground">
+                                {f.documentCode}
+                              </span>
+                            )}
+                          </div>
                         </td>
+                        <td className="p-2.5 text-muted-foreground">{f.category || "General"}</td>
                         <td className="p-2.5">
                           <Badge variant="outline" className="text-[10px] capitalize">
                             {f.type}
@@ -454,6 +474,17 @@ function GoogleWorkspacePage() {
                         <td className="p-2.5 text-muted-foreground font-mono">{f.size}</td>
                         <td className="p-2.5 text-muted-foreground">{f.modified}</td>
                         <td className="p-2.5 text-muted-foreground">{f.owner}</td>
+                        <td className="p-2.5">
+                          <Badge
+                            className={`text-[10px] ${
+                              f.status === "verified" || f.status === "signed"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {f.status || "active"}
+                          </Badge>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -108,7 +108,7 @@ trainingRouter.get("/courses", requireAuth, async (req: AuthRequest, res: Respon
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    await ensureSeedCourses(tenantId);
+    // seed disabled
 
     const { category, search } = req.query;
     const where: any = { tenantId };

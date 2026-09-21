@@ -179,6 +179,8 @@ export type SuperSettings = {
 
   // SMTP Error & Delivery Logs
   smtpLogs?: SmtpDeliveryLog[];
+  otpEmailSubject?: string;
+  otpEmailTemplate?: string;
 };
 
 const DEFAULT_SETTINGS: SuperSettings = {
@@ -226,6 +228,8 @@ const DEFAULT_SETTINGS: SuperSettings = {
   smtpEncryption: ((import.meta.env.VITE_SMTP_ENCRYPTION as string) || "tls") as any,
   smtpFromName: (import.meta.env.VITE_SMTP_FROM_NAME as string) || "Master HRMS System",
   smtpFromEmail: (import.meta.env.VITE_SMTP_FROM_EMAIL as string) || "no-reply@masterhrms.com",
+  otpEmailSubject: "{{appName}} — Your Login Verification Code",
+  otpEmailTemplate: "",
 
   // OAuth Defaults
   oauthBaseUrl: "http://localhost:4000",
@@ -1156,6 +1160,266 @@ function SuperSettingsAdmin() {
                   >
                     {showSmtpPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
+                </div>
+              </div>
+            </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Sender Display Name</Label>
+                <Input
+                  value={form.smtpFromName || "Master HRMS System"}
+                  onChange={(e) => setForm({ ...form, smtpFromName: e.target.value })}
+                  className="text-xs font-mono"
+                  placeholder="Master HRMS System"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Sender Email Address (From)</Label>
+                <Input
+                  value={form.smtpFromEmail || "no-reply@masterhrms.com"}
+                  onChange={(e) => setForm({ ...form, smtpFromEmail: e.target.value })}
+                  className="text-xs font-mono"
+                  placeholder="no-reply@masterhrms.com"
+                />
+              </div>
+            </div>
+
+            {/* 2FA EMAIL OTP HTML TEMPLATE SECTION */}
+            <div className="pt-6 border-t space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h4 className="font-bold text-sm flex items-center gap-2 text-foreground">
+                    <ShieldCheck className="size-4 text-primary" />
+                    Two-Factor Authentication (2FA) Email OTP Template
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Customize the security email template dispatched whenever users log in or verify their identity.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setForm({
+                        ...form,
+                        otpEmailSubject: "{{appName}} — Your Login Verification Code",
+                        otpEmailTemplate: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b; margin: 0; }
+    .card { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .hdr { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; color: white; }
+    .hdr h2 { margin: 0; font-size: 20px; font-weight: 800; color: #f97316; letter-spacing: -0.5px; }
+    .hdr p { margin: 6px 0 0 0; font-size: 13px; opacity: 0.85; color: #e2e8f0; }
+    .bdy { padding: 32px 24px; }
+    .box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
+    .code { font-family: monospace; font-size: 38px; font-weight: 900; letter-spacing: 8px; color: #ea580c; margin: 0; }
+    .tag { display: inline-block; background: #fff7ed; color: #c2410c; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-top: 8px; }
+    .ftr { padding: 18px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="hdr">
+      <h2>{{appName}}</h2>
+      <p>Secure Login Verification Code</p>
+    </div>
+    <div class="bdy">
+      <p style="font-weight: 600; margin: 0 0 12px 0;">Hello {{userName}},</p>
+      <p style="font-size: 13px; color: #475569; margin: 0 0 20px 0;">We received a sign-in request for your account. Please use the 6-digit verification code below to complete your authentication:</p>
+      <div class="box">
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Your 6-Digit OTP Code</div>
+        <div class="code">{{otp}}</div>
+        <div class="tag">Expires in {{expiryMinutes}} minutes</div>
+      </div>
+      <p style="font-size: 12px; color: #64748b; line-height: 1.5; margin: 0;">For your security, never share this code. If you did not make this request, contact your administrator immediately.</p>
+    </div>
+    <div class="ftr">© {{currentYear}} {{appName}}. All rights reserved.</div>
+  </div>
+</body>
+</html>`,
+                      });
+                      toast.info("Reset to default professional HTML template!");
+                    }}
+                    className="text-xs font-semibold h-8 gap-1.5"
+                  >
+                    <RotateCcw className="size-3.5" />
+                    Reset to Default
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsTestEmailModalOpen(true)}
+                    className="gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 h-8"
+                  >
+                    <Send className="size-3.5" /> Send Test OTP Email
+                  </Button>
+                </div>
+              </div>
+
+              {/* Subject Line */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Email Subject Line</Label>
+                <Input
+                  value={form.otpEmailSubject || "{{appName}} — Your Login Verification Code"}
+                  onChange={(e) => setForm({ ...form, otpEmailSubject: e.target.value })}
+                  placeholder="{{appName}} — Your Login Verification Code"
+                  className="text-xs font-mono"
+                />
+              </div>
+
+              {/* Template Variable Badges */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Available Dynamic Variables (Click to Copy)
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {["{{otp}}", "{{userName}}", "{{userEmail}}", "{{appName}}", "{{expiryMinutes}}", "{{currentYear}}"].map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(tag);
+                        toast.success(`Copied ${tag} to clipboard!`);
+                      }}
+                      className="cursor-pointer hover:bg-primary/10 hover:border-primary font-mono text-[10px] py-1 px-2 border-border/80 text-foreground"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Code Editor & Live Preview Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+                {/* Editor Column */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Terminal className="size-3.5 text-primary" />
+                      HTML Source Code
+                    </Label>
+                    <span className="text-[10px] font-mono text-muted-foreground">HTML5 + Inline CSS</span>
+                  </div>
+                  <Textarea
+                    rows={15}
+                    value={form.otpEmailTemplate || `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b; margin: 0; }
+    .card { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .hdr { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; color: white; }
+    .hdr h2 { margin: 0; font-size: 20px; font-weight: 800; color: #f97316; letter-spacing: -0.5px; }
+    .hdr p { margin: 6px 0 0 0; font-size: 13px; opacity: 0.85; color: #e2e8f0; }
+    .bdy { padding: 32px 24px; }
+    .box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
+    .code { font-family: monospace; font-size: 38px; font-weight: 900; letter-spacing: 8px; color: #ea580c; margin: 0; }
+    .tag { display: inline-block; background: #fff7ed; color: #c2410c; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-top: 8px; }
+    .ftr { padding: 18px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="hdr">
+      <h2>{{appName}}</h2>
+      <p>Secure Login Verification Code</p>
+    </div>
+    <div class="bdy">
+      <p style="font-weight: 600; margin: 0 0 12px 0;">Hello {{userName}},</p>
+      <p style="font-size: 13px; color: #475569; margin: 0 0 20px 0;">We received a sign-in request for your account. Please use the 6-digit verification code below to complete your authentication:</p>
+      <div class="box">
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Your 6-Digit OTP Code</div>
+        <div class="code">{{otp}}</div>
+        <div class="tag">Expires in {{expiryMinutes}} minutes</div>
+      </div>
+      <p style="font-size: 12px; color: #64748b; line-height: 1.5; margin: 0;">For your security, never share this code. If you did not make this request, contact your administrator immediately.</p>
+    </div>
+    <div class="ftr">© {{currentYear}} {{appName}}. All rights reserved.</div>
+  </div>
+</body>
+</html>`}
+                    onChange={(e) => setForm({ ...form, otpEmailTemplate: e.target.value })}
+                    className="font-mono text-xs leading-relaxed bg-background/50 border-border/80 resize-y"
+                    placeholder="Enter custom HTML template..."
+                  />
+                </div>
+
+                {/* Preview Column */}
+                <div className="space-y-1.5 flex flex-col">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Eye className="size-3.5 text-emerald-500" />
+                      Live Inbox Render Preview
+                    </Label>
+                    <Badge variant="secondary" className="text-[10px] font-mono py-0 h-4">
+                      Simulated Preview
+                    </Badge>
+                  </div>
+
+                  <div className="flex-1 rounded-xl border border-border/80 bg-slate-100 dark:bg-slate-900/50 p-2 overflow-hidden flex flex-col min-h-[320px]">
+                    <div className="text-[10px] font-mono text-muted-foreground px-2 py-1 border-b border-border/40 flex items-center justify-between">
+                      <span className="truncate max-w-[200px]">Subject: {(form.otpEmailSubject || "{{appName}} — Your Login Verification Code").replace("{{appName}}", form.appName || "Master HRMS")}</span>
+                      <span>From: {form.smtpFromName || "Master HRMS"} &lt;{form.smtpFromEmail || "no-reply@masterhrms.com"}&gt;</span>
+                    </div>
+
+                    <iframe
+                      title="2FA Template Preview"
+                      srcDoc={(form.otpEmailTemplate || `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; padding: 24px; color: #1e293b; margin: 0; }
+    .card { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .hdr { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; color: white; }
+    .hdr h2 { margin: 0; font-size: 20px; font-weight: 800; color: #f97316; letter-spacing: -0.5px; }
+    .hdr p { margin: 6px 0 0 0; font-size: 13px; opacity: 0.85; color: #e2e8f0; }
+    .bdy { padding: 32px 24px; }
+    .box { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
+    .code { font-family: monospace; font-size: 38px; font-weight: 900; letter-spacing: 8px; color: #ea580c; margin: 0; }
+    .tag { display: inline-block; background: #fff7ed; color: #c2410c; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-top: 8px; }
+    .ftr { padding: 18px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="hdr">
+      <h2>{{appName}}</h2>
+      <p>Secure Login Verification Code</p>
+    </div>
+    <div class="bdy">
+      <p style="font-weight: 600; margin: 0 0 12px 0;">Hello {{userName}},</p>
+      <p style="font-size: 13px; color: #475569; margin: 0 0 20px 0;">We received a sign-in request for your account. Please use the 6-digit verification code below to complete your authentication:</p>
+      <div class="box">
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Your 6-Digit OTP Code</div>
+        <div class="code">{{otp}}</div>
+        <div class="tag">Expires in {{expiryMinutes}} minutes</div>
+      </div>
+      <p style="font-size: 12px; color: #64748b; line-height: 1.5; margin: 0;">For your security, never share this code. If you did not make this request, contact your administrator immediately.</p>
+    </div>
+    <div class="ftr">© {{currentYear}} {{appName}}. All rights reserved.</div>
+  </div>
+</body>
+</html>`)
+                        .replace(/{{otp}}/g, "482913")
+                        .replace(/{{userName}}/g, "Gowtham Wilsan")
+                        .replace(/{{userEmail}}/g, "gowtham@company.com")
+                        .replace(/{{appName}}/g, form.appName || "Master HRMS")
+                        .replace(/{{expiryMinutes}}/g, "5")
+                        .replace(/{{currentYear}}/g, String(new Date().getFullYear()))}
+                      className="w-full flex-1 border-0 rounded-lg bg-white mt-1"
+                      sandbox="allow-same-origin"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

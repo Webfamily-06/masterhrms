@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -13,179 +15,156 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   UserCheck,
-  Plus,
-  Mail,
   Users,
-  UserPlus,
   ShieldCheck,
   Search,
-  Download,
-  MoreVertical,
   Shield,
+  Loader2,
+  Edit2,
+  Lock,
 } from "lucide-react";
-import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/_app/users")({
   component: UsersPage,
-  head: () => ({ meta: [{ title: "User Management & Roles — Sneat ERP" }] }),
+  head: () => ({ meta: [{ title: "User Management & Roles · Master ERP" }] }),
 });
 
 export type WorkspaceUser = {
   id: string;
-  name: string;
+  fullName: string;
   email: string;
-  role: string;
-  status: string;
-  plan: string;
-  created: string;
-  avatar?: string;
+  avatarUrl: string | null;
+  assignedRole: {
+    id: string;
+    name: string;
+    description: string | null;
+    isActive: boolean;
+  } | null;
+  twoFactorEnabled?: boolean;
+  legacyRoles: string[];
+  createdAt: string;
 };
 
-const INITIAL_USERS: WorkspaceUser[] = [
-  {
-    id: "usr-01",
-    name: "John Doe",
-    email: "john@company.com",
-    role: "Tenant Admin",
-    status: "active",
-    plan: "Enterprise",
-    created: "2026-01-15",
-    avatar: "/images/avatars/avatar-1.png",
-  },
-  {
-    id: "usr-02",
-    name: "Jennie O'Brien",
-    email: "jennie@company.com",
-    role: "HR Manager",
-    status: "active",
-    plan: "Enterprise",
-    created: "2026-02-01",
-    avatar: "/images/avatars/avatar-2.png",
-  },
-  {
-    id: "usr-03",
-    name: "Peter Harper",
-    email: "peter@company.com",
-    role: "Accountant",
-    status: "inactive",
-    plan: "Team",
-    created: "2026-03-10",
-    avatar: "/images/avatars/avatar-3.png",
-  },
-  {
-    id: "usr-04",
-    name: "Sara Connor",
-    email: "sara@company.com",
-    role: "Staff",
-    status: "pending",
-    plan: "Basic",
-    created: "2026-04-05",
-    avatar: "/images/avatars/avatar-4.png",
-  },
-];
+export type RoleOption = {
+  id: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+};
 
 function UsersPage() {
-  const [users, setUsers] = useState<WorkspaceUser[]>(INITIAL_USERS);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [selectedRole, setSelectedRole] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("Staff");
-  const [openDrawer, setOpenDrawer] = useState(false);
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
 
-  function addUser() {
-    if (!name.trim() || !email.trim()) return toast.error("Please enter user name and email");
-    const newUser: WorkspaceUser = {
-      id: `usr-${Math.floor(10 + Math.random() * 90)}`,
-      name: name.trim(),
-      email: email.trim(),
-      role,
-      status: "active",
-      plan: "Team",
-      created: new Date().toISOString().slice(0, 10),
-    };
-    setUsers([newUser, ...users]);
-    toast.success(`User invite sent to ${email} as ${role}!`);
-    setName("");
-    setEmail("");
-    setOpenDrawer(false);
-  }
+  // Edit Role Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<WorkspaceUser | null>(null);
+  const [targetRoleId, setTargetRoleId] = useState("");
 
-  function toggleStatus(id: string) {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id ? { ...u, status: u.status === "active" ? "inactive" : "active" } : u
-      )
-    );
-    toast.success("User access status updated");
-  }
-
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.role.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = selectedRole === "all" || u.role.toLowerCase() === selectedRole.toLowerCase();
-    const matchesStatus = selectedStatus === "all" || u.status.toLowerCase() === selectedStatus.toLowerCase();
-    return matchesSearch && matchesRole && matchesStatus;
+  // 1. Fetch Real Users from Workspace API
+  const { data: users = [], isLoading: usersLoading } = useQuery<WorkspaceUser[]>({
+    queryKey: ["workspace-users-list"],
+    queryFn: async () => {
+      const res = await api.get("/workspace/users");
+      return res || [];
+    },
   });
 
-  const activeCount = users.filter((u) => u.status === "active").length;
-  const pendingCount = users.filter((u) => u.status === "pending").length;
+  // 2. Fetch Workspace Roles
+  const { data: roles = [] } = useQuery<RoleOption[]>({
+    queryKey: ["workspace-roles"],
+    queryFn: async () => {
+      const res = await api.get("/workspace/roles");
+      return res || [];
+    },
+  });
+
+  // 3. Mutation: Assign Role to User
+  const assignRoleMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingUser || !targetRoleId) return;
+      return await api.put("/workspace/users/" + editingUser.id + "/role", { roleId: targetRoleId });
+    },
+    onSuccess: () => {
+      toast.success("Role assigned successfully to " + editingUser?.fullName);
+      setIsEditModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["workspace-users-list"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["current-session-user"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to assign role");
+    },
+  });
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const matchesSearch =
+        u.fullName.toLowerCase().includes(search.toLowerCase()) ||
+        u.email.toLowerCase().includes(search.toLowerCase());
+
+      const userRoleName = u.assignedRole?.name || "Unassigned";
+      const matchesRole =
+        selectedRoleFilter === "all" || userRoleName.toLowerCase() === selectedRoleFilter.toLowerCase();
+
+      return matchesSearch && matchesRole;
+    });
+  }, [users, search, selectedRoleFilter]);
+
+  const activeCount = users.length;
+  const adminCount = users.filter((u) => u.assignedRole?.name === "Workspace Admin").length;
+  const employeeCount = users.filter((u) => u.assignedRole?.name === "Employee").length;
+  const managerCount = users.filter(
+    (u) => u.assignedRole && u.assignedRole.name !== "Workspace Admin" && u.assignedRole.name !== "Employee"
+  ).length;
 
   return (
-    <PlanGuard moduleName="User Management & Roles" requiredPlan="starter">
-      <div className="space-y-6 max-w-7xl">
-        {/* ── Page Header ────────────────────────────────────────── */}
+    <div className="w-full flex-1 min-w-0 bg-background">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <UserCheck className="size-6 text-primary" /> User Management & RBAC
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                Workspace Identity & Access Management
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">Live Database</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Workspace Users & Role Assignments
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Manage workspace staff logins, security credentials, and role-based permissions.
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Manage member roles and RBAC authorization scopes across the workspace.
             </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <PlanLimitBar used={users.length} limit={15} label="Workspace Seats" />
-            <Button
-              onClick={() => setOpenDrawer(true)}
-              size="sm"
-              className="gap-1.5 font-bold text-xs bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <Plus className="size-4" /> Add New User
-            </Button>
           </div>
         </div>
 
-        {/* ── Sneat Pro 4-Card Widgets ──────────────────────────── */}
+        {/* 4-Card Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { title: "Session", value: "21,459", change: 29, desc: "Total Users", icon: Users, color: "text-primary bg-primary/10" },
-            { title: "Paid Users", value: "4,567", change: 18, desc: "Last Week Analytics", icon: UserPlus, color: "text-[oklch(0.60_0.22_25)] bg-[oklch(0.60_0.22_25/0.10)]" },
-            { title: "Active Users", value: activeCount.toString(), change: -14, desc: "Active in workspace", icon: UserCheck, color: "text-[oklch(0.60_0.17_155)] bg-[oklch(0.60_0.17_155/0.10)]" },
-            { title: "Pending Users", value: pendingCount.toString(), change: 42, desc: "Pending invitation", icon: ShieldCheck, color: "text-[oklch(0.73_0.16_75)] bg-[oklch(0.73_0.16_75/0.10)]" },
+            { title: "Total Users", value: activeCount.toString(), desc: "Registered Members", icon: Users, color: "text-primary bg-primary/10" },
+            { title: "Workspace Admins", value: adminCount.toString(), desc: "Full Access Admins", icon: ShieldCheck, color: "text-orange-500 bg-orange-500/10" },
+            { title: "Specialized Managers", value: managerCount.toString(), desc: "HR, Sales, Finance Managers", icon: Shield, color: "text-purple-500 bg-purple-500/10" },
+            { title: "Standard Employees", value: employeeCount.toString(), desc: "Self-Service Access", icon: UserCheck, color: "text-emerald-500 bg-emerald-500/10" },
           ].map((w) => (
             <Card key={w.title} className="border border-border/70 shadow-xs">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <span className="text-xs font-semibold text-muted-foreground">{w.title}</span>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-2xl font-bold tracking-tight">{w.value}</h4>
-                      <span
-                        className={cn(
-                          "text-xs font-semibold",
-                          w.change > 0 ? "text-[oklch(0.60_0.17_155)]" : "text-[oklch(0.60_0.22_25)]"
-                        )}
-                      >
-                        ({w.change > 0 ? `+${w.change}` : w.change}%)
-                      </span>
-                    </div>
+                    <h4 className="text-2xl font-bold tracking-tight">{w.value}</h4>
                     <p className="text-[11px] text-muted-foreground">{w.desc}</p>
                   </div>
                   <div className={cn("size-10 rounded-lg flex items-center justify-center shrink-0", w.color)}>
@@ -197,189 +176,199 @@ function UsersPage() {
           ))}
         </div>
 
-        {/* ── Filters Card ───────────────────────────────────────── */}
+        {/* Filters Card */}
         <Card className="border border-border/70 shadow-xs">
-          <CardHeader className="pb-3 px-5 pt-5">
-            <CardTitle className="text-sm font-bold">Filters</CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Select Role</label>
-                <Select value={selectedRole} onValueChange={setSelectedRole}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="All Roles" />
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 h-9 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
+                  <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+                    <SelectValue placeholder="Filter by Role" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="tenant admin">Tenant Admin</SelectItem>
-                    <SelectItem value="hr manager">HR Manager</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
+                    {roles.map((r) => (
+                      <SelectItem key={r.id} value={r.name}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Select Status</label>
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Search User</label>
-                <div className="relative">
-                  <Search className="size-4 text-muted-foreground absolute left-3 top-2.5" />
-                  <Input
-                    placeholder="Search name, email, role..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="h-9 pl-9 text-xs"
-                  />
-                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* ── Users Data Table ───────────────────────────────────── */}
+        {/* Users Table */}
         <Card className="border border-border/70 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-border/70 bg-muted/20">
-                  <th className="text-left px-5 py-3.5 font-bold uppercase tracking-wider text-muted-foreground">User</th>
-                  <th className="text-left px-4 py-3.5 font-bold uppercase tracking-wider text-muted-foreground">Role</th>
-                  <th className="text-left px-4 py-3.5 font-bold uppercase tracking-wider text-muted-foreground">Plan</th>
-                  <th className="text-left px-4 py-3.5 font-bold uppercase tracking-wider text-muted-foreground">Status</th>
-                  <th className="text-right px-5 py-3.5 font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
+                <tr className="border-b border-border/70 bg-muted/30 text-muted-foreground font-semibold">
+                  <th className="px-5 py-3.5">USER</th>
+                  <th className="px-4 py-3.5">ASSIGNED ROLE</th>
+                  <th className="px-4 py-3.5">STATUS</th>
+                  <th className="px-4 py-3.5">2FA</th>
+                  <th className="px-4 py-3.5">JOINED DATE</th>
+                  <th className="px-5 py-3.5 text-right">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="size-8.5">
-                          <AvatarImage src={u.avatar || "/images/avatars/avatar-1.png"} />
-                          <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                            {u.name.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-semibold text-foreground text-xs">{u.name}</p>
-                          <p className="text-[11px] text-muted-foreground font-mono">{u.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 font-medium text-foreground">
-                      <Badge variant="outline" className="text-[10px] font-semibold bg-primary/5 text-primary border-primary/20">
-                        {u.role}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3.5 text-muted-foreground font-medium">
-                      {u.plan}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span
-                        className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-md capitalize",
-                          u.status === "active"
-                            ? "bg-[oklch(0.60_0.17_155/0.10)] text-[oklch(0.60_0.17_155)]"
-                            : u.status === "pending"
-                            ? "bg-[oklch(0.73_0.16_75/0.10)] text-[oklch(0.73_0.16_75)]"
-                            : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {u.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => toggleStatus(u.id)}
-                        className="h-7 text-[11px] px-2.5 font-semibold"
-                      >
-                        {u.status === "active" ? "Suspend" : "Activate"}
-                      </Button>
+                {usersLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-primary" />
+                      Loading real users from workspace database...
                     </td>
                   </tr>
-                ))}
+                ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-muted-foreground">
+                      No users found matching search criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="size-8">
+                            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                              {u.fullName.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold text-foreground text-xs">{u.fullName}</p>
+                            <p className="text-[11px] text-muted-foreground font-mono">{u.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 font-medium text-foreground">
+                        {u.assignedRole ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs font-semibold",
+                              u.assignedRole.name === "Workspace Admin"
+                                ? "bg-orange-500/10 text-orange-600 border-orange-500/30"
+                                : u.assignedRole.name.includes("Manager")
+                                ? "bg-purple-500/10 text-purple-600 border-purple-500/30"
+                                : "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-300"
+                            )}
+                          >
+                            {u.assignedRole.name}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            Employee (Default)
+                          </Badge>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold">
+                          <span className="size-1.5 rounded-full bg-emerald-500" />
+                          Active
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        {u.twoFactorEnabled ? (
+                          <Badge variant="outline" className="text-[10px] font-bold py-0.5 px-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
+                            ● Enabled
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] font-bold py-0.5 px-2 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10">
+                            ○ Pending Setup
+                          </Badge>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-muted-foreground font-mono text-[11px]">
+                        {new Date(u.createdAt).toLocaleDateString()}
+                      </td>
+
+                      <td className="px-5 py-3.5 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingUser(u);
+                            setTargetRoleId(u.assignedRole?.id || roles[0]?.id || "");
+                            setIsEditModalOpen(true);
+                          }}
+                          className="h-7 text-xs px-2.5 font-semibold gap-1"
+                        >
+                          <Edit2 className="size-3" />
+                          Change Role
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </Card>
 
-        {/* ── Add User Modal Drawer ──────────────────────────────── */}
-        {openDrawer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in-50">
-            <Card className="w-full max-w-md border border-border/80 bg-card shadow-lg">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 px-6 pt-6">
-                <div>
-                  <CardTitle className="text-base font-bold">Add New User</CardTitle>
-                  <p className="text-xs text-muted-foreground">Invite team member with customized permissions.</p>
-                </div>
-                <Button size="icon" variant="ghost" className="size-8" onClick={() => setOpenDrawer(false)}>
-                  ✕
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-4 px-6 pb-6">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Full Name *</label>
-                  <Input
-                    placeholder="e.g. John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Work Email *</label>
-                  <Input
-                    type="email"
-                    placeholder="john@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Assign Role</label>
-                  <Select value={role} onValueChange={setRole}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Tenant Admin">Tenant Admin (Full Access)</SelectItem>
-                      <SelectItem value="HR Manager">HR Manager</SelectItem>
-                      <SelectItem value="Accountant">Accountant</SelectItem>
-                      <SelectItem value="Staff">Regular Staff</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" className="flex-1 text-xs" onClick={() => setOpenDrawer(false)}>
-                    Cancel
-                  </Button>
-                  <Button className="flex-1 text-xs font-bold bg-primary text-primary-foreground" onClick={addUser}>
-                    Send Invite
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {/* Change Role Dialog */}
+        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold">Change User Role</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Assign an RBAC role to {editingUser?.fullName} ({editingUser?.email}).
+                The user will immediately receive the corresponding module dashboards and action permissions.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Select Role *</label>
+                <Select value={targetRoleId} onValueChange={setTargetRoleId}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Choose a workspace role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((r) => (
+                      <SelectItem key={r.id} value={r.id} className="text-xs">
+                        <span className="font-semibold">{r.name}</span>
+                        {r.description && <span className="text-muted-foreground ml-2">({r.description})</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => assignRoleMutation.mutate()}
+                disabled={assignRoleMutation.isPending || !targetRoleId}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              >
+                {assignRoleMutation.isPending && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-    </PlanGuard>
+    </div>
   );
 }

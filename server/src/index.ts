@@ -1,8 +1,13 @@
+import dotenv from "dotenv";
+import path from "path";
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import compression from "compression";
-import dotenv from "dotenv";
 import { authRouter } from "./routes/auth.routes";
+import { workspaceRouter } from "./routes/workspace.routes";
 import { cmsRouter } from "./routes/cms.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
 import { employeesRouter } from "./routes/employees.routes";
@@ -28,9 +33,25 @@ import { formsRouter } from "./routes/forms.routes";
 import { biometricRouter, publicBiometricRouter, iclockRouter } from "./routes/biometric.routes";
 import accountingRouter from "./routes/accounting.routes";
 import { aiRouter } from "./routes/ai.routes";
+import { productsRouter } from "./routes/products.routes";
+import { salesRouter } from "./routes/sales.routes";
+import { customersRouter } from "./routes/customers.routes";
+import { chatRouter } from "./routes/chat.routes";
+import { qzRouter } from "./routes/qz.routes";
+import { transfersRouter } from "./routes/transfers.routes";
+import { ecommerceRouter } from "./routes/ecommerce.routes";
+import { woocommerceRouter } from "./routes/woocommerce.routes";
+import { shopifyRouter } from "./routes/shopify.routes";
+import { alertsRouter } from "./routes/alerts.routes";
+import { projectsRouter } from "./routes/projects.routes";
+import { suppliersRouter } from "./routes/suppliers.routes";
+import { purchasesRouter } from "./routes/purchases.routes";
+import { adjustmentsRouter } from "./routes/adjustments.routes";
+import { paymentsRouter, razorpayWebhookHandler } from "./routes/payments.routes";
 
 import http from "http";
 import { initSocket } from "./socket";
+import { runBiometricAutoSync } from "./cron/biometric-sync";
 
 dotenv.config();
 
@@ -56,6 +77,7 @@ app.use(
   }),
 );
 
+app.post("/api/payments/razorpay/webhook", express.raw({ type: "application/json" }), razorpayWebhookHandler);
 app.use(express.json());
 app.use(express.text({ type: ["text/*", "application/octet-stream", "*/*"] }));
 app.use(compression()); // Gzip all responses — 60-80% smaller payloads
@@ -72,6 +94,7 @@ app.get("/api/health", (req, res) => {
 
 // Mount Routes
 app.use("/api/auth", authRouter);
+app.use("/api/workspace", workspaceRouter);
 app.use("/api/cms", cmsRouter);
 app.use("/api/dashboard", dashboardRouter); // Aggregation endpoint — replaces N individual calls
 app.use("/api/employees", employeesRouter);
@@ -98,9 +121,24 @@ app.use("/api/announcements", announcementsRouter);
 app.use("/api/forms", formsRouter);
 app.use("/api/accounting", accountingRouter);
 app.use("/api/ai", aiRouter);
+app.use("/api/products", productsRouter);
+app.use("/api/sales", salesRouter);
+app.use("/api/customers", customersRouter);
+app.use("/api/chat", chatRouter);
 app.use("/api/biometric", biometricRouter);
 app.use("/api/public/biometric", publicBiometricRouter);
 app.use("/iclock", iclockRouter);
+app.use("/api/qz", qzRouter);
+app.use("/api/transfers", transfersRouter);
+app.use("/api/ecommerce", ecommerceRouter);
+app.use("/api/woocommerce", woocommerceRouter);
+app.use("/api/shopify", shopifyRouter);
+app.use("/api/alerts", alertsRouter);
+app.use("/api/projects", projectsRouter);
+app.use("/api/suppliers", suppliersRouter);
+app.use("/api/purchases", purchasesRouter);
+app.use("/api/adjustments", adjustmentsRouter);
+app.use("/api/payments", paymentsRouter);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -110,6 +148,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const server = http.createServer(app);
 initSocket(server, allowedOrigins);
+
+// Start Biometric Auto-Sync Cron (Every 30 mins)
+setInterval(() => {
+  runBiometricAutoSync();
+}, 30 * 60 * 1000);
 
 server.listen(PORT, () => {
   console.log(`🚀 Master HRMS Backend Server running on http://localhost:${PORT}`);

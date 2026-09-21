@@ -188,10 +188,11 @@ function AuthPage() {
         });
 
         if (res.requires2FA) {
-          setIsMfaStep(true);
-          setMfaToken(res.mfaToken);
-          setMfaCode("");
-          toast.info("Two-Factor Authentication code required.");
+          sessionStorage.setItem("mfa_temp_token", res.mfaToken);
+          sessionStorage.setItem("mfa_masked_email", res.maskedEmail || res.email);
+          sessionStorage.setItem("mfa_is_setup", res.isSetup ? "true" : "false");
+          toast.info(res.message || "A 6-digit verification code has been sent to your email.");
+          navigate({ to: "/verify-2fa", search: { redirect: redirect || undefined } });
           return;
         }
 
@@ -365,6 +366,30 @@ function AuthPage() {
                 </p>
               </div>
 
+              {mode === "signin" && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-primary flex items-center gap-1.5">
+                      <ShieldCheck className="size-3.5" /> Demo Admin Access
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail("gowthamtooquik@gmail.com");
+                        setPassword("admin123");
+                      }}
+                      className="text-[11px] font-bold text-primary underline hover:text-primary/80 cursor-pointer"
+                    >
+                      Fill Credentials
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground pt-0.5">
+                    <span>gowthamtooquik@gmail.com</span>
+                    <span>admin123</span>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === "signup" && (
                   <div className="space-y-1.5">
@@ -509,7 +534,7 @@ function AuthPage() {
               )}
 
               {/* Mode Toggle Footer */}
-              <div className="text-center pt-2 space-y-2">
+              <div className="text-center pt-2">
                 <p className="text-xs text-muted-foreground">
                   {mode === "signin" ? "New on our platform?" : "Already have an account?"}{" "}
                   <button
@@ -520,16 +545,6 @@ function AuthPage() {
                     {mode === "signin" ? "Create an account" : "Sign in instead"}
                   </button>
                 </p>
-
-                <div className="pt-2">
-                  <Link
-                    to="/super-login"
-                    className="text-[11px] text-muted-foreground/80 hover:text-primary transition-colors inline-flex items-center gap-1 font-medium"
-                  >
-                    <ShieldCheck className="size-3" />
-                    <span>Platform Super Admin Console Access &rarr;</span>
-                  </Link>
-                </div>
               </div>
             </div>
           )}
