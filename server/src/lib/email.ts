@@ -10,6 +10,7 @@ export interface SmtpConfig {
   smtpFromName: string;
   smtpFromEmail: string;
   appName?: string;
+  logoUrl?: string;
   otpEmailSubject?: string;
   otpEmailTemplate?: string;
 }
@@ -25,6 +26,12 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
 
     if (page?.content) {
       const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
+      let logoUrl = c.logoLightUrl || c.logoDarkUrl || "";
+      if (logoUrl && !logoUrl.startsWith("http://") && !logoUrl.startsWith("https://")) {
+        const baseUrl = (c.frontendBaseUrl || "https://masterhrms.com").replace(/\/$/, "");
+        logoUrl = `${baseUrl}${logoUrl.startsWith("/") ? "" : "/"}${logoUrl}`;
+      }
+
       if (c.smtpHost && c.smtpUser && c.smtpPass) {
         return {
           smtpHost: String(c.smtpHost).trim(),
@@ -32,9 +39,10 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
           smtpUser: String(c.smtpUser).trim(),
           smtpPass: String(c.smtpPass).trim(),
           smtpEncryption: (c.smtpEncryption || "ssl") as any,
-          smtpFromName: c.smtpFromName || "TSV Global Solutions",
+          smtpFromName: c.smtpFromName || "Master HRMS System",
           smtpFromEmail: c.smtpFromEmail || c.smtpUser,
-          appName: c.appName || "TSV Global Solutions",
+          appName: c.appName || "Master HRMS & ERP",
+          logoUrl: logoUrl || undefined,
           otpEmailSubject: c.otpEmailSubject || undefined,
           otpEmailTemplate: c.otpEmailTemplate || undefined,
         };
@@ -47,13 +55,14 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
   // Fallback to process.env
   return {
     smtpHost: process.env.SMTP_HOST || "",
-    smtpPort: parseInt(process.env.SMTP_PORT || "587", 10),
+    smtpPort: parseInt(process.env.SMTP_PORT || "465", 10),
     smtpUser: process.env.SMTP_USER || "",
     smtpPass: process.env.SMTP_PASS || "",
-    smtpEncryption: (process.env.SMTP_ENCRYPTION as any) || "tls",
-    smtpFromName: process.env.SMTP_FROM_NAME || "TSV Global Solutions Security",
-    smtpFromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_FROM || "security@tsvhomes.in",
-    appName: "TSV Global Solutions",
+    smtpEncryption: (process.env.SMTP_ENCRYPTION as any) || "ssl",
+    smtpFromName: process.env.SMTP_FROM_NAME || "Master HRMS System",
+    smtpFromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "support@masterhrms.com",
+    appName: "Master HRMS & ERP",
+    logoUrl: "https://masterhrms.com/logo.webp",
   };
 }
 
@@ -65,7 +74,7 @@ export interface SendOtpOptions {
 }
 
 /**
- * Default HTML Email Template
+ * Default HTML Email Template with Table-based 1-Row layout & Brand Logo
  */
 export function getDefaultOtpEmailTemplate(params: {
   otp: string;
@@ -73,75 +82,93 @@ export function getDefaultOtpEmailTemplate(params: {
   appName: string;
   isSetup: boolean;
   expiryMinutes?: number;
+  logoUrl?: string;
 }): string {
-  const { otp, userName, appName, isSetup, expiryMinutes = 5 } = params;
+  const { otp, userName, appName, isSetup, expiryMinutes = 5, logoUrl } = params;
+
+  const logoHeaderHtml = logoUrl
+    ? `<img src="${logoUrl}" alt="${appName}" style="max-height: 48px; max-width: 200px; width: auto; height: auto; margin-bottom: 12px; display: inline-block; border: 0;" />`
+    : `<div style="font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 0.5px; margin-bottom: 8px;">${appName}</div>`;
 
   return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>${isSetup ? "Two-Factor Authentication Setup" : "Login Verification Code"}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px 12px; color: #1e293b; }
-    .wrapper { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
-    .header { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 36px 32px; text-align: center; }
-    .brand-badge { display: inline-block; background: rgba(249, 115, 22, 0.15); border: 1px solid rgba(249, 115, 22, 0.4); color: #f97316; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; padding: 4px 12px; border-radius: 9999px; margin-bottom: 12px; }
-    .header-title { color: #ffffff; font-size: 22px; margin: 0; font-weight: 800; letter-spacing: -0.5px; }
-    .header-subtitle { color: #94a3b8; font-size: 13px; margin: 6px 0 0 0; }
-    .content { padding: 36px 32px; }
-    .greeting { font-size: 16px; font-weight: 700; margin: 0 0 16px 0; color: #0f172a; }
-    .message { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 28px 0; }
-    .otp-container { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 14px; padding: 24px; text-align: center; margin: 0 0 28px 0; }
-    .otp-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; color: #64748b; margin-bottom: 10px; }
-    .otp-digits { font-family: 'Courier New', Courier, monospace; font-size: 42px; font-weight: 900; letter-spacing: 10px; color: #ea580c; margin: 0; }
-    .expiry-tag { display: inline-block; background: #fff7ed; border: 1px solid #ffedd5; color: #c2410c; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 9999px; margin-top: 12px; }
-    .security-card { background: #f8fafc; border-left: 4px solid #f97316; border-radius: 8px; padding: 16px 20px; margin: 0 0 24px 0; font-size: 12px; color: #475569; line-height: 1.6; }
-    .security-card strong { color: #0f172a; display: block; margin-bottom: 6px; }
-    .security-card ul { margin: 0; padding-left: 18px; }
-    .footer { padding: 24px 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5; }
-  </style>
 </head>
-<body>
-  <div class="wrapper">
-    <div class="header">
-      <div class="brand-badge">${appName}</div>
-      <h1 class="header-title">${isSetup ? "Two-Factor Authentication Setup" : "Login Verification Code"}</h1>
-      <p class="header-subtitle">Single-use security code for account verification</p>
-    </div>
-    <div class="content">
-      <p class="greeting">Hello ${userName},</p>
-      <p class="message">
-        ${isSetup
-          ? "You are completing mandatory Two-Factor Authentication (2FA) setup for your account. Enter the verification code below to confirm your email and activate 2FA protection."
-          : "We received a sign-in request for your account. Use the 6-digit verification code below to verify your identity and enter your workspace."}
-      </p>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px 12px; color: #1e293b; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
+    <!-- Header -->
+    <tr>
+      <td align="center" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center;">
+        ${logoHeaderHtml}
+        <h1 style="color: #ffffff; font-size: 22px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">${isSetup ? "Two-Factor Authentication Setup" : "Login Verification Code"}</h1>
+        <p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">Single-use security code for account verification</p>
+      </td>
+    </tr>
 
-      <div class="otp-container">
-        <div class="otp-label">Your Verification Code</div>
-        <div class="otp-digits">${otp}</div>
-        <div class="expiry-tag">⏱ Valid for ${expiryMinutes} minutes only</div>
-      </div>
+    <!-- Body Content -->
+    <tr>
+      <td style="padding: 32px 24px;">
+        <p style="font-size: 16px; font-weight: 700; margin: 0 0 16px 0; color: #0f172a;">Hello ${userName},</p>
+        <p style="font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 24px 0;">
+          ${isSetup
+            ? "You are completing mandatory Two-Factor Authentication (2FA) setup for your account. Use the verification code below to confirm your email and activate 2FA protection."
+            : "We received a sign-in request for your account. Use the 6-digit verification code below to verify your identity and enter your workspace."}
+        </p>
 
-      <div class="security-card">
-        <strong>Important Security Reminders:</strong>
-        <ul>
-          <li>Never share this code with anyone. ${appName} will NEVER ask for your OTP.</li>
-          <li>This code is single-use and valid for ${expiryMinutes} minutes.</li>
-          <li>If you did not initiate this request, contact your Workspace Administrator immediately.</li>
-        </ul>
-      </div>
+        <!-- 1-Row 1-Column Table for 6-Digit Code -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 14px; margin: 0 0 24px 0; text-align: center;">
+          <tr>
+            <td align="center" style="padding: 20px 12px;">
+              <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; color: #64748b; margin-bottom: 10px;">Your 6-Digit Verification Code</div>
+              
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto; display: inline-table;">
+                <tr>
+                  <td align="center" style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 900; color: #ea580c; letter-spacing: 8px; white-space: nowrap; word-break: keep-all; padding: 2px 8px;">
+                    ${otp}
+                  </td>
+                </tr>
+              </table>
 
-      <p style="font-size: 13px; color: #64748b; margin: 0;">
-        Regards,<br>
-        <strong style="color: #0f172a;">${appName} Security Team</strong>
-      </p>
-    </div>
-    <div class="footer">
-      This is an automated system notification. Please do not reply directly to this email.<br>
-      © ${new Date().getFullYear()} ${appName}. All rights reserved.
-    </div>
-  </div>
+              <div style="margin-top: 12px;">
+                <span style="display: inline-block; background-color: #fff7ed; border: 1px solid #ffedd5; color: #c2410c; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 9999px;">⏱ Valid for ${expiryMinutes} minutes only</span>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Security Warning -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border-left: 4px solid #f97316; border-radius: 6px; padding: 14px 16px; margin: 0 0 24px 0; font-size: 12px; color: #475569; line-height: 1.6;">
+          <tr>
+            <td>
+              <strong style="color: #0f172a; display: block; margin-bottom: 4px;">Important Security Reminders:</strong>
+              <ul style="margin: 0; padding-left: 16px;">
+                <li>Never share this code with anyone. ${appName} will NEVER ask for your OTP.</li>
+                <li>This code is single-use and valid for ${expiryMinutes} minutes.</li>
+                <li>If you did not initiate this request, contact your Workspace Administrator immediately.</li>
+              </ul>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size: 13px; color: #64748b; margin: 0;">
+          Regards,<br>
+          <strong style="color: #0f172a;">${appName} Security Team</strong>
+        </p>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td align="center" style="padding: 20px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+        This is an automated system security notification.<br>
+        © ${new Date().getFullYear()} ${appName}. All rights reserved.
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 }
@@ -157,7 +184,7 @@ export async function sendTwoFactorOtpEmail({
 }: SendOtpOptions): Promise<{ success: boolean; messageId?: string }> {
   const config = await getDynamicEmailConfig();
   const userName = fullName || toEmail.split("@")[0] || "User";
-  const appName = config.appName || "TSV Global Solutions";
+  const appName = config.appName || "Master HRMS & ERP";
 
   let subject = config.otpEmailSubject
     ? config.otpEmailSubject
@@ -166,7 +193,7 @@ export async function sendTwoFactorOtpEmail({
         .replace(/{{userName}}/g, userName)
     : isSetup
     ? `${appName} — 2FA Setup Verification Code`
-    : `${appName} — Your Login Verification Code`;
+    : `${appName} — Your Verification Code`;
 
   let htmlContent = "";
 
@@ -187,6 +214,7 @@ export async function sendTwoFactorOtpEmail({
       appName,
       isSetup,
       expiryMinutes: 5,
+      logoUrl: config.logoUrl,
     });
   }
 
@@ -229,9 +257,16 @@ ${appName} Security Team`;
       const info = await transporter.sendMail({
         from: fromHeader,
         to: toEmail,
+        replyTo: config.smtpFromEmail,
         subject,
         text: textContent,
         html: htmlContent,
+        headers: {
+          "X-Priority": "1",
+          "X-MSMail-Priority": "High",
+          "Importance": "high",
+          "X-Mailer": "Master HRMS Security Dispatcher",
+        },
       });
 
       console.log(`📨 2FA Email delivered successfully to ${toEmail} via ${config.smtpHost} (ID: ${info.messageId})`);
