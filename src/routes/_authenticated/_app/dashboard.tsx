@@ -524,7 +524,13 @@ export default function DashboardPage() {
                   <p className="text-xs font-bold text-title dark:text-white mb-1 uppercase tracking-wider">7-Day Attendance Trend</p>
                   <div className="h-[105px]">
                     {isMounted && weeklySeries.length > 0 ? (
-                      <Chart options={barOptions} series={[{ name: 'Present', data: weeklySeries }]} type="bar" height={105} />
+                      <Chart
+                        key={`week-chart-${weeklyCategories.join("-")}-${weeklySeries.join("-")}`}
+                        options={barOptions}
+                        series={[{ name: 'Present', data: weeklySeries }]}
+                        type="bar"
+                        height={105}
+                      />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center bg-slate-50 dark:bg-slate-800/40 rounded text-xs text-muted-foreground">
                         No attendance logs recorded this week
@@ -579,7 +585,9 @@ export default function DashboardPage() {
               <div>
                 <p className="text-white/80 text-xs mb-1">Monthly Payroll</p>
                 <h3 className="font-bold text-white text-2xl mb-1">{totalPayroll}</h3>
-                <p className="text-[12px] text-white/70 mb-0">March 2026 · {totalEmployees} active employees</p>
+                <p className="text-[12px] text-white/70 mb-0">
+                  {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} · {totalEmployees} active employees
+                </p>
               </div>
               <Link
                 to="/payroll"

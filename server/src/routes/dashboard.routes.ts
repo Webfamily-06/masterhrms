@@ -160,10 +160,11 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
 
   try {
     const now = new Date();
-    const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const sevenDaysAgo = new Date(todayUtc);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
 
     const [
       totalEmployees,
@@ -179,6 +180,7 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
       topEmployees,
       weekAttendances,
       avgSalaryAgg,
+      monthAttendances,
     ] = await Promise.all([
       // 1. Active workforce
       prisma.employee.count({ where: { tenantId, status: "active" } }),
@@ -186,7 +188,7 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
       prisma.employee.count({ where: { tenantId, createdAt: { gte: startOfMonth } } }),
       // 3. Today's real attendance
       prisma.attendance.findMany({
-        where: { tenantId, date: todayUtc },
+        where: { tenantId, date: { gte: todayUtc, lte: endOfToday } },
         include: {
           employee: {
             select: { id: true, firstName: true, lastName: true, employeeCode: true, position: true },
@@ -247,26 +249,41 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
       prisma.attendance.findMany({
         where: {
           tenantId,
-          date: { gte: sevenDaysAgo, lte: todayUtc },
+          date: { gte: sevenDaysAgo, lte: endOfToday },
         },
-        select: { date: true, checkIn: true },
+        select: { date: true, checkIn: true, status: true },
       }),
       // 13. Average salary
       prisma.employee.aggregate({
         where: { tenantId, status: "active" },
         _avg: { salary: true },
       }),
+      // 14. Month-to-date attendance records
+      prisma.attendance.findMany({
+        where: {
+          tenantId,
+          date: { gte: startOfMonth, lte: endOfToday },
+        },
+        select: { date: true, checkIn: true, status: true },
+      }),
     ]);
 
-    // Calculate attendance metrics
-    const presentToday = todayAttendanceList.filter((a) => a.checkIn !== null).length;
-    // Late threshold: checked in after 9:30 AM local (UTC+5:30 -> 04:00 UTC)
-    const lateToday = todayAttendanceList.filter((a) => {
+    // Punch detection helpers
+    const isPresentPunch = (a: { checkIn: Date | null; status: string }) => {
+      return a.checkIn !== null || a.status === "present" || a.status === "late";
+    };
+    const isLatePunch = (a: { checkIn: Date | null; status: string }) => {
+      if (a.status === "late") return true;
       if (!a.checkIn) return false;
       const d = new Date(a.checkIn);
       const utcMinutes = d.getUTCHours() * 60 + d.getUTCMinutes();
       return utcMinutes > 4 * 60; // after 4:00 AM UTC (9:30 AM IST)
-    }).length;
+    };
+
+    // Calculate attendance metrics
+    const presentToday = todayAttendanceList.filter((a) => isPresentPunch(a)).length;
+    // Late threshold: checked in after 9:30 AM local (UTC+5:30 -> 04:00 UTC)
+    const lateToday = todayAttendanceList.filter((a) => isLatePunch(a)).length;
     const absentToday = Math.max(0, totalEmployees - presentToday - onLeaveCount);
     const remoteToday = 0; // In-office biometric synced
 
@@ -277,24 +294,38 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
     const weeklyData: number[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(todayUtc);
-      d.setDate(d.getDate() - i);
+      d.setUTCDate(d.getUTCDate() - i);
       const dStr = d.toISOString().split("T")[0];
-      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+      const dayName = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
       const count = weekAttendances.filter(
-        (a) => a.date && a.date.toISOString().split("T")[0] === dStr && a.checkIn !== null
+        (a) => a.date && a.date.toISOString().split("T")[0] === dStr && isPresentPunch(a)
       ).length;
       weeklyCategories.push(dayName);
       weeklyData.push(count);
     }
+    const weeklyTotalPresent = weeklyData.reduce((sum, n) => sum + n, 0);
+    const weeklyAvgPresent = weeklyData.length > 0 ? Math.round(weeklyTotalPresent / weeklyData.length) : 0;
+    const weeklyAvgRate = totalEmployees > 0 && weeklyData.length > 0
+      ? ((weeklyAvgPresent / totalEmployees) * 100).toFixed(1)
+      : "0.0";
 
-    // Payroll calculations
+    // Month-to-date attendance metrics
+    const monthTotalPresent = (monthAttendances || []).filter((a) => isPresentPunch(a)).length;
+    const monthTotalLate = (monthAttendances || []).filter((a) => isLatePunch(a)).length;
+    const daysPassedInMonth = Math.max(1, now.getUTCDate());
+    const expectedMonthPunches = totalEmployees * daysPassedInMonth;
+    const monthlyRate = expectedMonthPunches > 0
+      ? Math.min(100, Number(((monthTotalPresent / expectedMonthPunches) * 100).toFixed(1)))
+      : 0;
+
+    // Payroll calculations - 100% dynamic from DB
     const sortedPayroll = [...payrollRuns].reverse(); // chronologically ascending
     const latestRun = payrollRuns[0];
     const prevRun = payrollRuns[1];
-    const currentGross = latestRun ? Number(latestRun.totalAmount || 0) : 1680000;
-    const prevGross = prevRun ? Number(prevRun.totalAmount || 0) : 1610000;
-    const momGrowth = prevGross > 0 ? (((currentGross - prevGross) / prevGross) * 100).toFixed(1) : "4.2";
-    const avgSalary = avgSalaryAgg._avg.salary ? Math.round(Number(avgSalaryAgg._avg.salary)) : 48500;
+    const currentGross = latestRun ? Number(latestRun.totalAmount || 0) : 0;
+    const prevGross = prevRun ? Number(prevRun.totalAmount || 0) : 0;
+    const momGrowth = prevGross > 0 ? (((currentGross - prevGross) / prevGross) * 100).toFixed(1) : "0.0";
+    const avgSalary = avgSalaryAgg._avg.salary ? Math.round(Number(avgSalaryAgg._avg.salary)) : 0;
 
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const payrollTrendCategories = sortedPayroll.map((p) => monthNames[p.periodMonth - 1] || "M");
@@ -306,16 +337,15 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
       stageMap[s.stage] = s._count.id;
     });
 
-    // Total open positions sum
+    // Total open positions sum - dynamic
     const totalOpenings = allJobPostings.reduce((acc, j) => acc + (j.openingsCount || 1), 0);
-
 
     return res.json({
       totalWorkforce: totalEmployees,
       newThisMonth: newEmployeesThisMonth,
       onLeaveToday: onLeaveCount,
       attendanceRate: Number(attendanceRate),
-      openPositions: totalOpenings || 4,
+      openPositions: totalOpenings,
       totalPayroll: currentGross,
       avgSalary,
       lastMonthPayroll: prevGross,
@@ -334,10 +364,19 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
       weeklyTrend: {
         categories: weeklyCategories,
         series: weeklyData,
+        totalPresent: weeklyTotalPresent,
+        avgPresent: weeklyAvgPresent,
+        avgRate: Number(weeklyAvgRate),
+      },
+      monthlySummary: {
+        totalPresent: monthTotalPresent,
+        totalLate: monthTotalLate,
+        rate: monthlyRate,
+        daysPassed: daysPassedInMonth,
       },
       payrollTrend: {
-        categories: payrollTrendCategories.length ? payrollTrendCategories : ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar"],
-        series: payrollTrendSeries.length ? payrollTrendSeries : [1420, 1480, 1510, 1560, 1610, 1680],
+        categories: payrollTrendCategories,
+        series: payrollTrendSeries,
       },
       recruitment: {
         newApplicants: stageMap["applied"] || 0,
