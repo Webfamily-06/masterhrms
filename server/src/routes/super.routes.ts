@@ -105,10 +105,19 @@ superRouter.post("/smtp/test-otp-email", requireAuth, requireSuperAdmin, async (
       isSetup: false,
     });
 
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error || "SMTP delivery failed. Please check your SMTP host, port, credentials, and encryption.",
+        otp: testOtp,
+      });
+    }
+
     return res.json({
       success: true,
-      message: `Test 2FA verification email with OTP [${testOtp}] dispatched to ${toEmail}.`,
+      message: `Test 2FA verification email delivered successfully to ${toEmail} (Message ID: ${result.messageId || "sent"}).`,
       otp: testOtp,
+      messageId: result.messageId,
     });
   } catch (err: any) {
     console.error("[/smtp/test-otp-email] error:", err);

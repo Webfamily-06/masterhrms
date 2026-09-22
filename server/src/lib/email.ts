@@ -9,6 +9,7 @@ export interface SmtpConfig {
   smtpEncryption: "ssl" | "tls" | "none";
   smtpFromName: string;
   smtpFromEmail: string;
+  ignoreTls?: boolean;        // Set true for Hostinger/cPanel servers that fail STARTTLS but support plain AUTH on 587
   appName?: string;
   logoUrl?: string;
   otpEmailSubject?: string;
@@ -41,6 +42,7 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
           smtpEncryption: (c.smtpEncryption || "ssl") as any,
           smtpFromName: c.smtpFromName || "Master HRMS System",
           smtpFromEmail: c.smtpFromEmail || c.smtpUser,
+          ignoreTls: c.smtpIgnoreTls === true || c.smtpIgnoreTls === "true" || false,
           appName: c.appName || "Master HRMS & ERP",
           logoUrl: logoUrl || undefined,
           otpEmailSubject: c.otpEmailSubject || undefined,
@@ -52,15 +54,31 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
     console.warn("⚠️ Could not load dynamic SMTP settings from DB, checking .env fallback:", err.message);
   }
 
-  // Fallback to process.env
+  // Fallback to process.env — check both bare SMTP_* and VITE_SMTP_* (Vite prefix)
+  const host = process.env.SMTP_HOST || process.env.VITE_SMTP_HOST || "";
+  const port = parseInt(process.env.SMTP_PORT || process.env.VITE_SMTP_PORT || "465", 10);
+  const user = process.env.SMTP_USER || process.env.VITE_SMTP_USER || "";
+  const pass = process.env.SMTP_PASS || process.env.VITE_SMTP_PASS || "";
+  const encryption = (process.env.SMTP_ENCRYPTION || process.env.VITE_SMTP_ENCRYPTION || "ssl") as any;
+  const fromName = process.env.SMTP_FROM_NAME || process.env.VITE_SMTP_FROM_NAME || "Master HRMS System";
+  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.VITE_SMTP_FROM_EMAIL || user || "support@masterhrms.com";
+  const ignoreTls = process.env.SMTP_IGNORE_TLS === "true" || process.env.VITE_SMTP_IGNORE_TLS === "true";
+
+  if (host && user && pass) {
+    console.log(`📨 [email.ts] Using .env SMTP fallback: ${host}:${port} (${encryption}) ignoreTLS=${ignoreTls} as ${user}`);
+  } else {
+    console.warn("⚠️ [email.ts] No SMTP config found in DB or .env — emails will not be delivered.");
+  }
+
   return {
-    smtpHost: process.env.SMTP_HOST || "",
-    smtpPort: parseInt(process.env.SMTP_PORT || "465", 10),
-    smtpUser: process.env.SMTP_USER || "",
-    smtpPass: process.env.SMTP_PASS || "",
-    smtpEncryption: (process.env.SMTP_ENCRYPTION as any) || "ssl",
-    smtpFromName: process.env.SMTP_FROM_NAME || "Master HRMS System",
-    smtpFromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "support@masterhrms.com",
+    smtpHost: host,
+    smtpPort: port,
+    smtpUser: user,
+    smtpPass: pass,
+    smtpEncryption: encryption,
+    smtpFromName: fromName,
+    smtpFromEmail: fromEmail,
+    ignoreTls,
     appName: "Master HRMS & ERP",
     logoUrl: "https://masterhrms.com/logo.webp",
   };
@@ -237,22 +255,41 @@ ${appName} Security Team`;
 
   if (config.smtpHost && config.smtpUser && config.smtpPass) {
     try {
-      const isPort465 = config.smtpPort === 465 || config.smtpEncryption === "ssl";
-      const transporter: any = nodemailer.createTransport({
+      // Port 465 = SSL/implicit TLS (secure: true)
+      // Port 587 = STARTTLS/explicit TLS (secure: false, STARTTLS upgrade)
+      // Port 25  = plain SMTP (secure: false)
+      const isSSL = config.smtpPort === 465 || config.smtpEncryption === "ssl";
+      const isSTARTTLS = config.smtpPort === 587 || config.smtpEncryption === "tls";
+
+      const transportOptions: any = {
         host: config.smtpHost,
         port: config.smtpPort,
-        secure: isPort465,
+        secure: isSSL, // true = SSL wrapper on port 465; false = STARTTLS negotiation (587/25)
         auth: {
           user: config.smtpUser,
           pass: config.smtpPass,
         },
         tls: {
-          rejectUnauthorized: false,
+          rejectUnauthorized: false, // allow self-signed/mismatched certs
+          minVersion: "TLSv1.2",
         },
-        connectionTimeout: 8000,
-        greetingTimeout: 6000,
-        socketTimeout: 12000,
-      });
+        connectionTimeout: 15000,  // 15s to establish TCP connection
+        greetingTimeout: 10000,    // 10s for SMTP EHLO/HELO greeting
+        socketTimeout: 20000,      // 20s for socket inactivity
+      };
+
+      // For STARTTLS (port 587)
+      if (isSTARTTLS) {
+        if (config.ignoreTls) {
+          transportOptions.ignoreTLS = true;  // skip STARTTLS, use plain AUTH
+        } else {
+          transportOptions.requireTLS = false; // Opportunistic STARTTLS (upgrades if available, doesn't abort)
+        }
+      }
+
+      console.log(`📨 [email.ts] Connecting to SMTP: ${config.smtpHost}:${config.smtpPort} | secure=${isSSL} | ignoreTLS=${config.ignoreTls || false} | user=${config.smtpUser}`);
+
+      const transporter: any = nodemailer.createTransport(transportOptions);
 
       const info = await transporter.sendMail({
         from: fromHeader,
@@ -273,19 +310,22 @@ ${appName} Security Team`;
       return { success: true, messageId: info.messageId };
     } catch (err: any) {
       console.error(`❌ SMTP delivery to ${toEmail} encountered an error: ${err.message}`);
-      console.log(`🔑 [DEV/FALLBACK OTP] Generated OTP for ${toEmail}: [${otp}]`);
-      return { success: true };
+      console.log(`🔑 [FALLBACK OTP] Generated OTP for ${toEmail}: [${otp}]`);
+      return { success: false, error: err.message };
     }
   } else {
     // No SMTP configured
     console.log("==================================================================");
-    console.log("🔐 [DEV 2FA EMAIL DISPATCH]");
+    console.log("🔐 [DEV 2FA EMAIL DISPATCH (No SMTP configured)]");
     console.log("   To: " + toEmail);
     console.log("   From: " + fromHeader);
     console.log("   Subject: " + subject);
     console.log("   👉 6-DIGIT OTP CODE: [" + otp + "]");
     console.log("   Expires in: 5 minutes");
     console.log("==================================================================");
-    return { success: true };
+    return {
+      success: false,
+      error: "SMTP settings not configured. Please configure SMTP host, user, and password in Super Admin Settings or .env file.",
+    };
   }
 }

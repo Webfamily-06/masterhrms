@@ -463,65 +463,68 @@ function SuperSettingsAdmin() {
     reader.readAsDataURL(file);
   }
 
-  function handleExecuteSendTestEmail() {
+  async function handleExecuteSendTestEmail() {
     if (!testRecipientEmail) return toast.error("Please enter recipient email address");
     setIsSendingTestEmail(true);
 
-    setTimeout(() => {
-      setIsSendingTestEmail(false);
-      setIsTestEmailModalOpen(false);
+    try {
+      // 1. First ensure the current SMTP configuration is saved to the database
+      await api.put("/cms/pages/system-platform-settings", {
+        title: "System Platform Settings",
+        meta_description:
+          "Global master configuration for currency, language, branding, SMTP, Pusher, and maintenance.",
+        content: form,
+        published: true,
+      });
 
-      const isInvalidConfig =
-        !form.smtpHost ||
-        !form.smtpPort ||
-        !form.smtpPass ||
-        form.smtpPass === "••••••••••••" ||
-        form.smtpHost.includes("invalid") ||
-        !testRecipientEmail.includes("@");
+      // 2. Execute real backend SMTP dispatch
+      const res: any = await api.post("/super/smtp/test-otp-email", {
+        toEmail: testRecipientEmail.trim(),
+      });
 
       const timestamp = new Date().toLocaleString();
-      let newLog: SmtpDeliveryLog;
+      const newLog: SmtpDeliveryLog = {
+        id: `log-${Date.now()}`,
+        timestamp,
+        recipient: testRecipientEmail,
+        subject: "Welcome Test Email",
+        status: "delivered",
+        error_details: `250 2.0.0 OK Test Email delivered via ${form.smtpHost}:${form.smtpPort} (ID: ${res.messageId || "sent"})`,
+      };
 
-      if (isInvalidConfig) {
-        newLog = {
-          id: `log-${Date.now()}`,
-          timestamp,
-          recipient: testRecipientEmail,
-          subject: "Welcome Test Email",
-          status: "failed",
-          error_details: `535 5.7.8 Authentication Failed / Connection Timeout: Cannot connect to ${form.smtpHost}:${form.smtpPort}`,
-        };
+      const updatedLogs = [newLog, ...(form.smtpLogs || [])];
+      const updatedForm = { ...form, smtpLogs: updatedLogs };
+      setForm(updatedForm);
+      saveMutation.mutate(updatedForm);
 
-        const updatedLogs = [newLog, ...(form.smtpLogs || [])];
-        const updatedForm = { ...form, smtpLogs: updatedLogs };
-        setForm(updatedForm);
-        saveMutation.mutate(updatedForm);
-
-        toast.error(
-          `SMTP Delivery Error: 535 Auth Failed for ${form.smtpHost}. Error logged in Notification Panel below!`,
-        );
-      } else {
-        newLog = {
-          id: `log-${Date.now()}`,
-          timestamp,
-          recipient: testRecipientEmail,
-          subject: "Welcome Test Email",
-          status: "delivered",
-          error_details: `250 2.0.0 OK Welcome Test Email delivered via ${form.smtpHost}:${form.smtpPort}`,
-        };
-
-        const updatedLogs = [newLog, ...(form.smtpLogs || [])];
-        const updatedForm = { ...form, smtpLogs: updatedLogs };
-        setForm(updatedForm);
-        saveMutation.mutate(updatedForm);
-
-        toast.success(
+      toast.success(
+        res.message ||
           `Welcome Test Email delivered to ${testRecipientEmail} via ${form.smtpHost}:${form.smtpPort}!`,
-        );
-      }
-
+      );
+      setIsTestEmailModalOpen(false);
       setTestRecipientEmail("");
-    }, 1200);
+    } catch (err: any) {
+      const errMsg =
+        err.response?.data?.error || err.message || `Cannot connect to ${form.smtpHost}:${form.smtpPort}`;
+      const timestamp = new Date().toLocaleString();
+      const newLog: SmtpDeliveryLog = {
+        id: `log-${Date.now()}`,
+        timestamp,
+        recipient: testRecipientEmail,
+        subject: "Welcome Test Email",
+        status: "failed",
+        error_details: `SMTP Failure: ${errMsg} (Host: ${form.smtpHost}:${form.smtpPort})`,
+      };
+
+      const updatedLogs = [newLog, ...(form.smtpLogs || [])];
+      const updatedForm = { ...form, smtpLogs: updatedLogs };
+      setForm(updatedForm);
+      saveMutation.mutate(updatedForm);
+
+      toast.error(`SMTP Delivery Error: ${errMsg}`);
+    } finally {
+      setIsSendingTestEmail(false);
+    }
   }
 
   // Live Currency Sample Calculation
