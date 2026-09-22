@@ -48,6 +48,8 @@ function Verify2faPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // Cooldown countdown timer (default 30 seconds)
   const [cooldown, setCooldown] = useState(30);
@@ -57,6 +59,8 @@ function Verify2faPage() {
     const token = sessionStorage.getItem("mfa_temp_token");
     const email = sessionStorage.getItem("mfa_masked_email");
     const setupFlag = sessionStorage.getItem("mfa_is_setup") === "true";
+    const savedDevOtp = sessionStorage.getItem("mfa_dev_otp");
+    const savedEmailError = sessionStorage.getItem("mfa_email_error");
 
     if (!token) {
       toast.error("No active verification session. Please sign in first.");
@@ -67,6 +71,8 @@ function Verify2faPage() {
     setMfaToken(token);
     setMaskedEmail(email || "registered email");
     setIsSetup(setupFlag);
+    if (savedDevOtp) setDevOtp(savedDevOtp);
+    if (savedEmailError) setEmailError(savedEmailError);
 
     // Focus on first input box automatically
     setTimeout(() => {
@@ -204,8 +210,15 @@ function Verify2faPage() {
     setErrorMessage("");
 
     try {
-      const res = await api.post("/auth/2fa/resend", { mfaToken });
+      const res: any = await api.post("/auth/2fa/resend", { mfaToken });
       toast.success(res.message || "A fresh verification code has been sent to your email.");
+      if (res.devOtp) {
+        setDevOtp(res.devOtp);
+        sessionStorage.setItem("mfa_dev_otp", res.devOtp);
+      }
+      if (res.emailError) {
+        setEmailError(res.emailError);
+      }
       setCooldown(res.cooldownSeconds || 30);
       setDigits(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
@@ -266,6 +279,40 @@ function Verify2faPage() {
               <span>{maskedEmail}</span>
             </div>
           </div>
+
+          {/* Delivery Warning / Fallback Passcode Banner */}
+          {devOtp && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3.5 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold">
+                  <AlertCircle className="size-4 shrink-0" />
+                  <span>Email Server Timeout Notice</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono font-bold">
+                  SMTP Backup
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                SMTP delivery to mail server timed out. Use your system security bypass code below:
+              </p>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-background border border-amber-500/20 font-mono text-center">
+                <span className="text-lg font-black tracking-widest text-primary">{devOtp}</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const split = devOtp.split("").slice(0, 6);
+                    setDigits(split);
+                    setTimeout(() => executeVerify(devOtp), 150);
+                  }}
+                  className="h-7 text-[11px] font-semibold border-amber-500/40 hover:bg-amber-500/10"
+                >
+                  Auto-fill & Verify
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Error State Banner */}
           {errorMessage && (
