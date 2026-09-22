@@ -187,7 +187,11 @@ function Settings() {
 
   // Department Form State
   const [newDeptName, setNewDeptName] = useState("");
-  const [editingDept, setEditingDept] = useState<{ id: string; name: string } | null>(null);
+  const [newDeptDescription, setNewDeptDescription] = useState("");
+  const [deptSearch, setDeptSearch] = useState("");
+  const [editingDept, setEditingDept] = useState<{ id: string; name: string; description?: string } | null>(null);
+  const [editDeptName, setEditDeptName] = useState("");
+  const [editDeptDescription, setEditDeptDescription] = useState("");
 
   // Load Tenant Details
   useEffect(() => {
@@ -354,15 +358,30 @@ function Settings() {
 
   // Department Mutations
   const addDept = useMutation({
-    mutationFn: async (name: string) => {
-      await api.post("/employees/departments", { name });
+    mutationFn: async ({ name, description }: { name: string; description?: string }) => {
+      await api.post("/employees/departments", { name, description });
     },
     onSuccess: () => {
       setNewDeptName("");
+      setNewDeptDescription("");
       qc.invalidateQueries({ queryKey: ["departments"] });
-      toast.success("Department added");
+      toast.success("✅ Department added successfully!");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Failed to add department"),
+  });
+
+  const editDept = useMutation({
+    mutationFn: async ({ id, name, description }: { id: string; name: string; description?: string }) => {
+      await api.put(`/employees/departments/${id}`, { name, description });
+    },
+    onSuccess: () => {
+      setEditingDept(null);
+      setEditDeptName("");
+      setEditDeptDescription("");
+      qc.invalidateQueries({ queryKey: ["departments"] });
+      toast.success("✅ Department updated successfully!");
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to update department"),
   });
 
   const delDept = useMutation({
@@ -373,7 +392,7 @@ function Settings() {
       qc.invalidateQueries({ queryKey: ["departments"] });
       toast.success("Department removed");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Failed to delete department"),
   });
 
   // 2FA Mutations
@@ -1214,55 +1233,97 @@ function Settings() {
         {/* ===================== TAB 4: DEPARTMENTS ===================== */}
         {isHR && (
           <TabsContent value="departments" className="space-y-4">
+            {/* Edit Department Dialog */}
+            <Dialog open={!!editingDept} onOpenChange={(open) => { if (!open) { setEditingDept(null); setEditDeptName(""); setEditDeptDescription(""); } }}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-sm font-black">
+                    <Edit2 className="size-4 text-blue-500" /> Edit Department
+                  </DialogTitle>
+                  <DialogDescription className="text-xs">Update the department name and description.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Department Name <span className="text-rose-500">*</span></Label>
+                    <Input value={editDeptName} onChange={(e) => setEditDeptName(e.target.value)} placeholder="e.g. Engineering" className="text-xs h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Textarea value={editDeptDescription} onChange={(e) => setEditDeptDescription(e.target.value)} placeholder="Brief description of this department function" className="text-xs resize-none" rows={2} />
+                  </div>
+                </div>
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => { setEditingDept(null); setEditDeptName(""); setEditDeptDescription(""); }}>Cancel</Button>
+                  <Button size="sm" className="text-xs h-8 bg-primary text-primary-foreground font-bold gap-1.5" disabled={!editDeptName.trim() || editDept.isPending} onClick={() => editingDept && editDept.mutate({ id: editingDept.id, name: editDeptName, description: editDeptDescription })}>
+                    <Check className="size-3.5" /> {editDept.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <Card className="border shadow-2xs bg-card">
               <CardHeader className="py-3 px-4 border-b bg-muted/20">
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
-                  <Users className="size-4 text-blue-500" />
-                  <span>Departments & Team Directories</span>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Create and manage organizational business units.
-                </CardDescription>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                      <Users className="size-4 text-blue-500" />
+                      <span>Departments &amp; Team Directories</span>
+                      <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 border-blue-400/50 text-blue-600 bg-blue-50 dark:bg-blue-900/20">{departments.length}</Badge>
+                    </CardTitle>
+                    <CardDescription className="text-xs mt-0.5">Create, rename, and manage organizational business units. Each department tracks its employee headcount.</CardDescription>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="p-4 space-y-4 text-xs">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="e.g. Engineering, Human Resources, Finance"
-                    value={newDeptName}
-                    onChange={(e) => setNewDeptName(e.target.value)}
-                    className="text-xs h-9 max-w-sm"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => newDeptName.trim() && addDept.mutate(newDeptName.trim())}
-                    disabled={!newDeptName.trim() || addDept.isPending}
-                    className="gap-1.5 text-xs font-bold h-9 bg-primary text-primary-foreground"
-                  >
-                    <Plus className="size-3.5" /> Add Department
-                  </Button>
+                <div className="p-3 rounded-lg border border-dashed border-blue-300 bg-blue-50/40 dark:bg-blue-900/10 space-y-2">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Add New Department</p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input placeholder="Department name" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && newDeptName.trim()) addDept.mutate({ name: newDeptName.trim(), description: newDeptDescription.trim() || undefined }); }} className="text-xs h-8 flex-1" />
+                    <Input placeholder="Description (optional)" value={newDeptDescription} onChange={(e) => setNewDeptDescription(e.target.value)} className="text-xs h-8 flex-1" />
+                    <Button size="sm" onClick={() => newDeptName.trim() && addDept.mutate({ name: newDeptName.trim(), description: newDeptDescription.trim() || undefined })} disabled={!newDeptName.trim() || addDept.isPending} className="gap-1.5 text-xs font-bold h-8 bg-primary text-primary-foreground shrink-0">
+                      <Plus className="size-3.5" /> {addDept.isPending ? "Adding..." : "Add Department"}
+                    </Button>
+                  </div>
                 </div>
-
+                {departments.length > 4 && (
+                  <Input placeholder="Search departments..." value={deptSearch} onChange={(e) => setDeptSearch(e.target.value)} className="text-xs h-8 max-w-xs" />
+                )}
                 <div className="divide-y border rounded-xl overflow-hidden">
                   {departments.length === 0 ? (
-                    <div className="p-6 text-center text-muted-foreground italic">
-                      No departments configured yet.
+                    <div className="p-8 text-center space-y-2">
+                      <Building2 className="size-8 mx-auto text-muted-foreground/40" />
+                      <p className="text-muted-foreground italic text-xs">No departments configured yet. Add your first department above.</p>
                     </div>
                   ) : (
-                    departments.map((dept: any) => (
-                      <div key={dept.id} className="p-3 flex items-center justify-between hover:bg-muted/20 transition-colors">
-                        <span className="font-semibold text-foreground">{dept.name}</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => delDept.mutate(dept.id)}
-                          className="h-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                    departments.filter((dept: any) => !deptSearch || dept.name.toLowerCase().includes(deptSearch.toLowerCase())).map((dept: any) => (
+                      <div key={dept.id} className="px-3.5 py-2.5 flex items-center justify-between hover:bg-muted/20 transition-colors group">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="size-8 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0">
+                            <Briefcase className="size-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-foreground text-xs leading-tight truncate">{dept.name}</p>
+                            {dept.description && <p className="text-[11px] text-muted-foreground truncate">{dept.description}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className="text-[10px] font-semibold px-1.5 py-0 border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                            {dept._count?.employees ?? 0} emp{dept._count?.employees !== 1 ? "s" : ""}
+                          </Badge>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingDept(dept); setEditDeptName(dept.name); setEditDeptDescription(dept.description || ""); }} className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity" title="Edit department">
+                            <Edit2 className="size-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => delDept.mutate(dept.id)} disabled={delDept.isPending} className="h-7 w-7 p-0 text-rose-400 hover:text-rose-700 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete department">
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
+                {departments.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground text-center pt-1">{departments.length} department{departments.length !== 1 ? "s" : ""} &middot; {departments.reduce((sum: number, d: any) => sum + (d._count?.employees ?? 0), 0)} total employees</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

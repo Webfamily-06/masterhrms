@@ -55,43 +55,41 @@ export default function DashboardPage() {
     refetchInterval: 15000, // Realtime polling every 15s
   });
 
+  // Attendance Period Tab State: Day | Week | Month
+  const [attendancePeriod, setAttendancePeriod] = useState<"day" | "week" | "month">("day");
+
   // Current user info
   const { data: profile } = useCurrentProfile();
-  const userName = profile?.full_name || 'Andrew';
-  const totalEmployees = hrmData?.totalWorkforce ?? 48;
-  const newThisMonth = hrmData?.newThisMonth ?? 48;
-  const onLeaveToday = hrmData?.onLeaveToday ?? 2;
-  const attendanceRate = hrmData?.attendanceRate ?? 37.5;
-  const openPositions = hrmData?.openPositions ?? 12;
-  const pendingLeaves = hrmData?.pendingLeavesCount ?? 7;
+  const userName = profile?.full_name || 'Admin';
+  const totalEmployees = hrmData?.totalWorkforce ?? 0;
+  const newThisMonth = hrmData?.newThisMonth ?? 0;
+  const onLeaveToday = hrmData?.onLeaveToday ?? 0;
+  const attendanceRate = hrmData?.attendanceRate ?? 0;
+  const openPositions = hrmData?.openPositions ?? 0;
+  const pendingLeaves = hrmData?.pendingLeavesCount ?? 0;
 
-  // Real Attendance metrics
-  const presentCount = hrmData?.attendanceSummary?.present ?? 18;
-  const lateCount = hrmData?.attendanceSummary?.late ?? 8;
-  const absentCount = hrmData?.attendanceSummary?.absent ?? 28;
+  // Real Attendance metrics (100% dynamic from MySQL, no dummy fallbacks)
+  const presentCount = hrmData?.attendanceSummary?.present ?? 0;
+  const lateCount = hrmData?.attendanceSummary?.late ?? 0;
+  const absentCount = hrmData?.attendanceSummary?.absent ?? (totalEmployees - presentCount - onLeaveToday);
   const remoteCount = hrmData?.attendanceSummary?.remote ?? 0;
 
   // Real Department distribution
-  const departments = hrmData?.departments || [
-    { name: 'Engineering', count: 18 },
-    { name: 'Operations', count: 12 },
-    { name: 'Sales & Marketing', count: 8 },
-    { name: 'Finance & Accounting', count: 6 },
-    { name: 'Human Resources', count: 4 },
-  ];
+  const departments = hrmData?.departments || [];
 
   const handleExport = () => {
     try {
       const csvContent = [
         ["Metric", "Value"],
-        ["Total Workforce", hrmData?.totalWorkforce ?? 124],
-        ["New Employees This Month", hrmData?.newThisMonth ?? 12],
-        ["Absent Today", absentCount],
-        ["Attendance Rate (%)", hrmData?.attendanceRate ?? 92.4],
-        ["Open Positions", hrmData?.openPositions ?? 4],
-        ["Total Payroll", hrmData?.totalPayroll ?? 0],
+        ["Total Workforce", totalEmployees],
+        ["New Employees This Month", newThisMonth],
         ["Present Today", presentCount],
-        ["Late Today", lateCount]
+        ["Late Today", lateCount],
+        ["Absent Today", absentCount],
+        ["On Leave Today", onLeaveToday],
+        ["Attendance Rate (%)", attendanceRate],
+        ["Open Positions", openPositions],
+        ["Total Payroll", hrmData?.totalPayroll ?? 0],
       ].map(e => e.join(",")).join("\n");
       
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -110,31 +108,39 @@ export default function DashboardPage() {
   const deptSeries = departments.map((d: any) => d.count);
   const deptColors = ['#0F766E', '#E65100', '#059669', '#CC25B0', '#1E293B', '#6A1B9A'];
 
-  // Real Payroll metrics
+  // Real Payroll metrics - 100% dynamic
   const totalPayroll = hrmData?.totalPayroll
     ? `₹${(hrmData.totalPayroll / 100000).toFixed(1)}L`
-    : '₹16.8L';
+    : '₹0';
   const avgSalary = hrmData?.avgSalary
     ? `₹${(hrmData.avgSalary / 1000).toFixed(1)}K`
-    : '₹68.8K';
+    : '₹0';
   const lastMonthPayroll = hrmData?.lastMonthPayroll
     ? `₹${(hrmData.lastMonthPayroll / 100000).toFixed(1)}L`
-    : '₹16.1L';
-  const momGrowth = hrmData?.momGrowth ?? 4.3;
+    : '₹0';
+  const momGrowth = hrmData?.momGrowth ?? 0;
 
   // Real Weekly Attendance Trend
-  const weeklyCategories = hrmData?.weeklyTrend?.categories || ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
-  const weeklySeries = hrmData?.weeklyTrend?.series || [18, 20, 20, 1, 0, 20, 18];
+  const weeklyCategories = hrmData?.weeklyTrend?.categories || [];
+  const weeklySeries = hrmData?.weeklyTrend?.series || [];
+  const weeklyAvgPresent = hrmData?.weeklyTrend?.avgPresent ?? 0;
+  const weeklyAvgRate = hrmData?.weeklyTrend?.avgRate ?? 0;
+
+  // Real Monthly Attendance Metrics
+  const monthlyRate = hrmData?.monthlySummary?.rate ?? 0;
+  const monthlyPresent = hrmData?.monthlySummary?.totalPresent ?? 0;
+  const monthlyLate = hrmData?.monthlySummary?.totalLate ?? 0;
+  const monthDaysPassed = hrmData?.monthlySummary?.daysPassed ?? 1;
 
   // Real 6-Month Payroll Trend
-  const payrollCategories = hrmData?.payrollTrend?.categories || ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-  const payrollSeries = hrmData?.payrollTrend?.series || [1420, 1480, 1510, 1560, 1610, 1680];
+  const payrollCategories = hrmData?.payrollTrend?.categories || [];
+  const payrollSeries = hrmData?.payrollTrend?.series || [];
 
   // Real Recruitment & Candidates
   const recruitment = hrmData?.recruitment || {
-    newApplicants: 5,
-    screening: 10,
-    interviews: 5,
+    newApplicants: 0,
+    screening: 0,
+    interviews: 0,
     recentCandidates: [],
   };
 
@@ -363,7 +369,6 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <h3 className="text-base lg:text-[17px] font-bold text-title dark:text-white mb-0">Department Distribution</h3>
-                <span className="inline-flex items-center text-[11px] font-medium bg-success-transparent text-success px-2 py-0.5 rounded-md">Realtime</span>
               </div>
               <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap sm:flex-nowrap">
                 <div className="size-[150px] shrink-0 flex items-center justify-center">
@@ -421,7 +426,7 @@ export default function DashboardPage() {
         {/* Col 3: Attendance Summary (4 of 12 cols on desktop) */}
         <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-4 border border-border-color rounded-md shadow-xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
               <h3 className="text-base lg:text-[17px] font-bold text-title dark:text-white mb-0">Attendance Summary</h3>
               <Link
                 to="/attendance"
@@ -430,38 +435,135 @@ export default function DashboardPage() {
                 View Logs<i className="icon-chevron-right text-[10px]"></i>
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Present</p>
-                <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{presentCount}</h4>
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0">{attendanceRate}% of workforce</p>
-              </div>
-              <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Late</p>
-                <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{lateCount}</h4>
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0">After 9:30 AM</p>
-              </div>
-              <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Absent</p>
-                <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{absentCount}</h4>
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0">Unplanned absence</p>
-              </div>
-              <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Remote</p>
-                <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{remoteCount}</h4>
-                <p className="text-[11px] text-default dark:text-slate-400 mb-0">WFH synced</p>
-              </div>
+
+            {/* Dynamic Period Tabs: Day (Today) | Week (7 Days) | Month */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-md mb-3">
+              <button
+                type="button"
+                onClick={() => setAttendancePeriod("day")}
+                className={`flex-1 py-1 px-2 text-xs font-semibold rounded transition cursor-pointer text-center ${
+                  attendancePeriod === "day"
+                    ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                Today (Day)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendancePeriod("week")}
+                className={`flex-1 py-1 px-2 text-xs font-semibold rounded transition cursor-pointer text-center ${
+                  attendancePeriod === "week"
+                    ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                Week (7D)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendancePeriod("month")}
+                className={`flex-1 py-1 px-2 text-xs font-semibold rounded transition cursor-pointer text-center ${
+                  attendancePeriod === "month"
+                    ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                This Month
+              </button>
             </div>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-title dark:text-white mb-1 uppercase tracking-wider">Weekly Attendance Trend</p>
-            <div className="h-[110px]">
-              {isMounted ? (
-                <Chart options={barOptions} series={[{ name: 'Present', data: weeklySeries }]} type="bar" height={110} />
-              ) : (
-                <div className="h-full w-full bg-slate-100 animate-pulse rounded"></div>
-              )}
-            </div>
+
+            {/* VIEW 1: DAY (TODAY REALTIME COUNTS) */}
+            {attendancePeriod === "day" && (
+              <>
+                <div className="grid grid-cols-2 gap-2 mb-2.5">
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Present</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{presentCount}</h4>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mb-0">{attendanceRate}% of workforce</p>
+                  </div>
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Late Arrivals</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{lateCount}</h4>
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mb-0">After 9:30 AM</p>
+                  </div>
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Absent Today</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{absentCount}</h4>
+                    <p className="text-[11px] text-rose-500 dark:text-rose-400 font-medium mb-0">Unpunched today</p>
+                  </div>
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">On Leave</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{onLeaveToday}</h4>
+                    <p className="text-[11px] text-blue-500 dark:text-blue-400 font-medium mb-0">Approved leave</p>
+                  </div>
+                </div>
+                <div className="p-2 bg-slate-50 dark:bg-slate-800/40 rounded border border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <i className="icon-clock text-xs text-primary shrink-0"></i>
+                  <span>Live daily count resets every midnight & updates with biometric sync.</span>
+                </div>
+              </>
+            )}
+
+            {/* VIEW 2: WEEK (7-DAY TREND) */}
+            {attendancePeriod === "week" && (
+              <>
+                <div className="grid grid-cols-2 gap-2 mb-2.5">
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Daily Avg Present</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{weeklyAvgPresent}</h4>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mb-0">{weeklyAvgRate}% avg turnout</p>
+                  </div>
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Total Week Punches</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{hrmData?.weeklyTrend?.totalPresent ?? 0}</h4>
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0">Past 7 calendar days</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-title dark:text-white mb-1 uppercase tracking-wider">7-Day Attendance Trend</p>
+                  <div className="h-[105px]">
+                    {isMounted && weeklySeries.length > 0 ? (
+                      <Chart options={barOptions} series={[{ name: 'Present', data: weeklySeries }]} type="bar" height={105} />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-slate-50 dark:bg-slate-800/40 rounded text-xs text-muted-foreground">
+                        No attendance logs recorded this week
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* VIEW 3: MONTH (MONTH-TO-DATE) */}
+            {attendancePeriod === "month" && (
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Monthly Turnout</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{monthlyRate}%</h4>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mb-0">Cumulative rate</p>
+                  </div>
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Total Punches</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{monthlyPresent}</h4>
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0">{monthDaysPassed} days recorded</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Late Check-Ins</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{monthlyLate}</h4>
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mb-0">This month</p>
+                  </div>
+                  <div className="border border-border-color bg-light dark:bg-slate-800/60 rounded-md p-2.5">
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0.5">Active Employees</p>
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-0.5">{totalEmployees}</h4>
+                    <p className="text-[11px] text-default dark:text-slate-400 mb-0">Registered in system</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

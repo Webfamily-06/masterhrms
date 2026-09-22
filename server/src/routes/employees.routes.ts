@@ -360,10 +360,9 @@ employeesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respon
 employeesRouter.get("/departments", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = await getTenantId(req);
-    const where = { tenantId };
 
-    let departments = await prisma.department.findMany({
-      where,
+    const departments = await prisma.department.findMany({
+      where: { tenantId },
       include: {
         _count: {
           select: { employees: true },
@@ -378,21 +377,107 @@ employeesRouter.get("/departments", requireAuth, async (req: AuthRequest, res: R
   }
 });
 
+// GET /api/employees/departments/:id
+employeesRouter.get("/departments/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = await getTenantId(req);
+
+    const department = await prisma.department.findFirst({
+      where: { id, tenantId },
+      include: {
+        _count: { select: { employees: true } },
+      },
+    });
+
+    if (!department) {
+      return res.status(404).json({ error: "Department not found" });
+    }
+
+    return res.json(department);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+  }
+});
+
 // POST /api/employees/departments
 employeesRouter.post("/departments", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = await getTenantId(req);
 
     const { name, description } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Department name is required" });
+    }
+
     const department = await prisma.department.create({
       data: {
         tenantId,
-        name,
-        description,
+        name: name.trim(),
+        description: description?.trim() || null,
       },
     });
 
     return res.status(201).json(department);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// PUT /api/employees/departments/:id
+employeesRouter.put("/departments/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = await getTenantId(req);
+    const { name, description } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Department name is required" });
+    }
+
+    // Tenant isolation: ensure department belongs to this tenant
+    const existing = await prisma.department.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Department not found" });
+    }
+
+    const updated = await prisma.department.update({
+      where: { id },
+      data: {
+        name: name.trim(),
+        description: description?.trim() ?? existing.description,
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// PATCH /api/employees/departments/:id  (partial update alias)
+employeesRouter.patch("/departments/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = await getTenantId(req);
+    const { name, description } = req.body;
+
+    // Tenant isolation
+    const existing = await prisma.department.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Department not found" });
+    }
+
+    const updated = await prisma.department.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description: description.trim() || null }),
+      },
+    });
+
+    return res.json(updated);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
@@ -403,6 +488,13 @@ employeesRouter.delete("/departments/:id", requireAuth, async (req: AuthRequest,
   try {
     const { id } = req.params;
     const tenantId = await getTenantId(req);
+
+    // Tenant isolation: ensure department belongs to this tenant
+    const existing = await prisma.department.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Department not found" });
+    }
+
     await prisma.department.delete({ where: { id } });
     return res.json({ success: true, message: "Department deleted" });
   } catch (err: any) {
