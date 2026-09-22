@@ -481,7 +481,7 @@ dashboardRouter.get("/pos", requireAuth, async (req: AuthRequest, res: Response)
       // 6. Active products for catalogue enrichment & realtime backfill
       prisma.product.findMany({
         where: { tenantId, isActive: true },
-        take: 12,
+        take: 50,
         include: {
           category: { select: { name: true } },
           warehouseStocks: { select: { quantity: true } },
@@ -535,9 +535,9 @@ dashboardRouter.get("/pos", requireAuth, async (req: AuthRequest, res: Response)
       });
     }
 
-    // Backfill with active catalog products if fewer than 6 so user sees all real products
+    // Backfill with real available catalog products so user sees current inventory products
     for (const prod of (activeCatalogProducts || [])) {
-      if (enrichedTopProducts.length >= 6) break;
+      if (enrichedTopProducts.length >= 15) break;
       if (seenProductIds.has(prod.id)) continue;
 
       const totalStock = prod.warehouseStocks?.reduce((sum: number, w: any) => sum + (w.quantity || 0), 0) || 0;

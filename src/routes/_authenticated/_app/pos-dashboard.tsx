@@ -39,9 +39,10 @@ export default function PosDashboardPage() {
     queryKey: ["pos-dashboard-metrics"],
     queryFn: async () => {
       try {
-        const res = await api.get("/dashboard/pos");
-        if (res.data?.topProducts && Array.isArray(res.data.topProducts) && res.data.topProducts.length > 0) {
-          return res.data;
+        const res: any = await api.get("/dashboard/pos");
+        const topList = res?.topProducts || res?.data?.topProducts;
+        if (Array.isArray(topList) && topList.length > 0) {
+          return res?.data ? res.data : res;
         }
       } catch (err) {
         console.warn("[POS Dashboard] /dashboard/pos error, falling back to /products:", err);
@@ -49,10 +50,10 @@ export default function PosDashboardPage() {
 
       // Fallback directly to catalog products if POS metrics endpoint is empty or in transition
       try {
-        const prodRes = await api.get("/products");
-        const list = Array.isArray(prodRes.data) ? prodRes.data : prodRes.data?.products || [];
+        const prodRes: any = await api.get("/products");
+        const list = Array.isArray(prodRes) ? prodRes : (Array.isArray(prodRes?.data) ? prodRes.data : prodRes?.products || []);
         return {
-          topProducts: list.slice(0, 6).map((p: any) => {
+          topProducts: list.slice(0, 12).map((p: any) => {
             const name = p.name || "Product";
             const lower = name.toLowerCase();
             let icon = "ph-package";
@@ -62,16 +63,18 @@ export default function PosDashboardPage() {
             else if (lower.includes("terminal") || lower.includes("biometric")) icon = "ph-fingerprint";
             else if (lower.includes("service") || lower.includes("setup")) icon = "ph-briefcase";
 
+            const totalStock = p.quantity ?? p.stock ?? (p.warehouseStocks?.reduce((s: number, w: any) => s + (w.quantity || 0), 0) || 0);
+
             return {
               id: p.id,
               productId: p.id,
               name: p.name,
               sku: p.sku ? (p.sku.startsWith("#") ? p.sku : `#${p.sku}`) : `#PRD-${p.id?.slice(0, 6).toUpperCase()}`,
               quantitySold: p.salesCount || 0,
-              amount: Number(p.salePrice || 0),
-              price: Number(p.salePrice || 0),
-              category: p.category?.name || "General",
-              stock: p.stock ?? (p.warehouseStocks?.reduce((s: number, w: any) => s + (w.quantity || 0), 0) || 0),
+              amount: Number(p.salePrice || p.price || 0),
+              price: Number(p.salePrice || p.price || 0),
+              category: typeof p.category === "string" ? p.category : (p.category?.name || "General"),
+              stock: totalStock,
               image: p.image && p.image !== "/images/no-image.png" ? p.image : null,
               icon,
             };
@@ -134,15 +137,20 @@ export default function PosDashboardPage() {
 					
 					<div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
 
-						<div className="bg-white dark:bg-card border border-border-color rounded-md p-4 xl:col-span-5 shadow-xs">
+						<div className="bg-white dark:bg-card border border-border-color rounded-md p-4 xl:col-span-5 shadow-xs flex flex-col">
 							<div className="flex items-center justify-between mb-4">
-								<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Top Products</h2>
+								<div className="flex items-center gap-2">
+									<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Top Products</h2>
+									<span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+										Available In Stock
+									</span>
+								</div>
 								<Link to="/products" className="btn-sm bg-white dark:bg-card border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary transition-colors">
 									View All <i className="icon-chevron-right"></i>
 								</Link>
 							</div>
 
-							<div className="space-y-3">
+							<div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
 								{isLoading ? (
 									Array.from({ length: 5 }).map((_, idx) => (
 										<div key={idx} className="flex items-center justify-between gap-3 sm:grid grid-cols-1 sm:grid-cols-12 animate-pulse py-1">
@@ -186,19 +194,20 @@ export default function PosDashboardPage() {
 												</div>
 											</div>
 											<div className="min-w-0 hidden sm:block sm:col-span-3">
-												<p className="text-[11px] text-default mb-0">No of Sales</p>
+												<p className="text-[11px] text-default mb-0">Availability</p>
 												<p className="text-xs font-semibold text-title mb-0">
 													{prod.quantitySold > 0 ? (
-														<span>{prod.quantitySold}</span>
+														<span>{prod.quantitySold} sold</span>
 													) : (
-														<span className="text-muted-foreground font-normal text-[11px]">
-															{prod.stock > 0 ? `${prod.stock} in stock` : '0 sales'}
+														<span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium text-[11px]">
+															<span className="size-1.5 rounded-full bg-emerald-500 inline-block"></span>
+															{prod.stock > 0 ? `${prod.stock} in stock` : 'In catalog'}
 														</span>
 													)}
 												</p>
 											</div>
 											<div className="min-w-0 text-end sm:col-span-3">
-												<p className="text-[11px] text-default mb-0">Amount</p>
+												<p className="text-[11px] text-default mb-0">Price</p>
 												<p className="text-xs font-semibold text-title mb-0 text-emerald-600 dark:text-emerald-400">
 													₹{Number(prod.amount || prod.price || 0).toLocaleString('en-IN')}
 												</p>
