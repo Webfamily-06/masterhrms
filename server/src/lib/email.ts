@@ -199,7 +199,7 @@ export async function sendTwoFactorOtpEmail({
   otp,
   fullName,
   isSetup = false,
-}: SendOtpOptions): Promise<{ success: boolean; messageId?: string }> {
+}: SendOtpOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const config = await getDynamicEmailConfig();
   const userName = fullName || toEmail.split("@")[0] || "User";
   const appName = config.appName || "Master HRMS & ERP";
