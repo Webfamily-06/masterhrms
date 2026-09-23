@@ -293,7 +293,7 @@ export function DreamsSidebar({
                 className={cn(
                   "cursor-pointer",
                   openMenus.apps && "subdrop",
-                  ["/chat", "/pos", "/ai-ocr", "/ai-writer"].includes(currentPath) &&
+                  ["/chat", "/ai-ocr", "/ai-writer"].includes(currentPath) &&
                     "active"
                 )}
               >
@@ -309,15 +309,6 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/chat" && "active")}
                   >
                     Team Chat
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/pos"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/pos" && "active")}
-                  >
-                    POS Retail Register
                   </Link>
                 </li>
                 <li>
@@ -863,93 +854,6 @@ export function DreamsSidebar({
               </ul>
             </li>
 
-            {/* ===================== UI INTERFACE ===================== */}
-            <li className="menu-title">
-              <span>UI INTERFACE</span>
-            </li>
-            <li className="submenu">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toggleSubmenu("forms");
-                }}
-                className={cn(
-                  "cursor-pointer",
-                  openMenus.forms && "subdrop",
-                  currentPath === "/forms" && "active"
-                )}
-              >
-                <i className="ph-duotone ph-note-pencil"></i>
-                <span>Forms</span>
-                <span className="menu-arrow"></span>
-              </a>
-              <ul style={{ display: !isMini && openMenus.forms ? "block" : "none" }}>
-                <li>
-                  <Link to="/forms" onClick={onCloseMobile} className={cn(currentPath === "/forms" && "active")}>
-                    Form Elements & Builder
-                  </Link>
-                </li>
-              </ul>
-            </li>
-
-            <li className="submenu">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toggleSubmenu("tables");
-                }}
-                className={cn(
-                  "cursor-pointer",
-                  openMenus.tables && "subdrop",
-                  ["/employees", "/attendance"].includes(currentPath) && "active"
-                )}
-              >
-                <i className="ph-duotone ph-table"></i>
-                <span>Tables</span>
-                <span className="menu-arrow"></span>
-              </a>
-              <ul style={{ display: !isMini && openMenus.tables ? "block" : "none" }}>
-                <li>
-                  <Link to="/employees" onClick={onCloseMobile} className={cn(currentPath === "/employees" && "active")}>
-                    Data Tables (Employees)
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/attendance" onClick={onCloseMobile} className={cn(currentPath === "/attendance" && "active")}>
-                    Attendance Roster Table
-                  </Link>
-                </li>
-              </ul>
-            </li>
-
-            <li className="submenu">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toggleSubmenu("charts");
-                }}
-                className={cn(
-                  "cursor-pointer",
-                  openMenus.charts && "subdrop",
-                  currentPath === "/analytics" && "active"
-                )}
-              >
-                <i className="ph-duotone ph-chart-pie-slice"></i>
-                <span>Charts</span>
-                <span className="menu-arrow"></span>
-              </a>
-              <ul style={{ display: !isMini && openMenus.charts ? "block" : "none" }}>
-                <li>
-                  <Link to="/analytics" onClick={onCloseMobile} className={cn(currentPath === "/analytics" && "active")}>
-                    Apex & Chart.js Analytics
-                  </Link>
-                </li>
-              </ul>
-            </li>
-
             {/* ===================== SYSTEM & SETTINGS ===================== */}
             <li className="menu-title">
               <span>SETTINGS & SYSTEM</span>
@@ -962,35 +866,6 @@ export function DreamsSidebar({
               >
                 <i className="ph-duotone ph-gear"></i>
                 <span>Settings</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/settings"
-                search={{ tab: "workspace" } as any}
-                onClick={onCloseMobile}
-                className="flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
-                  <i className="ph-duotone ph-shield-check text-orange-500"></i>
-                  <span>Workspace Roles & Modules</span>
-                </div>
-                <span className="badge badge-xs bg-orange-500/15 text-orange-600 dark:text-orange-400 font-bold px-1.5 py-0.5 rounded text-[9px]">
-                  RBAC
-                </span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/integrations"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/integrations" && "active")}
-              >
-                <i className="ph-duotone ph-globe"></i>
-                <span>WooCommerce Settings</span>
-                <span className="badge badge-xs bg-purple-600 text-white font-bold ml-1.5 px-1 py-0.2 rounded text-[9px]">
-                  REST API
-                </span>
               </Link>
             </li>
             <li>
