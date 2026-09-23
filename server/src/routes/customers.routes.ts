@@ -1,19 +1,48 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantId } from "../lib/tenant";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const customersRouter = Router();
 
-// GET /api/customers - List customers
+// GET /api/customers - List customers (Stocky Rule 0: Universal Query Contract)
 customersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
-    const customers = await prisma.customer.findMany({
-      where: { tenantId },
-      orderBy: { name: "asc" },
-    });
+    const pagination = parsePaginationParams(req, "name", 50);
+    const where: any = { tenantId };
 
+    if (pagination.search) {
+      where.OR = [
+        { name: { contains: pagination.search } },
+        { email: { contains: pagination.search } },
+        { phone: { contains: pagination.search } },
+        { gstin: { contains: pagination.search } },
+        { city: { contains: pagination.search } },
+      ];
+    }
+
+    const sortField = ["name", "email", "phone", "city", "createdAt", "updatedAt"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "name";
+
+    const [total, customers] = await Promise.all([
+      prisma.customer.count({ where }),
+      prisma.customer.findMany({
+        where,
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(customers, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(customers);
   } catch (err: any) {
     console.error("Customers GET error:", err);
@@ -24,7 +53,8 @@ customersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
 // POST /api/customers - Create a customer
 customersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const body = req.body;
 
     if (!body.name || !body.name.trim()) {
@@ -58,7 +88,8 @@ customersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
 // PUT /api/customers/:id - Update customer
 customersRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     const body = req.body;
 
@@ -94,7 +125,8 @@ customersRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
 // DELETE /api/customers/:id - Delete customer
 customersRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     await prisma.customer.deleteMany({

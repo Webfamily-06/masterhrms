@@ -3,40 +3,51 @@ import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantId } from "../lib/tenant";
 
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+
 export const suppliersRouter = Router();
 
 /**
  * GET /api/suppliers
- * List all suppliers for the active tenant with search and analytics
+ * List all suppliers for the active tenant with search and analytics (Stocky Rule 0: Universal Query Contract)
  */
 suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const { search } = req.query;
+    const pagination = parsePaginationParams(req, "createdAt", 50);
     const where: any = { tenantId };
 
-    if (search && typeof search === "string" && search.trim() !== "") {
+    const searchQuery = pagination.search || (typeof req.query.search === "string" ? req.query.search.trim() : "");
+    if (searchQuery) {
       where.OR = [
-        { name: { contains: search.trim() } },
-        { email: { contains: search.trim() } },
-        { phone: { contains: search.trim() } },
-        { gstin: { contains: search.trim() } },
-        { city: { contains: search.trim() } },
+        { name: { contains: searchQuery } },
+        { email: { contains: searchQuery } },
+        { phone: { contains: searchQuery } },
+        { gstin: { contains: searchQuery } },
+        { city: { contains: searchQuery } },
       ];
     }
 
-    const suppliers = await prisma.supplier.findMany({
-      where,
-      include: {
-        _count: { select: { purchases: true } },
-        purchases: {
-          select: { total: true, status: true },
+    const sortField = ["name", "email", "phone", "city", "createdAt", "updatedAt"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, suppliers] = await Promise.all([
+      prisma.supplier.count({ where }),
+      prisma.supplier.findMany({
+        where,
+        include: {
+          _count: { select: { purchases: true } },
+          purchases: {
+            select: { total: true, status: true },
+          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
     const formatted = suppliers.map((s) => {
       const totalPurchasesAmount = s.purchases.reduce((sum, p) => sum + Number(p.total || 0), 0);
@@ -56,6 +67,11 @@ suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
       };
     });
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(formatted, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json({ data: formatted });
   } catch (err: any) {
     console.error("GET /api/suppliers error:", err);

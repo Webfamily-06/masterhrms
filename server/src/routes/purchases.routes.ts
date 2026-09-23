@@ -5,19 +5,30 @@ import { broadcastToTenant } from "../socket";
 import { autoPostPurchaseToLedger } from "../services/ledger-posting.service";
 import { resolveTenantId } from "../lib/tenant";
 
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+
 export const purchasesRouter = Router();
 
 /**
  * GET /api/purchases
- * List all purchase orders & goods receipt notes
+ * List all purchase orders & goods receipt notes (Stocky Rule 0: Universal Query Contract)
  */
 purchasesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
+    const pagination = parsePaginationParams(req, "createdAt", 25);
     const { status, supplierId, warehouseId } = req.query;
     const where: any = { tenantId };
+
+    if (pagination.search) {
+      where.OR = [
+        { purchaseNo: { contains: pagination.search } },
+        { notes: { contains: pagination.search } },
+        { supplier: { name: { contains: pagination.search } } },
+      ];
+    }
 
     if (status && status !== "all") {
       where.status = String(status);
@@ -29,22 +40,35 @@ purchasesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
       where.warehouseId = String(warehouseId);
     }
 
-    const purchases = await prisma.purchase.findMany({
-      where,
-      include: {
-        supplier: true,
-        warehouse: true,
-        details: {
-          include: {
-            product: {
-              select: { id: true, name: true, sku: true, unit: true },
+    const sortField = ["purchaseNo", "createdAt", "updatedAt", "date", "total", "status"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, purchases] = await Promise.all([
+      prisma.purchase.count({ where }),
+      prisma.purchase.findMany({
+        where,
+        include: {
+          supplier: true,
+          warehouse: true,
+          details: {
+            include: {
+              product: {
+                select: { id: true, name: true, sku: true, unit: true },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(purchases, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json({ data: purchases });
   } catch (err: any) {
     console.error("GET /api/purchases error:", err);

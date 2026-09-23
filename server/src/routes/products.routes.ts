@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantId } from "../lib/tenant";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const productsRouter = Router();
 
@@ -23,27 +24,55 @@ async function ensureDefaultWarehouse(tenantId: string) {
   return wh;
 }
 
-// GET /api/products - List all products for tenant
+// GET /api/products - List all products for tenant (Stocky Rule 0: Universal Query Contract)
 productsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const products = await prisma.product.findMany({
-      where: { tenantId, isActive: true },
-      include: {
-        category: true,
-        brand: true,
-        unit: true,
-        taxRate: true,
-        warehouseStocks: {
-          include: {
-            warehouse: true,
+    const pagination = parsePaginationParams(req, "createdAt", 50);
+    const { categoryId, brandId, warehouseId, type } = req.query;
+
+    const where: any = { tenantId, isActive: true };
+
+    if (pagination.search) {
+      where.OR = [
+        { name: { contains: pagination.search } },
+        { sku: { contains: pagination.search } },
+        { barcode: { contains: pagination.search } },
+      ];
+    }
+
+    if (categoryId && categoryId !== "all") where.categoryId = String(categoryId);
+    if (brandId && brandId !== "all") where.brandId = String(brandId);
+    if (type && type !== "all") where.type = String(type);
+    if (warehouseId && warehouseId !== "all") {
+      where.warehouseStocks = { some: { warehouseId: String(warehouseId) } };
+    }
+
+    const sortField = ["name", "createdAt", "updatedAt", "salePrice"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, products] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        include: {
+          category: true,
+          brand: true,
+          unit: true,
+          taxRate: true,
+          warehouseStocks: {
+            include: {
+              warehouse: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
     const formatted = products.map((p) => {
       const totalStock = p.warehouseStocks.reduce((sum, ws) => sum + ws.quantity, 0);
@@ -80,6 +109,11 @@ productsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => 
       };
     });
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(formatted, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(formatted);
   } catch (err: any) {
     console.error("Products GET error:", err);

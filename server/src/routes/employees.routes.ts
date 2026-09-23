@@ -35,30 +35,69 @@ async function getTenantId(req: AuthRequest): Promise<string> {
 }
 
 
-// GET /api/employees
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+
+// GET /api/employees (Stocky Rule 0: Universal Query Contract)
 employeesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = await getTenantId(req);
-    const where = { tenantId };
+    const pagination = parsePaginationParams(req, "createdAt", 50);
+    const { departmentId, status, employmentType } = req.query;
 
-    const employees = await prisma.employee.findMany({
-      where,
-      include: {
-        department: true,
-        manager: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-        user: {
-          select: {
-            profile: {
-              select: { avatarUrl: true },
+    const where: any = { tenantId };
+
+    if (pagination.search) {
+      where.OR = [
+        { firstName: { contains: pagination.search } },
+        { lastName: { contains: pagination.search } },
+        { email: { contains: pagination.search } },
+        { employeeCode: { contains: pagination.search } },
+        { phone: { contains: pagination.search } },
+        { position: { contains: pagination.search } },
+      ];
+    }
+
+    if (departmentId && departmentId !== "all") {
+      where.departmentId = String(departmentId);
+    }
+    if (status && status !== "all") {
+      where.status = parseEmployeeStatus(status);
+    }
+    if (employmentType && employmentType !== "all") {
+      where.employmentType = parseEmploymentType(employmentType);
+    }
+
+    const sortField = ["firstName", "lastName", "employeeCode", "createdAt", "updatedAt", "joinedAt", "salary"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, employees] = await Promise.all([
+      prisma.employee.count({ where }),
+      prisma.employee.findMany({
+        where,
+        include: {
+          department: true,
+          manager: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          user: {
+            select: {
+              profile: {
+                select: { avatarUrl: true },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(employees, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(employees);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Internal server error" });

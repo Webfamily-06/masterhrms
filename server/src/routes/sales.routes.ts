@@ -6,35 +6,67 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { broadcastToTenant } from "../socket";
 import { autoPostSaleToLedger } from "../services/ledger-posting.service";
 import { resolveTenantId } from "../lib/tenant";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const salesRouter = Router();
 
-// GET /api/sales - List sales & POS receipts
+// GET /api/sales - List sales & POS receipts (Stocky Rule 0: Universal Query Contract)
 salesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
-    const type = req.query.type as string | undefined;
+
+    const pagination = parsePaginationParams(req, "createdAt", 30);
+    const { type, paymentStatus, customerId, warehouseId, startDate, endDate } = req.query;
 
     const whereClause: any = { tenantId };
-    if (type) {
-      whereClause.type = type;
+    if (type && type !== "all") {
+      whereClause.type = String(type);
+    }
+    if (paymentStatus && paymentStatus !== "all") {
+      whereClause.paymentStatus = String(paymentStatus);
+    }
+    if (customerId && customerId !== "all") {
+      whereClause.customerId = String(customerId);
+    }
+    if (warehouseId && warehouseId !== "all") {
+      whereClause.warehouseId = String(warehouseId);
+    }
+    if (startDate || endDate) {
+      whereClause.date = {};
+      if (startDate) whereClause.date.gte = new Date(String(startDate));
+      if (endDate) whereClause.date.lte = new Date(String(endDate));
+    }
+    if (pagination.search) {
+      whereClause.OR = [
+        { invoiceNo: { contains: pagination.search } },
+        { customerName: { contains: pagination.search } },
+        { cashierName: { contains: pagination.search } },
+      ];
     }
 
-    const sales = await prisma.sale.findMany({
-      where: whereClause,
-      include: {
-        customer: true,
-        warehouse: true,
-        details: {
-          include: {
-            product: true,
+    const sortField = ["createdAt", "date", "total", "invoiceNo"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, sales] = await Promise.all([
+      prisma.sale.count({ where: whereClause }),
+      prisma.sale.findMany({
+        where: whereClause,
+        include: {
+          customer: true,
+          warehouse: true,
+          details: {
+            include: {
+              product: true,
+            },
           },
+          payments: true,
         },
-        payments: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
     const formatted = sales.map((s) => ({
       id: s.id,
@@ -88,6 +120,11 @@ salesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
       })),
     }));
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(formatted, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(formatted);
   } catch (err: any) {
     console.error("Sales GET error:", err);

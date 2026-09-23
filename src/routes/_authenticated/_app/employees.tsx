@@ -237,8 +237,8 @@ function Employees() {
     queryKey: ["employees"],
     queryFn: async () => {
       try {
-        const res = await api.get("/employees");
-        return Array.isArray(res) ? res : [];
+        const res: any = await api.get("/employees");
+        return Array.isArray(res) ? res : (res?.data || []);
       } catch {
         return [];
       }
