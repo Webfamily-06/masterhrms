@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantId } from "../lib/tenant";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const accountingRouter = Router();
 
@@ -216,16 +217,50 @@ accountingRouter.get("/journal-entries", requireAuth, async (req: AuthRequest, r
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const entries = await prisma.journalEntry.findMany({
-      where: { tenantId },
-      orderBy: { entryDate: "desc" },
-      include: {
-        items: {
-          include: { account: true },
-        },
-      },
-    });
+    const pagination = parsePaginationParams(req, "entryDate", 25);
+    const { status, referenceType, startDate, endDate } = req.query;
 
+    const where: any = { tenantId };
+    if (status && status !== "all") where.status = String(status);
+    if (referenceType && referenceType !== "all") where.referenceType = String(referenceType);
+
+    if (startDate || endDate) {
+      where.entryDate = {};
+      if (startDate) where.entryDate.gte = new Date(String(startDate));
+      if (endDate) where.entryDate.lte = new Date(String(endDate));
+    }
+
+    if (pagination.search) {
+      where.OR = [
+        { entryNumber: { contains: pagination.search } },
+        { description: { contains: pagination.search } },
+        { reference: { contains: pagination.search } },
+      ];
+    }
+
+    const sortField = ["entryDate", "entryNumber", "totalAmount", "createdAt"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "entryDate";
+
+    const [total, entries] = await Promise.all([
+      prisma.journalEntry.count({ where }),
+      prisma.journalEntry.findMany({
+        where,
+        orderBy: { [sortField]: pagination.sortType },
+        include: {
+          items: {
+            include: { account: true },
+          },
+        },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(entries, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json({ success: true, data: entries });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to fetch journal entries" });
@@ -311,6 +346,95 @@ accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, 
     return res.status(201).json({ success: true, data: journalEntry });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to create journal entry" });
+  }
+});
+
+// POST /api/accounting/journal-entries/:id/void (Contra-Journal Voiding / GAAP & IFRS Compliance)
+accountingRouter.post("/journal-entries/:id/void", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const original = await prisma.journalEntry.findFirst({
+      where: { id, tenantId },
+      include: { items: { include: { account: true } } },
+    });
+
+    if (!original) {
+      return res.status(404).json({ error: "Journal entry not found" });
+    }
+
+    if (original.status === "voided") {
+      return res.status(400).json({ error: "Journal entry is already voided" });
+    }
+
+    const contraNumber = `CNTR-${original.entryNumber}`;
+
+    const contraEntry = await prisma.$transaction(async (tx) => {
+      // Mark original as voided
+      await tx.journalEntry.update({
+        where: { id: original.id },
+        data: { status: "voided" },
+      });
+
+      // Create paired Contra-Journal entry with inverted debits & credits
+      const contra = await tx.journalEntry.create({
+        data: {
+          tenantId,
+          entryNumber: contraNumber,
+          entryDate: new Date(),
+          reference: original.id,
+          referenceType: "contra_reversal",
+          description: `Contra Reversal of ${original.entryNumber}: ${reason || original.description}`,
+          totalAmount: original.totalAmount,
+          status: "posted",
+        },
+      });
+
+      for (const item of original.items) {
+        // Invert: original debit becomes credit, original credit becomes debit
+        const newDebit = Number(item.credit || 0);
+        const newCredit = Number(item.debit || 0);
+        const newType = newDebit > 0 ? "debit" : "credit";
+
+        await tx.journalItem.create({
+          data: {
+            journalEntryId: contra.id,
+            accountId: item.accountId,
+            type: newType,
+            debit: newDebit,
+            credit: newCredit,
+            notes: `Contra reversal for ${original.entryNumber}`,
+          },
+        });
+
+        // Reverse account balance symmetrically
+        const acc = await tx.chartOfAccount.findUnique({ where: { id: item.accountId } });
+        if (acc) {
+          const delta = (acc.accountType === "asset" || acc.accountType === "expense")
+            ? newDebit - newCredit
+            : newCredit - newDebit;
+
+          await tx.chartOfAccount.update({
+            where: { id: item.accountId },
+            data: { balance: { increment: delta } },
+          });
+        }
+      }
+
+      return contra;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Journal ${original.entryNumber} voided successfully via Contra Entry ${contraEntry.entryNumber}`,
+      data: contraEntry,
+    });
+  } catch (err: any) {
+    console.error("Contra void error:", err);
+    return res.status(500).json({ error: err.message || "Failed to void journal entry" });
   }
 });
 
@@ -567,6 +691,125 @@ accountingRouter.get("/reports/trial-balance", requireAuth, async (req: AuthRequ
   } catch (error: any) {
     console.error("Trial Balance error:", error);
     return res.status(500).json({ error: error.message || "Failed to generate trial balance" });
+  }
+});
+
+// -------------------------------------------------------------
+// 6.1 COMPARATIVE PROFIT & LOSS (CURRENT VS PREVIOUS PERIOD)
+// -------------------------------------------------------------
+accountingRouter.get("/reports/comparative-pnl", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    await ensureSeedAccounts(tenantId);
+
+    const now = new Date();
+    const defaultCurrentStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const defaultCurrentEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const defaultPrevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const defaultPrevEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    const curStart = req.query.currentStart ? new Date(String(req.query.currentStart)) : defaultCurrentStart;
+    const curEnd = req.query.currentEnd ? new Date(String(req.query.currentEnd)) : defaultCurrentEnd;
+    const prevStart = req.query.previousStart ? new Date(String(req.query.previousStart)) : defaultPrevStart;
+    const prevEnd = req.query.previousEnd ? new Date(String(req.query.previousEnd)) : defaultPrevEnd;
+
+    const [currentItems, prevItems] = await Promise.all([
+      prisma.journalItem.findMany({
+        where: {
+          journalEntry: {
+            tenantId,
+            status: "posted",
+            entryDate: { gte: curStart, lte: curEnd },
+          },
+          account: {
+            accountType: { in: ["revenue", "expense"] },
+          },
+        },
+        include: { account: true },
+      }),
+      prisma.journalItem.findMany({
+        where: {
+          journalEntry: {
+            tenantId,
+            status: "posted",
+            entryDate: { gte: prevStart, lte: prevEnd },
+          },
+          account: {
+            accountType: { in: ["revenue", "expense"] },
+          },
+        },
+        include: { account: true },
+      }),
+    ]);
+
+    let currentRevenue = 0;
+    let currentExpense = 0;
+    let prevRevenue = 0;
+    let prevExpense = 0;
+
+    for (const item of currentItems) {
+      const d = Number(item.debit || 0);
+      const c = Number(item.credit || 0);
+      if (item.account.accountType === "revenue") {
+        currentRevenue += (c - d);
+      } else {
+        currentExpense += (d - c);
+      }
+    }
+
+    for (const item of prevItems) {
+      const d = Number(item.debit || 0);
+      const c = Number(item.credit || 0);
+      if (item.account.accountType === "revenue") {
+        prevRevenue += (c - d);
+      } else {
+        prevExpense += (d - c);
+      }
+    }
+
+    const currentNetIncome = currentRevenue - currentExpense;
+    const prevNetIncome = prevRevenue - prevExpense;
+
+    const revenueVariance = currentRevenue - prevRevenue;
+    const revenueVariancePct = prevRevenue !== 0 ? Math.round((revenueVariance / Math.abs(prevRevenue)) * 1000) / 10 : 0;
+
+    const expenseVariance = currentExpense - prevExpense;
+    const expenseVariancePct = prevExpense !== 0 ? Math.round((expenseVariance / Math.abs(prevExpense)) * 1000) / 10 : 0;
+
+    const netIncomeVariance = currentNetIncome - prevNetIncome;
+    const netIncomeVariancePct = prevNetIncome !== 0 ? Math.round((netIncomeVariance / Math.abs(prevNetIncome)) * 1000) / 10 : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        periods: {
+          current: { start: curStart.toISOString(), end: curEnd.toISOString() },
+          previous: { start: prevStart.toISOString(), end: prevEnd.toISOString() },
+        },
+        revenue: {
+          current: currentRevenue,
+          previous: prevRevenue,
+          variance: revenueVariance,
+          variancePct: revenueVariancePct,
+        },
+        expense: {
+          current: currentExpense,
+          previous: prevExpense,
+          variance: expenseVariance,
+          variancePct: expenseVariancePct,
+        },
+        netIncome: {
+          current: currentNetIncome,
+          previous: prevNetIncome,
+          variance: netIncomeVariance,
+          variancePct: netIncomeVariancePct,
+        },
+      },
+    });
+  } catch (error: any) {
+    console.error("Comparative P&L error:", error);
+    return res.status(500).json({ error: error.message || "Failed to generate comparative P&L" });
   }
 });
 
