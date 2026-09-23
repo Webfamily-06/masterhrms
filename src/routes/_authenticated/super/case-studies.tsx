@@ -388,7 +388,7 @@ function DedicatedCaseStudiesManager() {
                       src={cover}
                       alt={cs.title}
                       className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                     loading="lazy"/>
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
                     <div className="absolute top-3 left-3">
                       <Badge className="bg-emerald-600 text-white font-mono text-[9px] shadow-sm">
@@ -594,7 +594,7 @@ function DedicatedCaseStudiesManager() {
                     src={form.coverImage}
                     alt="Thumbnail Preview"
                     className="size-full object-cover"
-                  />
+                   loading="lazy"/>
                   <Badge
                     variant="outline"
                     className="absolute bottom-2 left-2 text-[9px] bg-background/80 font-mono"

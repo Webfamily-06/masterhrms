@@ -35,7 +35,7 @@ export function ForbiddenView({
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}
-          />
+           loading="lazy"/>
           <div className="flex flex-col">
             <span className="font-bold text-base tracking-tight text-foreground">
               Master ERP

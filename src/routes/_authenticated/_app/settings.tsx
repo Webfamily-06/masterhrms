@@ -1728,7 +1728,7 @@ function Settings() {
                 Scan this QR code with Google Authenticator, Microsoft Authenticator, or Authy:
               </p>
               <div className="p-3 bg-white rounded-xl border grid place-items-center w-fit mx-auto shadow-2xs">
-                <img src={qrData.qrCodeDataUrl} alt="2FA QR Code" className="size-44" />
+                <img src={qrData.qrCodeDataUrl} alt="2FA QR Code" className="size-44"  loading="lazy"/>
               </div>
               <div className="p-2 rounded-lg bg-muted/40 font-mono text-[11px] flex items-center justify-between border">
                 <span className="truncate">{qrData.secret}</span>

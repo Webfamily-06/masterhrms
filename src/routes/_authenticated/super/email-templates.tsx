@@ -36,7 +36,7 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
 <body style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 20px;">
   <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; border: 1px solid #e2e8f0;">
     <div style="text-align: center; margin-bottom: 20px;">
-      <img src="https://masterhrms.com/logo.png" alt="Master HRMS Logo" style="height: 40px;" />
+      <img src="https://masterhrms.com/logo.png" alt="Master HRMS Logo" style="height: 40px;"  loading="lazy"/>
     </div>
     <h2 style="color: #0f172a; margin-top: 0;">Welcome aboard, {{user_name}}! 🎉</h2>
     <p style="color: #475569; line-height: 1.6;">Your company workspace <strong>{{company_name}}</strong> has been successfully provisioned on Master HRMS.</p>

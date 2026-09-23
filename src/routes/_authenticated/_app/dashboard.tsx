@@ -696,7 +696,7 @@ export default function DashboardPage() {
                         src={c.avatarUrl}
                         className="size-8 rounded-full border border-border-color shrink-0 object-cover"
                         alt={c.name}
-                      />
+                       loading="lazy"/>
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-title dark:text-white truncate mb-0">{c.name}</p>
                         <p className="text-[11px] text-default dark:text-slate-400 truncate mb-0">{c.position}</p>
@@ -741,7 +741,7 @@ export default function DashboardPage() {
                           src={emp.avatarUrl}
                           className="size-8 rounded-full border border-border-color object-cover"
                           alt={emp.name}
-                        />
+                         loading="lazy"/>
                         <span className={`absolute -bottom-1 -right-1 ${rankColor} text-white text-[9px] font-bold rounded-full size-4 flex items-center justify-center`}>
                           {emp.rank}
                         </span>

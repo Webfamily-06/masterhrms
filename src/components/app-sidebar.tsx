@@ -220,14 +220,14 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
               alt="Logo"
               className="size-8 object-contain"
               onError={(e) => { (e.target as HTMLImageElement).src = "/favicon.webp"; }}
-            />
+             loading="lazy"/>
           ) : (
             <img
               src={platformSettings?.logoLightUrl || "/logo.webp"}
               alt="Platform"
               className="h-9 w-full object-contain"
               onError={(e) => { (e.target as HTMLImageElement).src = "/logo.webp"; }}
-            />
+             loading="lazy"/>
           )}
         </Link>
       </SidebarHeader>

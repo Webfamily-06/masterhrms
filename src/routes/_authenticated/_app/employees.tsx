@@ -860,7 +860,7 @@ function Employees() {
                         <Avatar className="size-12 border-2 border-primary/20 shadow-2xs">
                           <AvatarImage src={e.avatar_url || "/favicon.webp"} />
                           <AvatarFallback className="font-bold text-sm bg-primary/10 text-primary">
-                            <img src="/favicon.webp" alt="Avatar" className="size-full object-cover" />
+                            <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
                           </AvatarFallback>
                         </Avatar>
                         <div>
@@ -949,7 +949,7 @@ function Employees() {
                             <Avatar className="size-8 border">
                               <AvatarImage src={e.avatar_url || "/favicon.webp"} />
                               <AvatarFallback className="font-bold text-xs bg-primary/10 text-primary">
-                                <img src="/favicon.webp" alt="Avatar" className="size-full object-cover" />
+                                <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
                               </AvatarFallback>
                             </Avatar>
                             <div>
@@ -1411,7 +1411,7 @@ function Employees() {
                   <Avatar className="size-14 border-2 border-emerald-500 shadow-xs">
                     <AvatarImage src={addForm.avatar_url || "/favicon.webp"} />
                     <AvatarFallback className="bg-emerald-600 text-white font-bold text-base">
-                      <img src="/favicon.webp" alt="Avatar" className="size-full object-cover" />
+                      <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -1672,7 +1672,7 @@ function Employees() {
                 <Avatar className="size-14 border-2 border-emerald-500 shadow-xs">
                   <AvatarImage src={editingEmployee.avatar_url || "/favicon.webp"} />
                   <AvatarFallback className="bg-emerald-600 text-white font-bold text-base">
-                    <img src="/favicon.webp" alt="Avatar" className="size-full object-cover" />
+                    <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -1814,7 +1814,7 @@ function Employees() {
               <Avatar className="size-16 border-2 border-primary/20">
                 <AvatarImage src={viewingEmployee.avatar_url || "/favicon.webp"} />
                 <AvatarFallback className="font-black text-xl bg-primary text-primary-foreground">
-                  <img src="/favicon.webp" alt="Avatar" className="size-full object-cover" />
+                  <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
                 </AvatarFallback>
               </Avatar>
               <div>
@@ -1977,7 +1977,7 @@ function Employees() {
                   <Avatar className="size-10 border shadow-2xs">
                     <AvatarImage src={authModalEmployee.avatar_url || "/favicon.webp"} />
                     <AvatarFallback className="font-bold bg-primary/10 text-primary">
-                      <img src="/favicon.webp" alt="Avatar" className="size-full object-cover" />
+                      <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
                     </AvatarFallback>
                   </Avatar>
                   <div>

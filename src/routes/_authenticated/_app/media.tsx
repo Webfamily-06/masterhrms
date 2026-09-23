@@ -420,7 +420,7 @@ function TenantMediaPage() {
                           src={ast.url}
                           alt={ast.name}
                           className="object-cover size-full group-hover:scale-105 transition-transform duration-300"
-                        />
+                         loading="lazy"/>
                       ) : (
                         <div className="size-12 rounded-2xl bg-primary/10 text-primary grid place-items-center">
                           <FileText className="size-6" />
@@ -558,7 +558,7 @@ function TenantMediaPage() {
                     src={previewUrl}
                     alt="Preview"
                     className="h-28 mx-auto object-contain rounded-lg"
-                  />
+                   loading="lazy"/>
                 </div>
               )}
             </div>

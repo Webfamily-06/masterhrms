@@ -474,7 +474,7 @@ function SuperProfileAdmin() {
                     src={rawImageSrc}
                     alt="Raw Avatar"
                     className={`size-full object-cover ${cropShape === "circle" ? "rounded-full" : "rounded-none"}`}
-                  />
+                   loading="lazy"/>
                 </div>
               ) : (
                 <ImageIcon className="size-10 text-muted-foreground opacity-40" />

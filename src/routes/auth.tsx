@@ -380,21 +380,21 @@ function AuthPage() {
 
         <div className="max-w-xl text-center flex flex-col items-center">
           <img
-            src="/images/pages/auth-v2-login-illustration-light.png"
+            src="/images/pages/auth-v2-login-illustration-light.webp"
             alt="Authentication Illustration"
             className="max-h-[480px] w-auto object-contain dark:hidden transition-transform duration-500 hover:scale-105"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = "/images/cards/illustration-daisy-light.png";
+              (e.target as HTMLImageElement).src = "/images/cards/illustration-daisy-light.webp";
             }}
-          />
+           loading="lazy"/>
           <img
-            src="/images/pages/auth-v2-login-illustration-dark.png"
+            src="/images/pages/auth-v2-login-illustration-dark.webp"
             alt="Authentication Illustration"
             className="max-h-[480px] w-auto object-contain hidden dark:block transition-transform duration-500 hover:scale-105"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = "/images/cards/illustration-daisy-dark.png";
+              (e.target as HTMLImageElement).src = "/images/cards/illustration-daisy-dark.webp";
             }}
-          />
+           loading="lazy"/>
           <div className="mt-8 space-y-2">
             <h2 className="text-2xl font-bold tracking-tight text-foreground">
               Enterprise Multi-Tenant SaaS Platform
@@ -411,7 +411,7 @@ function AuthPage() {
         {/* Top Header */}
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <img src={logoLightUrl} alt="Logo" className="h-8 w-auto object-contain" />
+            <img src={logoLightUrl} alt="Logo" className="h-8 w-auto object-contain"  loading="lazy"/>
           </Link>
           <ThemeToggle />
         </div>

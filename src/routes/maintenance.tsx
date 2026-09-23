@@ -36,7 +36,7 @@ function UnderMaintenancePage() {
       <header className="max-w-6xl mx-auto w-full flex items-center justify-between py-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
           {logoUrl ? (
-            <img src={logoUrl} alt={appName} className="h-9 max-w-[140px] object-contain" />
+            <img src={logoUrl} alt={appName} className="h-9 max-w-[140px] object-contain"  loading="lazy"/>
           ) : (
             <div className="size-9 rounded-xl bg-red-600 text-white font-extrabold grid place-items-center text-sm shadow-md">
               M

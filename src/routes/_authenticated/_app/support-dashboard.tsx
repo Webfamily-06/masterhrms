@@ -295,7 +295,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-3.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-3.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Robert Cosper</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0020</a></p>
@@ -318,7 +318,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-4.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-4.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Helen Nelson</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0019</a></p>
@@ -341,7 +341,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-5.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Thomas Neal</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0018</a></p>
@@ -364,7 +364,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-6.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-6.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Sarah Spivey</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0017</a></p>
@@ -387,7 +387,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-7.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Jared Griffin</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0016</a></p>
@@ -410,7 +410,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-8.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-8.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Alexander Kenn</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0015</a></p>
@@ -433,7 +433,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-3.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-3.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Alex Thompson</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0018</a></p>
@@ -456,7 +456,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-5.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Maria Garcia</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0019</a></p>
@@ -479,7 +479,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-7.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Thomas Mervin</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0020</a></p>
@@ -502,7 +502,7 @@ export default function SupportDashboardPage() {
 								
 								<div className="sm:grid sm:grid-cols-12 items-center flex justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0 col-span-12 sm:col-span-4">
-										<img src="/images/avatars/avatar-9.png" className="size-9 rounded-full border border-border-color shrink-0" alt="user" />
+										<img src="/images/avatars/avatar-9.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Regina Bryant</p>
 											<p className="text-[11px] text-default mb-0"><a href="#">#CUS0021</a></p>
@@ -551,7 +551,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default"><a href="#">#TKT0020</a></td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-3.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">Alexander Kenn</span>
+												<img src="/images/avatars/avatar-3.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">Alexander Kenn</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2 text-xs text-default">11 Sep 2025</td>
@@ -560,7 +560,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default">26 Sep 2025</td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-4.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">Steven Schroer</span>
+												<img src="/images/avatars/avatar-4.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">Steven Schroer</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2"><span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">Open</span></td>
@@ -569,7 +569,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default"><a href="#">#TKT0019</a></td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-4.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">Gabriella White</span>
+												<img src="/images/avatars/avatar-4.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">Gabriella White</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2 text-xs text-default">05 Sep 2025</td>
@@ -578,7 +578,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default">20 Sep 2025</td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-5.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">Regina Bryant</span>
+												<img src="/images/avatars/avatar-5.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">Regina Bryant</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2"><span className="text-[11px] bg-warning-transparent text-warning px-2 py-0.5 rounded">Pending</span></td>
@@ -587,7 +587,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default"><a href="#">#TKT0018</a></td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-5.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">Christopher Rey</span>
+												<img src="/images/avatars/avatar-5.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">Christopher Rey</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2 text-xs text-default">27 Aug 2025</td>
@@ -596,7 +596,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default">11 Sep 2025</td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-6.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">James Parker</span>
+												<img src="/images/avatars/avatar-6.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">James Parker</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2"><span className="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Resolved</span></td>
@@ -605,7 +605,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default"><a href="#">#TKT0017</a></td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-6.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">Penelope Ton</span>
+												<img src="/images/avatars/avatar-6.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">Penelope Ton</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2 text-xs text-default">16 Aug 2025</td>
@@ -614,7 +614,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default">31 Aug 2025</td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-7.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" /><span className="text-xs font-semibold text-title">Muriel Hood</span>
+												<img src="/images/avatars/avatar-7.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/><span className="text-xs font-semibold text-title">Muriel Hood</span>
 											</div>
 										</td>
 										<td className="py-2.5 px-2"><span className="text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded">Closed</span></td>
@@ -623,7 +623,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default"><a href="#">#TKT0011</a></td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-7.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" />
+												<img src="/images/avatars/avatar-7.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 												<span className="text-xs font-semibold text-title">Catherine Lan</span>
 											</div>
 										</td>
@@ -633,7 +633,7 @@ export default function SupportDashboardPage() {
 										<td className="py-2.5 px-2 text-xs text-default">02 Jun 2025</td>
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
-												<img src="/images/avatars/avatar-8.png" className="size-7 rounded-full border border-border-color shrink-0" alt="user" />
+												<img src="/images/avatars/avatar-8.webp" className="size-7 rounded-full border border-border-color shrink-0" alt="user"  loading="lazy"/>
 												<span className="text-xs font-semibold text-title">Tina Williams</span>
 											</div>
 										</td>

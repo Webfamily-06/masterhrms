@@ -275,7 +275,7 @@ function TenantsAdminStudio() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="size-12 rounded-xl border bg-primary/10 text-primary font-black grid place-items-center text-lg overflow-hidden shrink-0 shadow-inner">
                       {t.logo_url ? (
-                        <img src={t.logo_url} alt={t.name} className="w-full h-full object-cover" />
+                        <img src={t.logo_url} alt={t.name} className="w-full h-full object-cover"  loading="lazy"/>
                       ) : (
                         t.name[0]?.toUpperCase()
                       )}

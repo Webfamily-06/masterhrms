@@ -226,7 +226,7 @@ function AddonsPage() {
                           src={a.icon!}
                           alt={a.name}
                           className="object-cover size-full group-hover:scale-105 transition-transform duration-300"
-                        />
+                         loading="lazy"/>
                       ) : (
                         <div className="size-16 rounded-2xl bg-background/80 backdrop-blur-md border shadow-md grid place-items-center text-primary group-hover:scale-110 transition-transform">
                           <CatIcon className="size-8" />

@@ -242,7 +242,7 @@ function Verify2faPage() {
       {/* Top Header */}
       <header className="p-4 sm:p-6 flex items-center justify-between border-b border-border/40">
         <Link to="/auth" className="flex items-center gap-2">
-          <img src="/logo.webp" alt="Master HRMS" className="h-8 w-auto object-contain" />
+          <img src="/logo.webp" alt="Master HRMS" className="h-8 w-auto object-contain"  loading="lazy"/>
           <span className="font-bold tracking-tight text-sm">Master ERP</span>
         </Link>
         <ThemeToggle />

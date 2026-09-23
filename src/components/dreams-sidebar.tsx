@@ -88,7 +88,7 @@ export function DreamsSidebar({
               src="/favicon.webp"
               alt="Master HRMS"
               className="size-7 object-contain"
-            />
+             loading="lazy"/>
           </Link>
         ) : (
           <>
@@ -102,7 +102,7 @@ export function DreamsSidebar({
                 src="/logo.webp"
                 alt="Master HRMS & ERP"
                 className="h-8 max-h-8 w-auto object-contain dark:brightness-110"
-              />
+               loading="lazy"/>
             </Link>
 
             {/* Desktop Pin / Hover Mode Switch Button */}

@@ -139,11 +139,11 @@ export type HeldOrder = {
 };
 
 const DEFAULT_PRODUCTS: Product[] = [
-  { id: "prd-1", name: "Enterprise ERP Server Appliance", price: 45000, stock: 24, sku: "PRD-94821", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Dedicated on-premises ERP node", image: "/images/no-image.png" },
-  { id: "prd-2", name: "Biometric AI Terminal", price: 14500, stock: 42, sku: "PRT-38192", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Infrared face & finger terminal", image: "/images/no-image.png" },
-  { id: "prd-3", name: "Thermal Receipt Printer 80mm", price: 6800, stock: 15, sku: "PRD-59302", hsn_sac: "8443", gst_rate: 18, unit: "Pcs", low_stock_threshold: 3, category: "Hardware", description: "USB + Ethernet POS thermal printer", image: "/images/no-image.png" },
-  { id: "prd-4", name: "Handheld Laser Barcode Scanner", price: 2900, stock: 30, sku: "PRD-10294", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "High-speed 1D/2D USB barcode reader", image: "/images/no-image.png" },
-  { id: "prd-5", name: "ERP Implementation & Setup", price: 25000, stock: 999, sku: "SRV-10294", hsn_sac: "998314", gst_rate: 18, unit: "Hr", low_stock_threshold: 0, category: "Services", description: "Consultation and deployment", image: "/images/no-image.png" },
+  { id: "prd-1", name: "Enterprise ERP Server Appliance", price: 45000, stock: 24, sku: "PRD-94821", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Dedicated on-premises ERP node", image: "/images/no-image.webp" },
+  { id: "prd-2", name: "Biometric AI Terminal", price: 14500, stock: 42, sku: "PRT-38192", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "Infrared face & finger terminal", image: "/images/no-image.webp" },
+  { id: "prd-3", name: "Thermal Receipt Printer 80mm", price: 6800, stock: 15, sku: "PRD-59302", hsn_sac: "8443", gst_rate: 18, unit: "Pcs", low_stock_threshold: 3, category: "Hardware", description: "USB + Ethernet POS thermal printer", image: "/images/no-image.webp" },
+  { id: "prd-4", name: "Handheld Laser Barcode Scanner", price: 2900, stock: 30, sku: "PRD-10294", hsn_sac: "8471", gst_rate: 18, unit: "Pcs", low_stock_threshold: 5, category: "Hardware", description: "High-speed 1D/2D USB barcode reader", image: "/images/no-image.webp" },
+  { id: "prd-5", name: "ERP Implementation & Setup", price: 25000, stock: 999, sku: "SRV-10294", hsn_sac: "998314", gst_rate: 18, unit: "Hr", low_stock_threshold: 0, category: "Services", description: "Consultation and deployment", image: "/images/no-image.webp" },
 ];
 
 function fmt(n: number, cfg?: any): string {
@@ -360,7 +360,7 @@ function PosPage() {
     const map: Record<string, string> = {};
     (dbCategories as any[]).forEach((cat: any) => {
       if (cat?.name) {
-        map[cat.name] = cat.image || "/images/no-image.png";
+        map[cat.name] = cat.image || "/images/no-image.webp";
       }
     });
     return map;
@@ -385,7 +385,7 @@ function PosPage() {
             category: item.categoryName || item.category || "General",
             description: item.shortDescription || item.description || "",
             salePrice: Number(item.salePrice ?? item.price ?? 0),
-            image: item.image || "/images/no-image.png",
+            image: item.image || "/images/no-image.webp",
           })) as Product[];
           try {
             localStorage.setItem(`pos_offline_catalog_${tenantId}`, JSON.stringify(mapped));
@@ -408,7 +408,7 @@ function PosPage() {
             category: item.categoryName || item.category || "General",
             description: item.shortDescription || item.description || "",
             salePrice: Number(item.salePrice ?? item.price ?? 0),
-            image: item.image || "/images/no-image.png",
+            image: item.image || "/images/no-image.webp",
           })) as Product[];
           try {
             localStorage.setItem(`pos_offline_catalog_${tenantId}`, JSON.stringify(mapped));
@@ -491,7 +491,7 @@ function PosPage() {
       if (existing) return prev.map((i) => (i.id === p.id ? { ...i, qty: i.qty + 1 } : i));
       const itemPrice = Number((p as any).salePrice ?? p.price ?? 0);
       const itemTax = Number((p as any).taxRate ?? p.gst_rate ?? 18);
-      return [...prev, { id: p.id, name: p.name, price: itemPrice, qty: 1, gst_rate: itemTax, hsn_sac: p.hsn_sac || "8471", unit: p.unit || "Pcs", sku: p.sku, image: (p as any).image || "/images/no-image.png" }];
+      return [...prev, { id: p.id, name: p.name, price: itemPrice, qty: 1, gst_rate: itemTax, hsn_sac: p.hsn_sac || "8471", unit: p.unit || "Pcs", sku: p.sku, image: (p as any).image || "/images/no-image.webp" }];
     });
   }
 
@@ -947,13 +947,13 @@ function PosPage() {
                           <Utensils className="size-5 text-orange-500" />
                         ) : (
                           <img
-                            src={categoryImageMap[c] || "/images/no-image.png"}
+                            src={categoryImageMap[c] || "/images/no-image.webp"}
                             alt={displayName}
                             className="size-full object-contain p-1"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/images/no-image.png";
+                              (e.target as HTMLImageElement).src = "/images/no-image.webp";
                             }}
-                          />
+                           loading="lazy"/>
                         )}
                       </div>
                       <div className="text-xs font-bold truncate max-w-[85px] leading-tight text-center">
@@ -995,13 +995,13 @@ function PosPage() {
                         {/* Big Image Container (matching Reference Image) */}
                         <div className="h-40 sm:h-44 w-full rounded-2xl overflow-hidden bg-muted/40 relative mb-3 flex items-center justify-center border">
                           <img
-                            src={(p as any).image || "/images/no-image.png"}
+                            src={(p as any).image || "/images/no-image.webp"}
                             alt={p.name}
                             className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/images/no-image.png";
+                              (e.target as HTMLImageElement).src = "/images/no-image.webp";
                             }}
-                          />
+                           loading="lazy"/>
                           {/* Top-Left Badge */}
                           <div className="absolute top-2.5 left-2.5 flex items-center gap-1 flex-wrap">
                             <span className="bg-blue-600 text-white font-black text-[10px] rounded-lg px-2 py-0.5 shadow-sm font-mono">
@@ -1104,13 +1104,13 @@ function PosPage() {
                           {/* Thumbnail */}
                           <div className="size-14 rounded-2xl overflow-hidden bg-muted/40 border shrink-0 flex items-center justify-center p-1">
                             <img
-                              src={item.image || "/images/no-image.png"}
+                              src={item.image || "/images/no-image.webp"}
                               alt={item.name}
                               className="size-full object-contain"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = "/images/no-image.png";
+                                (e.target as HTMLImageElement).src = "/images/no-image.webp";
                               }}
-                            />
+                             loading="lazy"/>
                           </div>
 
                           {/* Info */}
@@ -1292,13 +1292,13 @@ function PosPage() {
                         <td className="p-2.5 font-bold text-foreground">
                           <div className="flex items-center gap-2">
                             <img
-                              src={(p as any).image || "/images/no-image.png"}
+                              src={(p as any).image || "/images/no-image.webp"}
                               alt={p.name}
                               className="size-8 rounded border object-contain bg-secondary/20 p-0.5 shrink-0"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = "/images/no-image.png";
+                                (e.target as HTMLImageElement).src = "/images/no-image.webp";
                               }}
-                            />
+                             loading="lazy"/>
                             <span>{p.name}</span>
                           </div>
                         </td>

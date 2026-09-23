@@ -262,7 +262,7 @@ export function PaymentCheckoutModal({
                         src="https://upload.wikimedia.org/wikipedia/commons/8/89/Razorpay_logo.svg"
                         alt="Razorpay Logo"
                         className="h-full object-contain"
-                      />
+                       loading="lazy"/>
                     </div>
                     <div>
                       <div className="font-bold text-xs">Razorpay Payment Gateway</div>
@@ -287,7 +287,7 @@ export function PaymentCheckoutModal({
                         src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg"
                         alt="PayPal Logo"
                         className="h-full object-contain"
-                      />
+                       loading="lazy"/>
                     </div>
                     <div>
                       <div className="font-bold text-xs">PayPal Global Checkout</div>
@@ -308,7 +308,7 @@ export function PaymentCheckoutModal({
                       src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg"
                       alt="PayPal"
                       className="h-4"
-                    />
+                     loading="lazy"/>
                     <span>Direct PayPal Express Checkout</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
@@ -416,7 +416,7 @@ export function PaymentCheckoutModal({
                         src={proofPreview}
                         alt="Receipt preview"
                         className="size-10 object-cover rounded-md border shrink-0"
-                      />
+                       loading="lazy"/>
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-xs truncate">
                           {proofFile?.name || "Receipt screenshot"}

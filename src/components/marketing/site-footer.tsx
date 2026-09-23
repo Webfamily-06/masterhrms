@@ -276,7 +276,7 @@ function BrandCol({
             src={activeLogo}
             alt={appName}
             className="h-9 max-h-11 max-w-[170px] object-contain transition-all duration-300"
-          />
+           loading="lazy"/>
         ) : (
           <div className="flex items-center gap-2">
             <div

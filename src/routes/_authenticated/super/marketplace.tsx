@@ -771,7 +771,7 @@ function MarketplaceAdmin() {
                   {/* PNG Icon or Fallback Icon */}
                   <div className="size-12 shrink-0 rounded-xl border bg-secondary/30 grid place-items-center overflow-hidden p-1">
                     {a.icon && (a.icon.startsWith("http") || a.icon.startsWith("data:")) ? (
-                      <img src={a.icon} alt={a.name} className="size-10 object-contain rounded" />
+                      <img src={a.icon} alt={a.name} className="size-10 object-contain rounded"  loading="lazy"/>
                     ) : (
                       <div className="size-10 rounded-lg bg-primary/10 text-primary font-bold grid place-items-center text-base">
                         {a.name[0]}
@@ -872,7 +872,7 @@ function MarketplaceAdmin() {
                               src={a.icon}
                               alt={a.name}
                               className="size-8 object-contain rounded"
-                            />
+                             loading="lazy"/>
                           ) : (
                             <div className="size-7 rounded bg-primary/10 text-primary font-bold text-xs grid place-items-center">
                               {a.name[0]}
@@ -1041,7 +1041,7 @@ function MarketplaceAdmin() {
                         src={editing.icon}
                         alt="Preview"
                         className="size-14 object-contain rounded"
-                      />
+                       loading="lazy"/>
                     ) : (
                       <div className="text-center text-xs text-muted-foreground p-1">
                         No PNG Icon
@@ -1208,7 +1208,7 @@ function MarketplaceAdmin() {
                           src={src}
                           alt={`Screenshot ${idx + 1}`}
                           className="w-full h-full object-cover"
-                        />
+                         loading="lazy"/>
                         <button
                           type="button"
                           onClick={() => setScreenshots((prev) => prev.filter((_, i) => i !== idx))}

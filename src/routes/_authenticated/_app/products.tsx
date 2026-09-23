@@ -203,7 +203,7 @@ const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
       { warehouseId: "wh-1", warehouseName: "Main Central Warehouse", quantity: 18 },
       { warehouseId: "wh-2", warehouseName: "Retail Storefront Depot", quantity: 6 },
     ],
-    image: "/images/no-image.png",
+    image: "/images/no-image.webp",
     additionalImages: [
       "/logo.webp",
       "/logo.webp",
@@ -230,7 +230,7 @@ const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
       { warehouseId: "wh-1", warehouseName: "Main Central Warehouse", quantity: 30 },
       { warehouseId: "wh-2", warehouseName: "Retail Storefront Depot", quantity: 12 },
     ],
-    image: "/images/no-image.png",
+    image: "/images/no-image.webp",
     additionalImages: [
       "/logo.webp",
     ],
@@ -253,7 +253,7 @@ const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
     unit: "Hours (Hr)",
     quantity: 999,
     warehouseStocks: [],
-    image: "/images/no-image.png",
+    image: "/images/no-image.webp",
     additionalImages: [],
     shortDescription: "Dedicated hands-on onboarding, migration from legacy software & team training.",
     description: "Full-day consultation with senior solution architects including data import, role configuration, chart of accounts setup, and staff coaching.",
@@ -322,7 +322,7 @@ export function ProductsAndServicesPage() {
 
   // Brand Setup modal
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
-  const [brandForm, setBrandForm] = useState({ name: "", description: "", image: "/images/no-image.png" });
+  const [brandForm, setBrandForm] = useState({ name: "", description: "", image: "/images/no-image.webp" });
 
   // Fetch Brands
   const { data: brands = [], refetch: refetchBrands } = useQuery({
@@ -506,7 +506,7 @@ export function ProductsAndServicesPage() {
       unit: defaultUnit,
       quantity: 10,
       targetWarehouseId: defaultWh,
-      image: "/images/no-image.png",
+      image: "/images/no-image.webp",
       additionalImages: [],
       newImageInput: "",
       shortDescription: "",
@@ -551,7 +551,7 @@ export function ProductsAndServicesPage() {
       unit: formData.unit,
       quantity: formData.type === "Service" ? 999 : Number(formData.quantity) || 0,
       warehouseStocks,
-      image: formData.image || "/images/no-image.png",
+      image: formData.image || "/images/no-image.webp",
       additionalImages: formData.additionalImages,
       shortDescription: formData.shortDescription,
       description: formData.description,
@@ -572,7 +572,7 @@ export function ProductsAndServicesPage() {
         unit: formData.unit,
         quantity: formData.type === "Service" ? 999 : Number(formData.quantity) || 0,
         warehouseId: selWarehouse.id,
-        image: formData.image || "/images/no-image.png",
+        image: formData.image || "/images/no-image.webp",
         shortDescription: formData.shortDescription,
         description: formData.description,
       });
@@ -971,13 +971,13 @@ export function ProductsAndServicesPage() {
                         {/* Image Banner */}
                         <div className="h-44 relative bg-secondary/30 overflow-hidden cursor-pointer" onClick={() => setViewingItem(item)}>
                           <img
-                            src={item.image || "/images/no-image.png"}
+                            src={item.image || "/images/no-image.webp"}
                             alt={item.name}
                             className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/images/no-image.png";
+                              (e.target as HTMLImageElement).src = "/images/no-image.webp";
                             }}
-                          />
+                           loading="lazy"/>
                           <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
 
                           {/* Type Badge & Category */}
@@ -1117,7 +1117,7 @@ export function ProductsAndServicesPage() {
                         <TableRow key={item.id} className="hover:bg-muted/20">
                           <TableCell className="font-semibold text-foreground">
                             <div className="flex items-center gap-2.5">
-                              <img src={item.image || "/images/no-image.png"} alt={item.name} className="size-8 rounded object-cover border" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
+                              <img src={item.image || "/images/no-image.webp"} alt={item.name} className="size-8 rounded object-cover border" onError={(e) => { e.currentTarget.src = "/images/no-image.webp"; }}  loading="lazy"/>
                               <div>
                                 <span className="font-bold block">{item.name}</span>
                                 <span className="text-[10px] text-muted-foreground">{item.unit}</span>
@@ -1652,7 +1652,7 @@ export function ProductsAndServicesPage() {
                   />
                   {formData.image && (
                     <div className="h-32 rounded-xl border overflow-hidden bg-secondary/30 mt-2">
-                      <img src={formData.image || "/images/no-image.png"} alt="Preview" className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
+                      <img src={formData.image || "/images/no-image.webp"} alt="Preview" className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.webp"; }}  loading="lazy"/>
                     </div>
                   )}
                 </div>
@@ -1689,7 +1689,7 @@ export function ProductsAndServicesPage() {
                     <div className="grid grid-cols-4 gap-2 pt-2">
                       {formData.additionalImages.map((imgUrl, idx) => (
                         <div key={idx} className="relative h-16 rounded-lg border overflow-hidden group">
-                          <img src={imgUrl} alt={`gallery-${idx}`} className="size-full object-cover" />
+                          <img src={imgUrl} alt={`gallery-${idx}`} className="size-full object-cover"  loading="lazy"/>
                           <button
                             type="button"
                             onClick={() => {
@@ -1811,7 +1811,7 @@ export function ProductsAndServicesPage() {
                   {/* 1. Image Carousel Banner */}
                   <div className="space-y-2">
                     <div className="h-56 relative rounded-2xl border overflow-hidden bg-secondary/30">
-                      <img src={currentImg || "/images/no-image.png"} alt={viewingItem.name} className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
+                      <img src={currentImg || "/images/no-image.webp"} alt={viewingItem.name} className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.webp"; }}  loading="lazy"/>
                       {allImages.length > 1 && (
                         <>
                           <button
@@ -1843,7 +1843,7 @@ export function ProductsAndServicesPage() {
                               activeImageIndex === i ? "ring-2 ring-primary border-primary" : "opacity-60 hover:opacity-100"
                             }`}
                           >
-                            <img src={img || "/images/no-image.png"} alt={`thumb-${i}`} className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }} />
+                            <img src={img || "/images/no-image.webp"} alt={`thumb-${i}`} className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.webp"; }}  loading="lazy"/>
                           </div>
                         ))}
                       </div>
@@ -2209,7 +2209,7 @@ export function ProductsAndServicesPage() {
             <div className="space-y-1">
               <Label className="text-xs font-bold">Brand Logo URL (optional)</Label>
               <Input
-                placeholder="/images/no-image.png"
+                placeholder="/images/no-image.webp"
                 value={brandForm.image}
                 onChange={(e) => setBrandForm({ ...brandForm, image: e.target.value })}
                 className="h-8 text-xs"
@@ -2217,11 +2217,11 @@ export function ProductsAndServicesPage() {
               <div className="mt-2 flex items-center gap-3">
                 <div className="size-12 rounded border p-1 bg-muted/20 flex items-center justify-center">
                   <img
-                    src={brandForm.image || "/images/no-image.png"}
+                    src={brandForm.image || "/images/no-image.webp"}
                     alt="Brand Preview"
                     className="size-full object-contain"
-                    onError={(e) => { e.currentTarget.src = "/images/no-image.png"; }}
-                  />
+                    onError={(e) => { e.currentTarget.src = "/images/no-image.webp"; }}
+                   loading="lazy"/>
                 </div>
                 <span className="text-[11px] text-muted-foreground">Default: /images/no-image.png</span>
               </div>
@@ -2237,11 +2237,11 @@ export function ProductsAndServicesPage() {
                   await api.post("/products/brands", {
                     name: brandForm.name.trim(),
                     description: brandForm.description.trim(),
-                    image: brandForm.image?.trim() || "/images/no-image.png",
+                    image: brandForm.image?.trim() || "/images/no-image.webp",
                   });
                   toast.success(`Brand "${brandForm.name}" created!`);
                   setIsBrandModalOpen(false);
-                  setBrandForm({ name: "", description: "", image: "/images/no-image.png" });
+                  setBrandForm({ name: "", description: "", image: "/images/no-image.webp" });
                   refetchBrands();
                 } catch (err: any) {
                   toast.error(err.message || "Failed to create brand");

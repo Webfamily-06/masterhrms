@@ -364,7 +364,7 @@ function OgPreviewPage() {
                           // Image load error fallback
                           (e.target as HTMLImageElement).style.display = "none";
                         }}
-                      />
+                       loading="lazy"/>
                     ) : (
                       <div className="flex flex-col items-center gap-2 text-slate-400 p-6 text-center">
                         <ImageIcon className="size-10 opacity-50" />

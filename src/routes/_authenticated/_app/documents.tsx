@@ -817,7 +817,7 @@ export function DocumentsPage() {
                       src={selectedAuditDrawer.signatureDataUrl}
                       alt="Digital Signature"
                       className="max-h-16 object-contain"
-                    />
+                     loading="lazy"/>
                   </div>
 
                   <div className="font-mono text-[10px] space-y-0.5 text-muted-foreground">

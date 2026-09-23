@@ -500,7 +500,7 @@ function MediaLibraryAdmin() {
                             src={file.url}
                             alt={file.name}
                             className="object-cover size-full group-hover:scale-105 transition-transform"
-                          />
+                           loading="lazy"/>
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <Button
                               size="icon"
@@ -589,7 +589,7 @@ function MediaLibraryAdmin() {
                         src={logo.logoUrl}
                         alt={logo.name}
                         className="size-10 object-contain rounded-lg border p-1 shrink-0 bg-background"
-                      />
+                       loading="lazy"/>
                     ) : (
                       <div className="size-10 rounded-lg bg-primary/10 text-primary grid place-items-center font-bold text-sm font-mono shrink-0">
                         {logo.name[0]}
@@ -719,7 +719,7 @@ function MediaLibraryAdmin() {
                   src={previewUrl}
                   alt="Preview"
                   className="h-28 mx-auto object-contain rounded-lg"
-                />
+                 loading="lazy"/>
               </div>
             )}
           </div>

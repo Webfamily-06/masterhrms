@@ -149,7 +149,7 @@ export function CartDrawer({
               <div key={item.id} className="py-3.5 flex items-center justify-between gap-3">
                 <div className="size-14 rounded-md bg-gray-100 dark:bg-zinc-800 border border-border-color dark:border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
                   {item.image ? (
-                    <img src={item.image} alt={item.name} className="size-full object-cover" />
+                    <img src={item.image} alt={item.name} className="size-full object-cover"  loading="lazy"/>
                   ) : (
                     <ShoppingBag className="size-6 text-muted-foreground/40" />
                   )}

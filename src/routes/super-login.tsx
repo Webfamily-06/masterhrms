@@ -307,7 +307,7 @@ function SuperLoginPage() {
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = "/logo.webp";
                 }}
-              />
+               loading="lazy"/>
             </Link>
           </div>
 

@@ -124,7 +124,7 @@ function AddonDetail() {
                 src={addon.icon}
                 alt={addon.name}
                 className="size-12 object-contain rounded-lg"
-              />
+               loading="lazy"/>
             </div>
           )}
 
@@ -186,7 +186,7 @@ function AddonDetail() {
                       src={src}
                       alt={`${addon.name} screenshot ${i + 1}`}
                       className="rounded-lg border w-full object-cover aspect-video"
-                    />
+                     loading="lazy"/>
                   ))}
                 </div>
               </div>

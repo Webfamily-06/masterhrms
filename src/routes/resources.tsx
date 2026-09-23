@@ -167,7 +167,7 @@ function ResourcesPage() {
                           src={cover}
                           alt={b.title}
                           className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                         loading="lazy"/>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                         <Badge className="absolute bottom-3 left-3 bg-primary/90 text-primary-foreground text-[10px]">
                           {contentObj.category || "ERP Systems"}
@@ -250,7 +250,7 @@ function ResourcesPage() {
                           src={cover}
                           alt={cs.title}
                           className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                         loading="lazy"/>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                         <Badge
                           variant="outline"

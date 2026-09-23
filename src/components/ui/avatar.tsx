@@ -47,7 +47,7 @@ const AvatarFallback = React.forwardRef<
         src="/favicon.webp"
         alt="Avatar"
         className="size-full object-cover"
-      />
+       loading="lazy"/>
     )}
   </AvatarPrimitive.Fallback>
 ));

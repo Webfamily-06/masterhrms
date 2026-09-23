@@ -1849,7 +1849,7 @@ function TeamWhatsAppChatAddon() {
                                       src={m.mediaUrl}
                                       alt={m.fileName || "Attachment"}
                                       className="rounded-xl max-h-64 object-contain w-full transition-transform duration-200 group-hover:scale-102"
-                                    />
+                                     loading="lazy"/>
                                     {/* Hover overlay with Eye + Download */}
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white">
                                       <div className="flex items-center gap-1 text-xs font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-xs">
@@ -2045,7 +2045,7 @@ function TeamWhatsAppChatAddon() {
                           src={attachedImage.url}
                           alt="Attached"
                           className="size-8 object-cover rounded-lg border shrink-0"
-                        />
+                         loading="lazy"/>
                         <span className="font-bold text-xs truncate text-foreground">{attachedImage.name}</span>
                       </div>
                       <Button
@@ -2782,7 +2782,7 @@ function TeamWhatsAppChatAddon() {
                   src={previewModalFile.url}
                   alt={previewModalFile.name}
                   className="max-h-[70vh] max-w-full object-contain rounded-lg shadow-sm"
-                />
+                 loading="lazy"/>
               ) : previewModalFile.type === "pdf" ||
                 previewModalFile.url.startsWith("data:application/pdf") ||
                 previewModalFile.name.toLowerCase().endsWith(".pdf") ? (

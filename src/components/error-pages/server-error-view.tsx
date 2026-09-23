@@ -56,7 +56,7 @@ export function ServerErrorView({
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}
-          />
+           loading="lazy"/>
           <div className="flex flex-col">
             <span className="font-bold text-base tracking-tight text-foreground">
               Master ERP
@@ -85,24 +85,24 @@ export function ServerErrorView({
 
           {/* Main 500 Maintenance Illustration */}
           <img
-            src="/images/pages/misc-under-maintenance.png"
+            src="/images/pages/misc-under-maintenance.webp"
             alt="500 Server Error"
             className="w-64 sm:w-72 h-auto object-contain select-none drop-shadow-2xl animate-in zoom-in-95 duration-500 relative z-10"
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}
-          />
+           loading="lazy"/>
 
           {/* Floating Decorative 3D Gear Element */}
           <img
-            src="/images/pages/misc-under-maintenance-object.png"
+            src="/images/pages/misc-under-maintenance-object.webp"
             alt="Gear Element"
             className="absolute -top-3 right-2 w-14 sm:w-16 h-auto object-contain select-none pointer-events-none z-20 animate-spin"
             style={{ animationDuration: '12s' }}
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}
-          />
+           loading="lazy"/>
         </div>
 
         {/* Text Details */}

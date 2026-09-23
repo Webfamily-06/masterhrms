@@ -53,10 +53,10 @@ export default function CrmDashboardPage() {
 						<h1 className="text-gray-900 text-xl max-lg:text-lg font-bold mb-0">CRM Dashboard</h1>
 						<div className="flex items-center flex-wrap gap-2">
 							<div className="flex items-center -space-x-2 me-1">
-								<img src="/images/avatars/avatar-3.png" className="size-7 rounded-full border-2 border-white" alt="user" />
-								<img src="/images/avatars/avatar-4.png" className="size-7 rounded-full border-2 border-white" alt="user" />
-								<img src="/images/avatars/avatar-5.png" className="size-7 rounded-full border-2 border-white" alt="user" />
-								<img src="/images/avatars/avatar-6.png" className="size-7 rounded-full border-2 border-white" alt="user" />
+								<img src="/images/avatars/avatar-3.webp" className="size-7 rounded-full border-2 border-white" alt="user"  loading="lazy"/>
+								<img src="/images/avatars/avatar-4.webp" className="size-7 rounded-full border-2 border-white" alt="user"  loading="lazy"/>
+								<img src="/images/avatars/avatar-5.webp" className="size-7 rounded-full border-2 border-white" alt="user"  loading="lazy"/>
+								<img src="/images/avatars/avatar-6.webp" className="size-7 rounded-full border-2 border-white" alt="user"  loading="lazy"/>
 								<button type="button" className="size-7 rounded-full border-2 border-white bg-primary text-white text-xs flex items-center justify-center hover:bg-primary-hover cursor-pointer"><i className="ph ph-plus"></i></button>
 							</div>
 							<div className="relative rangepicker-input w-[174px] h-[28px] leading-none">
@@ -178,7 +178,7 @@ export default function CrmDashboardPage() {
 										<tr>
 											<td className="py-2.5 pe-3">
 												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-3.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Robert" />
+													<img src="/images/avatars/avatar-3.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Robert"  loading="lazy"/>
 													<div className="min-w-0">
 														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0020</a>
 														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Robert Cosper</p>
@@ -198,7 +198,7 @@ export default function CrmDashboardPage() {
 										<tr>
 											<td className="py-2.5 pe-3">
 												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-4.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Helen" />
+													<img src="/images/avatars/avatar-4.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Helen"  loading="lazy"/>
 													<div className="min-w-0">
 														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0019</a>
 														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Helen Nelson</p>
@@ -218,7 +218,7 @@ export default function CrmDashboardPage() {
 										<tr>
 											<td className="py-2.5 pe-3">
 												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-5.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Thomas" />
+													<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Thomas"  loading="lazy"/>
 													<div className="min-w-0">
 														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0018</a>
 														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Thomas Neal</p>
@@ -238,7 +238,7 @@ export default function CrmDashboardPage() {
 										<tr>
 											<td className="py-2.5 pe-3">
 												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-6.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Sarah" />
+													<img src="/images/avatars/avatar-6.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Sarah"  loading="lazy"/>
 													<div className="min-w-0">
 														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0017</a>
 														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Sarah Spivey</p>
@@ -258,7 +258,7 @@ export default function CrmDashboardPage() {
 										<tr>
 											<td className="py-2.5 pe-3">
 												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-7.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Jared" />
+													<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Jared"  loading="lazy"/>
 													<div className="min-w-0">
 														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0016</a>
 														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Jared Griffin</p>
@@ -610,7 +610,7 @@ export default function CrmDashboardPage() {
 												<div className="flex items-center gap-2">
 													<div className="size-7 shrink-0">
 														<a href="#">
-															<img src="/images/avatars/avatar-3.png" className="rounded-full border border-border-color" alt="Ethan" />
+															<img src="/images/avatars/avatar-3.webp" className="rounded-full border border-border-color" alt="Ethan"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Ethan Walker</a></p>
@@ -630,7 +630,7 @@ export default function CrmDashboardPage() {
 												<div className="flex items-center gap-2">
 													<div className="size-7 shrink-0">
 														<a href="#">
-															<img src="/images/avatars/avatar-4.png" className="rounded-full border border-border-color" alt="Madison" />
+															<img src="/images/avatars/avatar-4.webp" className="rounded-full border border-border-color" alt="Madison"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Madison Clark</a></p>
@@ -650,7 +650,7 @@ export default function CrmDashboardPage() {
 												<div className="flex items-center gap-2">
 													<div className="size-7 shrink-0">
 														<a href="#">
-															<img src="/images/avatars/avatar-5.png" className="rounded-full border border-border-color" alt="James" />
+															<img src="/images/avatars/avatar-5.webp" className="rounded-full border border-border-color" alt="James"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">James Harris</a></p>
@@ -670,7 +670,7 @@ export default function CrmDashboardPage() {
 												<div className="flex items-center gap-2">
 													<div className="size-7 shrink-0">
 														<a href="#">
-															<img src="/images/avatars/avatar-6.png" className="rounded-full border border-border-color" alt="Avery" />
+															<img src="/images/avatars/avatar-6.webp" className="rounded-full border border-border-color" alt="Avery"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Avery Thompson</a></p>

@@ -151,7 +151,7 @@ function PublicCareersPage() {
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
             {tenant?.logoUrl ? (
-              <img src={tenant.logoUrl} alt={tenant.name} className="h-8 max-w-[160px] object-contain" />
+              <img src={tenant.logoUrl} alt={tenant.name} className="h-8 max-w-[160px] object-contain"  loading="lazy"/>
             ) : (
               <div className="flex items-center gap-2 font-black text-lg text-foreground">
                 <div className="size-8 rounded-lg bg-primary text-primary-foreground grid place-items-center font-black">

@@ -233,13 +233,13 @@ export function CustomerDisplayPage() {
                   {/* Thumbnail */}
                   <div className="size-16 rounded-2xl overflow-hidden bg-slate-800 border border-slate-700/60 shrink-0 flex items-center justify-center p-1">
                     <img
-                      src={item.image || "/images/no-image.png"}
+                      src={item.image || "/images/no-image.webp"}
                       alt={item.name}
                       className="size-full object-contain"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/images/no-image.png";
+                        (e.target as HTMLImageElement).src = "/images/no-image.webp";
                       }}
-                    />
+                     loading="lazy"/>
                   </div>
 
                   {/* Details */}
@@ -322,7 +322,7 @@ export function CustomerDisplayPage() {
 
             {displayState.total > 0 ? (
               <div className="bg-white p-2.5 rounded-2xl shadow-lg border border-slate-200">
-                <img src={dynamicQrUrl} alt="UPI Payment QR Code" className="size-36 object-contain" />
+                <img src={dynamicQrUrl} alt="UPI Payment QR Code" className="size-36 object-contain"  loading="lazy"/>
               </div>
             ) : (
               <div className="size-36 rounded-2xl bg-slate-800/80 border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 text-[11px] p-2">

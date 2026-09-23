@@ -75,7 +75,7 @@ export default function PosDashboardPage() {
               price: Number(p.salePrice || p.price || 0),
               category: typeof p.category === "string" ? p.category : (p.category?.name || "General"),
               stock: totalStock,
-              image: p.image && p.image !== "/images/no-image.png" ? p.image : null,
+              image: p.image && p.image !== "/images/no-image.webp" ? p.image : null,
               icon,
             };
           }),
@@ -177,7 +177,7 @@ export default function PosDashboardPage() {
 											<div className="flex items-center gap-2.5 min-w-0 sm:col-span-6">
 												<div className="size-9 rounded-md bg-light dark:bg-slate-800 flex items-center justify-center shrink-0 border border-border-color/60 overflow-hidden">
 													{prod.image ? (
-														<img src={prod.image} alt={prod.name} className="size-full object-cover" />
+														<img src={prod.image} alt={prod.name} className="size-full object-cover"  loading="lazy"/>
 													) : (
 														<i className={`ph-duotone ${prod.icon || 'ph-package'} text-gray-900 dark:text-gray-100 text-lg`}></i>
 													)}

@@ -261,7 +261,7 @@ export default function ProjectDashboardPage() {
 												<div className="flex items-center gap-2">
 													<div className="size-7 overflow-hidden">
 														<a href="#">
-															<img src="/images/avatars/avatar-3.png" className="rounded-full border border-border-color w-full h-full object-cover" alt="Alexander" />
+															<img src="/images/avatars/avatar-3.webp" className="rounded-full border border-border-color w-full h-full object-cover" alt="Alexander"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Alexander Kenn</a></p>
@@ -282,7 +282,7 @@ export default function ProjectDashboardPage() {
 												<div className="flex items-center gap-2">													
 													<div className="size-7 overflow-hidden">
 														<a href="#">
-															<img src="/images/avatars/avatar-4.png" className="border border-border-color w-full h-full object-cover rounded-full" alt="Gabriella" />
+															<img src="/images/avatars/avatar-4.webp" className="border border-border-color w-full h-full object-cover rounded-full" alt="Gabriella"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Gabriella White</a></p>
@@ -303,7 +303,7 @@ export default function ProjectDashboardPage() {
 												<div className="flex items-center gap-2">
 													<div className="size-7 overflow-hidden">
 														<a href="#">
-															<img src="/images/avatars/avatar-5.png" className="rounded-full border border-border-color shrink-0" alt="Christopher" />
+															<img src="/images/avatars/avatar-5.webp" className="rounded-full border border-border-color shrink-0" alt="Christopher"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Christopher Rey</a></p>
@@ -324,7 +324,7 @@ export default function ProjectDashboardPage() {
 												<div className="flex items-center gap-2">
 													<div className="size-7 overflow-hidden">
 														<a href="#">
-															<img src="/images/avatars/avatar-6.png" className="rounded-full border border-border-color w-full h-full object-cover" alt="Penelope" />
+															<img src="/images/avatars/avatar-6.webp" className="rounded-full border border-border-color w-full h-full object-cover" alt="Penelope"  loading="lazy"/>
 														</a>
 													</div>
 													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Penelope Ton</a></p>
@@ -446,7 +446,7 @@ export default function ProjectDashboardPage() {
 							<div className="space-y-3">
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-3.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Anastasia Leton" />
+										<img src="/images/avatars/avatar-3.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Anastasia Leton"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Anastasia Leton</p>
 											<p className="text-[11px] text-default truncate mb-0">Design Employee Dashboard</p>
@@ -459,7 +459,7 @@ export default function ProjectDashboardPage() {
 								</div>
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-4.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Noah Bennett" />
+										<img src="/images/avatars/avatar-4.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Noah Bennett"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Noah Bennett</p>
 											<p className="text-[11px] text-default truncate mb-0">Build Patient Form</p>
@@ -472,7 +472,7 @@ export default function ProjectDashboardPage() {
 								</div>
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-5.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Victoria Ellsworth" />
+										<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Victoria Ellsworth"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Victoria Ellsworth</p>
 											<p className="text-[11px] text-default truncate mb-0">Develop Quiz</p>
@@ -485,7 +485,7 @@ export default function ProjectDashboardPage() {
 								</div>
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-6.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Noah Kensington" />
+										<img src="/images/avatars/avatar-6.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Noah Kensington"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Noah Kensington</p>
 											<p className="text-[11px] text-default truncate mb-0">Integrate Voice</p>
@@ -498,7 +498,7 @@ export default function ProjectDashboardPage() {
 								</div>
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-7.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Liam Gallagher" />
+										<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Liam Gallagher"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Liam Gallagher</p>
 											<p className="text-[11px] text-default truncate mb-0">Refactor API Authentication</p>
@@ -511,7 +511,7 @@ export default function ProjectDashboardPage() {
 								</div>
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-8.png" className="size-9 rounded-full border border-border-color shrink-0" alt="Sophia Vance" />
+										<img src="/images/avatars/avatar-8.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Sophia Vance"  loading="lazy"/>
 										<div className="min-w-0">
 											<p className="text-xs font-semibold text-title truncate mb-0">Sophia Vance</p>
 											<p className="text-[11px] text-default truncate mb-0">Setup Webhook Listeners</p>
@@ -537,7 +537,7 @@ export default function ProjectDashboardPage() {
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
 										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-4.png" className="size-9 rounded-full border border-border-color" alt="Chloe Mitchell" />
+											<img src="/images/avatars/avatar-4.webp" className="size-9 rounded-full border border-border-color" alt="Chloe Mitchell"  loading="lazy"/>
 										</a>
 										<div className="min-w-0">
 											<p className="mb-0">
@@ -549,8 +549,8 @@ export default function ProjectDashboardPage() {
 									<div className="text-end shrink-0">
 										<p className="text-[11px] text-default mb-1">Team Members</p>
 										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-3.png" className="size-5 rounded-full border-2 border-white" alt="Anastasia Leton" />
-											<img src="/images/avatars/avatar-5.png" className="size-5 rounded-full border-2 border-white" alt="Victoria Ellsworth" />
+											<img src="/images/avatars/avatar-3.webp" className="size-5 rounded-full border-2 border-white" alt="Anastasia Leton"  loading="lazy"/>
+											<img src="/images/avatars/avatar-5.webp" className="size-5 rounded-full border-2 border-white" alt="Victoria Ellsworth"  loading="lazy"/>
 											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
 										</div>
 									</div>
@@ -558,7 +558,7 @@ export default function ProjectDashboardPage() {
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
 										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-5.png" className="size-9 rounded-full border border-border-color" alt="Daniel Roberts" />
+											<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color" alt="Daniel Roberts"  loading="lazy"/>
 										</a>
 										<div className="min-w-0">
 											<p className="mb-0">
@@ -570,8 +570,8 @@ export default function ProjectDashboardPage() {
 									<div className="text-end shrink-0">
 										<p className="text-[11px] text-default mb-1">Team Members</p>
 										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-4.png" className="size-5 rounded-full border-2 border-white" alt="Chloe Mitchell" />
-											<img src="/images/avatars/avatar-7.png" className="size-5 rounded-full border-2 border-white" alt="Daniel Roberts" />
+											<img src="/images/avatars/avatar-4.webp" className="size-5 rounded-full border-2 border-white" alt="Chloe Mitchell"  loading="lazy"/>
+											<img src="/images/avatars/avatar-7.webp" className="size-5 rounded-full border-2 border-white" alt="Daniel Roberts"  loading="lazy"/>
 											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
 										</div>
 									</div>
@@ -579,7 +579,7 @@ export default function ProjectDashboardPage() {
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
 										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-6.png" className="size-9 rounded-full border border-border-color" alt="Grace Adams" />
+											<img src="/images/avatars/avatar-6.webp" className="size-9 rounded-full border border-border-color" alt="Grace Adams"  loading="lazy"/>
 										</a>
 										<div className="min-w-0">
 											<p className="mb-0">
@@ -591,8 +591,8 @@ export default function ProjectDashboardPage() {
 									<div className="text-end shrink-0">
 										<p className="text-[11px] text-default mb-1">Team Members</p>
 										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-3.png" className="size-5 rounded-full border-2 border-white" alt="Ethan Turner" />
-											<img src="/images/avatars/avatar-8.png" className="size-5 rounded-full border-2 border-white" alt="Marcus Vance" />
+											<img src="/images/avatars/avatar-3.webp" className="size-5 rounded-full border-2 border-white" alt="Ethan Turner"  loading="lazy"/>
+											<img src="/images/avatars/avatar-8.webp" className="size-5 rounded-full border-2 border-white" alt="Marcus Vance"  loading="lazy"/>
 											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
 										</div>
 									</div>
@@ -600,7 +600,7 @@ export default function ProjectDashboardPage() {
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
 										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-7.png" className="size-9 rounded-full border border-border-color" alt="Hendrita Bennett" />
+											<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color" alt="Hendrita Bennett"  loading="lazy"/>
 										</a>
 										<div className="min-w-0">
 											<p className="mb-0">
@@ -612,8 +612,8 @@ export default function ProjectDashboardPage() {
 									<div className="text-end shrink-0">
 										<p className="text-[11px] text-default mb-1">Team Members</p>
 										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-4.png" className="size-5 rounded-full border-2 border-white" alt="Chloe Mitchell" />
-											<img src="/images/avatars/avatar-6.png" className="size-5 rounded-full border-2 border-white" alt="Grace Adams" />
+											<img src="/images/avatars/avatar-4.webp" className="size-5 rounded-full border-2 border-white" alt="Chloe Mitchell"  loading="lazy"/>
+											<img src="/images/avatars/avatar-6.webp" className="size-5 rounded-full border-2 border-white" alt="Grace Adams"  loading="lazy"/>
 											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
 										</div>
 									</div>
@@ -621,7 +621,7 @@ export default function ProjectDashboardPage() {
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
 										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-8.png" className="size-9 rounded-full border border-border-color" alt="Marcus Vance" />
+											<img src="/images/avatars/avatar-8.webp" className="size-9 rounded-full border border-border-color" alt="Marcus Vance"  loading="lazy"/>
 										</a>
 										<div className="min-w-0">
 											<p className="mb-0">
@@ -633,8 +633,8 @@ export default function ProjectDashboardPage() {
 									<div className="text-end shrink-0">
 										<p className="text-[11px] text-default mb-1">Team Members</p>
 										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-1.png" className="size-5 rounded-full border-2 border-white" alt="Alice Johnson" />
-											<img src="/images/avatars/avatar-2.png" className="size-5 rounded-full border-2 border-white" alt="Boe Johnson" />
+											<img src="/images/avatars/avatar-1.webp" className="size-5 rounded-full border-2 border-white" alt="Alice Johnson"  loading="lazy"/>
+											<img src="/images/avatars/avatar-2.webp" className="size-5 rounded-full border-2 border-white" alt="Boe Johnson"  loading="lazy"/>
 											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+3</span>
 										</div>
 									</div>
@@ -642,7 +642,7 @@ export default function ProjectDashboardPage() {
 								<div className="flex items-center justify-between gap-3">
 									<div className="flex items-center gap-2 min-w-0">
 										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-9.png" className="size-9 rounded-full border border-border-color" alt="Sophia Gallagher" />
+											<img src="/images/avatars/avatar-9.webp" className="size-9 rounded-full border border-border-color" alt="Sophia Gallagher"  loading="lazy"/>
 										</a>
 										<div className="min-w-0">
 											<p className="mb-0">
@@ -654,8 +654,8 @@ export default function ProjectDashboardPage() {
 									<div className="text-end shrink-0">
 										<p className="text-[11px] text-default mb-1">Team Members</p>
 										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-10.png" className="size-5 rounded-full border-2 border-white" alt="Isabella Martin" />
-											<img src="/images/avatars/avatar-11.png" className="size-5 rounded-full border-2 border-white" alt="James Wilson" />
+											<img src="/images/avatars/avatar-10.webp" className="size-5 rounded-full border-2 border-white" alt="Isabella Martin"  loading="lazy"/>
+											<img src="/images/avatars/avatar-11.webp" className="size-5 rounded-full border-2 border-white" alt="James Wilson"  loading="lazy"/>
 											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+4</span>
 										</div>
 									</div>
@@ -790,7 +790,7 @@ export default function ProjectDashboardPage() {
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
 												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-3.png" className="rounded-full border border-border-color" alt="Ethan Walker" />
+													<img src="/images/avatars/avatar-3.webp" className="rounded-full border border-border-color" alt="Ethan Walker"  loading="lazy"/>
 												</div>
 												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Ethan Walker</p>
 											</div>
@@ -819,7 +819,7 @@ export default function ProjectDashboardPage() {
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
 												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-4.png" className="rounded-full border border-border-color" alt="Madison Clark" />
+													<img src="/images/avatars/avatar-4.webp" className="rounded-full border border-border-color" alt="Madison Clark"  loading="lazy"/>
 												</div>
 												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Madison Clark</p>
 											</div>
@@ -848,7 +848,7 @@ export default function ProjectDashboardPage() {
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
 												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-5.png" className="rounded-full border border-border-color" alt="James Harris" />
+													<img src="/images/avatars/avatar-5.webp" className="rounded-full border border-border-color" alt="James Harris"  loading="lazy"/>
 												</div>
 												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">James Harris</p>
 											</div>
@@ -877,7 +877,7 @@ export default function ProjectDashboardPage() {
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
 												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-6.png" className="rounded-full border border-border-color" alt="Avery Thompson" />
+													<img src="/images/avatars/avatar-6.webp" className="rounded-full border border-border-color" alt="Avery Thompson"  loading="lazy"/>
 												</div>
 												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Avery Thompson</p>
 											</div>
@@ -906,7 +906,7 @@ export default function ProjectDashboardPage() {
 										<td className="py-2.5 px-2">
 											<div className="flex items-center gap-2">
 												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-7.png" className="rounded-full border border-border-color" alt="Harper Scott" />
+													<img src="/images/avatars/avatar-7.webp" className="rounded-full border border-border-color" alt="Harper Scott"  loading="lazy"/>
 												</div>
 												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Harper Scott</p>
 											</div>

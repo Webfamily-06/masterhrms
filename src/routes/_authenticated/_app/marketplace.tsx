@@ -654,7 +654,7 @@ function MarketplacePage() {
                       src={imageUrl}
                       alt={a.name}
                       className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                     loading="lazy"/>
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
 
                     <div className="absolute top-3 left-3">
@@ -743,7 +743,7 @@ function MarketplacePage() {
                 <div className="space-y-4 text-xs">
                   {/* Banner Image */}
                   <div className="h-44 rounded-xl relative overflow-hidden bg-secondary/30">
-                    <img src={imageUrl} alt={addon.name} className="size-full object-cover" />
+                    <img src={imageUrl} alt={addon.name} className="size-full object-cover"  loading="lazy"/>
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent" />
                     <div className="absolute top-3 left-3 flex gap-2">
                       <Badge className="bg-background/80 backdrop-blur-md text-foreground font-mono text-[10px]">

@@ -1166,7 +1166,7 @@ function PlansMonetizationAdmin() {
                               src={b.receipt_url}
                               alt="Receipt"
                               className="size-8 object-cover rounded-md border shrink-0"
-                            />
+                             loading="lazy"/>
                             <span className="text-[10px]">View Screenshot</span>
                           </a>
                         ) : (

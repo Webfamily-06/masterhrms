@@ -347,7 +347,7 @@ export default function PublicStorefrontPage() {
                         src={p.image}
                         alt={p.name}
                         className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                       loading="lazy"/>
                     ) : (
                       <div className="size-full flex items-center justify-center text-muted-foreground/30">
                         <ShoppingBag className="size-12" />

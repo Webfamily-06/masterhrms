@@ -137,7 +137,7 @@ function SuperSidebar({
               src="/favicon.webp"
               alt="Root Console"
               className="size-7 object-contain"
-            />
+             loading="lazy"/>
           </Link>
         ) : (
           <>
@@ -151,7 +151,7 @@ function SuperSidebar({
                 src="/logo.webp"
                 alt="Master Platform"
                 className="h-8 max-h-8 w-auto object-contain dark:brightness-110"
-              />
+               loading="lazy"/>
               <Badge className="bg-purple-600 text-white text-[9px] font-mono uppercase font-bold py-0 h-4 shrink-0">
                 ROOT
               </Badge>
@@ -483,7 +483,7 @@ function SuperShell() {
 
             {/* Mobile Brand Logo (Visible only on mobile / tablet < 992px) */}
             <Link to="/super" className="logo lg:hidden flex items-center gap-1.5 shrink-0">
-              <img src="/logo.webp" alt="Master Platform" className="h-7 max-h-7 w-auto object-contain" />
+              <img src="/logo.webp" alt="Master Platform" className="h-7 max-h-7 w-auto object-contain"  loading="lazy"/>
               <Badge className="bg-purple-600 text-white text-[8px] font-mono font-bold py-0 h-3.5 px-1">ROOT</Badge>
             </Link>
 

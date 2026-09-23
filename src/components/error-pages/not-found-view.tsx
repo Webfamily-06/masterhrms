@@ -26,7 +26,7 @@ export function NotFoundView({
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}
-          />
+           loading="lazy"/>
           <div className="flex flex-col">
             <span className="font-bold text-base tracking-tight text-foreground">
               Master ERP
@@ -55,25 +55,25 @@ export function NotFoundView({
 
           {/* Main 404 Illustration */}
           <img
-            src="/images/pages/404.png"
+            src="/images/pages/404.webp"
             alt="404 Page Not Found"
             className="w-64 sm:w-72 h-auto object-contain select-none drop-shadow-2xl animate-in zoom-in-95 duration-500 relative z-10"
             onError={(e) => {
               // Fallback SVG in case image file is missing
               (e.target as HTMLElement).style.display = "none";
             }}
-          />
+           loading="lazy"/>
 
           {/* Floating Decorative 3D Object */}
           <img
-            src="/images/pages/misc-404-object.png"
+            src="/images/pages/misc-404-object.webp"
             alt="Floating Element"
             className="absolute -top-4 right-2 w-14 sm:w-16 h-auto object-contain select-none pointer-events-none z-20 animate-bounce"
             style={{ animationDuration: '3s' }}
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}
-          />
+           loading="lazy"/>
         </div>
 
         {/* Text Details */}
@@ -121,13 +121,13 @@ export function NotFoundView({
 
       {/* Decorative Tree Pot bottom corner */}
       <img
-        src="/images/pages/tree-pot.png"
+        src="/images/pages/tree-pot.webp"
         alt="Decorative Tree Pot"
         className="absolute bottom-0 left-6 w-20 h-auto object-contain opacity-35 hidden md:block select-none pointer-events-none"
         onError={(e) => {
           (e.target as HTMLElement).style.display = "none";
         }}
-      />
+       loading="lazy"/>
 
       {/* Clean Footer */}
       <footer className="w-full max-w-5xl mx-auto px-6 py-4 border-t border-border/40 text-center text-xs text-muted-foreground relative z-10 flex flex-col sm:flex-row items-center justify-between gap-2">
