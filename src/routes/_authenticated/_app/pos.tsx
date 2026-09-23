@@ -29,7 +29,12 @@ import { Switch } from "@/components/ui/switch";
 import { PlanGuard } from "@/components/plan-guard";
 import { formatSystemAmount, type SystemCurrencySettings } from "@/lib/currency";
 import { generateBarcodeSvg, playScannerBeep } from "@/lib/barcode";
-import { printThermalReceipt, triggerCashDrawerKick } from "@/lib/qz-print";
+import {
+  printThermalReceipt,
+  triggerCashDrawerKick,
+  generateThermalReceiptHtml,
+  openThermalPrintWindow,
+} from "@/lib/qz-print";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -184,6 +189,7 @@ function PosPage() {
   const [taxMode, setTaxMode] = useState<"igst" | "sgst_cgst">("sgst_cgst");
   const [lastReceipt, setLastReceipt] = useState<PosSale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [receiptPaperSize, setReceiptPaperSize] = useState<"80mm" | "58mm">("80mm");
   const [isHeldOpen, setIsHeldOpen] = useState(false);
   const [holdName, setHoldName] = useState("");
   const [barcodeInput, setBarcodeInput] = useState("");
@@ -1760,93 +1766,160 @@ function PosPage() {
 
 {/* ─── MODAL 4: GST RECEIPT ─── */}
         <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
-          <DialogContent className="sm:max-w-[420px] max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Receipt className="size-5 text-primary" /> GST Tax Invoice Receipt
-              </DialogTitle>
+          <DialogContent className="sm:max-w-[440px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="pb-1">
+              <div className="flex items-center justify-between">
+                <DialogTitle className="flex items-center gap-2 text-base">
+                  <Receipt className="size-5 text-primary" /> POS Tax Invoice Receipt
+                </DialogTitle>
+                <div className="flex items-center gap-1 bg-muted p-0.5 rounded-md border text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setReceiptPaperSize("80mm")}
+                    className={cn(
+                      "px-2 py-0.5 rounded font-semibold transition-all",
+                      receiptPaperSize === "80mm"
+                        ? "bg-background text-foreground shadow-xs font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    80mm Standard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptPaperSize("58mm")}
+                    className={cn(
+                      "px-2 py-0.5 rounded font-semibold transition-all",
+                      receiptPaperSize === "58mm"
+                        ? "bg-background text-foreground shadow-xs font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    58mm Mobile
+                  </button>
+                </div>
+              </div>
             </DialogHeader>
             {lastReceipt && (
-              <div className="space-y-3 py-1 text-xs font-mono">
-                {/* Company Header */}
-                <div className="text-center space-y-1 border-b pb-3 flex flex-col items-center">
-                  <img src="/logo.webp" alt="Store Logo" className="h-8 max-w-[120px] object-contain mb-0.5" />
-                  <div className="font-extrabold text-base text-primary">{sysConfig?.appName || "Master ERP"}</div>
-                  {sysConfig?.address && <div className="text-muted-foreground text-[10px]">{sysConfig.address}</div>}
-                  {sysConfig?.gstin && <div className="text-[10px]">GSTIN: <strong>{sysConfig.gstin}</strong></div>}
-                  <div className="text-muted-foreground text-[10px]">{lastReceipt.date}</div>
-                  <div className="font-bold">Receipt # {lastReceipt.receiptNo}</div>
+              <div
+                className={cn(
+                  "p-3.5 my-1 bg-white text-zinc-900 border border-dashed border-zinc-300 rounded-md shadow-xs font-mono select-text transition-all",
+                  receiptPaperSize === "58mm" ? "text-[10px] max-w-[280px] mx-auto" : "text-xs max-w-[340px] mx-auto"
+                )}
+              >
+                {/* Store Header */}
+                <div className="text-center space-y-0.5 border-b border-dashed border-zinc-300 pb-2 mb-2 flex flex-col items-center">
+                  <div className="font-extrabold text-sm uppercase tracking-wide text-zinc-900">
+                    {sysConfig?.appName || "MASTER POS"}
+                  </div>
+                  {sysConfig?.address && (
+                    <div className="text-[10px] text-zinc-600 leading-tight">{sysConfig.address}</div>
+                  )}
+                  {sysConfig?.phone && (
+                    <div className="text-[10px] text-zinc-600">Tel: {sysConfig.phone}</div>
+                  )}
+                  {sysConfig?.gstin && (
+                    <div className="text-[10px] font-bold text-zinc-800">GSTIN: {sysConfig.gstin}</div>
+                  )}
                 </div>
 
-                {/* Customer Info */}
-                <div className="space-y-0.5 text-[10px]">
-                  <div>Bill To: <strong>{lastReceipt.customer}</strong></div>
-                  {lastReceipt.customerGstin && <div>GSTIN: <strong>{lastReceipt.customerGstin}</strong></div>}
+                {/* Receipt Metadata */}
+                <div className="space-y-0.5 border-b border-dashed border-zinc-300 pb-2 mb-2 text-[10px]">
+                  <div className="flex justify-between font-bold">
+                    <span>RC: {lastReceipt.receiptNo}</span>
+                    <span>{lastReceipt.date}</span>
+                  </div>
+                  {lastReceipt.cashier && (
+                    <div className="text-zinc-600">Cashier: {lastReceipt.cashier}</div>
+                  )}
+                  <div className="text-zinc-700">
+                    Customer: <strong>{lastReceipt.customer || "Walk-in Guest"}</strong>
+                  </div>
+                  {lastReceipt.customerGstin && (
+                    <div className="text-zinc-600">Cust GSTIN: {lastReceipt.customerGstin}</div>
+                  )}
                 </div>
 
-                {/* Items */}
-                <div className="space-y-1 border-y py-2">
-                  <div className="grid grid-cols-12 text-[10px] text-muted-foreground font-bold">
-                    <span className="col-span-5">Item</span>
-                    <span className="col-span-2 text-right">Qty</span>
-                    <span className="col-span-2 text-right">Rate</span>
-                    <span className="col-span-3 text-right">Amount</span>
+                {/* Itemized Line Items */}
+                <div className="space-y-1.5 border-b border-dashed border-zinc-300 pb-2 mb-2">
+                  <div className="flex justify-between font-bold text-[10px] text-zinc-700 border-b border-zinc-200 pb-1">
+                    <span>ITEM & DETAILS</span>
+                    <span>AMOUNT</span>
                   </div>
                   {lastReceipt.items.map((item) => (
-                    <div key={item.id} className="grid grid-cols-12 text-[10px]">
-                      <span className="col-span-5 truncate">{item.name}</span>
-                      <span className="col-span-2 text-right">{item.qty}</span>
-                      <span className="col-span-2 text-right">{fmt(item.price, sysConfig?.currency)}</span>
-                      <span className="col-span-3 text-right font-bold">{fmt(item.price * item.qty, sysConfig?.currency)}</span>
+                    <div key={item.id} className="space-y-0.5">
+                      <div className="font-bold text-zinc-900 truncate">{item.name}</div>
+                      <div className="flex justify-between text-[10px] text-zinc-600">
+                        <span>
+                          {item.qty} x {fmt(item.price, sysConfig?.currency)}
+                        </span>
+                        <span className="font-bold text-zinc-900">
+                          {fmt(item.price * item.qty, sysConfig?.currency)}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                {/* GST Breakup */}
+                {/* Financial Summary & Tax Breakout */}
                 <div className="space-y-0.5 text-[10px]">
-                  <div className="flex justify-between text-muted-foreground">
+                  <div className="flex justify-between text-zinc-600">
                     <span>Subtotal</span>
                     <span>{fmt(lastReceipt.subtotal, sysConfig?.currency)}</span>
                   </div>
                   {lastReceipt.discountAmt > 0 && (
-                    <div className="flex justify-between text-emerald-600">
+                    <div className="flex justify-between text-emerald-700 font-semibold">
                       <span>Discount</span>
                       <span>-{fmt(lastReceipt.discountAmt, sysConfig?.currency)}</span>
                     </div>
                   )}
                   {lastReceipt.taxMode === "sgst_cgst" ? (
                     <>
-                      <div className="flex justify-between text-muted-foreground">
+                      <div className="flex justify-between text-zinc-600">
                         <span>CGST</span>
                         <span>{fmt(lastReceipt.cgst, sysConfig?.currency)}</span>
                       </div>
-                      <div className="flex justify-between text-muted-foreground">
+                      <div className="flex justify-between text-zinc-600">
                         <span>SGST</span>
                         <span>{fmt(lastReceipt.sgst, sysConfig?.currency)}</span>
                       </div>
                     </>
                   ) : (
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>IGST</span>
+                    <div className="flex justify-between text-zinc-600">
+                      <span>Tax / IGST</span>
                       <span>{fmt(lastReceipt.igst, sysConfig?.currency)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-extrabold text-sm border-t pt-1.5">
-                    <span>TOTAL</span>
-                    <span className="text-primary">{fmt(lastReceipt.total, sysConfig?.currency)}</span>
+                  <div className="flex justify-between font-black text-sm border-y-2 border-double border-zinc-900 py-1 my-1">
+                    <span>GRAND TOTAL</span>
+                    <span>{fmt(lastReceipt.total, sysConfig?.currency)}</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-700 font-medium">
+                    <span>Paid via ({lastReceipt.paymentMode})</span>
+                    <span>{fmt(lastReceipt.total, sysConfig?.currency)}</span>
                   </div>
                 </div>
 
-                <div className="text-center text-[10px] text-muted-foreground border-t pt-2">
-                  Payment: {lastReceipt.paymentMode} · Thank you for your business!
+                {/* Barcode & Footer Notice */}
+                <div className="text-center pt-2 mt-2 border-t border-dashed border-zinc-300 space-y-1">
+                  <div className="text-[10px] font-bold text-zinc-800">*** THANK YOU FOR VISITING ***</div>
+                  <div className="text-[9px] text-zinc-500">
+                    Goods once sold are subject to store exchange policy.
+                  </div>
+                  <div className="font-mono text-[10px] tracking-widest text-zinc-700 pt-1">
+                    *{lastReceipt.receiptNo}*
+                  </div>
                 </div>
               </div>
             )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsReceiptOpen(false)}>Close</Button>
+            <DialogFooter className="gap-1.5 sm:gap-2 pt-2 border-t">
+              <Button variant="outline" size="sm" onClick={() => setIsReceiptOpen(false)}>
+                Close
+              </Button>
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   try {
                     triggerCashDrawerKick();
@@ -1862,40 +1935,48 @@ function PosPage() {
               <Button
                 type="button"
                 variant="secondary"
+                size="sm"
                 onClick={async () => {
                   if (!lastReceipt) return;
-                  const lines = [
-                    "================================",
-                    "        TAX INVOICE / RECEIPT   ",
-                    "================================",
-                    "Receipt: " + lastReceipt.receiptNo,
-                    "Date: " + lastReceipt.date,
-                    "Cashier: " + lastReceipt.cashier,
-                    "Customer: " + lastReceipt.customer,
-                    "--------------------------------",
-                    ...lastReceipt.items.map(i => (i.name + " x" + i.qty).padEnd(22) + " " + (i.price * i.qty).toFixed(2)),
-                    "--------------------------------",
-                    "Subtotal: " + lastReceipt.subtotal.toFixed(2),
-                    "Tax Total: " + ((lastReceipt.cgst || 0) + (lastReceipt.sgst || 0) + (lastReceipt.igst || 0)).toFixed(2),
-                    "Grand Total: " + lastReceipt.total.toFixed(2),
-                    "Payment: " + lastReceipt.paymentMode,
-                    "================================",
-                    "      THANK YOU FOR VISITING!   ",
-                    "================================\n\n\n\n"
-                  ].join("\n");
+                  const storeInfo = {
+                    appName: sysConfig?.appName,
+                    companyName: sysConfig?.appName,
+                    address: sysConfig?.address,
+                    phone: sysConfig?.phone,
+                    email: sysConfig?.email,
+                    gstin: sysConfig?.gstin,
+                    currencySymbol: sysConfig?.currency_symbol || "₹",
+                  };
                   try {
-                    await printThermalReceipt(lines);
-                    toast.success("Silent print job dispatched via QZ-Tray / 80mm ESC/POS");
+                    await printThermalReceipt(lastReceipt, storeInfo, "Receipt Printer", false, receiptPaperSize);
+                    toast.success(`Silent print dispatched via QZ-Tray (${receiptPaperSize})`);
                   } catch (e) {
-                    toast.info("Thermal print queued (QZ Tray / ESC-POS)");
+                    toast.info(`Thermal print queued (${receiptPaperSize})`);
                   }
                 }}
                 className="gap-1.5 text-xs font-semibold"
               >
                 <Printer className="size-3.5" /> QZ Silent Print
               </Button>
-              <Button onClick={() => window.print()} className="gap-2 font-bold bg-primary text-white">
-                <Printer className="size-4" /> Print Receipt
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!lastReceipt) return;
+                  const storeInfo = {
+                    appName: sysConfig?.appName,
+                    companyName: sysConfig?.appName,
+                    address: sysConfig?.address,
+                    phone: sysConfig?.phone,
+                    email: sysConfig?.email,
+                    gstin: sysConfig?.gstin,
+                    currencySymbol: sysConfig?.currency_symbol || "₹",
+                  };
+                  const html = generateThermalReceiptHtml(lastReceipt, storeInfo, receiptPaperSize);
+                  openThermalPrintWindow(html, `Receipt_${lastReceipt.receiptNo}`);
+                }}
+                className="gap-2 font-bold bg-primary text-white"
+              >
+                <Printer className="size-4" /> Print Thermal Receipt
               </Button>
             </DialogFooter>
           </DialogContent>
