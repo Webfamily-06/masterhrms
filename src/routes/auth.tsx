@@ -21,17 +21,21 @@ import {
   Smartphone,
   KeyRound,
   ArrowLeft,
+  ArrowRight,
   User,
+  Building2,
+  RefreshCw,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const searchSchema = z.object({
-  mode: z.enum(["signin", "signup"]).optional(),
+  mode: z.enum(["signin", "signup", "forgot", "reset", "verify"]).optional(),
   redirect: z.string().optional(),
   token: z.string().optional(),
   error: z.string().optional(),
   provider: z.string().optional(),
+  email: z.string().optional(),
 });
 
 export const Route = createFileRoute("/auth")({
@@ -46,22 +50,46 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { mode: initialMode, redirect, token: searchToken, error: searchError, provider: searchProvider } = Route.useSearch();
+  const { mode: initialMode, redirect, token: searchToken, error: searchError, provider: searchProvider, email: searchEmail } = Route.useSearch();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [mode, setMode] = useState<"signin" | "signup">(initialMode ?? "signin");
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset" | "verify">(initialMode ?? "signin");
+  const [email, setEmail] = useState(searchEmail || "");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // OTP Verification state (Forgot password / Verify email)
+  const [otpCode, setOtpCode] = useState("");
+  const [resendCountdown, setResendCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState("");
 
   // 2FA / TOTP Challenge State
   const [isMfaStep, setIsMfaStep] = useState(false);
   const [mfaToken, setMfaToken] = useState("");
   const [mfaCode, setMfaCode] = useState("");
   const [isBackupMode, setIsBackupMode] = useState(false);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (resendCountdown > 0 && !canResend) {
+      const timer = setInterval(() => {
+        setResendCountdown((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [resendCountdown, canResend]);
 
   // Query platform settings for dynamic logos & app name
   const { data: platformSettings } = useQuery({
@@ -98,7 +126,7 @@ function AuthPage() {
   } catch (e) {}
 
   const logoLightUrl = platformSettings?.logoLightUrl || cachedLogoLight || "/logo.webp";
-  const appName = platformSettings?.appName || cachedAppName || "Sneat ERP";
+  const appName = platformSettings?.appName || cachedAppName || "Master Workspace ERP";
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
   const appleVisible = Boolean(oauthConfig?.apple?.enabled);
@@ -151,14 +179,14 @@ function AuthPage() {
     }
 
     const token = localStorage.getItem("hrms_auth_token");
-    if (token) {
+    if (token && mode === "signin") {
       navigate({ to: redirect || "/dashboard" });
     }
   }, [searchToken, searchError, searchProvider, navigate, redirect, qc]);
 
+  // Sign in / Sign up submit
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
 
@@ -169,17 +197,27 @@ function AuthPage() {
 
     try {
       if (mode === "signup") {
+        if (password !== confirmPassword) {
+          toast.error("Passwords do not match.");
+          setLoading(false);
+          return;
+        }
+
         const res = await api.post("/auth/register", {
           email: cleanEmail,
           password: cleanPassword,
           fullName: fullName.trim() || cleanEmail.split("@")[0],
+          companyName: companyName.trim() || undefined,
         });
 
         if (res.token) {
           setToken(res.token);
           qc.invalidateQueries({ queryKey: ["current-session-user"] });
-          toast.success("Account registered successfully! Redirecting...");
-          navigate({ to: redirect || "/dashboard" });
+          toast.success("Account created successfully! Let's set up your workspace.");
+          navigate({ to: "/onboarding" });
+        } else {
+          toast.success("Account initiated! Please verify your email.");
+          setMode("verify");
         }
       } else {
         const res = await api.post("/auth/login", {
@@ -220,9 +258,91 @@ function AuthPage() {
     }
   }
 
+  // Forgot password submit
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) {
+      toast.error("Please enter your account email address.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/forgot-password", { email });
+      setMaskedEmail(res.maskedEmail || email);
+      toast.success(res.message || "Password reset instructions dispatched to your email.");
+      setMode("reset");
+    } catch (err: any) {
+      toast.error(err.message || "Unable to send password reset code.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Reset password submit
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return toast.error("Please enter your work email.");
+    if (!otpCode || otpCode.length < 6) return toast.error("Please enter the 6-digit code.");
+    if (password.length < 8) return toast.error("Password must be at least 8 characters long.");
+    if (password !== confirmPassword) return toast.error("Passwords do not match.");
+
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/reset-password", {
+        email,
+        code: otpCode,
+        newPassword: password,
+      });
+
+      toast.success(res.message || "Password updated! You can now sign in.");
+      setPassword("");
+      setConfirmPassword("");
+      setOtpCode("");
+      setMode("signin");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reset password. Please check your code.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Verify email submit
+  async function handleVerifyEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return toast.error("Please enter your email.");
+    if (!otpCode || otpCode.length < 6) return toast.error("Please enter the 6-digit verification code.");
+
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/verify-email", { email, code: otpCode });
+      toast.success(res.message || "Email verified! You can now sign in.");
+      setMode("signin");
+    } catch (err: any) {
+      toast.error(err.message || "Verification code failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Resend email code
+  async function handleResendVerification() {
+    if (!email) return toast.error("Please specify your email.");
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/resend-verification", { email });
+      toast.success(res.message || "A new 6-digit code has been sent.");
+      setResendCountdown(60);
+      setCanResend(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to resend code.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleMfaVerify(e: React.FormEvent) {
     e.preventDefault();
-
     const cleanCode = mfaCode.trim();
     if (!cleanCode) {
       return toast.error(
@@ -233,7 +353,6 @@ function AuthPage() {
     }
 
     setLoading(true);
-
     try {
       const res = await api.post("/auth/2fa/verify-login", {
         mfaToken,
@@ -255,9 +374,8 @@ function AuthPage() {
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-background text-foreground selection:bg-primary/20">
-      {/* ── Left Illustration (Sneat Pro Auth V2 Hero) ─────────────── */}
+      {/* ── Left Illustration Hero ─────────────── */}
       <div className="hidden lg:flex lg:col-span-7 xl:col-span-8 relative items-center justify-center p-12 bg-muted/20 border-r border-border/60 overflow-hidden">
-        {/* Background Mask */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-primary/10 -z-10" />
 
         <div className="max-w-xl text-center flex flex-col items-center">
@@ -288,8 +406,8 @@ function AuthPage() {
         </div>
       </div>
 
-      {/* ── Right Form Column (Sneat Pro Auth Card) ────────────────── */}
-      <div className="col-span-1 lg:col-span-5 xl:col-span-4 flex flex-col justify-between p-6 sm:p-10 lg:p-12 bg-card">
+      {/* ── Right Form Column ────────────────── */}
+      <div className="col-span-1 lg:col-span-5 xl:col-span-4 flex flex-col justify-between p-6 sm:p-10 lg:p-12 bg-card overflow-y-auto">
         {/* Top Header */}
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
@@ -362,6 +480,190 @@ function AuthPage() {
                 </div>
               </form>
             </div>
+          ) : mode === "forgot" ? (
+            /* ── FORGOT PASSWORD MODE ────────────────────── */
+            <div className="space-y-6">
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="size-3.5" />
+                <span>Return to sign in</span>
+              </button>
+
+              <div className="space-y-1.5">
+                <h3 className="text-2xl font-bold tracking-tight">Forgot Password</h3>
+                <p className="text-xs text-muted-foreground">
+                  Enter your work email address to receive a secure password recovery code.
+                </p>
+              </div>
+
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Account Work Email</Label>
+                  <div className="relative">
+                    <Input
+                      type="email"
+                      placeholder="name@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="h-10 pl-9 text-xs"
+                      required
+                      autoFocus
+                    />
+                    <Mail className="size-4 text-muted-foreground absolute left-3 top-3" />
+                  </div>
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full h-10 font-bold gap-2">
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
+                  Send Reset Code
+                </Button>
+              </form>
+            </div>
+          ) : mode === "reset" ? (
+            /* ── RESET PASSWORD MODE ─────────────────────── */
+            <div className="space-y-6">
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="size-3.5" />
+                <span>Back to sign in</span>
+              </button>
+
+              <div className="space-y-1.5">
+                <h3 className="text-2xl font-bold tracking-tight">Set New Password</h3>
+                <p className="text-xs text-muted-foreground">
+                  Enter the 6-digit code received via email and your new password.
+                </p>
+              </div>
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Account Email</Label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-10 text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">6-Digit Reset Code</Label>
+                  <Input
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    className="h-10 text-center font-mono font-bold tracking-widest text-base"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">New Password</Label>
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Minimum 8 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-10 text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Confirm New Password</Label>
+                  <Input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="h-10 text-xs"
+                    required
+                  />
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full h-10 font-bold gap-2">
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
+                  Save Password & Sign In
+                </Button>
+              </form>
+            </div>
+          ) : mode === "verify" ? (
+            /* ── VERIFY EMAIL MODE ───────────────────────── */
+            <div className="space-y-6">
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="size-3.5" />
+                <span>Return to sign in</span>
+              </button>
+
+              <div className="space-y-1.5">
+                <h3 className="text-2xl font-bold tracking-tight">Verify Your Email</h3>
+                <p className="text-xs text-muted-foreground">
+                  We dispatched a 6-digit confirmation code to your authorized inbox.
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyEmail} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Work Email</Label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-10 text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between">
+                    <Label className="text-xs font-semibold">6-Digit Code</Label>
+                    <span className="text-[11px] text-muted-foreground font-mono">
+                      {canResend ? "Code expired?" : `Resend in ${resendCountdown}s`}
+                    </span>
+                  </div>
+                  <Input
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    className="h-10 text-center font-mono font-bold tracking-widest text-base"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canResend || loading}
+                    onClick={handleResendVerification}
+                    className="text-xs gap-1.5 text-muted-foreground h-8 px-2"
+                  >
+                    <RefreshCw className="size-3" /> Resend Code
+                  </Button>
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full h-10 font-bold gap-2">
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                  Confirm Email Address
+                </Button>
+              </form>
+            </div>
           ) : (
             /* ── Primary Sign In / Sign Up Form ─────────── */
             <div className="space-y-6">
@@ -402,21 +704,38 @@ function AuthPage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === "signup" && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Full Name</Label>
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="John Doe"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="h-10 pl-9 text-xs"
-                        required
-                        autoFocus
-                      />
-                      <User className="size-4 text-muted-foreground absolute left-3 top-3" />
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Full Name</Label>
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="John Doe"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="h-10 pl-9 text-xs"
+                          required
+                          autoFocus
+                        />
+                        <User className="size-4 text-muted-foreground absolute left-3 top-3" />
+                      </div>
                     </div>
-                  </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Company / Org Name</Label>
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="Acme Global Ltd"
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          className="h-10 pl-9 text-xs"
+                          required
+                        />
+                        <Building2 className="size-4 text-muted-foreground absolute left-3 top-3" />
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-1.5">
@@ -439,72 +758,109 @@ function AuthPage() {
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Password</Label>
                     {mode === "signin" && (
-                      <Link to="/auth" search={{ mode: "signin" }} className="text-xs text-primary hover:underline font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setMode("forgot")}
+                        className="text-xs text-primary hover:underline font-medium cursor-pointer"
+                      >
                         Forgot password?
-                      </Link>
+                      </button>
                     )}
                   </div>
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
-                      placeholder="············"
+                      placeholder="••••••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="h-10 pl-9 pr-10 text-xs"
+                      className="h-10 pl-9 pr-9 text-xs"
                       required
                     />
                     <Lock className="size-4 text-muted-foreground absolute left-3 top-3" />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground cursor-pointer"
+                      className="text-muted-foreground hover:text-foreground absolute right-3 top-3"
                     >
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="size-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                  />
-                  <label htmlFor="rememberMe" className="text-xs text-muted-foreground font-medium cursor-pointer">
-                    Remember session
-                  </label>
-                </div>
+                {mode === "signup" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Confirm Password</Label>
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        placeholder="Confirm password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="h-10 pl-9 text-xs"
+                        required
+                      />
+                      <Lock className="size-4 text-muted-foreground absolute left-3 top-3" />
+                    </div>
+                  </div>
+                )}
 
-                <Button type="submit" disabled={loading} className="w-full h-10 font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs">
-                  {loading && <Loader2 className="size-4 animate-spin mr-2" />}
-                  {mode === "signin" ? "Sign In to Workspace" : "Create Workspace Account"}
+                {mode === "signin" && (
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="rounded border-input text-primary focus:ring-primary"
+                      />
+                      <span className="text-muted-foreground">Remember Me</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMode("verify")}
+                      className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      Verify Email Code
+                    </button>
+                  </div>
+                )}
+
+                <Button type="submit" disabled={loading} className="w-full h-10 font-bold bg-primary text-primary-foreground gap-2">
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : mode === "signin" ? (
+                    <>
+                      Sign In to Workspace <ArrowRight className="size-4" />
+                    </>
+                  ) : (
+                    <>
+                      Create Enterprise Workspace <ArrowRight className="size-4" />
+                    </>
+                  )}
                 </Button>
               </form>
 
               {/* Social Login Options */}
-              {anySocialVisible && (
-                <div className="space-y-4 pt-2">
+              {mode === "signin" && anySocialVisible && (
+                <div className="space-y-4">
                   <div className="relative flex items-center justify-center">
                     <div className="border-t border-border w-full" />
-                    <span className="bg-card px-3 text-[11px] font-semibold text-muted-foreground uppercase">
-                      or continue with
+                    <span className="bg-card px-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest absolute">
+                      or sign in with
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-center gap-3">
+                  <div className="space-y-2">
                     {googleVisible && (
                       <Button
                         type="button"
                         variant="outline"
-                        size="icon"
-                        className="size-10 rounded-lg hover:border-primary/50"
+                        className="w-full h-10 gap-2 text-xs font-bold"
                         onClick={() => {
                           window.location.href = `${API_BASE}/auth/oauth/google`;
                         }}
                       >
-                        <svg className="size-4" viewBox="0 0 24 24">
+                        <svg className="size-4 shrink-0" viewBox="0 0 24 24">
                           <path
                             fill="#4285F4"
                             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -522,47 +878,73 @@ function AuthPage() {
                             d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                           />
                         </svg>
+                        Continue with Google Workspace
                       </Button>
                     )}
 
-                    {secondaryProviders.map((p) => (
-                      <Button
-                        key={p.id}
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="size-10 rounded-lg hover:border-primary/50"
-                        onClick={() => {
-                          window.location.href = `${API_BASE}/auth/oauth/${p.id}`;
-                        }}
-                      >
-                        {p.icon}
-                      </Button>
-                    ))}
+                    {secondaryProviders.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {secondaryProviders.map((provider) => (
+                          <Button
+                            key={provider.id}
+                            type="button"
+                            variant="outline"
+                            className="h-9 gap-1.5 text-xs font-semibold px-2"
+                            onClick={() => {
+                              window.location.href = `${API_BASE}/auth/oauth/${provider.id}`;
+                            }}
+                          >
+                            {provider.icon}
+                            <span className="truncate">{provider.name}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Mode Toggle Footer */}
-              <div className="text-center pt-2">
-                <p className="text-xs text-muted-foreground">
-                  {mode === "signin" ? "New on our platform?" : "Already have an account?"}{" "}
-                  <button
-                    type="button"
-                    onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-                    className="text-primary font-bold hover:underline cursor-pointer"
-                  >
-                    {mode === "signin" ? "Create an account" : "Sign in instead"}
-                  </button>
-                </p>
+              <div className="text-center text-xs text-muted-foreground pt-4 border-t">
+                {mode === "signin" ? (
+                  <span>
+                    New to {appName}?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setMode("signup")}
+                      className="text-primary font-bold hover:underline cursor-pointer"
+                    >
+                      Create an account
+                    </button>
+                  </span>
+                ) : (
+                  <span>
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setMode("signin")}
+                      className="text-primary font-bold hover:underline cursor-pointer"
+                    >
+                      Sign in instead
+                    </button>
+                  </span>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* Bottom Footer Notice */}
-        <div className="text-center text-[11px] text-muted-foreground/60">
-          <p>© {new Date().getFullYear()} {appName}. All rights reserved.</p>
+        {/* Bottom Footer Links */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">
+          <Link to="/help-center" className="hover:text-foreground">
+            Help Center
+          </Link>
+          <Link to="/pricing" className="hover:text-foreground">
+            Pricing Plans
+          </Link>
+          <Link to="/contact" className="hover:text-foreground">
+            Contact Support
+          </Link>
         </div>
       </div>
     </div>

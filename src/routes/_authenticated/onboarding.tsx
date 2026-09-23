@@ -56,7 +56,7 @@ function Onboarding() {
           // If already onboarded, continue
         }
       } catch {
-        navigate({ to: "/login" });
+        navigate({ to: "/auth" });
         return;
       }
       setChecking(false);

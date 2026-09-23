@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/command";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Loader2, Home, User, ShieldCheck, Settings, CreditCard, LogOut,
   Sparkles, Users, Clock, CalendarCheck, Wallet, Briefcase, GraduationCap, HelpCircle,
@@ -105,7 +106,7 @@ function AppShell() {
 
   useEffect(() => {
     if (!loading && !isLoading && !localStorage.getItem("hrms_auth_token")) {
-      navigate({ to: "/login" });
+      navigate({ to: "/auth" });
       return;
     }
     if (!loading && !isLoading && profile && !profile.tenant_id) {

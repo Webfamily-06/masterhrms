@@ -144,7 +144,7 @@ export function PaymentPendingPage() {
                 variant="outline"
                 className="w-full text-xs font-semibold h-9"
               >
-                <Link to="/billing">Return to Billing & Invoices</Link>
+                <Link to="/subscription">Return to Subscription & Invoices</Link>
               </Button>
             </div>
           </CardContent>

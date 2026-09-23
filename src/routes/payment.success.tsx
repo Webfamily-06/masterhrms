@@ -124,7 +124,7 @@ export function PaymentSuccessPage() {
                   variant="outline"
                   className="w-full text-xs font-semibold gap-1.5 h-9"
                 >
-                  <Link to="/billing">Manage Billing</Link>
+                  <Link to="/subscription">Manage Subscription & Invoices</Link>
                 </Button>
               </div>
             </div>

@@ -25,11 +25,6 @@ export function SessionExpiredModal() {
       if (
         typeof window !== "undefined" &&
         (window.location.pathname.startsWith("/auth") ||
-          window.location.pathname.startsWith("/login") ||
-          window.location.pathname.startsWith("/register") ||
-          window.location.pathname.startsWith("/verify-email") ||
-          window.location.pathname.startsWith("/forgot-password") ||
-          window.location.pathname.startsWith("/reset-password") ||
           window.location.pathname.startsWith("/super-login") ||
           window.location.pathname.startsWith("/session-expired"))
       ) {
@@ -107,7 +102,7 @@ export function SessionExpiredModal() {
           <div className="space-y-1.5">
             <div className="flex justify-between items-center">
               <Label className="text-xs font-bold">Password</Label>
-              <a href="/auth?tab=forgot" className="text-[11px] text-primary hover:underline">
+              <a href="/auth?mode=forgot" className="text-[11px] text-primary hover:underline">
                 Forgot password?
               </a>
             </div>

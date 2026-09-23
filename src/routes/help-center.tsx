@@ -138,7 +138,7 @@ export function HelpCenterPage() {
             <Link to="/support">Contact Support</Link>
           </Button>
           <Button asChild size="sm" variant="outline" className="text-xs font-bold">
-            <Link to="/login">Sign In</Link>
+            <Link to="/auth">Sign In</Link>
           </Button>
           <ThemeToggle />
         </div>

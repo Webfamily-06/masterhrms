@@ -536,7 +536,7 @@ function Employees() {
     ]);
     const csv =
       "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((r) => r.map((c) => `"${c}"`).join(","))].join("\n");
+      [headers.join(","), ...rows.map((r: any[]) => r.map((c: any) => `"${c}"`).join(","))].join("\n");
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csv));
     link.setAttribute("download", `employees_${new Date().toISOString().slice(0, 10)}.csv`);

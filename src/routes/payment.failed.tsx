@@ -92,7 +92,7 @@ export function PaymentFailedPage() {
 
             <div className="space-y-2 pt-2">
               <Button
-                onClick={() => navigate({ to: "/billing" })}
+                onClick={() => navigate({ to: "/subscription" })}
                 className="w-full font-bold h-10 gap-2"
               >
                 <RefreshCw className="size-4" /> Retry Payment Now

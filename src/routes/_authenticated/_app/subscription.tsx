@@ -41,7 +41,18 @@ import {
   Building2,
   Calendar,
   Check,
+  AlertTriangle,
+  XCircle,
+  ArrowDownRight,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { formatSystemAmount } from "@/lib/currency";
 import { PaymentCheckoutModal } from "@/components/payment-checkout-modal";
 import { toast } from "sonner";
@@ -125,6 +136,14 @@ export function SubscriptionPage() {
     queryFn: () => api.get("/workspace/subscription"),
   });
   useEffect(() => { setCurrentPlanId(subscription?.planId || ""); }, [subscription?.planId]);
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedDowngradePlan, setSelectedDowngradePlan] = useState("Starter Plan");
+  const [downgradeLoading, setDowngradeLoading] = useState(false);
+  const [cancelReason, setCancelReason] = useState("pricing");
+  const [cancelFeedback, setCancelFeedback] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
+
   const requestPlan = useMutation({
     mutationFn: (plan: SubscriptionPlan) => api.post("/support/platform/tickets", {
       subject: "Subscription plan change: " + plan.name, requestType: "billing_invoices", priority: "medium",
@@ -133,6 +152,42 @@ export function SubscriptionPage() {
     onSuccess: () => toast.success("Plan change requested. Super Admin will review it in platform support."),
     onError: (error: Error) => toast.error(error.message),
   });
+
+  async function handleDowngrade() {
+    setDowngradeLoading(true);
+    try {
+      await api.post("/support/platform/tickets", {
+        subject: `Plan Downgrade Request: ${selectedDowngradePlan}`,
+        requestType: "billing_invoices",
+        priority: "medium",
+        message: `Tenant ${tenantId} requested a plan downgrade to ${selectedDowngradePlan}. Effective next billing renewal.`,
+      });
+      toast.success("Downgrade request scheduled for the next renewal cycle.");
+      setShowDowngradeModal(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to schedule downgrade.");
+    } finally {
+      setDowngradeLoading(false);
+    }
+  }
+
+  async function handleCancelSubscription() {
+    setCancelLoading(true);
+    try {
+      await api.post("/support/platform/tickets", {
+        subject: `Subscription Cancellation Request: Tenant ${tenantId}`,
+        requestType: "billing_invoices",
+        priority: "high",
+        message: `Tenant ${tenantId} has requested subscription cancellation.\nReason: ${cancelReason}\nFeedback: ${cancelFeedback || "No additional feedback provided."}`,
+      });
+      toast.success("Cancellation request logged. Your account manager will contact you before cycle ends.");
+      setShowCancelModal(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit cancellation request.");
+    } finally {
+      setCancelLoading(false);
+    }
+  }
   const [viewingInvoice, setViewingInvoice] = useState<TenantInvoice | null>(null);
   const printAreaRef = useRef<HTMLDivElement>(null);
 
@@ -305,6 +360,35 @@ export function SubscriptionPage() {
             </div>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-primary/20 mt-4">
+          <Button
+            size="sm"
+            onClick={() => {
+              const el = document.getElementById("available-subscription-tiers");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="gap-1.5 font-bold text-xs"
+          >
+            <Zap className="size-3.5" /> Upgrade / Change Plan
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowDowngradeModal(true)}
+            className="gap-1.5 font-semibold text-xs border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+          >
+            <ArrowDownRight className="size-3.5" /> Downgrade Plan
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowCancelModal(true)}
+            className="gap-1.5 font-semibold text-xs text-destructive hover:bg-destructive/10"
+          >
+            <XCircle className="size-3.5" /> Cancel Subscription
+          </Button>
+        </div>
       </Card>
 
       {/* SECTION 1: CURRENTLY ACTIVE / PURCHASED ADDONS */}
@@ -467,7 +551,7 @@ export function SubscriptionPage() {
       </div>
 
       {/* SECTION 3: AVAILABLE PLANS GRID */}
-      <div className="space-y-4 pt-4 border-t">
+      <div id="available-subscription-tiers" className="space-y-4 pt-4 border-t">
         <h3 className="font-extrabold text-lg flex items-center gap-2">
           <Sparkles className="size-5 text-amber-500" /> Available Workspace Plans
         </h3>
@@ -645,8 +729,115 @@ export function SubscriptionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Payment Checkout Modal */}
+      {/* DOWNGRADE MODAL */}
+      <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="size-5 text-amber-600" /> Plan Downgrade Confirmation
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Please review the restrictions that will take effect at the end of your current billing cycle.
+            </DialogDescription>
+          </DialogHeader>
 
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1.5">
+              <label className="font-semibold">Select Target Tier</label>
+              <Select value={selectedDowngradePlan} onValueChange={setSelectedDowngradePlan}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Starter Plan">Starter Plan (25 Employees)</SelectItem>
+                  <SelectItem value="Growth Plan">Growth Plan (100 Employees)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1">
+              <p className="font-bold">Scheduled Policy</p>
+              <p className="text-[11px]">
+                Your employee seats and enterprise add-ons will adjust upon cycle completion. No immediate disruption will occur.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowDowngradeModal(false)}>
+              Keep Current Plan
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={downgradeLoading}
+              onClick={handleDowngrade}
+              className="font-bold gap-1.5"
+            >
+              {downgradeLoading ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              Schedule Downgrade
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CANCEL SUBSCRIPTION MODAL */}
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-destructive">
+              <XCircle className="size-5 text-destructive" /> Cancel Subscription
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              We're sorry to see you go. Help us improve by providing your feedback.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1.5">
+              <label className="font-semibold">Primary Reason</label>
+              <Select value={cancelReason} onValueChange={setCancelReason}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pricing">Pricing / Budget constraints</SelectItem>
+                  <SelectItem value="missing_features">Missing features</SelectItem>
+                  <SelectItem value="switching">Switching to alternative solution</SelectItem>
+                  <SelectItem value="temporary">Temporary business pause</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-semibold">Additional Comments (Optional)</label>
+              <Textarea
+                placeholder="What could we have done better?"
+                value={cancelFeedback}
+                onChange={(e) => setCancelFeedback(e.target.value)}
+                className="text-xs h-20"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowCancelModal(false)}>
+              Keep Subscription
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={cancelLoading}
+              onClick={handleCancelSubscription}
+              className="font-bold gap-1.5"
+            >
+              {cancelLoading ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              Confirm Cancellation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
