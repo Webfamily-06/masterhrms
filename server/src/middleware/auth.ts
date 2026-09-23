@@ -24,7 +24,8 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     const account = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
     if (!account) return res.status(401).json({ error: "Account no longer exists." });
     const isSuper = account.roles.some((r) => r.role === "super_admin");
-    const tenantId = isSuper ? decoded.tenantId : account.profile?.tenantId;
+    const explicitTenant = (req.headers["x-tenant-id"] as string) || (req.query?.tenant_id as string);
+    const tenantId = isSuper ? (explicitTenant || decoded.tenantId) : account.profile?.tenantId;
     const roles = account.roles.filter((r) => r.role === "super_admin" || r.tenantId === tenantId).map((r) => r.role);
     if (!isSuper && tenantId) {
       try { assertWorkspaceActive(await getWorkspacePolicy(tenantId)); }

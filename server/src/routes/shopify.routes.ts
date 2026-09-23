@@ -18,11 +18,11 @@ import {
 
 export const shopifyRouter = Router();
 
-async function getTenantId(req: AuthRequest): Promise<string> {
-  let tenantId = req.user?.tenantId;
+function getTenantId(req: AuthRequest, res: Response): string | null {
+  const tenantId = req.user?.tenantId;
   if (!tenantId || tenantId === "default") {
-    const t = await prisma.tenant.findFirst();
-    tenantId = t?.id || "tenant-default-001";
+    res.status(403).json({ ok: false, error: "Forbidden: Valid workspace context is required." });
+    return null;
   }
   return tenantId;
 }
@@ -30,7 +30,8 @@ async function getTenantId(req: AuthRequest): Promise<string> {
 // GET /api/shopify/dashboard
 shopifyRouter.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const data = await getShopifyDashboardData(tenantId);
     res.json({ ok: true, ...data });
   } catch (err: any) {
@@ -41,7 +42,8 @@ shopifyRouter.get("/dashboard", requireAuth, async (req: AuthRequest, res: Respo
 // GET /api/shopify/stores
 shopifyRouter.get("/stores", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const stores = await getShopifyStores(tenantId);
     const warehouses = await prisma.warehouse.findMany({ where: { tenantId } });
     res.json({ ok: true, stores, warehouses });
@@ -53,7 +55,8 @@ shopifyRouter.get("/stores", requireAuth, async (req: AuthRequest, res: Response
 // POST /api/shopify/stores
 shopifyRouter.post("/stores", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const store = await saveShopifyStore(tenantId, req.body);
     res.json({ ok: true, store, message: "Shopify store saved successfully" });
   } catch (err: any) {
@@ -64,7 +67,8 @@ shopifyRouter.post("/stores", requireAuth, async (req: AuthRequest, res: Respons
 // DELETE /api/shopify/stores/:id
 shopifyRouter.delete("/stores/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     await deleteShopifyStore(tenantId, req.params.id);
     res.json({ ok: true, message: "Store disconnected successfully" });
   } catch (err: any) {
@@ -75,7 +79,8 @@ shopifyRouter.delete("/stores/:id", requireAuth, async (req: AuthRequest, res: R
 // POST /api/shopify/test-connection
 shopifyRouter.post("/test-connection", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const result = await testShopifyConnection(tenantId, req.body);
     res.json(result);
   } catch (err: any) {
@@ -86,7 +91,8 @@ shopifyRouter.post("/test-connection", requireAuth, async (req: AuthRequest, res
 // POST /api/shopify/sync/products
 shopifyRouter.post("/sync/products", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const storeId = req.body?.store_id;
     const mode = req.body?.mode || "pull";
     const result = await syncShopifyProducts(tenantId, storeId, mode);
@@ -99,7 +105,8 @@ shopifyRouter.post("/sync/products", requireAuth, async (req: AuthRequest, res: 
 // POST /api/shopify/sync/stock
 shopifyRouter.post("/sync/stock", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const storeId = req.body?.store_id;
     const result = await syncShopifyStock(tenantId, storeId);
     res.json(result);
@@ -111,7 +118,8 @@ shopifyRouter.post("/sync/stock", requireAuth, async (req: AuthRequest, res: Res
 // POST /api/shopify/sync/orders
 shopifyRouter.post("/sync/orders", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const storeId = req.body?.store_id;
     const result = await syncShopifyOrders(tenantId, storeId);
     res.json(result);
@@ -123,7 +131,8 @@ shopifyRouter.post("/sync/orders", requireAuth, async (req: AuthRequest, res: Re
 // POST /api/shopify/sync/customers
 shopifyRouter.post("/sync/customers", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const storeId = req.body?.store_id;
     const result = await syncShopifyCustomers(tenantId, storeId);
     res.json(result);
@@ -135,7 +144,8 @@ shopifyRouter.post("/sync/customers", requireAuth, async (req: AuthRequest, res:
 // GET /api/shopify/locations
 shopifyRouter.get("/locations", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const storeId = req.query.store_id as string;
     const result = await getShopifyLocations(tenantId, storeId);
     res.json(result);

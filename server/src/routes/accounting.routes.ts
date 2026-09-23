@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantId } from "../lib/tenant";
 
 export const accountingRouter = Router();
 
@@ -50,7 +51,8 @@ async function ensureSeedAccounts(tenantId: string) {
 
 accountingRouter.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     await ensureSeedAccounts(tenantId);
 
     const accounts = await prisma.chartOfAccount.findMany({ where: { tenantId } });
@@ -151,7 +153,8 @@ accountingRouter.get("/dashboard", requireAuth, async (req: AuthRequest, res: Re
 
 accountingRouter.get("/accounts", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     await ensureSeedAccounts(tenantId);
 
     const accounts = await prisma.chartOfAccount.findMany({
@@ -170,7 +173,8 @@ accountingRouter.get("/accounts", requireAuth, async (req: AuthRequest, res: Res
 
 accountingRouter.post("/accounts", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { accountCode, accountName, accountType, category, description, currency, balance } = req.body;
 
     if (!accountCode || !accountName || !accountType) {
@@ -209,7 +213,8 @@ accountingRouter.post("/accounts", requireAuth, async (req: AuthRequest, res: Re
 
 accountingRouter.get("/journal-entries", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const entries = await prisma.journalEntry.findMany({
       where: { tenantId },
@@ -229,7 +234,8 @@ accountingRouter.get("/journal-entries", requireAuth, async (req: AuthRequest, r
 
 accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { entryDate, reference, referenceType, description, items } = req.body;
 
     if (!description || !Array.isArray(items) || items.length < 2) {
@@ -311,7 +317,8 @@ accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, 
 // POST /api/accounting/transfers - Internal Bank & Cash Transfer
 accountingRouter.post("/transfers", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { fromAccount, toAccount, amount, reference, notes } = req.body;
 
     const transferAmt = parseFloat(amount);
@@ -411,7 +418,8 @@ accountingRouter.post("/transfers", requireAuth, async (req: AuthRequest, res: R
 
 accountingRouter.get("/reports/financial-statements", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     await ensureSeedAccounts(tenantId);
 
     const accounts = await prisma.chartOfAccount.findMany({
@@ -469,7 +477,8 @@ accountingRouter.get("/reports/financial-statements", requireAuth, async (req: A
 
 accountingRouter.get("/reports/aging", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     // Calculate real GST from tax accounts
     const gstPayableAccount = await prisma.chartOfAccount.findFirst({
@@ -501,7 +510,8 @@ accountingRouter.get("/reports/aging", requireAuth, async (req: AuthRequest, res
 // -------------------------------------------------------------
 accountingRouter.get("/reports/trial-balance", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     await ensureSeedAccounts(tenantId);
 
     const accounts = await prisma.chartOfAccount.findMany({
@@ -565,7 +575,8 @@ accountingRouter.get("/reports/trial-balance", requireAuth, async (req: AuthRequ
 // -------------------------------------------------------------
 accountingRouter.get("/reports/ledger/:accountId", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { accountId } = req.params;
 
     const account = await prisma.chartOfAccount.findFirst({
@@ -664,7 +675,8 @@ accountingRouter.get("/reports/ledger/:accountId", requireAuth, async (req: Auth
 // -------------------------------------------------------------
 accountingRouter.get("/reports/inventory-valuation", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     // 1. Fetch products with warehouses and purchase history
     const products = await prisma.product.findMany({
@@ -779,11 +791,8 @@ accountingRouter.get("/reports/inventory-valuation", requireAuth, async (req: Au
 // GET /api/accounting/export/quickbooks - Export Sales Journal to QuickBooks Online format
 accountingRouter.get("/export/quickbooks", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const sales = await prisma.sale.findMany({
       where: { tenantId },
@@ -842,11 +851,8 @@ accountingRouter.get("/export/quickbooks", requireAuth, async (req: AuthRequest,
 // GET /api/accounting/export/xero - Export Sales to Xero ACCREC Invoices format
 accountingRouter.get("/export/xero", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const sales = await prisma.sale.findMany({
       where: { tenantId },
@@ -1013,11 +1019,8 @@ accountingRouter.post("/tally/preview", requireAuth, async (req: AuthRequest, re
  */
 accountingRouter.post("/tally/import", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { fileName = "tally_import.xml", rows = [], fieldMap = {} } = req.body;
     if (!Array.isArray(rows) || rows.length === 0) {

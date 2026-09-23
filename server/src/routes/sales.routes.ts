@@ -5,17 +5,15 @@ import { pushStockToRemoteStores } from "../services/ecommerce-sync.service";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { broadcastToTenant } from "../socket";
 import { autoPostSaleToLedger } from "../services/ledger-posting.service";
+import { resolveTenantId } from "../lib/tenant";
 
 export const salesRouter = Router();
 
 // GET /api/sales - List sales & POS receipts
 salesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const type = req.query.type as string | undefined;
 
     const whereClause: any = { tenantId };
@@ -100,11 +98,8 @@ salesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
 // POST /api/sales - Checkout POS sale / Create Invoice
 salesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const body = req.body;
 
     const items: any[] = body.items || [];
@@ -292,11 +287,8 @@ salesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
 // GET /api/sales/held - Retrieve held orders for POS
 salesRouter.get("/held", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const held = await prisma.heldOrder.findMany({
       where: { tenantId },
       orderBy: { heldAt: "desc" },
@@ -323,11 +315,8 @@ salesRouter.get("/held", requireAuth, async (req: AuthRequest, res: Response) =>
 // POST /api/sales/held - Save a held order
 salesRouter.post("/held", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const body = req.body;
 
     const held = await prisma.heldOrder.create({
@@ -349,11 +338,8 @@ salesRouter.post("/held", requireAuth, async (req: AuthRequest, res: Response) =
 // DELETE /api/sales/held/:id - Remove held order upon recall/clear
 salesRouter.delete("/held/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     await prisma.heldOrder.deleteMany({

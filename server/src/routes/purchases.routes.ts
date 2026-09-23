@@ -3,6 +3,7 @@ import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { broadcastToTenant } from "../socket";
 import { autoPostPurchaseToLedger } from "../services/ledger-posting.service";
+import { resolveTenantId } from "../lib/tenant";
 
 export const purchasesRouter = Router();
 
@@ -12,11 +13,8 @@ export const purchasesRouter = Router();
  */
 purchasesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { status, supplierId, warehouseId } = req.query;
     const where: any = { tenantId };
@@ -60,11 +58,8 @@ purchasesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
  */
 purchasesRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     const purchase = await prisma.purchase.findFirst({
@@ -99,11 +94,8 @@ purchasesRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response)
  */
 purchasesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const {
       supplierId,
@@ -245,11 +237,8 @@ purchasesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
  */
 purchasesRouter.patch("/:id/status", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     const { status, paymentMode = "Bank Transfer" } = req.body;
 
@@ -360,11 +349,8 @@ purchasesRouter.patch("/:id/status", requireAuth, async (req: AuthRequest, res: 
  */
 purchasesRouter.post("/:id/payments", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     const { amount, paymentMethod = "Bank Transfer" } = req.body;
 
@@ -407,11 +393,8 @@ purchasesRouter.post("/:id/payments", requireAuth, async (req: AuthRequest, res:
  */
 purchasesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     const existing = await prisma.purchase.findFirst({ where: { id, tenantId } });

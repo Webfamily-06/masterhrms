@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { prisma } from "../prisma";
+import { resolveTenantId } from "../lib/tenant";
 import { broadcastToTenant } from "../socket";
 import {
   getAlertConfig,
@@ -61,11 +62,8 @@ alertsRouter.post("/test", requireAuth, async (req: AuthRequest, res: Response) 
  */
 alertsRouter.post("/whatsapp/send", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { phone, message, templateName = "Outbound Alert", recipient = "Recipient" } = req.body;
 
@@ -163,11 +161,8 @@ alertsRouter.post("/whatsapp/send", requireAuth, async (req: AuthRequest, res: R
  */
 alertsRouter.post("/whatsapp/simulate", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { keyword, phone = "+91 98765 43210", sender = "Test User" } = req.body;
     if (!keyword) {

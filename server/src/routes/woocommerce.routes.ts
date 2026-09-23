@@ -17,11 +17,11 @@ import { prisma } from "../prisma";
 export const woocommerceRouter = Router();
 
 // Helper to get active tenantId
-async function getTenantId(req: AuthRequest): Promise<string> {
-  let tenantId = req.user?.tenantId;
+function getTenantId(req: AuthRequest, res: Response): string | null {
+  const tenantId = req.user?.tenantId;
   if (!tenantId || tenantId === "default") {
-    const t = await prisma.tenant.findFirst();
-    tenantId = t?.id || "tenant-default-001";
+    res.status(403).json({ ok: false, error: "Forbidden: Valid workspace context is required." });
+    return null;
   }
   return tenantId;
 }
@@ -29,7 +29,8 @@ async function getTenantId(req: AuthRequest): Promise<string> {
 // GET /api/woocommerce/settings
 woocommerceRouter.get("/settings", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const settings = await getWooCommerceSettings(tenantId);
     res.json({
       settings,
@@ -45,7 +46,8 @@ woocommerceRouter.get("/settings", requireAuth, async (req: AuthRequest, res: Re
 // POST /api/woocommerce/settings
 woocommerceRouter.post("/settings", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const updated = await saveWooCommerceSettings(tenantId, req.body);
     res.json({
       ok: true,
@@ -60,7 +62,8 @@ woocommerceRouter.post("/settings", requireAuth, async (req: AuthRequest, res: R
 // POST /api/woocommerce/test-connection
 woocommerceRouter.post("/test-connection", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const result = await testWooCommerceConnection(tenantId, req.body);
     res.json(result);
   } catch (err: any) {
@@ -71,7 +74,8 @@ woocommerceRouter.post("/test-connection", requireAuth, async (req: AuthRequest,
 // GET /api/woocommerce/status
 woocommerceRouter.get("/status", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const settings = await getWooCommerceSettings(tenantId);
 
     const [totalProducts, wooProducts, totalOrders] = await Promise.all([
@@ -109,7 +113,8 @@ woocommerceRouter.get("/status", requireAuth, async (req: AuthRequest, res: Resp
 // GET /api/woocommerce/unsynced-count
 woocommerceRouter.get("/unsynced-count", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const total = await prisma.product.count({ where: { tenantId } });
     const synced = await prisma.product.count({
       where: { tenantId, sku: { startsWith: "WC-" } },
@@ -123,7 +128,8 @@ woocommerceRouter.get("/unsynced-count", requireAuth, async (req: AuthRequest, r
 // POST /api/woocommerce/sync/products
 woocommerceRouter.post("/sync/products", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const mode = req.body?.mode || "pull";
     const result = await syncWooCommerceProducts(tenantId, mode);
     res.json(result);
@@ -135,7 +141,8 @@ woocommerceRouter.post("/sync/products", requireAuth, async (req: AuthRequest, r
 // POST /api/woocommerce/products/auto-link
 woocommerceRouter.post("/products/auto-link", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const result = await autoLinkProductsBySku(tenantId);
     res.json(result);
   } catch (err: any) {
@@ -146,7 +153,8 @@ woocommerceRouter.post("/products/auto-link", requireAuth, async (req: AuthReque
 // POST /api/woocommerce/sync/stock
 woocommerceRouter.post("/sync/stock", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const result = await syncWooCommerceStock(tenantId);
     res.json(result);
   } catch (err: any) {
@@ -157,7 +165,8 @@ woocommerceRouter.post("/sync/stock", requireAuth, async (req: AuthRequest, res:
 // GET /api/woocommerce/stock-metrics
 woocommerceRouter.get("/stock-metrics", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const settings = await getWooCommerceSettings(tenantId);
 
     const inStock = await prisma.productWarehouse.count({
@@ -180,7 +189,8 @@ woocommerceRouter.get("/stock-metrics", requireAuth, async (req: AuthRequest, re
 // POST /api/woocommerce/sync/orders
 woocommerceRouter.post("/sync/orders", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const result = await syncWooCommerceOrders(tenantId);
     res.json(result);
   } catch (err: any) {
@@ -191,7 +201,8 @@ woocommerceRouter.post("/sync/orders", requireAuth, async (req: AuthRequest, res
 // GET /api/woocommerce/orders
 woocommerceRouter.get("/orders", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     const sales = await prisma.sale.findMany({
       where: { tenantId, invoiceNo: { startsWith: "SO_WOO_" } },
       include: { customer: true },
@@ -229,7 +240,8 @@ woocommerceRouter.delete("/logs", requireAuth, async (_req: AuthRequest, res: Re
 // POST /api/woocommerce/reset-sync
 woocommerceRouter.post("/reset-sync", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = await getTenantId(req);
+    const tenantId = getTenantId(req, res);
+    if (!tenantId) return;
     await saveWooCommerceSettings(tenantId, {
       last_sync_at: null,
       last_connection_status: "unknown",

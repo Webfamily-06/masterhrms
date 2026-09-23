@@ -10,17 +10,15 @@ import {
   getSyncLogs,
 } from "../services/ecommerce-sync.service";
 import { prisma } from "../prisma";
+import { resolveTenantId } from "../lib/tenant";
 
 export const ecommerceRouter = Router();
 
 // GET /api/ecommerce/status - Fetch integration settings, status, & product counts
 ecommerceRouter.get("/status", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const config = await getTenantEcommerceConfig(tenantId);
 
@@ -94,11 +92,8 @@ ecommerceRouter.post("/test/shopify", requireAuth, async (req: AuthRequest, res:
 // POST /api/ecommerce/save-config - Permanently persist credentials to DB
 ecommerceRouter.post("/save-config", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const updated = await saveTenantEcommerceConfig(tenantId, req.body);
     res.json({
@@ -114,11 +109,8 @@ ecommerceRouter.post("/save-config", requireAuth, async (req: AuthRequest, res: 
 // POST /api/ecommerce/sync/woocommerce - Trigger WooCommerce Catalog Sync
 ecommerceRouter.post("/sync/woocommerce", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const result = await syncWooCommerce(tenantId);
     res.json({
@@ -134,11 +126,8 @@ ecommerceRouter.post("/sync/woocommerce", requireAuth, async (req: AuthRequest, 
 // POST /api/ecommerce/sync/shopify - Trigger Shopify Catalog Sync
 ecommerceRouter.post("/sync/shopify", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const result = await syncShopify(tenantId);
     res.json({
@@ -154,11 +143,8 @@ ecommerceRouter.post("/sync/shopify", requireAuth, async (req: AuthRequest, res:
 // POST /api/ecommerce/sync/all - Trigger Omnichannel Sync
 ecommerceRouter.post("/sync/all", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const [woo, shop] = await Promise.all([
       syncWooCommerce(tenantId),

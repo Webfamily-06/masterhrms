@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantId } from "../lib/tenant";
 
 export const suppliersRouter = Router();
 
@@ -10,11 +11,8 @@ export const suppliersRouter = Router();
  */
 suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { search } = req.query;
     const where: any = { tenantId };
@@ -71,11 +69,8 @@ suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
  */
 suppliersRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     const supplier = await prisma.supplier.findFirst({
@@ -109,11 +104,8 @@ suppliersRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response)
  */
 suppliersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { name, email, phone, gstin, address, city, country } = req.body;
 
@@ -151,11 +143,8 @@ suppliersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
  */
 suppliersRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     const { name, email, phone, gstin, address, city, country } = req.body;
 
@@ -194,11 +183,8 @@ suppliersRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
  */
 suppliersRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     const existing = await prisma.supplier.findFirst({

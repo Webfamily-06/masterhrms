@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { prisma } from "../prisma";
 import { autoPostPurchaseToLedger, autoPostSaleToLedger } from "../services/ledger-posting.service";
+import { resolveTenantId } from "../lib/tenant";
 
 export const aiRouter = Router();
 
@@ -23,7 +24,8 @@ const ERP_KNOWLEDGE_BASE: Record<string, string> = {
 
 aiRouter.get("/settings", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const slug = `tenant-${tenantId}-ai-settings`;
 
     const page = await prisma.cmsPage.findUnique({ where: { slug } });
@@ -47,7 +49,8 @@ aiRouter.get("/settings", requireAuth, async (req: AuthRequest, res: Response) =
 
 aiRouter.post("/settings", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const slug = `tenant-${tenantId}-ai-settings`;
     const settings = req.body;
 
@@ -361,7 +364,8 @@ Is there a specific policy, accounting calculation, or document template you wou
 
 aiRouter.post("/ocr/extract", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { fileBase64, fileName = "invoice.pdf", text = "" } = req.body;
 
     // 1. Check for configured AI keys
@@ -485,11 +489,8 @@ aiRouter.post("/ocr/extract", requireAuth, async (req: AuthRequest, res: Respons
 
 aiRouter.post("/ocr/save", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { type = "purchase", extracted, fileName } = req.body;
     if (!extracted) {

@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantId } from "../lib/tenant";
 
 export const productsRouter = Router();
 
@@ -25,11 +26,8 @@ async function ensureDefaultWarehouse(tenantId: string) {
 // GET /api/products - List all products for tenant
 productsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const products = await prisma.product.findMany({
       where: { tenantId, isActive: true },
@@ -92,7 +90,8 @@ productsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => 
 // POST /api/products - Create a new product
 productsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const body = req.body;
 
     if (!body.name || !body.name.trim()) {
@@ -156,7 +155,8 @@ productsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =>
 // PUT /api/products/:id - Update product
 productsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     const body = req.body;
 
@@ -208,7 +208,8 @@ productsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) 
 // DELETE /api/products/:id - Soft delete
 productsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     await prisma.product.updateMany({
@@ -226,7 +227,8 @@ productsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respons
 // GET /api/products/categories - Categories list
 productsRouter.get("/categories", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     let categories = await prisma.productCategory.findMany({
       where: { tenantId },
       orderBy: { name: "asc" },
@@ -257,7 +259,8 @@ productsRouter.get("/categories", requireAuth, async (req: AuthRequest, res: Res
 // GET /api/products/warehouses - Warehouses list
 productsRouter.get("/warehouses", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     await ensureDefaultWarehouse(tenantId);
     const warehouses = await prisma.warehouse.findMany({
       where: { tenantId },
@@ -272,7 +275,8 @@ productsRouter.get("/warehouses", requireAuth, async (req: AuthRequest, res: Res
 // GET /api/products/brands - Brands list
 productsRouter.get("/brands", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     let brands = await prisma.brand.findMany({
       where: { tenantId },
       orderBy: { name: "asc" },
@@ -310,7 +314,8 @@ productsRouter.get("/brands", requireAuth, async (req: AuthRequest, res: Respons
 // POST /api/products/brands - Create brand
 productsRouter.post("/brands", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { name, description, image } = req.body;
 
     if (!name || !name.trim()) {
@@ -335,7 +340,8 @@ productsRouter.post("/brands", requireAuth, async (req: AuthRequest, res: Respon
 // PUT /api/products/brands/:id - Update brand
 productsRouter.put("/brands/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     const { name, description, image } = req.body;
 
@@ -357,7 +363,8 @@ productsRouter.put("/brands/:id", requireAuth, async (req: AuthRequest, res: Res
 // DELETE /api/products/brands/:id - Delete brand
 productsRouter.delete("/brands/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
 
     await prisma.brand.deleteMany({
@@ -373,7 +380,8 @@ productsRouter.delete("/brands/:id", requireAuth, async (req: AuthRequest, res: 
 // POST /api/products/categories - Create category
 productsRouter.post("/categories", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { name, color, description } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: "Category name is required" });
 
@@ -394,7 +402,8 @@ productsRouter.post("/categories", requireAuth, async (req: AuthRequest, res: Re
 // DELETE /api/products/categories/:id - Delete category
 productsRouter.delete("/categories/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     await prisma.productCategory.deleteMany({ where: { id, tenantId } });
     return res.json({ success: true, message: "Category deleted" });
@@ -406,7 +415,8 @@ productsRouter.delete("/categories/:id", requireAuth, async (req: AuthRequest, r
 // GET /api/products/taxes - List taxes
 productsRouter.get("/taxes", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     let taxes = await prisma.taxRate.findMany({
       where: { tenantId },
       orderBy: { rate: "asc" },
@@ -434,7 +444,8 @@ productsRouter.get("/taxes", requireAuth, async (req: AuthRequest, res: Response
 // POST /api/products/taxes - Create tax
 productsRouter.post("/taxes", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { name, rate } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: "Tax name is required" });
     const tax = await prisma.taxRate.create({
@@ -453,7 +464,8 @@ productsRouter.post("/taxes", requireAuth, async (req: AuthRequest, res: Respons
 // DELETE /api/products/taxes/:id - Delete tax
 productsRouter.delete("/taxes/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     await prisma.taxRate.deleteMany({ where: { id, tenantId } });
     return res.json({ success: true, message: "Tax rate deleted" });
@@ -465,7 +477,8 @@ productsRouter.delete("/taxes/:id", requireAuth, async (req: AuthRequest, res: R
 // GET /api/products/units - List units
 productsRouter.get("/units", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     let units = await prisma.unit.findMany({
       where: { tenantId },
       orderBy: { name: "asc" },
@@ -486,7 +499,8 @@ productsRouter.get("/units", requireAuth, async (req: AuthRequest, res: Response
 // POST /api/products/units - Create unit
 productsRouter.post("/units", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { name, shortName } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: "Unit name is required" });
     const unit = await prisma.unit.create({
@@ -505,7 +519,8 @@ productsRouter.post("/units", requireAuth, async (req: AuthRequest, res: Respons
 // DELETE /api/products/units/:id - Delete unit
 productsRouter.delete("/units/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { id } = req.params;
     await prisma.unit.deleteMany({ where: { id, tenantId } });
     return res.json({ success: true, message: "Unit deleted" });
@@ -517,7 +532,8 @@ productsRouter.delete("/units/:id", requireAuth, async (req: AuthRequest, res: R
 // POST /api/products/warehouses - Create warehouse
 productsRouter.post("/warehouses", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { name, location, city, phone, email } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: "Warehouse name is required" });
     const wh = await prisma.warehouse.create({
@@ -539,7 +555,8 @@ productsRouter.post("/warehouses", requireAuth, async (req: AuthRequest, res: Re
 // POST /api/products/stock/add - Add stock to warehouse
 productsRouter.post("/stock/add", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
     const { productId, warehouseId, quantity } = req.body;
     if (!productId || !warehouseId) return res.status(400).json({ error: "productId and warehouseId are required" });
     const qty = Number(quantity);

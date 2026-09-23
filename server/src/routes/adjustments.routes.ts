@@ -4,6 +4,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { InventoryMovementService } from "../services/inventory-movement.service";
 import { autoPostStockAdjustmentToLedger } from "../services/ledger-posting.service";
 import { broadcastToTenant } from "../socket";
+import { resolveTenantId } from "../lib/tenant";
 
 export const adjustmentsRouter = Router();
 
@@ -13,11 +14,8 @@ export const adjustmentsRouter = Router();
  */
 adjustmentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { warehouseId, type, search } = req.query;
     const where: any = { tenantId };
@@ -108,11 +106,8 @@ adjustmentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) 
  */
 adjustmentsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const adjustment = await prisma.stockAdjustment.findFirst({
       where: { id: req.params.id, tenantId },
@@ -143,11 +138,8 @@ adjustmentsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Respons
  */
 adjustmentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let tenantId = req.user?.tenantId;
-    if (!tenantId || tenantId === "default") {
-      const t = await prisma.tenant.findFirst();
-      tenantId = t?.id || "tenant-default-001";
-    }
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { warehouseId, type, reason, details } = req.body;
 

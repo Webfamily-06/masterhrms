@@ -25,8 +25,8 @@ async function getTenant(req: AuthRequest, res: Response): Promise<string | null
     }
   }
   if (!tenantId || tenantId === "default") {
-    const t = await prisma.tenant.findFirst();
-    tenantId = t?.id || "tenant-default-001";
+    res.status(403).json({ error: "Forbidden: Valid workspace context is required." });
+    return null;
   }
   return tenantId;
 }
