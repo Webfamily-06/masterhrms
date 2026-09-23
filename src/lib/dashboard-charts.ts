@@ -1,4 +1,11 @@
-import ApexCharts from "apexcharts";
+let ApexChartsClass: any = null;
+async function getApexCharts() {
+  if (!ApexChartsClass) {
+    const mod = await import("apexcharts");
+    ApexChartsClass = mod.default || mod;
+  }
+  return ApexChartsClass;
+}
 
 // Helper: read CSS variable
 const cv = (n: string): string => {
@@ -29,7 +36,11 @@ const mobileResponsive = (reducedHeight?: number) => [
 
 // ─── HRM Dashboard Charts ───────────────────────────────────────────────────
 export function initHrmCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const primary = cv("--color-primary") || "#0F766E";
   const success = cv("--color-success") || "#059669";
   const orange  = cv("--color-orange")  || "#E65100";
@@ -138,14 +149,20 @@ export function initHrmCharts(): () => void {
     });
     chart.render();
     instances.push(chart);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── POS Dashboard Charts ────────────────────────────────────────────────────
 export function initPosCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const primary  = cv("--color-primary") || "#0F766E";
   const success  = cv("--color-success") || "#059669";
   const orange   = cv("--color-orange")  || "#E65100";
@@ -260,14 +277,20 @@ export function initPosCharts(): () => void {
     });
     chart.render();
     instances.push(chart);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── Inventory Dashboard Charts ──────────────────────────────────────────────
 export function initInventoryCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const success = cv("--color-success") || "#059669";
   const orange  = cv("--color-orange")  || "#E65100";
   const gray400 = cv("--color-gray-400")|| "#9096A1";
@@ -377,14 +400,20 @@ export function initInventoryCharts(): () => void {
       responsive: mobileResponsive(220),
     });
     c.render(); instances.push(c);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── CRM Dashboard Charts ────────────────────────────────────────────────────
 export function initCrmCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const success = cv("--color-success") || "#059669";
   const orange  = cv("--color-orange")  || "#E65100";
   const pink    = cv("--color-pink")    || "#CC25B0";
@@ -473,14 +502,20 @@ export function initCrmCharts(): () => void {
       tooltip: { enabled: false },
     });
     c.render(); instances.push(c);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── Sales Dashboard Charts ──────────────────────────────────────────────────
 export function initSalesCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const success = cv("--color-success") || "#059669";
   const orange  = cv("--color-orange")  || "#E65100";
   const gray400 = cv("--color-gray-400")|| "#9096A1";
@@ -507,14 +542,20 @@ export function initSalesCharts(): () => void {
       responsive: mobileResponsive(240),
     });
     c.render(); instances.push(c);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── Procurement Dashboard Charts ────────────────────────────────────────────
 export function initProcurementCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const success = cv("--color-success") || "#059669";
   const orange  = cv("--color-orange")  || "#E65100";
   const pink    = cv("--color-pink")    || "#CC25B0";
@@ -685,14 +726,20 @@ export function initProcurementCharts(): () => void {
       tooltip: { theme: "dark" },
     });
     c.render(); instances.push(c);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── Finance Dashboard Charts ────────────────────────────────────────────────
 export function initFinanceCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const success = cv("--color-success") || "#059669";
   const orange  = cv("--color-orange")  || "#E65100";
   const info    = cv("--color-info")    || "#0EA5E9";
@@ -832,14 +879,20 @@ export function initFinanceCharts(): () => void {
       const ln = document.querySelector("#fin-expense-donut .apexcharts-datalabel-label");
       if (ln) (ln as HTMLElement).textContent = "Salaries";
     }, 300);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── Project Dashboard Charts ─────────────────────────────────────────────────
 export function initProjectCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const primary = cv("--color-primary") || "#0F766E";
   const success = cv("--color-success") || "#059669";
   const info    = cv("--color-info")    || "#0EA5E9";
@@ -1059,14 +1112,20 @@ export function initProjectCharts(): () => void {
     });
     c.render();
     instances.push(c);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }
 
 // ─── Support Dashboard Charts ─────────────────────────────────────────────────
 export function initSupportCharts(): () => void {
-  const instances: ApexCharts[] = [];
+  const instances: any[] = [];
+  let isCancelled = false;
+
+  getApexCharts().then((ApexCharts) => {
+    if (isCancelled) return;
   const success = cv("--color-success") || "#059669";
   const info    = cv("--color-info")    || "#0EA5E9";
   const orange  = cv("--color-orange")  || "#E65100";
@@ -1321,7 +1380,9 @@ export function initSupportCharts(): () => void {
     });
     c.render();
     instances.push(c);
-  }
+  }  });
+
+
 
   return () => { instances.forEach((c) => c.destroy()); };
 }

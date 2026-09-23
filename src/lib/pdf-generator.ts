@@ -1,6 +1,3 @@
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
-
 export interface PayslipPdfData {
   companyName: string;
   companyAddress?: string;
@@ -21,7 +18,13 @@ export interface PayslipPdfData {
   currencySymbol?: string;
 }
 
-export function generatePayslipPdf(data: PayslipPdfData) {
+export async function generatePayslipPdf(data: PayslipPdfData) {
+  const [{ jsPDF }, autoTableModule] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  const autoTable = autoTableModule.default || autoTableModule;
+
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",

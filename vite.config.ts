@@ -71,6 +71,42 @@ export default defineConfig({
     optimizeDeps: {
       force: true,
     },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes("node_modules")) {
+              if (id.includes("apexcharts") || id.includes("react-apexcharts")) {
+                return "vendor-apexcharts";
+              }
+              if (id.includes("recharts")) {
+                return "vendor-recharts";
+              }
+              if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("canvg")) {
+                return "vendor-pdf";
+              }
+              if (id.includes("lucide-react") || id.includes("@phosphor-icons")) {
+                return "vendor-icons";
+              }
+              if (id.includes("@radix-ui")) {
+                return "vendor-radix";
+              }
+              if (id.includes("date-fns") || id.includes("flatpickr")) {
+                return "vendor-dates";
+              }
+              if (id.includes("socket.io-client") || id.includes("engine.io-client")) {
+                return "vendor-sockets";
+              }
+              if (id.includes("@tanstack")) {
+                return "vendor-tanstack";
+              }
+              return "vendor";
+            }
+          },
+        },
+      },
+    },
     server: {
       headers: {
         "Cache-Control": "no-cache, no-store, must-revalidate",

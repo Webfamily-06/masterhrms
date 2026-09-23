@@ -1,11 +1,12 @@
-import ApexCharts from "apexcharts";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.min.css";
 
 // Ensure globally accessible
 if (typeof window !== "undefined") {
-  (window as any).ApexCharts = ApexCharts;
   (window as any).flatpickr = flatpickr;
+  import("apexcharts").then((mod) => {
+    (window as any).ApexCharts = mod.default || mod;
+  }).catch(() => {});
 }
 
 export function initFlatpickr() {

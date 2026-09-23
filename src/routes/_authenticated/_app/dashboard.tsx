@@ -2,11 +2,12 @@ import { usePermissions } from "@/lib/permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { Loader2 } from "lucide-react";
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useCurrentProfile } from '@/lib/session';
-import Chart from 'react-apexcharts';
+
+const Chart = lazy(() => import('react-apexcharts'));
 
 export const Route = createFileRoute('/_authenticated/_app/dashboard')({
   component: DashboardPage,
