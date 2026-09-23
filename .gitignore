@@ -85,3 +85,13 @@ build/
 # Database dumps
 master_hrms_production_dump.sql
 
+# Test & Tooling artifacts
+.playwright-mcp/
+graphify-out/
+landing_page.png
+mobile_dashboard.png
+pos_terminal.png
+super_admin_dashboard.png
+tenant_dashboard.png
+
+

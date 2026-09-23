@@ -1,0 +1,14 @@
+# Minified vendor libraries and assets
+public/ui-assets/
+ui/assets/
+*.min.js
+*.bundle.js
+
+# Build artifacts
+dist/
+build/
+.playwright-mcp/
+graphify-out/
+
+# Dependencies
+node_modules/

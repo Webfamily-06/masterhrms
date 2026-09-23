@@ -183,7 +183,7 @@ export function SubscriptionPage() {
   });
 
   // 4. Fetch Tenant Invoices & Payment Ledger
-  const { data: invoices = [] } = useQuery({
+  const { data: invoices = [] } = useQuery<TenantInvoice[]>({
     queryKey: ["realtime-tenant-invoices", tenantId],
     queryFn: async () => {
       try {
@@ -424,7 +424,7 @@ export function SubscriptionPage() {
                     </td>
                   </tr>
                 ) : (
-                  invoices.map((inv) => (
+                  invoices.map((inv: TenantInvoice) => (
                     <tr key={inv.id} className="hover:bg-muted/20">
                       <td className="p-3 font-mono font-bold text-primary">{inv.invoiceNumber}</td>
                       <td className="p-3 font-semibold text-foreground">{inv.itemName}</td>
