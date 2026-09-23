@@ -338,6 +338,8 @@ model Payslip {
   payrollRun PayrollRun? @relation(fields: [payrollRunId], references: [id], onDelete: SetNull)
   employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId, employeeId])
+  @@index([tenantId, payrollRunId])
   @@map("payslips")
 }
 
@@ -1674,6 +1676,8 @@ model Product {
   adjustmentDetails StockAdjustmentDetail[]
 
   @@unique([tenantId, sku])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, isActive])
   @@map("products")
 }
 
@@ -1716,6 +1720,8 @@ model Customer {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sales  Sale[]
 
+  @@index([tenantId, email])
+  @@index([tenantId, phone])
   @@map("customers")
 }
 
@@ -1735,6 +1741,7 @@ model Supplier {
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   purchases Purchase[]
 
+  @@index([tenantId, email])
   @@map("suppliers")
 }
 
@@ -1779,6 +1786,8 @@ model Sale {
   gatewayTransactions PaymentGatewayTransaction[]
 
   @@unique([tenantId, invoiceNo])
+  @@index([tenantId, date])
+  @@index([tenantId, paymentStatus])
   @@map("sales")
 }
 
@@ -1897,6 +1906,8 @@ model Purchase {
   details   PurchaseDetail[]
 
   @@unique([tenantId, purchaseNo])
+  @@index([tenantId, status])
+  @@index([tenantId, supplierId])
   @@map("purchases")
 }
 
@@ -2117,6 +2128,8 @@ model CrmLead {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId, stage])
+  @@index([tenantId, email])
   @@map("crm_leads")
 }
 
@@ -2139,6 +2152,7 @@ model CrmProposal {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId, status])
   @@map("crm_proposals")
 }
 
@@ -2163,6 +2177,7 @@ model Project {
   tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   tasks  ProjectTask[]
 
+  @@index([tenantId, status])
   @@map("projects")
 }
 
@@ -2182,6 +2197,8 @@ model ProjectTask {
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId, projectId])
+  @@index([tenantId, status])
   @@map("project_tasks")
 }
 
