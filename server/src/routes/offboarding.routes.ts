@@ -161,6 +161,22 @@ offboardingRouter.put("/exits/:id/clearance", requireAuth, async (req: AuthReque
     const now = isCleared ? new Date() : null;
 
     if (department === "IT") {
+      if (isCleared) {
+        const unreturnedAssets = await prisma.asset.findMany({
+          where: {
+            tenantId: existing.tenantId,
+            assignedEmployeeId: existing.employeeId,
+            status: "assigned",
+          },
+        });
+
+        if (unreturnedAssets.length > 0) {
+          return res.status(400).json({
+            error: `IT Clearance blocked: Employee currently holds ${unreturnedAssets.length} unreturned company asset(s) [${unreturnedAssets.map((a: any) => `${a.name} (${a.assetTag})`).join(", ")}]. Mark assets returned before approving IT clearance.`,
+          });
+        }
+      }
+
       dataToUpdate.itClearance = Boolean(isCleared);
       dataToUpdate.itNotes = notes || existing.itNotes;
       dataToUpdate.itClearedAt = now;

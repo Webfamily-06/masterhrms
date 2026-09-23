@@ -576,6 +576,18 @@ payrollRouter.post("/generate", requireAuth, async (req: AuthRequest, res: Respo
         })
       : [];
 
+    // Fetch approved expense claims pending payroll reimbursement
+    const approvedExpenseClaims = await prisma.expenseClaim.findMany({
+      where: {
+        tenantId,
+        status: "finance_approved",
+        OR: [
+          { reimbursementMethod: "payroll_addition" },
+          { reimbursementMethod: null },
+        ],
+      },
+    });
+
     // 4. Find or Create Payroll Run
     let payrollRun = await prisma.payrollRun.findFirst({
       where: { tenantId, periodMonth, periodYear },
@@ -633,14 +645,19 @@ payrollRouter.post("/generate", requireAuth, async (req: AuthRequest, res: Respo
       const lopDays = Math.max(0, Math.round((totalWorkingDays - payableDays) * 10) / 10);
       const prorationFactor = totalWorkingDays > 0 ? payableDays / totalWorkingDays : 1;
 
+      // Expense Reimbursements Calculation
+      const empClaims = approvedExpenseClaims.filter((c: any) => c.employeeId === emp.id);
+      const totalReimbursements = empClaims.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
+
       // Base Earnings Calculation (50-20-15-5-5-5 Formula)
-      const earnedGross = Math.round(baseMonthlySalary * prorationFactor * 100) / 100;
-      const basicSalary = Math.round(earnedGross * 0.5 * 100) / 100;
-      const hra = Math.round(earnedGross * 0.2 * 100) / 100;
-      const specialAllowance = Math.round(earnedGross * 0.15 * 100) / 100;
-      const conveyance = Math.round(earnedGross * 0.05 * 100) / 100;
-      const medical = Math.round(earnedGross * 0.05 * 100) / 100;
-      const otherAllowance = Math.round((earnedGross - (basicSalary + hra + specialAllowance + conveyance + medical)) * 100) / 100;
+      const salaryGross = Math.round(baseMonthlySalary * prorationFactor * 100) / 100;
+      const earnedGross = Math.round((salaryGross + totalReimbursements) * 100) / 100;
+      const basicSalary = Math.round(salaryGross * 0.5 * 100) / 100;
+      const hra = Math.round(salaryGross * 0.2 * 100) / 100;
+      const specialAllowance = Math.round(salaryGross * 0.15 * 100) / 100;
+      const conveyance = Math.round(salaryGross * 0.05 * 100) / 100;
+      const medical = Math.round(salaryGross * 0.05 * 100) / 100;
+      const otherAllowance = Math.round((salaryGross - (basicSalary + hra + specialAllowance + conveyance + medical)) * 100) / 100;
 
       // Statutory & Tax Deductions
       const providentFund = Math.round(basicSalary * (pfRate / 100) * 100) / 100;
@@ -656,6 +673,19 @@ payrollRouter.post("/generate", requireAuth, async (req: AuthRequest, res: Respo
 
       totalPayrollAmount += earnedGross;
       totalNetDisbursed += netSalary;
+
+      // Mark approved claims as reimbursed
+      for (const claim of empClaims) {
+        await prisma.expenseClaim.update({
+          where: { id: claim.id },
+          data: {
+            status: "reimbursed",
+            reimbursementMethod: "payroll_addition",
+            payrollMonth: `${periodYear}-${String(periodMonth).padStart(2, "0")}`,
+            reimbursedAt: new Date(),
+          },
+        });
+      }
 
       const breakdown = {
         baseMonthlyCtc: baseMonthlySalary,
@@ -673,6 +703,7 @@ payrollRouter.post("/generate", requireAuth, async (req: AuthRequest, res: Respo
           conveyance,
           medical,
           otherAllowance: Math.max(0, otherAllowance),
+          reimbursements: totalReimbursements,
           totalGross: earnedGross,
         },
         deductions: {

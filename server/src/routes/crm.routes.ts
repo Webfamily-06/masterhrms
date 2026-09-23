@@ -420,6 +420,86 @@ crmRouter.post("/proposals/:id/convert", requireAuth, async (req: AuthRequest, r
   }
 });
 
+// POST /api/crm/proposals/:id/convert-to-project - Convert Proposal into active Project with tasks
+crmRouter.post("/proposals/:id/convert-to-project", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const proposal = await prisma.crmProposal.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!proposal) {
+      return res.status(404).json({ error: "Proposal not found" });
+    }
+
+    const items = Array.isArray(proposal.items) ? proposal.items : [];
+
+    const project = await prisma.$transaction(async (tx) => {
+      const createdProject = await tx.project.create({
+        data: {
+          tenantId,
+          name: `${proposal.title} — ${proposal.clientName}`,
+          description: `Client Project generated from Proposal #${proposal.proposalNo}`,
+          status: "active",
+          budget: Number(proposal.amount || 0),
+          startDate: new Date(),
+        },
+      });
+
+      if (items.length > 0) {
+        for (const item of items as any[]) {
+          await tx.projectTask.create({
+            data: {
+              tenantId,
+              projectId: createdProject.id,
+              title: item.name || item.description || "Project Deliverable Item",
+              description: `Deliverable scope item from proposal quotation (Qty: ${item.qty || 1}, Rate: ${item.rate || 0})`,
+              status: "todo",
+              priority: "medium",
+            },
+          });
+        }
+      } else {
+        await tx.projectTask.create({
+          data: {
+            tenantId,
+            projectId: createdProject.id,
+            title: `Deliverable Scope: ${proposal.title}`,
+            description: `Deliverable scope item for ${proposal.clientName}`,
+            status: "todo",
+            priority: "medium",
+          },
+        });
+      }
+
+      await tx.crmProposal.update({
+        where: { id: proposal.id },
+        data: { status: "accepted" },
+      });
+
+      return createdProject;
+    });
+
+    broadcastToTenant(tenantId, "proposal:converted_to_project", {
+      proposalId: proposal.id,
+      projectId: project.id,
+      projectName: project.name,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Proposal #${proposal.proposalNo} converted to Project: ${project.name}`,
+      projectId: project.id,
+      project,
+    });
+  } catch (err: any) {
+    console.error("Proposal to Project convert error:", err);
+    return res.status(500).json({ error: err.message || "Failed to convert proposal to project" });
+  }
+});
+
 // DELETE /api/crm/proposals/:id - Delete proposal
 crmRouter.delete("/proposals/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
