@@ -33,6 +33,21 @@ const loginSchema = z.object({
   password: z.string(),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(4).max(10),
+  newPassword: z.string().min(6),
+});
+
+const verifyEmailSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(4).max(10),
+});
+
 // POST /api/auth/register
 authRouter.post("/register", async (req, res) => {
   try {
@@ -173,6 +188,152 @@ authRouter.post("/login", async (req, res) => {
       return res.status(400).json({ error: err.errors[0].message });
     }
     return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/auth/forgot-password
+authRouter.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body);
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      return res.json({
+        success: true,
+        message: "If an account exists with this email, a password reset code has been sent.",
+        maskedEmail: maskEmail(normalizedEmail),
+      });
+    }
+
+    const { otp } = await createOrReplaceOtp(user.id);
+    const emailResult = await sendTwoFactorOtpEmail({
+      toEmail: user.email,
+      otp,
+      fullName: user.profile?.fullName || undefined,
+      isSetup: false,
+    });
+
+    if (!emailResult.success) {
+      console.log(`🔑 [PASSWORD RESET CODE] Reset OTP for ${user.email}: [${otp}]`);
+    }
+
+    return res.json({
+      success: true,
+      message: "Password reset code sent to your email.",
+      maskedEmail: maskEmail(user.email),
+      ...(process.env.NODE_ENV === "development" || !emailResult.success ? { previewCode: otp } : {}),
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to process forgot password request." });
+  }
+});
+
+// POST /api/auth/reset-password
+authRouter.post("/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = resetPasswordSchema.parse(req.body);
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: "Invalid password reset request." });
+    }
+
+    const verification = await verifyOtpCode(user.id, code);
+    if (!verification.valid) {
+      return res.status(400).json({ error: verification.error || "Invalid or expired reset code." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    return res.json({
+      success: true,
+      message: "Password has been successfully updated. You can now sign in with your new credentials.",
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to reset password." });
+  }
+});
+
+// POST /api/auth/verify-email
+authRouter.post("/verify-email", async (req, res) => {
+  try {
+    const { email, code } = verifyEmailSchema.parse(req.body);
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    const verification = await verifyOtpCode(user.id, code);
+    if (!verification.valid) {
+      return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
+    }
+
+    return res.json({
+      success: true,
+      message: "Email address verified successfully!",
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to verify email." });
+  }
+});
+
+// POST /api/auth/resend-verification
+authRouter.post("/resend-verification", async (req, res) => {
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body);
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    const { otp } = await createOrReplaceOtp(user.id);
+    const emailResult = await sendTwoFactorOtpEmail({
+      toEmail: user.email,
+      otp,
+      fullName: user.profile?.fullName || undefined,
+      isSetup: false,
+    });
+
+    return res.json({
+      success: true,
+      message: "New verification code has been dispatched.",
+      maskedEmail: maskEmail(user.email),
+      ...(process.env.NODE_ENV === "development" || !emailResult.success ? { previewCode: otp } : {}),
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to resend verification code." });
   }
 });
 

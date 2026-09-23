@@ -20,18 +20,24 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CareersRouteImport } from './routes/careers'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as HelpCenterRouteImport } from './routes/help-center'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OgPreviewRouteImport } from './routes/og-preview'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProductRouteImport } from './routes/product'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as StoreRouteImport } from './routes/store'
 import { Route as SuperLoginRouteImport } from './routes/super-login'
 import { Route as Verify2faRouteImport } from './routes/verify-2fa'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAppRouteRouteImport } from './routes/_authenticated/_app/route'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedSuperRouteRouteImport } from './routes/_authenticated/super/route'
@@ -39,6 +45,10 @@ import { Route as ATagRouteImport } from './routes/a.$tag'
 import { Route as AddonsSlugRouteImport } from './routes/addons.$slug'
 import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
+import { Route as PaymentFailedRouteImport } from './routes/payment.failed'
+import { Route as PaymentPendingRouteImport } from './routes/payment.pending'
+import { Route as PaymentSuccessRouteImport } from './routes/payment.success'
+import { Route as AuthenticatedAppAccountRouteImport } from './routes/_authenticated/_app/account'
 import { Route as AuthenticatedAppAccountingRouteImport } from './routes/_authenticated/_app/accounting'
 import { Route as AuthenticatedAppAdjustmentsRouteImport } from './routes/_authenticated/_app/adjustments'
 import { Route as AuthenticatedAppAiOcrRouteImport } from './routes/_authenticated/_app/ai-ocr'
@@ -47,6 +57,7 @@ import { Route as AuthenticatedAppAnalyticsRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppAnnouncementsRouteImport } from './routes/_authenticated/_app/announcements'
 import { Route as AuthenticatedAppAssetsRouteImport } from './routes/_authenticated/_app/assets'
 import { Route as AuthenticatedAppAttendanceRouteImport } from './routes/_authenticated/_app/attendance'
+import { Route as AuthenticatedAppBillingRouteImport } from './routes/_authenticated/_app/billing'
 import { Route as AuthenticatedAppBiometricRouteImport } from './routes/_authenticated/_app/biometric'
 import { Route as AuthenticatedAppBiometricSyncRouteImport } from './routes/_authenticated/_app/biometric-sync'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/_app/chat'
@@ -172,6 +183,21 @@ const CustomerDisplayRoute = CustomerDisplayRouteImport.update({
   path: '/customer-display',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpCenterRoute = HelpCenterRouteImport.update({
+  id: '/help-center',
+  path: '/help-center',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MaintenanceRoute = MaintenanceRouteImport.update({
   id: '/maintenance',
   path: '/maintenance',
@@ -202,6 +228,16 @@ const ProductRoute = ProductRouteImport.update({
   path: '/product',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResourcesRoute = ResourcesRouteImport.update({
   id: '/resources',
   path: '/resources',
@@ -230,6 +266,11 @@ const SuperLoginRoute = SuperLoginRouteImport.update({
 const Verify2faRoute = Verify2faRouteImport.update({
   id: '/verify-2fa',
   path: '/verify-2fa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRouteRoute = AuthenticatedAppRouteRouteImport.update({
@@ -265,6 +306,26 @@ const PSlugRoute = PSlugRouteImport.update({
   id: '/p/$slug',
   path: '/p/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentFailedRoute = PaymentFailedRouteImport.update({
+  id: '/payment/failed',
+  path: '/payment/failed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentPendingRoute = PaymentPendingRouteImport.update({
+  id: '/payment/pending',
+  path: '/payment/pending',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentSuccessRoute = PaymentSuccessRouteImport.update({
+  id: '/payment/success',
+  path: '/payment/success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAppAccountRoute = AuthenticatedAppAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
 const AuthenticatedAppAccountingRoute =
   AuthenticatedAppAccountingRouteImport.update({
@@ -312,6 +373,11 @@ const AuthenticatedAppAttendanceRoute =
     path: '/attendance',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppBillingRoute = AuthenticatedAppBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppBiometricRoute =
   AuthenticatedAppBiometricRouteImport.update({
     id: '/biometric',
@@ -723,24 +789,34 @@ export interface FileRoutesByFullPath {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/help-center': typeof HelpCenterRoute
+  '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
   '/verify-2fa': typeof Verify2faRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/super': typeof AuthenticatedSuperRouteRouteWithChildren
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
+  '/payment/failed': typeof PaymentFailedRoute
+  '/payment/pending': typeof PaymentPendingRoute
+  '/payment/success': typeof PaymentSuccessRoute
+  '/account': typeof AuthenticatedAppAccountRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
@@ -749,6 +825,7 @@ export interface FileRoutesByFullPath {
   '/announcements': typeof AuthenticatedAppAnnouncementsRoute
   '/assets': typeof AuthenticatedAppAssetsRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/billing': typeof AuthenticatedAppBillingRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/chat': typeof AuthenticatedAppChatRoute
@@ -831,23 +908,33 @@ export interface FileRoutesByTo {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/help-center': typeof HelpCenterRoute
+  '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
   '/verify-2fa': typeof Verify2faRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
+  '/payment/failed': typeof PaymentFailedRoute
+  '/payment/pending': typeof PaymentPendingRoute
+  '/payment/success': typeof PaymentSuccessRoute
+  '/account': typeof AuthenticatedAppAccountRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
@@ -856,6 +943,7 @@ export interface FileRoutesByTo {
   '/announcements': typeof AuthenticatedAppAnnouncementsRoute
   '/assets': typeof AuthenticatedAppAssetsRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/billing': typeof AuthenticatedAppBillingRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/chat': typeof AuthenticatedAppChatRoute
@@ -940,18 +1028,24 @@ export interface FileRoutesById {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/help-center': typeof HelpCenterRoute
+  '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
   '/verify-2fa': typeof Verify2faRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/_app': typeof AuthenticatedAppRouteRouteWithChildren
   '/_authenticated/super': typeof AuthenticatedSuperRouteRouteWithChildren
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
@@ -959,6 +1053,10 @@ export interface FileRoutesById {
   '/addons/$slug': typeof AddonsSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
+  '/payment/failed': typeof PaymentFailedRoute
+  '/payment/pending': typeof PaymentPendingRoute
+  '/payment/success': typeof PaymentSuccessRoute
+  '/_authenticated/_app/account': typeof AuthenticatedAppAccountRoute
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/_authenticated/_app/ai-ocr': typeof AuthenticatedAppAiOcrRoute
@@ -967,6 +1065,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/announcements': typeof AuthenticatedAppAnnouncementsRoute
   '/_authenticated/_app/assets': typeof AuthenticatedAppAssetsRoute
   '/_authenticated/_app/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/_authenticated/_app/billing': typeof AuthenticatedAppBillingRoute
   '/_authenticated/_app/biometric': typeof AuthenticatedAppBiometricRoute
   '/_authenticated/_app/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/_authenticated/_app/chat': typeof AuthenticatedAppChatRoute
@@ -1051,24 +1150,34 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/forgot-password'
+    | '/help-center'
+    | '/login'
     | '/maintenance'
     | '/offline'
     | '/og-preview'
     | '/portal'
     | '/pricing'
     | '/product'
+    | '/register'
+    | '/reset-password'
     | '/resources'
     | '/session-expired'
     | '/solutions'
     | '/store'
     | '/super-login'
     | '/verify-2fa'
+    | '/verify-email'
     | '/super'
     | '/onboarding'
     | '/a/$tag'
     | '/addons/$slug'
     | '/legal/$slug'
     | '/p/$slug'
+    | '/payment/failed'
+    | '/payment/pending'
+    | '/payment/success'
+    | '/account'
     | '/accounting'
     | '/adjustments'
     | '/ai-ocr'
@@ -1077,6 +1186,7 @@ export interface FileRouteTypes {
     | '/announcements'
     | '/assets'
     | '/attendance'
+    | '/billing'
     | '/biometric'
     | '/biometric-sync'
     | '/chat'
@@ -1159,23 +1269,33 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/forgot-password'
+    | '/help-center'
+    | '/login'
     | '/maintenance'
     | '/offline'
     | '/og-preview'
     | '/portal'
     | '/pricing'
     | '/product'
+    | '/register'
+    | '/reset-password'
     | '/resources'
     | '/session-expired'
     | '/solutions'
     | '/store'
     | '/super-login'
     | '/verify-2fa'
+    | '/verify-email'
     | '/onboarding'
     | '/a/$tag'
     | '/addons/$slug'
     | '/legal/$slug'
     | '/p/$slug'
+    | '/payment/failed'
+    | '/payment/pending'
+    | '/payment/success'
+    | '/account'
     | '/accounting'
     | '/adjustments'
     | '/ai-ocr'
@@ -1184,6 +1304,7 @@ export interface FileRouteTypes {
     | '/announcements'
     | '/assets'
     | '/attendance'
+    | '/billing'
     | '/biometric'
     | '/biometric-sync'
     | '/chat'
@@ -1267,18 +1388,24 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/forgot-password'
+    | '/help-center'
+    | '/login'
     | '/maintenance'
     | '/offline'
     | '/og-preview'
     | '/portal'
     | '/pricing'
     | '/product'
+    | '/register'
+    | '/reset-password'
     | '/resources'
     | '/session-expired'
     | '/solutions'
     | '/store'
     | '/super-login'
     | '/verify-2fa'
+    | '/verify-email'
     | '/_authenticated/_app'
     | '/_authenticated/super'
     | '/_authenticated/onboarding'
@@ -1286,6 +1413,10 @@ export interface FileRouteTypes {
     | '/addons/$slug'
     | '/legal/$slug'
     | '/p/$slug'
+    | '/payment/failed'
+    | '/payment/pending'
+    | '/payment/success'
+    | '/_authenticated/_app/account'
     | '/_authenticated/_app/accounting'
     | '/_authenticated/_app/adjustments'
     | '/_authenticated/_app/ai-ocr'
@@ -1294,6 +1425,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/announcements'
     | '/_authenticated/_app/assets'
     | '/_authenticated/_app/attendance'
+    | '/_authenticated/_app/billing'
     | '/_authenticated/_app/biometric'
     | '/_authenticated/_app/biometric-sync'
     | '/_authenticated/_app/chat'
@@ -1378,21 +1510,30 @@ export interface RootRouteChildren {
   CareersRoute: typeof CareersRoute
   ContactRoute: typeof ContactRoute
   CustomerDisplayRoute: typeof CustomerDisplayRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  HelpCenterRoute: typeof HelpCenterRoute
+  LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
   OfflineRoute: typeof OfflineRoute
   OgPreviewRoute: typeof OgPreviewRoute
   PortalRoute: typeof PortalRouteWithChildren
   PricingRoute: typeof PricingRoute
   ProductRoute: typeof ProductRoute
+  RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ResourcesRoute: typeof ResourcesRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
   SolutionsRoute: typeof SolutionsRoute
   StoreRoute: typeof StoreRoute
   SuperLoginRoute: typeof SuperLoginRoute
   Verify2faRoute: typeof Verify2faRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
   ATagRoute: typeof ATagRoute
   LegalSlugRoute: typeof LegalSlugRoute
   PSlugRoute: typeof PSlugRoute
+  PaymentFailedRoute: typeof PaymentFailedRoute
+  PaymentPendingRoute: typeof PaymentPendingRoute
+  PaymentSuccessRoute: typeof PaymentSuccessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1474,6 +1615,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerDisplayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help-center': {
+      id: '/help-center'
+      path: '/help-center'
+      fullPath: '/help-center'
+      preLoaderRoute: typeof HelpCenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/maintenance': {
       id: '/maintenance'
       path: '/maintenance'
@@ -1516,6 +1678,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/resources': {
       id: '/resources'
       path: '/resources'
@@ -1556,6 +1732,13 @@ declare module '@tanstack/react-router' {
       path: '/verify-2fa'
       fullPath: '/verify-2fa'
       preLoaderRoute: typeof Verify2faRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/_app': {
@@ -1606,6 +1789,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/p/$slug'
       preLoaderRoute: typeof PSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/payment/failed': {
+      id: '/payment/failed'
+      path: '/payment/failed'
+      fullPath: '/payment/failed'
+      preLoaderRoute: typeof PaymentFailedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment/pending': {
+      id: '/payment/pending'
+      path: '/payment/pending'
+      fullPath: '/payment/pending'
+      preLoaderRoute: typeof PaymentPendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment/success': {
+      id: '/payment/success'
+      path: '/payment/success'
+      fullPath: '/payment/success'
+      preLoaderRoute: typeof PaymentSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/_app/account': {
+      id: '/_authenticated/_app/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedAppAccountRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/accounting': {
       id: '/_authenticated/_app/accounting'
@@ -1661,6 +1872,13 @@ declare module '@tanstack/react-router' {
       path: '/attendance'
       fullPath: '/attendance'
       preLoaderRoute: typeof AuthenticatedAppAttendanceRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/billing': {
+      id: '/_authenticated/_app/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedAppBillingRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/biometric': {
@@ -2157,6 +2375,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAppRouteRouteChildren {
+  AuthenticatedAppAccountRoute: typeof AuthenticatedAppAccountRoute
   AuthenticatedAppAccountingRoute: typeof AuthenticatedAppAccountingRoute
   AuthenticatedAppAdjustmentsRoute: typeof AuthenticatedAppAdjustmentsRoute
   AuthenticatedAppAiOcrRoute: typeof AuthenticatedAppAiOcrRoute
@@ -2165,6 +2384,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAnnouncementsRoute: typeof AuthenticatedAppAnnouncementsRoute
   AuthenticatedAppAssetsRoute: typeof AuthenticatedAppAssetsRoute
   AuthenticatedAppAttendanceRoute: typeof AuthenticatedAppAttendanceRoute
+  AuthenticatedAppBillingRoute: typeof AuthenticatedAppBillingRoute
   AuthenticatedAppBiometricRoute: typeof AuthenticatedAppBiometricRoute
   AuthenticatedAppBiometricSyncRoute: typeof AuthenticatedAppBiometricSyncRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRoute
@@ -2218,6 +2438,7 @@ interface AuthenticatedAppRouteRouteChildren {
 }
 
 const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
+  AuthenticatedAppAccountRoute: AuthenticatedAppAccountRoute,
   AuthenticatedAppAccountingRoute: AuthenticatedAppAccountingRoute,
   AuthenticatedAppAdjustmentsRoute: AuthenticatedAppAdjustmentsRoute,
   AuthenticatedAppAiOcrRoute: AuthenticatedAppAiOcrRoute,
@@ -2226,6 +2447,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppAnnouncementsRoute: AuthenticatedAppAnnouncementsRoute,
   AuthenticatedAppAssetsRoute: AuthenticatedAppAssetsRoute,
   AuthenticatedAppAttendanceRoute: AuthenticatedAppAttendanceRoute,
+  AuthenticatedAppBillingRoute: AuthenticatedAppBillingRoute,
   AuthenticatedAppBiometricRoute: AuthenticatedAppBiometricRoute,
   AuthenticatedAppBiometricSyncRoute: AuthenticatedAppBiometricSyncRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRoute,
@@ -2385,21 +2607,30 @@ const rootRouteChildren: RootRouteChildren = {
   CareersRoute: CareersRoute,
   ContactRoute: ContactRoute,
   CustomerDisplayRoute: CustomerDisplayRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
+  HelpCenterRoute: HelpCenterRoute,
+  LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
   OfflineRoute: OfflineRoute,
   OgPreviewRoute: OgPreviewRoute,
   PortalRoute: PortalRouteWithChildren,
   PricingRoute: PricingRoute,
   ProductRoute: ProductRoute,
+  RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ResourcesRoute: ResourcesRoute,
   SessionExpiredRoute: SessionExpiredRoute,
   SolutionsRoute: SolutionsRoute,
   StoreRoute: StoreRoute,
   SuperLoginRoute: SuperLoginRoute,
   Verify2faRoute: Verify2faRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   ATagRoute: ATagRoute,
   LegalSlugRoute: LegalSlugRoute,
   PSlugRoute: PSlugRoute,
+  PaymentFailedRoute: PaymentFailedRoute,
+  PaymentPendingRoute: PaymentPendingRoute,
+  PaymentSuccessRoute: PaymentSuccessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

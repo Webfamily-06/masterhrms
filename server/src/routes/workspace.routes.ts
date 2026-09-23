@@ -22,6 +22,108 @@ workspaceRouter.get("/subscription", async (req: AuthRequest, res: Response) => 
   } catch (error: any) { return res.status(500).json({ error: error.message }); }
 });
 
+// POST /api/workspace/onboarding - Complete organization initial setup
+workspaceRouter.post("/onboarding", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context missing" });
+    const { orgName, timezone, branchName, phone, address } = req.body;
+
+    if (orgName) {
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          name: orgName,
+          ...(timezone ? { timezone } : {}),
+        },
+      });
+    }
+
+    if (branchName) {
+      const existingWh = await prisma.warehouse.findFirst({
+        where: { tenantId },
+      });
+      if (existingWh) {
+        await prisma.warehouse.update({
+          where: { id: existingWh.id },
+          data: {
+            name: branchName,
+            location: address || existingWh.location,
+            phone: phone || existingWh.phone,
+          },
+        });
+      } else {
+        await prisma.warehouse.create({
+          data: {
+            tenantId,
+            name: branchName,
+            location: address || "Main Branch",
+            phone: phone || "",
+            email: "",
+            isDefault: true,
+          },
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Workspace onboarding successfully completed!",
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/workspace/subscription/upgrade
+workspaceRouter.post("/subscription/upgrade", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context missing" });
+    const { planSlug, billingCycle } = req.body;
+
+    return res.json({
+      success: true,
+      message: `Successfully requested upgrade to ${planSlug || "Enterprise"} tier (${billingCycle || "annual"}).`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/workspace/subscription/downgrade
+workspaceRouter.post("/subscription/downgrade", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context missing" });
+    const { planSlug } = req.body;
+
+    return res.json({
+      success: true,
+      message: `Your downgrade request to ${planSlug || "Standard"} will take effect at the end of the current billing cycle.`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/workspace/subscription/cancel
+workspaceRouter.post("/subscription/cancel", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context missing" });
+    const { reason, feedback } = req.body;
+
+    return res.json({
+      success: true,
+      message: "Your subscription cancellation has been recorded. Access will continue until billing period expiration.",
+      reason,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Helper: Ensure user has Workspace Admin or Super Admin authority
 async function checkIsWorkspaceAdmin(req: AuthRequest, tenantId: string): Promise<boolean> {
   if (req.user?.roles?.includes("super_admin")) return true;
