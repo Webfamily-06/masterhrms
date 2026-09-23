@@ -48,7 +48,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/webp", href: "/favicon.webp" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@400;500;600;700;800&display=swap" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@400;500;600;700;800&display=swap" },
       { rel: "stylesheet", href: "/ui-assets/libs/@phosphor-icons/web/duotone/style.css" },
       { rel: "stylesheet", href: "/ui-assets/libs/@phosphor-icons/web/regular/style.css" },
       { rel: "stylesheet", href: "/ui-assets/libs/@phosphor-icons/web/fill/style.css" },
@@ -83,8 +83,7 @@ function RootShell({ children }: { children: ReactNode }) {
                   }
                   var c = localStorage.getItem("master_hrms_primary_color");
                   if (c) document.documentElement.style.setProperty("--primary", c);
-                  var f = localStorage.getItem("master_hrms_font_family");
-                  if (f) document.body.style.fontFamily = "'" + f + "', 'Public Sans', Inter, sans-serif";
+                  document.body.style.fontFamily = "'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
                   var icon = localStorage.getItem("master_hrms_favicon") || "/favicon.webp";
                   var link = document.querySelector("link[rel*='icon']");
                   if (link) {
@@ -96,7 +95,7 @@ function RootShell({ children }: { children: ReactNode }) {
           }}
         />
       </head>
-      <body suppressHydrationWarning style={{ fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" }}>
+      <body suppressHydrationWarning style={{ fontFamily: "'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" }}>
         {children}
         <Scripts />
       </body>
@@ -142,13 +141,8 @@ function PlatformFaviconSync() {
       } catch (e) {}
     }
 
-    // 3. Dynamic Font Family Sync & Cache
-    if (data.fontFamily) {
-      document.body.style.fontFamily = `'${data.fontFamily}', Inter, sans-serif`;
-      try {
-        localStorage.setItem("master_hrms_font_family", data.fontFamily);
-      } catch (e) {}
-    }
+    // 3. Dynamic Font Family Strict Enforcement
+    document.body.style.fontFamily = "'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
     // 4. Dynamic Logo & App Name Cache
     if (data.logoLightUrl) {
