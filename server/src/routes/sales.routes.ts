@@ -213,20 +213,44 @@ salesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
           },
         });
 
-        // Decrement warehouse stock if warehouseId exists
+        // Atomic warehouse stock decrement with concurrency safety (Stocky Rule 2)
         if (warehouseId && productId) {
-          const pw = await tx.productWarehouse.findUnique({
-            where: { productId_warehouseId: { productId, warehouseId } },
+          const product = await tx.product.findUnique({
+            where: { id: productId },
+            select: { id: true, name: true, type: true },
           });
-          if (pw) {
-            await tx.productWarehouse.update({
-              where: { id: pw.id },
+
+          const isService = product?.type?.toLowerCase() === "service";
+
+          if (!isService) {
+            // Check current stock record
+            const pw = await tx.productWarehouse.findUnique({
+              where: { productId_warehouseId: { productId, warehouseId } },
+            });
+
+            const available = pw ? pw.quantity : 0;
+            if (available < lineQty) {
+              throw new Error(
+                `Insufficient stock for "${product?.name || item.name || "Item"}". Available: ${available}, Requested: ${lineQty}`
+              );
+            }
+
+            // Atomic decrement with condition: guaranteed row lock preventing overselling
+            const updated = await tx.productWarehouse.updateMany({
+              where: {
+                id: pw.id,
+                quantity: { gte: lineQty },
+              },
               data: {
-                quantity: {
-                  decrement: lineQty,
-                },
+                quantity: { decrement: lineQty },
               },
             });
+
+            if (updated.count === 0) {
+              throw new Error(
+                `Stock lock conflict on "${product?.name || item.name || "Item"}". Stock was depleted by a concurrent transaction.`
+              );
+            }
           }
         }
       }

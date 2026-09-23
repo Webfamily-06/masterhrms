@@ -104,51 +104,77 @@ export class InventoryMovementService {
       return transfer;
     }
 
-    // Execute atomic balance movements depending on state transition
+    // Execute atomic balance movements depending on state transition (Stocky Rule 2)
     await prisma.$transaction(async (tx) => {
-      // 1. When entering in_transit, deduct quantity from source warehouse
+      // 1. When entering in_transit, atomically deduct quantity from source warehouse
       if (newStatus === "in_transit" && currentStatus !== "in_transit" && currentStatus !== "completed") {
         for (const item of transfer.details) {
-          await tx.productWarehouse.upsert({
+          const pw = await tx.productWarehouse.findUnique({
             where: {
               productId_warehouseId: {
                 productId: item.productId,
                 warehouseId: transfer.fromWarehouseId,
               },
             },
-            update: {
-              quantity: { decrement: item.quantity },
-            },
-            create: {
+          });
+          const available = pw ? pw.quantity : 0;
+          if (available < item.quantity) {
+            throw new Error(
+              `Cannot dispatch transfer: Source warehouse only has ${available} units available (requested ${item.quantity}).`
+            );
+          }
+
+          const updated = await tx.productWarehouse.updateMany({
+            where: {
               productId: item.productId,
               warehouseId: transfer.fromWarehouseId,
-              quantity: -item.quantity,
+              quantity: { gte: item.quantity },
+            },
+            data: {
+              quantity: { decrement: item.quantity },
             },
           });
+
+          if (updated.count === 0) {
+            throw new Error(`Concurrency conflict during dispatch. Available stock was modified by another operation.`);
+          }
         }
       }
 
       // 2. When completed, ensure source was deducted, then add quantity to destination warehouse
       if (newStatus === "completed") {
         if (currentStatus !== "in_transit") {
-          // If jumped straight from pending/approved to completed, deduct source first
+          // If jumped straight from pending/approved to completed, deduct source first with atomic guard
           for (const item of transfer.details) {
-            await tx.productWarehouse.upsert({
+            const pw = await tx.productWarehouse.findUnique({
               where: {
                 productId_warehouseId: {
                   productId: item.productId,
                   warehouseId: transfer.fromWarehouseId,
                 },
               },
-              update: {
-                quantity: { decrement: item.quantity },
-              },
-              create: {
+            });
+            const available = pw ? pw.quantity : 0;
+            if (available < item.quantity) {
+              throw new Error(
+                `Cannot complete transfer: Source warehouse only has ${available} units available (requested ${item.quantity}).`
+              );
+            }
+
+            const updated = await tx.productWarehouse.updateMany({
+              where: {
                 productId: item.productId,
                 warehouseId: transfer.fromWarehouseId,
-                quantity: -item.quantity,
+                quantity: { gte: item.quantity },
+              },
+              data: {
+                quantity: { decrement: item.quantity },
               },
             });
+
+            if (updated.count === 0) {
+              throw new Error(`Concurrency conflict during transfer completion.`);
+            }
           }
         }
 
@@ -213,7 +239,7 @@ export class InventoryMovementService {
   }
 
   /**
-   * Record Stock Adjustment (Addition / Subtraction / Damage)
+   * Record Stock Adjustment (Addition / Subtraction / Damage) with concurrency checks
    */
   static async recordAdjustment(params: {
     tenantId: string;
@@ -244,26 +270,143 @@ export class InventoryMovementService {
         },
       });
 
-      // Update warehouse stock levels
+      // Update warehouse stock levels with atomic boundary validation
       for (const item of details) {
-        const delta = type === "addition" ? item.quantity : -item.quantity;
-        await tx.productWarehouse.upsert({
+        if (type === "subtraction") {
+          const pw = await tx.productWarehouse.findUnique({
+            where: {
+              productId_warehouseId: {
+                productId: item.productId,
+                warehouseId,
+              },
+            },
+          });
+          const available = pw ? pw.quantity : 0;
+          if (available < item.quantity) {
+            throw new Error(`Cannot subtract ${item.quantity} units from warehouse. Current stock is ${available}.`);
+          }
+
+          const updated = await tx.productWarehouse.updateMany({
+            where: {
+              productId: item.productId,
+              warehouseId,
+              quantity: { gte: item.quantity },
+            },
+            data: {
+              quantity: { decrement: item.quantity },
+            },
+          });
+
+          if (updated.count === 0) {
+            throw new Error(`Concurrency conflict during stock subtraction.`);
+          }
+        } else {
+          // addition
+          await tx.productWarehouse.upsert({
+            where: {
+              productId_warehouseId: {
+                productId: item.productId,
+                warehouseId,
+              },
+            },
+            update: {
+              quantity: { increment: item.quantity },
+            },
+            create: {
+              productId: item.productId,
+              warehouseId,
+              quantity: item.quantity,
+            },
+          });
+        }
+      }
+
+      return adjustment;
+    });
+  }
+
+  /**
+   * Reconcile Physical Stock (Physical Count Audit)
+   * Calculates difference between physical count and system stock,
+   * records corresponding adjustment, and updates stock to exact physical count.
+   */
+  static async reconcilePhysicalStock(params: {
+    tenantId: string;
+    warehouseId: string;
+    reason?: string;
+    counts: { productId: string; physicalQuantity: number }[];
+  }) {
+    const { tenantId, warehouseId, reason, counts } = params;
+
+    return await prisma.$transaction(async (tx) => {
+      const adjustmentLines: { productId: string; quantity: number }[] = [];
+      let overallType: "addition" | "subtraction" = "addition";
+      let netDiff = 0;
+
+      for (const c of counts) {
+        const pw = await tx.productWarehouse.findUnique({
           where: {
             productId_warehouseId: {
-              productId: item.productId,
+              productId: c.productId,
               warehouseId,
             },
           },
-          update: {
-            quantity: { increment: delta },
-          },
-          create: {
-            productId: item.productId,
-            warehouseId,
-            quantity: Math.max(0, delta),
-          },
         });
+
+        const systemQty = pw ? pw.quantity : 0;
+        const diff = c.physicalQuantity - systemQty;
+
+        if (diff !== 0) {
+          adjustmentLines.push({
+            productId: c.productId,
+            quantity: Math.abs(diff),
+          });
+          netDiff += diff;
+
+          // Set stock directly to physical count
+          await tx.productWarehouse.upsert({
+            where: {
+              productId_warehouseId: {
+                productId: c.productId,
+                warehouseId,
+              },
+            },
+            update: {
+              quantity: c.physicalQuantity,
+            },
+            create: {
+              productId: c.productId,
+              warehouseId,
+              quantity: c.physicalQuantity,
+            },
+          });
+        }
       }
+
+      if (adjustmentLines.length === 0) {
+        return null;
+      }
+
+      overallType = netDiff >= 0 ? "addition" : "subtraction";
+
+      const adjustment = await tx.stockAdjustment.create({
+        data: {
+          tenantId,
+          warehouseId,
+          type: overallType,
+          reason: reason || "Physical Inventory Audit Reconciliation",
+          details: {
+            create: adjustmentLines.map((l) => ({
+              productId: l.productId,
+              quantity: l.quantity,
+            })),
+          },
+        },
+        include: {
+          warehouse: true,
+          details: { include: { product: true } },
+        },
+      });
 
       return adjustment;
     });

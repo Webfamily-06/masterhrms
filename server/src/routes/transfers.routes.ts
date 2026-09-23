@@ -2,45 +2,72 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { InventoryMovementService } from "../services/inventory-movement.service";
+import { resolveTenantId } from "../lib/tenant";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const transfersRouter = Router();
 
 /**
  * GET /api/transfers
- * List all stock transfers for the tenant
+ * List all stock transfers for the tenant (Stocky Rule 0: Universal Query Contract)
  */
 transfersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const pagination = parsePaginationParams(req, "createdAt", 25);
     const status = req.query.status as string | undefined;
 
     const where: any = { tenantId };
-    if (status) {
+    if (status && status !== "all") {
       where.status = status;
     }
 
-    const transfers = await prisma.stockTransfer.findMany({
-      where,
-      include: {
-        fromWarehouse: true,
-        toWarehouse: true,
-        details: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                sku: true,
-                salePrice: true,
-                purchasePrice: true,
+    if (pagination.search) {
+      where.OR = [
+        { transferNo: { contains: pagination.search } },
+        { notes: { contains: pagination.search } },
+        { fromWarehouse: { name: { contains: pagination.search } } },
+        { toWarehouse: { name: { contains: pagination.search } } },
+      ];
+    }
+
+    const sortField = ["transferNo", "createdAt", "updatedAt", "status"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, transfers] = await Promise.all([
+      prisma.stockTransfer.count({ where }),
+      prisma.stockTransfer.findMany({
+        where,
+        include: {
+          fromWarehouse: true,
+          toWarehouse: true,
+          details: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  salePrice: true,
+                  purchasePrice: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(transfers, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json({ data: transfers });
   } catch (err: any) {
     console.error("Failed to list transfers:", err);
@@ -54,7 +81,9 @@ transfersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
  */
 transfersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
     const { fromWarehouseId, toWarehouseId, notes, items } = req.body;
 
     if (!fromWarehouseId || !toWarehouseId) {
@@ -82,11 +111,13 @@ transfersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
 
 /**
  * PATCH /api/transfers/:id/status
- * Multi-Tier approval state transition
+ * Multi-Tier approval state transition (pending -> approved -> in_transit -> completed | rejected)
  */
 transfersRouter.patch("/:id/status", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
     const transferId = req.params.id;
     const { status } = req.body;
 
@@ -115,7 +146,9 @@ transfersRouter.patch("/:id/status", requireAuth, async (req: AuthRequest, res: 
  */
 transfersRouter.get("/warehouses/summary", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
     const summary = await InventoryMovementService.getWarehouseStockSummary(tenantId);
     return res.json({ data: summary });
   } catch (err: any) {
@@ -126,11 +159,14 @@ transfersRouter.get("/warehouses/summary", requireAuth, async (req: AuthRequest,
 
 /**
  * GET /api/transfers/adjustments
- * List stock adjustments for the tenant
+ * List stock adjustments for the tenant (Stocky Rule 0: Universal Query Contract)
  */
 transfersRouter.get("/adjustments", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const pagination = parsePaginationParams(req, "createdAt", 25);
     const warehouseId = req.query.warehouseId as string | undefined;
     const type = req.query.type as string | undefined;
 
@@ -138,27 +174,48 @@ transfersRouter.get("/adjustments", requireAuth, async (req: AuthRequest, res: R
     if (warehouseId && warehouseId !== "all") where.warehouseId = warehouseId;
     if (type && type !== "all") where.type = type;
 
-    const adjustments = await prisma.stockAdjustment.findMany({
-      where,
-      include: {
-        warehouse: true,
-        details: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                sku: true,
-                purchasePrice: true,
-                salePrice: true,
+    if (pagination.search) {
+      where.OR = [
+        { reason: { contains: pagination.search } },
+        { warehouse: { name: { contains: pagination.search } } },
+        { details: { some: { product: { name: { contains: pagination.search } } } } },
+      ];
+    }
+
+    const sortField = ["createdAt", "updatedAt", "type"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, adjustments] = await Promise.all([
+      prisma.stockAdjustment.count({ where }),
+      prisma.stockAdjustment.findMany({
+        where,
+        include: {
+          warehouse: true,
+          details: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  purchasePrice: true,
+                  salePrice: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(adjustments, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json({ data: adjustments });
   } catch (err: any) {
     console.error("Failed to list adjustments:", err);
@@ -168,15 +225,42 @@ transfersRouter.get("/adjustments", requireAuth, async (req: AuthRequest, res: R
 
 /**
  * POST /api/transfers/adjustments
- * Record stock adjustment (waste, audit correction, damage)
+ * Record stock adjustment (waste, audit correction, damage) or physical stock reconciliation
  */
 transfersRouter.post("/adjustments", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
-    const { warehouseId, type, reason, details } = req.body;
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
-    if (!warehouseId || !type || !details || details.length === 0) {
-      return res.status(400).json({ error: "Warehouse, type, and details are required" });
+    const { warehouseId, type, reason, details, counts, mode } = req.body;
+
+    if (!warehouseId) {
+      return res.status(400).json({ error: "Warehouse is required" });
+    }
+
+    // Physical audit reconciliation mode
+    if (mode === "reconcile" || (counts && Array.isArray(counts))) {
+      if (!counts || counts.length === 0) {
+        return res.status(400).json({ error: "Physical counts list is required for reconciliation" });
+      }
+
+      const adjustment = await InventoryMovementService.reconcilePhysicalStock({
+        tenantId,
+        warehouseId,
+        reason,
+        counts,
+      });
+
+      return res.status(200).json({
+        data: adjustment,
+        message: adjustment
+          ? "Physical stock reconciliation recorded successfully"
+          : "Stock counts already match system records. No adjustments needed.",
+      });
+    }
+
+    if (!type || !details || details.length === 0) {
+      return res.status(400).json({ error: "Adjustment type and details are required" });
     }
 
     const adjustment = await InventoryMovementService.recordAdjustment({

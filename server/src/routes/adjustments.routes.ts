@@ -6,18 +6,21 @@ import { autoPostStockAdjustmentToLedger } from "../services/ledger-posting.serv
 import { broadcastToTenant } from "../socket";
 import { resolveTenantId } from "../lib/tenant";
 
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+
 export const adjustmentsRouter = Router();
 
 /**
  * GET /api/adjustments
- * List physical stock adjustments for the tenant with aggregated metrics
+ * List physical stock adjustments for the tenant with aggregated metrics (Stocky Rule 0)
  */
 adjustmentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const { warehouseId, type, search } = req.query;
+    const pagination = parsePaginationParams(req, "createdAt", 25);
+    const { warehouseId, type } = req.query;
     const where: any = { tenantId };
 
     if (warehouseId && warehouseId !== "all") {
@@ -26,36 +29,45 @@ adjustmentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) 
     if (type && type !== "all") {
       where.type = String(type);
     }
-    if (search) {
+    if (pagination.search) {
       where.OR = [
-        { reason: { contains: String(search) } },
-        { details: { some: { product: { name: { contains: String(search) } } } } },
+        { reason: { contains: pagination.search } },
+        { warehouse: { name: { contains: pagination.search } } },
+        { details: { some: { product: { name: { contains: pagination.search } } } } },
       ];
     }
 
-    const adjustments = await prisma.stockAdjustment.findMany({
-      where,
-      include: {
-        warehouse: true,
-        details: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                sku: true,
-                purchasePrice: true,
-                salePrice: true,
-                unit: true,
+    const sortField = ["createdAt", "updatedAt", "type"].includes(pagination.sortField)
+      ? pagination.sortField
+      : "createdAt";
+
+    const [total, adjustments] = await Promise.all([
+      prisma.stockAdjustment.count({ where }),
+      prisma.stockAdjustment.findMany({
+        where,
+        include: {
+          warehouse: true,
+          details: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  purchasePrice: true,
+                  salePrice: true,
+                  unit: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { [sortField]: pagination.sortType },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
-    // Compute live summary metrics
+    // Compute summary metrics
     let totalAdditionsCount = 0;
     let totalSubtractionsCount = 0;
     let totalAddedUnits = 0;
@@ -82,17 +94,25 @@ adjustmentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) 
       }
     }
 
+    const metrics = {
+      totalCount: total,
+      totalAdditionsCount,
+      totalSubtractionsCount,
+      totalAddedUnits,
+      totalSubtractedUnits,
+      netUnitsAdjusted: totalAddedUnits - totalSubtractedUnits,
+      totalValuationImpact,
+    };
+
+    if (pagination.isPaginated) {
+      const envelope = formatPaginatedResponse(adjustments, total, pagination);
+      return res.json({ ...envelope, metrics });
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json({
       data: adjustments,
-      metrics: {
-        totalCount: adjustments.length,
-        totalAdditionsCount,
-        totalSubtractionsCount,
-        totalAddedUnits,
-        totalSubtractedUnits,
-        netUnitsAdjusted: totalAddedUnits - totalSubtractedUnits,
-        totalValuationImpact,
-      },
+      metrics,
     });
   } catch (err: any) {
     console.error("GET /api/adjustments error:", err);
@@ -134,23 +154,17 @@ adjustmentsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Respons
 
 /**
  * POST /api/adjustments
- * Record a new physical stock adjustment with atomic stock movement and GL ledger entry
+ * Record a new physical stock adjustment or physical inventory audit reconciliation
  */
 adjustmentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const { warehouseId, type, reason, details } = req.body;
+    const { warehouseId, type, reason, details, counts, mode } = req.body;
 
     if (!warehouseId) {
       return res.status(400).json({ error: "Target warehouse is required" });
-    }
-    if (!type || !["addition", "subtraction"].includes(type)) {
-      return res.status(400).json({ error: 'Adjustment type must be either "addition" or "subtraction"' });
-    }
-    if (!details || !Array.isArray(details) || details.length === 0) {
-      return res.status(400).json({ error: "At least one product item line is required for adjustment" });
     }
 
     // Verify warehouse exists
@@ -159,6 +173,61 @@ adjustmentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response)
     });
     if (!warehouse) {
       return res.status(404).json({ error: "Selected warehouse does not exist or unauthorized" });
+    }
+
+    // Physical count audit reconciliation mode
+    if (mode === "reconcile" || (counts && Array.isArray(counts))) {
+      if (!counts || counts.length === 0) {
+        return res.status(400).json({ error: "Physical counts list is required for reconciliation" });
+      }
+
+      const adjustment = await InventoryMovementService.reconcilePhysicalStock({
+        tenantId,
+        warehouseId,
+        reason,
+        counts,
+      });
+
+      if (adjustment) {
+        // Auto-post to GL
+        let totalValuation = 0;
+        for (const d of adjustment.details) {
+          const product = await prisma.product.findUnique({
+            where: { id: d.productId },
+            select: { purchasePrice: true },
+          });
+          totalValuation += d.quantity * Number(product?.purchasePrice || 0);
+        }
+
+        await autoPostStockAdjustmentToLedger({
+          tenantId,
+          adjustmentId: adjustment.id,
+          warehouseName: warehouse.name,
+          type: adjustment.type as "addition" | "subtraction",
+          totalValue: Math.round(totalValuation * 100) / 100,
+          reason: adjustment.reason || "Physical Audit Reconciliation",
+        });
+
+        broadcastToTenant(tenantId, "stock:adjusted", {
+          adjustmentId: adjustment.id,
+          warehouseId,
+          type: adjustment.type,
+        });
+      }
+
+      return res.status(200).json({
+        data: adjustment,
+        message: adjustment
+          ? `Physical stock audit reconciliation recorded and ledger posted successfully`
+          : "Stock counts already match system records. No adjustments needed.",
+      });
+    }
+
+    if (!type || !["addition", "subtraction"].includes(type)) {
+      return res.status(400).json({ error: 'Adjustment type must be either "addition" or "subtraction"' });
+    }
+    if (!details || !Array.isArray(details) || details.length === 0) {
+      return res.status(400).json({ error: "At least one product item line is required for adjustment" });
     }
 
     // Execute atomic balance movements
