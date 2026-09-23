@@ -41,12 +41,44 @@ export async function apiRequest<T = any>(
   if (API_BASE.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
     cleanEndpoint = cleanEndpoint.substring(4);
   }
-  const url = `${API_BASE}${cleanEndpoint}`;
-  const response = await fetch(url, { ...options, headers });
+  let response: Response;
+  try {
+    response = await fetch(url, { ...options, headers });
+  } catch (err: any) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      window.dispatchEvent(new CustomEvent("network:offline"));
+    }
+    throw new ApiError(err?.message || "Network request failed. You may be offline.", 0);
+  }
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    // 401 Unauthorized: Session Token Expired
+    if (response.status === 401 && !cleanEndpoint.startsWith("/auth/login") && !cleanEndpoint.startsWith("/auth/register")) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth:session-expired", {
+          detail: { path: window.location.pathname, message: data.error }
+        }));
+      }
+    }
+
+    // 403 Forbidden: Insufficient Permissions / License Lock
+    if (response.status === 403) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth:forbidden", {
+          detail: { endpoint: cleanEndpoint, message: data.error }
+        }));
+      }
+    }
+
+    // 503 Service Unavailable: Maintenance Mode
+    if (response.status === 503) {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/maintenance")) {
+        window.location.href = "/maintenance";
+      }
+    }
+
     throw new ApiError(data.error || `Request failed with status ${response.status}`, response.status);
   }
 

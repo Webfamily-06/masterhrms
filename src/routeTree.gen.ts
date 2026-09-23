@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as R403RouteImport } from './routes/403'
 import { Route as R404RouteImport } from './routes/404'
 import { Route as R500RouteImport } from './routes/500'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -20,11 +21,13 @@ import { Route as CareersRouteImport } from './routes/careers'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
+import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OgPreviewRouteImport } from './routes/og-preview'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProductRouteImport } from './routes/product'
 import { Route as ResourcesRouteImport } from './routes/resources'
+import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as StoreRouteImport } from './routes/store'
 import { Route as SuperLoginRouteImport } from './routes/super-login'
@@ -86,6 +89,7 @@ import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_auth
 import { Route as AuthenticatedAppSuppliersRouteImport } from './routes/_authenticated/_app/suppliers'
 import { Route as AuthenticatedAppSupportRouteImport } from './routes/_authenticated/_app/support'
 import { Route as AuthenticatedAppSupportDashboardRouteImport } from './routes/_authenticated/_app/support-dashboard'
+import { Route as AuthenticatedAppSystemStatesRouteImport } from './routes/_authenticated/_app/system-states'
 import { Route as AuthenticatedAppTallyImporterRouteImport } from './routes/_authenticated/_app/tally-importer'
 import { Route as AuthenticatedAppTrainingRouteImport } from './routes/_authenticated/_app/training'
 import { Route as AuthenticatedAppTransfersRouteImport } from './routes/_authenticated/_app/transfers'
@@ -117,6 +121,11 @@ import { Route as PortalProposalsIdRouteImport } from './routes/portal.proposals
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const R403Route = R403RouteImport.update({
+  id: '/403',
+  path: '/403',
   getParentRoute: () => rootRouteImport,
 } as any)
 const R404Route = R404RouteImport.update({
@@ -168,6 +177,11 @@ const MaintenanceRoute = MaintenanceRouteImport.update({
   path: '/maintenance',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OfflineRoute = OfflineRouteImport.update({
+  id: '/offline',
+  path: '/offline',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OgPreviewRoute = OgPreviewRouteImport.update({
   id: '/og-preview',
   path: '/og-preview',
@@ -191,6 +205,11 @@ const ProductRoute = ProductRouteImport.update({
 const ResourcesRoute = ResourcesRouteImport.update({
   id: '/resources',
   path: '/resources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionExpiredRoute = SessionExpiredRouteImport.update({
+  id: '/session-expired',
+  path: '/session-expired',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SolutionsRoute = SolutionsRouteImport.update({
@@ -533,6 +552,12 @@ const AuthenticatedAppSupportDashboardRoute =
     path: '/support-dashboard',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppSystemStatesRoute =
+  AuthenticatedAppSystemStatesRouteImport.update({
+    id: '/system-states',
+    path: '/system-states',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppTallyImporterRoute =
   AuthenticatedAppTallyImporterRouteImport.update({
     id: '/tally-importer',
@@ -689,6 +714,7 @@ const PortalProposalsIdRoute = PortalProposalsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/403': typeof R403Route
   '/404': typeof R404Route
   '/500': typeof R500Route
   '/about': typeof AboutRoute
@@ -698,11 +724,13 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
   '/maintenance': typeof MaintenanceRoute
+  '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
   '/resources': typeof ResourcesRoute
+  '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
@@ -763,6 +791,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/support': typeof AuthenticatedAppSupportRoute
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
+  '/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
@@ -793,6 +822,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/403': typeof R403Route
   '/404': typeof R404Route
   '/500': typeof R500Route
   '/about': typeof AboutRoute
@@ -802,11 +832,13 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
   '/maintenance': typeof MaintenanceRoute
+  '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
   '/resources': typeof ResourcesRoute
+  '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
@@ -866,6 +898,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/support': typeof AuthenticatedAppSupportRoute
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
+  '/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
@@ -898,6 +931,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/403': typeof R403Route
   '/404': typeof R404Route
   '/500': typeof R500Route
   '/about': typeof AboutRoute
@@ -907,11 +941,13 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
   '/maintenance': typeof MaintenanceRoute
+  '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
   '/resources': typeof ResourcesRoute
+  '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
@@ -973,6 +1009,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/_authenticated/_app/support': typeof AuthenticatedAppSupportRoute
   '/_authenticated/_app/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
+  '/_authenticated/_app/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/_authenticated/_app/tally-importer': typeof AuthenticatedAppTallyImporterRoute
   '/_authenticated/_app/training': typeof AuthenticatedAppTrainingRoute
   '/_authenticated/_app/transfers': typeof AuthenticatedAppTransfersRoute
@@ -1005,6 +1042,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/403'
     | '/404'
     | '/500'
     | '/about'
@@ -1014,11 +1052,13 @@ export interface FileRouteTypes {
     | '/contact'
     | '/customer-display'
     | '/maintenance'
+    | '/offline'
     | '/og-preview'
     | '/portal'
     | '/pricing'
     | '/product'
     | '/resources'
+    | '/session-expired'
     | '/solutions'
     | '/store'
     | '/super-login'
@@ -1079,6 +1119,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/support'
     | '/support-dashboard'
+    | '/system-states'
     | '/tally-importer'
     | '/training'
     | '/transfers'
@@ -1109,6 +1150,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/403'
     | '/404'
     | '/500'
     | '/about'
@@ -1118,11 +1160,13 @@ export interface FileRouteTypes {
     | '/contact'
     | '/customer-display'
     | '/maintenance'
+    | '/offline'
     | '/og-preview'
     | '/portal'
     | '/pricing'
     | '/product'
     | '/resources'
+    | '/session-expired'
     | '/solutions'
     | '/store'
     | '/super-login'
@@ -1182,6 +1226,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/support'
     | '/support-dashboard'
+    | '/system-states'
     | '/tally-importer'
     | '/training'
     | '/transfers'
@@ -1213,6 +1258,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/403'
     | '/404'
     | '/500'
     | '/about'
@@ -1222,11 +1268,13 @@ export interface FileRouteTypes {
     | '/contact'
     | '/customer-display'
     | '/maintenance'
+    | '/offline'
     | '/og-preview'
     | '/portal'
     | '/pricing'
     | '/product'
     | '/resources'
+    | '/session-expired'
     | '/solutions'
     | '/store'
     | '/super-login'
@@ -1288,6 +1336,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/suppliers'
     | '/_authenticated/_app/support'
     | '/_authenticated/_app/support-dashboard'
+    | '/_authenticated/_app/system-states'
     | '/_authenticated/_app/tally-importer'
     | '/_authenticated/_app/training'
     | '/_authenticated/_app/transfers'
@@ -1320,6 +1369,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  R403Route: typeof R403Route
   R404Route: typeof R404Route
   R500Route: typeof R500Route
   AboutRoute: typeof AboutRoute
@@ -1329,11 +1379,13 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   CustomerDisplayRoute: typeof CustomerDisplayRoute
   MaintenanceRoute: typeof MaintenanceRoute
+  OfflineRoute: typeof OfflineRoute
   OgPreviewRoute: typeof OgPreviewRoute
   PortalRoute: typeof PortalRouteWithChildren
   PricingRoute: typeof PricingRoute
   ProductRoute: typeof ProductRoute
   ResourcesRoute: typeof ResourcesRoute
+  SessionExpiredRoute: typeof SessionExpiredRoute
   SolutionsRoute: typeof SolutionsRoute
   StoreRoute: typeof StoreRoute
   SuperLoginRoute: typeof SuperLoginRoute
@@ -1350,6 +1402,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/403': {
+      id: '/403'
+      path: '/403'
+      fullPath: '/403'
+      preLoaderRoute: typeof R403RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/404': {
@@ -1422,6 +1481,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MaintenanceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/offline': {
+      id: '/offline'
+      path: '/offline'
+      fullPath: '/offline'
+      preLoaderRoute: typeof OfflineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/og-preview': {
       id: '/og-preview'
       path: '/og-preview'
@@ -1455,6 +1521,13 @@ declare module '@tanstack/react-router' {
       path: '/resources'
       fullPath: '/resources'
       preLoaderRoute: typeof ResourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session-expired': {
+      id: '/session-expired'
+      path: '/session-expired'
+      fullPath: '/session-expired'
+      preLoaderRoute: typeof SessionExpiredRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/solutions': {
@@ -1884,6 +1957,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppSupportDashboardRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/system-states': {
+      id: '/_authenticated/_app/system-states'
+      path: '/system-states'
+      fullPath: '/system-states'
+      preLoaderRoute: typeof AuthenticatedAppSystemStatesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/tally-importer': {
       id: '/_authenticated/_app/tally-importer'
       path: '/tally-importer'
@@ -2127,6 +2207,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppSuppliersRoute: typeof AuthenticatedAppSuppliersRoute
   AuthenticatedAppSupportRoute: typeof AuthenticatedAppSupportRoute
   AuthenticatedAppSupportDashboardRoute: typeof AuthenticatedAppSupportDashboardRoute
+  AuthenticatedAppSystemStatesRoute: typeof AuthenticatedAppSystemStatesRoute
   AuthenticatedAppTallyImporterRoute: typeof AuthenticatedAppTallyImporterRoute
   AuthenticatedAppTrainingRoute: typeof AuthenticatedAppTrainingRoute
   AuthenticatedAppTransfersRoute: typeof AuthenticatedAppTransfersRoute
@@ -2189,6 +2270,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppSuppliersRoute: AuthenticatedAppSuppliersRoute,
   AuthenticatedAppSupportRoute: AuthenticatedAppSupportRoute,
   AuthenticatedAppSupportDashboardRoute: AuthenticatedAppSupportDashboardRoute,
+  AuthenticatedAppSystemStatesRoute: AuthenticatedAppSystemStatesRoute,
   AuthenticatedAppTallyImporterRoute: AuthenticatedAppTallyImporterRoute,
   AuthenticatedAppTrainingRoute: AuthenticatedAppTrainingRoute,
   AuthenticatedAppTransfersRoute: AuthenticatedAppTransfersRoute,
@@ -2294,6 +2376,7 @@ const PortalRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  R403Route: R403Route,
   R404Route: R404Route,
   R500Route: R500Route,
   AboutRoute: AboutRoute,
@@ -2303,11 +2386,13 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   CustomerDisplayRoute: CustomerDisplayRoute,
   MaintenanceRoute: MaintenanceRoute,
+  OfflineRoute: OfflineRoute,
   OgPreviewRoute: OgPreviewRoute,
   PortalRoute: PortalRouteWithChildren,
   PricingRoute: PricingRoute,
   ProductRoute: ProductRoute,
   ResourcesRoute: ResourcesRoute,
+  SessionExpiredRoute: SessionExpiredRoute,
   SolutionsRoute: SolutionsRoute,
   StoreRoute: StoreRoute,
   SuperLoginRoute: SuperLoginRoute,
