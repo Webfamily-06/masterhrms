@@ -4,29 +4,30 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export function OfflineBanner() {
-  const [isOffline, setIsOffline] = useState(
-    typeof navigator !== "undefined" ? !navigator.onLine : false
-  );
+  const [isOffline, setIsOffline] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+    }
     function onOnline() {
       setIsOffline(false);
       setDismissed(false);
-      toast.success("Internet connection restored. Synchronizing data...");
     }
     function onOffline() {
       setIsOffline(true);
       setDismissed(false);
-      toast.warning("Network connection lost. Running in offline resilient mode.");
     }
 
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    window.addEventListener("network:offline", onOffline);
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      window.removeEventListener("network:offline", onOffline);
     };
   }, []);
 

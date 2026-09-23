@@ -41,6 +41,7 @@ export async function apiRequest<T = any>(
   if (API_BASE.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
     cleanEndpoint = cleanEndpoint.substring(4);
   }
+  const url = `${API_BASE}${cleanEndpoint}`;
   let response: Response;
   try {
     response = await fetch(url, { ...options, headers });

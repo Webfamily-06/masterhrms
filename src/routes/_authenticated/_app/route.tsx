@@ -104,9 +104,16 @@ function AppShell() {
 
 
   useEffect(() => {
-    if (!loading && !isLoading && !localStorage.getItem("hrms_auth_token")) navigate({ to: "/auth" });
+    if (!loading && !isLoading && !localStorage.getItem("hrms_auth_token")) {
+      navigate({ to: "/login" });
+      return;
+    }
     if (!loading && !isLoading && profile && !profile.tenant_id) {
-      navigate({ to: profile.roles.includes("super_admin") ? "/super" : "/onboarding" });
+      if (profile.roles?.includes("super_admin")) {
+        navigate({ to: "/super" });
+      } else {
+        navigate({ to: "/onboarding" });
+      }
     }
   }, [loading, isLoading, profile, navigate]);
 
@@ -234,7 +241,24 @@ function AppShell() {
     );
   }
 
-  if (!profile.tenant_id) return null;
+  if (!profile.tenant_id && !profile.roles?.includes("super_admin")) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-background p-6">
+        <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+          <div className="size-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Loader2 className="size-6 animate-spin text-primary" />
+          </div>
+          <h2 className="text-base font-bold">Workspace Configuration Required</h2>
+          <p className="text-xs text-muted-foreground">
+            Please complete the organization onboarding setup to activate your dashboard.
+          </p>
+          <Button asChild size="sm" className="mt-2 text-xs font-bold">
+            <Link to="/onboarding">Complete Setup Wizard</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const initials = (profile?.full_name || profile?.email || "U")
     .split(/\s+/)

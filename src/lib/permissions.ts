@@ -4,13 +4,13 @@ import { ERP_MODULES } from "./erp-modules";
 
 export function isSuperAdminUser(profile: ProfileWithRoles | null | undefined): boolean {
   if (!profile) return false;
-  return profile.roles.includes("super_admin") || profile.workspaceRole?.name === "Super Administrator";
+  return Boolean(profile.roles?.includes("super_admin")) || profile.workspaceRole?.name === "Super Administrator";
 }
 
 export function isWorkspaceAdminUser(profile: ProfileWithRoles | null | undefined): boolean {
   if (!profile) return false;
   if (isSuperAdminUser(profile)) return true;
-  if (profile.roles.includes("admin") || profile.roles.includes("workspace_admin")) return true;
+  if (profile.roles?.includes("admin") || profile.roles?.includes("workspace_admin")) return true;
   return profile.workspaceRole?.name === "Workspace Admin" && profile.workspaceRole?.isActive === true;
 }
 

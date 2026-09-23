@@ -25,6 +25,11 @@ export function SessionExpiredModal() {
       if (
         typeof window !== "undefined" &&
         (window.location.pathname.startsWith("/auth") ||
+          window.location.pathname.startsWith("/login") ||
+          window.location.pathname.startsWith("/register") ||
+          window.location.pathname.startsWith("/verify-email") ||
+          window.location.pathname.startsWith("/forgot-password") ||
+          window.location.pathname.startsWith("/reset-password") ||
           window.location.pathname.startsWith("/super-login") ||
           window.location.pathname.startsWith("/session-expired"))
       ) {
