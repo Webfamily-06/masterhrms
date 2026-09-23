@@ -674,9 +674,15 @@ assetsRouter.post("/disposals/:id/approve", async (req: AuthRequest, res: Respon
       return res.status(404).json({ error: "Disposal batch not found." });
     }
 
-    // 1. Mark assets as disposed and deduct quantity
+    // 1. Mark assets as disposed and deduct quantity (batched)
+    const assetIds = Array.from(new Set(batch.items.map((item) => item.assetId)));
+    const assets = await prisma.asset.findMany({
+      where: { id: { in: assetIds } },
+    });
+    const assetMap = new Map(assets.map((a) => [a.id, a]));
+
     for (const item of batch.items) {
-      const asset = await prisma.asset.findUnique({ where: { id: item.assetId } });
+      const asset = assetMap.get(item.assetId);
       if (asset) {
         const remainingTotal = Math.max(0, asset.totalQuantity - item.quantity);
         const remainingAvail = Math.max(0, asset.availableQuantity - item.quantity);

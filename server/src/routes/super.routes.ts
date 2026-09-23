@@ -5,7 +5,7 @@ import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth"
 import { generateToken } from "../lib/jwt";
 import { z } from "zod";
 import { getIO } from "../socket";
-import { getWorkspacePolicy, resolveWorkspacePolicy, syncSubscriptionPlans } from "../services/workspace-policy.service";
+import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, syncSubscriptionPlans } from "../services/workspace-policy.service";
 
 export const superRouter = Router();
 
@@ -179,7 +179,8 @@ superRouter.get("/stats", requireAuth, requireSuperAdmin, async (req: AuthReques
       prisma.employee.count({ where: { status: "active" } }),
       prisma.platformSupportTicket.count({ where: { status: { notIn: ["resolved", "closed"] } } }),
     ]);
-    const policies = await Promise.all(tenants.map((t) => getWorkspacePolicy(t.id)));
+    const policyMap = await getWorkspacePoliciesBatch(tenants.map((t) => t.id));
+    const policies = tenants.map((t) => policyMap[t.id] || resolveWorkspacePolicy());
     const active = policies.filter((p) => p.status === "active" && (!p.expiresAt || new Date(p.expiresAt) > new Date()));
     const mrr = active.reduce((total, p) => total + p.monthlyRevenue, 0);
     const distribution = new Map<string, number>();
@@ -219,7 +220,8 @@ superRouter.get("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequ
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json(await Promise.all(tenants.map(async (tenant) => ({ ...tenant, policy: await getWorkspacePolicy(tenant.id) }))));
+    const policyMap = await getWorkspacePoliciesBatch(tenants.map((t) => t.id));
+    return res.json(tenants.map((tenant) => ({ ...tenant, policy: policyMap[tenant.id] || resolveWorkspacePolicy() })));
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }

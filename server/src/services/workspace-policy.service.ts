@@ -54,6 +54,52 @@ export async function getWorkspacePolicy(tenantId: string, db: any = prisma) {
   return resolveWorkspacePolicy(subscription?.content || {}, Array.isArray(catalog?.content?.plans) ? catalog.content.plans : []);
 }
 
+export async function getWorkspacePoliciesBatch(tenantIds: string[], db: any = prisma): Promise<Record<string, ReturnType<typeof resolveWorkspacePolicy>>> {
+  if (!tenantIds.length) return {};
+  const uniqueIds = Array.from(new Set(tenantIds));
+  const resultMap: Record<string, ReturnType<typeof resolveWorkspacePolicy>> = {};
+
+  if (db.tenantSubscription?.findMany) {
+    try {
+      const subscriptions = await db.tenantSubscription.findMany({
+        where: { tenantId: { in: uniqueIds } },
+        include: { plan: true },
+      });
+      const subMap = new Map<string, any>(subscriptions.map((s: any) => [s.tenantId, s]));
+      for (const id of uniqueIds) {
+        const sub = subMap.get(id);
+        if (sub) {
+          resultMap[id] = resolveWorkspacePolicy(sub, sub.plan ? [sub.plan] : []);
+        }
+      }
+      // If all tenant IDs were found in tenantSubscription table, return immediately
+      if (Object.keys(resultMap).length === uniqueIds.length) {
+        return resultMap;
+      }
+    } catch (error: any) {
+      if (error?.code !== "P2021") throw error;
+    }
+  }
+
+  // Fallback: batch fetch CMS subscription pages for any missing tenant IDs
+  const missingIds = uniqueIds.filter((id) => !resultMap[id]);
+  if (missingIds.length) {
+    const slugMap = new Map(missingIds.map((id) => [`tenant-${id}-subscription`, id]));
+    const [cmsPages, catalog] = await Promise.all([
+      db.cmsPage.findMany({ where: { slug: { in: Array.from(slugMap.keys()) } } }),
+      db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } }),
+    ]);
+    const cmsMap = new Map((cmsPages || []).map((p: any) => [p.slug, p.content]));
+    const plans = Array.isArray(catalog?.content?.plans) ? catalog.content.plans : [];
+    for (const id of missingIds) {
+      const content = cmsMap.get(`tenant-${id}-subscription`);
+      resultMap[id] = resolveWorkspacePolicy(content || {}, plans);
+    }
+  }
+
+  return resultMap;
+}
+
 export async function syncSubscriptionPlans(plans: any[], db: any = prisma) {
   if (!db.subscriptionPlan?.upsert) return;
   await Promise.all(plans.map((plan) => db.subscriptionPlan.upsert({

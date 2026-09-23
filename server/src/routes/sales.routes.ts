@@ -294,14 +294,18 @@ salesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
     // ⚡ Realtime Broadcasts: Notify customer display, POS history, and live inventory decrements
     try { notifySaleCompleted({ receiptNo: result.invoiceNo, total: Number(result.total), customer: body.customerName, paymentMode: body.paymentMode }); } catch {}
     try {
-      for (const it of items) {
-        prisma.product.findUnique({ where: { id: it.id } }).then(prd => {
-          if (prd) {
-            prisma.productWarehouse.findFirst({ where: { productId: prd.id, warehouseId } }).then(pw => {
-              if (pw) pushStockToRemoteStores(tenantId, prd.sku, pw.quantity);
-            });
+      const itemProductIds = Array.from(new Set(items.map((it: any) => it.id).filter(Boolean)));
+      if (itemProductIds.length && warehouseId) {
+        Promise.all([
+          prisma.product.findMany({ where: { id: { in: itemProductIds } } }),
+          prisma.productWarehouse.findMany({ where: { productId: { in: itemProductIds }, warehouseId } }),
+        ]).then(([products, productWarehouses]) => {
+          const pwMap = new Map(productWarehouses.map((pw) => [pw.productId, pw.quantity]));
+          for (const prd of products) {
+            const qty = pwMap.get(prd.id);
+            if (qty !== undefined) pushStockToRemoteStores(tenantId, prd.sku, qty);
           }
-        });
+        }).catch(() => {});
       }
     } catch {}
     broadcastToTenant(tenantId, "pos:sale_created", {

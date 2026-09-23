@@ -27,22 +27,26 @@ export class InventoryMovementService {
       throw new Error("Transfer must include at least one product item");
     }
 
-    // Verify stock availability at source warehouse
-    for (const item of items) {
-      const stock = await prisma.productWarehouse.findUnique({
-        where: {
-          productId_warehouseId: {
-            productId: item.productId,
-            warehouseId: fromWarehouseId,
-          },
-        },
-      });
+    // Verify stock availability at source warehouse (batched)
+    const productIds = Array.from(new Set(items.map((i) => i.productId)));
+    const [stocks, products] = await Promise.all([
+      prisma.productWarehouse.findMany({
+        where: { warehouseId: fromWarehouseId, productId: { in: productIds } },
+      }),
+      prisma.product.findMany({
+        where: { id: { in: productIds } },
+      }),
+    ]);
 
-      const currentQty = stock?.quantity ?? 0;
+    const stockMap = new Map(stocks.map((s) => [s.productId, s.quantity]));
+    const productMap = new Map(products.map((p) => [p.id, p.name]));
+
+    for (const item of items) {
+      const currentQty = stockMap.get(item.productId) ?? 0;
       if (currentQty < item.quantity) {
-        const prod = await prisma.product.findUnique({ where: { id: item.productId } });
+        const prodName = productMap.get(item.productId) || item.productId;
         throw new Error(
-          `Insufficient stock for "${prod?.name || item.productId}". Available: ${currentQty}, Requested: ${item.quantity}`
+          `Insufficient stock for "${prodName}". Available: ${currentQty}, Requested: ${item.quantity}`
         );
       }
     }
@@ -343,17 +347,15 @@ export class InventoryMovementService {
       let overallType: "addition" | "subtraction" = "addition";
       let netDiff = 0;
 
-      for (const c of counts) {
-        const pw = await tx.productWarehouse.findUnique({
-          where: {
-            productId_warehouseId: {
-              productId: c.productId,
-              warehouseId,
-            },
-          },
-        });
+      // Batch fetch system quantities for all reconciliation counts
+      const countProductIds = Array.from(new Set(counts.map((c) => c.productId)));
+      const existingStocks = await tx.productWarehouse.findMany({
+        where: { warehouseId, productId: { in: countProductIds } },
+      });
+      const stockMap = new Map(existingStocks.map((s) => [s.productId, s.quantity]));
 
-        const systemQty = pw ? pw.quantity : 0;
+      for (const c of counts) {
+        const systemQty = stockMap.get(c.productId) ?? 0;
         const diff = c.physicalQuantity - systemQty;
 
         if (diff !== 0) {
