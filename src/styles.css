@@ -1324,25 +1324,21 @@
 }
 
 html,
-body,
-*,
-::before,
-::after,
-input,
+body {
+  font-family: var(--font-sans);
+}
+
 button,
+input,
 textarea,
 select,
 optgroup,
-option,
-code,
-kbd,
-samp,
-pre {
-  font-family: 'Public Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+option {
+  font-family: inherit;
 }
 
 .font-mono {
-  font-family: 'Public Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+  font-family: var(--font-sans);
 }
 /* ===== ApexCharts Mobile Fixes: prevent text overflow/overlap ===== */
 @media (max-width: 640px) {

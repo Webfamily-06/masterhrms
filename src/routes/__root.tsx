@@ -83,7 +83,6 @@ function RootShell({ children }: { children: ReactNode }) {
                   }
                   var c = localStorage.getItem("master_hrms_primary_color");
                   if (c) document.documentElement.style.setProperty("--primary", c);
-                  document.body.style.fontFamily = "'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
                   var icon = localStorage.getItem("master_hrms_favicon") || "/favicon.webp";
                   var link = document.querySelector("link[rel*='icon']");
                   if (link) {
