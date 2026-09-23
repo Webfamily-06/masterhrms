@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantId } from "../lib/tenant";
 
 export const shiftsRouter = Router();
 
@@ -40,10 +41,8 @@ async function ensureSeedShifts(tenantId: string) {
 // GET /api/shifts (List shift definitions)
 shiftsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
-
-    // seed disabled
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const shifts = await prisma.shiftDefinition.findMany({
       where: { tenantId },
@@ -150,8 +149,8 @@ shiftsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response)
 // GET /api/shifts/roster (Get weekly or monthly roster matrix)
 shiftsRouter.get("/roster", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
 
     const { startDate, endDate, departmentId } = req.query;
 
@@ -176,6 +175,14 @@ shiftsRouter.get("/roster", requireAuth, async (req: AuthRequest, res: Response)
           },
           include: {
             shift: true,
+          },
+        },
+        attendance: {
+          where: {
+            date: {
+              gte: start,
+              lte: end,
+            },
           },
         },
       },
@@ -497,3 +504,155 @@ shiftsRouter.put("/swaps/:id/manager-action", requireAuth, async (req: AuthReque
     return res.status(500).json({ error: err.message || "Failed to process manager action." });
   }
 });
+
+// POST /api/shifts/reconcile (Roster-to-Attendance Auto-Reconciliation)
+shiftsRouter.post("/reconcile", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { date, startDate, endDate, departmentId } = req.body;
+
+    const start = startDate ? new Date(startDate) : (date ? new Date(date) : new Date(Date.now() - 24 * 3600 * 1000));
+    const end = endDate ? new Date(endDate) : (date ? new Date(date) : new Date());
+
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
+    const empWhere: any = { tenantId, status: "active" };
+    if (departmentId && departmentId !== "all") {
+      empWhere.departmentId = String(departmentId);
+    }
+
+    const employees = await prisma.employee.findMany({
+      where: empWhere,
+      select: { id: true, firstName: true, lastName: true, employeeCode: true },
+    });
+
+    let totalEvaluated = 0;
+    let markedAbsent = 0;
+    let markedOnLeave = 0;
+    let markedLate = 0;
+    let alreadyPresent = 0;
+
+    const cur = new Date(startDay);
+
+    while (cur <= endDay) {
+      const targetDate = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate());
+
+      for (const emp of employees) {
+        totalEvaluated++;
+
+        const att = await prisma.attendance.findUnique({
+          where: {
+            tenantId_employeeId_date: {
+              tenantId,
+              employeeId: emp.id,
+              date: targetDate,
+            },
+          },
+        });
+
+        const approvedLeave = await prisma.leaveRequest.findFirst({
+          where: {
+            tenantId,
+            employeeId: emp.id,
+            status: "approved",
+            startDate: { lte: targetDate },
+            endDate: { gte: targetDate },
+          },
+          include: { leaveType: true },
+        });
+
+        if (approvedLeave) {
+          if (!att || att.status !== "on_leave") {
+            await prisma.attendance.upsert({
+              where: {
+                tenantId_employeeId_date: { tenantId, employeeId: emp.id, date: targetDate },
+              },
+              update: { status: "on_leave", notes: `Approved Leave: ${approvedLeave.leaveType?.name || "Leave"}` },
+              create: {
+                tenantId,
+                employeeId: emp.id,
+                date: targetDate,
+                status: "on_leave",
+                notes: `Approved Leave: ${approvedLeave.leaveType?.name || "Leave"}`,
+              },
+            });
+            markedOnLeave++;
+          }
+          continue;
+        }
+
+        const roster = await prisma.shiftRoster.findUnique({
+          where: {
+            tenantId_employeeId_rosterDate: {
+              tenantId,
+              employeeId: emp.id,
+              rosterDate: targetDate,
+            },
+          },
+          include: { shift: true },
+        });
+
+        const isScheduledOff = roster?.shift?.code === "OFF";
+
+        if (att && att.checkIn) {
+          if (roster && roster.shift && roster.shift.startTime && roster.shift.startTime !== "00:00") {
+            const [shH, shM] = roster.shift.startTime.split(":").map(Number);
+            const shiftStart = new Date(targetDate);
+            shiftStart.setHours(shH, shM, 0, 0);
+
+            const graceThreshold = new Date(shiftStart.getTime() + 15 * 60 * 1000);
+            if (new Date(att.checkIn) > graceThreshold && att.status === "present") {
+              await prisma.attendance.update({
+                where: { id: att.id },
+                data: { status: "late", notes: `Auto-reconciled: Checked in past 15-min shift grace period.` },
+              });
+              markedLate++;
+            } else {
+              alreadyPresent++;
+            }
+          } else {
+            alreadyPresent++;
+          }
+          continue;
+        }
+
+        if (!att && !isScheduledOff) {
+          const isPastDate = targetDate.getTime() < new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+          if (isPastDate) {
+            await prisma.attendance.create({
+              data: {
+                tenantId,
+                employeeId: emp.id,
+                date: targetDate,
+                status: "absent",
+                notes: `Auto-reconciled: No punch recorded for scheduled ${roster?.shift?.name || "Shift"}.`,
+              },
+            });
+            markedAbsent++;
+          }
+        }
+      }
+
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    return res.json({
+      success: true,
+      message: `Shift roster auto-reconciliation complete for ${employees.length} employees.`,
+      metrics: {
+        totalEvaluated,
+        markedAbsent,
+        markedOnLeave,
+        markedLate,
+        alreadyPresent,
+      },
+    });
+  } catch (err: any) {
+    console.error("Shifts reconcile error:", err);
+    return res.status(500).json({ error: err.message || "Failed to reconcile shifts with attendance." });
+  }
+});
+
