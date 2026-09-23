@@ -130,6 +130,10 @@ function UsersPage() {
     (u) => u.assignedRole && u.assignedRole.name !== "Workspace Admin" && u.assignedRole.name !== "Employee"
   ).length;
 
+  const selectedRoleInfo = useMemo(() => {
+    return roles.find((r) => r.id === targetRoleId);
+  }, [roles, targetRoleId]);
+
   return (
     <div className="w-full flex-1 min-w-0 bg-background">
       <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
@@ -324,35 +328,58 @@ function UsersPage() {
 
         {/* Change Role Dialog */}
         <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold">Change User Role</DialogTitle>
+          <DialogContent className="sm:max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
+            <DialogHeader className="space-y-1.5">
+              <DialogTitle className="text-base font-bold text-foreground">Change User Role</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Assign an RBAC role to {editingUser?.fullName} ({editingUser?.email}).
-                The user will immediately receive the corresponding module dashboards and action permissions.
+                Assign an RBAC role to <span className="font-semibold text-foreground">{editingUser?.fullName}</span> ({editingUser?.email}).
+                Permissions take effect immediately across all workspace modules.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Select Role *</label>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-foreground">Select Workspace Role *</label>
                 <Select value={targetRoleId} onValueChange={setTargetRoleId}>
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-10 text-xs w-full">
                     <SelectValue placeholder="Choose a workspace role..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-w-[calc(100vw-2rem)] sm:max-w-[460px]">
                     {roles.map((r) => (
-                      <SelectItem key={r.id} value={r.id} className="text-xs">
-                        <span className="font-semibold">{r.name}</span>
-                        {r.description && <span className="text-muted-foreground ml-2">({r.description})</span>}
+                      <SelectItem key={r.id} value={r.id} textValue={r.name} className="text-xs py-2.5 cursor-pointer">
+                        <div className="flex flex-col gap-0.5 text-left w-full pr-2">
+                          <span className="font-bold text-foreground">{r.name}</span>
+                          {r.description && (
+                            <span className="text-[11px] text-muted-foreground whitespace-normal leading-tight font-normal">
+                              {r.description}
+                            </span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Selected Role Summary Preview Card */}
+              {selectedRoleInfo && (
+                <div className="rounded-lg border border-border/80 bg-muted/30 p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">{selectedRoleInfo.name}</span>
+                    <Badge variant="outline" className="text-[10px] font-semibold bg-background">
+                      Selected Scope
+                    </Badge>
+                  </div>
+                  {selectedRoleInfo.description && (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {selectedRoleInfo.description}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-border/60">
               <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(false)}>
                 Cancel
               </Button>
@@ -360,7 +387,7 @@ function UsersPage() {
                 size="sm"
                 onClick={() => assignRoleMutation.mutate()}
                 disabled={assignRoleMutation.isPending || !targetRoleId}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4"
               >
                 {assignRoleMutation.isPending && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
                 Save Changes
