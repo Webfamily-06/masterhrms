@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const offboardingRouter = Router();
 
@@ -38,19 +39,30 @@ offboardingRouter.get("/exits", requireAuth, async (req: AuthRequest, res: Respo
       ];
     }
 
-    const exits = await prisma.employeeExit.findMany({
-      where,
-      include: {
-        employee: {
-          include: { department: true },
-        },
-        checklists: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
+    const [total, exits] = await Promise.all([
+      prisma.employeeExit.count({ where }),
+      prisma.employeeExit.findMany({
+        where,
+        include: {
+          employee: {
+            include: { department: true },
+          },
+          checklists: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(exits, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(exits);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to list offboarding records." });

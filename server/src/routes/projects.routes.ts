@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const projectsRouter = Router();
 
@@ -12,41 +13,60 @@ export const projectsRouter = Router();
 projectsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
-    const dbProjects = await prisma.project.findMany({
-      where: { tenantId },
-      include: {
-        tasks: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const [total, dbProjects] = await Promise.all([
+      prisma.project.count({ where: { tenantId } }),
+      prisma.project.findMany({
+        where: { tenantId },
+        include: {
+          tasks: true,
+        },
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
     if (dbProjects.length > 0) {
+      const formattedProjects = dbProjects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description || "",
+        status: p.status,
+        priority: p.priority,
+        progress: p.progress,
+        clientName: p.clientName || "",
+        color: "#3b82f6",
+        createdAt: p.createdAt.toISOString(),
+      }));
+
+      const formattedTasks = dbProjects.flatMap((p) =>
+        p.tasks.map((t) => ({
+          id: t.id,
+          projectId: t.projectId,
+          title: t.title,
+          description: t.description || "",
+          status: t.status,
+          priority: t.priority,
+          assignee: t.assignedTo || "Unassigned",
+          dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+          createdAt: t.createdAt.toISOString(),
+        }))
+      );
+
+      if (pagination.isPaginated) {
+        const paginated = formatPaginatedResponse(formattedProjects, total, pagination);
+        return res.json({
+          ...paginated,
+          projects: formattedProjects,
+          tasks: formattedTasks,
+        });
+      }
+
+      res.setHeader("X-Total-Count", String(total));
       return res.json({
-        projects: dbProjects.map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description || "",
-          status: p.status,
-          priority: p.priority,
-          progress: p.progress,
-          clientName: p.clientName || "",
-          color: "#3b82f6",
-          createdAt: p.createdAt.toISOString(),
-        })),
-        tasks: dbProjects.flatMap((p) =>
-          p.tasks.map((t) => ({
-            id: t.id,
-            projectId: t.projectId,
-            title: t.title,
-            description: t.description || "",
-            status: t.status,
-            priority: t.priority,
-            assignee: t.assignedTo || "Unassigned",
-            dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
-            createdAt: t.createdAt.toISOString(),
-          }))
-        ),
+        projects: formattedProjects,
+        tasks: formattedTasks,
       });
     }
 
@@ -90,37 +110,64 @@ projectsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => 
           } catch {}
         }
 
-        const freshProjects = await prisma.project.findMany({
-          where: { tenantId },
-          include: { tasks: true },
-          orderBy: { createdAt: "desc" },
-        });
+        const [migratedTotal, freshProjects] = await Promise.all([
+          prisma.project.count({ where: { tenantId } }),
+          prisma.project.findMany({
+            where: { tenantId },
+            include: { tasks: true },
+            orderBy: { createdAt: "desc" },
+            ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+          }),
+        ]);
 
+        const formattedProjects = freshProjects.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || "",
+          color: "#3b82f6",
+          createdAt: p.createdAt.toISOString(),
+        }));
+
+        const formattedTasks = freshProjects.flatMap((p) =>
+          p.tasks.map((t) => ({
+            id: t.id,
+            projectId: t.projectId,
+            title: t.title,
+            description: t.description || "",
+            status: t.status,
+            priority: t.priority,
+            assignee: t.assignedTo || "Unassigned",
+            dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: t.createdAt.toISOString(),
+          }))
+        );
+
+        if (pagination.isPaginated) {
+          const paginated = formatPaginatedResponse(formattedProjects, migratedTotal, pagination);
+          return res.json({
+            ...paginated,
+            projects: formattedProjects,
+            tasks: formattedTasks,
+          });
+        }
+
+        res.setHeader("X-Total-Count", String(migratedTotal));
         return res.json({
-          projects: freshProjects.map((p) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description || "",
-            color: "#3b82f6",
-            createdAt: p.createdAt.toISOString(),
-          })),
-          tasks: freshProjects.flatMap((p) =>
-            p.tasks.map((t) => ({
-              id: t.id,
-              projectId: t.projectId,
-              title: t.title,
-              description: t.description || "",
-              status: t.status,
-              priority: t.priority,
-              assignee: t.assignedTo || "Unassigned",
-              dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
-              createdAt: t.createdAt.toISOString(),
-            }))
-          ),
+          projects: formattedProjects,
+          tasks: formattedTasks,
         });
       }
     }
 
+    if (pagination.isPaginated) {
+      return res.json({
+        ...formatPaginatedResponse([], 0, pagination),
+        projects: [],
+        tasks: [],
+      });
+    }
+
+    res.setHeader("X-Total-Count", "0");
     return res.json({ projects: [], tasks: [] });
   } catch (err: any) {
     console.error("Projects GET error:", err);

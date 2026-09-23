@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const documentsRouter = Router();
 
@@ -103,16 +104,27 @@ documentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
       ];
     }
 
-    const documents = await prisma.companyDocument.findMany({
-      where,
-      include: {
-        employee: {
-          include: { department: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
+    const [total, documents] = await Promise.all([
+      prisma.companyDocument.count({ where }),
+      prisma.companyDocument.findMany({
+        where,
+        include: {
+          employee: {
+            include: { department: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(documents, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(documents);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to list documents." });

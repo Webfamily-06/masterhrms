@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
 import { broadcastToTenant } from "../socket";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const crmRouter = Router();
 
@@ -13,31 +14,41 @@ export const crmRouter = Router();
 crmRouter.get("/leads", requireAuth, requirePermission("crm.leads.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
-    const dbLeads = await prisma.crmLead.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: "desc" },
-    });
+    const [total, dbLeads] = await Promise.all([
+      prisma.crmLead.count({ where: { tenantId } }),
+      prisma.crmLead.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
     if (dbLeads.length > 0) {
-      return res.json(
-        dbLeads.map((l) => ({
-          id: l.id,
-          name: l.contactName || l.title,
-          title: l.title,
-          contactName: l.contactName,
-          company: l.company || "",
-          email: l.email || "",
-          phone: l.phone || "",
-          value: Number(l.value),
-          stage: l.stage,
-          priority: l.priority,
-          source: l.source || "Direct",
-          notes: l.notes || "",
-          assignedTo: l.assignedTo || "",
-          createdAt: l.createdAt.toISOString(),
-        }))
-      );
+      const formatted = dbLeads.map((l) => ({
+        id: l.id,
+        name: l.contactName || l.title,
+        title: l.title,
+        contactName: l.contactName,
+        company: l.company || "",
+        email: l.email || "",
+        phone: l.phone || "",
+        value: Number(l.value),
+        stage: l.stage,
+        priority: l.priority,
+        source: l.source || "Direct",
+        notes: l.notes || "",
+        assignedTo: l.assignedTo || "",
+        createdAt: l.createdAt.toISOString(),
+      }));
+
+      if (pagination.isPaginated) {
+        return res.json(formatPaginatedResponse(formatted, total, pagination));
+      }
+
+      res.setHeader("X-Total-Count", String(total));
+      return res.json(formatted);
     }
 
     // Auto-migrate from legacy CMS page if exists
@@ -67,28 +78,42 @@ crmRouter.get("/leads", requireAuth, requirePermission("crm.leads.view"), async 
           });
         } catch {}
       }
-      const migrated = await prisma.crmLead.findMany({
-        where: { tenantId },
-        orderBy: { createdAt: "desc" },
-      });
-      return res.json(
-        migrated.map((l) => ({
-          id: l.id,
-          name: l.contactName || l.title,
-          title: l.title,
-          company: l.company || "",
-          email: l.email || "",
-          phone: l.phone || "",
-          value: Number(l.value),
-          stage: l.stage,
-          priority: l.priority,
-          source: l.source || "Direct",
-          notes: l.notes || "",
-          createdAt: l.createdAt.toISOString(),
-        }))
-      );
+      const [migratedTotal, migrated] = await Promise.all([
+        prisma.crmLead.count({ where: { tenantId } }),
+        prisma.crmLead.findMany({
+          where: { tenantId },
+          orderBy: { createdAt: "desc" },
+          ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+        }),
+      ]);
+      const formatted = migrated.map((l) => ({
+        id: l.id,
+        name: l.contactName || l.title,
+        title: l.title,
+        company: l.company || "",
+        email: l.email || "",
+        phone: l.phone || "",
+        value: Number(l.value),
+        stage: l.stage,
+        priority: l.priority,
+        source: l.source || "Direct",
+        notes: l.notes || "",
+        createdAt: l.createdAt.toISOString(),
+      }));
+
+      if (pagination.isPaginated) {
+        return res.json(formatPaginatedResponse(formatted, migratedTotal, pagination));
+      }
+
+      res.setHeader("X-Total-Count", String(migratedTotal));
+      return res.json(formatted);
     }
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse([], 0, pagination));
+    }
+
+    res.setHeader("X-Total-Count", "0");
     return res.json([]);
   } catch (err: any) {
     console.error("CRM Leads GET error:", err);
@@ -200,37 +225,53 @@ crmRouter.delete("/leads/:id", requireAuth, requirePermission("crm.leads.delete"
 crmRouter.get("/proposals", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
-    const proposals = await prisma.crmProposal.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: "desc" },
-    });
+    const [total, proposals] = await Promise.all([
+      prisma.crmProposal.count({ where: { tenantId } }),
+      prisma.crmProposal.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
     if (proposals.length > 0) {
-      return res.json(
-        proposals.map((p) => ({
-          id: p.id,
-          proposalNo: p.proposalNo,
-          title: p.title,
-          client: p.clientName,
-          clientName: p.clientName,
-          clientEmail: p.clientEmail || "",
-          clientGstin: p.clientGstin || "",
-          amount: Number(p.amount),
-          status: p.status,
-          date: p.validUntil ? p.validUntil.toISOString() : p.createdAt.toISOString(),
-          created_at: p.createdAt.toISOString(),
-          items: p.items || [],
-          terms: p.terms || "",
-          notes: p.notes || "",
-        }))
-      );
+      const formatted = proposals.map((p) => ({
+        id: p.id,
+        proposalNo: p.proposalNo,
+        title: p.title,
+        client: p.clientName,
+        clientName: p.clientName,
+        clientEmail: p.clientEmail || "",
+        clientGstin: p.clientGstin || "",
+        amount: Number(p.amount),
+        status: p.status,
+        date: p.validUntil ? p.validUntil.toISOString() : p.createdAt.toISOString(),
+        created_at: p.createdAt.toISOString(),
+        items: p.items || [],
+        terms: p.terms || "",
+        notes: p.notes || "",
+      }));
+
+      if (pagination.isPaginated) {
+        return res.json(formatPaginatedResponse(formatted, total, pagination));
+      }
+
+      res.setHeader("X-Total-Count", String(total));
+      return res.json(formatted);
     }
 
     // Fallback to legacy CMS page
     const slug = `system-proposals-${tenantId}`;
     const page = await prisma.cmsPage.findUnique({ where: { slug } });
     const list = page?.content && Array.isArray(page.content) ? page.content : [];
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(list, list.length, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(list.length));
     return res.json(list);
   } catch (err: any) {
     console.error("Proposals GET error:", err);

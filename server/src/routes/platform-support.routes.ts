@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const platformSupportRouter = Router();
 
@@ -98,17 +99,28 @@ platformSupportRouter.get("/tickets", requireAuth, async (req: AuthRequest, res:
       ];
     }
 
-    const tickets = await prisma.platformSupportTicket.findMany({
-      where,
-      include: {
-        tenant: true,
-        messages: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
+    const [total, tickets] = await Promise.all([
+      prisma.platformSupportTicket.count({ where }),
+      prisma.platformSupportTicket.findMany({
+        where,
+        include: {
+          tenant: true,
+          messages: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(tickets, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(tickets);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to list platform support tickets." });

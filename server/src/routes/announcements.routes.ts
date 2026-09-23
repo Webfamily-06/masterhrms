@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const announcementsRouter = Router();
 
@@ -118,42 +119,53 @@ announcementsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response
       ];
     }
 
-    const announcements = await prisma.announcement.findMany({
-      where,
-      include: {
-        targetDepartment: true,
-        author: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            position: true,
-            employeeCode: true,
+    const pagination = parsePaginationParams(req, "publishDate", 20);
+
+    const [total, announcements] = await Promise.all([
+      prisma.announcement.count({ where }),
+      prisma.announcement.findMany({
+        where,
+        include: {
+          targetDepartment: true,
+          author: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              position: true,
+              employeeCode: true,
+            },
           },
-        },
-        acknowledgements: {
-          select: {
-            id: true,
-            employeeId: true,
-            acknowledgedAt: true,
-            comments: true,
-            employee: {
-              select: {
-                firstName: true,
-                lastName: true,
-                employeeCode: true,
-                department: { select: { name: true } },
+          acknowledgements: {
+            select: {
+              id: true,
+              employeeId: true,
+              acknowledgedAt: true,
+              comments: true,
+              employee: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  employeeCode: true,
+                  department: { select: { name: true } },
+                },
               },
             },
           },
         },
-      },
-      orderBy: [
-        { isPinned: "desc" },
-        { publishDate: "desc" },
-      ],
-    });
+        orderBy: [
+          { isPinned: "desc" },
+          { publishDate: "desc" },
+        ],
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(announcements, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(announcements);
   } catch (err: any) {
     console.error("[GET /api/announcements] error:", err);

@@ -4,6 +4,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { broadcastToTenant } from "../socket";
 import { autoPostPayrollToLedger } from "../services/ledger-posting.service";
 import crypto from "crypto";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const payrollRouter = Router();
 
@@ -455,14 +456,25 @@ payrollRouter.get("/runs", requireAuth, async (req: AuthRequest, res: Response) 
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
 
-    const runs = await prisma.payrollRun.findMany({
-      where: { tenantId },
-      include: {
-        _count: { select: { payslips: true } },
-      },
-      orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
-    });
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
+    const [total, runs] = await Promise.all([
+      prisma.payrollRun.count({ where: { tenantId } }),
+      prisma.payrollRun.findMany({
+        where: { tenantId },
+        include: {
+          _count: { select: { payslips: true } },
+        },
+        orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(runs, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(runs);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
@@ -792,26 +804,37 @@ payrollRouter.get("/payslips", requireAuth, async (req: AuthRequest, res: Respon
     if (month) where.periodMonth = Number(month);
     if (year) where.periodYear = Number(year);
 
-    const payslips = await prisma.payslip.findMany({
-      where,
-      include: {
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            employeeCode: true,
-            position: true,
-            salary: true,
-            department: { select: { name: true } },
-          },
-        },
-        payrollRun: true,
-      },
-      orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
-    });
+    const pagination = parsePaginationParams(req, "createdAt", 20);
 
+    const [total, payslips] = await Promise.all([
+      prisma.payslip.count({ where }),
+      prisma.payslip.findMany({
+        where,
+        include: {
+          employee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              employeeCode: true,
+              position: true,
+              salary: true,
+              department: { select: { name: true } },
+            },
+          },
+          payrollRun: true,
+        },
+        orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(payslips, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(payslips);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });

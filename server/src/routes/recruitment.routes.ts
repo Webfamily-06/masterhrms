@@ -3,6 +3,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const recruitmentRouter = Router();
 export const publicJobsRouter = Router();
@@ -37,19 +38,30 @@ recruitmentRouter.get("/jobs", requireAuth, async (req: AuthRequest, res: Respon
       ];
     }
 
-    const jobs = await prisma.jobPosting.findMany({
-      where,
-      include: {
-        department: true,
-        _count: {
-          select: {
-            candidates: true,
+    const pagination = parsePaginationParams(req, "createdAt", 20);
+
+    const [total, jobs] = await Promise.all([
+      prisma.jobPosting.count({ where }),
+      prisma.jobPosting.findMany({
+        where,
+        include: {
+          department: true,
+          _count: {
+            select: {
+              candidates: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(jobs, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(jobs);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to list job postings." });
@@ -253,25 +265,36 @@ recruitmentRouter.get("/candidates", requireAuth, async (req: AuthRequest, res: 
       ];
     }
 
-    const candidates = await prisma.jobCandidate.findMany({
-      where,
-      include: {
-        jobPosting: {
-          include: {
-            department: true,
+    const pagination = parsePaginationParams(req, "createdAt", 20);
+
+    const [total, candidates] = await Promise.all([
+      prisma.jobCandidate.count({ where }),
+      prisma.jobCandidate.findMany({
+        where,
+        include: {
+          jobPosting: {
+            include: {
+              department: true,
+            },
           },
-        },
-        interviews: {
-          include: {
-            interviewer: {
-              select: { id: true, firstName: true, lastName: true, email: true },
+          interviews: {
+            include: {
+              interviewer: {
+                select: { id: true, firstName: true, lastName: true, email: true },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
 
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(candidates, total, pagination));
+    }
+
+    res.setHeader("X-Total-Count", String(total));
     return res.json(candidates);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to list candidates." });
