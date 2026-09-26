@@ -66,6 +66,13 @@ import {
   X,
   Settings2,
   Landmark,
+  PieChart,
+  TrendingUp,
+  TrendingDown,
+  PiggyBank,
+  Calculator,
+  Users,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -110,6 +117,109 @@ export function ExpensesPage() {
   const [selectedClaimPassport, setSelectedClaimPassport] = useState<any>(null);
   const [isReimburseModalOpen, setIsReimburseModalOpen] = useState(false);
   const [claimToReimburse, setClaimToReimburse] = useState<any>(null);
+
+  // New Modals for Budgets, PF, and Taxes
+  const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false);
+  const [isAddPFOpen, setIsAddPFOpen] = useState(false);
+  const [isAddTaxOpen, setIsAddTaxOpen] = useState(false);
+
+  // Budgets State (budgets.html)
+  const [budgetsList, setBudgetsList] = useState([
+    {
+      id: "b-1",
+      title: "Enterprise ERP Rollout 2026",
+      type: "Project" as const,
+      startDate: "2026-01-10",
+      endDate: "2026-12-31",
+      totalRevenue: 500000,
+      totalExpenses: 340000,
+      expectedProfit: 160000,
+      tax: 15000,
+      budgetAmount: 145000,
+    },
+    {
+      id: "b-2",
+      title: "General Corporate Operations & IT",
+      type: "Category" as const,
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      totalRevenue: 300000,
+      totalExpenses: 200000,
+      expectedProfit: 100000,
+      tax: 10000,
+      budgetAmount: 90000,
+    },
+  ]);
+
+  const [budgetForm, setBudgetForm] = useState({
+    title: "",
+    type: "Project",
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    revenueAmount: "250000",
+    expenseAmount: "180000",
+    taxAmount: "8000",
+  });
+
+  // Provident Fund State (provident-fund.html)
+  const [pfList, setPfList] = useState([
+    {
+      id: "pf-1",
+      employeeId: "emp-1",
+      employeeName: "Anthony Lewis",
+      department: "Finance & Accounts",
+      type: "Employee Provident Fund",
+      employeeShare: 2,
+      employerShare: 2,
+      status: "Approved" as const,
+      accumulatedBalance: 48500,
+    },
+    {
+      id: "pf-2",
+      employeeId: "emp-2",
+      employeeName: "Brian Villalobos",
+      department: "Engineering",
+      type: "Employee Provident Fund",
+      employeeShare: 2,
+      employerShare: 2,
+      status: "Pending" as const,
+      accumulatedBalance: 32000,
+    },
+    {
+      id: "pf-3",
+      employeeId: "emp-3",
+      employeeName: "Harvey Smith",
+      department: "Product Design",
+      type: "Voluntary Provident Fund",
+      employeeShare: 5,
+      employerShare: 2,
+      status: "Approved" as const,
+      accumulatedBalance: 74200,
+    },
+  ]);
+
+  const [pfForm, setPfForm] = useState({
+    employeeId: "",
+    type: "Employee Provident Fund",
+    employeeShare: "2",
+    employerShare: "2",
+    status: "Approved",
+  });
+
+  // Taxes State (taxes.html)
+  const [taxesList, setTaxesList] = useState<Array<{ id: string; name: string; rate: number; description: string; status: "Active" | "Inactive" }>>([
+    { id: "tx-1", name: "VAT", rate: 20, description: "Comprehensive tax on supply of goods and services", status: "Active" },
+    { id: "tx-2", name: "GST", rate: 18, description: "Goods and Services unified statutory schedule", status: "Active" },
+    { id: "tx-3", name: "TDS / Withholding", rate: 10, description: "Tax Deducted at Source for professional services (194J)", status: "Active" },
+    { id: "tx-4", name: "Professional Tax", rate: 2, description: "State statutory municipal employee deduction", status: "Active" },
+  ]);
+
+  const [taxForm, setTaxForm] = useState({
+    name: "",
+    rate: "18",
+    description: "",
+    status: "Active",
+  });
 
   // Forms
   const [claimForm, setClaimForm] = useState({
@@ -389,7 +499,7 @@ export function ExpensesPage() {
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-1 rounded-xl border">
-          <TabsList className="bg-transparent h-8 p-0 gap-1">
+          <TabsList className="bg-transparent h-8 p-0 gap-1 flex-wrap">
             <TabsTrigger value="claims" className="text-xs font-bold h-7 gap-1.5">
               <Receipt className="size-3.5" />
               <span>Claims Directory ({claims.length})</span>
@@ -397,6 +507,18 @@ export function ExpensesPage() {
             <TabsTrigger value="categories" className="text-xs font-bold h-7 gap-1.5">
               <Settings2 className="size-3.5" />
               <span>Expense Categories ({categories.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="budgets" className="text-xs font-bold h-7 gap-1.5">
+              <PieChart className="size-3.5 text-primary" />
+              <span>Budgets & Forecast ({budgetsList.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="provident_fund" className="text-xs font-bold h-7 gap-1.5">
+              <ShieldCheck className="size-3.5 text-emerald-500" />
+              <span>Provident Fund ({pfList.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="taxes" className="text-xs font-bold h-7 gap-1.5">
+              <Landmark className="size-3.5 text-indigo-500" />
+              <span>Tax Master ({taxesList.length})</span>
             </TabsTrigger>
           </TabsList>
 
@@ -407,38 +529,60 @@ export function ExpensesPage() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search claim code, merchant..."
+                placeholder="Search records..."
                 className="h-7 text-xs pl-8 w-44 bg-background"
               />
             </div>
 
-            <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
-              <SelectTrigger className="h-7 text-xs w-36 bg-background">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {activeTab === "claims" && (
+              <>
+                <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                  <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
-              <SelectTrigger className="h-7 text-xs w-36 bg-background">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="manager_approved">Manager Approved</SelectItem>
-                <SelectItem value="finance_approved">Finance Approved</SelectItem>
-                <SelectItem value="reimbursed">Reimbursed</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
+                <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
+                  <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="manager_approved">Manager Approved</SelectItem>
+                    <SelectItem value="finance_approved">Finance Approved</SelectItem>
+                    <SelectItem value="reimbursed">Reimbursed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+
+            {activeTab === "budgets" && (
+              <Button size="sm" onClick={() => setIsAddBudgetOpen(true)} className="h-7 text-xs font-bold gap-1 shadow-2xs">
+                <Plus className="size-3.5" /> Add Budget
+              </Button>
+            )}
+
+            {activeTab === "provident_fund" && (
+              <Button size="sm" onClick={() => setIsAddPFOpen(true)} className="h-7 text-xs font-bold gap-1 shadow-2xs">
+                <Plus className="size-3.5" /> Enrol Employee PF
+              </Button>
+            )}
+
+            {activeTab === "taxes" && (
+              <Button size="sm" onClick={() => setIsAddTaxOpen(true)} className="h-7 text-xs font-bold gap-1 shadow-2xs">
+                <Plus className="size-3.5" /> Add Tax Slab
+              </Button>
+            )}
           </div>
         </div>
 
@@ -742,6 +886,307 @@ export function ExpensesPage() {
                       </TableRow>
                     );
                   })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 3: BUDGETS & FORECAST ===================== */}
+        <TabsContent value="budgets" className="space-y-4 pt-1">
+          {/* Budget Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <PieChart className="size-3.5 text-primary" /> Total Budget Pool
+              </span>
+              <div className="text-xl font-black font-mono text-primary">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.budgetAmount, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="size-3.5 text-emerald-500" /> Projected Revenue (A)
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.totalRevenue, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingDown className="size-3.5 text-rose-500" /> Operating Expenses (B)
+              </span>
+              <div className="text-xl font-black font-mono text-rose-600">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.totalExpenses, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-primary/5 border-primary/20">
+              <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                <Wallet className="size-3.5 text-primary" /> Net Expected Profit (C)
+              </span>
+              <div className="text-xl font-black font-mono text-foreground">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.expectedProfit, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+          </div>
+
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black text-foreground">Budgets Planning Ledger</CardTitle>
+                <CardDescription className="text-xs">Project and Category resource allocation with automated tax and margin deductions.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead>Budget Title</TableHead>
+                    <TableHead>Respect Type</TableHead>
+                    <TableHead>Timeline</TableHead>
+                    <TableHead className="text-right">Revenue (A)</TableHead>
+                    <TableHead className="text-right">Expense (B)</TableHead>
+                    <TableHead className="text-right">Profit (C=A-B)</TableHead>
+                    <TableHead className="text-right">Tax (D)</TableHead>
+                    <TableHead className="text-right">Net Budget (E=C-D)</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {budgetsList.map((b) => (
+                    <TableRow key={b.id} className="text-xs hover:bg-muted/30">
+                      <TableCell className="font-bold text-foreground">{b.title}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] font-bold ${b.type === "Project" ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/30" : "bg-purple-500/10 text-purple-600 border-purple-500/30"}`}>
+                          {b.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-[11px] text-muted-foreground">
+                        {b.startDate} to {b.endDate}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-emerald-600">
+                        {formatSystemAmount(b.totalRevenue, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-rose-600">
+                        {formatSystemAmount(b.totalExpenses, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold text-foreground">
+                        {formatSystemAmount(b.expectedProfit, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {formatSystemAmount(b.tax, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-black text-primary">
+                        {formatSystemAmount(b.budgetAmount, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Remove budget "${b.title}"?`)) {
+                              setBudgetsList(budgetsList.filter((item) => item.id !== b.id));
+                              toast.success("Budget record removed.");
+                            }
+                          }}
+                          className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 4: PROVIDENT FUND ===================== */}
+        <TabsContent value="provident_fund" className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Users className="size-3.5 text-blue-500" /> Active PF Members
+              </span>
+              <div className="text-xl font-black font-mono text-blue-600">{pfList.length} Staff</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <PiggyBank className="size-3.5 text-emerald-500" /> Employee Contribution
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">Standard 2.0% - 5.0%</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Building2 className="size-3.5 text-purple-500" /> Tenant Match Share
+              </span>
+              <div className="text-xl font-black font-mono text-purple-600">100% Matching (2.0%)</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-emerald-500/5 border-emerald-500/20">
+              <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
+                <Wallet className="size-3.5" /> Total Fund Pool Balance
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">
+                {formatSystemAmount(pfList.reduce((sum, p) => sum + p.accumulatedBalance, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+          </div>
+
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black text-foreground">Employee Provident Fund & Retirement Ledger</CardTitle>
+                <CardDescription className="text-xs">Statutory monthly employee withholdings and employer matching contributions.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead>Employee Name</TableHead>
+                    <TableHead>Provident Fund Type</TableHead>
+                    <TableHead>Employee Share (%)</TableHead>
+                    <TableHead>Organization Share (%)</TableHead>
+                    <TableHead className="text-right">Accumulated Pool</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pfList.map((pf) => (
+                    <TableRow key={pf.id} className="text-xs hover:bg-muted/30">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="size-7 border">
+                            <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                              {pf.employeeName.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-bold text-foreground">{pf.employeeName}</div>
+                            <div className="text-[10px] text-muted-foreground">{pf.department}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">{pf.type}</TableCell>
+                      <TableCell className="font-mono font-bold text-blue-600">{pf.employeeShare}%</TableCell>
+                      <TableCell className="font-mono font-bold text-purple-600">{pf.employerShare}%</TableCell>
+                      <TableCell className="text-right font-mono font-black text-emerald-600">
+                        {formatSystemAmount(pf.accumulatedBalance, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] font-bold ${pf.status === "Approved" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600 border-amber-500/30"}`}>
+                          {pf.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Remove PF enrolment for "${pf.employeeName}"?`)) {
+                              setPfList(pfList.filter((item) => item.id !== pf.id));
+                              toast.success("PF membership removed.");
+                            }
+                          }}
+                          className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 5: TAXES & STATUTORY RATES ===================== */}
+        <TabsContent value="taxes" className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Landmark className="size-3.5 text-primary" /> Active Slabs
+              </span>
+              <div className="text-xl font-black font-mono text-foreground">{taxesList.length} Rules</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Calculator className="size-3.5 text-indigo-500" /> Standard GST / VAT
+              </span>
+              <div className="text-xl font-black font-mono text-indigo-600">18.0% - 20.0%</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <FileSpreadsheet className="size-3.5 text-amber-500" /> TDS Withholding
+              </span>
+              <div className="text-xl font-black font-mono text-amber-600">10.0% Section 194J</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-emerald-500/5 border-emerald-500/20">
+              <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5" /> Compliance Status
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">100% Audited</div>
+            </Card>
+          </div>
+
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black text-foreground">Tax Rates & Statutory Withholdings Master</CardTitle>
+                <CardDescription className="text-xs">Master tax schedules applied to invoicing, vendor purchase vouchers, and employee payroll slips.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead>Tax Name</TableHead>
+                    <TableHead>Statutory Description</TableHead>
+                    <TableHead>Tax Percentage (%)</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {taxesList.map((tax) => (
+                    <TableRow key={tax.id} className="text-xs hover:bg-muted/30">
+                      <TableCell className="font-bold text-foreground">{tax.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{tax.description}</TableCell>
+                      <TableCell className="font-mono font-black text-indigo-600">{tax.rate}%</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] font-bold ${tax.status === "Active" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-rose-500/10 text-rose-600 border-rose-500/30"}`}>
+                          {tax.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Remove tax rule "${tax.name}"?`)) {
+                              setTaxesList(taxesList.filter((item) => item.id !== tax.id));
+                              toast.success("Tax rule removed.");
+                            }
+                          }}
+                          className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -1162,6 +1607,359 @@ export function ExpensesPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ─── MODAL 5: ADD BUDGET (budgets.html) ─── */}
+      <Dialog open={isAddBudgetOpen} onOpenChange={setIsAddBudgetOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <PieChart className="size-5 text-primary" />
+              <span>Create Strategic Financial Budget</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Define projected revenues, operational expenses, tax provisions, and net profit allocation.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const rev = parseFloat(budgetForm.revenueAmount) || 0;
+              const exp = parseFloat(budgetForm.expenseAmount) || 0;
+              const profit = rev - exp;
+              const tax = parseFloat(budgetForm.taxAmount) || 0;
+              const netBudget = profit - tax;
+
+              setBudgetsList([
+                {
+                  id: "b-" + Date.now(),
+                  title: budgetForm.title,
+                  type: budgetForm.type as "Project" | "Category",
+                  startDate: budgetForm.startDate,
+                  endDate: budgetForm.endDate,
+                  totalRevenue: rev,
+                  totalExpenses: exp,
+                  expectedProfit: profit,
+                  tax: tax,
+                  budgetAmount: netBudget,
+                },
+                ...budgetsList,
+              ]);
+              setIsAddBudgetOpen(false);
+              toast.success(`Budget "${budgetForm.title}" recorded with Net allocation ${formatSystemAmount(netBudget)}!`);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Budget Title *</Label>
+              <Input
+                required
+                placeholder="e.g. Q3 Marketing Blitz / Enterprise ERP Rollout"
+                value={budgetForm.title}
+                onChange={(e) => setBudgetForm({ ...budgetForm, title: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Budget Scope Type *</Label>
+              <div className="flex items-center gap-4 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="bType"
+                    checked={budgetForm.type === "Project"}
+                    onChange={() => setBudgetForm({ ...budgetForm, type: "Project" })}
+                    className="size-4"
+                  />
+                  <span>Project Level</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="bType"
+                    checked={budgetForm.type === "Category"}
+                    onChange={() => setBudgetForm({ ...budgetForm, type: "Category" })}
+                    className="size-4"
+                  />
+                  <span>Category Departmental</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Start Date</Label>
+                <Input
+                  type="date"
+                  required
+                  value={budgetForm.startDate}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, startDate: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">End Date</Label>
+                <Input
+                  type="date"
+                  required
+                  value={budgetForm.endDate}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, endDate: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg border bg-muted/20 space-y-3">
+              <div className="font-bold text-xs text-foreground flex items-center justify-between">
+                <span>Expected Inflows & Outflows</span>
+                <Badge variant="outline" className="text-[10px]">Realtime Balance</Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-emerald-600">Expected Inflow Revenue (A)</Label>
+                  <Input
+                    type="number"
+                    required
+                    value={budgetForm.revenueAmount}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, revenueAmount: e.target.value })}
+                    className="h-8 text-xs font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-rose-600">Expected Direct Expenses (B)</Label>
+                  <Input
+                    type="number"
+                    required
+                    value={budgetForm.expenseAmount}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, expenseAmount: e.target.value })}
+                    className="h-8 text-xs font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-amber-600">Tax Provision (D)</Label>
+                  <Input
+                    type="number"
+                    value={budgetForm.taxAmount}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, taxAmount: e.target.value })}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Calculated Net Budget (E = A - B - D)</Label>
+                  <div className="h-8 px-3 rounded-md border bg-background flex items-center font-mono font-black text-primary">
+                    {formatSystemAmount(
+                      (parseFloat(budgetForm.revenueAmount) || 0) -
+                        (parseFloat(budgetForm.expenseAmount) || 0) -
+                        (parseFloat(budgetForm.taxAmount) || 0),
+                      sysConfig?.currency
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddBudgetOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold">
+                Save Budget
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL 6: ENROL EMPLOYEE PF (provident-fund.html) ─── */}
+      <Dialog open={isAddPFOpen} onOpenChange={setIsAddPFOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <ShieldCheck className="size-5 text-emerald-600" />
+              <span>Enrol Staff in Provident Fund</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure employee withholding percentage and employer matching share.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const emp = employees.find((x: any) => x.id === pfForm.employeeId);
+              const empName = emp ? `${emp.first_name} ${emp.last_name}` : "Staff Member";
+              const dept = emp?.department?.name || "Operations";
+
+              setPfList([
+                {
+                  id: "pf-" + Date.now(),
+                  employeeId: pfForm.employeeId,
+                  employeeName: empName,
+                  department: dept,
+                  type: pfForm.type as any,
+                  employeeShare: parseFloat(pfForm.employeeShare) || 2,
+                  employerShare: parseFloat(pfForm.employerShare) || 2,
+                  status: pfForm.status as any,
+                  accumulatedBalance: 24000,
+                },
+                ...pfList,
+              ]);
+              setIsAddPFOpen(false);
+              toast.success(`Enrolled ${empName} into ${pfForm.type}!`);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Staff Member *</Label>
+              <Select
+                required
+                value={pfForm.employeeId}
+                onValueChange={(v) => setPfForm({ ...pfForm, employeeId: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Staff" /></SelectTrigger>
+                <SelectContent>
+                  {employees.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.first_name} {e.last_name} ({e.employee_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Provident Fund Program *</Label>
+              <Select
+                value={pfForm.type}
+                onValueChange={(v) => setPfForm({ ...pfForm, type: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Employee Provident Fund">Employee Provident Fund (EPF)</SelectItem>
+                  <SelectItem value="Voluntary Provident Fund">Voluntary Provident Fund (VPF)</SelectItem>
+                  <SelectItem value="Public Pension Scheme">National Pension Scheme (NPS)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Employee Share (%)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={pfForm.employeeShare}
+                  onChange={(e) => setPfForm({ ...pfForm, employeeShare: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Employer Match (%)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={pfForm.employerShare}
+                  onChange={(e) => setPfForm({ ...pfForm, employerShare: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddPFOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                Confirm Enrolment
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL 7: ADD TAX SLAB (taxes.html) ─── */}
+      <Dialog open={isAddTaxOpen} onOpenChange={setIsAddTaxOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Landmark className="size-5 text-primary" />
+              <span>Create Statutory Tax Slab</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure VAT, GST, TDS, or corporate tax rates for accounting vouchers.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setTaxesList([
+                {
+                  id: "tax-" + Date.now(),
+                  name: taxForm.name,
+                  rate: parseFloat(taxForm.rate) || 0,
+                  description: taxForm.description || "General Statutory Tax",
+                  status: taxForm.status as "Active" | "Inactive",
+                },
+                ...taxesList,
+              ]);
+              setIsAddTaxOpen(false);
+              toast.success(`Tax Slab "${taxForm.name} (${taxForm.rate}%)" added!`);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Tax Name *</Label>
+                <Input
+                  required
+                  placeholder="e.g. GST 18% / VAT"
+                  value={taxForm.name}
+                  onChange={(e) => setTaxForm({ ...taxForm, name: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Tax Rate (%) *</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  required
+                  placeholder="e.g. 18.0"
+                  value={taxForm.rate}
+                  onChange={(e) => setTaxForm({ ...taxForm, rate: e.target.value })}
+                  className="h-8 text-xs font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Statutory Description & Category</Label>
+              <Input
+                placeholder="e.g. Goods and Services Unified National Tax Slab"
+                value={taxForm.description}
+                onChange={(e) => setTaxForm({ ...taxForm, description: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTaxOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold">
+                Save Tax Slab
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

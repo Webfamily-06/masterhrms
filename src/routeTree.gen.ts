@@ -45,6 +45,7 @@ import { Route as PaymentPendingRouteImport } from './routes/payment.pending'
 import { Route as PaymentSuccessRouteImport } from './routes/payment.success'
 import { Route as AuthenticatedAppAccountingRouteImport } from './routes/_authenticated/_app/accounting'
 import { Route as AuthenticatedAppAdjustmentsRouteImport } from './routes/_authenticated/_app/adjustments'
+import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/_app/ai'
 import { Route as AuthenticatedAppAiOcrRouteImport } from './routes/_authenticated/_app/ai-ocr'
 import { Route as AuthenticatedAppAiWriterRouteImport } from './routes/_authenticated/_app/ai-writer'
 import { Route as AuthenticatedAppAnalyticsRouteImport } from './routes/_authenticated/_app/analytics'
@@ -53,11 +54,15 @@ import { Route as AuthenticatedAppAssetsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppAttendanceRouteImport } from './routes/_authenticated/_app/attendance'
 import { Route as AuthenticatedAppBiometricRouteImport } from './routes/_authenticated/_app/biometric'
 import { Route as AuthenticatedAppBiometricSyncRouteImport } from './routes/_authenticated/_app/biometric-sync'
+import { Route as AuthenticatedAppCalendarRouteImport } from './routes/_authenticated/_app/calendar'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/_app/chat'
+import { Route as AuthenticatedAppClientDashboardRouteImport } from './routes/_authenticated/_app/client-dashboard'
 import { Route as AuthenticatedAppCrmRouteImport } from './routes/_authenticated/_app/crm'
 import { Route as AuthenticatedAppCrmDashboardRouteImport } from './routes/_authenticated/_app/crm-dashboard'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/_app/dashboard'
 import { Route as AuthenticatedAppDocumentsRouteImport } from './routes/_authenticated/_app/documents'
+import { Route as AuthenticatedAppEmployeeDashboardRouteImport } from './routes/_authenticated/_app/employee-dashboard'
+import { Route as AuthenticatedAppEmployeeDetailsRouteImport } from './routes/_authenticated/_app/employee-details'
 import { Route as AuthenticatedAppEmployeesRouteImport } from './routes/_authenticated/_app/employees'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/_app/expenses'
 import { Route as AuthenticatedAppFinanceDashboardRouteImport } from './routes/_authenticated/_app/finance-dashboard'
@@ -71,6 +76,7 @@ import { Route as AuthenticatedAppInvoicesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppLeaveRouteImport } from './routes/_authenticated/_app/leave'
 import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/_app/marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/_app/media'
+import { Route as AuthenticatedAppNotesRouteImport } from './routes/_authenticated/_app/notes'
 import { Route as AuthenticatedAppOffboardingRouteImport } from './routes/_authenticated/_app/offboarding'
 import { Route as AuthenticatedAppOkrRouteImport } from './routes/_authenticated/_app/okr'
 import { Route as AuthenticatedAppPayrollRouteImport } from './routes/_authenticated/_app/payroll'
@@ -95,6 +101,7 @@ import { Route as AuthenticatedAppSupportRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppSupportDashboardRouteImport } from './routes/_authenticated/_app/support-dashboard'
 import { Route as AuthenticatedAppSystemStatesRouteImport } from './routes/_authenticated/_app/system-states'
 import { Route as AuthenticatedAppTallyImporterRouteImport } from './routes/_authenticated/_app/tally-importer'
+import { Route as AuthenticatedAppTodoRouteImport } from './routes/_authenticated/_app/todo'
 import { Route as AuthenticatedAppTrainingRouteImport } from './routes/_authenticated/_app/training'
 import { Route as AuthenticatedAppTransfersRouteImport } from './routes/_authenticated/_app/transfers'
 import { Route as AuthenticatedAppUsersRouteImport } from './routes/_authenticated/_app/users'
@@ -108,6 +115,7 @@ import { Route as AuthenticatedSuperBackupRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSuperBlogsRouteImport } from './routes/_authenticated/super/blogs'
 import { Route as AuthenticatedSuperCaseStudiesRouteImport } from './routes/_authenticated/super/case-studies'
 import { Route as AuthenticatedSuperCmsRouteImport } from './routes/_authenticated/super/cms'
+import { Route as AuthenticatedSuperDomainsRouteImport } from './routes/_authenticated/super/domains'
 import { Route as AuthenticatedSuperEmailTemplatesRouteImport } from './routes/_authenticated/super/email-templates'
 import { Route as AuthenticatedSuperLanguagesRouteImport } from './routes/_authenticated/super/languages'
 import { Route as AuthenticatedSuperMarketplaceRouteImport } from './routes/_authenticated/super/marketplace'
@@ -119,6 +127,7 @@ import { Route as AuthenticatedSuperRolesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSuperSettingsRouteImport } from './routes/_authenticated/super/settings'
 import { Route as AuthenticatedSuperSupportRouteImport } from './routes/_authenticated/super/support'
 import { Route as AuthenticatedSuperTenantsRouteImport } from './routes/_authenticated/super/tenants'
+import { Route as AuthenticatedSuperTransactionsRouteImport } from './routes/_authenticated/super/transactions'
 import { Route as PortalInvoicesIdRouteImport } from './routes/portal.invoices.$id'
 import { Route as PortalProposalsIdRouteImport } from './routes/portal.proposals.$id'
 
@@ -302,6 +311,11 @@ const AuthenticatedAppAdjustmentsRoute =
     path: '/adjustments',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppAiOcrRoute = AuthenticatedAppAiOcrRouteImport.update({
   id: '/ai-ocr',
   path: '/ai-ocr',
@@ -348,11 +362,23 @@ const AuthenticatedAppBiometricSyncRoute =
     path: '/biometric-sync',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppCalendarRoute =
+  AuthenticatedAppCalendarRouteImport.update({
+    id: '/calendar',
+    path: '/calendar',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppClientDashboardRoute =
+  AuthenticatedAppClientDashboardRouteImport.update({
+    id: '/client-dashboard',
+    path: '/client-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppCrmRoute = AuthenticatedAppCrmRouteImport.update({
   id: '/crm',
   path: '/crm',
@@ -374,6 +400,18 @@ const AuthenticatedAppDocumentsRoute =
   AuthenticatedAppDocumentsRouteImport.update({
     id: '/documents',
     path: '/documents',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppEmployeeDashboardRoute =
+  AuthenticatedAppEmployeeDashboardRouteImport.update({
+    id: '/employee-dashboard',
+    path: '/employee-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppEmployeeDetailsRoute =
+  AuthenticatedAppEmployeeDetailsRouteImport.update({
+    id: '/employee-details',
+    path: '/employee-details',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppEmployeesRoute =
@@ -448,6 +486,11 @@ const AuthenticatedAppMarketplaceRoute =
 const AuthenticatedAppMediaRoute = AuthenticatedAppMediaRouteImport.update({
   id: '/media',
   path: '/media',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
+const AuthenticatedAppNotesRoute = AuthenticatedAppNotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
 const AuthenticatedAppOffboardingRoute =
@@ -588,6 +631,11 @@ const AuthenticatedAppTallyImporterRoute =
     path: '/tally-importer',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppTodoRoute = AuthenticatedAppTodoRouteImport.update({
+  id: '/todo',
+  path: '/todo',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppTrainingRoute =
   AuthenticatedAppTrainingRouteImport.update({
     id: '/training',
@@ -662,6 +710,12 @@ const AuthenticatedSuperCmsRoute = AuthenticatedSuperCmsRouteImport.update({
   path: '/cms',
   getParentRoute: () => AuthenticatedSuperRouteRoute,
 } as any)
+const AuthenticatedSuperDomainsRoute =
+  AuthenticatedSuperDomainsRouteImport.update({
+    id: '/domains',
+    path: '/domains',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const AuthenticatedSuperEmailTemplatesRoute =
   AuthenticatedSuperEmailTemplatesRouteImport.update({
     id: '/email-templates',
@@ -725,6 +779,12 @@ const AuthenticatedSuperTenantsRoute =
     path: '/tenants',
     getParentRoute: () => AuthenticatedSuperRouteRoute,
   } as any)
+const AuthenticatedSuperTransactionsRoute =
+  AuthenticatedSuperTransactionsRouteImport.update({
+    id: '/transactions',
+    path: '/transactions',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const PortalInvoicesIdRoute = PortalInvoicesIdRouteImport.update({
   id: '/invoices/$id',
   path: '/invoices/$id',
@@ -771,6 +831,7 @@ export interface FileRoutesByFullPath {
   '/payment/success': typeof PaymentSuccessRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
+  '/ai': typeof AuthenticatedAppAiRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
   '/ai-writer': typeof AuthenticatedAppAiWriterRoute
   '/analytics': typeof AuthenticatedAppAnalyticsRoute
@@ -779,11 +840,15 @@ export interface FileRoutesByFullPath {
   '/attendance': typeof AuthenticatedAppAttendanceRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
+  '/calendar': typeof AuthenticatedAppCalendarRoute
   '/chat': typeof AuthenticatedAppChatRoute
+  '/client-dashboard': typeof AuthenticatedAppClientDashboardRoute
   '/crm': typeof AuthenticatedAppCrmRoute
   '/crm-dashboard': typeof AuthenticatedAppCrmDashboardRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
   '/documents': typeof AuthenticatedAppDocumentsRoute
+  '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
+  '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
   '/expenses': typeof AuthenticatedAppExpensesRoute
   '/finance-dashboard': typeof AuthenticatedAppFinanceDashboardRoute
@@ -797,6 +862,7 @@ export interface FileRoutesByFullPath {
   '/leave': typeof AuthenticatedAppLeaveRoute
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
+  '/notes': typeof AuthenticatedAppNotesRoute
   '/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/okr': typeof AuthenticatedAppOkrRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
@@ -821,6 +887,7 @@ export interface FileRoutesByFullPath {
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
   '/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
+  '/todo': typeof AuthenticatedAppTodoRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
   '/users': typeof AuthenticatedAppUsersRoute
@@ -833,6 +900,7 @@ export interface FileRoutesByFullPath {
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
   '/super/marketplace': typeof AuthenticatedSuperMarketplaceRoute
@@ -844,6 +912,7 @@ export interface FileRoutesByFullPath {
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/super/support': typeof AuthenticatedSuperSupportRoute
   '/super/tenants': typeof AuthenticatedSuperTenantsRoute
+  '/super/transactions': typeof AuthenticatedSuperTransactionsRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
   '/super/': typeof AuthenticatedSuperIndexRoute
@@ -882,6 +951,7 @@ export interface FileRoutesByTo {
   '/payment/success': typeof PaymentSuccessRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
+  '/ai': typeof AuthenticatedAppAiRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
   '/ai-writer': typeof AuthenticatedAppAiWriterRoute
   '/analytics': typeof AuthenticatedAppAnalyticsRoute
@@ -890,11 +960,15 @@ export interface FileRoutesByTo {
   '/attendance': typeof AuthenticatedAppAttendanceRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
+  '/calendar': typeof AuthenticatedAppCalendarRoute
   '/chat': typeof AuthenticatedAppChatRoute
+  '/client-dashboard': typeof AuthenticatedAppClientDashboardRoute
   '/crm': typeof AuthenticatedAppCrmRoute
   '/crm-dashboard': typeof AuthenticatedAppCrmDashboardRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
   '/documents': typeof AuthenticatedAppDocumentsRoute
+  '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
+  '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
   '/expenses': typeof AuthenticatedAppExpensesRoute
   '/finance-dashboard': typeof AuthenticatedAppFinanceDashboardRoute
@@ -908,6 +982,7 @@ export interface FileRoutesByTo {
   '/leave': typeof AuthenticatedAppLeaveRoute
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
+  '/notes': typeof AuthenticatedAppNotesRoute
   '/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/okr': typeof AuthenticatedAppOkrRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
@@ -932,6 +1007,7 @@ export interface FileRoutesByTo {
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
   '/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
+  '/todo': typeof AuthenticatedAppTodoRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
   '/users': typeof AuthenticatedAppUsersRoute
@@ -944,6 +1020,7 @@ export interface FileRoutesByTo {
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
   '/super/marketplace': typeof AuthenticatedSuperMarketplaceRoute
@@ -955,6 +1032,7 @@ export interface FileRoutesByTo {
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/super/support': typeof AuthenticatedSuperSupportRoute
   '/super/tenants': typeof AuthenticatedSuperTenantsRoute
+  '/super/transactions': typeof AuthenticatedSuperTransactionsRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
   '/super': typeof AuthenticatedSuperIndexRoute
@@ -997,6 +1075,7 @@ export interface FileRoutesById {
   '/payment/success': typeof PaymentSuccessRoute
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
+  '/_authenticated/_app/ai': typeof AuthenticatedAppAiRoute
   '/_authenticated/_app/ai-ocr': typeof AuthenticatedAppAiOcrRoute
   '/_authenticated/_app/ai-writer': typeof AuthenticatedAppAiWriterRoute
   '/_authenticated/_app/analytics': typeof AuthenticatedAppAnalyticsRoute
@@ -1005,11 +1084,15 @@ export interface FileRoutesById {
   '/_authenticated/_app/attendance': typeof AuthenticatedAppAttendanceRoute
   '/_authenticated/_app/biometric': typeof AuthenticatedAppBiometricRoute
   '/_authenticated/_app/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
+  '/_authenticated/_app/calendar': typeof AuthenticatedAppCalendarRoute
   '/_authenticated/_app/chat': typeof AuthenticatedAppChatRoute
+  '/_authenticated/_app/client-dashboard': typeof AuthenticatedAppClientDashboardRoute
   '/_authenticated/_app/crm': typeof AuthenticatedAppCrmRoute
   '/_authenticated/_app/crm-dashboard': typeof AuthenticatedAppCrmDashboardRoute
   '/_authenticated/_app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/_authenticated/_app/documents': typeof AuthenticatedAppDocumentsRoute
+  '/_authenticated/_app/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
+  '/_authenticated/_app/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
   '/_authenticated/_app/employees': typeof AuthenticatedAppEmployeesRoute
   '/_authenticated/_app/expenses': typeof AuthenticatedAppExpensesRoute
   '/_authenticated/_app/finance-dashboard': typeof AuthenticatedAppFinanceDashboardRoute
@@ -1023,6 +1106,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/leave': typeof AuthenticatedAppLeaveRoute
   '/_authenticated/_app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/_app/media': typeof AuthenticatedAppMediaRoute
+  '/_authenticated/_app/notes': typeof AuthenticatedAppNotesRoute
   '/_authenticated/_app/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/_authenticated/_app/okr': typeof AuthenticatedAppOkrRoute
   '/_authenticated/_app/payroll': typeof AuthenticatedAppPayrollRoute
@@ -1047,6 +1131,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
   '/_authenticated/_app/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/_authenticated/_app/tally-importer': typeof AuthenticatedAppTallyImporterRoute
+  '/_authenticated/_app/todo': typeof AuthenticatedAppTodoRoute
   '/_authenticated/_app/training': typeof AuthenticatedAppTrainingRoute
   '/_authenticated/_app/transfers': typeof AuthenticatedAppTransfersRoute
   '/_authenticated/_app/users': typeof AuthenticatedAppUsersRoute
@@ -1059,6 +1144,7 @@ export interface FileRoutesById {
   '/_authenticated/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/_authenticated/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/_authenticated/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/_authenticated/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/_authenticated/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/_authenticated/super/languages': typeof AuthenticatedSuperLanguagesRoute
   '/_authenticated/super/marketplace': typeof AuthenticatedSuperMarketplaceRoute
@@ -1070,6 +1156,7 @@ export interface FileRoutesById {
   '/_authenticated/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/_authenticated/super/support': typeof AuthenticatedSuperSupportRoute
   '/_authenticated/super/tenants': typeof AuthenticatedSuperTenantsRoute
+  '/_authenticated/super/transactions': typeof AuthenticatedSuperTransactionsRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
   '/_authenticated/super/': typeof AuthenticatedSuperIndexRoute
@@ -1111,6 +1198,7 @@ export interface FileRouteTypes {
     | '/payment/success'
     | '/accounting'
     | '/adjustments'
+    | '/ai'
     | '/ai-ocr'
     | '/ai-writer'
     | '/analytics'
@@ -1119,11 +1207,15 @@ export interface FileRouteTypes {
     | '/attendance'
     | '/biometric'
     | '/biometric-sync'
+    | '/calendar'
     | '/chat'
+    | '/client-dashboard'
     | '/crm'
     | '/crm-dashboard'
     | '/dashboard'
     | '/documents'
+    | '/employee-dashboard'
+    | '/employee-details'
     | '/employees'
     | '/expenses'
     | '/finance-dashboard'
@@ -1137,6 +1229,7 @@ export interface FileRouteTypes {
     | '/leave'
     | '/marketplace'
     | '/media'
+    | '/notes'
     | '/offboarding'
     | '/okr'
     | '/payroll'
@@ -1161,6 +1254,7 @@ export interface FileRouteTypes {
     | '/support-dashboard'
     | '/system-states'
     | '/tally-importer'
+    | '/todo'
     | '/training'
     | '/transfers'
     | '/users'
@@ -1173,6 +1267,7 @@ export interface FileRouteTypes {
     | '/super/blogs'
     | '/super/case-studies'
     | '/super/cms'
+    | '/super/domains'
     | '/super/email-templates'
     | '/super/languages'
     | '/super/marketplace'
@@ -1184,6 +1279,7 @@ export interface FileRouteTypes {
     | '/super/settings'
     | '/super/support'
     | '/super/tenants'
+    | '/super/transactions'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
     | '/super/'
@@ -1222,6 +1318,7 @@ export interface FileRouteTypes {
     | '/payment/success'
     | '/accounting'
     | '/adjustments'
+    | '/ai'
     | '/ai-ocr'
     | '/ai-writer'
     | '/analytics'
@@ -1230,11 +1327,15 @@ export interface FileRouteTypes {
     | '/attendance'
     | '/biometric'
     | '/biometric-sync'
+    | '/calendar'
     | '/chat'
+    | '/client-dashboard'
     | '/crm'
     | '/crm-dashboard'
     | '/dashboard'
     | '/documents'
+    | '/employee-dashboard'
+    | '/employee-details'
     | '/employees'
     | '/expenses'
     | '/finance-dashboard'
@@ -1248,6 +1349,7 @@ export interface FileRouteTypes {
     | '/leave'
     | '/marketplace'
     | '/media'
+    | '/notes'
     | '/offboarding'
     | '/okr'
     | '/payroll'
@@ -1272,6 +1374,7 @@ export interface FileRouteTypes {
     | '/support-dashboard'
     | '/system-states'
     | '/tally-importer'
+    | '/todo'
     | '/training'
     | '/transfers'
     | '/users'
@@ -1284,6 +1387,7 @@ export interface FileRouteTypes {
     | '/super/blogs'
     | '/super/case-studies'
     | '/super/cms'
+    | '/super/domains'
     | '/super/email-templates'
     | '/super/languages'
     | '/super/marketplace'
@@ -1295,6 +1399,7 @@ export interface FileRouteTypes {
     | '/super/settings'
     | '/super/support'
     | '/super/tenants'
+    | '/super/transactions'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
     | '/super'
@@ -1336,6 +1441,7 @@ export interface FileRouteTypes {
     | '/payment/success'
     | '/_authenticated/_app/accounting'
     | '/_authenticated/_app/adjustments'
+    | '/_authenticated/_app/ai'
     | '/_authenticated/_app/ai-ocr'
     | '/_authenticated/_app/ai-writer'
     | '/_authenticated/_app/analytics'
@@ -1344,11 +1450,15 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/attendance'
     | '/_authenticated/_app/biometric'
     | '/_authenticated/_app/biometric-sync'
+    | '/_authenticated/_app/calendar'
     | '/_authenticated/_app/chat'
+    | '/_authenticated/_app/client-dashboard'
     | '/_authenticated/_app/crm'
     | '/_authenticated/_app/crm-dashboard'
     | '/_authenticated/_app/dashboard'
     | '/_authenticated/_app/documents'
+    | '/_authenticated/_app/employee-dashboard'
+    | '/_authenticated/_app/employee-details'
     | '/_authenticated/_app/employees'
     | '/_authenticated/_app/expenses'
     | '/_authenticated/_app/finance-dashboard'
@@ -1362,6 +1472,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/leave'
     | '/_authenticated/_app/marketplace'
     | '/_authenticated/_app/media'
+    | '/_authenticated/_app/notes'
     | '/_authenticated/_app/offboarding'
     | '/_authenticated/_app/okr'
     | '/_authenticated/_app/payroll'
@@ -1386,6 +1497,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/support-dashboard'
     | '/_authenticated/_app/system-states'
     | '/_authenticated/_app/tally-importer'
+    | '/_authenticated/_app/todo'
     | '/_authenticated/_app/training'
     | '/_authenticated/_app/transfers'
     | '/_authenticated/_app/users'
@@ -1398,6 +1510,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/blogs'
     | '/_authenticated/super/case-studies'
     | '/_authenticated/super/cms'
+    | '/_authenticated/super/domains'
     | '/_authenticated/super/email-templates'
     | '/_authenticated/super/languages'
     | '/_authenticated/super/marketplace'
@@ -1409,6 +1522,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/settings'
     | '/_authenticated/super/support'
     | '/_authenticated/super/tenants'
+    | '/_authenticated/super/transactions'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
     | '/_authenticated/super/'
@@ -1701,6 +1815,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAdjustmentsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/ai': {
+      id: '/_authenticated/_app/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof AuthenticatedAppAiRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/ai-ocr': {
       id: '/_authenticated/_app/ai-ocr'
       path: '/ai-ocr'
@@ -1757,11 +1878,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppBiometricSyncRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/calendar': {
+      id: '/_authenticated/_app/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AuthenticatedAppCalendarRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/chat': {
       id: '/_authenticated/_app/chat'
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof AuthenticatedAppChatRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/client-dashboard': {
+      id: '/_authenticated/_app/client-dashboard'
+      path: '/client-dashboard'
+      fullPath: '/client-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppClientDashboardRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/crm': {
@@ -1790,6 +1925,20 @@ declare module '@tanstack/react-router' {
       path: '/documents'
       fullPath: '/documents'
       preLoaderRoute: typeof AuthenticatedAppDocumentsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/employee-dashboard': {
+      id: '/_authenticated/_app/employee-dashboard'
+      path: '/employee-dashboard'
+      fullPath: '/employee-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppEmployeeDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/employee-details': {
+      id: '/_authenticated/_app/employee-details'
+      path: '/employee-details'
+      fullPath: '/employee-details'
+      preLoaderRoute: typeof AuthenticatedAppEmployeeDetailsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/employees': {
@@ -1881,6 +2030,13 @@ declare module '@tanstack/react-router' {
       path: '/media'
       fullPath: '/media'
       preLoaderRoute: typeof AuthenticatedAppMediaRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/notes': {
+      id: '/_authenticated/_app/notes'
+      path: '/notes'
+      fullPath: '/notes'
+      preLoaderRoute: typeof AuthenticatedAppNotesRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/offboarding': {
@@ -2051,6 +2207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTallyImporterRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/todo': {
+      id: '/_authenticated/_app/todo'
+      path: '/todo'
+      fullPath: '/todo'
+      preLoaderRoute: typeof AuthenticatedAppTodoRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/training': {
       id: '/_authenticated/_app/training'
       path: '/training'
@@ -2142,6 +2305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperCmsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/domains': {
+      id: '/_authenticated/super/domains'
+      path: '/domains'
+      fullPath: '/super/domains'
+      preLoaderRoute: typeof AuthenticatedSuperDomainsRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/_authenticated/super/email-templates': {
       id: '/_authenticated/super/email-templates'
       path: '/email-templates'
@@ -2219,6 +2389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperTenantsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/transactions': {
+      id: '/_authenticated/super/transactions'
+      path: '/transactions'
+      fullPath: '/super/transactions'
+      preLoaderRoute: typeof AuthenticatedSuperTransactionsRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/portal/invoices/$id': {
       id: '/portal/invoices/$id'
       path: '/invoices/$id'
@@ -2239,6 +2416,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAccountingRoute: typeof AuthenticatedAppAccountingRoute
   AuthenticatedAppAdjustmentsRoute: typeof AuthenticatedAppAdjustmentsRoute
+  AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
   AuthenticatedAppAiOcrRoute: typeof AuthenticatedAppAiOcrRoute
   AuthenticatedAppAiWriterRoute: typeof AuthenticatedAppAiWriterRoute
   AuthenticatedAppAnalyticsRoute: typeof AuthenticatedAppAnalyticsRoute
@@ -2247,11 +2425,15 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAttendanceRoute: typeof AuthenticatedAppAttendanceRoute
   AuthenticatedAppBiometricRoute: typeof AuthenticatedAppBiometricRoute
   AuthenticatedAppBiometricSyncRoute: typeof AuthenticatedAppBiometricSyncRoute
+  AuthenticatedAppCalendarRoute: typeof AuthenticatedAppCalendarRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRoute
+  AuthenticatedAppClientDashboardRoute: typeof AuthenticatedAppClientDashboardRoute
   AuthenticatedAppCrmRoute: typeof AuthenticatedAppCrmRoute
   AuthenticatedAppCrmDashboardRoute: typeof AuthenticatedAppCrmDashboardRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
   AuthenticatedAppDocumentsRoute: typeof AuthenticatedAppDocumentsRoute
+  AuthenticatedAppEmployeeDashboardRoute: typeof AuthenticatedAppEmployeeDashboardRoute
+  AuthenticatedAppEmployeeDetailsRoute: typeof AuthenticatedAppEmployeeDetailsRoute
   AuthenticatedAppEmployeesRoute: typeof AuthenticatedAppEmployeesRoute
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
   AuthenticatedAppFinanceDashboardRoute: typeof AuthenticatedAppFinanceDashboardRoute
@@ -2265,6 +2447,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppLeaveRoute: typeof AuthenticatedAppLeaveRoute
   AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
+  AuthenticatedAppNotesRoute: typeof AuthenticatedAppNotesRoute
   AuthenticatedAppOffboardingRoute: typeof AuthenticatedAppOffboardingRoute
   AuthenticatedAppOkrRoute: typeof AuthenticatedAppOkrRoute
   AuthenticatedAppPayrollRoute: typeof AuthenticatedAppPayrollRoute
@@ -2289,6 +2472,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppSupportDashboardRoute: typeof AuthenticatedAppSupportDashboardRoute
   AuthenticatedAppSystemStatesRoute: typeof AuthenticatedAppSystemStatesRoute
   AuthenticatedAppTallyImporterRoute: typeof AuthenticatedAppTallyImporterRoute
+  AuthenticatedAppTodoRoute: typeof AuthenticatedAppTodoRoute
   AuthenticatedAppTrainingRoute: typeof AuthenticatedAppTrainingRoute
   AuthenticatedAppTransfersRoute: typeof AuthenticatedAppTransfersRoute
   AuthenticatedAppUsersRoute: typeof AuthenticatedAppUsersRoute
@@ -2300,6 +2484,7 @@ interface AuthenticatedAppRouteRouteChildren {
 const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppAccountingRoute: AuthenticatedAppAccountingRoute,
   AuthenticatedAppAdjustmentsRoute: AuthenticatedAppAdjustmentsRoute,
+  AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
   AuthenticatedAppAiOcrRoute: AuthenticatedAppAiOcrRoute,
   AuthenticatedAppAiWriterRoute: AuthenticatedAppAiWriterRoute,
   AuthenticatedAppAnalyticsRoute: AuthenticatedAppAnalyticsRoute,
@@ -2308,11 +2493,16 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppAttendanceRoute: AuthenticatedAppAttendanceRoute,
   AuthenticatedAppBiometricRoute: AuthenticatedAppBiometricRoute,
   AuthenticatedAppBiometricSyncRoute: AuthenticatedAppBiometricSyncRoute,
+  AuthenticatedAppCalendarRoute: AuthenticatedAppCalendarRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRoute,
+  AuthenticatedAppClientDashboardRoute: AuthenticatedAppClientDashboardRoute,
   AuthenticatedAppCrmRoute: AuthenticatedAppCrmRoute,
   AuthenticatedAppCrmDashboardRoute: AuthenticatedAppCrmDashboardRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
   AuthenticatedAppDocumentsRoute: AuthenticatedAppDocumentsRoute,
+  AuthenticatedAppEmployeeDashboardRoute:
+    AuthenticatedAppEmployeeDashboardRoute,
+  AuthenticatedAppEmployeeDetailsRoute: AuthenticatedAppEmployeeDetailsRoute,
   AuthenticatedAppEmployeesRoute: AuthenticatedAppEmployeesRoute,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
   AuthenticatedAppFinanceDashboardRoute: AuthenticatedAppFinanceDashboardRoute,
@@ -2327,6 +2517,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppLeaveRoute: AuthenticatedAppLeaveRoute,
   AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
+  AuthenticatedAppNotesRoute: AuthenticatedAppNotesRoute,
   AuthenticatedAppOffboardingRoute: AuthenticatedAppOffboardingRoute,
   AuthenticatedAppOkrRoute: AuthenticatedAppOkrRoute,
   AuthenticatedAppPayrollRoute: AuthenticatedAppPayrollRoute,
@@ -2352,6 +2543,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppSupportDashboardRoute: AuthenticatedAppSupportDashboardRoute,
   AuthenticatedAppSystemStatesRoute: AuthenticatedAppSystemStatesRoute,
   AuthenticatedAppTallyImporterRoute: AuthenticatedAppTallyImporterRoute,
+  AuthenticatedAppTodoRoute: AuthenticatedAppTodoRoute,
   AuthenticatedAppTrainingRoute: AuthenticatedAppTrainingRoute,
   AuthenticatedAppTransfersRoute: AuthenticatedAppTransfersRoute,
   AuthenticatedAppUsersRoute: AuthenticatedAppUsersRoute,
@@ -2372,6 +2564,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperBlogsRoute: typeof AuthenticatedSuperBlogsRoute
   AuthenticatedSuperCaseStudiesRoute: typeof AuthenticatedSuperCaseStudiesRoute
   AuthenticatedSuperCmsRoute: typeof AuthenticatedSuperCmsRoute
+  AuthenticatedSuperDomainsRoute: typeof AuthenticatedSuperDomainsRoute
   AuthenticatedSuperEmailTemplatesRoute: typeof AuthenticatedSuperEmailTemplatesRoute
   AuthenticatedSuperLanguagesRoute: typeof AuthenticatedSuperLanguagesRoute
   AuthenticatedSuperMarketplaceRoute: typeof AuthenticatedSuperMarketplaceRoute
@@ -2383,6 +2576,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperSettingsRoute: typeof AuthenticatedSuperSettingsRoute
   AuthenticatedSuperSupportRoute: typeof AuthenticatedSuperSupportRoute
   AuthenticatedSuperTenantsRoute: typeof AuthenticatedSuperTenantsRoute
+  AuthenticatedSuperTransactionsRoute: typeof AuthenticatedSuperTransactionsRoute
   AuthenticatedSuperIndexRoute: typeof AuthenticatedSuperIndexRoute
 }
 
@@ -2394,6 +2588,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperBlogsRoute: AuthenticatedSuperBlogsRoute,
     AuthenticatedSuperCaseStudiesRoute: AuthenticatedSuperCaseStudiesRoute,
     AuthenticatedSuperCmsRoute: AuthenticatedSuperCmsRoute,
+    AuthenticatedSuperDomainsRoute: AuthenticatedSuperDomainsRoute,
     AuthenticatedSuperEmailTemplatesRoute:
       AuthenticatedSuperEmailTemplatesRoute,
     AuthenticatedSuperLanguagesRoute: AuthenticatedSuperLanguagesRoute,
@@ -2406,6 +2601,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperSettingsRoute: AuthenticatedSuperSettingsRoute,
     AuthenticatedSuperSupportRoute: AuthenticatedSuperSupportRoute,
     AuthenticatedSuperTenantsRoute: AuthenticatedSuperTenantsRoute,
+    AuthenticatedSuperTransactionsRoute: AuthenticatedSuperTransactionsRoute,
     AuthenticatedSuperIndexRoute: AuthenticatedSuperIndexRoute,
   }
 

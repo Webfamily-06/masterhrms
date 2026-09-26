@@ -70,48 +70,7 @@ const ERP_FIELDS = [
   "Description",
 ];
 
-const MOCK_PREVIEW_ROWS = [
-  {
-    ledger: "Sales Account",
-    date: "2026-07-01",
-    type: "Sales",
-    debit: "",
-    credit: "125000",
-    narration: "Product sales Q3",
-  },
-  {
-    ledger: "Sundry Debtors",
-    date: "2026-07-02",
-    type: "Receipt",
-    debit: "85000",
-    credit: "",
-    narration: "Payment from Apex Ltd",
-  },
-  {
-    ledger: "Purchase Account",
-    date: "2026-07-05",
-    type: "Purchase",
-    debit: "45000",
-    credit: "",
-    narration: "Raw material purchase",
-  },
-  {
-    ledger: "GST Payable",
-    date: "2026-07-10",
-    type: "Journal",
-    debit: "22500",
-    credit: "",
-    narration: "GST liability Jul 2026",
-  },
-  {
-    ledger: "Office Expenses",
-    date: "2026-07-15",
-    type: "Payment",
-    debit: "12000",
-    credit: "",
-    narration: "Monthly rent payment",
-  },
-];
+
 
 function TallyImporterPage() {
   const qc = useQueryClient();
@@ -404,8 +363,7 @@ function TallyImporterPage() {
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-bold flex items-center gap-2">
                     <Database className="size-4 text-primary" /> Preview (
-                    {parsedRows.length > 0 ? Math.min(15, parsedRows.length) : MOCK_PREVIEW_ROWS.length}{" "}
-                    of {uploadedFile?.rows || parsedRows.length} rows)
+                    {Math.min(15, parsedRows.length)} of {uploadedFile?.rows || parsedRows.length} rows)
                   </div>
                   <Badge
                     variant="outline"
@@ -426,24 +384,32 @@ function TallyImporterPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(parsedRows.length > 0 ? parsedRows.slice(0, 15) : MOCK_PREVIEW_ROWS).map((r, i) => (
-                        <tr key={i} className="border-t hover:bg-secondary/20">
-                          <td className="p-2.5 font-semibold">{r.ledger}</td>
-                          <td className="p-2.5 font-mono text-muted-foreground">{r.date}</td>
-                          <td className="p-2.5">
-                            <Badge variant="outline" className="text-[10px]">
-                              {r.type}
-                            </Badge>
+                      {parsedRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                            No imported transaction rows available for preview. Please upload and map an XML file.
                           </td>
-                          <td className="p-2.5 font-mono text-red-600">
-                            {r.debit ? `₹${parseFloat(r.debit).toLocaleString()}` : "—"}
-                          </td>
-                          <td className="p-2.5 font-mono text-emerald-600">
-                            {r.credit ? `₹${parseFloat(r.credit).toLocaleString()}` : "—"}
-                          </td>
-                          <td className="p-2.5 text-muted-foreground">{r.narration}</td>
                         </tr>
-                      ))}
+                      ) : (
+                        parsedRows.slice(0, 15).map((r, i) => (
+                          <tr key={i} className="border-t hover:bg-secondary/20">
+                            <td className="p-2.5 font-semibold">{r.ledger}</td>
+                            <td className="p-2.5 font-mono text-muted-foreground">{r.date}</td>
+                            <td className="p-2.5">
+                              <Badge variant="outline" className="text-[10px]">
+                                {r.type}
+                              </Badge>
+                            </td>
+                            <td className="p-2.5 font-mono text-red-600">
+                              {r.debit ? `₹${parseFloat(r.debit).toLocaleString()}` : "—"}
+                            </td>
+                            <td className="p-2.5 font-mono text-emerald-600">
+                              {r.credit ? `₹${parseFloat(r.credit).toLocaleString()}` : "—"}
+                            </td>
+                            <td className="p-2.5 text-muted-foreground">{r.narration}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

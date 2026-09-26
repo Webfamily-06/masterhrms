@@ -26,6 +26,7 @@ import {
   Building2,
   RefreshCw,
 } from "lucide-react";
+import { useTenantBranding } from "@/lib/useTenantBranding";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,7 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
   head: () => ({
     meta: [
-      { title: "Sign In — Master Workspace ERP" },
+      { title: "Sign In — Workspace ERP & HRMS" },
       { name: "description", content: "Sign in to your enterprise ERP & HRMS workspace." },
     ],
   }),
@@ -53,6 +54,7 @@ function AuthPage() {
   const { mode: initialMode, redirect, token: searchToken, error: searchError, provider: searchProvider, email: searchEmail } = Route.useSearch();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { branding } = useTenantBranding();
   const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset" | "verify">(initialMode ?? "signin");
   const [email, setEmail] = useState(searchEmail || "");
   const [password, setPassword] = useState("");
@@ -125,8 +127,8 @@ function AuthPage() {
     }
   } catch (e) {}
 
-  const logoLightUrl = platformSettings?.logoLightUrl || cachedLogoLight || "/logo.webp";
-  const appName = platformSettings?.appName || cachedAppName || "Master Workspace ERP";
+  const logoLightUrl = branding.isWhiteLabeled && branding.logoUrl ? branding.logoUrl : (platformSettings?.logoLightUrl || cachedLogoLight || "/logo.webp");
+  const appName = branding.isWhiteLabeled && branding.name ? branding.name : (platformSettings?.appName || cachedAppName || "Master Workspace ERP");
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
   const appleVisible = Boolean(oauthConfig?.apple?.enabled);

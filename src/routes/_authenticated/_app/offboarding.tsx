@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +81,7 @@ export function OffboardingPage() {
   const tenantId = profile?.tenant_id;
   const qc = useQueryClient();
 
+  const [activeTab, setActiveTab] = useState<string>("clearances");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
   const [selectedDepartmentFilter, setSelectedDepartmentFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -88,6 +90,7 @@ export function OffboardingPage() {
   const [isInitiateExitOpen, setIsInitiateExitOpen] = useState(false);
   const [selectedExitPassport, setSelectedExitPassport] = useState<any>(null);
   const [selectedRelievingLetter, setSelectedRelievingLetter] = useState<any>(null);
+  const [selectedNoticePassport, setSelectedNoticePassport] = useState<any>(null);
   const [isFnfModalOpen, setIsFnfModalOpen] = useState(false);
 
   // Forms
@@ -309,214 +312,464 @@ export function OffboardingPage() {
         </Card>
       </div>
 
-      {/* Main Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-2 rounded-xl border">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search staff, exit code..."
-              className="h-7 text-xs pl-8 w-48 sm:w-60 bg-background"
-            />
-          </div>
+      {/* Main Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-2 rounded-xl border">
+          <TabsList className="bg-transparent h-8 p-0 gap-1 flex-wrap">
+            <TabsTrigger value="clearances" className="text-xs font-bold h-7 gap-1.5">
+              <Laptop className="size-3.5" />
+              <span>Clearance Pipelines ({exits.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="notice-period" className="text-xs font-bold h-7 gap-1.5">
+              <Clock className="size-3.5" />
+              <span>Notice Period Tracker ({exits.filter((e: any) => e.status !== "completed").length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="registry" className="text-xs font-bold h-7 gap-1.5">
+              <FileText className="size-3.5" />
+              <span>Resignations & Terminations Registry</span>
+            </TabsTrigger>
+          </TabsList>
 
-          <Select value={selectedDepartmentFilter} onValueChange={setSelectedDepartmentFilter}>
-            <SelectTrigger className="h-7 text-xs w-40 bg-background">
-              <SelectValue placeholder="All Departments" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
-              {departments.map((d: any) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Quick Filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search staff, exit code..."
+                className="h-7 text-xs pl-8 w-44 sm:w-52 bg-background"
+              />
+            </div>
+
+            <Select value={selectedDepartmentFilter} onValueChange={setSelectedDepartmentFilter}>
+              <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                <SelectValue placeholder="All Depts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
+              <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="serving_notice">Serving Notice</SelectItem>
+                <SelectItem value="clearance_pending">Clearance In Progress</SelectItem>
+                <SelectItem value="completed">Settled & Relieved</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
-          <SelectTrigger className="h-7 text-xs w-44 bg-background">
-            <SelectValue placeholder="All Exit Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Exit Statuses</SelectItem>
-            <SelectItem value="serving_notice">Serving Notice</SelectItem>
-            <SelectItem value="clearance_pending">Clearance In Progress</SelectItem>
-            <SelectItem value="completed">Settled & Relieved</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        {/* ===================== TAB 1: CLEARANCE PIPELINES ===================== */}
+        <TabsContent value="clearances" className="space-y-4 pt-1">
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Exit Code & Staff</TableHead>
+                    <TableHead className="text-xs">Resignation Date</TableHead>
+                    <TableHead className="text-xs">Last Working Day (LWD)</TableHead>
+                    <TableHead className="text-xs">Department Clearances</TableHead>
+                    <TableHead className="text-xs">FnF Settlement</TableHead>
+                    <TableHead className="text-xs">Exit Status</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-      {/* Exit Pipelines Table */}
-      <Card className="border shadow-2xs">
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 text-xs">
-                <TableHead className="text-xs">Exit Code & Staff</TableHead>
-                <TableHead className="text-xs">Resignation Date</TableHead>
-                <TableHead className="text-xs">Last Working Day (LWD)</TableHead>
-                <TableHead className="text-xs">Department Clearances</TableHead>
-                <TableHead className="text-xs">FnF Settlement</TableHead>
-                <TableHead className="text-xs">Exit Status</TableHead>
-                <TableHead className="text-xs text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {isExitsLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs">
-                    Loading offboarding records...
-                  </TableCell>
-                </TableRow>
-              ) : exits.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs italic">
-                    No active offboarding records found. Click "Initiate Employee Exit" to start an exit workflow.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                exits.map((exit: any) => {
-                  const st = STATUS_CONFIG[exit.status] || STATUS_CONFIG.serving_notice;
-
-                  return (
-                    <TableRow key={exit.id} className="hover:bg-muted/20 text-xs">
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <Avatar className="size-7 border">
-                            <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
-                              {exit.employee?.firstName?.[0]}
-                              {exit.employee?.lastName?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <span className="font-mono font-black text-primary block">{exit.exitCode}</span>
-                            <span className="font-bold text-foreground block">
-                              {exit.employee?.firstName} {exit.employee?.lastName}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              {exit.employee?.department?.name || "General"} · {exit.employee?.position || "Staff"}
-                            </span>
-                          </div>
-                        </div>
+                <TableBody>
+                  {isExitsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs">
+                        Loading offboarding records...
                       </TableCell>
-
-                      <TableCell className="font-mono">
-                        {new Date(exit.resignationDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </TableRow>
+                  ) : exits.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No active offboarding records found. Click "Initiate Employee Exit" to start an exit workflow.
                       </TableCell>
+                    </TableRow>
+                  ) : (
+                    exits.map((exit: any) => {
+                      const st = STATUS_CONFIG[exit.status] || STATUS_CONFIG.serving_notice;
 
-                      <TableCell>
-                        <div className="space-y-0.5">
-                          <span className="font-mono font-bold text-foreground block">
+                      return (
+                        <TableRow key={exit.id} className="hover:bg-muted/20 text-xs">
+                          <TableCell>
+                            <div className="flex items-center gap-2.5">
+                              <Avatar className="size-7 border">
+                                <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                  {exit.employee?.firstName?.[0]}
+                                  {exit.employee?.lastName?.[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <span className="font-mono font-black text-primary block">{exit.exitCode}</span>
+                                <span className="font-bold text-foreground block">
+                                  {exit.employee?.firstName} {exit.employee?.lastName}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {exit.employee?.department?.name || "General"} · {exit.employee?.position || "Staff"}
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="font-mono">
+                            {new Date(exit.resignationDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <span className="font-mono font-bold text-foreground block">
+                                {new Date(exit.lastWorkingDay).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {exit.noticePeriodDays} days notice
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          {/* 4 Clearance Badges */}
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-bold px-1.5 py-0 ${
+                                  exit.itClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                IT {exit.itClearance ? "✓" : "—"}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-bold px-1.5 py-0 ${
+                                  exit.financeClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                Finance {exit.financeClearance ? "✓" : "—"}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-bold px-1.5 py-0 ${
+                                  exit.hrClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                HR {exit.hrClearance ? "✓" : "—"}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-bold px-1.5 py-0 ${
+                                  exit.adminClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                Admin {exit.adminClearance ? "✓" : "—"}
+                              </Badge>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="font-mono font-black text-xs text-foreground">
+                            {exit.fnfSettlementAmount > 0
+                              ? formatSystemAmount(Number(exit.fnfSettlementAmount), sysConfig?.currency)
+                              : "Pending Calc"}
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] font-bold ${st.bg} ${st.text} ${st.border}`}>
+                              {st.label}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedExitPassport(exit)}
+                                className="h-6 text-[10px] font-bold gap-1"
+                              >
+                                <Eye className="size-3 text-primary" />
+                                <span>Clearance Passport</span>
+                              </Button>
+
+                              {exit.status === "completed" && exit.relievingLetterCode && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedRelievingLetter(exit)}
+                                  className="h-6 text-[10px] font-bold text-emerald-600 border-emerald-500/30 gap-1"
+                                >
+                                  <Award className="size-3" /> Relieving Letter
+                                </Button>
+                              )}
+
+                              {exit.status !== "completed" && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    if (confirm(`Delete offboarding record ${exit.exitCode}?`)) {
+                                      deleteExitMut.mutate(exit.id);
+                                    }
+                                  }}
+                                  className="size-6 text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2 className="size-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 2: NOTICE PERIOD TRACKER ===================== */}
+        <TabsContent value="notice-period" className="space-y-4 pt-1">
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Employee ID & Name</TableHead>
+                    <TableHead className="text-xs">Department & Designation</TableHead>
+                    <TableHead className="text-xs">Notice Start</TableHead>
+                    <TableHead className="text-xs">Notice End (LWD)</TableHead>
+                    <TableHead className="text-xs text-center">Total Days</TableHead>
+                    <TableHead className="text-xs text-center">Served</TableHead>
+                    <TableHead className="text-xs text-center">Remaining</TableHead>
+                    <TableHead className="text-xs">Notice Timeline</TableHead>
+                    <TableHead className="text-xs">Notice Status</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {exits.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No employees currently serving notice period.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    exits.map((exit: any) => {
+                      const totalDays = Number(exit.noticePeriodDays) || 60;
+                      const resDate = new Date(exit.resignationDate).getTime();
+                      const lwdDate = new Date(exit.lastWorkingDay).getTime();
+                      const now = Date.now();
+                      const daysServed = Math.max(0, Math.min(totalDays, Math.floor((now - resDate) / (1000 * 60 * 60 * 24))));
+                      const daysRemaining = Math.max(0, Math.ceil((lwdDate - now) / (1000 * 60 * 60 * 24)));
+                      const progress = Math.min(100, Math.round((daysServed / totalDays) * 100));
+
+                      const isClosingSoon = daysRemaining <= 10 && daysRemaining > 0;
+                      const isDone = exit.status === "completed" || daysRemaining === 0;
+
+                      return (
+                        <TableRow key={exit.id} className="hover:bg-muted/20 text-xs">
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="size-7 border">
+                                <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                  {exit.employee?.firstName?.[0]}
+                                  {exit.employee?.lastName?.[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <span className="font-bold text-foreground block">
+                                  {exit.employee?.firstName} {exit.employee?.lastName}
+                                </span>
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                  {exit.employee?.employeeCode}
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <span className="font-bold text-foreground block">{exit.employee?.department?.name || "Operations"}</span>
+                            <span className="text-[10px] text-muted-foreground">{exit.employee?.position || "Staff"}</span>
+                          </TableCell>
+
+                          <TableCell className="font-mono">
+                            {new Date(exit.resignationDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </TableCell>
+
+                          <TableCell className="font-mono font-bold text-foreground">
                             {new Date(exit.lastWorkingDay).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {exit.noticePeriodDays} days notice
-                          </span>
-                        </div>
-                      </TableCell>
+                          </TableCell>
 
-                      {/* 4 Clearance Badges */}
-                      <TableCell>
-                        <div className="flex items-center gap-1">
+                          <TableCell className="text-center font-mono font-bold">
+                            {totalDays}d
+                          </TableCell>
+
+                          <TableCell className="text-center font-mono text-emerald-600 font-bold">
+                            {daysServed}d
+                          </TableCell>
+
+                          <TableCell className="text-center font-mono font-bold">
+                            <span className={daysRemaining <= 10 ? "text-rose-600 font-black" : "text-primary"}>
+                              {daysRemaining}d
+                            </span>
+                          </TableCell>
+
+                          <TableCell className="w-[140px]">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[10px] font-mono">
+                                <span>{progress}%</span>
+                              </div>
+                              <Progress value={progress} className="h-1.5" />
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-bold ${
+                                isDone
+                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                  : isClosingSoon
+                                  ? "bg-rose-500/10 text-rose-600 border-rose-500/30 animate-pulse"
+                                  : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                              }`}
+                            >
+                              {isDone ? "Completed" : isClosingSoon ? "Closing Soon" : "Active Serving"}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedNoticePassport(exit)}
+                              className="h-6 text-[10px] font-bold gap-1"
+                            >
+                              <Eye className="size-3 text-primary" />
+                              <span>Details</span>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 3: RESIGNATIONS & TERMINATIONS REGISTRY ===================== */}
+        <TabsContent value="registry" className="space-y-4 pt-1">
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Exit Type & ID</TableHead>
+                    <TableHead className="text-xs">Employee Name</TableHead>
+                    <TableHead className="text-xs">Department</TableHead>
+                    <TableHead className="text-xs">Primary Separation Reason</TableHead>
+                    <TableHead className="text-xs">Notice Served</TableHead>
+                    <TableHead className="text-xs">Settlement Amount</TableHead>
+                    <TableHead className="text-xs">Relieving Status</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {exits.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No registry records logged.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    exits.map((exit: any) => (
+                      <TableRow key={exit.id} className="hover:bg-muted/20 text-xs">
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              className={`text-[10px] font-bold capitalize ${
+                                exit.exitType === "termination"
+                                  ? "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                                  : "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                              }`}
+                              variant="outline"
+                            >
+                              {exit.exitType || "Resignation"}
+                            </Badge>
+                            <span className="font-mono text-muted-foreground text-[10px]">{exit.exitCode}</span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="font-bold text-foreground">
+                          {exit.employee?.firstName} {exit.employee?.lastName}
+                        </TableCell>
+
+                        <TableCell className="text-muted-foreground">
+                          {exit.employee?.department?.name || "General"}
+                        </TableCell>
+
+                        <TableCell className="max-w-[220px]">
+                          <p className="text-xs text-muted-foreground line-clamp-1">{exit.reason || "Personal career growth and external opportunity."}</p>
+                        </TableCell>
+
+                        <TableCell className="font-mono text-xs">
+                          {exit.noticePeriodDays} Days
+                        </TableCell>
+
+                        <TableCell className="font-mono font-bold text-foreground">
+                          {formatSystemAmount(Number(exit.fnfSettlementAmount || 0), sysConfig?.currency)}
+                        </TableCell>
+
+                        <TableCell>
                           <Badge
                             variant="outline"
-                            className={`text-[9px] font-bold px-1.5 py-0 ${
-                              exit.itClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
+                            className={`text-[10px] font-bold ${
+                              exit.status === "completed"
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                : "bg-muted text-muted-foreground"
                             }`}
                           >
-                            IT {exit.itClearance ? "✓" : "—"}
+                            {exit.status === "completed" ? "✓ Relieved & Certified" : "Pending Clearance"}
                           </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[9px] font-bold px-1.5 py-0 ${
-                              exit.financeClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            Finance {exit.financeClearance ? "✓" : "—"}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[9px] font-bold px-1.5 py-0 ${
-                              exit.hrClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            HR {exit.hrClearance ? "✓" : "—"}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={`text-[9px] font-bold px-1.5 py-0 ${
-                              exit.adminClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            Admin {exit.adminClearance ? "✓" : "—"}
-                          </Badge>
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      <TableCell className="font-mono font-black text-xs text-foreground">
-                        {exit.fnfSettlementAmount > 0
-                          ? formatSystemAmount(Number(exit.fnfSettlementAmount), sysConfig?.currency)
-                          : "Pending Calc"}
-                      </TableCell>
-
-                      <TableCell>
-                        <Badge variant="outline" className={`text-[10px] font-bold ${st.bg} ${st.text} ${st.border}`}>
-                          {st.label}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <TableCell className="text-right">
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => setSelectedExitPassport(exit)}
                             className="h-6 text-[10px] font-bold gap-1"
                           >
-                            <Eye className="size-3 text-primary" />
-                            <span>Clearance Passport</span>
+                            <FileText className="size-3 text-primary" />
+                            <span>Exit Passport</span>
                           </Button>
-
-                          {exit.status === "completed" && exit.relievingLetterCode && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelectedRelievingLetter(exit)}
-                              className="h-6 text-[10px] font-bold text-emerald-600 border-emerald-500/30 gap-1"
-                            >
-                              <Award className="size-3" /> Relieving Letter
-                            </Button>
-                          )}
-
-                          {exit.status !== "completed" && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => {
-                                if (confirm(`Delete offboarding record ${exit.exitCode}?`)) {
-                                  deleteExitMut.mutate(exit.id);
-                                }
-                              }}
-                              className="size-6 text-rose-600 hover:bg-rose-50"
-                            >
-                              <Trash2 className="size-3" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* ─── MODAL 1: INITIATE EMPLOYEE EXIT ─── */}
       <Dialog open={isInitiateExitOpen} onOpenChange={setIsInitiateExitOpen}>
@@ -1030,6 +1283,75 @@ export function OffboardingPage() {
 
             <DialogFooter className="pt-2 border-t">
               <Button size="sm" variant="outline" onClick={() => setSelectedRelievingLetter(null)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ─── MODAL: NOTICE PERIOD PASSPORT & TIMELINE ─── */}
+      {selectedNoticePassport && (
+        <Dialog open={!!selectedNoticePassport} onOpenChange={(o) => !o && setSelectedNoticePassport(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Clock className="size-5 text-primary" />
+                <span>Notice Period Details: {selectedNoticePassport.employee?.firstName} {selectedNoticePassport.employee?.lastName}</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                {selectedNoticePassport.exitCode} · {selectedNoticePassport.employee?.department?.name || "General"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <div className="p-3.5 rounded-xl border bg-muted/20 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Notice Obligation:</span>
+                  <span className="font-mono font-bold text-foreground">{selectedNoticePassport.noticePeriodDays} Days Total</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Resignation Tendered:</span>
+                  <span className="font-mono font-bold">{new Date(selectedNoticePassport.resignationDate).toLocaleDateString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Official Last Working Day:</span>
+                  <span className="font-mono font-bold text-primary">{new Date(selectedNoticePassport.lastWorkingDay).toLocaleDateString()}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg border bg-card space-y-2">
+                <span className="font-bold text-foreground block">Separation Reason</span>
+                <p className="text-muted-foreground leading-relaxed">
+                  {selectedNoticePassport.reason || "Standard voluntary separation / career transition."}
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg border bg-card space-y-2">
+                <span className="font-bold text-foreground block">Knowledge Transfer & Clearance Progress</span>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className={`size-3.5 ${selectedNoticePassport.itClearance ? "text-emerald-600" : "text-muted-foreground"}`} />
+                    <span>IT & Accounts Revoked</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className={`size-3.5 ${selectedNoticePassport.financeClearance ? "text-emerald-600" : "text-muted-foreground"}`} />
+                    <span>Finance / Dues Cleared</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className={`size-3.5 ${selectedNoticePassport.hrClearance ? "text-emerald-600" : "text-muted-foreground"}`} />
+                    <span>HR Exit Interview</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className={`size-3.5 ${selectedNoticePassport.adminClearance ? "text-emerald-600" : "text-muted-foreground"}`} />
+                    <span>ID Badge & Assets Return</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button size="sm" variant="outline" onClick={() => setSelectedNoticePassport(null)}>
                 Close
               </Button>
             </DialogFooter>

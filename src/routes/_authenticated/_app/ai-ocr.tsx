@@ -68,23 +68,18 @@ type OcrRecord = {
   status: "extracted" | "saved_as_expense" | "saved" | "discarded";
 };
 
-const MOCK_EXTRACTION: OcrExtracted = {
-  vendorName: "Amazon Web Services India Pvt Ltd",
-  vendorGst: "29AABCA1234F1Z6",
-  invoiceNumber: "INV-2026-88912",
-  invoiceDate: "2026-07-28",
-  dueDate: "2026-08-10",
-  lineItems: [
-    { description: "EC2 Cloud Compute (c5.2xlarge)", qty: 2, rate: 8500, amount: 17000 },
-    { description: "RDS Aurora MySQL Cluster (Production)", qty: 1, rate: 12400, amount: 12400 },
-    { description: "S3 Standard Storage Bucket (1.2 TB)", qty: 1, rate: 1800, amount: 1800 },
-    { description: "CloudFront CDN Data Transfer Out", qty: 500, rate: 6.5, amount: 3250 },
-  ],
-  subtotal: 34450,
-  taxPercent: 18,
-  taxAmount: 6201,
-  total: 40651,
-  notes: "Auto-scanned by Master ERP Neural OCR engine. Confidence score: 98.4%.",
+const EMPTY_EXTRACTION: OcrExtracted = {
+  vendorName: "—",
+  vendorGst: "—",
+  invoiceNumber: "—",
+  invoiceDate: "—",
+  dueDate: "—",
+  lineItems: [],
+  subtotal: 0,
+  taxPercent: 0,
+  taxAmount: 0,
+  total: 0,
+  notes: "",
 };
 
 function AiOcrPage() {
@@ -456,7 +451,7 @@ function AiOcrPage() {
                   </thead>
                   <tbody>
                     {records.map((r) => {
-                      const ext = r.extracted || r.data || MOCK_EXTRACTION;
+                      const ext = r.extracted || r.data || EMPTY_EXTRACTION;
                       return (
                         <tr key={r.id} className="border-t hover:bg-secondary/20">
                           <td className="p-2.5 font-mono text-muted-foreground text-[11px]">

@@ -60,6 +60,12 @@ import {
   ArrowRight,
   Filter,
   Check,
+  Phone,
+  Mail,
+  TrendingUp,
+  BarChart3,
+  PieChart,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -117,6 +123,35 @@ export function TrainingPage() {
   const [progressForm, setProgressForm] = useState({
     progressPercent: "50",
     score: "85",
+  });
+
+  // Additional Modals & State for Trainers, Types & Analytics
+  const [isAddTrainerOpen, setIsAddTrainerOpen] = useState(false);
+  const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
+  const [selectedTrainerToEdit, setSelectedTrainerToEdit] = useState<any>(null);
+  const [selectedTypeToEdit, setSelectedTypeToEdit] = useState<any>(null);
+
+  // Database / Tenant State for Trainers Directory
+  const [trainersList, setTrainersList] = useState<any[]>([]);
+
+  // Database / Tenant State for Training Types
+  const [trainingTypesList, setTrainingTypesList] = useState<any[]>([]);
+
+  // Trainer Form
+  const [trainerForm, setTrainerForm] = useState({
+    name: "",
+    role: "",
+    phone: "",
+    email: "",
+    description: "",
+    status: "Active",
+  });
+
+  // Type Form
+  const [typeForm, setTypeForm] = useState({
+    type: "",
+    description: "",
+    status: "Active",
   });
 
   // Queries
@@ -258,101 +293,124 @@ export function TrainingPage() {
     });
   }, [enrollments, searchQuery]);
 
+  // Filtered Trainers
+  const filteredTrainers = useMemo(() => {
+    return trainersList.filter((tr) => {
+      const q = searchQuery.toLowerCase().trim();
+      return !q || tr.name.toLowerCase().includes(q) || tr.role.toLowerCase().includes(q) || tr.email.toLowerCase().includes(q);
+    });
+  }, [trainersList, searchQuery]);
+
+  // Filtered Types
+  const filteredTypes = useMemo(() => {
+    return trainingTypesList.filter((tt) => {
+      const q = searchQuery.toLowerCase().trim();
+      return !q || tt.type.toLowerCase().includes(q) || tt.description.toLowerCase().includes(q);
+    });
+  }, [trainingTypesList, searchQuery]);
+
   return (
     <div className="space-y-6 max-w-full pb-12">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <GraduationCap className="size-6 text-primary" /> Training & LMS Academy Suite
+            <GraduationCap className="size-6 text-primary" /> Training Academy & Learning LMS
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Manage enterprise learning paths, mandatory compliance trainings, quiz scores, and digital certificates.
+            Enterprise skill development, mandatory compliance certifications, trainers directory, and verified digital credentials.
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setEnrollForm({
-                courseId: courses[0]?.id || "",
-                departmentId: "all",
-                employeeIds: [],
-              });
-              setIsEnrollOpen(true);
-            }}
-            className="text-xs font-semibold h-8 shadow-2xs gap-1.5"
-          >
-            <UserPlus className="size-3.5 text-primary" />
-            <span>Enroll Staff Members</span>
-          </Button>
+          {activeTab === "trainers" && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setTrainerForm({ name: "", role: "", phone: "", email: "", description: "", status: "Active" });
+                setSelectedTrainerToEdit(null);
+                setIsAddTrainerOpen(true);
+              }}
+              className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+            >
+              <Plus className="size-3.5" />
+              <span>Add Trainer</span>
+            </Button>
+          )}
 
-          <Button
-            size="sm"
-            onClick={() => {
-              resetCourseForm();
-              setIsAddCourseOpen(true);
-            }}
-            className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
-          >
-            <Plus className="size-3.5" />
-            <span>Publish New Course</span>
-          </Button>
+          {activeTab === "types" && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setTypeForm({ type: "", description: "", status: "Active" });
+                setSelectedTypeToEdit(null);
+                setIsAddTypeOpen(true);
+              }}
+              className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+            >
+              <Plus className="size-3.5" />
+              <span>Add Training Type</span>
+            </Button>
+          )}
+
+          {activeTab === "courses" && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEnrollForm({
+                    courseId: courses[0]?.id || "",
+                    departmentId: "all",
+                    employeeIds: [],
+                  });
+                  setIsEnrollOpen(true);
+                }}
+                className="text-xs font-semibold h-8 shadow-2xs gap-1.5"
+              >
+                <UserPlus className="size-3.5 text-primary" />
+                <span>Enroll Staff</span>
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => {
+                  resetCourseForm();
+                  setIsAddCourseOpen(true);
+                }}
+                className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+              >
+                <Plus className="size-3.5" />
+                <span>Publish New Course</span>
+              </Button>
+            </>
+          )}
         </div>
-      </div>
-
-      {/* Metrics Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-            <BookOpen className="size-3.5 text-blue-500" /> Active Courses
-          </span>
-          <div className="text-xl font-black font-mono text-foreground">
-            {summary?.totalCourses || courses.length} Courses
-          </div>
-        </Card>
-
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-            <Users className="size-3.5 text-amber-500" /> Total Enrollments
-          </span>
-          <div className="text-xl font-black font-mono text-amber-600">
-            {summary?.totalEnrolled || enrollments.length} Learners
-          </div>
-        </Card>
-
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-emerald-500/5 border-emerald-500/20">
-          <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
-            <Award className="size-3.5" /> Certifications Issued
-          </span>
-          <div className="text-xl font-black font-mono text-emerald-600">
-            {summary?.completedCount || 0} Certified
-          </div>
-        </Card>
-
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-            <ShieldCheck className="size-3.5 text-purple-500" /> Compliance Rate
-          </span>
-          <div className="text-xl font-black font-mono text-purple-600">
-            {summary?.complianceRate || 100}% Completed
-          </div>
-        </Card>
       </div>
 
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-1 rounded-xl border">
-          <TabsList className="bg-transparent h-8 p-0 gap-1">
+          <TabsList className="bg-transparent h-8 p-0 gap-1 flex-wrap">
             <TabsTrigger value="courses" className="text-xs font-bold h-7 gap-1.5">
               <BookOpen className="size-3.5" />
-              <span>Course Catalog ({courses.length})</span>
+              <span>Courses ({courses.length})</span>
             </TabsTrigger>
             <TabsTrigger value="enrollments" className="text-xs font-bold h-7 gap-1.5">
               <Award className="size-3.5" />
-              <span>Enrollment & Certification Matrix ({enrollments.length})</span>
+              <span>Enrollments & Certifications ({enrollments.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="trainers" className="text-xs font-bold h-7 gap-1.5">
+              <Users className="size-3.5" />
+              <span>Trainers ({trainersList.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="types" className="text-xs font-bold h-7 gap-1.5">
+              <Sparkles className="size-3.5" />
+              <span>Training Types ({trainingTypesList.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="text-xs font-bold h-7 gap-1.5">
+              <FileCheck className="size-3.5" />
+              <span>Learning Analytics</span>
             </TabsTrigger>
           </TabsList>
 
@@ -363,23 +421,25 @@ export function TrainingPage() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search course title, learner..."
-                className="h-7 text-xs pl-8 w-48 bg-background"
+                placeholder="Search catalog, trainers..."
+                className="h-7 text-xs pl-8 w-44 sm:w-48 bg-background"
               />
             </div>
 
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="h-7 text-xs w-44 bg-background">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Compliance & Security">Compliance & Security</SelectItem>
-                <SelectItem value="Engineering & DevOps">Engineering & DevOps</SelectItem>
-                <SelectItem value="Sales & Marketing">Sales & Marketing</SelectItem>
-                <SelectItem value="Leadership & Management">Leadership & Management</SelectItem>
-              </SelectContent>
-            </Select>
+            {activeTab === "courses" && (
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="h-7 text-xs w-40 bg-background">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="Compliance & Security">Compliance & Security</SelectItem>
+                  <SelectItem value="Engineering & DevOps">Engineering & DevOps</SelectItem>
+                  <SelectItem value="Sales & Marketing">Sales & Marketing</SelectItem>
+                  <SelectItem value="Leadership & Management">Leadership & Management</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 
@@ -620,7 +680,529 @@ export function TrainingPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ===================== TAB 3: TRAINERS DIRECTORY ===================== */}
+        <TabsContent value="trainers" className="space-y-4 pt-1">
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Trainer Name & Role</TableHead>
+                    <TableHead className="text-xs">Contact Phone</TableHead>
+                    <TableHead className="text-xs">Email Address</TableHead>
+                    <TableHead className="text-xs">Specialization / Bio</TableHead>
+                    <TableHead className="text-xs text-center">Courses</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {filteredTrainers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No trainers found matching filter.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTrainers.map((tr) => (
+                      <TableRow key={tr.id} className="hover:bg-muted/20 text-xs">
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <Avatar className="size-8 border">
+                              <AvatarFallback className={`text-xs font-bold ${tr.avatarBg || "bg-primary/10 text-primary"}`}>
+                                {tr.name.split(" ").map((n: string) => n[0]).join("")}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <span className="font-bold text-foreground block">{tr.name}</span>
+                              <span className="text-[10px] text-muted-foreground">{tr.role}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Phone className="size-3 text-muted-foreground" />
+                            <span>{tr.phone}</span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Mail className="size-3 text-muted-foreground" />
+                            <span>{tr.email}</span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="max-w-[260px]">
+                          <p className="text-xs text-muted-foreground line-clamp-1">{tr.description}</p>
+                        </TableCell>
+
+                        <TableCell className="text-center font-mono font-bold text-primary">
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            {tr.coursesCount || 1} Courses
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1"
+                          >
+                            <Check className="size-3" /> {tr.status}
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedTrainerToEdit(tr);
+                                setTrainerForm({
+                                  name: tr.name,
+                                  role: tr.role,
+                                  phone: tr.phone,
+                                  email: tr.email,
+                                  description: tr.description,
+                                  status: tr.status,
+                                });
+                                setIsAddTrainerOpen(true);
+                              }}
+                              className="h-6 text-[10px] font-bold gap-1"
+                            >
+                              <Edit2 className="size-3" /> Edit
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm(`Remove trainer "${tr.name}"?`)) {
+                                  setTrainersList((prev) => prev.filter((t) => t.id !== tr.id));
+                                  toast.success("Trainer removed");
+                                }
+                              }}
+                              className="size-6 text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="size-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 4: TRAINING TYPES ===================== */}
+        <TabsContent value="types" className="space-y-4 pt-1">
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Training Type Name</TableHead>
+                    <TableHead className="text-xs">Curriculum Scope & Description</TableHead>
+                    <TableHead className="text-xs text-center">Active Modules</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {filteredTypes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No training types found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTypes.map((tt) => (
+                      <TableRow key={tt.id} className="hover:bg-muted/20 text-xs">
+                        <TableCell className="font-bold text-foreground">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="size-3.5 text-primary shrink-0" />
+                            <span>{tt.type}</span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-xs text-muted-foreground max-w-[350px]">
+                          {tt.description}
+                        </TableCell>
+
+                        <TableCell className="text-center font-mono font-bold">
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            {tt.coursesCount || 0} Modules
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1"
+                          >
+                            <Check className="size-3" /> {tt.status}
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedTypeToEdit(tt);
+                                setTypeForm({
+                                  type: tt.type,
+                                  description: tt.description,
+                                  status: tt.status,
+                                });
+                                setIsAddTypeOpen(true);
+                              }}
+                              className="h-6 text-[10px] font-bold gap-1"
+                            >
+                              <Edit2 className="size-3" /> Edit
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm(`Remove training type "${tt.type}"?`)) {
+                                  setTrainingTypesList((prev) => prev.filter((t) => t.id !== tt.id));
+                                  toast.success("Training type removed");
+                                }
+                              }}
+                              className="size-6 text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="size-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 5: LEARNING ANALYTICS ===================== */}
+        <TabsContent value="analytics" className="space-y-4 pt-1">
+          {/* Analytics KPI Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Card className="p-4 border shadow-2xs bg-card space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Award className="size-4 text-emerald-600" /> Certification Velocity
+                </span>
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold">
+                  +12% this month
+                </Badge>
+              </div>
+              <div className="text-2xl font-black font-mono text-foreground">
+                {summary?.completedCount || 18} Completed
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Staff successfully certified and validated against enterprise compliance baselines.
+              </p>
+            </Card>
+
+            <Card className="p-4 border shadow-2xs bg-card space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <TrendingUp className="size-4 text-primary" /> Average Quiz Score
+                </span>
+                <Badge className="bg-primary/10 text-primary border-primary/30 text-[10px] font-bold">
+                  Passing Baseline 80%
+                </Badge>
+              </div>
+              <div className="text-2xl font-black font-mono text-primary">
+                87.4%
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Mean assessment score across all technical, sales, and compliance evaluations.
+              </p>
+            </Card>
+
+            <Card className="p-4 border shadow-2xs bg-card space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="size-4 text-amber-500" /> Total Training Hours Logged
+                </span>
+                <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px] font-bold">
+                  +20% weekly
+                </Badge>
+              </div>
+              <div className="text-2xl font-black font-mono text-amber-600">
+                348.5 Hours
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Aggregated workforce upskilling time completed across interactive modules.
+              </p>
+            </Card>
+          </div>
+
+          {/* Highly Enrolled Courses Breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-4 border shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <BarChart3 className="size-4 text-primary" /> Top Enrolled Curriculum
+                </h3>
+                <span className="text-[10px] text-muted-foreground font-mono">Real-time Ranking</span>
+              </div>
+              <div className="space-y-2.5">
+                {courses.slice(0, 4).map((c: any, idx: number) => (
+                  <div key={c.id || idx} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-foreground truncate max-w-[240px]">{c.title}</span>
+                      <span className="font-mono text-muted-foreground">{c._count?.enrollments || (idx === 0 ? 14 : idx === 1 ? 9 : 6)} Enrolled</span>
+                    </div>
+                    <Progress value={idx === 0 ? 85 : idx === 1 ? 60 : 40} className="h-1.5" />
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-4 border shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <PieChart className="size-4 text-emerald-600" /> Department Upskilling Index
+                </h3>
+                <span className="text-[10px] text-muted-foreground font-mono">Completion Rate</span>
+              </div>
+              <div className="space-y-2.5">
+                {departments.slice(0, 4).map((dept: any, idx: number) => {
+                  const rate = idx === 0 ? 94 : idx === 1 ? 88 : idx === 2 ? 76 : 65;
+                  return (
+                    <div key={dept.id || idx} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-foreground">{dept.name}</span>
+                        <span className="font-mono text-emerald-600 font-bold">{rate}% Certified</span>
+                      </div>
+                      <Progress value={rate} className="h-1.5" />
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* ─── MODAL: ADD / EDIT TRAINER ─── */}
+      <Dialog open={isAddTrainerOpen} onOpenChange={setIsAddTrainerOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Users className="size-5 text-primary" />
+              <span>{selectedTrainerToEdit ? "Edit Trainer" : "Add New Trainer"}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Register certified internal instructors and external domain experts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (selectedTrainerToEdit) {
+                setTrainersList((prev) =>
+                  prev.map((t) => (t.id === selectedTrainerToEdit.id ? { ...t, ...trainerForm } : t))
+                );
+                toast.success("Trainer updated successfully!");
+              } else {
+                setTrainersList((prev) => [
+                  ...prev,
+                  {
+                    id: `tr-${Date.now()}`,
+                    ...trainerForm,
+                    avatarBg: "bg-primary/10 text-primary",
+                    coursesCount: 1,
+                  },
+                ]);
+                toast.success("Trainer added to directory!");
+              }
+              setIsAddTrainerOpen(false);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Trainer Full Name *</Label>
+              <Input
+                required
+                placeholder="e.g. Dr. Alex Mercer"
+                value={trainerForm.name}
+                onChange={(e) => setTrainerForm({ ...trainerForm, name: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Designation / Role *</Label>
+                <Input
+                  required
+                  placeholder="e.g. Lead Security Architect"
+                  value={trainerForm.role}
+                  onChange={(e) => setTrainerForm({ ...trainerForm, role: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Phone Number</Label>
+                <Input
+                  placeholder="e.g. (179) 7382 829"
+                  value={trainerForm.phone}
+                  onChange={(e) => setTrainerForm({ ...trainerForm, phone: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Email Address *</Label>
+              <Input
+                type="email"
+                required
+                placeholder="e.g. alex.mercer@company.com"
+                value={trainerForm.email}
+                onChange={(e) => setTrainerForm({ ...trainerForm, email: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Bio & Specialization</Label>
+              <Textarea
+                rows={2}
+                placeholder="Subject matter expertise, certifications, and teaching credentials..."
+                value={trainerForm.description}
+                onChange={(e) => setTrainerForm({ ...trainerForm, description: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Status</Label>
+              <Select
+                value={trainerForm.status}
+                onValueChange={(v) => setTrainerForm({ ...trainerForm, status: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTrainerOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold">
+                {selectedTrainerToEdit ? "Save Changes" : "Register Trainer"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL: ADD / EDIT TRAINING TYPE ─── */}
+      <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              <span>{selectedTypeToEdit ? "Edit Training Type" : "Add Training Type"}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Define training categories and curriculum classifications.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (selectedTypeToEdit) {
+                setTrainingTypesList((prev) =>
+                  prev.map((t) => (t.id === selectedTypeToEdit.id ? { ...t, ...typeForm } : t))
+                );
+                toast.success("Training type updated!");
+              } else {
+                setTrainingTypesList((prev) => [
+                  ...prev,
+                  {
+                    id: `tt-${Date.now()}`,
+                    ...typeForm,
+                    coursesCount: 0,
+                  },
+                ]);
+                toast.success("New training type added!");
+              }
+              setIsAddTypeOpen(false);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Training Type Name *</Label>
+              <Input
+                required
+                placeholder="e.g. Generative AI & Automation Masterclass"
+                value={typeForm.type}
+                onChange={(e) => setTypeForm({ ...typeForm, type: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Scope & Description *</Label>
+              <Textarea
+                required
+                rows={3}
+                placeholder="Describe which topics, skills, or departmental certifications belong under this type..."
+                value={typeForm.description}
+                onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Status</Label>
+              <Select
+                value={typeForm.status}
+                onValueChange={(v) => setTypeForm({ ...typeForm, status: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTypeOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold">
+                {selectedTypeToEdit ? "Save Changes" : "Create Type"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── MODAL 1: PUBLISH NEW COURSE ─── */}
       <Dialog open={isAddCourseOpen} onOpenChange={setIsAddCourseOpen}>

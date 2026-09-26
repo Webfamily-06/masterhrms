@@ -48,6 +48,71 @@ const verifyEmailSchema = z.object({
   code: z.string().min(4).max(10),
 });
 
+// GET /api/auth/public/tenant/resolve
+authRouter.get("/public/tenant/resolve", async (req, res) => {
+  try {
+    const host = req.headers.host || "";
+    const requestedSlug = (req.query.slug as string) || (req.headers["x-tenant-slug"] as string) || (req.headers["x-tenant-id"] as string);
+    
+    let tenant: any = null;
+    if (requestedSlug) {
+      tenant = await prisma.tenant.findFirst({
+        where: {
+          OR: [{ slug: requestedSlug }, { id: requestedSlug }]
+        },
+        include: { subscription: { include: { plan: true } } }
+      });
+    } else if (host && !host.startsWith("localhost") && !host.startsWith("127.0.0.1")) {
+      const parts = host.split(".");
+      if (parts.length > 2) {
+        const subdomain = parts[0];
+        if (!["admin", "app", "www", "api"].includes(subdomain.toLowerCase())) {
+          tenant = await prisma.tenant.findUnique({
+            where: { slug: subdomain },
+            include: { subscription: { include: { plan: true } } }
+          });
+        }
+      }
+    }
+
+    if (!tenant) {
+      return res.json({
+        resolved: false,
+        name: "Master ERP & HRMS",
+        slug: "default",
+        logoUrl: "/images/logo.svg",
+        faviconUrl: "/favicon.ico",
+        primaryColor: "#FF6B00",
+        timezone: "Asia/Kolkata",
+        isWhiteLabeled: false,
+      });
+    }
+
+    return res.json({
+      resolved: true,
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      logoUrl: tenant.logoUrl || "/images/logo.svg",
+      faviconUrl: tenant.faviconUrl || "/favicon.ico",
+      primaryColor: tenant.primaryColor || "#FF6B00",
+      timezone: tenant.timezone || "Asia/Kolkata",
+      isWhiteLabeled: true,
+      subscription: {
+        planName: tenant.subscription?.plan?.name || "Active Plan",
+        status: tenant.subscription?.status || "active",
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/public/tenant-branding (alias for convenience)
+authRouter.get("/public/tenant-branding", async (req, res) => {
+  return res.redirect("/api/auth/public/tenant/resolve");
+});
+
 // POST /api/auth/register
 authRouter.post("/register", async (req, res) => {
   try {

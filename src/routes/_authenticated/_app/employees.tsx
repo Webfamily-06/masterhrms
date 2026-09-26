@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useCurrentProfile, useSession } from "@/lib/session";
@@ -73,8 +73,25 @@ import {
   Smartphone,
   EyeOff,
   Sparkles,
+  ArrowLeft,
+  CreditCard,
+  ChevronDown,
+  ChevronUp,
+  MoreVertical,
+  MapPin,
+  Heart,
+  BookOpen,
+  Layers,
+  Globe,
+  HelpCircle,
+  Shield,
+  FileText,
+  AlertCircle,
+  HardDrive,
+  Clock,
+  ExternalLink,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/_app/employees")({
@@ -160,13 +177,226 @@ export type HardwareAsset = {
   warrantyExpiry: string;
   condition: "New" | "Good" | "Fair" | "Needs Service";
   status: "assigned" | "available" | "in_repair" | "decommissioned";
+  cost?: string;
+  vendor?: string;
+  location?: string;
+  imageUrl?: string;
+};
+
+export type EmployeeExtendedProfile = {
+  about?: string;
+  experienceYears?: string;
+  passportNo?: string;
+  passportExpiry?: string;
+  nationality?: string;
+  religion?: string;
+  maritalStatus?: string;
+  spouseEmployment?: string;
+  childrenCount?: string;
+  address?: string;
+  birthday?: string;
+  gender?: string;
+  emergencyPrimary?: {
+    name: string;
+    relationship: string;
+    phone1: string;
+    phone2?: string;
+  };
+  emergencySecondary?: {
+    name: string;
+    relationship: string;
+    phone1: string;
+    phone2?: string;
+  };
+  bank?: {
+    bankName: string;
+    accountNo: string;
+    ifscCode: string;
+    branchAddress: string;
+  };
+  family?: {
+    name: string;
+    relationship: string;
+    dob: string;
+    phone: string;
+  }[];
+  education?: {
+    institution: string;
+    course: string;
+    duration: string;
+  }[];
+  experience?: {
+    company: string;
+    role: string;
+    duration: string;
+    isCurrent?: boolean;
+  }[];
+  statutory?: {
+    salaryBasis: string;
+    salaryAmount: string;
+    paymentType: string;
+    pfContribution: string;
+    pfNo: string;
+    employeePfRate: string;
+    additionalPfRate: string;
+    totalPfRate: string;
+    esiContribution: string;
+    esiNo: string;
+    employeeEsiRate: string;
+    additionalEsiRate: string;
+    totalEsiRate: string;
+  };
+  permissions?: Record<string, { enabled: boolean; read: boolean; write: boolean; create: boolean; delete: boolean; import: boolean; export: boolean }>;
+};
+
+const DEFAULT_EXTENDED_PROFILE: EmployeeExtendedProfile = {
+  about: "As an experienced professional, I deliver exceptional quality work and bring continuous value to our organization. Focused on high-impact results, team collaboration, and reliable execution.",
+  experienceYears: "5+ years of Experience",
+  passportNo: "QRET4566FGRT",
+  passportExpiry: "15 May 2029",
+  nationality: "Indian",
+  religion: "Christianity",
+  maritalStatus: "Married",
+  spouseEmployment: "Employed",
+  childrenCount: "2",
+  address: "1861 Bayonne Ave, Manchester, NJ, 08759",
+  birthday: "24th July 1995",
+  gender: "Male",
+  emergencyPrimary: {
+    name: "Adrian Peralt",
+    relationship: "Father",
+    phone1: "+1 127 2685 598",
+    phone2: "+1 127 2685 599",
+  },
+  emergencySecondary: {
+    name: "Karen Wills",
+    relationship: "Mother",
+    phone1: "+1 989 7774 787",
+    phone2: "",
+  },
+  bank: {
+    bankName: "HDFC International Bank",
+    accountNo: "159843014641",
+    ifscCode: "HDFC0001245",
+    branchAddress: "Mumbai Corporate Hub, India",
+  },
+  family: [
+    {
+      name: "Hendry Peralt",
+      relationship: "Brother",
+      dob: "25 May 2014",
+      phone: "+1 265 6956 961",
+    },
+    {
+      name: "Sophia Peralt",
+      relationship: "Spouse",
+      dob: "12 Oct 1996",
+      phone: "+1 265 6956 962",
+    },
+  ],
+  education: [
+    {
+      institution: "Oxford University",
+      course: "Computer Science & Engineering",
+      duration: "2018 - 2022",
+    },
+    {
+      institution: "Cambridge Institute",
+      course: "Computer Network & Systems",
+      duration: "2015 - 2018",
+    },
+    {
+      institution: "National Public School",
+      course: "Higher Secondary (Grade XII)",
+      duration: "2013 - 2015",
+    },
+  ],
+  experience: [
+    {
+      company: "Google LLC",
+      role: "Senior Fullstack Developer",
+      duration: "Jan 2023 - Present",
+      isCurrent: true,
+    },
+    {
+      company: "Salesforce Systems",
+      role: "Web Application Engineer",
+      duration: "Dec 2020 - Dec 2022",
+      isCurrent: false,
+    },
+    {
+      company: "HubSpot Global",
+      role: "Software Developer",
+      duration: "Jan 2019 - Nov 2020",
+      isCurrent: false,
+    },
+  ],
+  statutory: {
+    salaryBasis: "Monthly",
+    salaryAmount: "₹ 85,000",
+    paymentType: "Bank Transfer",
+    pfContribution: "Employee & Employer Contribution",
+    pfNo: "MH/BAN/109845/000",
+    employeePfRate: "12%",
+    additionalPfRate: "3.67%",
+    totalPfRate: "15.67%",
+    esiContribution: "Employee Contribution",
+    esiNo: "310009845210001",
+    employeeEsiRate: "0.75%",
+    additionalEsiRate: "3.25%",
+    totalEsiRate: "4.00%",
+  },
+  permissions: {
+    Holidays: { enabled: true, read: true, write: false, create: false, delete: false, import: false, export: true },
+    Leaves: { enabled: true, read: true, write: true, create: true, delete: false, import: false, export: true },
+    Clients: { enabled: true, read: true, write: true, create: true, delete: false, import: false, export: false },
+    Projects: { enabled: true, read: true, write: true, create: true, delete: false, import: true, export: true },
+    Tasks: { enabled: true, read: true, write: true, create: true, delete: true, import: false, export: true },
+    Chats: { enabled: true, read: true, write: true, create: true, delete: false, import: false, export: false },
+    Assets: { enabled: true, read: true, write: false, create: true, delete: false, import: true, export: false },
+    TimingSheets: { enabled: true, read: true, write: true, create: true, delete: false, import: false, export: true },
+  },
 };
 
 const DEFAULT_PERFORMANCE_REVIEWS: PerformanceReview[] = [];
+const DEFAULT_HARDWARE_ASSETS: HardwareAsset[] = [
+  {
+    id: "ast-dell-01",
+    assetTag: "AST - 001",
+    name: "Dell Latitude 7440 Ultrabook",
+    category: "Laptop",
+    serialNo: "3647952145678",
+    assignedToEmployeeId: "default",
+    assignedToEmployeeName: "Assigned Staff",
+    allocatedDate: "22 Nov, 2024 10:32 AM",
+    warrantyExpiry: "12 Jan 2028",
+    condition: "New",
+    status: "assigned",
+    cost: "₹ 1,12,000",
+    vendor: "Dell India Technologies Pvt Ltd",
+    location: "Floor 4, Workstation 42, Tech Park",
+    imageUrl: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500&auto=format&fit=crop&q=60",
+  },
+  {
+    id: "ast-mouse-02",
+    assetTag: "AST - 002",
+    name: "Logitech MX Master 3S Wireless Mouse",
+    category: "Accessory",
+    serialNo: "9845721182390",
+    assignedToEmployeeId: "default",
+    assignedToEmployeeName: "Assigned Staff",
+    allocatedDate: "22 Nov, 2024 10:32 AM",
+    warrantyExpiry: "15 Oct 2027",
+    condition: "Good",
+    status: "assigned",
+    cost: "₹ 8,995",
+    vendor: "Logitech Electronics Hub",
+    location: "Desk 42, Floor 4",
+    imageUrl: "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=500&auto=format&fit=crop&q=60",
+  },
+];
 
-const DEFAULT_HARDWARE_ASSETS: HardwareAsset[] = [];
-
-function Employees() {
+export function Employees() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);
   const tenantId = profile?.tenant_id || "default";
@@ -177,12 +407,36 @@ function Employees() {
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+
+  // Selected Employee for Details View (Dreams UI-2 exact page view)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+
+  // Modals state
   const [openAddModal, setOpenAddModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
-  const [viewingEmployee, setViewingEmployee] = useState<any | null>(null);
   const [addDeptOpen, setAddDeptOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState("");
   const [addForm, setAddForm] = useState({ ...EMPTY_FORM });
+
+  // Extended Edit Modals state
+  const [openEditPersonalModal, setOpenEditPersonalModal] = useState(false);
+  const [openEditEmergencyModal, setOpenEditEmergencyModal] = useState(false);
+  const [openEditBankModal, setOpenEditBankModal] = useState(false);
+  const [openEditFamilyModal, setOpenEditFamilyModal] = useState(false);
+  const [openEditEducationModal, setOpenEditEducationModal] = useState(false);
+  const [openEditExperienceModal, setOpenEditExperienceModal] = useState(false);
+  const [openBankStatutoryModal, setOpenBankStatutoryModal] = useState(false);
+  const [selectedAssetForInfo, setSelectedAssetForInfo] = useState<HardwareAsset | null>(null);
+  const [selectedAssetForIssue, setSelectedAssetForIssue] = useState<HardwareAsset | null>(null);
+  const [issueDescription, setIssueDescription] = useState("");
+
+  // Accordion collapsed state in Details View
+  const [collapsedAbout, setCollapsedAbout] = useState(false);
+  const [collapsedBank, setCollapsedBank] = useState(false);
+  const [collapsedFamily, setCollapsedFamily] = useState(false);
+  const [collapsedEducation, setCollapsedEducation] = useState(false);
+  const [collapsedExperience, setCollapsedExperience] = useState(false);
+  const [detailsSubTab, setDetailsSubTab] = useState<"projects" | "assets">("projects");
 
   // Avatar Cropper State
   const [isCropperOpen, setIsCropperOpen] = useState(false);
@@ -230,6 +484,9 @@ function Employees() {
     serialNo: "",
     assignedToEmployeeId: "",
     condition: "New" as HardwareAsset["condition"],
+    cost: "₹ 75,000",
+    vendor: "Compusoft Systems Ltd.",
+    location: "Corporate HQ, Floor 4",
   });
 
   // Fetch employees
@@ -256,12 +513,28 @@ function Employees() {
     position: e.position,
     department_id: e.departmentId ?? e.department_id,
     departments: e.department ?? e.departments,
+    manager: e.manager,
     salary: e.salary,
     employment_type: e.employmentType ?? e.employment_type,
     status: e.status,
     joined_at: e.joinedAt ?? e.joined_at,
     avatar_url: e.user?.profile?.avatarUrl || e.avatarUrl || e.avatar_url || "",
+    pan: e.pan,
+    aadhaar: e.aadhaar,
+    uan: e.uan,
+    esiNumber: e.esiNumber,
+    bankName: e.bankName,
+    bankAccount: e.bankAccount,
+    bankIfsc: e.bankIfsc,
+    bankBranch: e.bankBranch,
+    dateOfBirth: e.dateOfBirth,
+    gender: e.gender,
+    taxRegime: e.taxRegime,
+    state: e.state,
   }));
+
+  // Selected Employee object
+  const activeEmployee = employees.find((e: any) => e.id === selectedEmployeeId) || employees[0] || null;
 
   // Fetch departments
   const { data: rawDepartments = [] } = useQuery({
@@ -294,6 +567,52 @@ function Employees() {
       }
     },
   });
+
+  // Query / Cache for Extended Passport Profiles per Tenant
+  const { data: passportMap = {} } = useQuery<Record<string, EmployeeExtendedProfile>>({
+    queryKey: ["tenant-employee-passports", tenantId],
+    queryFn: async () => {
+      try {
+        const page = await api.get(`/cms/pages/tenant-${tenantId}-employee-passports`);
+        if (page?.content && typeof page.content === "object") {
+          return page.content as Record<string, EmployeeExtendedProfile>;
+        }
+        return {};
+      } catch {
+        return {};
+      }
+    },
+  });
+
+  const savePassportMut = useMutation({
+    mutationFn: async (updatedMap: Record<string, EmployeeExtendedProfile>) => {
+      await api.put(`/cms/pages/tenant-${tenantId}-employee-passports`, {
+        title: "Employee Extended Passports & Details",
+        content: updatedMap,
+        published: true,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenant-employee-passports", tenantId] });
+      toast.success("Employee details saved & synced!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Active Extended Profile
+  const activeExtended: EmployeeExtendedProfile = {
+    ...DEFAULT_EXTENDED_PROFILE,
+    ...(activeEmployee ? (passportMap[activeEmployee.id] || {}) : {}),
+    bank: {
+      ...DEFAULT_EXTENDED_PROFILE.bank!,
+      bankName: activeEmployee?.bankName || passportMap[activeEmployee?.id]?.bank?.bankName || DEFAULT_EXTENDED_PROFILE.bank!.bankName,
+      accountNo: activeEmployee?.bankAccount || passportMap[activeEmployee?.id]?.bank?.accountNo || DEFAULT_EXTENDED_PROFILE.bank!.accountNo,
+      ifscCode: activeEmployee?.bankIfsc || passportMap[activeEmployee?.id]?.bank?.ifscCode || DEFAULT_EXTENDED_PROFILE.bank!.ifscCode,
+      branchAddress: activeEmployee?.bankBranch || passportMap[activeEmployee?.id]?.bank?.branchAddress || DEFAULT_EXTENDED_PROFILE.bank!.branchAddress,
+    },
+    gender: activeEmployee?.gender || passportMap[activeEmployee?.id]?.gender || DEFAULT_EXTENDED_PROFILE.gender,
+    birthday: activeEmployee?.dateOfBirth ? new Date(activeEmployee.dateOfBirth).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : (passportMap[activeEmployee?.id]?.birthday || DEFAULT_EXTENDED_PROFILE.birthday),
+  };
 
   // 1. Performance Reviews Query
   const { data: reviews = DEFAULT_PERFORMANCE_REVIEWS } = useQuery<PerformanceReview[]>({
@@ -460,7 +779,7 @@ function Employees() {
     onError: (e: Error) => toast.error(`Error: ${e.message}`),
   });
 
-  // Update Employee
+  // Update Employee Core & Statutory Fields
   const updateMut = useMutation({
     mutationFn: async (emp: any) => {
       const payload = {
@@ -476,13 +795,21 @@ function Employees() {
         status: emp.status,
         joinedAt: emp.joined_at ?? emp.joinedAt,
         avatarUrl: emp.avatar_url ?? emp.avatarUrl ?? null,
+        bankName: emp.bankName ?? emp.bank_name,
+        bankAccount: emp.bankAccount ?? emp.bank_account,
+        bankIfsc: emp.bankIfsc ?? emp.bank_ifsc,
+        bankBranch: emp.bankBranch ?? emp.bank_branch,
+        pan: emp.pan,
+        aadhaar: emp.aadhaar,
+        gender: emp.gender,
+        dateOfBirth: emp.dateOfBirth ?? emp.date_of_birth,
       };
       await api.put(`/employees/${emp.id}`, payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["employees"] });
       setEditingEmployee(null);
-      toast.success("Employee record updated!");
+      toast.success("Employee record updated successfully!");
     },
     onError: (e: Error) => toast.error(`Update failed: ${e.message}`),
   });
@@ -491,9 +818,11 @@ function Employees() {
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/employees/${id}`);
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (deletedId) => {
       qc.invalidateQueries({ queryKey: ["employees"] });
+      if (selectedEmployeeId === deletedId) setSelectedEmployeeId(null);
       toast.success("Employee removed.");
     },
     onError: (e: Error) => toast.error(`Delete failed: ${e.message}`),
@@ -548,7 +877,6 @@ function Employees() {
 
   const activeCount = employees.filter((e: any) => e.status === "active").length;
   const probationCount = employees.filter((e: any) => e.status === "probation").length;
-  const totalSalary = employees.reduce((s: number, e: any) => s + (Number(e.salary) || 0), 0);
   const thisMonth = new Date().toISOString().slice(0, 7);
   const newHiresThisMonth = employees.filter(
     (e: any) => e.joined_at && e.joined_at.startsWith(thisMonth),
@@ -586,21 +914,1616 @@ function Employees() {
 
     const newAsset: HardwareAsset = {
       id: `ast-${Date.now()}`,
-      assetTag: `AST-${assetForm.category.slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      assetTag: `AST - ${Math.floor(100 + Math.random() * 900)}`,
       name: assetForm.name.trim(),
       category: assetForm.category,
       serialNo: assetForm.serialNo.trim() || `SN-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
       assignedToEmployeeId: targetEmp ? targetEmp.id : "unassigned",
       assignedToEmployeeName: targetEmp ? `${targetEmp.first_name} ${targetEmp.last_name}` : "Unallocated (Inventory)",
-      allocatedDate: new Date().toISOString().slice(0, 10),
-      warrantyExpiry: new Date(Date.now() + 365 * 24 * 3600 * 1000 * 3).toISOString().slice(0, 10),
+      allocatedDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      warrantyExpiry: new Date(Date.now() + 365 * 24 * 3600 * 1000 * 3).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
       condition: assetForm.condition,
       status: targetEmp ? "assigned" : "available",
+      cost: assetForm.cost,
+      vendor: assetForm.vendor,
+      location: assetForm.location,
+      imageUrl: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500&auto=format&fit=crop&q=60",
     };
 
     saveAssetsMut.mutate([newAsset, ...assets]);
   }
 
+  // =========================================================================
+  // VIEW: IF AN EMPLOYEE IS SELECTED -> RENDER EXACT `ui-2/employee-details.html`
+  // =========================================================================
+  if (selectedEmployeeId && activeEmployee) {
+    return (
+      <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
+        {/* Breadcrumb Top Bar (matching ui-2/employee-details.html) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedEmployeeId(null)}
+              className="gap-2 text-sm font-bold hover:bg-secondary/80 pl-2 pr-3"
+            >
+              <ArrowLeft className="size-4 text-primary" /> Back to Employee Lists
+            </Button>
+            <span className="text-muted-foreground">/</span>
+            <h2 className="text-lg font-extrabold tracking-tight">Employee Details</h2>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => setOpenBankStatutoryModal(true)}
+              className="gap-1.5 font-bold text-xs bg-primary text-primary-foreground shadow-xs"
+            >
+              <Plus className="size-3.5" /> Bank & Statutory
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAuthModalEmployee(activeEmployee);
+                setNewPassword("");
+              }}
+              className="text-xs font-semibold gap-1.5 text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+            >
+              <KeyRound className="size-3.5" /> Login & Password
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditingEmployee({ ...activeEmployee })}
+              className="text-xs font-semibold gap-1.5"
+            >
+              <Edit2 className="size-3.5" /> Edit Employee
+            </Button>
+          </div>
+        </div>
+
+        {/* 2-Column Grid matching ui-2/employee-details.html */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {/* ===================== LEFT COLUMN (col-xl-4) ===================== */}
+          <div className="xl:col-span-4 space-y-5">
+            {/* Profile Overview Card */}
+            <Card className="overflow-hidden border shadow-xs bg-card">
+              <div className="p-5 text-center border-b bg-gradient-to-b from-primary/5 to-transparent">
+                <div className="relative mx-auto size-24 mb-3">
+                  <Avatar className="size-24 border-4 border-background shadow-md">
+                    <AvatarImage src={activeEmployee.avatar_url || "/favicon.webp"} />
+                    <AvatarFallback className="text-2xl font-black bg-primary text-primary-foreground">
+                      {activeEmployee.first_name?.[0]}{activeEmployee.last_name?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="absolute bottom-0 right-0 size-6 bg-emerald-500 rounded-full border-2 border-background grid place-items-center text-white" title="Verified Staff">
+                    <Check className="size-3.5 stroke-[3]" />
+                  </span>
+                </div>
+
+                <h3 className="text-lg font-black tracking-tight text-foreground flex items-center justify-center gap-1.5">
+                  {activeEmployee.first_name} {activeEmployee.last_name}
+                  <ShieldCheck className="size-4 text-emerald-600 inline-block" />
+                </h3>
+
+                <div className="flex items-center justify-center gap-2 mt-1.5 flex-wrap">
+                  <Badge variant="secondary" className="text-xs font-semibold gap-1 px-2.5 py-0.5">
+                    <span className="size-1.5 rounded-full bg-primary inline-block"></span>
+                    {activeEmployee.position || "Software Developer"}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs font-semibold text-muted-foreground border-border">
+                    {activeExtended.experienceYears || "5+ years of Experience"}
+                  </Badge>
+                </div>
+
+                {/* Profile Meta Info rows */}
+                <div className="mt-4 pt-3 border-t space-y-2.5 text-xs text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <CreditCard className="size-3.5 text-primary/70" /> Client ID / Employee ID
+                    </span>
+                    <span className="font-mono font-bold text-foreground">{activeEmployee.employee_code}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Star className="size-3.5 text-amber-500/80" /> Team / Department
+                    </span>
+                    <span className="font-semibold text-foreground">{activeEmployee.departments?.name || "UI/UX Design"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="size-3.5 text-blue-500/80" /> Date Of Join
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {activeEmployee.joined_at ? new Date(activeEmployee.joined_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "1st Jan 2023"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <UserCheck className="size-3.5 text-emerald-500/80" /> Report Office / Manager
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Avatar className="size-5 border">
+                        <AvatarFallback className="text-[9px] font-bold bg-muted">
+                          {activeEmployee.manager?.firstName?.[0] || "D"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-semibold text-foreground">
+                        {activeEmployee.manager ? `${activeEmployee.manager.firstName} ${activeEmployee.manager.lastName}` : "Doglas Martini"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Left Action Buttons */}
+                <div className="grid grid-cols-2 gap-2 mt-4 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingEmployee({ ...activeEmployee })}
+                    className="text-xs font-bold gap-1.5"
+                  >
+                    <Edit2 className="size-3.5" /> Edit Info
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      window.location.href = "/chat";
+                    }}
+                    className="text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
+                  >
+                    <Send className="size-3.5" /> Message
+                  </Button>
+                </div>
+              </div>
+
+              {/* Basic Information Section */}
+              <div className="p-4 border-b space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Basic Information</h4>
+                  <button
+                    onClick={() => setEditingEmployee({ ...activeEmployee })}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                    title="Edit Basic Information"
+                  >
+                    <Edit2 className="size-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Phone className="size-3.5 text-primary/70" /> Phone
+                    </span>
+                    <span className="font-mono font-semibold text-foreground">{activeEmployee.phone || "(163) 2459 315"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Mail className="size-3.5 text-primary/70" /> Email
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(activeEmployee.email);
+                        toast.success("Email copied to clipboard!");
+                      }}
+                      className="font-mono text-primary hover:underline flex items-center gap-1 font-semibold"
+                      title="Copy Email"
+                    >
+                      {activeEmployee.email}
+                      <Copy className="size-3 text-muted-foreground hover:text-foreground" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <UserCheck className="size-3.5 text-primary/70" /> Gender
+                    </span>
+                    <span className="font-semibold text-foreground capitalize">{activeExtended.gender || "Male"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="size-3.5 text-primary/70" /> Birthday
+                    </span>
+                    <span className="font-semibold text-foreground">{activeExtended.birthday || "24th July 1995"}</span>
+                  </div>
+                  <div className="flex items-start justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5 shrink-0 mt-0.5">
+                      <MapPin className="size-3.5 text-primary/70" /> Address
+                    </span>
+                    <span className="font-semibold text-foreground text-right max-w-[200px] leading-tight">
+                      {activeExtended.address || "1861 Bayonne Ave, Manchester, NJ, 08759"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Personal Information Section */}
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Personal Information</h4>
+                  <button
+                    onClick={() => setOpenEditPersonalModal(true)}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                    title="Edit Personal Information"
+                  >
+                    <Edit2 className="size-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <FileText className="size-3.5 text-primary/70" /> Passport No
+                    </span>
+                    <span className="font-mono font-bold text-foreground">{activeExtended.passportNo || "QRET4566FGRT"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="size-3.5 text-primary/70" /> Passport Exp Date
+                    </span>
+                    <span className="font-semibold text-foreground">{activeExtended.passportExpiry || "15 May 2029"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Globe className="size-3.5 text-primary/70" /> Nationality
+                    </span>
+                    <span className="font-semibold text-foreground">{activeExtended.nationality || "Indian"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <BookOpen className="size-3.5 text-primary/70" /> Religion
+                    </span>
+                    <span className="font-semibold text-foreground">{activeExtended.religion || "Christianity"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Heart className="size-3.5 text-primary/70" /> Marital status
+                    </span>
+                    <span className="font-semibold text-foreground">{activeExtended.maritalStatus || "Married"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Briefcase className="size-3.5 text-primary/70" /> Employment of spouse
+                    </span>
+                    <span className="font-semibold text-foreground">{activeExtended.spouseEmployment || "No"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Users className="size-3.5 text-primary/70" /> No. of children
+                    </span>
+                    <span className="font-semibold text-foreground">{activeExtended.childrenCount || "2"}</span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Emergency Contact Number Card */}
+            <Card className="border shadow-xs bg-card overflow-hidden">
+              <div className="p-4 border-b flex items-center justify-between bg-muted/20">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Phone className="size-3.5 text-rose-500" /> Emergency Contact Number
+                </h4>
+                <button
+                  onClick={() => setOpenEditEmergencyModal(true)}
+                  className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                  title="Edit Emergency Contacts"
+                >
+                  <Edit2 className="size-3.5" />
+                </button>
+              </div>
+
+              <div className="divide-y text-xs">
+                <div className="p-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Primary Contact</span>
+                    <div className="font-bold text-foreground mt-0.5 flex items-center gap-1.5">
+                      {activeExtended.emergencyPrimary?.name || "Adrian Peralt"}
+                      <span className="size-1 rounded-full bg-rose-500 inline-block"></span>
+                      <span className="text-muted-foreground font-normal">{activeExtended.emergencyPrimary?.relationship || "Father"}</span>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-foreground">
+                    {activeExtended.emergencyPrimary?.phone1 || "+1 127 2685 598"}
+                  </span>
+                </div>
+
+                <div className="p-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Secondary Contact</span>
+                    <div className="font-bold text-foreground mt-0.5 flex items-center gap-1.5">
+                      {activeExtended.emergencySecondary?.name || "Karen Wills"}
+                      <span className="size-1 rounded-full bg-rose-500 inline-block"></span>
+                      <span className="text-muted-foreground font-normal">{activeExtended.emergencySecondary?.relationship || "Mother"}</span>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-foreground">
+                    {activeExtended.emergencySecondary?.phone1 || "+1 989 7774 787"}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* ===================== RIGHT COLUMN (col-xl-8) ===================== */}
+          <div className="xl:col-span-8 space-y-5">
+            {/* Accordion 1: About Employee */}
+            <Card className="border shadow-xs bg-card">
+              <div className="p-4 flex items-center justify-between border-b bg-muted/10">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm text-foreground">About Employee</h4>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setEditingEmployee({ ...activeEmployee })}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                    title="Edit About"
+                  >
+                    <Edit2 className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setCollapsedAbout(!collapsedAbout)}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  >
+                    {collapsedAbout ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                  </button>
+                </div>
+              </div>
+              {!collapsedAbout && (
+                <CardContent className="p-4 text-xs leading-relaxed text-muted-foreground">
+                  {activeExtended.about || "As an award winning designer, I deliver exceptional quality work and bring value to your brand! With 10 years of experience and 350+ projects completed worldwide with satisfied customers, I developed the 360° brand approach, which helped me to create numerous brands that are relevant, meaningful and loved."}
+                </CardContent>
+              )}
+            </Card>
+
+            {/* Accordion 2: Bank Information */}
+            <Card className="border shadow-xs bg-card">
+              <div className="p-4 flex items-center justify-between border-b bg-muted/10">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm text-foreground">Bank Information</h4>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setOpenEditBankModal(true)}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                    title="Edit Bank Information"
+                  >
+                    <Edit2 className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setCollapsedBank(!collapsedBank)}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  >
+                    {collapsedBank ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                  </button>
+                </div>
+              </div>
+              {!collapsedBank && (
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[11px] mb-1">Bank Name</span>
+                      <h5 className="font-bold text-foreground">{activeExtended.bank?.bankName || "Swiz International Bank"}</h5>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px] mb-1">Bank account no</span>
+                      <h5 className="font-mono font-bold text-foreground">{activeExtended.bank?.accountNo || "159843014641"}</h5>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px] mb-1">IFSC Code</span>
+                      <h5 className="font-mono font-bold text-foreground">{activeExtended.bank?.ifscCode || "ICI24504"}</h5>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px] mb-1">Branch</span>
+                      <h5 className="font-bold text-foreground">{activeExtended.bank?.branchAddress || "Alabama USA"}</h5>
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            {/* Accordion 3: Family Information */}
+            <Card className="border shadow-xs bg-card">
+              <div className="p-4 flex items-center justify-between border-b bg-muted/10">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm text-foreground">Family Information</h4>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setOpenEditFamilyModal(true)}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                    title="Edit Family Information"
+                  >
+                    <Edit2 className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setCollapsedFamily(!collapsedFamily)}
+                    className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  >
+                    {collapsedFamily ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                  </button>
+                </div>
+              </div>
+              {!collapsedFamily && (
+                <CardContent className="p-4 space-y-3">
+                  {(activeExtended.family || []).map((fam, idx) => (
+                    <div key={idx} className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs pb-3 border-b last:border-b-0 last:pb-0">
+                      <div>
+                        <span className="text-muted-foreground block text-[11px] mb-1">Name</span>
+                        <h5 className="font-bold text-foreground">{fam.name}</h5>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[11px] mb-1">Relationship</span>
+                        <h5 className="font-bold text-foreground">{fam.relationship}</h5>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[11px] mb-1">Date of birth</span>
+                        <h5 className="font-semibold text-foreground">{fam.dob}</h5>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[11px] mb-1">Phone</span>
+                        <h5 className="font-mono font-bold text-foreground">{fam.phone}</h5>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              )}
+            </Card>
+
+            {/* 2-Column Split: Education Details & Experience Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Education Details Accordion */}
+              <Card className="border shadow-xs bg-card">
+                <div className="p-4 flex items-center justify-between border-b bg-muted/10">
+                  <h4 className="font-bold text-sm text-foreground">Education Details</h4>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setOpenEditEducationModal(true)}
+                      className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                      title="Edit Education Information"
+                    >
+                      <Edit2 className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setCollapsedEducation(!collapsedEducation)}
+                      className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                    >
+                      {collapsedEducation ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                    </button>
+                  </div>
+                </div>
+                {!collapsedEducation && (
+                  <CardContent className="p-4 space-y-3.5 text-xs">
+                    {(activeExtended.education || []).map((edu, idx) => (
+                      <div key={idx} className="flex items-start justify-between pb-3 border-b last:border-b-0 last:pb-0">
+                        <div>
+                          <span className="text-muted-foreground block text-[11px] font-normal">{edu.institution}</span>
+                          <h5 className="font-bold text-foreground mt-0.5">{edu.course}</h5>
+                        </div>
+                        <span className="font-mono text-[11px] text-muted-foreground shrink-0">{edu.duration}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* Experience Details Accordion */}
+              <Card className="border shadow-xs bg-card">
+                <div className="p-4 flex items-center justify-between border-b bg-muted/10">
+                  <h4 className="font-bold text-sm text-foreground">Experience</h4>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setOpenEditExperienceModal(true)}
+                      className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                      title="Edit Experience"
+                    >
+                      <Edit2 className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setCollapsedExperience(!collapsedExperience)}
+                      className="size-7 rounded-md hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground"
+                    >
+                      {collapsedExperience ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                    </button>
+                  </div>
+                </div>
+                {!collapsedExperience && (
+                  <CardContent className="p-4 space-y-3.5 text-xs">
+                    {(activeExtended.experience || []).map((exp, idx) => (
+                      <div key={idx} className="flex items-start justify-between pb-3 border-b last:border-b-0 last:pb-0">
+                        <div>
+                          <h5 className="font-bold text-foreground">{exp.company}</h5>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-secondary px-2 py-0.5 rounded text-foreground mt-1">
+                            <span className="size-1 rounded-full bg-primary inline-block"></span>
+                            {exp.role}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[11px] text-muted-foreground shrink-0">{exp.duration}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                )}
+              </Card>
+            </div>
+
+            {/* Tabbed Card: Projects & Assets (matching ui-2/employee-details.html) */}
+            <Card className="border shadow-xs bg-card">
+              <div className="p-4 border-b">
+                <div className="flex items-center gap-6 border-b pb-2">
+                  <button
+                    onClick={() => setDetailsSubTab("projects")}
+                    className={cn(
+                      "text-xs font-extrabold pb-1 transition-all relative",
+                      detailsSubTab === "projects"
+                        ? "text-primary border-b-2 border-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Projects (2 Active)
+                  </button>
+                  <button
+                    onClick={() => setDetailsSubTab("assets")}
+                    className={cn(
+                      "text-xs font-extrabold pb-1 transition-all relative",
+                      detailsSubTab === "assets"
+                        ? "text-primary border-b-2 border-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Allocated Assets ({assets.length})
+                  </button>
+                </div>
+              </div>
+
+              <CardContent className="p-5">
+                {detailsSubTab === "projects" ? (
+                  /* ===================== PROJECTS TAB ===================== */
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Project 1 */}
+                    <Card className="p-4 border bg-muted/10 hover:border-primary/40 transition-all">
+                      <div className="flex items-center gap-3 pb-3 mb-3 border-b">
+                        <div className="size-10 rounded-lg bg-emerald-500/10 text-emerald-600 grid place-items-center font-bold text-sm shrink-0">
+                          <Globe className="size-5" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-sm text-foreground">World Health ERP Platform</h5>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>8 tasks</span>
+                            <span>•</span>
+                            <span className="text-emerald-600 font-semibold">15 Completed</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Deadline</span>
+                          <span className="font-bold text-foreground">31 July 2026</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Project Lead</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Avatar className="size-4 border">
+                              <AvatarFallback className="text-[8px] font-bold">L</AvatarFallback>
+                            </Avatar>
+                            <span className="font-semibold text-foreground">Leona</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Project 2 */}
+                    <Card className="p-4 border bg-muted/10 hover:border-primary/40 transition-all">
+                      <div className="flex items-center gap-3 pb-3 mb-3 border-b">
+                        <div className="size-10 rounded-lg bg-blue-500/10 text-blue-600 grid place-items-center font-bold text-sm shrink-0">
+                          <Building2 className="size-5" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-sm text-foreground">Hospital Administration Module</h5>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>12 tasks</span>
+                            <span>•</span>
+                            <span className="text-blue-600 font-semibold">24 Completed</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Deadline</span>
+                          <span className="font-bold text-foreground">15 August 2026</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Project Lead</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Avatar className="size-4 border">
+                              <AvatarFallback className="text-[8px] font-bold">A</AvatarFallback>
+                            </Avatar>
+                            <span className="font-semibold text-foreground">Andrew</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                ) : (
+                  /* ===================== ASSETS TAB ===================== */
+                  <div className="space-y-3">
+                    {assets.map((ast) => (
+                      <Card key={ast.id} className="p-4 border hover:shadow-xs transition-all">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="size-12 rounded-lg bg-primary/10 border grid place-items-center text-primary shrink-0 overflow-hidden">
+                              {ast.imageUrl ? (
+                                <img src={ast.imageUrl} alt={ast.name} className="size-full object-cover" />
+                              ) : (
+                                <Laptop className="size-6" />
+                              )}
+                            </div>
+                            <div>
+                              <h5 className="font-bold text-sm text-foreground">{ast.name}</h5>
+                              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                                <span className="font-mono text-primary font-bold">{ast.assetTag}</span>
+                                <span>•</span>
+                                <span>Assigned on {ast.allocatedDate}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 self-end sm:self-center">
+                            <div className="text-right hidden sm:block text-xs">
+                              <span className="text-[10px] text-muted-foreground block font-medium">Assigned by</span>
+                              <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                                <Avatar className="size-4 border">
+                                  <AvatarFallback className="text-[8px] font-bold">A</AvatarFallback>
+                                </Avatar>
+                                <span className="font-semibold text-foreground">Andrew Symon</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedAssetForInfo(ast)}
+                                className="text-xs font-semibold gap-1"
+                              >
+                                View Info
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setSelectedAssetForIssue(ast)}
+                                className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              >
+                                Raise Issue
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* ALL MODALS: MATCHING `ui-2/employee-details.html` */}
+        {/* ========================================================================= */}
+
+        {/* 1. EDIT EMPLOYEE MODAL (Tabs: Basic Information + Permissions Matrix) */}
+        {editingEmployee && (
+          <Dialog open={!!editingEmployee} onOpenChange={(o) => !o && setEditingEmployee(null)}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="text-base font-black flex items-center gap-2">
+                    <Edit2 className="size-4 text-primary" /> Edit Employee
+                    <Badge variant="outline" className="font-mono text-[11px] text-primary">
+                      {editingEmployee.employee_code ?? editingEmployee.employeeCode}
+                    </Badge>
+                  </DialogTitle>
+                </div>
+              </DialogHeader>
+
+              <Tabs defaultValue="basic" className="space-y-4">
+                <TabsList className="grid grid-cols-2 w-full">
+                  <TabsTrigger value="basic" className="text-xs font-bold">Basic Information</TabsTrigger>
+                  <TabsTrigger value="permissions" className="text-xs font-bold">Permissions Matrix</TabsTrigger>
+                </TabsList>
+
+                {/* Tab 1: Basic Information */}
+                <TabsContent value="basic" className="space-y-4 pt-1 text-xs">
+                  {/* Avatar Upload Frame */}
+                  <div className="p-4 rounded-xl border bg-secondary/30 flex items-center gap-4">
+                    <Avatar className="size-16 border-2 shadow-sm">
+                      <AvatarImage src={editingEmployee.avatar_url || "/favicon.webp"} />
+                      <AvatarFallback className="font-bold bg-primary text-primary-foreground">
+                        {editingEmployee.first_name?.[0]}{editingEmployee.last_name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-xs text-foreground">Upload Profile Image</h4>
+                      <p className="text-[11px] text-muted-foreground">Image should be below 4 MB (JPEG, PNG, WEBP)</p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="file"
+                          ref={editAvatarInputRef}
+                          onChange={(e) => handleAvatarFileSelect(e, "edit")}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => editAvatarInputRef.current?.click()}
+                          className="h-7 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-50"
+                        >
+                          <Camera className="size-3.5" /> Upload & Crop Photo
+                        </Button>
+                        {editingEmployee.avatar_url && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingEmployee({ ...editingEmployee, avatar_url: "" })}
+                            className="h-7 text-xs text-rose-500 hover:bg-rose-50"
+                          >
+                            Reset
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">First Name *</Label>
+                      <Input
+                        value={editingEmployee.first_name ?? editingEmployee.firstName ?? ""}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, first_name: e.target.value })}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Last Name</Label>
+                      <Input
+                        value={editingEmployee.last_name ?? editingEmployee.lastName ?? ""}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, last_name: e.target.value })}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Employee ID *</Label>
+                      <Input
+                        value={editingEmployee.employee_code ?? editingEmployee.employeeCode ?? ""}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, employee_code: e.target.value })}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Joining Date *</Label>
+                      <Input
+                        type="date"
+                        value={editingEmployee.joined_at ? new Date(editingEmployee.joined_at).toISOString().slice(0, 10) : ""}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, joined_at: e.target.value })}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Work Email *</Label>
+                      <Input
+                        type="email"
+                        value={editingEmployee.email ?? ""}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, email: e.target.value })}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Phone Number *</Label>
+                      <Input
+                        value={editingEmployee.phone ?? ""}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, phone: e.target.value })}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Department</Label>
+                      <Select
+                        value={editingEmployee.department_id ?? editingEmployee.departmentId ?? ""}
+                        onValueChange={(v) => setEditingEmployee({ ...editingEmployee, department_id: v })}
+                      >
+                        <SelectTrigger className="text-xs"><SelectValue placeholder="Select Department" /></SelectTrigger>
+                        <SelectContent>
+                          {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">Designation / Role</Label>
+                      <Input
+                        value={editingEmployee.position ?? ""}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, position: e.target.value })}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <Label className="text-xs font-semibold">Monthly Salary (₹)</Label>
+                      <Input
+                        type="number"
+                        value={editingEmployee.salary ?? 0}
+                        onChange={(e) => setEditingEmployee({ ...editingEmployee, salary: Number(e.target.value) })}
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <Label className="text-xs font-semibold">About Employee Bio</Label>
+                      <textarea
+                        rows={3}
+                        value={activeExtended.about}
+                        onChange={(e) => {
+                          const updated = {
+                            ...passportMap,
+                            [editingEmployee.id]: {
+                              ...activeExtended,
+                              about: e.target.value,
+                            },
+                          };
+                          savePassportMut.mutate(updated);
+                        }}
+                        className="w-full p-2.5 text-xs rounded-md border bg-background font-normal"
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Tab 2: Permissions Matrix */}
+                <TabsContent value="permissions" className="space-y-3 text-xs">
+                  <div className="p-3 bg-secondary/30 rounded-lg flex items-center justify-between">
+                    <span className="font-bold text-xs">Enable All System Modules & Permissions</span>
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 bg-emerald-500/10 border-emerald-300">
+                      Auto-Enforced RBAC
+                    </Badge>
+                  </div>
+
+                  <div className="border rounded-lg overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/40 text-[11px]">
+                          <TableHead className="w-[140px]">Module</TableHead>
+                          <TableHead className="text-center">Read</TableHead>
+                          <TableHead className="text-center">Write</TableHead>
+                          <TableHead className="text-center">Create</TableHead>
+                          <TableHead className="text-center">Delete</TableHead>
+                          <TableHead className="text-center">Import</TableHead>
+                          <TableHead className="text-center">Export</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {["Holidays", "Leaves", "Clients", "Projects", "Tasks", "Chats", "Assets", "Timing Sheets"].map((mod) => (
+                          <TableRow key={mod} className="text-xs">
+                            <TableCell className="font-bold">{mod}</TableCell>
+                            {["read", "write", "create", "delete", "import", "export"].map((perm) => (
+                              <TableCell key={perm} className="text-center">
+                                <input
+                                  type="checkbox"
+                                  defaultChecked={true}
+                                  className="rounded border-gray-300 text-primary focus:ring-primary size-3.5 cursor-pointer"
+                                />
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <DialogFooter className="mt-4 border-t pt-3 flex justify-between">
+                <Button variant="outline" onClick={() => setEditingEmployee(null)}>Cancel</Button>
+                <Button
+                  onClick={() => updateMut.mutate(editingEmployee)}
+                  disabled={updateMut.isPending}
+                  className="font-bold bg-primary text-primary-foreground"
+                >
+                  {updateMut.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* 2. EDIT PERSONAL INFO MODAL (#edit_personal) */}
+        <Dialog open={openEditPersonalModal} onOpenChange={setOpenEditPersonalModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <FileText className="size-4 text-primary" /> Edit Personal Information
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const updatedMap = {
+                  ...passportMap,
+                  [activeEmployee.id]: {
+                    ...activeExtended,
+                    passportNo: (fd.get("passportNo") as string) || activeExtended.passportNo,
+                    passportExpiry: (fd.get("passportExpiry") as string) || activeExtended.passportExpiry,
+                    nationality: (fd.get("nationality") as string) || activeExtended.nationality,
+                    religion: (fd.get("religion") as string) || activeExtended.religion,
+                    maritalStatus: (fd.get("maritalStatus") as string) || activeExtended.maritalStatus,
+                    spouseEmployment: (fd.get("spouseEmployment") as string) || activeExtended.spouseEmployment,
+                    childrenCount: (fd.get("childrenCount") as string) || activeExtended.childrenCount,
+                  },
+                };
+                savePassportMut.mutate(updatedMap);
+                setOpenEditPersonalModal(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Passport No *</Label>
+                  <Input name="passportNo" defaultValue={activeExtended.passportNo} className="text-xs font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Passport Expiry Date *</Label>
+                  <Input name="passportExpiry" defaultValue={activeExtended.passportExpiry} className="text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Nationality *</Label>
+                  <Input name="nationality" defaultValue={activeExtended.nationality} className="text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Religion</Label>
+                  <Input name="religion" defaultValue={activeExtended.religion} className="text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Marital Status *</Label>
+                  <Input name="maritalStatus" defaultValue={activeExtended.maritalStatus} className="text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Employment of Spouse</Label>
+                  <Input name="spouseEmployment" defaultValue={activeExtended.spouseEmployment} className="text-xs" />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <Label className="text-xs font-semibold">No. of Children</Label>
+                  <Input name="childrenCount" defaultValue={activeExtended.childrenCount} className="text-xs" />
+                </div>
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setOpenEditPersonalModal(false)}>Cancel</Button>
+                <Button type="submit" className="font-bold bg-primary text-primary-foreground">Save Personal Info</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 3. EDIT EMERGENCY CONTACT MODAL (#edit_emergency) */}
+        <Dialog open={openEditEmergencyModal} onOpenChange={setOpenEditEmergencyModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Phone className="size-4 text-rose-500" /> Emergency Contact Details
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const updatedMap = {
+                  ...passportMap,
+                  [activeEmployee.id]: {
+                    ...activeExtended,
+                    emergencyPrimary: {
+                      name: (fd.get("p_name") as string) || "Adrian Peralt",
+                      relationship: (fd.get("p_rel") as string) || "Father",
+                      phone1: (fd.get("p_phone1") as string) || "+1 127 2685 598",
+                      phone2: (fd.get("p_phone2") as string) || "",
+                    },
+                    emergencySecondary: {
+                      name: (fd.get("s_name") as string) || "Karen Wills",
+                      relationship: (fd.get("s_rel") as string) || "Mother",
+                      phone1: (fd.get("s_phone1") as string) || "+1 989 7774 787",
+                      phone2: (fd.get("s_phone2") as string) || "",
+                    },
+                  },
+                };
+                savePassportMut.mutate(updatedMap);
+                setOpenEditEmergencyModal(false);
+              }}
+              className="space-y-4 text-xs"
+            >
+              {/* Primary Contact */}
+              <div className="p-3 border rounded-lg bg-secondary/10 space-y-2">
+                <h5 className="font-bold text-xs text-foreground uppercase tracking-wider">Primary Contact Details</h5>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[11px] font-semibold">Name *</Label>
+                    <Input name="p_name" defaultValue={activeExtended.emergencyPrimary?.name} className="text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Relationship</Label>
+                    <Input name="p_rel" defaultValue={activeExtended.emergencyPrimary?.relationship} className="text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Phone No 1 *</Label>
+                    <Input name="p_phone1" defaultValue={activeExtended.emergencyPrimary?.phone1} className="text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Phone No 2</Label>
+                    <Input name="p_phone2" defaultValue={activeExtended.emergencyPrimary?.phone2} className="text-xs font-mono" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Secondary Contact */}
+              <div className="p-3 border rounded-lg bg-secondary/10 space-y-2">
+                <h5 className="font-bold text-xs text-foreground uppercase tracking-wider">Secondary Contact Details</h5>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[11px] font-semibold">Name *</Label>
+                    <Input name="s_name" defaultValue={activeExtended.emergencySecondary?.name} className="text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Relationship</Label>
+                    <Input name="s_rel" defaultValue={activeExtended.emergencySecondary?.relationship} className="text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Phone No 1 *</Label>
+                    <Input name="s_phone1" defaultValue={activeExtended.emergencySecondary?.phone1} className="text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Phone No 2</Label>
+                    <Input name="s_phone2" defaultValue={activeExtended.emergencySecondary?.phone2} className="text-xs font-mono" />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setOpenEditEmergencyModal(false)}>Cancel</Button>
+                <Button type="submit" className="font-bold bg-primary text-primary-foreground">Save Contacts</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 4. EDIT BANK DETAILS MODAL (#edit_bank) */}
+        <Dialog open={openEditBankModal} onOpenChange={setOpenEditBankModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <CreditCard className="size-4 text-primary" /> Bank Details
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const bankName = (fd.get("bankName") as string) || "Swiz International Bank";
+                const bankAccount = (fd.get("bankAccount") as string) || "159843014641";
+                const bankIfsc = (fd.get("bankIfsc") as string) || "ICI24504";
+                const bankBranch = (fd.get("bankBranch") as string) || "Alabama USA";
+
+                // Update in Prisma
+                updateMut.mutate({
+                  ...activeEmployee,
+                  bankName,
+                  bankAccount,
+                  bankIfsc,
+                  bankBranch,
+                });
+
+                // Update in Passport Map
+                const updatedMap = {
+                  ...passportMap,
+                  [activeEmployee.id]: {
+                    ...activeExtended,
+                    bank: {
+                      bankName,
+                      accountNo: bankAccount,
+                      ifscCode: bankIfsc,
+                      branchAddress: bankBranch,
+                    },
+                  },
+                };
+                savePassportMut.mutate(updatedMap);
+                setOpenEditBankModal(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Bank Name *</Label>
+                <Input name="bankName" defaultValue={activeExtended.bank?.bankName} className="text-xs" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Bank Account No *</Label>
+                <Input name="bankAccount" defaultValue={activeExtended.bank?.accountNo} className="text-xs font-mono" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">IFSC Code *</Label>
+                <Input name="bankIfsc" defaultValue={activeExtended.bank?.ifscCode} className="text-xs font-mono uppercase" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Branch Address *</Label>
+                <Input name="bankBranch" defaultValue={activeExtended.bank?.branchAddress} className="text-xs" required />
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setOpenEditBankModal(false)}>Cancel</Button>
+                <Button type="submit" className="font-bold bg-primary text-primary-foreground">Save Bank Details</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 5. EDIT FAMILY INFORMATION MODAL (#edit_familyinformation) */}
+        <Dialog open={openEditFamilyModal} onOpenChange={setOpenEditFamilyModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Users className="size-4 text-primary" /> Family Information
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const newMember = {
+                  name: (fd.get("name") as string) || "Hendry Peralt",
+                  relationship: (fd.get("relationship") as string) || "Brother",
+                  dob: (fd.get("dob") as string) || "25 May 2014",
+                  phone: (fd.get("phone") as string) || "+1 265 6956 961",
+                };
+
+                const updatedMap = {
+                  ...passportMap,
+                  [activeEmployee.id]: {
+                    ...activeExtended,
+                    family: [newMember, ...(activeExtended.family || []).slice(1)],
+                  },
+                };
+                savePassportMut.mutate(updatedMap);
+                setOpenEditFamilyModal(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Name *</Label>
+                <Input name="name" defaultValue={activeExtended.family?.[0]?.name || "Hendry Peralt"} className="text-xs" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Relationship *</Label>
+                <Input name="relationship" defaultValue={activeExtended.family?.[0]?.relationship || "Brother"} className="text-xs" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Date of birth *</Label>
+                <Input name="dob" defaultValue={activeExtended.family?.[0]?.dob || "25 May 2014"} className="text-xs" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Phone *</Label>
+                <Input name="phone" defaultValue={activeExtended.family?.[0]?.phone || "+1 265 6956 961"} className="text-xs font-mono" required />
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setOpenEditFamilyModal(false)}>Cancel</Button>
+                <Button type="submit" className="font-bold bg-primary text-primary-foreground">Save Member</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 6. EDIT EDUCATION INFORMATION MODAL (#edit_education) */}
+        <Dialog open={openEditEducationModal} onOpenChange={setOpenEditEducationModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <BookOpen className="size-4 text-primary" /> Education Information
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const institution = fd.get("institution") as string;
+                const course = fd.get("course") as string;
+                const duration = `${fd.get("startYear") || "2020"} - ${fd.get("endYear") || "2022"}`;
+
+                const updatedEdu = [
+                  { institution, course, duration },
+                  ...(activeExtended.education || []).slice(0, 2),
+                ];
+
+                const updatedMap = {
+                  ...passportMap,
+                  [activeEmployee.id]: {
+                    ...activeExtended,
+                    education: updatedEdu,
+                  },
+                };
+                savePassportMut.mutate(updatedMap);
+                setOpenEditEducationModal(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Institution Name *</Label>
+                <Input name="institution" defaultValue="Oxford University" className="text-xs" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Course / Degree *</Label>
+                <Input name="course" defaultValue="Computer Science & Engineering" className="text-xs" required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Start Year *</Label>
+                  <Input name="startYear" defaultValue="2018" className="text-xs font-mono" required />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">End Year *</Label>
+                  <Input name="endYear" defaultValue="2022" className="text-xs font-mono" required />
+                </div>
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setOpenEditEducationModal(false)}>Cancel</Button>
+                <Button type="submit" className="font-bold bg-primary text-primary-foreground">Save Education</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 7. EDIT EXPERIENCE INFORMATION MODAL (#edit_experience) */}
+        <Dialog open={openEditExperienceModal} onOpenChange={setOpenEditExperienceModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Briefcase className="size-4 text-primary" /> Company Experience
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const company = fd.get("company") as string;
+                const role = fd.get("role") as string;
+                const isCurrent = fd.get("isCurrent") === "on";
+                const duration = `${fd.get("startDate") || "Jan 2023"} - ${isCurrent ? "Present" : (fd.get("endDate") || "Dec 2024")}`;
+
+                const updatedExp = [
+                  { company, role, duration, isCurrent },
+                  ...(activeExtended.experience || []).slice(0, 2),
+                ];
+
+                const updatedMap = {
+                  ...passportMap,
+                  [activeEmployee.id]: {
+                    ...activeExtended,
+                    experience: updatedExp,
+                  },
+                };
+                savePassportMut.mutate(updatedMap);
+                setOpenEditExperienceModal(false);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Previous Company Name *</Label>
+                <Input name="company" defaultValue="Google LLC" className="text-xs" required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Designation / Role *</Label>
+                <Input name="role" defaultValue="Senior Fullstack Developer" className="text-xs" required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Start Date *</Label>
+                  <Input name="startDate" defaultValue="Jan 2023" className="text-xs" required />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">End Date</Label>
+                  <Input name="endDate" defaultValue="Present" className="text-xs" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <input type="checkbox" name="isCurrent" id="isCurrent" defaultChecked={true} className="size-4 rounded" />
+                <label htmlFor="isCurrent" className="font-semibold text-foreground cursor-pointer">
+                  Check if presently working here
+                </label>
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setOpenEditExperienceModal(false)}>Cancel</Button>
+                <Button type="submit" className="font-bold bg-primary text-primary-foreground">Save Experience</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 8. BANK & STATUTORY MODAL (#add_bank_satutory) */}
+        <Dialog open={openBankStatutoryModal} onOpenChange={setOpenBankStatutoryModal}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-base font-black flex items-center gap-2">
+                <Building2 className="size-5 text-primary" /> Bank & Statutory Details
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const stat = {
+                  salaryBasis: (fd.get("salaryBasis") as string) || "Monthly",
+                  salaryAmount: (fd.get("salaryAmount") as string) || "₹ 85,000",
+                  paymentType: (fd.get("paymentType") as string) || "Bank Transfer",
+                  pfContribution: (fd.get("pfContribution") as string) || "Employee Contribution",
+                  pfNo: (fd.get("pfNo") as string) || "MH/BAN/109845/000",
+                  employeePfRate: (fd.get("employeePfRate") as string) || "12%",
+                  additionalPfRate: (fd.get("additionalPfRate") as string) || "3.67%",
+                  totalPfRate: (fd.get("totalPfRate") as string) || "15.67%",
+                  esiContribution: (fd.get("esiContribution") as string) || "Employee Contribution",
+                  esiNo: (fd.get("esiNo") as string) || "310009845210001",
+                  employeeEsiRate: (fd.get("employeeEsiRate") as string) || "0.75%",
+                  additionalEsiRate: (fd.get("additionalEsiRate") as string) || "3.25%",
+                  totalEsiRate: (fd.get("totalEsiRate") as string) || "4.00%",
+                };
+
+                const updatedMap = {
+                  ...passportMap,
+                  [activeEmployee.id]: {
+                    ...activeExtended,
+                    statutory: stat,
+                  },
+                };
+                savePassportMut.mutate(updatedMap);
+                setOpenBankStatutoryModal(false);
+              }}
+              className="space-y-5 text-xs"
+            >
+              {/* Basic Salary Information */}
+              <div className="p-4 border rounded-xl bg-secondary/10 space-y-3">
+                <h5 className="font-bold text-xs uppercase tracking-wider text-foreground">Basic Salary Information</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-[11px] font-semibold">Salary Basis *</Label>
+                    <Select defaultValue={activeExtended.statutory?.salaryBasis || "Monthly"} name="salaryBasis">
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Weekly">Weekly</SelectItem>
+                        <SelectItem value="Monthly">Monthly</SelectItem>
+                        <SelectItem value="Annually">Annually</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Salary Amount (₹)</Label>
+                    <Input name="salaryAmount" defaultValue={activeExtended.statutory?.salaryAmount || "85,000"} className="text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Payment Type</Label>
+                    <Select defaultValue={activeExtended.statutory?.paymentType || "Bank Transfer"} name="paymentType">
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                        <SelectItem value="Cash">Cash</SelectItem>
+                        <SelectItem value="Debit Card">Debit Card</SelectItem>
+                        <SelectItem value="Mobile Payment">Mobile Payment</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* PF Information */}
+              <div className="p-4 border rounded-xl bg-secondary/10 space-y-3">
+                <h5 className="font-bold text-xs uppercase tracking-wider text-foreground">PF (Provident Fund) Information</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-[11px] font-semibold">PF Contribution *</Label>
+                    <Select defaultValue={activeExtended.statutory?.pfContribution || "Employee & Employer Contribution"} name="pfContribution">
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Employee Contribution">Employee Contribution</SelectItem>
+                        <SelectItem value="Employer Contribution">Employer Contribution</SelectItem>
+                        <SelectItem value="Employee & Employer Contribution">Employee & Employer Contribution</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">PF Number</Label>
+                    <Input name="pfNo" defaultValue={activeExtended.statutory?.pfNo || "MH/BAN/109845/000"} className="text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Employee PF Rate</Label>
+                    <Input name="employeePfRate" defaultValue={activeExtended.statutory?.employeePfRate || "12%"} className="text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Additional Rate</Label>
+                    <Input name="additionalPfRate" defaultValue={activeExtended.statutory?.additionalPfRate || "3.67%"} className="text-xs font-mono" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label className="text-[11px] font-semibold">Total Rate</Label>
+                    <Input name="totalPfRate" defaultValue={activeExtended.statutory?.totalPfRate || "15.67%"} className="text-xs font-mono font-bold text-primary" />
+                  </div>
+                </div>
+              </div>
+
+              {/* ESI Information */}
+              <div className="p-4 border rounded-xl bg-secondary/10 space-y-3">
+                <h5 className="font-bold text-xs uppercase tracking-wider text-foreground">ESI (Employee State Insurance) Information</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-[11px] font-semibold">ESI Contribution *</Label>
+                    <Select defaultValue={activeExtended.statutory?.esiContribution || "Employee Contribution"} name="esiContribution">
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Employee Contribution">Employee Contribution</SelectItem>
+                        <SelectItem value="Employer Contribution">Employer Contribution</SelectItem>
+                        <SelectItem value="Maternity Benefit">Maternity Benefit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">ESI Number</Label>
+                    <Input name="esiNo" defaultValue={activeExtended.statutory?.esiNo || "310009845210001"} className="text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Employee ESI Rate *</Label>
+                    <Input name="employeeEsiRate" defaultValue={activeExtended.statutory?.employeeEsiRate || "0.75%"} className="text-xs font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-semibold">Additional Rate</Label>
+                    <Input name="additionalEsiRate" defaultValue={activeExtended.statutory?.additionalEsiRate || "3.25%"} className="text-xs font-mono" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label className="text-[11px] font-semibold">Total Rate</Label>
+                    <Input name="totalEsiRate" defaultValue={activeExtended.statutory?.totalEsiRate || "4.00%"} className="text-xs font-mono font-bold text-primary" />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setOpenBankStatutoryModal(false)}>Cancel</Button>
+                <Button type="submit" className="font-bold bg-primary text-primary-foreground">Save Statutory Config</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* 9. ASSET INFORMATION MODAL (#asset_info) */}
+        {selectedAssetForInfo && (
+          <Dialog open={!!selectedAssetForInfo} onOpenChange={(o) => !o && setSelectedAssetForInfo(null)}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <Laptop className="size-4 text-primary" /> Asset Information Passport
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4 text-xs">
+                <div className="p-4 rounded-xl bg-secondary/30 border flex items-center gap-4">
+                  <Avatar className="size-16 rounded-xl border">
+                    <AvatarImage src={selectedAssetForInfo.imageUrl || ""} />
+                    <AvatarFallback className="font-bold bg-primary/10 text-primary">
+                      <Laptop className="size-7" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">{selectedAssetForInfo.name}</h4>
+                    <p className="font-mono text-primary text-xs font-bold mt-0.5">
+                      {selectedAssetForInfo.assetTag} • Assigned on {selectedAssetForInfo.allocatedDate}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-2.5 rounded-lg border bg-muted/20">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Type</span>
+                    <span className="font-bold text-foreground">{selectedAssetForInfo.category}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-muted/20">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Brand</span>
+                    <span className="font-bold text-foreground">Dell Enterprise</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-muted/20">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Serial No</span>
+                    <span className="font-mono font-bold text-foreground">{selectedAssetForInfo.serialNo}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-muted/20">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Cost</span>
+                    <span className="font-bold font-mono text-primary">{selectedAssetForInfo.cost || "₹ 1,12,000"}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-muted/20 col-span-2">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Vendor</span>
+                    <span className="font-semibold text-foreground">{selectedAssetForInfo.vendor || "Compusoft Systems Ltd."}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border bg-muted/20 col-span-2">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Warranty Period</span>
+                    <span className="font-semibold text-foreground">{selectedAssetForInfo.warrantyExpiry}</span>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button onClick={() => setSelectedAssetForInfo(null)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* 10. RAISE ISSUE MODAL (#refuse_msg) */}
+        {selectedAssetForIssue && (
+          <Dialog open={!!selectedAssetForIssue} onOpenChange={(o) => !o && setSelectedAssetForIssue(null)}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <AlertCircle className="size-4 text-rose-500" /> Raise Issue on Asset ({selectedAssetForIssue.assetTag})
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-3 text-xs">
+                <p className="text-muted-foreground">
+                  Describe the hardware glitch, physical defect, or service requirement for <strong>{selectedAssetForIssue.name}</strong>.
+                </p>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Issue Description *</Label>
+                  <textarea
+                    rows={4}
+                    value={issueDescription}
+                    onChange={(e) => setIssueDescription(e.target.value)}
+                    placeholder="e.g. Screen flickering issue or battery health degradation..."
+                    className="w-full p-2.5 text-xs rounded-md border bg-background"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="mt-4 pt-2 border-t">
+                <Button variant="outline" onClick={() => setSelectedAssetForIssue(null)}>Cancel</Button>
+                <Button
+                  onClick={() => {
+                    if (!issueDescription.trim()) return toast.error("Please provide an issue description");
+                    toast.success("Issue ticket raised successfully with IT Administration!");
+                    setIssueDescription("");
+                    setSelectedAssetForIssue(null);
+                  }}
+                  className="font-bold bg-primary text-primary-foreground"
+                >
+                  Submit Ticket
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Circular Avatar Cropper Dialog */}
+        <AvatarCropperDialog
+          isOpen={isCropperOpen}
+          imageSrc={tempCropSrc}
+          onCropComplete={handleCropComplete}
+          onCancel={() => {
+            setIsCropperOpen(false);
+            setTempCropSrc(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW: MAIN WORKFORCE DIRECTORY (Table & Grid Views)
+  // =========================================================================
   return (
     <div className="space-y-6 max-w-full">
       {/* Page Header */}
@@ -673,10 +2596,9 @@ function Employees() {
                 value: employees.length.toString(),
                 change: "+29%",
                 desc: "Active staff",
-                gradient: "from-success via-warning to-danger",
-                bgTint: "bg-success/5",
-                iconCircle: "bg-success",
-                iconClass: "ph-duotone ph-user",
+                gradient: "from-emerald-500 via-teal-500 to-cyan-500",
+                bgTint: "bg-emerald-500/5",
+                iconCircle: "bg-emerald-500",
                 isUp: true
               },
               {
@@ -684,10 +2606,9 @@ function Employees() {
                 value: activeCount.toString(),
                 change: "+18%",
                 desc: "On payroll",
-                gradient: "from-purple via-pink to-purple",
-                bgTint: "bg-purple/5",
-                iconCircle: "bg-purple",
-                iconClass: "ph-duotone ph-user-check",
+                gradient: "from-blue-500 via-indigo-500 to-violet-500",
+                bgTint: "bg-blue-500/5",
+                iconCircle: "bg-blue-500",
                 isUp: true
               },
               {
@@ -695,10 +2616,9 @@ function Employees() {
                 value: probationCount.toString(),
                 change: "-14%",
                 desc: "Pending review",
-                gradient: "from-warning via-orange to-warning",
-                bgTint: "bg-warning/5",
-                iconCircle: "bg-warning",
-                iconClass: "ph-duotone ph-shield-warning",
+                gradient: "from-amber-500 via-orange-500 to-yellow-500",
+                bgTint: "bg-amber-500/5",
+                iconCircle: "bg-amber-500",
                 isUp: false
               },
               {
@@ -706,31 +2626,29 @@ function Employees() {
                 value: newHiresThisMonth.toString(),
                 change: "+42%",
                 desc: "New hires",
-                gradient: "from-pink via-purple to-pink",
-                bgTint: "bg-pink/5",
-                iconCircle: "bg-pink",
-                iconClass: "ph-duotone ph-trend-up",
+                gradient: "from-purple-500 via-pink-500 to-rose-500",
+                bgTint: "bg-purple-500/5",
+                iconCircle: "bg-purple-500",
                 isUp: true
               },
             ].map((m) => (
-              <div key={m.title} className="bg-white border border-border-color rounded-md overflow-hidden dark:bg-card dark:border-border">
+              <div key={m.title} className="bg-card border rounded-xl overflow-hidden shadow-xs">
                 <div className={`h-1 bg-gradient-to-r ${m.gradient}`}></div>
                 <div className={`p-4 ${m.bgTint}`}>
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <p className="text-xs text-default mb-1">{m.title}</p>
-                      <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-white mb-0">{m.value}</h2>
+                      <p className="text-xs text-muted-foreground mb-1">{m.title}</p>
+                      <h2 className="text-2xl max-lg:text-xl font-black text-foreground mb-0">{m.value}</h2>
                     </div>
-                    <div className={`size-10 rounded-full ${m.iconCircle} flex items-center justify-center shrink-0`}>
-                      <i className={`${m.iconClass} text-white text-lg`}></i>
+                    <div className={`size-10 rounded-full ${m.iconCircle} flex items-center justify-center text-white shrink-0 shadow-xs`}>
+                      <Users className="size-5" />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
-                    <span className={`inline-flex items-center font-semibold ${m.isUp ? "text-success" : "text-danger"}`}>
-                      <i className={`ph ${m.isUp ? "ph-arrow-up" : "ph-arrow-down"} text-[10px] me-0.5`}></i>
+                    <span className={`inline-flex items-center font-bold ${m.isUp ? "text-emerald-600" : "text-amber-600"}`}>
                       {m.change}
                     </span>
-                    <span className="text-default">{m.desc}</span>
+                    <span className="text-muted-foreground">{m.desc}</span>
                   </div>
                 </div>
               </div>
@@ -852,7 +2770,8 @@ function Employees() {
               {filtered.map((e: any) => (
                 <Card
                   key={e.id}
-                  className="overflow-hidden hover:shadow-md transition-all border group relative flex flex-col justify-between"
+                  className="overflow-hidden hover:shadow-md transition-all border group relative flex flex-col justify-between cursor-pointer"
+                  onClick={() => setSelectedEmployeeId(e.id)}
                 >
                   <div className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -860,11 +2779,11 @@ function Employees() {
                         <Avatar className="size-12 border-2 border-primary/20 shadow-2xs">
                           <AvatarImage src={e.avatar_url || "/favicon.webp"} />
                           <AvatarFallback className="font-bold text-sm bg-primary/10 text-primary">
-                            <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
+                            {e.first_name?.[0]}{e.last_name?.[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <h4 className="font-bold text-sm text-foreground line-clamp-1">
+                          <h4 className="font-bold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
                             {e.first_name} {e.last_name}
                           </h4>
                           <p className="text-xs text-muted-foreground line-clamp-1">{e.position || "Staff Member"}</p>
@@ -894,18 +2813,36 @@ function Employees() {
                     </div>
                   </div>
 
-                  <div className="p-2.5 px-4 bg-muted/30 border-t flex items-center justify-between text-xs">
+                  <div className="p-2.5 px-4 bg-muted/30 border-t flex items-center justify-between text-xs" onClick={(ev) => ev.stopPropagation()}>
                     <span className="text-[10px] capitalize text-muted-foreground font-medium">
                       {e.employment_type?.replace("_", " ")}
                     </span>
                     <div className="flex items-center gap-1">
-                      <Button size="icon" variant="ghost" className="size-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10" onClick={() => { setAuthModalEmployee(e); setNewPassword(""); }} title="Manage Login & Reset Password">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                        onClick={() => { setAuthModalEmployee(e); setNewPassword(""); }}
+                        title="Manage Login & Reset Password"
+                      >
                         <KeyRound className="size-3.5" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="size-7" onClick={() => setViewingEmployee(e)} title="View Profile">
-                        <Eye className="size-3.5" />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
+                        onClick={() => setSelectedEmployeeId(e.id)}
+                        title="View Full Profile Details (Dreams UI-2)"
+                      >
+                        <Eye className="size-3.5 text-primary" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="size-7" onClick={() => setEditingEmployee({ ...e })} title="Edit">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
+                        onClick={() => setEditingEmployee({ ...e })}
+                        title="Edit Info"
+                      >
                         <Edit2 className="size-3.5" />
                       </Button>
                       <Button
@@ -943,17 +2880,21 @@ function Employees() {
                   </TableHeader>
                   <TableBody>
                     {filtered.map((e: any) => (
-                      <TableRow key={e.id} className="hover:bg-secondary/20 transition-colors">
+                      <TableRow
+                        key={e.id}
+                        className="hover:bg-secondary/20 transition-colors cursor-pointer"
+                        onClick={() => setSelectedEmployeeId(e.id)}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="size-8 border">
                               <AvatarImage src={e.avatar_url || "/favicon.webp"} />
                               <AvatarFallback className="font-bold text-xs bg-primary/10 text-primary">
-                                <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
+                                {e.first_name?.[0]}{e.last_name?.[0]}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <div className="font-bold text-xs text-foreground">
+                              <div className="font-bold text-xs text-foreground hover:text-primary transition-colors">
                                 {e.first_name} {e.last_name}
                               </div>
                               <div className="text-[11px] text-muted-foreground font-mono">{e.email}</div>
@@ -972,15 +2913,33 @@ function Employees() {
                             {STATUS_CONFIG[e.status]?.label ?? e.status.toUpperCase()}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(ev) => ev.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="icon" variant="ghost" className="size-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10" onClick={() => { setAuthModalEmployee(e); setNewPassword(""); }} title="Manage Login & Reset Password">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                              onClick={() => { setAuthModalEmployee(e); setNewPassword(""); }}
+                              title="Manage Login & Reset Password"
+                            >
                               <KeyRound className="size-3.5" />
                             </Button>
-                            <Button size="icon" variant="ghost" className="size-7" onClick={() => setViewingEmployee(e)} title="View Profile">
-                              <Eye className="size-3.5" />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => setSelectedEmployeeId(e.id)}
+                              title="View Full Profile Details (Dreams UI-2)"
+                            >
+                              <Eye className="size-3.5 text-primary" />
                             </Button>
-                            <Button size="icon" variant="ghost" className="size-7" onClick={() => setEditingEmployee({ ...e })} title="Edit">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => setEditingEmployee({ ...e })}
+                              title="Edit Info"
+                            >
                               <Edit2 className="size-3.5" />
                             </Button>
                             <Button
@@ -1098,21 +3057,18 @@ function Employees() {
                   </div>
                 </div>
 
-                {/* Manager Feedback */}
-                <div className="p-3 rounded-xl bg-secondary/20 border text-xs text-muted-foreground italic">
-                  "{rev.managerFeedback}"
-                </div>
-
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono pt-1">
-                  <span>Reviewed: {rev.reviewedAt}</span>
-                  <Badge variant="secondary" className="text-[9px] capitalize">{rev.status}</Badge>
+                <div className="p-3 rounded-lg bg-muted/40 border text-xs space-y-1">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                    <UserCheck className="size-3 text-primary" /> Manager Executive Feedback
+                  </div>
+                  <p className="text-foreground italic">"{rev.managerFeedback}"</p>
                 </div>
               </Card>
             ))}
           </div>
         </TabsContent>
 
-        {/* ===================== TAB 3: HARDWARE ASSETS & DEVICE INVENTORY ===================== */}
+        {/* ===================== TAB 3: HARDWARE & IT ASSETS ===================== */}
         <TabsContent value="assets" className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <Card className="p-4 flex items-center gap-3 bg-blue-500/5 border-blue-500/20">
@@ -1120,92 +3076,85 @@ function Employees() {
                 <Laptop className="size-5" />
               </div>
               <div>
-                <div className="text-xs text-muted-foreground font-semibold">Total Asset Registry</div>
-                <div className="font-black text-xl font-mono text-blue-600">{assets.length} Devices</div>
+                <div className="text-xs text-muted-foreground font-semibold">Total Devices</div>
+                <div className="font-black text-xl font-mono text-blue-600">{assets.length}</div>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3">
               <div className="size-10 rounded-xl bg-emerald-500/10 grid place-items-center text-emerald-600 shrink-0">
-                <UserCheck className="size-5" />
+                <CheckSquare className="size-5" />
               </div>
               <div>
-                <div className="text-xs text-muted-foreground font-semibold">Assigned to Staff</div>
+                <div className="text-xs text-muted-foreground font-semibold">Allocated</div>
                 <div className="font-black text-xl font-mono text-emerald-600">
                   {assets.filter((a) => a.status === "assigned").length}
                 </div>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-indigo-500/10 grid place-items-center text-indigo-600 shrink-0">
+              <div className="size-10 rounded-xl bg-purple-500/10 grid place-items-center text-purple-600 shrink-0">
                 <PackageCheck className="size-5" />
               </div>
               <div>
-                <div className="text-xs text-muted-foreground font-semibold">Available Stock</div>
-                <div className="font-black text-xl font-mono text-indigo-600">
+                <div className="text-xs text-muted-foreground font-semibold">In Inventory</div>
+                <div className="font-black text-xl font-mono text-purple-600">
                   {assets.filter((a) => a.status === "available").length}
                 </div>
               </div>
             </Card>
             <Card className="p-4 flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-amber-500/10 grid place-items-center text-amber-600 shrink-0">
-                <ShieldCheck className="size-5" />
+              <div className="size-10 rounded-xl bg-rose-500/10 grid place-items-center text-rose-600 shrink-0">
+                <ShieldAlert className="size-5" />
               </div>
               <div>
-                <div className="text-xs text-muted-foreground font-semibold">Under Active Warranty</div>
-                <div className="font-black text-xl font-mono text-amber-600">100% Covered</div>
+                <div className="text-xs text-muted-foreground font-semibold">Needs Service</div>
+                <div className="font-black text-xl font-mono text-rose-600">
+                  {assets.filter((a) => a.condition === "Needs Service").length}
+                </div>
               </div>
             </Card>
           </div>
 
-          {/* Hardware Assets Table */}
           <Card>
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/40">
                     <TableHead className="text-xs">Asset Tag</TableHead>
-                    <TableHead className="text-xs">Hardware Device</TableHead>
+                    <TableHead className="text-xs">Device Name</TableHead>
                     <TableHead className="text-xs">Category</TableHead>
-                    <TableHead className="text-xs">Assigned Employee</TableHead>
                     <TableHead className="text-xs">Serial Number</TableHead>
-                    <TableHead className="text-xs">Warranty</TableHead>
+                    <TableHead className="text-xs">Assigned Employee</TableHead>
+                    <TableHead className="text-xs">Allocated Date</TableHead>
                     <TableHead className="text-xs">Condition</TableHead>
-                    <TableHead className="text-xs text-right">Status</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assets.map((asset) => (
-                    <TableRow key={asset.id} className="hover:bg-secondary/20">
-                      <TableCell className="font-mono text-xs font-bold text-primary">
-                        {asset.assetTag}
-                      </TableCell>
-                      <TableCell className="font-semibold text-xs">{asset.name}</TableCell>
+                  {assets.map((ast) => (
+                    <TableRow key={ast.id} className="text-xs hover:bg-secondary/20">
+                      <TableCell className="font-mono font-bold text-primary">{ast.assetTag}</TableCell>
+                      <TableCell className="font-bold">{ast.name}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[10px] font-mono">
-                          {asset.category}
+                        <Badge variant="outline" className="text-[10px] font-semibold">{ast.category}</Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-muted-foreground">{ast.serialNo}</TableCell>
+                      <TableCell className="font-semibold text-foreground">
+                        {ast.assignedToEmployeeName}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{ast.allocatedDate}</TableCell>
+                      <TableCell>
+                        <Badge className={`text-[10px] ${
+                          ast.condition === "New" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {ast.condition}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs font-medium">
-                        {asset.assignedToEmployeeName}
-                      </TableCell>
-                      <TableCell className="font-mono text-[11px] text-muted-foreground">
-                        {asset.serialNo}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{asset.warrantyExpiry}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {asset.condition}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge
-                          className={`text-[10px] font-bold ${
-                            asset.status === "assigned"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                              : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                          }`}
-                        >
-                          {asset.status.toUpperCase()}
+                        <Badge className={`text-[10px] font-bold ${
+                          ast.status === "assigned" ? "bg-emerald-100 text-emerald-700" : "bg-purple-100 text-purple-700"
+                        }`}>
+                          {ast.status.toUpperCase()}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -1217,224 +3166,36 @@ function Employees() {
         </TabsContent>
       </Tabs>
 
-      {/* ===================== MODAL: NEW APPRAISAL REVIEW ===================== */}
-      <Dialog open={isAddReviewOpen} onOpenChange={setIsAddReviewOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Award className="size-5 text-amber-500" /> New Performance Appraisal
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Select Employee *</Label>
-              <Select
-                value={reviewForm.employeeId}
-                onValueChange={(v) => setReviewForm({ ...reviewForm, employeeId: v })}
-              >
-                <SelectTrigger className="text-xs">
-                  <SelectValue placeholder="Choose employee..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((e: any) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.first_name} {e.last_name} ({e.employee_code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Review Cycle</Label>
-              <Input
-                value={reviewForm.cycle}
-                onChange={(e) => setReviewForm({ ...reviewForm, cycle: e.target.value })}
-                className="text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Overall Rating (1.0 to 5.0)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                min="1"
-                max="5"
-                value={reviewForm.rating}
-                onChange={(e) => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}
-                className="text-xs font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Recommended Increment / Promotion</Label>
-              <Input
-                value={reviewForm.recommendedIncrement}
-                onChange={(e) => setReviewForm({ ...reviewForm, recommendedIncrement: e.target.value })}
-                className="text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Manager Feedback & Review Notes</Label>
-              <Input
-                value={reviewForm.managerFeedback}
-                onChange={(e) => setReviewForm({ ...reviewForm, managerFeedback: e.target.value })}
-                placeholder="Key strengths, outcomes and growth trajectory..."
-                className="text-xs"
-              />
-            </div>
-          </div>
-          <DialogFooter className="mt-2">
-            <Button variant="outline" onClick={() => setIsAddReviewOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateReview} className="font-bold bg-amber-600 hover:bg-amber-700 text-white">
-              Submit Appraisal
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ===================== MODAL: ALLOCATE DEVICE ===================== */}
-      <Dialog open={isAddAssetOpen} onOpenChange={setIsAddAssetOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Laptop className="size-5 text-blue-500" /> Allocate Company Hardware Asset
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Device Model Name *</Label>
-              <Input
-                value={assetForm.name}
-                onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
-                placeholder='e.g. MacBook Pro 16" M3, Dell 27" 4K'
-                className="text-xs"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Category</Label>
-                <Select
-                  value={assetForm.category}
-                  onValueChange={(v: any) => setAssetForm({ ...assetForm, category: v })}
-                >
-                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Laptop">Laptop</SelectItem>
-                    <SelectItem value="Desktop">Desktop</SelectItem>
-                    <SelectItem value="Monitor">Monitor</SelectItem>
-                    <SelectItem value="Phone">Phone</SelectItem>
-                    <SelectItem value="Accessory">Accessory</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Condition</Label>
-                <Select
-                  value={assetForm.condition}
-                  onValueChange={(v: any) => setAssetForm({ ...assetForm, condition: v })}
-                >
-                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="New">Brand New</SelectItem>
-                    <SelectItem value="Good">Good</SelectItem>
-                    <SelectItem value="Fair">Fair</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Serial Number</Label>
-              <Input
-                value={assetForm.serialNo}
-                onChange={(e) => setAssetForm({ ...assetForm, serialNo: e.target.value })}
-                placeholder="e.g. C02G89XYMD6T"
-                className="text-xs font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Assign to Employee</Label>
-              <Select
-                value={assetForm.assignedToEmployeeId}
-                onValueChange={(v) => setAssetForm({ ...assetForm, assignedToEmployeeId: v })}
-              >
-                <SelectTrigger className="text-xs">
-                  <SelectValue placeholder="Select employee (or leave empty for stock)..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Unallocated (Stock Inventory)</SelectItem>
-                  {employees.map((e: any) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.first_name} {e.last_name} ({e.employee_code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter className="mt-2">
-            <Button variant="outline" onClick={() => setIsAddAssetOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateAsset} className="font-bold bg-blue-600 hover:bg-blue-700 text-white">
-              Allocate Device
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* ===================== MODAL: ADD EMPLOYEE ===================== */}
       <Dialog open={openAddModal} onOpenChange={setOpenAddModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-base font-black">
               <UserPlus className="size-5 text-primary" /> Add New Employee
             </DialogTitle>
           </DialogHeader>
-          <Tabs defaultValue="personal">
-            <TabsList className="grid grid-cols-4 mb-4">
-              <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
-              <TabsTrigger value="job" className="text-xs">Job & Salary</TabsTrigger>
-              <TabsTrigger value="emergency" className="text-xs">Emergency</TabsTrigger>
-              <TabsTrigger value="onboarding" className="text-xs">Onboarding</TabsTrigger>
-            </TabsList>
 
-            {/* Tab 1: Personal Info */}
-            <TabsContent value="personal" className="space-y-3">
-              {/* Profile Picture Uploader with Interactive Round Crop Tool */}
-              <div className="p-3 rounded-xl border bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Avatar className="size-14 border-2 border-emerald-500 shadow-xs">
-                    <AvatarImage src={addForm.avatar_url || "/favicon.webp"} />
-                    <AvatarFallback className="bg-emerald-600 text-white font-bold text-base">
-                      <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-bold text-xs flex items-center gap-1.5">
-                      <span>Employee Profile Picture</span>
-                      {!addForm.avatar_url && (
-                        <Badge variant="outline" className="text-[9px] py-0 text-muted-foreground font-mono">
-                          Default Favicon
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      Upload a photo. The round crop tool will open to position it accurately.
-                    </p>
-                  </div>
-                </div>
+          <div className="space-y-4 py-2">
+            {/* Circular Avatar Upload with Cropper */}
+            <div className="p-4 rounded-xl border bg-secondary/30 flex items-center gap-4">
+              <div className="relative">
+                <Avatar className="size-16 border-2 shadow-sm">
+                  <AvatarImage src={addForm.avatar_url || "/favicon.webp"} />
+                  <AvatarFallback className="font-black text-lg bg-primary/10 text-primary">
+                    <Users className="size-6" />
+                  </AvatarFallback>
+                </Avatar>
+              </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
+              <div className="space-y-1">
+                <h4 className="font-bold text-xs text-foreground">Profile Photo (Circular Crop)</h4>
+                <p className="text-[11px] text-muted-foreground">Select an image to preview and crop in a circular frame.</p>
+                <div className="flex items-center gap-2 pt-1">
                   <input
                     type="file"
                     ref={avatarInputRef}
-                    accept="image/*"
                     onChange={(e) => handleAvatarFileSelect(e, "add")}
+                    accept="image/*"
                     className="hidden"
                   />
                   <Button
@@ -1442,7 +3203,7 @@ function Employees() {
                     size="sm"
                     variant="outline"
                     onClick={() => avatarInputRef.current?.click()}
-                    className="h-8 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-50"
+                    className="h-8 text-xs font-bold gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
                   >
                     <Camera className="size-3.5" /> Upload & Crop Photo
                   </Button>
@@ -1451,306 +3212,77 @@ function Employees() {
                       type="button"
                       size="icon"
                       variant="ghost"
-                      onClick={() => setAddForm({ ...addForm, avatar_url: "" })}
+                      onClick={() => setAddForm((prev) => ({ ...prev, avatar_url: "" }))}
                       className="size-8 text-rose-500 hover:bg-rose-50"
-                      title="Reset to default"
+                      title="Clear photo"
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
                   )}
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Employee Code *</Label>
-                  <Input value={addForm.employee_code} onChange={(e) => setAddForm({ ...addForm, employee_code: e.target.value })} placeholder="EMP001" className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Work Email *</Label>
-                  <Input type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} placeholder="john@company.com" className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">First Name *</Label>
-                  <Input value={addForm.first_name} onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })} placeholder="John" className="text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Last Name *</Label>
-                  <Input value={addForm.last_name} onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })} placeholder="Doe" className="text-xs" />
-                </div>
-                <div className="space-y-1 col-span-2">
-                  <Label className="text-xs font-semibold">Phone Number</Label>
-                  <Input value={addForm.phone} onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })} placeholder="+91 98765 43210" className="font-mono text-xs" />
-                </div>
-
-                {/* Automatic Login Credentials Setup */}
-                <div className="col-span-2 p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-2 mt-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-bold text-xs text-primary">
-                      <KeyRound className="size-3.5" />
-                      <span>Employee Login Account (Auto-Created in DB)</span>
-                    </div>
-                    <Badge variant="outline" className="text-[9px] bg-primary/10 text-primary border-primary/30">
-                      Auto-Provisioned
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="space-y-1">
-                      <span className="text-muted-foreground font-medium block">Login Username / Email:</span>
-                      <div className="font-mono bg-background px-2.5 py-1.5 rounded border text-xs truncate">
-                        {addForm.email.trim() || "Enter Work Email above"}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-muted-foreground font-medium block">Initial Login Password:</span>
-                      <Input
-                        type="text"
-                        value={addForm.password}
-                        onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                        placeholder="Password@123"
-                        className="font-mono text-xs h-8 bg-background"
-                      />
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Upon saving, this account is instantly stored in the database. The employee can immediately log in at <code className="text-primary font-mono">/auth</code>.
-                  </p>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Tab 2: Job & Salary */}
-            <TabsContent value="job" className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Designation / Position</Label>
-                  <Input value={addForm.position} onChange={(e) => setAddForm({ ...addForm, position: e.target.value })} placeholder="Software Engineer" className="text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Department</Label>
-                  <Select value={addForm.department_id} onValueChange={(v) => setAddForm({ ...addForm, department_id: v })}>
-                    <SelectTrigger className="text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
-                    <SelectContent>
-                      {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Employment Type</Label>
-                  <Select value={addForm.employment_type} onValueChange={(v) => setAddForm({ ...addForm, employment_type: v })}>
-                    <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full_time">Full Time</SelectItem>
-                      <SelectItem value="part_time">Part Time</SelectItem>
-                      <SelectItem value="contract">Contract</SelectItem>
-                      <SelectItem value="intern">Intern</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Status</Label>
-                  <Select value={addForm.status} onValueChange={(v) => setAddForm({ ...addForm, status: v })}>
-                    <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="probation">Probation</SelectItem>
-                      <SelectItem value="on_leave">On Leave</SelectItem>
-                      <SelectItem value="terminated">Terminated</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Monthly Base Salary (₹)</Label>
-                  <Input type="number" value={addForm.salary} onChange={(e) => setAddForm({ ...addForm, salary: e.target.value })} className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Joining Date</Label>
-                  <Input type="date" value={addForm.joined_at} onChange={(e) => setAddForm({ ...addForm, joined_at: e.target.value })} className="text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Bank Name</Label>
-                  <Input value={addForm.bank_name} onChange={(e) => setAddForm({ ...addForm, bank_name: e.target.value })} placeholder="State Bank of India" className="text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Account Number</Label>
-                  <Input value={addForm.bank_account} onChange={(e) => setAddForm({ ...addForm, bank_account: e.target.value })} placeholder="XXXX XXXX XXXX" className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1 col-span-2">
-                  <Label className="text-xs font-semibold">IFSC Code</Label>
-                  <Input value={addForm.bank_ifsc} onChange={(e) => setAddForm({ ...addForm, bank_ifsc: e.target.value })} placeholder="SBIN0001234" className="font-mono text-xs uppercase" />
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Tab 3: Emergency Contact */}
-            <TabsContent value="emergency" className="space-y-3">
-              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400 mb-3">
-                This information is used in emergency situations and is kept confidential.
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Contact Full Name</Label>
-                  <Input value={addForm.emergency_name} onChange={(e) => setAddForm({ ...addForm, emergency_name: e.target.value })} placeholder="Jane Doe" className="text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Relationship</Label>
-                  <Input value={addForm.emergency_relation} onChange={(e) => setAddForm({ ...addForm, emergency_relation: e.target.value })} placeholder="Spouse, Parent, Sibling..." className="text-xs" />
-                </div>
-                <div className="space-y-1 col-span-2">
-                  <Label className="text-xs font-semibold">Contact Phone</Label>
-                  <Input value={addForm.emergency_phone} onChange={(e) => setAddForm({ ...addForm, emergency_phone: e.target.value })} placeholder="+91 98765 43210" className="font-mono text-xs" />
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Tab 4: Onboarding Checklist */}
-            <TabsContent value="onboarding" className="space-y-3">
-              <p className="text-xs text-muted-foreground">Mark completed onboarding steps for this new hire.</p>
-              <div className="space-y-2">
-                {ONBOARDING_CHECKLIST.map((item) => {
-                  const checked = addForm.onboarding.includes(item);
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() =>
-                        setAddForm({
-                          ...addForm,
-                          onboarding: checked
-                            ? addForm.onboarding.filter((i) => i !== item)
-                            : [...addForm.onboarding, item],
-                        })
-                      }
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg border text-xs transition-all text-left ${
-                        checked
-                          ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
-                          : "border-border bg-secondary/30 text-muted-foreground hover:border-primary/40"
-                      }`}
-                    >
-                      {checked ? (
-                        <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-                      ) : (
-                        <Circle className="size-4 text-muted-foreground shrink-0" />
-                      )}
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="text-xs text-muted-foreground pt-1">
-                {addForm.onboarding.length} / {ONBOARDING_CHECKLIST.length} steps completed
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setOpenAddModal(false)}>Cancel</Button>
-            <Button
-              onClick={() => createMut.mutate()}
-              disabled={createMut.isPending || !addForm.employee_code || !addForm.first_name || !addForm.last_name || !addForm.email}
-              className="font-bold bg-primary text-primary-foreground"
-            >
-              {createMut.isPending ? "Adding..." : "Add Employee"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ===================== MODAL: EDIT EMPLOYEE ===================== */}
-      {editingEmployee && (
-        <Dialog open={!!editingEmployee} onOpenChange={(o) => !o && setEditingEmployee(null)}>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Edit2 className="size-5 text-primary" /> Edit Employee ({editingEmployee.employee_code})
-              </DialogTitle>
-            </DialogHeader>
-
-            {/* Profile Picture Uploader for Edit */}
-            <div className="p-3 rounded-xl border bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Avatar className="size-14 border-2 border-emerald-500 shadow-xs">
-                  <AvatarImage src={editingEmployee.avatar_url || "/favicon.webp"} />
-                  <AvatarFallback className="bg-emerald-600 text-white font-bold text-base">
-                    <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-bold text-xs flex items-center gap-1.5">
-                    <span>Profile Photo</span>
-                    {!editingEmployee.avatar_url && (
-                      <Badge variant="outline" className="text-[9px] py-0 text-muted-foreground font-mono">
-                        Default Favicon
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Upload & round-crop image for employee profile.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                <input
-                  type="file"
-                  ref={editAvatarInputRef}
-                  accept="image/*"
-                  onChange={(e) => handleAvatarFileSelect(e, "edit")}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => editAvatarInputRef.current?.click()}
-                  className="h-8 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-50"
-                >
-                  <Camera className="size-3.5" /> Change & Crop Photo
-                </Button>
-                {editingEmployee.avatar_url && (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setEditingEmployee({ ...editingEmployee, avatar_url: "" })}
-                    className="size-8 text-rose-500 hover:bg-rose-50"
-                    title="Reset to default"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                )}
-              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Employee Code</Label>
-                <Input value={editingEmployee.employee_code} onChange={(e) => setEditingEmployee({ ...editingEmployee, employee_code: e.target.value })} className="text-xs font-mono" />
+                <Label className="text-xs font-semibold">Employee Code *</Label>
+                <Input
+                  value={addForm.employee_code}
+                  onChange={(e) => setAddForm({ ...addForm, employee_code: e.target.value })}
+                  placeholder="e.g. EMP-001"
+                  className="text-xs font-mono"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Work Email</Label>
-                <Input value={editingEmployee.email} onChange={(e) => setEditingEmployee({ ...editingEmployee, email: e.target.value })} className="text-xs font-mono" />
+                <Label className="text-xs font-semibold">Work Email *</Label>
+                <Input
+                  type="email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  placeholder="john.doe@company.com"
+                  className="text-xs font-mono"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">First Name</Label>
-                <Input value={editingEmployee.first_name} onChange={(e) => setEditingEmployee({ ...editingEmployee, first_name: e.target.value })} className="text-xs" />
+                <Label className="text-xs font-semibold">First Name *</Label>
+                <Input
+                  value={addForm.first_name}
+                  onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })}
+                  placeholder="John"
+                  className="text-xs"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Last Name</Label>
-                <Input value={editingEmployee.last_name} onChange={(e) => setEditingEmployee({ ...editingEmployee, last_name: e.target.value })} className="text-xs" />
+                <Label className="text-xs font-semibold">Last Name *</Label>
+                <Input
+                  value={addForm.last_name}
+                  onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })}
+                  placeholder="Doe"
+                  className="text-xs"
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Phone</Label>
-                <Input value={editingEmployee.phone || ""} onChange={(e) => setEditingEmployee({ ...editingEmployee, phone: e.target.value })} className="text-xs font-mono" />
+                <Input
+                  value={addForm.phone}
+                  onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                  placeholder="+91 98765 43210"
+                  className="text-xs font-mono"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Position</Label>
-                <Input value={editingEmployee.position || ""} onChange={(e) => setEditingEmployee({ ...editingEmployee, position: e.target.value })} className="text-xs" />
+                <Label className="text-xs font-semibold">Position / Role</Label>
+                <Input
+                  value={addForm.position}
+                  onChange={(e) => setAddForm({ ...addForm, position: e.target.value })}
+                  placeholder="Software Engineer"
+                  className="text-xs"
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Department</Label>
-                <Select value={editingEmployee.department_id || ""} onValueChange={(v) => setEditingEmployee({ ...editingEmployee, department_id: v })}>
-                  <SelectTrigger className="text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                <Select value={addForm.department_id} onValueChange={(v) => setAddForm({ ...addForm, department_id: v })}>
+                  <SelectTrigger className="text-xs"><SelectValue placeholder="Select Department" /></SelectTrigger>
                   <SelectContent>
                     {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                   </SelectContent>
@@ -1758,7 +3290,7 @@ function Employees() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Employment Type</Label>
-                <Select value={editingEmployee.employment_type} onValueChange={(v) => setEditingEmployee({ ...editingEmployee, employment_type: v })}>
+                <Select value={addForm.employment_type} onValueChange={(v) => setAddForm({ ...addForm, employment_type: v })}>
                   <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="full_time">Full Time</SelectItem>
@@ -1769,171 +3301,45 @@ function Employees() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Status</Label>
-                <Select value={editingEmployee.status || "active"} onValueChange={(v) => setEditingEmployee({ ...editingEmployee, status: v })}>
-                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="probation">Probation</SelectItem>
-                    <SelectItem value="on_leave">On Leave</SelectItem>
-                    <SelectItem value="terminated">Terminated</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs font-semibold">Joining Date</Label>
+                <Input
+                  type="date"
+                  value={addForm.joined_at}
+                  onChange={(e) => setAddForm({ ...addForm, joined_at: e.target.value })}
+                  className="text-xs"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Joining Date</Label>
-                <Input type="date" value={editingEmployee.joined_at || ""} onChange={(e) => setEditingEmployee({ ...editingEmployee, joined_at: e.target.value })} className="text-xs" />
-              </div>
-              <div className="space-y-1 col-span-2">
                 <Label className="text-xs font-semibold">Monthly Salary (₹)</Label>
-                <Input type="number" value={editingEmployee.salary || 0} onChange={(e) => setEditingEmployee({ ...editingEmployee, salary: Number(e.target.value) })} className="text-xs font-mono" />
+                <Input
+                  type="number"
+                  value={addForm.salary}
+                  onChange={(e) => setAddForm({ ...addForm, salary: e.target.value })}
+                  placeholder="50000"
+                  className="text-xs font-mono"
+                />
               </div>
             </div>
-            <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setEditingEmployee(null)}>Cancel</Button>
-              <Button onClick={() => updateMut.mutate(editingEmployee)} disabled={updateMut.isPending} className="font-bold bg-primary text-primary-foreground">
-                {updateMut.isPending ? "Saving..." : "Save Changes"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+          </div>
 
-      {/* ===================== MODAL: VIEW EMPLOYEE PROFILE ===================== */}
-      {viewingEmployee && (
-        <Dialog open={!!viewingEmployee} onOpenChange={(o) => !o && setViewingEmployee(null)}>
-          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserCheck className="size-5 text-emerald-600" /> Employee Profile
-              </DialogTitle>
-            </DialogHeader>
-
-            {/* Profile Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-indigo-500/5 border flex items-center gap-4">
-              <Avatar className="size-16 border-2 border-primary/20">
-                <AvatarImage src={viewingEmployee.avatar_url || "/favicon.webp"} />
-                <AvatarFallback className="font-black text-xl bg-primary text-primary-foreground">
-                  <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="font-extrabold text-lg leading-tight">
-                  {viewingEmployee.first_name} {viewingEmployee.last_name}
-                </div>
-                <div className="text-muted-foreground text-sm">{viewingEmployee.position || "Staff Member"}</div>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <Badge variant="outline" className="font-mono text-[10px] text-primary border-primary/30">
-                    {viewingEmployee.employee_code}
-                  </Badge>
-                  <Badge className={`font-bold text-[10px] border-0 ${STATUS_CONFIG[viewingEmployee.status]?.className ?? ""}`}>
-                    {STATUS_CONFIG[viewingEmployee.status]?.label ?? viewingEmployee.status}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-
-            <Tabs defaultValue="info">
-              <TabsList className="grid grid-cols-3">
-                <TabsTrigger value="info" className="text-xs">Info</TabsTrigger>
-                <TabsTrigger value="contact" className="text-xs">Contact</TabsTrigger>
-                <TabsTrigger value="onboarding" className="text-xs">Onboarding</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="info" className="space-y-3 pt-3">
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  {[
-                    { label: "Department", value: viewingEmployee.departments?.name || "Unassigned", icon: Building2 },
-                    { label: "Employment", value: viewingEmployee.employment_type?.replace("_", " "), icon: Briefcase },
-                    { label: "Joined", value: viewingEmployee.joined_at || "N/A", icon: Calendar },
-                    { label: "Monthly Salary", value: formatSystemAmount(Number(viewingEmployee.salary) || 0, sysConfig?.currency), icon: DollarSign },
-                  ].map((f) => (
-                    <div key={f.label} className="p-3 rounded-lg bg-secondary/40 border">
-                      <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                        <f.icon className="size-3" />{f.label}
-                      </div>
-                      <div className="font-bold capitalize">{f.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="contact" className="space-y-3 pt-3">
-                <div className="space-y-2 text-xs">
-                  <div className="p-3 rounded-lg border flex items-center gap-3">
-                    <Mail className="size-4 text-muted-foreground shrink-0" />
-                    <div>
-                      <div className="text-muted-foreground text-[10px] uppercase font-bold">Work Email</div>
-                      <div className="font-mono font-semibold">{viewingEmployee.email}</div>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg border flex items-center gap-3">
-                    <Phone className="size-4 text-muted-foreground shrink-0" />
-                    <div>
-                      <div className="text-muted-foreground text-[10px] uppercase font-bold">Phone</div>
-                      <div className="font-mono font-semibold">{viewingEmployee.phone || "Not provided"}</div>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="onboarding" className="pt-3">
-                <div className="space-y-2">
-                  {ONBOARDING_CHECKLIST.map((item) => (
-                    <div
-                      key={item}
-                      className="flex items-center gap-3 p-2.5 rounded-lg border bg-secondary/20 text-xs"
-                    >
-                      <Circle className="size-4 text-muted-foreground/40 shrink-0" />
-                      <span className="text-muted-foreground">{item}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-2">
-                  Onboarding tracking stored locally — edit employee to update.
-                </p>
-              </TabsContent>
-            </Tabs>
-
-            <DialogFooter className="gap-2 sm:gap-0 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setAuthModalEmployee(viewingEmployee);
-                  setNewPassword("");
-                }}
-                className="text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 border-amber-300 font-semibold gap-1.5 mr-auto"
-                title="Manage Login & Set/Reset Password"
-              >
-                <KeyRound className="size-3.5" /> Manage Login & Password
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (confirm(`Reset 2-Step Verification (2FA) for ${viewingEmployee.first_name} ${viewingEmployee.last_name} (${viewingEmployee.email})? This will unlock their account.`)) {
-                    reset2faMut.mutate(viewingEmployee.id);
-                  }
-                }}
-                disabled={reset2faMut.isPending}
-                className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 shadow-2xs font-semibold mr-2"
-                title="Admin 2FA Account Unlock"
-              >
-                <ShieldAlert className="size-3.5 mr-1 text-rose-500" /> Reset 2FA
-              </Button>
-              <Button variant="outline" onClick={() => { setViewingEmployee(null); setEditingEmployee({ ...viewingEmployee }); }}>
-                <Edit2 className="size-3.5 mr-1.5" /> Edit Profile
-              </Button>
-              <Button onClick={() => setViewingEmployee(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setOpenAddModal(false)}>Cancel</Button>
+            <Button
+              onClick={() => createMut.mutate()}
+              disabled={createMut.isPending || !addForm.first_name || !addForm.email || !addForm.employee_code}
+              className="font-bold bg-primary text-primary-foreground"
+            >
+              {createMut.isPending ? "Creating..." : "Save Employee"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL: ADD DEPARTMENT */}
       <Dialog open={addDeptOpen} onOpenChange={setAddDeptOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold">
               <Building2 className="size-4 text-primary" /> Add Department
             </DialogTitle>
           </DialogHeader>
@@ -1952,15 +3358,102 @@ function Employees() {
             <Button
               onClick={() => addDeptMut.mutate(newDeptName.trim())}
               disabled={!newDeptName.trim() || addDeptMut.isPending}
-              className="font-bold"
+              className="font-bold bg-primary text-primary-foreground"
             >
-              Create Department
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ===================== MODAL: EMPLOYEE LOGIN & PASSWORD MANAGER ===================== */}
+      {/* MODAL: APPRAISAL REVIEW */}
+      <Dialog open={isAddReviewOpen} onOpenChange={setIsAddReviewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+              <Award className="size-4 text-amber-500" /> New Performance Appraisal
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Select Employee *</Label>
+              <Select value={reviewForm.employeeId} onValueChange={(v) => setReviewForm({ ...reviewForm, employeeId: v })}>
+                <SelectTrigger className="text-xs"><SelectValue placeholder="Choose Employee..." /></SelectTrigger>
+                <SelectContent>
+                  {employees.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.employee_code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Rating (1 to 5 Stars)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={5}
+                step={0.1}
+                value={reviewForm.rating}
+                onChange={(e) => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}
+                className="text-xs font-mono"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Manager Feedback</Label>
+              <Input
+                value={reviewForm.managerFeedback}
+                onChange={(e) => setReviewForm({ ...reviewForm, managerFeedback: e.target.value })}
+                placeholder="Consistently delivers quality outcomes..."
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsAddReviewOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateReview} className="font-bold bg-amber-600 hover:bg-amber-700 text-white">Save Appraisal</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: ALLOCATE ASSET */}
+      <Dialog open={isAddAssetOpen} onOpenChange={setIsAddAssetOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+              <Laptop className="size-4 text-blue-500" /> Allocate Company Device
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Device / Hardware Name *</Label>
+              <Input
+                value={assetForm.name}
+                onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                placeholder="e.g. MacBook Pro M3 16-inch"
+                className="text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Assign to Employee</Label>
+              <Select value={assetForm.assignedToEmployeeId} onValueChange={(v) => setAssetForm({ ...assetForm, assignedToEmployeeId: v })}>
+                <SelectTrigger className="text-xs"><SelectValue placeholder="Select Staff..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned (Inventory)</SelectItem>
+                  {employees.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.employee_code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsAddAssetOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateAsset} className="font-bold bg-blue-600 hover:bg-blue-700 text-white">Allocate Device</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL: LOGIN ACCOUNT & PASSWORD MANAGER */}
       {authModalEmployee && (
         <Dialog open={!!authModalEmployee} onOpenChange={(o) => !o && setAuthModalEmployee(null)}>
           <DialogContent className="max-w-md">
@@ -1971,13 +3464,12 @@ function Employees() {
             </DialogHeader>
 
             <div className="space-y-4 py-1 text-xs">
-              {/* Employee Summary Card */}
               <div className="p-3 rounded-xl border bg-secondary/30 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Avatar className="size-10 border shadow-2xs">
                     <AvatarImage src={authModalEmployee.avatar_url || "/favicon.webp"} />
                     <AvatarFallback className="font-bold bg-primary/10 text-primary">
-                      <img src="/favicon.webp" alt="Avatar" className="size-full object-cover"  loading="lazy"/>
+                      {authModalEmployee.first_name?.[0]}{authModalEmployee.last_name?.[0]}
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -1994,29 +3486,6 @@ function Employees() {
                 </Badge>
               </div>
 
-              {/* Account Details & Role */}
-              <div className="grid grid-cols-2 gap-2 p-3 rounded-lg border bg-muted/20 text-[11px]">
-                <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Portal Role</span>
-                  <Badge className="font-mono text-[10px] uppercase mt-0.5">
-                    {empAccountData?.roles?.[0] || "employee"}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">2FA Status</span>
-                  <span className="font-semibold block mt-0.5">
-                    {empAccountData?.twoFactorEnabled ? (
-                      <span className="text-emerald-600 font-bold flex items-center gap-1">
-                        <ShieldCheck className="size-3" /> Enabled
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Disabled</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              {/* Set New Password Form */}
               <div className="space-y-2 pt-1 border-t">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -2034,7 +3503,7 @@ function Employees() {
                 <div className="relative">
                   <Input
                     type={showNewPassword ? "text" : "password"}
-                    placeholder="Enter new employee password (min 6 chars)..."
+                    placeholder="Enter new password (min 6 chars)..."
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="h-9 text-xs font-mono pr-20"
@@ -2047,87 +3516,33 @@ function Employees() {
                     {showNewPassword ? "Hide" : "Show"}
                   </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Default login password upon creation is <code className="bg-muted px-1 py-0.5 rounded font-mono font-bold">Password@123</code>.
-                </p>
               </div>
-
-              {/* Share / Copy Credentials Helper */}
-              {newPassword && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-[11px] text-amber-800 dark:text-amber-300">
-                      📋 Credentials Ready to Share:
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const msg = `Master HRMS Login Credentials:\nPortal URL: ${window.location.origin}/auth\nEmail: ${authModalEmployee.email}\nPassword: ${newPassword}`;
-                        navigator.clipboard.writeText(msg);
-                        toast.success("Login credentials copied to clipboard!");
-                      }}
-                      className="h-6 text-[10px] gap-1 font-semibold"
-                    >
-                      <Copy className="size-3" /> Copy Credentials
-                    </Button>
-                  </div>
-                  <div className="p-2 rounded bg-background font-mono text-[11px] space-y-0.5 select-all">
-                    <div><strong>Portal:</strong> {window.location.origin}/auth</div>
-                    <div><strong>Email:</strong> {authModalEmployee.email}</div>
-                    <div><strong>Password:</strong> {newPassword}</div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <DialogFooter className="flex justify-between sm:justify-between items-center w-full pt-3 border-t">
+              <Button variant="outline" size="sm" onClick={() => setAuthModalEmployee(null)}>Cancel</Button>
               <Button
-                variant="outline"
                 size="sm"
-                onClick={() => setAuthModalEmployee(null)}
+                onClick={() => {
+                  if (!newPassword || newPassword.length < 6) {
+                    return toast.error("Please enter a password with at least 6 characters");
+                  }
+                  setPasswordMut.mutate({
+                    employeeId: authModalEmployee.id,
+                    password: newPassword,
+                  });
+                }}
+                disabled={setPasswordMut.isPending || !newPassword}
+                className="gap-1.5 text-xs font-bold bg-primary text-primary-foreground"
               >
-                Cancel
+                <Check className="size-3.5" /> Save Password
               </Button>
-              <div className="flex items-center gap-2">
-                {empAccountData?.twoFactorEnabled && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (confirm(`Reset 2FA for ${authModalEmployee.first_name}?`)) {
-                        reset2faMut.mutate(authModalEmployee.id);
-                      }
-                    }}
-                    disabled={reset2faMut.isPending}
-                    className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
-                  >
-                    Reset 2FA
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (!newPassword || newPassword.length < 6) {
-                      return toast.error("Please enter a password with at least 6 characters");
-                    }
-                    setPasswordMut.mutate({
-                      employeeId: authModalEmployee.id,
-                      password: newPassword,
-                    });
-                  }}
-                  disabled={setPasswordMut.isPending || !newPassword}
-                  className="gap-1.5 text-xs font-bold bg-primary text-primary-foreground"
-                >
-                  <Check className="size-3.5" /> Save Password
-                </Button>
-              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* ===================== MODAL: CIRCULAR AVATAR CROPPER ===================== */}
+      {/* Circular Avatar Cropper Dialog */}
       <AvatarCropperDialog
         isOpen={isCropperOpen}
         imageSrc={tempCropSrc}

@@ -66,6 +66,12 @@ import {
   Layers,
   ArrowRight,
   ExternalLink,
+  Workflow,
+  Calculator,
+  FileText,
+  Code,
+  Play,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -134,6 +140,105 @@ function Settings() {
     deepseekKey: "",
     deepseekModel: "deepseek-chat",
   });
+
+  // Approval Workflows State (approval-settings.html)
+  const [approvalWorkflows, setApprovalWorkflows] = useState([
+    {
+      id: "appr-1",
+      name: "Employee Leave & PTO Requests",
+      module: "Leave Management",
+      levels: 2,
+      tier1Role: "Direct Reporting Manager",
+      tier2Role: "HR Operations Lead",
+      autoApproveDays: 3,
+      notifySlack: true,
+      status: "Active",
+    },
+    {
+      id: "appr-2",
+      name: "Expense Reimbursement Claims (> ₹2,000)",
+      module: "Finance & Expenses",
+      levels: 2,
+      tier1Role: "Department Head",
+      tier2Role: "Finance Controller",
+      autoApproveDays: 5,
+      notifySlack: true,
+      status: "Active",
+    },
+    {
+      id: "appr-3",
+      name: "Employee Resignation & Exit Clearance",
+      module: "HR Offboarding",
+      levels: 3,
+      tier1Role: "Manager",
+      tier2Role: "HR Business Partner",
+      tier3Role: "Managing Director",
+      autoApproveDays: 0,
+      notifySlack: true,
+      status: "Active",
+    },
+    {
+      id: "appr-4",
+      name: "Shift Swap & Overtime Authorization",
+      module: "Attendance & Shifts",
+      levels: 1,
+      tier1Role: "Shift Supervisor",
+      autoApproveDays: 1,
+      notifySlack: false,
+      status: "Active",
+    },
+  ]);
+
+  // Salary & Statutory Formula Config (salary-settings.html)
+  const [salaryConfig, setSalaryConfig] = useState({
+    daPercent: "12",
+    hraPercent: "40",
+    pfEmployeePercent: "12",
+    pfEmployerPercent: "12",
+    esiEmployeePercent: "0.75",
+    esiEmployerPercent: "3.25",
+    professionalTax: "200",
+    payslipCutoffDay: "25",
+    payslipCreditDay: "01",
+    overtimeHourlyMultiplier: "1.5",
+    includeWeekendInSalary: true,
+  });
+
+  // Invoicing & Billing Terms (invoice-settings.html)
+  const [invoiceConfig, setInvoiceConfig] = useState({
+    invoicePrefix: "INV-",
+    estimatePrefix: "EST-",
+    dueDays: "30",
+    bankName: "HDFC Bank Ltd / Silicon Valley Bank",
+    accountNumber: "50200049281902",
+    ifscSwift: "HDFC0000123 / SWIFT: HDFCINBB",
+    taxDisplayMode: "Inclusive",
+    terms: "1. Payment is due within 30 days of invoice receipt.\n2. Overdue invoices accrue a 1.5% late fee per month.",
+  });
+
+  // Custom Fields State (custom-fields.html)
+  const [customFields, setCustomFields] = useState([
+    { id: "cf-1", module: "Employees", label: "Emergency Blood Group", type: "Select", options: "A+, A-, B+, B-, O+, O-, AB+, AB-", required: true },
+    { id: "cf-2", module: "Employees", label: "T-Shirt Size (Swag / Uniform)", type: "Select", options: "S, M, L, XL, XXL", required: false },
+    { id: "cf-3", module: "Projects", label: "Client SLA Severity Tier", type: "Select", options: "Gold 24/7, Silver 12/5, Bronze Standard", required: true },
+    { id: "cf-4", module: "Helpdesk", label: "Root Cause Classification", type: "Text", options: "", required: false },
+  ]);
+  const [isAddCustomFieldOpen, setIsAddCustomFieldOpen] = useState(false);
+  const [customFieldForm, setCustomFieldForm] = useState({
+    module: "Employees",
+    label: "",
+    type: "Text",
+    options: "",
+    required: false,
+  });
+
+  // Scheduled Automated Cron Jobs (cronjob.html)
+  const [cronJobs, setCronJobs] = useState([
+    { id: "cj-1", name: "Biometric Hardware Realtime Punch Sync", schedule: "Every 5 Minutes (*/5 * * * *)", lastRun: "2 mins ago", nextRun: "In 3 mins", status: "Active", executionTime: "1.2s" },
+    { id: "cj-2", name: "Midnight Attendance Ledger Auto-Lock & Absent Tagger", schedule: "Daily at 00:01 (1 0 * * *)", lastRun: "Today at 00:01", nextRun: "Tomorrow at 00:01", status: "Active", executionTime: "4.8s" },
+    { id: "cj-3", name: "Monthly Payroll Auto-Drafting & CTC Accruals", schedule: "28th of every month at 23:00 (0 23 28 * *)", lastRun: "28 Aug 2026", nextRun: "28 Sep 2026", status: "Active", executionTime: "12.4s" },
+    { id: "cj-4", name: "Database & Document Vault Cloud Backup (GCS)", schedule: "Daily at 02:00 (0 2 * * *)", lastRun: "Today at 02:00", nextRun: "Tomorrow at 02:00", status: "Active", executionTime: "45.1s" },
+  ]);
 
   const { data: savedAiSettings } = useQuery({
     queryKey: ["tenant-ai-settings-page", tenantId],
@@ -593,6 +698,31 @@ function Settings() {
               </TabsTrigger>
             </>
           )}
+
+          <TabsTrigger value="approvals" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+            <Workflow className="size-3.5 text-blue-500" />
+            <span>Approval Settings</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="salary-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+            <Calculator className="size-3.5 text-emerald-500" />
+            <span>Salary & Statutory</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="invoice-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+            <FileText className="size-3.5 text-purple-500" />
+            <span>Invoice & Billing</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="custom-fields" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+            <Code className="size-3.5 text-amber-500" />
+            <span>Custom Fields</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="cronjobs" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+            <Play className="size-3.5 text-rose-500" />
+            <span>Cron Automations</span>
+          </TabsTrigger>
 
           <TabsTrigger value="security" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
             <ShieldCheck className="size-3.5 text-emerald-500" />
@@ -1635,6 +1765,376 @@ function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ===================== TAB 6: APPROVAL SETTINGS (approval-settings.html) ===================== */}
+        <TabsContent value="approvals" className="space-y-4">
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <Workflow className="size-4 text-blue-500" /> Multi-Tier Approval Workflows
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Configure approval hierarchies, escalation timeouts, and auto-approval rules for organizational requests.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {approvalWorkflows.map((w) => (
+                  <div key={w.id} className="p-4 rounded-xl border bg-card space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-sm text-foreground">{w.name}</div>
+                        <div className="text-[11px] text-muted-foreground">{w.module}</div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/30 font-bold">
+                        {w.levels}-Tier Chain
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2 p-3 rounded-lg bg-muted/20 border">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground">Tier 1 Reviewer:</span>
+                        <span className="font-bold text-foreground">{w.tier1Role}</span>
+                      </div>
+                      {w.tier2Role && (
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-muted-foreground">Tier 2 Final Approver:</span>
+                          <span className="font-bold text-foreground">{w.tier2Role}</span>
+                        </div>
+                      )}
+                      {w.tier3Role && (
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-muted-foreground">Executive Clearance:</span>
+                          <span className="font-bold text-foreground">{w.tier3Role}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="p-2 rounded border bg-background">
+                        <span className="text-[10px] text-muted-foreground block">Auto-Pass SLA</span>
+                        <span className="font-bold">{w.autoApproveDays > 0 ? `${w.autoApproveDays} Business Days` : "No Auto-Pass"}</span>
+                      </div>
+                      <div className="p-2 rounded border bg-background">
+                        <span className="text-[10px] text-muted-foreground block">Instant Alerts</span>
+                        <span className="font-bold text-emerald-600">{w.notifySlack ? "Slack & Email" : "Email Only"}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end pt-2 border-t">
+                <Button size="sm" onClick={() => toast.success("✅ Approval workflows updated successfully!")} className="text-xs font-bold gap-1.5">
+                  <Check className="size-3.5" /> Save Workflow Rules
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 7: SALARY & STATUTORY SETTINGS (salary-settings.html) ===================== */}
+        <TabsContent value="salary-settings" className="space-y-4">
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <Calculator className="size-4 text-emerald-500" /> Salary Allowances & Statutory Formula Configuration
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Configure default percentage components for Dearness Allowance, HRA, Provident Fund, and ESI.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <Label className="text-xs font-bold text-foreground">Dearness Allowance (DA % of Basic)</Label>
+                  <Input
+                    type="number"
+                    value={salaryConfig.daPercent}
+                    onChange={(e) => setSalaryConfig({ ...salaryConfig, daPercent: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-muted-foreground">Standard 10% - 15%</span>
+                </div>
+
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <Label className="text-xs font-bold text-foreground">House Rent Allowance (HRA % of Basic)</Label>
+                  <Input
+                    type="number"
+                    value={salaryConfig.hraPercent}
+                    onChange={(e) => setSalaryConfig({ ...salaryConfig, hraPercent: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-muted-foreground">Metro: 50%, Non-Metro: 40%</span>
+                </div>
+
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <Label className="text-xs font-bold text-foreground">Employee PF Withholding (%)</Label>
+                  <Input
+                    type="number"
+                    value={salaryConfig.pfEmployeePercent}
+                    onChange={(e) => setSalaryConfig({ ...salaryConfig, pfEmployeePercent: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-muted-foreground">Statutory PF Deduction (12.0%)</span>
+                </div>
+
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <Label className="text-xs font-bold text-foreground">Employer PF Matching (%)</Label>
+                  <Input
+                    type="number"
+                    value={salaryConfig.pfEmployerPercent}
+                    onChange={(e) => setSalaryConfig({ ...salaryConfig, pfEmployerPercent: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-muted-foreground">Organization matching share (12.0%)</span>
+                </div>
+
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <Label className="text-xs font-bold text-foreground">Monthly Professional Tax (Fixed ₹)</Label>
+                  <Input
+                    type="number"
+                    value={salaryConfig.professionalTax}
+                    onChange={(e) => setSalaryConfig({ ...salaryConfig, professionalTax: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-muted-foreground">Standard ₹200 / month</span>
+                </div>
+
+                <div className="space-y-1.5 p-3 rounded-xl border bg-muted/10">
+                  <Label className="text-xs font-bold text-foreground">Overtime Hourly Multiplier</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={salaryConfig.overtimeHourlyMultiplier}
+                    onChange={(e) => setSalaryConfig({ ...salaryConfig, overtimeHourlyMultiplier: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-muted-foreground">1.5x regular hourly wage</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t">
+                <Button size="sm" onClick={() => toast.success("✅ Salary & statutory rules saved!")} className="text-xs font-bold gap-1.5">
+                  <Check className="size-3.5" /> Save Salary Configuration
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 8: INVOICE & BILLING SETTINGS (invoice-settings.html) ===================== */}
+        <TabsContent value="invoice-settings" className="space-y-4">
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <FileText className="size-4 text-purple-500" /> Invoicing, Billing & Bank Wire Credentials
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Customize invoice prefixes, payment grace periods, bank transfer accounts, and default terms.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Invoice Sequence Prefix</Label>
+                  <Input
+                    value={invoiceConfig.invoicePrefix}
+                    onChange={(e) => setInvoiceConfig({ ...invoiceConfig, invoicePrefix: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Estimate Sequence Prefix</Label>
+                  <Input
+                    value={invoiceConfig.estimatePrefix}
+                    onChange={(e) => setInvoiceConfig({ ...invoiceConfig, estimatePrefix: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Standard Due Days</Label>
+                  <Input
+                    type="number"
+                    value={invoiceConfig.dueDays}
+                    onChange={(e) => setInvoiceConfig({ ...invoiceConfig, dueDays: e.target.value })}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-3.5 rounded-xl border bg-muted/10">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Beneficiary Bank Name</Label>
+                  <Input
+                    value={invoiceConfig.bankName}
+                    onChange={(e) => setInvoiceConfig({ ...invoiceConfig, bankName: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">Bank Account Number</Label>
+                  <Input
+                    value={invoiceConfig.accountNumber}
+                    onChange={(e) => setInvoiceConfig({ ...invoiceConfig, accountNumber: e.target.value })}
+                    className="h-9 text-xs font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground">IFSC / SWIFT Code</Label>
+                  <Input
+                    value={invoiceConfig.ifscSwift}
+                    onChange={(e) => setInvoiceConfig({ ...invoiceConfig, ifscSwift: e.target.value })}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">Standard Invoice Terms & Conditions</Label>
+                <Textarea
+                  rows={3}
+                  value={invoiceConfig.terms}
+                  onChange={(e) => setInvoiceConfig({ ...invoiceConfig, terms: e.target.value })}
+                  className="text-xs font-mono"
+                />
+              </div>
+
+              <div className="flex justify-end pt-2 border-t">
+                <Button size="sm" onClick={() => toast.success("✅ Invoicing & billing settings updated!")} className="text-xs font-bold gap-1.5">
+                  <Check className="size-3.5" /> Save Invoice Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 9: CUSTOM FIELDS (custom-fields.html) ===================== */}
+        <TabsContent value="custom-fields" className="space-y-4">
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <Code className="size-4 text-amber-500" /> Dynamic Custom Fields Engine
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Extend entity schemas dynamically across Employees, Projects, Clients, and Helpdesk Tickets.
+                </CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setIsAddCustomFieldOpen(true)} className="h-8 text-xs font-bold gap-1.5 shadow-2xs">
+                <Plus className="size-3.5" /> Add Custom Field
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/40 border-b">
+                  <tr>
+                    <th className="p-3">Target Module</th>
+                    <th className="p-3">Field Label</th>
+                    <th className="p-3">Data Type</th>
+                    <th className="p-3">Options / Schema</th>
+                    <th className="p-3">Mandatory</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {customFields.map((cf) => (
+                    <tr key={cf.id} className="hover:bg-muted/30">
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-[10px] font-bold bg-primary/10 text-primary">
+                          {cf.module}
+                        </Badge>
+                      </td>
+                      <td className="p-3 font-bold text-foreground">{cf.label}</td>
+                      <td className="p-3 font-mono text-muted-foreground">{cf.type}</td>
+                      <td className="p-3 text-muted-foreground max-w-xs truncate">{cf.options || "—"}</td>
+                      <td className="p-3">
+                        {cf.required ? (
+                          <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-600 border-rose-500/30">
+                            Required
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                            Optional
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Remove custom field "${cf.label}"?`)) {
+                              setCustomFields(customFields.filter((item) => item.id !== cf.id));
+                              toast.success("Custom field removed.");
+                            }
+                          }}
+                          className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 10: CRON JOBS & AUTOMATION (cronjob.html) ===================== */}
+        <TabsContent value="cronjobs" className="space-y-4">
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <Play className="size-4 text-rose-500" /> Scheduled Background Automations (Cron System)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Automated background sync runners for attendance capture, midnight ledger lock, and payroll generation.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {cronJobs.map((job) => (
+                  <div key={job.id} className="p-4 rounded-xl border bg-card space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-sm text-foreground">{job.name}</div>
+                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold">
+                        {job.status}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1 text-[11px] font-mono text-muted-foreground p-2 rounded bg-muted/20 border">
+                      <div>Cron: <span className="font-bold text-foreground">{job.schedule}</span></div>
+                      <div>Last Run: <span className="text-foreground">{job.lastRun} ({job.executionTime})</span></div>
+                      <div>Next Execution: <span className="text-primary font-bold">{job.nextRun}</span></div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          toast.success(`⚡ Manual trigger dispatched for "${job.name}"! Executed in ${job.executionTime}`);
+                        }}
+                        className="h-7 text-xs font-bold gap-1.5 shadow-2xs"
+                      >
+                        <Play className="size-3 text-primary" /> Trigger Now (Manual)
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* ===== EDIT LEAVE TYPE MODAL ===== */}
@@ -1845,6 +2345,121 @@ function Settings() {
               Disable 2FA
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== Add Custom Field Modal (custom-fields.html) ===== */}
+      <Dialog open={isAddCustomFieldOpen} onOpenChange={setIsAddCustomFieldOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Code className="size-5 text-amber-500" />
+              <span>Create Dynamic Custom Field</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Extend data models for Employees, Projects, Clients, or Helpdesk Tickets.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setCustomFields([
+                ...customFields,
+                {
+                  id: "cf-" + Date.now(),
+                  module: customFieldForm.module,
+                  label: customFieldForm.label,
+                  type: customFieldForm.type,
+                  options: customFieldForm.options,
+                  required: customFieldForm.required,
+                },
+              ]);
+              setIsAddCustomFieldOpen(false);
+              setCustomFieldForm({ module: "Employees", label: "", type: "Text", options: "", required: false });
+              toast.success(`Custom field "${customFieldForm.label}" added to ${customFieldForm.module}!`);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Target Entity Module *</Label>
+              <Select
+                value={customFieldForm.module}
+                onValueChange={(v) => setCustomFieldForm({ ...customFieldForm, module: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Employees">Employees</SelectItem>
+                  <SelectItem value="Projects">Projects</SelectItem>
+                  <SelectItem value="Clients">Clients & CRM</SelectItem>
+                  <SelectItem value="Helpdesk">Helpdesk Tickets</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Field Label / Title *</Label>
+              <Input
+                required
+                placeholder="e.g. Emergency Blood Group / SLA Tier"
+                value={customFieldForm.label}
+                onChange={(e) => setCustomFieldForm({ ...customFieldForm, label: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Field Data Type *</Label>
+              <Select
+                value={customFieldForm.type}
+                onValueChange={(v) => setCustomFieldForm({ ...customFieldForm, type: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Text">Single-line Text</SelectItem>
+                  <SelectItem value="Number">Numeric Value</SelectItem>
+                  <SelectItem value="Select">Dropdown Select</SelectItem>
+                  <SelectItem value="Date">Date Picker</SelectItem>
+                  <SelectItem value="Checkbox">Checkbox (Boolean)</SelectItem>
+                  <SelectItem value="Textarea">Multi-line Textarea</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {customFieldForm.type === "Select" && (
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Comma-Separated Dropdown Options</Label>
+                <Input
+                  placeholder="Option 1, Option 2, Option 3"
+                  value={customFieldForm.options}
+                  onChange={(e) => setCustomFieldForm({ ...customFieldForm, options: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="cfReq"
+                checked={customFieldForm.required}
+                onChange={(e) => setCustomFieldForm({ ...customFieldForm, required: e.target.checked })}
+                className="size-4 rounded border-gray-300"
+              />
+              <Label htmlFor="cfReq" className="text-xs font-medium cursor-pointer">
+                Mandatory Field (Required on Save)
+              </Label>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddCustomFieldOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold">
+                Save Custom Field
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

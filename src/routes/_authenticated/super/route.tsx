@@ -41,6 +41,8 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: "/super", label: "Root Command Center", iconClass: "ph-gauge", group: "Core Orchestration" },
   { to: "/super/tenants", label: "Tenant Workspaces", iconClass: "ph-buildings", group: "Core Orchestration", badge: "Multi-Tenant" },
   { to: "/super/plans", label: "Subscription Plans", iconClass: "ph-credit-card", group: "Core Orchestration" },
+  { to: "/super/domains", label: "Custom Domains", iconClass: "ph-globe-hemisphere-west", group: "Core Orchestration" },
+  { to: "/super/transactions", label: "Purchase Transactions", iconClass: "ph-receipt", group: "Core Orchestration" },
   { to: "/super/roles", label: "Roles & RBAC Matrix", iconClass: "ph-shield-check", group: "Core Orchestration" },
 
   // ── Ecosystem & Marketplace

@@ -204,9 +204,27 @@ export function DreamsSidebar({
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/dashboard" && "active")}
                   >
-                    HRM Dashboard
+                    HRM Admin Dashboard
                   </Link>
                 </li>)}
+                <li>
+                  <Link
+                    to="/employee-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/employee-dashboard" && "active")}
+                  >
+                    Employee Portal
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/client-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/client-dashboard" && "active")}
+                  >
+                    Client Portal
+                  </Link>
+                </li>
                 {isModuleAllowed("pos", profile) && (<li>
                   <Link
                     to="/pos-dashboard"
@@ -293,7 +311,7 @@ export function DreamsSidebar({
                 className={cn(
                   "cursor-pointer",
                   openMenus.apps && "subdrop",
-                  ["/chat", "/ai-ocr", "/ai-writer"].includes(currentPath) &&
+                  ["/chat", "/calendar", "/notes", "/todo", "/ai-ocr", "/ai-writer"].includes(currentPath) &&
                     "active"
                 )}
               >
@@ -304,11 +322,47 @@ export function DreamsSidebar({
               <ul style={{ display: !isMini && openMenus.apps ? "block" : "none" }}>
                 <li>
                   <Link
+                    to="/ai"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/ai" && "active font-semibold text-purple-600")}
+                  >
+                    AI Intelligence Center
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     to="/chat"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/chat" && "active")}
                   >
                     Team Chat
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/calendar"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/calendar" && "active")}
+                  >
+                    Calendar
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/notes"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/notes" && "active")}
+                  >
+                    Personal Notes
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/todo"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/todo" && "active")}
+                  >
+                    Todo Action List
                   </Link>
                 </li>
                 <li>
@@ -497,6 +551,16 @@ export function DreamsSidebar({
               >
                 <i className="ph-duotone ph-wallet"></i>
                 <span>Expense Claims</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/suppliers"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/suppliers" && "active")}
+              >
+                <i className="ph-duotone ph-truck"></i>
+                <span>Suppliers & Vendors</span>
               </Link>
             </li>
 

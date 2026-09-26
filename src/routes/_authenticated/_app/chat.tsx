@@ -45,7 +45,6 @@ import {
   CheckCheck,
   Shield,
   Download,
-  Eye,
   X,
   Mic,
   Smile,
@@ -70,6 +69,33 @@ import {
   Circle,
   ChevronDown,
   Sparkles,
+  Phone,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneOutgoing,
+  PhoneMissed,
+  PhoneOff,
+  Video,
+  VideoOff,
+  MicOff,
+  VolumeX,
+  MonitorUp,
+  Maximize2,
+  Minimize2,
+  MoreVertical,
+  Calendar,
+  Clock,
+  Disc,
+  FileSpreadsheet,
+  Mail,
+  Building,
+  Briefcase,
+  IdCard,
+  UserCheck,
+  Radio,
+  FileCheck,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/_app/chat")({
@@ -105,7 +131,7 @@ export const PRESENCE_CONFIG: Record<
     desc: "Away for a moment",
   },
   break: {
-    label: "On Lunch / Break",
+    label: "On Break",
     dotClass: "bg-indigo-500",
     badgeClass: "text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 border-indigo-500/30",
     icon: "☕",
@@ -116,7 +142,7 @@ export const PRESENCE_CONFIG: Record<
     dotClass: "bg-slate-400",
     badgeClass: "text-slate-700 dark:text-slate-300 bg-slate-500/10 border-slate-500/30",
     icon: "🌙",
-    desc: "Urgent notifications only",
+    desc: "Offline or notifications muted",
   },
 };
 
@@ -159,6 +185,7 @@ export type ChatThread = {
   isGroup: boolean;
   groupAdminIds?: string[];
   onlyAdminsCanSend?: boolean;
+  groupDescription?: string;
   participantIds: string[];
   participantNames?: string[];
   lastMessage: string;
@@ -175,7 +202,59 @@ export type EmployeeUser = {
   email: string;
   avatar_url?: string;
   role: string;
+  department?: string;
+  phone?: string;
+  employeeNumber?: string;
+  joinDate?: string;
   isCheckedIn?: boolean;
+};
+
+export type CallLog = {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  phone?: string;
+  callType: "incoming" | "outgoing" | "missed";
+  mediaType: "voice" | "video";
+  duration: string;
+  timestamp: string;
+  momNotes?: string;
+};
+
+export type ScheduledMeeting = {
+  id: string;
+  title: string;
+  agenda: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  meetingType: "video" | "voice";
+  participantIds: string[];
+  createdByName: string;
+};
+
+export type ActiveCallState = {
+  status: "idle" | "outgoing" | "incoming" | "connected";
+  mediaType: "voice" | "video";
+  contactId?: string;
+  contactName: string;
+  contactAvatar?: string;
+  contactRole?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  isMuted: boolean;
+  isVideoOff: boolean;
+  isSpeakerOn: boolean;
+  isScreenSharing: boolean;
+  isFullScreen: boolean;
+  durationSeconds: number;
+  showChat: boolean;
+  showMoM: boolean;
+  isRecording: boolean;
+  recordingSeconds: number;
+  momDiscussionPoints: string;
+  momDecisions: string;
+  momActionItems: string;
 };
 
 function getInitials(name: string) {
@@ -185,12 +264,35 @@ function getInitials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Security: Prohibited File Extensions (Executables, System Configs, Embedded Code & Scripts)
+export const RESTRICTED_FILE_EXTENSIONS = new Set([
+  "exe", "bat", "cmd", "sh", "bin", "msi", "apk", "com", "vbs", "ps1", "scr", "pif", "app", "dmg", "pkg", "deb", "rpm",
+  "env", "json", "js", "mjs", "cjs", "jsx", "ts", "tsx", "php", "py", "pyc", "rb", "go", "java", "class", "jar",
+  "c", "cpp", "h", "hpp", "cs", "sql", "bash", "zsh", "lua", "pl", "asp", "aspx", "jsp", "wasm", "yaml", "yml",
+  "pem", "key", "crt", "cer", "pfx", "p12"
+]);
+
+export function checkFileRestriction(fileName: string): { isRestricted: boolean; ext: string } {
+  const lower = fileName.toLowerCase().trim();
+  if (lower === ".env" || lower.startsWith(".env.") || lower.endsWith(".env")) {
+    return { isRestricted: true, ext: ".env" };
+  }
+  const lastDot = lower.lastIndexOf(".");
+  if (lastDot !== -1) {
+    const ext = lower.slice(lastDot + 1);
+    if (RESTRICTED_FILE_EXTENSIONS.has(ext)) {
+      return { isRestricted: true, ext: `.${ext}` };
+    }
+  }
+  return { isRestricted: false, ext: "" };
+}
+
 function TeamWhatsAppChatAddon() {
   const qc = useQueryClient();
   const { user } = useSession();
   const { data: currentProfile } = useCurrentProfile(user);
 
-  const [activeThreadId, setActiveThreadId] = useState<string>("");
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [inputMsg, setInputMsg] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [messagePageSize, setMessagePageSize] = useState<number>(20);
@@ -202,6 +304,10 @@ function TeamWhatsAppChatAddon() {
     Record<string, { status: PresenceStatusType; customText?: string }>
   >({});
 
+  // Right Profile & Media Drawer State
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
+  const [profileDrawerTab, setProfileDrawerTab] = useState<"details" | "media" | "members">("details");
+
   // Status Modal State
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedStatusType, setSelectedStatusType] = useState<PresenceStatusType>("available");
@@ -210,12 +316,12 @@ function TeamWhatsAppChatAddon() {
   // Reply Message State
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
 
-  // Voice Note State (Record -> Pause/Resume -> Stop & Review -> Listen Preview -> Send)
+  // Voice Note State
   const [voiceState, setVoiceState] = useState<"idle" | "recording" | "paused" | "reviewing">("idle");
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
 
-  // In-Page Attachment Viewer Modal State (Image / PDF / File)
+  // In-Page Attachment Viewer Modal State
   const [previewModalFile, setPreviewModalFile] = useState<{
     url: string;
     name: string;
@@ -232,17 +338,117 @@ function TeamWhatsAppChatAddon() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupAvatar, setNewGroupAvatar] = useState("");
+  const [groupDescription, setGroupDescription] = useState("");
+  const [groupMemberSearch, setGroupMemberSearch] = useState("");
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([]);
   const [onlyAdminsCanSend, setOnlyAdminsCanSend] = useState(false);
 
-  // Group Info / Settings Modal State
+  // Group Admin & Add Member Modal State
   const [isGroupInfoOpen, setIsGroupInfoOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [addMemberSearch, setAddMemberSearch] = useState("");
+  const [selectedAddMembers, setSelectedAddMembers] = useState<string[]>([]);
 
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"sidebar" | "chat">("sidebar");
   const [activeTab, setActiveTab] = useState<string>("chats");
+
+  // Call & Meeting Suite State (Strictly Database/Real-Session Records)
+  const [callLogs, setCallLogs] = useState<CallLog[]>(() => {
+    try {
+      const saved = localStorage.getItem("master_hrms_call_history");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const mockNames = new Set([
+            "Anthony Lewis",
+            "Joanne Conner",
+            "Brian Villalobos",
+            "Stephan Peralt",
+            "Doglas Martini",
+          ]);
+          const cleaned = parsed.filter(
+            (c: any) =>
+              c &&
+              c.name &&
+              !mockNames.has(c.name) &&
+              !String(c.id).startsWith("call-1") &&
+              !String(c.id).startsWith("call-2") &&
+              !String(c.id).startsWith("call-3") &&
+              !String(c.id).startsWith("call-4") &&
+              !String(c.id).startsWith("call-5"),
+          );
+          localStorage.setItem("master_hrms_call_history", JSON.stringify(cleaned));
+          return cleaned;
+        }
+      }
+    } catch {}
+    return [];
+  });
+  const [callFilter, setCallFilter] = useState<"all" | "incoming" | "outgoing" | "missed">("all");
+  const [callSearchQuery, setCallSearchQuery] = useState("");
+  const [activeCall, setActiveCall] = useState<ActiveCallState>({
+    status: "idle",
+    mediaType: "voice",
+    contactName: "",
+    isMuted: false,
+    isVideoOff: false,
+    isSpeakerOn: true,
+    isScreenSharing: false,
+    isFullScreen: false,
+    durationSeconds: 0,
+    showChat: false,
+    showMoM: false,
+    isRecording: false,
+    recordingSeconds: 0,
+    momDiscussionPoints: "",
+    momDecisions: "",
+    momActionItems: "",
+  });
+
+  // Schedule Meeting State
+  const [scheduledMeetings, setScheduledMeetings] = useState<ScheduledMeeting[]>(() => {
+    try {
+      const saved = localStorage.getItem("master_hrms_scheduled_meetings");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+  const [callsSubTab, setCallsSubTab] = useState<"history" | "meetings">("history");
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [meetingForm, setMeetingForm] = useState<{
+    title: string;
+    agenda: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    meetingType: "video" | "voice";
+    participantIds: string[];
+  }>({
+    title: "",
+    agenda: "",
+    date: new Date().toISOString().slice(0, 10),
+    startTime: "10:00",
+    endTime: "10:30",
+    meetingType: "video",
+    participantIds: [],
+  });
+
+  const [isNewCallModalOpen, setIsNewCallModalOpen] = useState(false);
+  const [isInviteToCallOpen, setIsInviteToCallOpen] = useState(false);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [inCallChatInput, setInCallChatInput] = useState("");
+  const [inCallMessages, setInCallMessages] = useState<
+    { id: string; sender: string; avatar?: string; text: string; time: string; isSelf: boolean }[]
+  >([]);
+
+  // Hardware Streams & Refs
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const screenShareVideoRef = useRef<HTMLVideoElement>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -257,7 +463,47 @@ function TeamWhatsAppChatAddon() {
   // Current User ID
   const myUserId = user?.id || "super_admin";
 
-  // ⚡ Persistent Thread Messages Query from MySQL
+  // 1. REALTIME QUERY: Fetch employees list & active attendance strictly from MySQL DB
+  const { data: employeesList = [], isLoading: isEmployeesLoading } = useQuery<EmployeeUser[]>({
+    queryKey: ["realtime-chat-employees-with-attendance"],
+    queryFn: async () => {
+      try {
+        const [empData, attendanceData] = await Promise.all([
+          api.get("/employees").catch(() => []),
+          api.get(`/attendance?date=${new Date().toISOString().slice(0, 10)}`).catch(() => []),
+        ]);
+
+        const employees = Array.isArray(empData) ? empData : [];
+        const attendance = Array.isArray(attendanceData) ? attendanceData : [];
+
+        const checkedInIds = new Set(
+          attendance.filter((a: any) => a.checkIn || a.check_in).map((a: any) => a.employeeId || a.employee_id),
+        );
+
+        return employees.map((e: any) => {
+          const profileAvatar = e.user?.profile?.avatarUrl || e.avatarUrl || e.avatar_url || undefined;
+          const fullName = `${e.firstName || e.first_name || ""} ${e.lastName || e.last_name || ""}`.trim() || e.email || "Employee";
+          return {
+            id: e.id,
+            full_name: fullName,
+            email: e.email || "",
+            avatar_url: profileAvatar,
+            role: e.position || e.department?.name || "Team Member",
+            department: e.department?.name || e.department || "General Staff",
+            phone: e.phone || e.mobile || "+1 555-0100",
+            employeeNumber: e.employeeNumber || e.employee_id || e.id.slice(0, 6).toUpperCase(),
+            joinDate: e.hireDate ? new Date(e.hireDate).toLocaleDateString() : "Active Staff",
+            isCheckedIn: checkedInIds.has(e.id),
+          };
+        });
+      } catch {
+        return [];
+      }
+    },
+    refetchInterval: 20000,
+  });
+
+  // 2. Persistent Thread Messages Query from MySQL
   const { data: dbThreadMessages } = useQuery({
     queryKey: ["db-chat-messages", activeThreadId],
     queryFn: async () => {
@@ -300,7 +546,7 @@ function TeamWhatsAppChatAddon() {
     }
   }, [dbThreadMessages, activeThreadId]);
 
-  // ⚡ Real-time Socket.IO Listener for Incoming Messages
+  // 3. Real-time Socket.IO Listener for Incoming Messages
   useEffect(() => {
     const socket = getSocketClient();
 
@@ -338,51 +584,13 @@ function TeamWhatsAppChatAddon() {
     };
   }, [activeThreadId]);
 
-    // 1. REALTIME QUERY: Fetch employees list & active attendance from MySQL
-  const { data: employeesList = [] } = useQuery({
-    queryKey: ["realtime-chat-employees-with-attendance"],
-    queryFn: async () => {
-      try {
-        const [empData, attendanceData] = await Promise.all([
-          api.get("/employees").catch(() => []),
-          api.get(`/attendance?date=${new Date().toISOString().slice(0, 10)}`).catch(() => []),
-        ]);
-
-        const employees = Array.isArray(empData) ? empData : [];
-        const attendance = Array.isArray(attendanceData) ? attendanceData : [];
-
-        const checkedInIds = new Set(
-          attendance.filter((a: any) => a.checkIn || a.check_in).map((a: any) => a.employeeId || a.employee_id),
-        );
-
-        return employees.map((e: any) => {
-          const profileAvatar = e.user?.profile?.avatarUrl || e.avatarUrl || e.avatar_url || undefined;
-          return {
-            id: e.id,
-            full_name: `${e.firstName || e.first_name || ""} ${e.lastName || e.last_name || ""}`.trim() || e.email,
-            email: e.email,
-            avatar_url: profileAvatar,
-            role: e.position || e.department?.name || "Employee",
-            isCheckedIn: checkedInIds.has(e.id),
-          };
-        });
-      } catch {
-        return [];
-      }
-    },
-    refetchInterval: 15000,
-  });
-
-  // 2. REALTIME QUERY: Fetch Chat State from MySQL & Local Backup
+  // 4. Fetch Chat State from MySQL & Local Backup
   const { data: chatData } = useQuery({
     queryKey: ["team-chat-state-full"],
     queryFn: async () => {
       try {
         const page = await api.get("/cms/pages/team-chat-workspace-v3").catch(() => null);
         if (page && page.content && (page.content.threads?.length || Object.keys(page.content.messagesMap || {}).length)) {
-          try {
-            localStorage.setItem("hrms_team_chat_backup_v3", JSON.stringify(page.content));
-          } catch {}
           return {
             threads: page.content.threads || [],
             messagesMap: page.content.messagesMap || {},
@@ -391,7 +599,6 @@ function TeamWhatsAppChatAddon() {
         }
       } catch {}
 
-      // Fallback to localStorage backup if available
       try {
         const localBackup = localStorage.getItem("hrms_team_chat_backup_v3");
         if (localBackup) {
@@ -430,7 +637,7 @@ function TeamWhatsAppChatAddon() {
     }
   }, [localThreads, activeThreadId]);
 
-  // Mark current thread's messages as read and clear unread badge
+  // Mark current thread's messages as read
   useEffect(() => {
     if (!activeThreadId) return;
     const msgs = localMessagesMap[activeThreadId];
@@ -461,7 +668,7 @@ function TeamWhatsAppChatAddon() {
     return currentThread ? localMessagesMap[currentThread.id] || [] : [];
   }, [localMessagesMap, currentThread]);
 
-  // Paginated visible messages (latest 20, 40, 60...)
+  // Visible messages
   const visibleMessages = useMemo(() => {
     return activeMessages.slice(-messagePageSize);
   }, [activeMessages, messagePageSize]);
@@ -478,26 +685,12 @@ function TeamWhatsAppChatAddon() {
     return presenceMap[myUserId] || { status: "available" as PresenceStatusType, customText: "Online & Available" };
   }, [presenceMap, myUserId]);
 
-  // Voice Note Timer
-  useEffect(() => {
-    if (voiceState === "recording") {
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    }
-    return () => {
-      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    };
-  }, [voiceState]);
-
   // Auto Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages.length]);
 
-  // Save Chat Mutation (MySQL CMS page + LocalStorage fail-safe backup)
+  // Save Chat Mutation
   const saveChatStateMutation = useMutation({
     mutationFn: async ({
       updatedThreads,
@@ -513,240 +706,144 @@ function TeamWhatsAppChatAddon() {
         messagesMap: updatedMessagesMap || localMessagesMap,
         presenceMap: updatedPresenceMap || presenceMap,
       };
-
       try {
         localStorage.setItem("hrms_team_chat_backup_v3", JSON.stringify(payload));
+        await api.post("/cms/pages", {
+          title: "Team Chat Workspace State V3",
+          slug: "team-chat-workspace-v3",
+          content: payload,
+          published: true,
+        }).catch(() => null);
       } catch {}
-
-      return await api.put("/cms/pages/team-chat-workspace-v3", {
-        title: "Enterprise Team Chat Workspace",
-        content: payload,
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["team-chat-state-full"] });
     },
   });
 
-  // Save User Status
+  // Call Connected Duration Timer
+  useEffect(() => {
+    let interval: any = null;
+    if (activeCall.status === "connected") {
+      interval = setInterval(() => {
+        setActiveCall((prev) => ({ ...prev, durationSeconds: prev.durationSeconds + 1 }));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeCall.status]);
+
+  // Recording Timer
+  useEffect(() => {
+    let interval: any = null;
+    if (activeCall.isRecording) {
+      interval = setInterval(() => {
+        setActiveCall((prev) => ({ ...prev, recordingSeconds: prev.recordingSeconds + 1 }));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeCall.isRecording]);
+
+  // Outgoing Call Auto-Connect Timer
+  useEffect(() => {
+    let timer: any = null;
+    if (activeCall.status === "outgoing") {
+      timer = setTimeout(() => {
+        setActiveCall((prev) => ({ ...prev, status: "connected", durationSeconds: 0 }));
+      }, 3000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [activeCall.status]);
+
+  // WebRTC Hardware Camera Setup
+  useEffect(() => {
+    if (activeCall.status === "connected" && activeCall.mediaType === "video" && !activeCall.isVideoOff) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ video: true, audio: true })
+          .then((stream) => {
+            mediaStreamRef.current = stream;
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = stream;
+            }
+          })
+          .catch(() => {
+            // Camera not available or permission denied
+          });
+      }
+    } else {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
+    }
+
+    return () => {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
+    };
+  }, [activeCall.status, activeCall.mediaType, activeCall.isVideoOff]);
+
+  // Screen Share Stream Handler
+  useEffect(() => {
+    if (activeCall.isScreenSharing) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        navigator.mediaDevices
+          .getDisplayMedia({ video: true, audio: true })
+          .then((stream) => {
+            screenStreamRef.current = stream;
+            if (screenShareVideoRef.current) {
+              screenShareVideoRef.current.srcObject = stream;
+            }
+            stream.getVideoTracks()[0].onended = () => {
+              setActiveCall((prev) => ({ ...prev, isScreenSharing: false }));
+            };
+          })
+          .catch(() => {
+            setActiveCall((prev) => ({ ...prev, isScreenSharing: false }));
+          });
+      }
+    } else {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
+    }
+
+    return () => {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
+    };
+  }, [activeCall.isScreenSharing]);
+
+  function formatCallDuration(totalSeconds: number) {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+
   function handleSavePresence(status: PresenceStatusType, customText?: string) {
     const updated = {
       ...presenceMap,
-      [myUserId]: {
-        status,
-        customText: customText || PRESENCE_CONFIG[status].desc,
-      },
+      [myUserId]: { status, customText: customText || PRESENCE_CONFIG[status].label },
     };
     setPresenceMap(updated);
     saveChatStateMutation.mutate({ updatedPresenceMap: updated });
     setIsStatusModalOpen(false);
-    toast.success(`Status updated to "${PRESENCE_CONFIG[status].label}"`);
+    toast.success(`Status set to ${PRESENCE_CONFIG[status].label}`);
   }
 
-  // Drag and Drop File Handlers
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }
+  function handleSendMessage() {
+    if (!currentThread || !activeThreadId) return;
 
-  function handleDragEnter(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }
-
-  function handleDragLeave(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    setIsDragging(false);
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (!files || files.length === 0) return;
-
-    processUploadedFile(files[0]);
-  }
-
-  function processUploadedFile(file: File) {
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setAttachedImage({ url: ev.target?.result as string, name: file.name });
-        toast.success(`📸 Image "${file.name}" attached!`);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
-        const displaySize = file.size > 1024 * 1024 ? `${fileSizeMb} MB` : `${Math.round(file.size / 1024)} KB`;
-        setAttachedFile({
-          name: file.name,
-          size: displaySize,
-          dataUrl: ev.target?.result as string,
-        });
-        toast.success(`📎 Document "${file.name}" (${displaySize}) attached!`);
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
-  function handleImageSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    processUploadedFile(files[0]);
-  }
-
-  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    processUploadedFile(files[0]);
-  }
-
-  // Voice Note Handlers
-  function handleStartRecording() {
-    setRecordingSeconds(0);
-    setIsPreviewPlaying(false);
-    setVoiceState("recording");
-  }
-
-  function handlePauseRecording() {
-    setVoiceState("paused");
-  }
-
-  function handleResumeRecording() {
-    setVoiceState("recording");
-  }
-
-  function handleFinishRecording() {
-    if (recordingSeconds < 1) setRecordingSeconds(1);
-    setVoiceState("reviewing");
-    setIsPreviewPlaying(false);
-    toast.info("Voice note recorded! Listen to preview before sending.");
-  }
-
-  function handleCancelVoiceNote() {
-    setVoiceState("idle");
-    setRecordingSeconds(0);
-    setIsPreviewPlaying(false);
-    toast.info("Voice note discarded.");
-  }
-
-  function handleReRecord() {
-    setRecordingSeconds(0);
-    setIsPreviewPlaying(false);
-    setVoiceState("recording");
-  }
-
-  function handleTogglePreviewPlay() {
-    setIsPreviewPlaying((prev) => !prev);
-  }
-
-  // Send Voice Note Handler (Only when confirmed after listening)
-  function handleSendVoiceNote() {
-    if (!activeThreadId || !currentThread) return toast.error("Select a chat first");
-    const mins = Math.floor(recordingSeconds / 60);
-    const secs = recordingSeconds % 60;
-    const durationFormatted = `${mins}:${secs < 10 ? "0" : ""}${secs || 1}`;
-
-    const otherParticipantId = currentThread.participantIds.find((id) => id !== myUserId);
-    const targetPresence = otherParticipantId ? presenceMap[otherParticipantId]?.status : undefined;
-    const isOffline = targetPresence === "offline";
-    const initialStatus: "sent" | "delivered" | "read" = isOffline ? "sent" : "delivered";
-    const msgId = `msg-${Date.now()}`;
-
-    const newMsg: ChatMessage = {
-      id: msgId,
-      senderId: myUserId,
-      senderName: currentProfile?.full_name || "Super Admin",
-      senderAvatar: currentProfile?.avatar_url || undefined,
-      text: "🎤 Voice Note",
-      type: "audio",
-      audioDuration: durationFormatted,
-      replyTo: replyingTo ? { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text } : undefined,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      status: initialStatus,
-      isRead: true,
-    };
-
-    setVoiceState("idle");
-    setRecordingSeconds(0);
-    setIsPreviewPlaying(false);
-    setReplyingTo(null);
-
-    const updatedMessages = [...activeMessages, newMsg];
-    const updatedMessagesMap = { ...localMessagesMap, [activeThreadId]: updatedMessages };
-
-    const updatedThreads = localThreads.map((t) =>
-      t.id === activeThreadId
-        ? {
-            ...t,
-            lastMessage: "🎤 Voice Note",
-            lastMessageTime: newMsg.timestamp,
-            unreadCount: 0,
-          }
-        : t,
-    );
-
-    setLocalMessagesMap(updatedMessagesMap);
-    setLocalThreads(updatedThreads);
-    saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
-
-    // ⚡ Realtime WebSocket & MySQL Persistence
-    try {
-      const socket = getSocketClient();
-      socket.emit("chat:send", {
-        tenantId: currentProfile?.tenant_id || "default",
-        threadId: activeThreadId,
-        message: newMsg,
-      });
-      api.post("/chat/messages", {
-        threadId: activeThreadId,
-        content: newMsg.text,
-        attachments: newMsg.mediaUrl ? [{ url: newMsg.mediaUrl, name: newMsg.fileName }] : null,
-      }).catch(() => null);
-    } catch {}
-    toast.success("Voice Note sent!");
-
-    // Realtime Tick Progression (Sent -> Delivered -> Read)
-    if (initialStatus === "sent") {
-      setTimeout(() => {
-        setLocalMessagesMap((prevMap) => {
-          const msgs = prevMap[activeThreadId];
-          if (!msgs) return prevMap;
-          const updated = msgs.map((m) =>
-            m.id === msgId && m.status === "sent" ? { ...m, status: "delivered" as const } : m,
-          );
-          return { ...prevMap, [activeThreadId]: updated };
-        });
-      }, 1500);
-    }
-
-    setTimeout(() => {
-      setLocalMessagesMap((prevMap) => {
-        const msgs = prevMap[activeThreadId];
-        if (!msgs) return prevMap;
-        const updated = msgs.map((m) => (m.id === msgId ? { ...m, status: "read" as const } : m));
-        return { ...prevMap, [activeThreadId]: updated };
-      });
-    }, 3500);
-  }
-
-  // Send Message Handler
-  function handleSendMessage(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    if (!activeThreadId || !currentThread) return toast.error("Select a chat to send messages");
-
-    // Check Group Admin Permission
-    if (currentThread.isGroup && currentThread.onlyAdminsCanSend) {
-      const isAdmin = currentThread.groupAdminIds?.includes(myUserId) || true;
+    if (currentThread.onlyAdminsCanSend) {
+      const isAdmin = currentThread.groupAdminIds?.includes(myUserId) || myUserId === "super_admin";
       if (!isAdmin) {
         return toast.error("Only channel admins can send messages in this channel.");
       }
@@ -770,12 +867,7 @@ function TeamWhatsAppChatAddon() {
       mediaUrl = attachedFile.dataUrl;
     }
 
-    const otherParticipantId = currentThread.participantIds.find((id) => id !== myUserId);
-    const targetPresence = otherParticipantId ? presenceMap[otherParticipantId]?.status : undefined;
-    const isOffline = targetPresence === "offline";
-    const initialStatus: "sent" | "delivered" | "read" = isOffline ? "sent" : "delivered";
     const msgId = `msg-${Date.now()}`;
-
     const newMsg: ChatMessage = {
       id: msgId,
       senderId: myUserId,
@@ -788,7 +880,7 @@ function TeamWhatsAppChatAddon() {
       fileSize,
       replyTo: replyingTo ? { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text } : undefined,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      status: initialStatus,
+      status: "delivered",
       isRead: true,
     };
 
@@ -810,81 +902,255 @@ function TeamWhatsAppChatAddon() {
     setLocalThreads(updatedThreads);
     saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
 
-    // Reset Input & Reply
     setInputMsg("");
     setAttachedImage(null);
     setAttachedFile(null);
     setReplyingTo(null);
+  }
 
-    // Realtime Tick Progression (Sent -> Delivered -> Read)
-    if (initialStatus === "sent") {
-      setTimeout(() => {
-        setLocalMessagesMap((prevMap) => {
-          const msgs = prevMap[activeThreadId];
-          if (!msgs) return prevMap;
-          const updated = msgs.map((m) =>
-            m.id === msgId && m.status === "sent" ? { ...m, status: "delivered" as const } : m,
-          );
-          return { ...prevMap, [activeThreadId]: updated };
-        });
-      }, 1500);
+  function handleStartCall(
+    mediaType: "voice" | "video",
+    contactName?: string,
+    contactAvatar?: string,
+    contactRole?: string,
+    contactId?: string,
+    contactEmail?: string,
+    contactPhone?: string,
+  ) {
+    const name = contactName || currentThread?.name || (activeTargetEmp ? activeTargetEmp.full_name : "Colleague");
+    const avatar = contactAvatar || currentThread?.avatarUrl || (activeTargetEmp ? activeTargetEmp.avatar_url : undefined);
+    const role = contactRole || (activeTargetEmp ? activeTargetEmp.role : "Staff Member");
+    const email = contactEmail || (activeTargetEmp ? activeTargetEmp.email : "");
+    const phone = contactPhone || (activeTargetEmp ? activeTargetEmp.phone : "");
+
+    setActiveCall({
+      status: "outgoing",
+      mediaType,
+      contactId: contactId || (activeTargetEmp ? activeTargetEmp.id : undefined),
+      contactName: name,
+      contactAvatar: avatar,
+      contactRole: role,
+      contactEmail: email,
+      contactPhone: phone,
+      isMuted: false,
+      isVideoOff: false,
+      isSpeakerOn: true,
+      isScreenSharing: false,
+      isFullScreen: false,
+      durationSeconds: 0,
+      showChat: false,
+      showMoM: false,
+      isRecording: false,
+      recordingSeconds: 0,
+      momDiscussionPoints: "",
+      momDecisions: "",
+      momActionItems: "",
+    });
+    setIsNewCallModalOpen(false);
+  }
+
+  function handleAcceptCall(mediaType: "voice" | "video") {
+    setActiveCall((prev) => ({
+      ...prev,
+      status: "connected",
+      mediaType,
+      durationSeconds: 0,
+    }));
+    toast.success(`Call connected (${mediaType === "video" ? "Video" : "Voice"})`);
+  }
+
+  function handleDeclineCall() {
+    if (activeCall.status === "incoming") {
+      const newLog: CallLog = {
+        id: `call-${Date.now()}`,
+        name: activeCall.contactName,
+        avatarUrl: activeCall.contactAvatar,
+        phone: activeCall.contactPhone || "",
+        callType: "missed",
+        mediaType: activeCall.mediaType,
+        duration: "00:00",
+        timestamp: "Just now",
+      };
+      const updated = [newLog, ...callLogs];
+      setCallLogs(updated);
+      try {
+        localStorage.setItem("master_hrms_call_history", JSON.stringify(updated));
+      } catch {}
     }
-
-    setTimeout(() => {
-      setLocalMessagesMap((prevMap) => {
-        const msgs = prevMap[activeThreadId];
-        if (!msgs) return prevMap;
-        const updated = msgs.map((m) => (m.id === msgId ? { ...m, status: "read" as const } : m));
-        return { ...prevMap, [activeThreadId]: updated };
-      });
-    }, 3500);
+    setActiveCall({
+      status: "idle",
+      mediaType: "voice",
+      contactName: "",
+      isMuted: false,
+      isVideoOff: false,
+      isSpeakerOn: true,
+      isScreenSharing: false,
+      isFullScreen: false,
+      durationSeconds: 0,
+      showChat: false,
+      showMoM: false,
+      isRecording: false,
+      recordingSeconds: 0,
+      momDiscussionPoints: "",
+      momDecisions: "",
+      momActionItems: "",
+    });
   }
 
-  // Pin / Unpin Message (Admin Only)
-  function handleTogglePinMessage(msg: ChatMessage) {
-    if (!currentThread) return;
-    const isCurrentlyPinned = currentThread.pinnedMessageId === msg.id;
+  function handleEndCall() {
+    const formattedDuration = formatCallDuration(activeCall.durationSeconds);
+    const momSummary = [
+      activeCall.momDiscussionPoints ? `Discussion: ${activeCall.momDiscussionPoints}` : "",
+      activeCall.momDecisions ? `Decisions: ${activeCall.momDecisions}` : "",
+      activeCall.momActionItems ? `Action Items: ${activeCall.momActionItems}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-    const updatedThreads = localThreads.map((t) =>
-      t.id === currentThread.id
-        ? {
-            ...t,
-            pinnedMessageId: isCurrentlyPinned ? undefined : msg.id,
-            pinnedMessageText: isCurrentlyPinned ? undefined : msg.text,
-          }
-        : t,
-    );
+    const newLog: CallLog = {
+      id: `call-${Date.now()}`,
+      name: activeCall.contactName,
+      avatarUrl: activeCall.contactAvatar,
+      phone: activeCall.contactPhone || "",
+      callType: activeCall.status === "incoming" ? "incoming" : "outgoing",
+      mediaType: activeCall.mediaType,
+      duration: formattedDuration,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      momNotes: momSummary || undefined,
+    };
+    const updated = [newLog, ...callLogs];
+    setCallLogs(updated);
+    try {
+      localStorage.setItem("master_hrms_call_history", JSON.stringify(updated));
+    } catch {}
 
-    setLocalThreads(updatedThreads);
-    saveChatStateMutation.mutate({ updatedThreads });
-    toast.success(isCurrentlyPinned ? "📌 Message unpinned from channel" : "📌 Message pinned to channel banner!");
+    setActiveCall({
+      status: "idle",
+      mediaType: "voice",
+      contactName: "",
+      isMuted: false,
+      isVideoOff: false,
+      isSpeakerOn: true,
+      isScreenSharing: false,
+      isFullScreen: false,
+      durationSeconds: 0,
+      showChat: false,
+      showMoM: false,
+      isRecording: false,
+      recordingSeconds: 0,
+      momDiscussionPoints: "",
+      momDecisions: "",
+      momActionItems: "",
+    });
+    toast.info(`Call ended · Duration: ${formattedDuration}`);
   }
 
-  // Toggle Emoji Reaction on a Message
-  function handleToggleReaction(msg: ChatMessage, emoji: string) {
-    if (!activeThreadId) return;
-    const currentReactions = { ...(msg.reactions || {}) };
-    const currentUsers = currentReactions[emoji] || [];
-
-    if (currentUsers.includes(myUserId)) {
-      currentReactions[emoji] = currentUsers.filter((id) => id !== myUserId);
-      if (currentReactions[emoji].length === 0) {
-        delete currentReactions[emoji];
-      }
+  function handleToggleRecording() {
+    if (!activeCall.isRecording) {
+      setActiveCall((prev) => ({ ...prev, isRecording: true, recordingSeconds: 0 }));
+      toast.success("Meeting recording started");
     } else {
-      currentReactions[emoji] = [...currentUsers, myUserId];
+      setActiveCall((prev) => ({ ...prev, isRecording: false }));
+      toast.info(`Recording saved (${formatCallDuration(activeCall.recordingSeconds)})`);
     }
-
-    const updatedMessages = activeMessages.map((m) =>
-      m.id === msg.id ? { ...m, reactions: currentReactions } : m,
-    );
-    const updatedMessagesMap = { ...localMessagesMap, [activeThreadId]: updatedMessages };
-
-    setLocalMessagesMap(updatedMessagesMap);
-    saveChatStateMutation.mutate({ updatedMessagesMap });
   }
 
-  // Start 1-on-1 Direct Chat with Employee (Instant Reactive Switching)
+  function handleExportMoM() {
+    const content = `MINUTES OF MEETING (MoM)
+=====================================
+Meeting Participant / Title: ${activeCall.contactName}
+Date: ${new Date().toLocaleDateString()}
+Duration: ${formatCallDuration(activeCall.durationSeconds)}
+Meeting Type: ${activeCall.mediaType === "video" ? "Video Conference" : "Voice Conference"}
+
+1. KEY DISCUSSION POINTS:
+${activeCall.momDiscussionPoints || "No points logged."}
+
+2. DECISIONS TAKEN:
+${activeCall.momDecisions || "No specific decisions logged."}
+
+3. ACTION ITEMS & OWNERS:
+${activeCall.momActionItems || "No action items recorded."}
+
+Generated by Master HRMS Workspace Suite`;
+
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `MoM_${activeCall.contactName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Minutes of Meeting exported successfully");
+  }
+
+  function handleCreateScheduledMeeting() {
+    if (!meetingForm.title.trim()) return toast.error("Meeting title is required");
+    const newMeeting: ScheduledMeeting = {
+      id: `meet-${Date.now()}`,
+      title: meetingForm.title.trim(),
+      agenda: meetingForm.agenda.trim(),
+      date: meetingForm.date,
+      startTime: meetingForm.startTime,
+      endTime: meetingForm.endTime,
+      meetingType: meetingForm.meetingType,
+      participantIds: meetingForm.participantIds,
+      createdByName: currentProfile?.full_name || "Super Admin",
+    };
+
+    const updated = [newMeeting, ...scheduledMeetings];
+    setScheduledMeetings(updated);
+    try {
+      localStorage.setItem("master_hrms_scheduled_meetings", JSON.stringify(updated));
+    } catch {}
+
+    setIsScheduleModalOpen(false);
+    setCallsSubTab("meetings");
+    setActiveTab("calls");
+    setMeetingForm({
+      title: "",
+      agenda: "",
+      date: new Date().toISOString().slice(0, 10),
+      startTime: "10:00",
+      endTime: "10:30",
+      meetingType: "video",
+      participantIds: [],
+    });
+    toast.success(`Meeting "${newMeeting.title}" scheduled`);
+  }
+
+  function handleCancelScheduledMeeting(meetingId: string) {
+    const updated = scheduledMeetings.filter((m) => m.id !== meetingId);
+    setScheduledMeetings(updated);
+    try {
+      localStorage.setItem("master_hrms_scheduled_meetings", JSON.stringify(updated));
+    } catch {}
+    toast.info("Scheduled meeting removed");
+  }
+
+  function handleStartScheduledMeeting(meeting: ScheduledMeeting) {
+    setActiveCall({
+      status: "outgoing",
+      mediaType: meeting.meetingType,
+      contactName: meeting.title,
+      contactRole: `Conference · ${meeting.participantIds.length + 1} Attendees`,
+      isMuted: false,
+      isVideoOff: false,
+      isSpeakerOn: true,
+      isScreenSharing: false,
+      isFullScreen: false,
+      durationSeconds: 0,
+      showChat: false,
+      showMoM: false,
+      isRecording: false,
+      recordingSeconds: 0,
+      momDiscussionPoints: meeting.agenda ? `Agenda: ${meeting.agenda}` : "",
+      momDecisions: "",
+      momActionItems: "",
+    });
+    toast.success(`Starting conference for "${meeting.title}"`);
+  }
+
   function handleStartDirectChat(emp: EmployeeUser) {
     const threadId = `direct-${emp.id}`;
     const existingThread = localThreads.find((t) => t.id === threadId);
@@ -902,34 +1168,20 @@ function TeamWhatsAppChatAddon() {
         unreadCount: 0,
       };
 
-      const welcomeMsg: ChatMessage = {
-        id: `msg-${Date.now()}`,
-        senderId: myUserId,
-        senderName: currentProfile?.full_name || "Super Admin",
-        senderAvatar: currentProfile?.avatar_url || undefined,
-        text: `👋 Hello ${emp.full_name}!`,
-        type: "text",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        isRead: true,
-      };
-
-      const nextThreads = [newThread, ...localThreads];
-      const nextMessagesMap = { ...localMessagesMap, [threadId]: [welcomeMsg] };
-
-      setLocalThreads(nextThreads);
-      setLocalMessagesMap(nextMessagesMap);
-      saveChatStateMutation.mutate({ updatedThreads: nextThreads, updatedMessagesMap: nextMessagesMap });
+      const updatedThreads = [newThread, ...localThreads];
+      setLocalThreads(updatedThreads);
+      saveChatStateMutation.mutate({ updatedThreads });
     }
 
     setActiveThreadId(threadId);
     setActiveTab("chats");
     setMobileView("chat");
-    toast.success(`Chat opened with ${emp.full_name}`);
   }
 
-  // Create Department Group
   function handleCreateGroup() {
-    if (!newGroupName.trim()) return toast.error("Group name is required");
+    if (!newGroupName.trim()) {
+      return toast.error("Please enter a group channel name");
+    }
 
     const newGroupId = `group-${Date.now()}`;
     const memberObjects = employeesList.filter((e) => selectedGroupMembers.includes(e.id));
@@ -945,9 +1197,10 @@ function TeamWhatsAppChatAddon() {
       isGroup: true,
       groupAdminIds: [myUserId],
       onlyAdminsCanSend,
-      participantIds: [myUserId, ...selectedGroupMembers],
+      groupDescription: groupDescription.trim() || undefined,
+      participantIds: Array.from(new Set([myUserId, ...selectedGroupMembers])),
       participantNames: memberNames,
-      lastMessage: "Group channel created.",
+      lastMessage: "Channel created.",
       lastMessageTime: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       unreadCount: 0,
     };
@@ -956,7 +1209,7 @@ function TeamWhatsAppChatAddon() {
       id: `msg-${Date.now()}`,
       senderId: myUserId,
       senderName: currentProfile?.full_name || "Super Admin",
-      text: `🎉 Welcome to ${newGroupName}! Group channel created with ${memberNames.length} team members.`,
+      text: `Channel "${newThread.name}" created with ${memberNames.length} member(s).`,
       type: "text",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       isRead: true,
@@ -971,41 +1224,32 @@ function TeamWhatsAppChatAddon() {
 
     setIsGroupModalOpen(false);
     setNewGroupName("");
+    setGroupDescription("");
     setNewGroupAvatar("");
     setSelectedGroupMembers([]);
+    setGroupMemberSearch("");
     setOnlyAdminsCanSend(false);
     setActiveThreadId(newGroupId);
     setActiveTab("groups");
     setMobileView("chat");
-    toast.success(`Group "${newThread.name}" created successfully!`);
+    toast.success(`Channel "${newThread.name}" created successfully`);
   }
 
-  function handleCreateGroupImageSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setNewGroupAvatar(ev.target?.result as string);
-      toast.success("Group photo selected!");
-    };
-    reader.readAsDataURL(files[0]);
-  }
+  function handleAddMembersToCurrentGroup(empIds: string[]) {
+    if (!currentThread || !currentThread.isGroup || empIds.length === 0) return;
 
-  // Add Member to Group
-  function handleAddMemberToGroup(emp: EmployeeUser) {
-    if (!currentThread) return;
-    if (currentThread.participantIds.includes(emp.id)) {
-      return toast.error("Employee is already in this channel.");
-    }
-
-    const updatedParticipantIds = [...currentThread.participantIds, emp.id];
-    const updatedParticipantNames = [...(currentThread.participantNames || []), emp.full_name];
+    const newEmployees = employeesList.filter((e) => empIds.includes(e.id));
+    const newNames = newEmployees.map((e) => e.full_name);
+    const updatedParticipantIds = Array.from(new Set([...currentThread.participantIds, ...empIds]));
+    const updatedParticipantNames = Array.from(
+      new Set([...(currentThread.participantNames || []), ...newNames]),
+    );
 
     const systemMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
-      senderId: "system",
-      senderName: "System",
-      text: `➕ ${emp.full_name} was added to the channel.`,
+      senderId: myUserId,
+      senderName: currentProfile?.full_name || "Super Admin",
+      text: `${currentProfile?.full_name || "Super Admin"} added ${newNames.join(", ")} to the channel.`,
       type: "text",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       isRead: true,
@@ -1017,33 +1261,42 @@ function TeamWhatsAppChatAddon() {
             ...t,
             participantIds: updatedParticipantIds,
             participantNames: updatedParticipantNames,
+            lastMessage: systemMsg.text,
+            lastMessageTime: systemMsg.timestamp,
           }
         : t,
     );
 
-    const updatedMessagesMap = {
-      ...localMessagesMap,
-      [currentThread.id]: [...activeMessages, systemMsg],
-    };
+    const updatedMessages = [...(localMessagesMap[currentThread.id] || []), systemMsg];
+    const updatedMessagesMap = { ...localMessagesMap, [currentThread.id]: updatedMessages };
 
     setLocalThreads(updatedThreads);
     setLocalMessagesMap(updatedMessagesMap);
     saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
-    toast.success(`${emp.full_name} added to ${currentThread.name}!`);
+    setIsAddMemberOpen(false);
+    setSelectedAddMembers([]);
+    setAddMemberSearch("");
+    toast.success(`Added ${newNames.length} member(s) to ${currentThread.name}`);
   }
 
-  // Remove Member from Group
   function handleRemoveMemberFromGroup(empId: string, empName: string) {
-    if (!currentThread) return;
+    if (!currentThread || !currentThread.isGroup) return;
+
+    const isMyGroupAdmin =
+      currentThread.groupAdminIds?.includes(myUserId) || myUserId === "super_admin";
+    if (!isMyGroupAdmin) {
+      return toast.error("Only channel admins can remove members.");
+    }
 
     const updatedParticipantIds = currentThread.participantIds.filter((id) => id !== empId);
     const updatedParticipantNames = (currentThread.participantNames || []).filter((n) => n !== empName);
+    const updatedAdminIds = (currentThread.groupAdminIds || []).filter((id) => id !== empId);
 
     const systemMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
-      senderId: "system",
-      senderName: "System",
-      text: `➖ ${empName} was removed from the channel.`,
+      senderId: myUserId,
+      senderName: currentProfile?.full_name || "Super Admin",
+      text: `${currentProfile?.full_name || "Super Admin"} removed ${empName} from the channel.`,
       type: "text",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       isRead: true,
@@ -1055,145 +1308,158 @@ function TeamWhatsAppChatAddon() {
             ...t,
             participantIds: updatedParticipantIds,
             participantNames: updatedParticipantNames,
+            groupAdminIds: updatedAdminIds,
+            lastMessage: systemMsg.text,
+            lastMessageTime: systemMsg.timestamp,
           }
         : t,
     );
 
-    const updatedMessagesMap = {
-      ...localMessagesMap,
-      [currentThread.id]: [...activeMessages, systemMsg],
-    };
+    const updatedMessages = [...(localMessagesMap[currentThread.id] || []), systemMsg];
+    const updatedMessagesMap = { ...localMessagesMap, [currentThread.id]: updatedMessages };
 
     setLocalThreads(updatedThreads);
     setLocalMessagesMap(updatedMessagesMap);
     saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
-    toast.success(`${empName} removed from channel.`);
+    toast.info(`Removed ${empName} from channel`);
   }
 
-  // Leave Group Handler
-  function handleLeaveGroup() {
-    if (!currentThread) return;
-    const currentUserName = currentProfile?.full_name || "Super Admin";
+  function handleToggleGroupAdminRole(empId: string, empName: string) {
+    if (!currentThread || !currentThread.isGroup) return;
 
-    const updatedParticipantIds = currentThread.participantIds.filter((id) => id !== myUserId);
-    const updatedParticipantNames = (currentThread.participantNames || []).filter((n) => n !== currentUserName);
-
-    const systemMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      senderId: "system",
-      senderName: "System",
-      text: `🚪 ${currentUserName} left the channel.`,
-      type: "text",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      isRead: true,
-    };
-
-    const updatedThreads = localThreads.map((t) =>
-      t.id === currentThread.id
-        ? {
-            ...t,
-            participantIds: updatedParticipantIds,
-            participantNames: updatedParticipantNames,
-          }
-        : t,
-    );
-
-    const updatedMessagesMap = {
-      ...localMessagesMap,
-      [currentThread.id]: [...activeMessages, systemMsg],
-    };
-
-    setLocalThreads(updatedThreads);
-    setLocalMessagesMap(updatedMessagesMap);
-    saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
-    setIsGroupInfoOpen(false);
-    toast.success(`You left ${currentThread.name}`);
-  }
-
-  // Delete Group Handler
-  function handleDeleteGroup() {
-    if (!currentThread) return;
-    if (!window.confirm(`Are you sure you want to permanently delete "${currentThread.name}"? This action cannot be undone.`)) {
-      return;
+    const isMyGroupAdmin =
+      currentThread.groupAdminIds?.includes(myUserId) || myUserId === "super_admin";
+    if (!isMyGroupAdmin) {
+      return toast.error("Only channel admins can change member roles.");
     }
 
-    const updatedThreads = localThreads.filter((t) => t.id !== currentThread.id);
+    const currentAdmins = currentThread.groupAdminIds || [myUserId];
+    const isTargetAdmin = currentAdmins.includes(empId);
+    const updatedAdminIds = isTargetAdmin
+      ? currentAdmins.filter((id) => id !== empId)
+      : [...currentAdmins, empId];
+
+    const updatedThreads = localThreads.map((t) =>
+      t.id === currentThread.id
+        ? {
+            ...t,
+            groupAdminIds: updatedAdminIds,
+          }
+        : t,
+    );
+
+    setLocalThreads(updatedThreads);
+    saveChatStateMutation.mutate({ updatedThreads });
+    toast.success(
+      isTargetAdmin ? `Dismissed ${empName} as admin` : `Promoted ${empName} to channel admin`,
+    );
+  }
+
+  function handleToggleBroadcastMode(checked: boolean) {
+    if (!currentThread || !currentThread.isGroup) return;
+
+    const updatedThreads = localThreads.map((t) =>
+      t.id === currentThread.id
+        ? {
+            ...t,
+            onlyAdminsCanSend: checked,
+          }
+        : t,
+    );
+
+    setLocalThreads(updatedThreads);
+    saveChatStateMutation.mutate({ updatedThreads });
+    toast.success(
+      checked
+        ? "Broadcast mode enabled: Only admins can post"
+        : "Standard mode: All members can send messages",
+    );
+  }
+
+  function handleLeaveGroupChannel(threadId: string) {
+    const thread = localThreads.find((t) => t.id === threadId);
+    if (!thread) return;
+
+    const updatedParticipantIds = thread.participantIds.filter((id) => id !== myUserId);
+    const updatedParticipantNames = (thread.participantNames || []).filter(
+      (n) => n !== (currentProfile?.full_name || "Super Admin"),
+    );
+    const updatedAdminIds = (thread.groupAdminIds || []).filter((id) => id !== myUserId);
+
+    const systemMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      senderId: myUserId,
+      senderName: currentProfile?.full_name || "Super Admin",
+      text: `${currentProfile?.full_name || "Super Admin"} left the channel.`,
+      type: "text",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      isRead: true,
+    };
+
+    const updatedThreads = localThreads.map((t) =>
+      t.id === threadId
+        ? {
+            ...t,
+            participantIds: updatedParticipantIds,
+            participantNames: updatedParticipantNames,
+            groupAdminIds: updatedAdminIds,
+            lastMessage: systemMsg.text,
+            lastMessageTime: systemMsg.timestamp,
+          }
+        : t,
+    );
+
+    const updatedMessages = [...(localMessagesMap[threadId] || []), systemMsg];
+    const updatedMessagesMap = { ...localMessagesMap, [threadId]: updatedMessages };
+
+    setLocalThreads(updatedThreads);
+    setLocalMessagesMap(updatedMessagesMap);
+    saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
+
+    setActiveThreadId(null);
+    setIsProfileDrawerOpen(false);
+    toast.info(`Left channel "${thread.name}"`);
+  }
+
+  function handleDeleteGroupChannel(threadId: string) {
+    const threadToDelete = localThreads.find((t) => t.id === threadId);
+    if (!threadToDelete) return;
+
+    const updatedThreads = localThreads.filter((t) => t.id !== threadId);
     const updatedMessagesMap = { ...localMessagesMap };
-    delete updatedMessagesMap[currentThread.id];
+    delete updatedMessagesMap[threadId];
 
     setLocalThreads(updatedThreads);
     setLocalMessagesMap(updatedMessagesMap);
     saveChatStateMutation.mutate({ updatedThreads, updatedMessagesMap });
-    setIsGroupInfoOpen(false);
-    setActiveThreadId(updatedThreads[0]?.id || "");
-    toast.success(`Channel "${currentThread.name}" deleted.`);
+
+    setActiveThreadId(null);
+    setIsProfileDrawerOpen(false);
+    toast.success(`Channel "${threadToDelete.name}" deleted`);
   }
 
-  // Update Group Profile Picture in Info Modal
-  function handleGroupAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !currentThread) return;
+  // Extract shared media and attachments for the active conversation
+  const sharedMediaList = useMemo(() => {
+    return activeMessages.filter((m) => m.type === "image" && m.mediaUrl);
+  }, [activeMessages]);
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const avatarUrl = ev.target?.result as string;
-      const updatedThreads = localThreads.map((t) =>
-        t.id === currentThread.id ? { ...t, avatarUrl } : t,
-      );
-      setLocalThreads(updatedThreads);
-      saveChatStateMutation.mutate({ updatedThreads });
-      toast.success("Group profile picture updated!");
-    };
-    reader.readAsDataURL(files[0]);
-  }
-
-  // Mobile Touch Gestures: Swipe Right to Reply & Long Press to React
-  function handleTouchStart(e: React.TouchEvent, msg: ChatMessage) {
-    touchStartXRef.current = e.touches[0].clientX;
-    touchCurrentXRef.current = e.touches[0].clientX;
-
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = setTimeout(() => {
-      handleToggleReaction(msg, "❤️");
-      toast.success(`Reacted ❤️ to ${msg.senderName}'s message`);
-    }, 550);
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    touchCurrentXRef.current = e.touches[0].clientX;
-    if (Math.abs(touchCurrentXRef.current - touchStartXRef.current) > 10) {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
-    }
-  }
-
-  function handleTouchEnd(msg: ChatMessage) {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    const deltaX = touchCurrentXRef.current - touchStartXRef.current;
-    if (deltaX > 45) {
-      setReplyingTo(msg);
-      toast.info(`Replying to ${msg.senderName}`);
-    }
-  }
+  const sharedDocumentsList = useMemo(() => {
+    return activeMessages.filter((m) => m.type === "file" && (m.fileName || m.mediaUrl));
+  }, [activeMessages]);
 
   return (
     <PlanGuard moduleName="Team Internal Chat" requiredPlan="starter">
-      {/* FULL WIDTH & FULL HEIGHT EDGE-TO-EDGE WORKSPACE WITHOUT TOPBAR */}
-      <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100vh-3.5rem)] flex flex-col w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] overflow-hidden bg-background">
-        {/* MAIN FULL-BLEED CHAT WORKSPACE */}
-        <div className="flex-1 flex overflow-hidden w-full h-full min-h-0">
-          {/* LEFT CONVERSATION SIDEBAR */}
+      {/* FULL RESPONSIVE WORKSPACE CONTAINER */}
+      <div className="h-[calc(100vh-6.5rem)] sm:h-[calc(100vh-7.5rem)] w-full rounded-xl border bg-card flex flex-col overflow-hidden shadow-xs relative">
+        <div className="flex-1 flex overflow-hidden w-full h-full min-h-0 relative">
+          
+          {/* 1. LEFT CONVERSATION SIDEBAR */}
           <div
             className={`${
-              mobileView === "chat" ? "hidden lg:flex" : "flex"
-            } w-full lg:w-[380px] lg:min-w-[340px] border-r bg-card flex-col h-full min-h-0 shrink-0 z-10`}
+              mobileView === "chat" ? "hidden md:flex" : "flex"
+            } w-full md:w-[320px] lg:w-[360px] border-r bg-card flex-col h-full min-h-0 shrink-0 z-10 transition-all duration-200`}
           >
-            {/* Sidebar Profile Header with Live Status & Group Creation */}
+            {/* Sidebar Profile Header */}
             <div className="p-3 bg-muted/20 border-b flex items-center justify-between shrink-0 gap-2">
               <div
                 onClick={() => {
@@ -1202,7 +1468,7 @@ function TeamWhatsAppChatAddon() {
                   setIsStatusModalOpen(true);
                 }}
                 className="flex items-center gap-2.5 min-w-0 cursor-pointer group flex-1"
-                title="Click to update your status note"
+                title="Update your availability status"
               >
                 <div className="relative shrink-0">
                   <Avatar className="size-9 border-2 border-emerald-500 shrink-0">
@@ -1218,68 +1484,33 @@ function TeamWhatsAppChatAddon() {
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold text-xs truncate text-foreground group-hover:text-primary transition-colors">
+                  <div className="font-semibold text-xs truncate text-foreground group-hover:text-primary transition-colors">
                     {currentProfile?.full_name || "Super Admin"}
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1 truncate">
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
                     <span>{PRESENCE_CONFIG[myPresence.status].icon}</span>
                     <span className="truncate">{myPresence.customText || PRESENCE_CONFIG[myPresence.status].label}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Status Switcher Dropdown & + Group Button */}
+              {/* Status Switcher & Group Button */}
               <div className="flex items-center gap-1 shrink-0">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={`h-7 px-2 text-[11px] font-bold border gap-1 rounded-lg ${PRESENCE_CONFIG[myPresence.status].badgeClass}`}
-                      title="Change Status"
-                    >
-                      <div className={`size-1.5 rounded-full ${PRESENCE_CONFIG[myPresence.status].dotClass}`} />
-                      <span className="hidden sm:inline">{PRESENCE_CONFIG[myPresence.status].label}</span>
-                      <ChevronDown className="size-3 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 text-xs">
-                    <DropdownMenuLabel className="text-[11px] font-bold">Set Availability Status</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {(Object.keys(PRESENCE_CONFIG) as PresenceStatusType[]).map((st) => (
-                      <DropdownMenuItem
-                        key={st}
-                        onClick={() => handleSavePresence(st)}
-                        className="flex items-center justify-between cursor-pointer py-1.5"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{PRESENCE_CONFIG[st].icon}</span>
-                          <span className="font-semibold">{PRESENCE_CONFIG[st].label}</span>
-                        </div>
-                        {myPresence.status === st && <CheckCheck className="size-3.5 text-emerald-600" />}
-                      </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedStatusType(myPresence.status);
-                        setCustomStatusText(myPresence.customText || "");
-                        setIsStatusModalOpen(true);
-                      }}
-                      className="text-primary font-bold cursor-pointer gap-1.5"
-                    >
-                      <Sparkles className="size-3.5" />
-                      <span>Set Custom Status Note...</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="size-7 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsScheduleModalOpen(true)}
+                  title="Schedule a Meeting"
+                >
+                  <Calendar className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
                   onClick={() => setIsGroupModalOpen(true)}
-                  title="Create Department Group / Channel"
+                  title="Create Department Channel"
                 >
                   <FolderPlus className="size-4" />
                 </Button>
@@ -1291,7 +1522,7 @@ function TeamWhatsAppChatAddon() {
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 size-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search chats, employees or channels..."
+                  placeholder="Search chats, staff, or channels..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-8 text-xs bg-muted/30 rounded-lg border-muted"
@@ -1299,37 +1530,41 @@ function TeamWhatsAppChatAddon() {
               </div>
             </div>
 
-            {/* Tabs: All Chats vs Groups vs Employee Directory */}
+            {/* Tabs: Chats / Channels / Staff / Calls / Meetings */}
             <div className="flex-1 overflow-y-auto min-h-0">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="px-2 pt-2">
-                  <TabsList className="grid grid-cols-3 w-full h-8 text-[11px] bg-muted/40">
-                    <TabsTrigger value="chats" className="text-[11px] py-1 font-bold">
-                      Chats ({localThreads.length})
+                  <TabsList className="grid grid-cols-4 w-full h-8 text-[11px] bg-muted/40">
+                    <TabsTrigger value="chats" className="text-[11px] py-1 font-semibold truncate px-1">
+                      Chats ({localThreads.filter((t) => !t.isGroup).length})
                     </TabsTrigger>
-                    <TabsTrigger value="groups" className="text-[11px] py-1 font-bold">
+                    <TabsTrigger value="groups" className="text-[11px] py-1 font-semibold truncate px-1">
                       Groups ({localThreads.filter((t) => t.isGroup).length})
                     </TabsTrigger>
-                    <TabsTrigger value="employees" className="text-[11px] py-1 font-bold">
+                    <TabsTrigger value="employees" className="text-[11px] py-1 font-semibold truncate px-1">
                       Staff ({employeesList.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="calls" className="text-[11px] py-1 font-semibold truncate px-1 text-emerald-700 dark:text-emerald-300">
+                      Calls ({callLogs.length + scheduledMeetings.length})
                     </TabsTrigger>
                   </TabsList>
                 </div>
 
-                {/* TAB 1: CHATS LIST */}
+                {/* TAB 1: DIRECT CHATS */}
                 <TabsContent value="chats" className="space-y-0.5 mt-2">
-                  {localThreads.length === 0 ? (
+                  {localThreads.filter((t) => !t.isGroup).length === 0 ? (
                     <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
                       <MessageSquare className="size-8 mx-auto opacity-30 text-emerald-600" />
-                      <p className="font-bold text-foreground">No active chats yet</p>
-                      <p>Select an employee from the Staff tab to start a conversation.</p>
+                      <p className="font-semibold text-foreground">No active direct chats</p>
+                      <p>Select any colleague from the Staff tab to begin messaging.</p>
                     </div>
                   ) : (
                     localThreads
+                      .filter((t) => !t.isGroup)
                       .filter((t) => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
                       .map((t) => {
                         const isActive = t.id === activeThreadId;
-                        const otherEmpId = !t.isGroup ? t.participantIds.find((id) => id !== myUserId) : null;
+                        const otherEmpId = t.participantIds.find((id) => id !== myUserId);
                         const otherPresence = otherEmpId ? presenceMap[otherEmpId] : null;
 
                         return (
@@ -1339,15 +1574,15 @@ function TeamWhatsAppChatAddon() {
                               setActiveThreadId(t.id);
                               setMobileView("chat");
                             }}
-                            className={`p-3 flex items-center justify-between cursor-pointer border-b/40 transition-colors ${
+                            className={`p-3 flex items-center justify-between cursor-pointer border-b border-border/30 transition-colors ${
                               isActive
                                 ? "bg-emerald-500/10 border-l-4 border-l-emerald-600"
                                 : "hover:bg-muted/30"
                             }`}
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <div className="relative">
-                                <Avatar className="size-10 shrink-0 border">
+                              <div className="relative shrink-0">
+                                <Avatar className="size-10 border">
                                   <AvatarImage src={t.avatarUrl} />
                                   <AvatarFallback className="bg-emerald-700 text-white font-bold text-xs">
                                     {getInitials(t.name)}
@@ -1364,8 +1599,7 @@ function TeamWhatsAppChatAddon() {
 
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between">
-                                  <h4 className="font-bold text-xs truncate text-foreground flex items-center gap-1">
-                                    {t.pinnedMessageId && <Pin className="size-3 text-amber-500 shrink-0 fill-current" />}
+                                  <h4 className="font-semibold text-xs truncate text-foreground flex items-center gap-1">
                                     <span>{t.name}</span>
                                   </h4>
                                   <span className="text-[10px] text-muted-foreground font-mono">
@@ -1377,180 +1611,440 @@ function TeamWhatsAppChatAddon() {
                                 </p>
                               </div>
                             </div>
-
-                            {t.unreadCount > 0 && (
-                              <Badge className="ml-2 bg-emerald-600 text-white text-[10px] rounded-full size-5 grid place-items-center p-0 font-bold shrink-0">
-                                {t.unreadCount}
-                              </Badge>
-                            )}
                           </div>
                         );
                       })
                   )}
                 </TabsContent>
 
-                {/* TAB 2: GROUPS LIST */}
-                <TabsContent value="groups" className="space-y-0.5 mt-2">
+                {/* TAB 2: GROUPS / CHANNELS */}
+                <TabsContent value="groups" className="space-y-2 mt-2">
+                  <div className="px-2">
+                    <Button
+                      size="sm"
+                      onClick={() => setIsGroupModalOpen(true)}
+                      className="w-full h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs"
+                    >
+                      <Plus className="size-3.5" /> Create New Group
+                    </Button>
+                  </div>
+
                   {localThreads.filter((t) => t.isGroup).length === 0 ? (
                     <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
                       <Users className="size-8 mx-auto opacity-30 text-emerald-600" />
-                      <p className="font-bold text-foreground">No groups created yet</p>
-                      <p>Click &quot;+ Create Group&quot; to build department channels.</p>
+                      <p className="font-semibold text-foreground">No channels created</p>
+                      <p>Create your first group channel to collaborate with teammates.</p>
                     </div>
                   ) : (
-                    localThreads
-                      .filter((t) => t.isGroup)
-                      .map((t) => (
-                        <div
-                          key={t.id}
-                          onClick={() => {
-                            setActiveThreadId(t.id);
-                            setMobileView("chat");
-                          }}
-                          className={`p-3 flex items-center gap-3 cursor-pointer border-b/40 transition-colors ${
-                            t.id === activeThreadId
-                              ? "bg-emerald-500/10 border-l-4 border-l-emerald-600"
-                              : "hover:bg-muted/30"
-                          }`}
-                        >
-                          <Avatar className="size-10 shrink-0 border">
-                            <AvatarImage src={t.avatarUrl} />
-                            <AvatarFallback className="bg-emerald-700 text-white font-bold text-xs">
-                              {getInitials(t.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-xs truncate flex items-center gap-1.5 text-foreground">
-                              <span>{t.name}</span>
-                              {t.onlyAdminsCanSend && (
-                                <Badge variant="outline" className="text-[8px] font-mono text-amber-600 border-amber-500/40">
-                                  Admin Only
-                                </Badge>
-                              )}
+                    <div className="divide-y divide-border/30">
+                      {localThreads
+                        .filter((t) => t.isGroup)
+                        .filter((t) => !searchQuery || t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map((t) => {
+                          const isActive = t.id === activeThreadId;
+                          return (
+                            <div
+                              key={t.id}
+                              onClick={() => {
+                                setActiveThreadId(t.id);
+                                setMobileView("chat");
+                              }}
+                              className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                                isActive
+                                  ? "bg-emerald-500/10 border-l-4 border-l-emerald-600"
+                                  : "hover:bg-muted/30"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <Avatar className="size-10 border shrink-0">
+                                  <AvatarImage src={t.avatarUrl} />
+                                  <AvatarFallback className="bg-primary/20 text-primary font-bold text-xs">
+                                    {getInitials(t.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-xs truncate text-foreground">{t.name}</h4>
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      {t.lastMessageTime}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                    {t.lastMessage}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                              {t.participantNames?.length || t.participantIds?.length || 0} Members
-                            </p>
-                          </div>
-                        </div>
-                      ))
+                          );
+                        })}
+                    </div>
                   )}
                 </TabsContent>
 
-                {/* TAB 3: ALL EMPLOYEES DIRECTORY WITH LIVE PRESENCE */}
+                {/* TAB 3: REAL DB STAFF DIRECTORY */}
                 <TabsContent value="employees" className="space-y-0.5 mt-2">
-                  <div className="p-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Company Employee Directory ({employeesList.length})
-                  </div>
-                  {employeesList
-                    .filter(
-                      (e) =>
-                        !searchQuery ||
-                        e.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        e.email.toLowerCase().includes(searchQuery.toLowerCase()),
-                    )
-                    .map((emp) => {
-                      const empPresence = presenceMap[emp.id] || {
-                        status: (emp.isCheckedIn ? "available" : "offline") as PresenceStatusType,
-                        customText: emp.isCheckedIn ? "Online & Checked In" : "Offline",
-                      };
+                  {isEmployeesLoading ? (
+                    <div className="p-6 text-center text-xs text-muted-foreground">Loading staff directory...</div>
+                  ) : employeesList.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+                      <Users className="size-8 mx-auto opacity-30 text-emerald-600" />
+                      <p className="font-semibold text-foreground">No employees found</p>
+                      <p>Add employees via the Staff Management module.</p>
+                    </div>
+                  ) : (
+                    employeesList
+                      .filter(
+                        (e) =>
+                          !searchQuery ||
+                          e.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          e.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          e.role.toLowerCase().includes(searchQuery.toLowerCase()),
+                      )
+                      .map((emp) => {
+                        const empPresence = presenceMap[emp.id] || {
+                          status: (emp.isCheckedIn ? "available" : "offline") as PresenceStatusType,
+                          customText: emp.isCheckedIn ? "Online & Checked In" : "Offline",
+                        };
 
-                      return (
-                        <div
-                          key={emp.id}
-                          onClick={() => handleStartDirectChat(emp)}
-                          className="p-2.5 flex items-center justify-between cursor-pointer border-b/30 hover:bg-muted/30 transition-colors"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="relative">
-                              <Avatar className="size-9 border">
-                                <AvatarImage src={emp.avatar_url} />
-                                <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
-                                  {getInitials(emp.full_name)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div
-                                className={`absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-background ${
-                                  PRESENCE_CONFIG[empPresence.status]?.dotClass || "bg-slate-400"
-                                }`}
-                              />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-xs truncate text-foreground flex items-center gap-1.5">
-                                <span>{emp.full_name}</span>
-                                <Badge variant="outline" className={`text-[8px] py-0 h-3.5 ${PRESENCE_CONFIG[empPresence.status]?.badgeClass}`}>
-                                  {PRESENCE_CONFIG[empPresence.status]?.label}
-                                </Badge>
+                        return (
+                          <div
+                            key={emp.id}
+                            className="p-2.5 flex items-center justify-between border-b border-border/30 hover:bg-muted/30 transition-colors"
+                          >
+                            <div
+                              onClick={() => handleStartDirectChat(emp)}
+                              className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+                            >
+                              <div className="relative shrink-0">
+                                <Avatar className="size-9 border">
+                                  <AvatarImage src={emp.avatar_url} />
+                                  <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                                    {getInitials(emp.full_name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div
+                                  className={`absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-background ${
+                                    PRESENCE_CONFIG[empPresence.status]?.dotClass || "bg-slate-400"
+                                  }`}
+                                />
                               </div>
-                              <div className="text-[10px] text-muted-foreground truncate font-mono">
-                                {empPresence.customText || emp.role}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-semibold text-xs truncate text-foreground">
+                                  {emp.full_name}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground truncate font-mono">
+                                  {emp.role} · {emp.department}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Direct Communication Buttons */}
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7 text-emerald-600 hover:bg-emerald-50"
+                                onClick={() => handleStartCall("voice", emp.full_name, emp.avatar_url, emp.role, emp.id, emp.email, emp.phone)}
+                                title="Voice Call"
+                              >
+                                <Phone className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7 text-blue-600 hover:bg-blue-50"
+                                onClick={() => handleStartCall("video", emp.full_name, emp.avatar_url, emp.role, emp.id, emp.email, emp.phone)}
+                                title="Video Call"
+                              >
+                                <Video className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7 text-muted-foreground hover:bg-muted"
+                                onClick={() => handleStartDirectChat(emp)}
+                                title="Message"
+                              >
+                                <MessageSquare className="size-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </TabsContent>
+
+                {/* TAB 4: CALLS & SCHEDULED MEETINGS */}
+                <TabsContent value="calls" className="space-y-2 mt-2">
+                  <div className="px-2 space-y-2">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <Button
+                        size="sm"
+                        onClick={() => setIsNewCallModalOpen(true)}
+                        className="h-7 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 flex-1"
+                      >
+                        <PhoneCall className="size-3.5" /> Start Call
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        className="h-7 text-xs font-semibold gap-1 flex-1 text-emerald-600 border-emerald-500/30"
+                      >
+                        <Calendar className="size-3.5" /> Schedule Meeting
+                      </Button>
+                    </div>
+
+                    {/* Sub-Tab Switcher: Call Logs vs Upcoming Meetings */}
+                    <div className="flex items-center gap-1 p-0.5 bg-muted/60 rounded-lg">
+                      <button
+                        onClick={() => setCallsSubTab("history")}
+                        className={`flex-1 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                          callsSubTab === "history"
+                            ? "bg-background text-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Call Logs ({callLogs.length})
+                      </button>
+                      <button
+                        onClick={() => setCallsSubTab("meetings")}
+                        className={`flex-1 py-1 text-[11px] font-semibold rounded-md transition-colors ${
+                          callsSubTab === "meetings"
+                            ? "bg-background text-emerald-600 shadow-2xs font-bold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Upcoming Meetings ({scheduledMeetings.length})
+                      </button>
+                    </div>
+
+                    {/* Filter Pills for Call History */}
+                    {callsSubTab === "history" && (
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1 p-0.5 bg-muted/40 rounded-lg flex-1">
+                          {(["all", "incoming", "outgoing", "missed"] as const).map((f) => (
+                            <button
+                              key={f}
+                              onClick={() => setCallFilter(f)}
+                              className={`flex-1 py-1 text-[10px] font-semibold rounded-md capitalize transition-colors ${
+                                callFilter === f
+                                  ? "bg-background text-foreground shadow-2xs"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {f}
+                            </button>
+                          ))}
+                        </div>
+
+                        {callLogs.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setCallLogs([]);
+                              try {
+                                localStorage.removeItem("master_hrms_call_history");
+                              } catch {}
+                              toast.success("Call history cleared");
+                            }}
+                            className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                            title="Clear all call history records"
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 1. UPCOMING MEETINGS VIEW */}
+                  {callsSubTab === "meetings" && (
+                    <div className="divide-y divide-border/30">
+                      {scheduledMeetings.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-muted-foreground space-y-3">
+                          <Calendar className="size-8 mx-auto opacity-30 text-emerald-600" />
+                          <div>
+                            <p className="font-semibold text-foreground">No Upcoming Meetings</p>
+                            <p className="text-[11px] mt-0.5">Schedule team video syncs or voice conferences.</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => setIsScheduleModalOpen(true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5 h-7"
+                          >
+                            <Calendar className="size-3.5" /> Schedule a Meeting
+                          </Button>
+                        </div>
+                      ) : (
+                        scheduledMeetings.map((meet) => (
+                          <div key={meet.id} className="p-3 hover:bg-muted/30 transition-colors space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className="bg-emerald-600/10 text-emerald-600 border-emerald-500/30 text-[9px] py-0 h-4 px-1.5 font-bold uppercase">
+                                    {meet.meetingType === "video" ? "Video Sync" : "Voice Call"}
+                                  </Badge>
+                                  <span className="text-[10px] font-mono font-semibold text-muted-foreground">
+                                    {meet.date} · {meet.startTime} - {meet.endTime}
+                                  </span>
+                                </div>
+                                <h4 className="font-bold text-xs text-foreground mt-1 truncate">{meet.title}</h4>
+                                {meet.agenda && (
+                                  <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{meet.agenda}</p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-border/20 text-[10px] text-muted-foreground">
+                              <span>Created by {meet.createdByName}</span>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleCancelScheduledMeeting(meet.id)}
+                                  className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleStartScheduledMeeting(meet)}
+                                  className="h-6 px-2.5 text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                                >
+                                  {meet.meetingType === "video" ? <Video className="size-3" /> : <Phone className="size-3" />}
+                                  Join / Start
+                                </Button>
                               </div>
                             </div>
                           </div>
+                        ))
+                      )}
+                    </div>
+                  )}
 
-                          <Button size="icon" variant="ghost" className="size-7 text-emerald-600">
-                            <MessageSquare className="size-3.5" />
-                          </Button>
-                        </div>
-                      );
-                    })}
+                  {/* Call Log List */}
+                  <div className="divide-y divide-border/30">
+                    {callLogs.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+                        <Phone className="size-8 mx-auto opacity-30 text-emerald-600" />
+                        <p className="font-semibold text-foreground">No call history</p>
+                        <p>Initiate a voice or video call with any team member.</p>
+                      </div>
+                    ) : (
+                      callLogs
+                        .filter((c) => (callFilter === "all" ? true : c.callType === callFilter))
+                        .map((call) => (
+                          <div key={call.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="relative shrink-0">
+                                <Avatar className="size-9 border">
+                                  <AvatarImage src={call.avatarUrl} />
+                                  <AvatarFallback className="bg-emerald-700 text-white font-bold text-xs">
+                                    {getInitials(call.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div
+                                  className={`absolute -bottom-1 -right-1 size-4 rounded-full border border-background grid place-items-center ${
+                                    call.callType === "missed"
+                                      ? "bg-rose-500 text-white"
+                                      : call.callType === "incoming"
+                                      ? "bg-emerald-500 text-white"
+                                      : "bg-blue-500 text-white"
+                                  }`}
+                                >
+                                  {call.callType === "missed" ? (
+                                    <PhoneMissed className="size-2.5" />
+                                  ) : call.callType === "incoming" ? (
+                                    <PhoneIncoming className="size-2.5" />
+                                  ) : (
+                                    <PhoneOutgoing className="size-2.5" />
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-semibold text-xs truncate text-foreground">{call.name}</h4>
+                                  <span className="text-[10px] text-muted-foreground">{call.timestamp}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                                  <span>{call.mediaType === "video" ? "Video Call" : "Voice Call"}</span>
+                                  <span>·</span>
+                                  <span className="font-mono">{call.duration}</span>
+                                  {call.momNotes && <Badge variant="outline" className="text-[8px] py-0 h-3.5">MoM Logged</Badge>}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0 ml-2">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7 text-emerald-600 hover:bg-emerald-50"
+                                onClick={() => handleStartCall("voice", call.name, call.avatarUrl)}
+                                title="Redial Voice"
+                              >
+                                <Phone className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7 text-blue-600 hover:bg-blue-50"
+                                onClick={() => handleStartCall("video", call.name, call.avatarUrl)}
+                                title="Redial Video"
+                              >
+                                <Video className="size-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
                 </TabsContent>
               </Tabs>
             </div>
           </div>
 
-          {/* RIGHT ACTIVE CHAT WORKSPACE */}
+          {/* 2. CENTER ACTIVE CHAT AREA */}
           <div
-            onDragOver={handleDragOver}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
             className={`${
-              mobileView === "sidebar" ? "hidden lg:flex" : "flex"
+              mobileView === "sidebar" ? "hidden md:flex" : "flex"
             } flex-1 flex-col justify-between bg-muted/10 relative h-full min-h-0 overflow-hidden`}
           >
-            {/* DRAG AND DROP HIGH-VISIBILITY OVERLAY */}
-            {isDragging && (
-              <div className="absolute inset-0 z-50 bg-emerald-950/70 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-white border-4 border-dashed border-emerald-400 animate-in fade-in-50 duration-150">
-                <div className="p-4 rounded-full bg-emerald-500/20 text-emerald-400 animate-bounce mb-3">
-                  <UploadCloud className="size-12" />
-                </div>
-                <h3 className="text-lg font-black tracking-tight">Drop files or images to attach</h3>
-                <p className="text-xs text-emerald-200 mt-1 max-w-sm text-center">
-                  Drop PDF documents, spreadsheets, images, or archives directly into {currentThread?.name || "this chat"}.
-                </p>
-              </div>
-            )}
-
             {!currentThread ? (
               <div className="py-32 flex flex-col items-center justify-center text-center text-muted-foreground space-y-3 p-6">
                 <div className="size-16 rounded-full bg-emerald-500/10 grid place-items-center text-emerald-600">
                   <MessageSquare className="size-8" />
                 </div>
-                <h3 className="font-bold text-lg text-foreground">Enterprise Team Messenger</h3>
+                <h3 className="font-bold text-lg text-foreground">Team Internal Chat</h3>
                 <p className="text-xs max-w-sm">
-                  Select an employee from the Staff tab or create a group channel to begin chatting.
+                  Select a team member from the Staff tab or create a group channel to communicate.
                 </p>
                 <Button
                   size="sm"
                   onClick={() => setIsGroupModalOpen(true)}
-                  className="bg-emerald-600 text-white text-xs font-bold gap-1.5"
+                  className="bg-emerald-600 text-white text-xs font-semibold gap-1.5"
                 >
                   <Plus className="size-3.5" /> Create Group Channel
                 </Button>
               </div>
             ) : (
               <>
-                {/* Active Chat Top Bar */}
+                {/* Active Chat Top Header */}
                 <div className="p-3 px-4 bg-card border-b flex items-center justify-between shrink-0 shadow-2xs">
+                  {/* Clickable user profile trigger */}
                   <div
-                    onClick={() => currentThread.isGroup && setIsGroupInfoOpen(true)}
-                    className={`flex items-center gap-3 min-w-0 ${currentThread.isGroup ? "cursor-pointer hover:opacity-85" : ""}`}
+                    onClick={() => setIsProfileDrawerOpen((prev) => !prev)}
+                    className="flex items-center gap-3 min-w-0 cursor-pointer group flex-1"
+                    title="Click to view full user profile & shared media"
                   >
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-8 lg:hidden shrink-0 text-emerald-600"
+                      className="size-8 md:hidden shrink-0 text-emerald-600 -ml-1 mr-1"
                       onClick={(e) => {
                         e.stopPropagation();
                         setMobileView("sidebar");
@@ -1561,7 +2055,7 @@ function TeamWhatsAppChatAddon() {
                     </Button>
 
                     <div className="relative">
-                      <Avatar className="size-10 border shrink-0">
+                      <Avatar className="size-10 border shrink-0 group-hover:ring-2 group-hover:ring-emerald-500 transition-all">
                         <AvatarImage src={currentThread.avatarUrl} />
                         <AvatarFallback className="bg-emerald-700 text-white font-bold text-xs">
                           {getInitials(currentThread.name)}
@@ -1577,16 +2071,16 @@ function TeamWhatsAppChatAddon() {
                     </div>
 
                     <div className="min-w-0">
-                      <h3 className="font-black text-sm truncate text-foreground flex items-center gap-1.5">
-                        {currentThread.name}
+                      <h3 className="font-bold text-sm truncate text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
+                        <span>{currentThread.name}</span>
                         {currentThread.isGroup ? (
-                          <Badge variant="outline" className="text-[9px] font-mono font-bold">
+                          <Badge variant="outline" className="text-[9px] font-mono">
                             {currentThread.participantNames?.length || 0} Members
                           </Badge>
                         ) : activeTargetEmp ? (
                           <Badge
                             variant="outline"
-                            className={`text-[8px] py-0 h-3.5 ${
+                            className={`text-[9px] py-0 h-4 ${
                               PRESENCE_CONFIG[presenceMap[activeTargetEmp.id]?.status || "available"]?.badgeClass
                             }`}
                           >
@@ -1595,415 +2089,103 @@ function TeamWhatsAppChatAddon() {
                         ) : null}
                       </h3>
 
-                      <p className="text-[10px] font-semibold text-muted-foreground truncate">
+                      <p className="text-[11px] text-muted-foreground truncate">
                         {currentThread.isGroup
-                          ? "Click for Channel Info & Member List"
+                          ? "Channel · Click to view profile passport & files"
                           : activeTargetEmp
-                          ? presenceMap[activeTargetEmp.id]?.customText || `${activeTargetEmp.role} · ${activeTargetEmp.email}`
+                          ? `${activeTargetEmp.role} · ${activeTargetEmp.department}`
                           : "Direct Conversation"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  {/* Communication Controls (Voice, Video, Schedule, Profile Toggle) */}
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="h-8 text-xs font-semibold gap-1 text-emerald-600 border-emerald-500/30 hidden sm:flex"
+                      onClick={() => handleStartCall("voice")}
+                      className="h-8 text-xs font-semibold gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-50"
+                      title="Start Voice Call"
                     >
-                      <Paperclip className="size-3.5" /> Attach File
+                      <Phone className="size-3.5" />
+                      <span className="hidden sm:inline">Voice Call</span>
                     </Button>
 
-                    {currentThread.isGroup && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setIsGroupInfoOpen(true)}
-                        className="h-8 text-xs font-semibold gap-1.5 text-primary"
-                        title="Group Settings & Members"
-                      >
-                        <Users className="size-4 text-emerald-600" />
-                        <span className="hidden md:inline">Group Info</span>
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleStartCall("video")}
+                      className="h-8 text-xs font-semibold gap-1 text-blue-600 border-blue-500/30 hover:bg-blue-50"
+                      title="Start Video Call"
+                    >
+                      <Video className="size-3.5" />
+                      <span className="hidden sm:inline">Video Call</span>
+                    </Button>
                   </div>
                 </div>
 
-                {/* PINNED MESSAGE BANNER */}
-                {currentThread.pinnedMessageText && (
-                  <div className="p-2.5 px-4 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Pin className="size-4 text-amber-600 shrink-0 fill-current" />
-                      <span className="font-bold shrink-0">PINNED ANNOUNCEMENT:</span>
-                      <span className="truncate text-[11px]">{currentThread.pinnedMessageText}</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        const updatedThreads = localThreads.map((t) =>
-                          t.id === currentThread.id
-                            ? { ...t, pinnedMessageId: undefined, pinnedMessageText: undefined }
-                            : t,
-                        );
-                        setLocalThreads(updatedThreads);
-                        saveChatStateMutation.mutate({ updatedThreads });
-                        toast.success("Message unpinned");
-                      }}
-                      className="h-6 text-[10px] px-2 text-amber-700 hover:bg-amber-500/20 shrink-0"
-                    >
-                      <PinOff className="size-3 mr-1" /> Unpin
-                    </Button>
-                  </div>
-                )}
-
-                {/* MESSAGES SCROLL AREA WITH PAGINATION */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 min-h-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:20px_20px]">
-                  {/* Load Earlier Messages Button */}
-                  {hasEarlierMessages && (
-                    <div className="flex justify-center pb-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setMessagePageSize((prev) => prev + 20)}
-                        className="text-[11px] h-7 px-3 font-semibold gap-1 text-muted-foreground hover:text-foreground shadow-2xs"
-                      >
-                        <ChevronUp className="size-3.5" />
-                        <span>Load earlier messages ({activeMessages.length - visibleMessages.length} more)</span>
-                      </Button>
-                    </div>
-                  )}
-
+                {/* Messages Conversation Stream */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 bg-background/50">
                   {visibleMessages.length === 0 ? (
-                    <div className="py-20 text-center text-xs text-muted-foreground space-y-2">
-                      <p className="font-bold text-foreground">No messages in this chat yet.</p>
-                      <p>Type a message, record a voice note, or drag-and-drop a file below to start.</p>
+                    <div className="py-20 text-center text-xs text-muted-foreground space-y-1">
+                      <p className="font-semibold">This is the start of your message history with {currentThread.name}.</p>
+                      <p>Send a message below to begin collaborating.</p>
                     </div>
                   ) : (
-                    visibleMessages.map((m) => {
-                      const isMe =
-                        m.senderId === myUserId ||
-                        m.senderId === user?.id ||
-                        m.senderId === "super_admin" ||
-                        m.senderName === "Super Admin" ||
-                        m.senderName === (currentProfile?.full_name || "") ||
-                        m.senderName === "You";
-                      const isAudioPlaying = playingAudioId === m.id;
-                      const isPinned = currentThread.pinnedMessageId === m.id;
-
+                    visibleMessages.map((msg) => {
+                      const isMe = msg.senderId === myUserId;
                       return (
                         <div
-                          key={m.id}
-                          onTouchStart={(e) => handleTouchStart(e, m)}
-                          onTouchMove={handleTouchMove}
-                          onTouchEnd={() => handleTouchEnd(m)}
-                          className={`flex flex-col group ${isMe ? "items-end ml-auto" : "items-start mr-auto"}`}
+                          key={msg.id}
+                          className={`flex items-end gap-2 ${isMe ? "justify-end" : "justify-start"}`}
                         >
-                          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-0.5 px-1">
-                            {!isMe && (
-                              <Avatar className="size-4 inline-block mr-0.5">
-                                <AvatarImage src={m.senderAvatar} />
-                                <AvatarFallback className="text-[8px]">{getInitials(m.senderName)}</AvatarFallback>
-                              </Avatar>
+                          {!isMe && (
+                            <Avatar className="size-7 border shrink-0 mb-1">
+                              <AvatarImage src={msg.senderAvatar} />
+                              <AvatarFallback className="text-[9px] font-bold">
+                                {getInitials(msg.senderName)}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+
+                          <div className={`max-w-[78%] md:max-w-[65%] space-y-1 ${isMe ? "items-end text-right" : "items-start"}`}>
+                            {!isMe && currentThread.isGroup && (
+                              <span className="text-[10px] font-semibold text-muted-foreground px-1 block">
+                                {msg.senderName}
+                              </span>
                             )}
-                            <span className="font-semibold">{isMe ? "You" : m.senderName}</span>
-                            {isPinned && (
-                              <Badge className="text-[8px] bg-amber-500 text-white font-bold py-0 h-3.5">
-                                📌 PINNED
-                              </Badge>
-                            )}
-                          </div>
 
-                          <div className={`flex items-start gap-1 max-w-[85%] sm:max-w-md ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                            {/* Sleek Action Icons on Hover (Compact Emoji Popover Trigger + Reply + Pin) */}
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1">
-                              {/* Compact Emoji Reaction Popover */}
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="size-6 text-muted-foreground hover:text-amber-500 hover:bg-muted/80 rounded-full"
-                                    title="React with Emoji (Long press on mobile)"
-                                  >
-                                    <Smile className="size-3.5" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent side="top" align={isMe ? "end" : "start"} className="w-64 p-2 shadow-xl rounded-2xl border bg-card/95 backdrop-blur-md">
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground border-b pb-1">
-                                      <span>React to Message</span>
-                                    </div>
-                                    <div className="grid grid-cols-6 gap-1 p-0.5">
-                                      {["👍", "❤️", "😂", "😮", "🙏", "🔥", "🎉", "👏", "🚀", "💯", "✅", "💡"].map((emoji) => (
-                                        <button
-                                          key={emoji}
-                                          type="button"
-                                          onClick={() => handleToggleReaction(m, emoji)}
-                                          className="size-8 flex items-center justify-center text-lg hover:bg-muted rounded-lg transition-transform hover:scale-125"
-                                        >
-                                          {emoji}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-
-                              {/* Reply Button */}
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => {
-                                  setReplyingTo(m);
-                                  toast.info(`Replying to ${m.senderName}`);
-                                }}
-                                className="size-6 text-muted-foreground hover:text-emerald-600 hover:bg-muted/80 rounded-full"
-                                title="Reply (Swipe right on mobile)"
-                              >
-                                <Reply className="size-3.5" />
-                              </Button>
-
-                              {/* Pin Button for Channels */}
-                              {currentThread.isGroup && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => handleTogglePinMessage(m)}
-                                  className="size-6 text-muted-foreground hover:text-amber-500 hover:bg-muted/80 rounded-full"
-                                  title={isPinned ? "Unpin message" : "Pin message to top"}
-                                >
-                                  <Pin className={`size-3.5 ${isPinned ? "text-amber-500 fill-current" : ""}`} />
-                                </Button>
-                              )}
-                            </div>
-
-                            {/* Main Message Bubble */}
                             <div
-                              className={`p-3.5 rounded-2xl text-xs shadow-xs space-y-2 relative flex-1 ${
+                              className={`p-3 rounded-2xl text-xs leading-relaxed ${
                                 isMe
-                                  ? "bg-emerald-600 text-white rounded-tr-none"
-                                  : "bg-card text-foreground rounded-tl-none border shadow-2xs"
+                                  ? "bg-emerald-600 text-white rounded-br-xs"
+                                  : "bg-card border shadow-2xs text-foreground rounded-bl-xs"
                               }`}
                             >
-                              {/* QUOTED PARENT MESSAGE (If replied) */}
-                              {m.replyTo && (
+                              {msg.type === "image" && msg.mediaUrl ? (
+                                <img
+                                  src={msg.mediaUrl}
+                                  alt={msg.fileName || "Image"}
+                                  className="max-h-60 rounded-lg object-contain cursor-pointer mb-1.5"
+                                  onClick={() => setPreviewModalFile({ url: msg.mediaUrl!, name: msg.fileName || "Photo", type: "image" })}
+                                />
+                              ) : msg.type === "file" && msg.mediaUrl ? (
                                 <div
-                                  className={`p-2 rounded-lg text-[11px] mb-1.5 border-l-4 ${
-                                    isMe
-                                      ? "bg-black/20 border-l-emerald-300 text-emerald-50"
-                                      : "bg-muted/60 border-l-emerald-600 text-muted-foreground"
-                                  }`}
+                                  onClick={() => setPreviewModalFile({ url: msg.mediaUrl!, name: msg.fileName || "Document", type: "file" })}
+                                  className="flex items-center gap-2 p-2 rounded-lg bg-black/10 dark:bg-white/10 cursor-pointer mb-1"
                                 >
-                                  <strong className="block text-[10px] font-bold text-inherit">
-                                    ↩️ Replying to {m.replyTo.senderName}
-                                  </strong>
-                                  <p className="truncate text-[10px] opacity-90">{m.replyTo.text}</p>
+                                  <FileText className="size-4 shrink-0" />
+                                  <span className="font-semibold underline truncate text-[11px]">{msg.fileName || "Download Document"}</span>
                                 </div>
-                              )}
+                              ) : null}
 
-                              {/* TYPE 1: VOICE NOTE BUBBLE PLAYER */}
-                              {m.type === "audio" && (
-                                <div className="p-2.5 rounded-xl border bg-black/10 flex items-center gap-2.5 min-w-[220px]">
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    onClick={() => {
-                                      if (isAudioPlaying) setPlayingAudioId(null);
-                                      else {
-                                        setPlayingAudioId(m.id);
-                                        toast.info(`Playing Voice Note (${m.audioDuration || "0:15"})...`);
-                                      }
-                                    }}
-                                    className="size-8 rounded-full bg-white text-emerald-800 shrink-0 shadow-xs"
-                                  >
-                                    {isAudioPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5 ml-0.5" />}
-                                  </Button>
-                                  <div className="flex-1">
-                                    <div className="h-1.5 rounded-full bg-white/30 overflow-hidden">
-                                      <div className={`h-full bg-white ${isAudioPlaying ? "w-3/4 animate-pulse" : "w-1/4"}`} />
-                                    </div>
-                                    <span className="text-[9px] font-mono opacity-80 mt-1 block">
-                                      Voice Note ({m.audioDuration || "0:15"})
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* TYPE 2: ATTACHED IMAGE (Click to Preview Modal, with Hover Download) */}
-                              {m.type === "image" && m.mediaUrl && (
-                                <div className="space-y-1.5">
-                                  <div
-                                    className="relative group cursor-pointer overflow-hidden rounded-xl border bg-black/10 transition-all hover:ring-2 hover:ring-white/40"
-                                    onClick={() =>
-                                      setPreviewModalFile({
-                                        url: m.mediaUrl!,
-                                        name: m.fileName || "Photo Attachment",
-                                        type: "image",
-                                        size: m.fileSize,
-                                      })
-                                    }
-                                  >
-                                    <img
-                                      src={m.mediaUrl}
-                                      alt={m.fileName || "Attachment"}
-                                      className="rounded-xl max-h-64 object-contain w-full transition-transform duration-200 group-hover:scale-102"
-                                     loading="lazy"/>
-                                    {/* Hover overlay with Eye + Download */}
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white">
-                                      <div className="flex items-center gap-1 text-xs font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-xs">
-                                        <Eye className="size-3.5" /> Click to View Full Size
-                                      </div>
-                                    </div>
-
-                                    {/* Quick Download Button in Top Right */}
-                                    <a
-                                      href={m.mediaUrl}
-                                      download={m.fileName || "photo.png"}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="absolute top-2 right-2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-md"
-                                      title="Download Image"
-                                    >
-                                      <Download className="size-3.5" />
-                                    </a>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* TYPE 3: ATTACHED DOCUMENT / PDF (Modern Clickable Card with Download Icon) */}
-                              {m.type === "file" && (
-                                <div
-                                  onClick={() =>
-                                    setPreviewModalFile({
-                                      url: m.mediaUrl || "",
-                                      name: m.fileName || "Document",
-                                      type: m.fileName?.toLowerCase().endsWith(".pdf") ? "pdf" : "file",
-                                      size: m.fileSize,
-                                    })
-                                  }
-                                  className={`group flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all border shadow-2xs ${
-                                    isMe
-                                      ? "bg-black/20 hover:bg-black/30 border-white/20"
-                                      : "bg-muted/60 hover:bg-muted border-border/80"
-                                  }`}
-                                  title="Click to View Preview in page"
-                                >
-                                  {/* Document Badge Icon */}
-                                  <div
-                                    className={`size-10 rounded-lg flex items-center justify-center shrink-0 shadow-xs font-bold text-[10px] ${
-                                      m.fileName?.toLowerCase().endsWith(".pdf")
-                                        ? "bg-rose-500 text-white"
-                                        : "bg-emerald-600 text-white"
-                                    }`}
-                                  >
-                                    {m.fileName?.toLowerCase().endsWith(".pdf") ? "PDF" : <FileText className="size-5" />}
-                                  </div>
-
-                                  {/* File Info */}
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-xs truncate leading-snug" title={m.fileName || "Document"}>
-                                      {m.fileName || "Document"}
-                                    </div>
-                                    <div className="text-[10px] opacity-75 font-mono flex items-center gap-1.5 mt-0.5">
-                                      <span>{m.fileSize || "Attachment"}</span>
-                                      <span>•</span>
-                                      <span className="text-[9px] uppercase tracking-wider font-semibold opacity-90">
-                                        {m.fileName?.split(".").pop() || "FILE"}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Single Download Icon Button */}
-                                  {m.mediaUrl && (
-                                    <a
-                                      href={m.mediaUrl}
-                                      download={m.fileName || "document"}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toast.success(`Downloading ${m.fileName}...`);
-                                      }}
-                                      className={`size-8 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                                        isMe
-                                          ? "bg-white/20 hover:bg-white/35 text-white"
-                                          : "bg-foreground/10 hover:bg-foreground/20 text-foreground"
-                                      }`}
-                                      title="Download to computer"
-                                    >
-                                      <Download className="size-4" />
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* TYPE 4: LIVE LOCATION */}
-                              {m.type === "location" && (
-                                <div className="p-2.5 rounded-xl border bg-black/10 space-y-1">
-                                  <div className="flex items-center gap-1.5 font-bold text-xs">
-                                    <MapPin className="size-4" /> Live GPS Location
-                                  </div>
-                                  <div className="text-[11px] font-mono opacity-90">{m.locationCoords}</div>
-                                </div>
-                              )}
-
-                              {/* TEXT CONTENT (Only shown if text is NOT an exact duplicate of filename / attachment label) */}
-                              {m.type !== "audio" &&
-                                m.text &&
-                                m.text !== m.fileName &&
-                                m.text !== "Attachment" &&
-                                m.text !== "Photo" &&
-                                m.text !== "📍 Shared live GPS location" && (
-                                  <p className="leading-relaxed whitespace-pre-wrap">{m.text}</p>
-                                )}
-
-                              {/* TIMESTAMP & DELIVERY/READ STATUS TICKS */}
-                              <div className="flex items-center justify-end gap-1.5 text-[9px] opacity-85 font-mono pt-0.5">
-                                <span>{m.timestamp}</span>
-                                {isMe && (
-                                  <span className="inline-flex items-center shrink-0">
-                                    {m.status === "sent" ? (
-                                      <span title="Sent (Single tick — Recipient not yet received)">
-                                        <Check className="size-3.5 text-white/70" />
-                                      </span>
-                                    ) : m.status === "delivered" ? (
-                                      <span title="Delivered (Double grey tick — Received by user)">
-                                        <CheckCheck className="size-3.5 text-white/70" />
-                                      </span>
-                                    ) : (
-                                      <span title="Read / Seen (Double blue tick — Viewed by user)">
-                                        <CheckCheck className="size-3.5 text-cyan-300 font-bold drop-shadow-xs" />
-                                      </span>
-                                    )}
-                                  </span>
-                                )}
+                              <p className="whitespace-pre-wrap">{msg.text}</p>
+                              <div className={`text-[9px] mt-1 flex items-center justify-end gap-1 ${isMe ? "text-emerald-100" : "text-muted-foreground"}`}>
+                                <span>{msg.timestamp}</span>
+                                {isMe && <CheckCheck className="size-3" />}
                               </div>
                             </div>
-
-                            {/* ACTIVE EMOJI REACTIONS DISPLAY */}
-                            {m.reactions && Object.keys(m.reactions).length > 0 && (
-                              <div className={`flex flex-wrap gap-1 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
-                                {Object.entries(m.reactions).map(([emoji, userIds]) => {
-                                  if (!userIds || userIds.length === 0) return null;
-                                  const hasReacted = userIds.includes(myUserId);
-                                  return (
-                                    <button
-                                      key={emoji}
-                                      type="button"
-                                      onClick={() => handleToggleReaction(m, emoji)}
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border font-semibold shadow-2xs transition-all ${
-                                        hasReacted
-                                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-                                          : "bg-card border-border text-foreground hover:bg-muted"
-                                      }`}
-                                      title={`${userIds.length} reaction${userIds.length > 1 ? "s" : ""}`}
-                                    >
-                                      <span>{emoji}</span>
-                                      <span className="font-mono text-[10px]">{userIds.length}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
@@ -2012,510 +2194,1214 @@ function TeamWhatsAppChatAddon() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* ATTACHMENT PREVIEW CHIPS, REPLY BANNER & INPUT BAR */}
-                <div className="p-3 bg-card border-t space-y-2 shrink-0 shadow-2xs">
-                  {/* Active Reply Quoting Banner */}
-                  {replyingTo && (
-                    <div className="p-2 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs animate-in fade-in-50">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CornerDownRight className="size-4 text-emerald-600 shrink-0" />
-                        <div className="min-w-0">
-                          <span className="font-bold text-emerald-700 dark:text-emerald-300 text-[11px] block">
-                            Replying to {replyingTo.senderName}
-                          </span>
-                          <p className="text-[10px] text-muted-foreground truncate">{replyingTo.text}</p>
-                        </div>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-6 text-muted-foreground hover:text-foreground shrink-0"
-                        onClick={() => setReplyingTo(null)}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
+                {/* Attached File Preview Bar if active */}
+                {(attachedImage || attachedFile) && (
+                  <div className="p-2 px-4 bg-muted/40 border-t flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <Paperclip className="size-3.5 text-emerald-600 shrink-0" />
+                      <span className="font-semibold truncate">{attachedImage?.name || attachedFile?.name}</span>
                     </div>
-                  )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        setAttachedImage(null);
+                        setAttachedFile(null);
+                      }}
+                      className="size-6 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </div>
+                )}
 
-                  {/* Image Attachment Preview */}
-                  {attachedImage && (
-                    <div className="flex items-center justify-between p-2 rounded-xl border bg-muted/40 text-xs animate-in fade-in-50">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <img
-                          src={attachedImage.url}
-                          alt="Attached"
-                          className="size-8 object-cover rounded-lg border shrink-0"
-                         loading="lazy"/>
-                        <span className="font-bold text-xs truncate text-foreground">{attachedImage.name}</span>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-6 text-rose-500 shrink-0"
-                        onClick={() => setAttachedImage(null)}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
-                    </div>
-                  )}
+                {/* Input Bar */}
+                <div className="p-3 bg-card border-t flex items-center gap-2 shrink-0">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.rtf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const check = checkFileRestriction(file.name);
+                      if (check.isRestricted) {
+                        e.target.value = "";
+                        toast.error(
+                          `File upload blocked: "${check.ext}" files (executables, .env secrets, and code files) are restricted for security policy compliance.`,
+                        );
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        setAttachedFile({
+                          name: file.name,
+                          size: `${(file.size / 1024).toFixed(1)} KB`,
+                          dataUrl: ev.target?.result as string,
+                        });
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <input
+                    type="file"
+                    ref={imageInputRef}
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const check = checkFileRestriction(file.name);
+                      if (check.isRestricted) {
+                        e.target.value = "";
+                        toast.error(`File upload blocked: "${check.ext}" files are prohibited.`);
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        setAttachedImage({ url: ev.target?.result as string, name: file.name });
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
 
-                  {/* File Attachment Preview */}
-                  {attachedFile && (
-                    <div className="flex items-center justify-between p-2 rounded-xl border bg-muted/40 text-xs animate-in fade-in-50">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="size-5 text-emerald-600 shrink-0" />
-                        <div className="min-w-0">
-                          <span className="font-bold text-xs truncate text-foreground block">{attachedFile.name}</span>
-                          <span className="text-[10px] text-muted-foreground font-mono">{attachedFile.size}</span>
-                        </div>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-6 text-rose-500 shrink-0"
-                        onClick={() => setAttachedFile(null)}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
-                    </div>
-                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="size-8 text-muted-foreground hover:text-foreground shrink-0"
+                    title="Attach Document"
+                  >
+                    <Paperclip className="size-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => imageInputRef.current?.click()}
+                    className="size-8 text-muted-foreground hover:text-foreground shrink-0"
+                    title="Attach Image"
+                  >
+                    <ImageIcon className="size-4" />
+                  </Button>
 
-                  {/* Voice Recording Multi-State Bar vs Normal Input */}
-                  {voiceState === "recording" ? (
-                    <div className="flex items-center justify-between p-2 px-4 rounded-full bg-rose-500/10 border border-rose-500/30 text-xs">
-                      <div className="flex items-center gap-2 font-bold text-rose-600 text-xs">
-                        <div className="size-2.5 rounded-full bg-rose-600 animate-ping" />
-                        <span>
-                          Recording... ({Math.floor(recordingSeconds / 60)}:
-                          {recordingSeconds % 60 < 10 ? "0" : ""}
-                          {recordingSeconds % 60})
-                        </span>
-                      </div>
+                  <Input
+                    placeholder={`Message ${currentThread.name}...`}
+                    value={inputMsg}
+                    onChange={(e) => setInputMsg(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
+                    className="h-9 text-xs flex-1 bg-muted/20 rounded-lg"
+                  />
 
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={handlePauseRecording}
-                          className="h-8 px-2.5 text-xs font-bold gap-1 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                        >
-                          <Pause className="size-3.5" /> Pause
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={handleFinishRecording}
-                          className="h-8 px-2.5 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full"
-                        >
-                          <Square className="size-3.5 fill-current" /> Finish & Listen
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={handleCancelVoiceNote}
-                          className="size-8 text-rose-500 hover:bg-rose-50"
-                          title="Discard Note"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : voiceState === "paused" ? (
-                    <div className="flex items-center justify-between p-2 px-4 rounded-full bg-amber-500/10 border border-amber-500/30 text-xs">
-                      <div className="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-300 text-xs">
-                        <Pause className="size-3.5" />
-                        <span>
-                          Recording Paused ({Math.floor(recordingSeconds / 60)}:
-                          {recordingSeconds % 60 < 10 ? "0" : ""}
-                          {recordingSeconds % 60})
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={handleResumeRecording}
-                          className="h-8 px-2.5 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-50"
-                        >
-                          <Play className="size-3.5" /> Resume
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={handleFinishRecording}
-                          className="h-8 px-2.5 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full"
-                        >
-                          <Square className="size-3.5 fill-current" /> Finish & Listen
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={handleCancelVoiceNote}
-                          className="size-8 text-rose-500 hover:bg-rose-50"
-                          title="Discard Note"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : voiceState === "reviewing" ? (
-                    <div className="flex items-center justify-between p-2 px-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-xs animate-in fade-in-50">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Button
-                          type="button"
-                          size="icon"
-                          onClick={handleTogglePreviewPlay}
-                          className="size-8 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 shrink-0 shadow-xs"
-                          title={isPreviewPlaying ? "Pause Preview" : "Listen to Voice Note"}
-                        >
-                          {isPreviewPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5 ml-0.5" />}
-                        </Button>
-                        <div className="flex-1 min-w-0 mr-2">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-foreground mb-1">
-                            <span className="flex items-center gap-1">
-                              <Volume2 className="size-3 text-emerald-600" /> Listen Voice Preview
-                            </span>
-                            <span className="font-mono text-[10px] text-muted-foreground">
-                              {Math.floor(recordingSeconds / 60)}:
-                              {recordingSeconds % 60 < 10 ? "0" : ""}
-                              {recordingSeconds % 60}
-                            </span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-emerald-200 dark:bg-emerald-950 overflow-hidden">
-                            <div className={`h-full bg-emerald-600 ${isPreviewPlaying ? "w-3/4 animate-pulse" : "w-1/3"}`} />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={handleReRecord}
-                          className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1"
-                          title="Record again"
-                        >
-                          <RotateCcw className="size-3.5" /> Re-record
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={handleCancelVoiceNote}
-                          className="size-8 text-rose-500 hover:bg-rose-50"
-                          title="Discard Note"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={handleSendVoiceNote}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 gap-1.5 text-xs rounded-full px-3.5 shadow-xs"
-                        >
-                          <Send className="size-3.5" /> Send Voice Note
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        ref={imageInputRef}
-                        accept="image/*"
-                        onChange={handleImageSelected}
-                        className="hidden"
-                      />
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.csv,.txt"
-                        onChange={handleFileSelected}
-                        className="hidden"
-                      />
-
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        {/* EMOJI PICKER POPOVER */}
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="size-8 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40 shrink-0"
-                              title="Add Emoji"
-                            >
-                              <Smile className="size-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent side="top" align="start" className="w-72 p-2.5 shadow-xl rounded-2xl border bg-card">
-                            <div className="space-y-1.5">
-                              <div className="flex items-center justify-between text-xs font-bold text-muted-foreground border-b pb-1">
-                                <span>Quick Emojis</span>
-                                <span className="text-[10px] opacity-70">Click to insert</span>
-                              </div>
-                              <div className="grid grid-cols-7 gap-1 max-h-48 overflow-y-auto p-1">
-                                {EMOJI_LIST.map((emoji) => (
-                                  <button
-                                    key={emoji}
-                                    type="button"
-                                    onClick={() => setInputMsg((prev) => prev + emoji)}
-                                    className="size-8 flex items-center justify-center text-lg hover:bg-muted rounded-lg transition-transform hover:scale-125"
-                                  >
-                                    {emoji}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-8 text-emerald-600 shrink-0 hover:bg-emerald-50"
-                          onClick={() => imageInputRef.current?.click()}
-                          title="Attach Photo"
-                        >
-                          <ImageIcon className="size-4" />
-                        </Button>
-
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-8 text-emerald-600 shrink-0 hover:bg-emerald-50"
-                          onClick={() => fileInputRef.current?.click()}
-                          title="Attach File (or Drag & Drop)"
-                        >
-                          <Paperclip className="size-4" />
-                        </Button>
-                      </div>
-
-                      <Input
-                        placeholder={
-                          currentThread.isGroup && currentThread.onlyAdminsCanSend
-                            ? "Only channel admins can send messages..."
-                            : "Type a message, or drag & drop files here..."
-                        }
-                        disabled={
-                          currentThread.isGroup &&
-                          currentThread.onlyAdminsCanSend &&
-                          !currentThread.groupAdminIds?.includes(myUserId)
-                        }
-                        value={inputMsg}
-                        onChange={(e) => setInputMsg(e.target.value)}
-                        className="flex-1 text-xs h-10 rounded-full bg-muted/40 border px-4 focus:ring-1 focus:ring-emerald-500 min-w-0"
-                      />
-
-                      {/* VOICE NOTE MIC BUTTON TO START RECORDING */}
-                      <Button
-                        type="button"
-                        size="icon"
-                        onClick={handleStartRecording}
-                        className="size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
-                        title="Record Voice Note"
-                      >
-                        <Mic className="size-4" />
-                      </Button>
-
-                      {(inputMsg.trim() || attachedImage || attachedFile) && (
-                        <Button
-                          type="submit"
-                          size="icon"
-                          className="size-10 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs"
-                          title="Send Message"
-                        >
-                          <Send className="size-4" />
-                        </Button>
-                      )}
-                    </form>
-                  )}
+                  <Button
+                    size="icon"
+                    onClick={handleSendMessage}
+                    disabled={!inputMsg.trim() && !attachedImage && !attachedFile}
+                    className="size-9 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 rounded-lg"
+                  >
+                    <Send className="size-4" />
+                  </Button>
                 </div>
               </>
             )}
           </div>
+
+          {/* 3. RIGHT PROFILE PASSPORT & MEDIA DRAWER */}
+          {isProfileDrawerOpen && currentThread && (() => {
+            const isMyGroupAdmin =
+              currentThread.isGroup &&
+              (currentThread.groupAdminIds?.includes(myUserId) || myUserId === "super_admin");
+
+            return (
+              <div className="w-full sm:w-[320px] lg:w-[340px] max-sm:absolute max-sm:inset-0 max-sm:z-30 border-l bg-card flex flex-col h-full min-h-0 shrink-0 z-20 animate-in slide-in-from-right-10 duration-200">
+                {/* Drawer Header */}
+                <div className="p-3.5 border-b flex items-center justify-between shrink-0">
+                  <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                    <IdCard className="size-4 text-emerald-600" />
+                    <span>{currentThread.isGroup ? "Channel Info & Controls" : "User Profile Passport"}</span>
+                  </h4>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setIsProfileDrawerOpen(false)}
+                    className="size-7 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+
+                {/* Drawer Content */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
+                  {/* Profile Avatar Card */}
+                  <div className="flex flex-col items-center text-center p-4 rounded-xl bg-muted/30 border space-y-2">
+                    <Avatar className="size-20 border-2 border-emerald-500 shadow-md">
+                      <AvatarImage src={currentThread.avatarUrl} />
+                      <AvatarFallback className="bg-emerald-700 text-white font-bold text-lg">
+                        {getInitials(currentThread.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="font-bold text-sm text-foreground">{currentThread.name}</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {currentThread.isGroup
+                          ? `${currentThread.participantIds.length} Total Members`
+                          : activeTargetEmp?.role || "Staff Member"}
+                      </p>
+                      {currentThread.groupDescription && (
+                        <p className="text-[11px] text-muted-foreground mt-1 bg-background/60 p-2 rounded-lg border text-left italic">
+                          {currentThread.groupDescription}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Direct Call Triggers from Drawer */}
+                    <div className="flex items-center gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStartCall("voice")}
+                        className="h-7 text-xs font-semibold gap-1 text-emerald-600 border-emerald-500/30"
+                      >
+                        <Phone className="size-3" /> Voice
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStartCall("video")}
+                        className="h-7 text-xs font-semibold gap-1 text-blue-600 border-blue-500/30"
+                      >
+                        <Video className="size-3" /> Video
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        className="h-7 text-xs font-semibold gap-1"
+                      >
+                        <Calendar className="size-3" /> Meeting
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* GROUP CHANNEL CONTROLS & MEMBER DIRECTORY */}
+                  {currentThread.isGroup && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-bold text-xs text-foreground uppercase tracking-wider text-[10px] text-muted-foreground">
+                          Members ({currentThread.participantIds.length})
+                        </h5>
+                        {isMyGroupAdmin && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedAddMembers([]);
+                              setAddMemberSearch("");
+                              setIsAddMemberOpen(true);
+                            }}
+                            className="h-6 text-[10px] font-semibold text-emerald-600 border-emerald-500/30 hover:bg-emerald-50 gap-1 px-2"
+                          >
+                            <UserPlus className="size-3" /> Add Members
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Broadcast Only Toggle (Admins only) */}
+                      {isMyGroupAdmin && (
+                        <div className="p-2.5 rounded-lg border bg-muted/20 flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-xs text-foreground">Only Admins Can Post</p>
+                            <p className="text-[10px] text-muted-foreground">Restrict replies to channel admins</p>
+                          </div>
+                          <Switch
+                            checked={currentThread.onlyAdminsCanSend ?? false}
+                            onCheckedChange={handleToggleBroadcastMode}
+                          />
+                        </div>
+                      )}
+
+                      {/* Participant Members List */}
+                      <div className="space-y-1 rounded-xl border divide-y divide-border/40 max-h-56 overflow-y-auto bg-card">
+                        {currentThread.participantIds.map((pId) => {
+                          const emp = employeesList.find((e) => e.id === pId);
+                          const pName = emp?.full_name || (pId === myUserId ? currentProfile?.full_name || "Super Admin" : "Member");
+                          const pRole = emp?.role || (pId === myUserId ? "Current User" : "Team Member");
+                          const pAvatar = emp?.avatar_url || (pId === myUserId ? currentProfile?.avatar_url : undefined);
+                          const isAdmin = currentThread.groupAdminIds?.includes(pId) || pId === "super_admin";
+
+                          return (
+                            <div key={pId} className="p-2 flex items-center justify-between hover:bg-muted/20 text-xs">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <Avatar className="size-7 border shrink-0">
+                                  <AvatarImage src={pAvatar || undefined} />
+                                  <AvatarFallback className="text-[9px] font-bold">
+                                    {getInitials(pName)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <span className="font-semibold truncate">{pName}</span>
+                                    {pId === myUserId && (
+                                      <span className="text-[9px] text-muted-foreground font-mono">(You)</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="text-[10px] text-muted-foreground truncate">{pRole}</span>
+                                    {isAdmin && (
+                                      <Badge className="bg-emerald-600/10 text-emerald-600 border-emerald-500/30 text-[8px] py-0 h-3.5 px-1 font-bold">
+                                        Admin
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Admin Action Menu for Member */}
+                              {isMyGroupAdmin && pId !== myUserId && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="icon" variant="ghost" className="size-6 text-muted-foreground hover:text-foreground">
+                                      <MoreVertical className="size-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="text-xs">
+                                    <DropdownMenuItem
+                                      onClick={() => handleToggleGroupAdminRole(pId, pName)}
+                                      className="gap-2 cursor-pointer"
+                                    >
+                                      <Shield className="size-3.5 text-emerald-600" />
+                                      <span>{isAdmin ? "Dismiss as Admin" : "Make Channel Admin"}</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleRemoveMemberFromGroup(pId, pName)}
+                                      className="gap-2 text-destructive focus:text-destructive cursor-pointer"
+                                    >
+                                      <UserMinus className="size-3.5" />
+                                      <span>Remove from Channel</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Direct Contact Personal Details Section */}
+                  {!currentThread.isGroup && activeTargetEmp && (
+                    <div className="space-y-3">
+                      <h5 className="font-bold text-xs text-foreground uppercase tracking-wider text-[10px] text-muted-foreground">
+                        Personal & Department Details
+                      </h5>
+                      <div className="space-y-2 rounded-xl border p-3 bg-card divide-y divide-border/30">
+                        <div className="flex items-center justify-between py-1.5 first:pt-0">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Mail className="size-3.5" /> Email
+                          </span>
+                          <span className="font-medium text-foreground truncate max-w-[160px]">{activeTargetEmp.email}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Building className="size-3.5" /> Department
+                          </span>
+                          <span className="font-medium text-foreground">{activeTargetEmp.department}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Briefcase className="size-3.5" /> Designation
+                          </span>
+                          <span className="font-medium text-foreground">{activeTargetEmp.role}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Phone className="size-3.5" /> Phone
+                          </span>
+                          <span className="font-medium text-foreground font-mono">{activeTargetEmp.phone}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1.5 last:pb-0">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <UserCheck className="size-3.5" /> Employee ID
+                          </span>
+                          <span className="font-mono font-semibold text-foreground">{activeTargetEmp.employeeNumber}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shared Media & Documents Section */}
+                  <div className="space-y-3">
+                    <h5 className="font-bold text-xs text-foreground uppercase tracking-wider text-[10px] text-muted-foreground">
+                      Shared Media & Files ({sharedMediaList.length + sharedDocumentsList.length})
+                    </h5>
+                    <div className="space-y-2">
+                      {sharedMediaList.length === 0 && sharedDocumentsList.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground text-center py-4 bg-muted/20 rounded-lg">
+                          No shared files or photos in this conversation.
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {sharedMediaList.map((m) => (
+                            <div
+                              key={m.id}
+                              onClick={() => setPreviewModalFile({ url: m.mediaUrl!, name: m.fileName || "Photo", type: "image" })}
+                              className="p-2 rounded-lg border flex items-center justify-between hover:bg-muted/30 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <ImageIcon className="size-3.5 text-blue-500 shrink-0" />
+                                <span className="truncate font-medium">{m.fileName || "Image"}</span>
+                              </div>
+                              <Download className="size-3 text-muted-foreground" />
+                            </div>
+                          ))}
+                          {sharedDocumentsList.map((d) => (
+                            <div
+                              key={d.id}
+                              onClick={() => setPreviewModalFile({ url: d.mediaUrl!, name: d.fileName || "Document", type: "file" })}
+                              className="p-2 rounded-lg border flex items-center justify-between hover:bg-muted/30 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <FileText className="size-3.5 text-emerald-500 shrink-0" />
+                                <span className="truncate font-medium">{d.fileName || "File"}</span>
+                              </div>
+                              <Download className="size-3 text-muted-foreground" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CHANNEL DANGER ZONE (Leave / Delete) */}
+                  {currentThread.isGroup && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleLeaveGroupChannel(currentThread.id)}
+                        className="w-full text-xs font-semibold gap-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                      >
+                        <LogOut className="size-3.5" /> Leave Channel
+                      </Button>
+                      {isMyGroupAdmin && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteGroupChannel(currentThread.id)}
+                          className="w-full text-xs font-semibold gap-1.5"
+                        >
+                          <Trash2 className="size-3.5" /> Delete Channel
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       </div>
 
-      {/* MODAL 1: SET CUSTOM AVAILABILITY STATUS */}
-      <Dialog open={isStatusModalOpen} onOpenChange={setIsStatusModalOpen}>
-        <DialogContent className="sm:max-w-[440px]">
+      {/* ========================================================================= */}
+      {/* 📞 REALTIME CALL SUITE & MEETING OVERLAYS */}
+      {/* ========================================================================= */}
+
+      {/* 1. OUTGOING CALL OVERLAY */}
+      {activeCall.status === "outgoing" && (
+        <Dialog open={true} onOpenChange={() => handleEndCall()}>
+          <DialogContent className="sm:max-w-[400px] p-6 text-center bg-card shadow-2xl">
+            <div className="py-6 flex flex-col items-center justify-center space-y-5">
+              <div className="relative">
+                <Avatar className="size-24 border-4 border-emerald-500 shadow-xl">
+                  <AvatarImage src={activeCall.contactAvatar} />
+                  <AvatarFallback className="bg-emerald-700 text-white font-bold text-2xl">
+                    {getInitials(activeCall.contactName)}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-bold text-foreground">{activeCall.contactName}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{activeCall.contactRole || "Staff Colleague"}</p>
+                <div className="flex items-center justify-center gap-1.5 mt-2 text-xs font-semibold text-emerald-600">
+                  <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>Connecting...</span>
+                </div>
+              </div>
+
+              {/* Action Controls */}
+              <div className="flex items-center justify-center gap-4 pt-2">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => setActiveCall((prev) => ({ ...prev, isMuted: !prev.isMuted }))}
+                  className="size-11 rounded-full border"
+                  title={activeCall.isMuted ? "Unmute Mic" : "Mute Mic"}
+                >
+                  {activeCall.isMuted ? <MicOff className="size-5 text-rose-500" /> : <Mic className="size-5" />}
+                </Button>
+
+                <Button
+                  size="icon"
+                  onClick={handleEndCall}
+                  className="size-12 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg"
+                  title="Cancel Call"
+                >
+                  <PhoneOff className="size-5" />
+                </Button>
+
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() =>
+                    setActiveCall((prev) => ({
+                      ...prev,
+                      mediaType: prev.mediaType === "voice" ? "video" : "voice",
+                    }))
+                  }
+                  className="size-11 rounded-full border"
+                  title="Switch Voice/Video"
+                >
+                  {activeCall.mediaType === "voice" ? <Video className="size-5 text-blue-600" /> : <Phone className="size-5 text-emerald-600" />}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 2. INCOMING CALL DIALOG */}
+      {activeCall.status === "incoming" && (
+        <Dialog open={true} onOpenChange={() => handleDeclineCall()}>
+          <DialogContent className="sm:max-w-[400px] p-6 text-center bg-card shadow-2xl">
+            <div className="py-6 flex flex-col items-center justify-center space-y-5">
+              <Avatar className="size-24 border-4 border-emerald-500 shadow-xl">
+                <AvatarImage src={activeCall.contactAvatar} />
+                <AvatarFallback className="bg-emerald-700 text-white font-bold text-2xl">
+                  {getInitials(activeCall.contactName)}
+                </AvatarFallback>
+              </Avatar>
+
+              <div>
+                <Badge className="bg-emerald-600 text-white text-[10px] font-bold mb-1">
+                  Incoming {activeCall.mediaType === "video" ? "Video Call" : "Voice Call"}
+                </Badge>
+                <h3 className="text-xl font-bold text-foreground">{activeCall.contactName}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{activeCall.contactRole || "Colleague"}</p>
+              </div>
+
+              <div className="flex items-center justify-center gap-4 pt-2">
+                <Button
+                  size="lg"
+                  onClick={() => handleAcceptCall("voice")}
+                  className="size-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg"
+                  title="Accept Voice Call"
+                >
+                  <Phone className="size-5" />
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={() => handleAcceptCall("video")}
+                  className="size-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+                  title="Accept Video Call"
+                >
+                  <Video className="size-5" />
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={handleDeclineCall}
+                  className="size-12 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg"
+                  title="Decline"
+                >
+                  <PhoneOff className="size-5" />
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 3. CONNECTED VOICE CALL ROOM */}
+      {activeCall.status === "connected" && activeCall.mediaType === "voice" && (
+        <Dialog open={true} onOpenChange={() => handleEndCall()}>
+          <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border shadow-2xl">
+            {/* Top Bar */}
+            <div className="p-4 bg-muted/30 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar className="size-10 border">
+                  <AvatarImage src={activeCall.contactAvatar} />
+                  <AvatarFallback className="bg-emerald-700 text-white font-bold text-xs">
+                    {getInitials(activeCall.contactName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h4 className="font-semibold text-sm text-foreground">{activeCall.contactName}</h4>
+                  <p className="text-[11px] text-muted-foreground">Connected Voice Call</p>
+                </div>
+              </div>
+
+              <Badge variant="outline" className="text-xs font-mono font-bold text-emerald-600">
+                ⏱️ {formatCallDuration(activeCall.durationSeconds)}
+              </Badge>
+            </div>
+
+            {/* Body */}
+            <div className="py-10 px-6 flex flex-col items-center justify-center text-center space-y-4 bg-background">
+              <Avatar className="size-28 border-4 border-emerald-500 shadow-xl">
+                <AvatarImage src={activeCall.contactAvatar} />
+                <AvatarFallback className="bg-emerald-700 text-white font-bold text-3xl">
+                  {getInitials(activeCall.contactName)}
+                </AvatarFallback>
+              </Avatar>
+
+              <div>
+                <h3 className="text-lg font-bold text-foreground">{activeCall.contactName}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{activeCall.contactRole || "Staff Colleague"}</p>
+              </div>
+            </div>
+
+            {/* Footer Control Bar */}
+            <div className="p-3.5 bg-muted/40 border-t flex items-center justify-center gap-3">
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => setActiveCall((prev) => ({ ...prev, mediaType: "video" }))}
+                className="size-10 rounded-full border bg-background text-blue-600"
+                title="Switch to Video"
+              >
+                <Video className="size-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => setActiveCall((prev) => ({ ...prev, isMuted: !prev.isMuted }))}
+                className="size-10 rounded-full border bg-background"
+                title={activeCall.isMuted ? "Unmute Mic" : "Mute Mic"}
+              >
+                {activeCall.isMuted ? <MicOff className="size-4 text-rose-500" /> : <Mic className="size-4" />}
+              </Button>
+              <Button
+                size="icon"
+                onClick={handleEndCall}
+                className="size-11 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-md"
+                title="End Call"
+              >
+                <PhoneOff className="size-5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => setActiveCall((prev) => ({ ...prev, isSpeakerOn: !prev.isSpeakerOn }))}
+                className="size-10 rounded-full border bg-background"
+                title={activeCall.isSpeakerOn ? "Mute Speaker" : "Speaker On"}
+              >
+                {activeCall.isSpeakerOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 4. CONNECTED VIDEO CALL ROOM & PRESENTATION ENGINE */}
+      {activeCall.status === "connected" && activeCall.mediaType === "video" && (
+        <Dialog open={true} onOpenChange={() => handleEndCall()}>
+          <DialogContent
+            className={`${
+              activeCall.isFullScreen ? "max-w-[98vw] h-[95vh]" : "sm:max-w-5xl h-[84vh]"
+            } p-0 flex flex-col overflow-hidden bg-slate-950 text-white border-slate-800 shadow-2xl transition-all duration-200`}
+          >
+            {/* Top Bar */}
+            <div className="p-3 px-5 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0 z-20">
+              <div className="flex items-center gap-3">
+                <span className="size-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h4 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+                  <span>{activeCall.contactName}</span>
+                  {activeCall.isRecording && (
+                    <Badge className="bg-rose-600 text-white text-[10px] font-mono px-2 py-0 animate-pulse">
+                      ● REC {formatCallDuration(activeCall.recordingSeconds)}
+                    </Badge>
+                  )}
+                </h4>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <Badge className="bg-slate-800 text-emerald-400 border-slate-700 font-mono text-xs font-semibold px-2.5 py-1">
+                  ⏱️ {formatCallDuration(activeCall.durationSeconds)}
+                </Badge>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveCall((prev) => ({ ...prev, showMoM: !prev.showMoM }))}
+                  className={`h-7 text-xs font-semibold gap-1 bg-slate-800 text-slate-200 border-slate-700 ${activeCall.showMoM ? "bg-emerald-700 text-white" : ""}`}
+                >
+                  <FileCheck className="size-3.5" /> MoM Notes
+                </Button>
+
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setActiveCall((prev) => ({ ...prev, isFullScreen: !prev.isFullScreen }))}
+                  className="size-7 text-slate-300 hover:text-white"
+                >
+                  {activeCall.isFullScreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {/* Video Main Body Stage */}
+            <div className="flex-1 flex overflow-hidden min-h-0 relative">
+              <div className="flex-1 relative flex items-center justify-center bg-slate-900 overflow-hidden">
+                {/* Real Screen Share Video Element */}
+                {activeCall.isScreenSharing ? (
+                  <div className="w-full h-full relative flex items-center justify-center bg-black">
+                    <video
+                      ref={screenShareVideoRef}
+                      autoPlay
+                      playsInline
+                      className="max-w-full max-h-full object-contain"
+                    />
+                    <div className="absolute top-3 left-3 bg-slate-900/80 px-2.5 py-1 rounded text-xs font-semibold text-emerald-400 border border-slate-800">
+                      Screen Presentation Active
+                    </div>
+                  </div>
+                ) : (
+                  /* Remote Participant Video Canvas */
+                  <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-tr from-slate-950 to-slate-900">
+                    <div className="text-center space-y-3">
+                      <Avatar className="size-32 border-4 border-emerald-500/80 shadow-2xl mx-auto">
+                        <AvatarImage src={activeCall.contactAvatar} />
+                        <AvatarFallback className="bg-emerald-800 text-white font-bold text-4xl">
+                          {getInitials(activeCall.contactName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">{activeCall.contactName}</h3>
+                        <p className="text-xs text-slate-400">{activeCall.contactRole || "Staff Member"}</p>
+                      </div>
+                    </div>
+
+                    <div className="absolute bottom-4 left-4 flex items-center gap-2 p-1.5 px-3 rounded-lg bg-slate-950/80 border border-slate-800 text-xs">
+                      <span className="font-bold text-white">{activeCall.contactName}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Local Picture-in-Picture Camera Stream */}
+                <div className="absolute bottom-4 right-4 size-36 sm:size-44 rounded-xl border-2 border-emerald-500 bg-slate-950 shadow-2xl overflow-hidden z-20">
+                  {activeCall.isVideoOff ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400 text-xs">
+                      <VideoOff className="size-5 text-rose-400 mb-1" />
+                      <span className="text-[10px]">Camera Off</span>
+                    </div>
+                  ) : (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute bottom-1 left-1 bg-black/70 text-[9px] px-1.5 py-0.5 rounded text-white">
+                    You {activeCall.isMuted && "(Muted)"}
+                  </div>
+                </div>
+              </div>
+
+              {/* MoM (Minutes of Meeting) Side Panel */}
+              {activeCall.showMoM && (
+                <div className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col h-full z-20">
+                  <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+                    <h5 className="font-bold text-xs text-white flex items-center gap-1.5">
+                      <FileCheck className="size-4 text-emerald-400" /> Minutes of Meeting (MoM)
+                    </h5>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setActiveCall((prev) => ({ ...prev, showMoM: false }))}
+                      className="size-6 text-slate-400 hover:text-white"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+                    <div>
+                      <Label className="text-[11px] font-semibold text-slate-300">Key Discussion Points</Label>
+                      <textarea
+                        rows={3}
+                        value={activeCall.momDiscussionPoints}
+                        onChange={(e) => setActiveCall((prev) => ({ ...prev, momDiscussionPoints: e.target.value }))}
+                        placeholder="Log sprint decisions, architecture points..."
+                        className="w-full mt-1 p-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-semibold text-slate-300">Decisions Taken</Label>
+                      <textarea
+                        rows={2}
+                        value={activeCall.momDecisions}
+                        onChange={(e) => setActiveCall((prev) => ({ ...prev, momDecisions: e.target.value }))}
+                        placeholder="Approved items & conclusions..."
+                        className="w-full mt-1 p-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-semibold text-slate-300">Action Items & Owners</Label>
+                      <textarea
+                        rows={3}
+                        value={activeCall.momActionItems}
+                        onChange={(e) => setActiveCall((prev) => ({ ...prev, momActionItems: e.target.value }))}
+                        placeholder="1. Design review by John (Due Friday)..."
+                        className="w-full mt-1 p-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-3 border-t border-slate-800">
+                    <Button
+                      size="sm"
+                      onClick={handleExportMoM}
+                      className="w-full h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    >
+                      <Download className="size-3.5" /> Export MoM Summary
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Floating Control Bar */}
+            <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-center shrink-0 z-30">
+              <div className="flex items-center gap-2.5 bg-slate-950 p-1.5 px-4 rounded-full border border-slate-800 shadow-xl">
+                {/* Mute Mic */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setActiveCall((prev) => ({ ...prev, isMuted: !prev.isMuted }))}
+                  className={`size-10 rounded-full ${
+                    activeCall.isMuted ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-200"
+                  }`}
+                  title={activeCall.isMuted ? "Unmute Mic" : "Mute Mic"}
+                >
+                  {activeCall.isMuted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+                </Button>
+
+                {/* Camera Toggle */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setActiveCall((prev) => ({ ...prev, isVideoOff: !prev.isVideoOff }))}
+                  className={`size-10 rounded-full ${
+                    activeCall.isVideoOff ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-200"
+                  }`}
+                  title={activeCall.isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
+                >
+                  {activeCall.isVideoOff ? <VideoOff className="size-4" /> : <Video className="size-4" />}
+                </Button>
+
+                {/* End Call */}
+                <Button
+                  size="icon"
+                  onClick={handleEndCall}
+                  className="size-11 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg mx-1"
+                  title="End Call"
+                >
+                  <PhoneOff className="size-5" />
+                </Button>
+
+                {/* Screen Share */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    const next = !activeCall.isScreenSharing;
+                    setActiveCall((prev) => ({ ...prev, isScreenSharing: next }));
+                    toast.info(next ? "Screen sharing started" : "Screen sharing stopped");
+                  }}
+                  className={`size-10 rounded-full ${
+                    activeCall.isScreenSharing ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-200"
+                  }`}
+                  title={activeCall.isScreenSharing ? "Stop Sharing" : "Present Screen"}
+                >
+                  <MonitorUp className="size-4" />
+                </Button>
+
+                {/* Record Meeting */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleToggleRecording}
+                  className={`size-10 rounded-full ${
+                    activeCall.isRecording ? "bg-rose-600 text-white animate-pulse" : "bg-slate-800 text-slate-200"
+                  }`}
+                  title={activeCall.isRecording ? "Stop Recording" : "Record Meeting"}
+                >
+                  <Disc className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 5. SCHEDULE MEETING MODAL */}
+      <Dialog open={isScheduleModalOpen} onOpenChange={setIsScheduleModalOpen}>
+        <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-black">
-              <Sparkles className="size-5 text-emerald-600" /> Set Your Availability Status
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Calendar className="size-5 text-emerald-600" /> Schedule Team Meeting
             </DialogTitle>
             <DialogDescription className="text-xs">
-              This status will be displayed to all team members in direct chats and directory.
+              Plan upcoming meetings and conference sessions with staff colleagues.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3.5 py-2 text-xs">
-            <Label className="text-xs font-semibold">Select Preset Status</Label>
-            <div className="grid grid-cols-1 gap-2">
-              {(Object.keys(PRESENCE_CONFIG) as PresenceStatusType[]).map((st) => {
-                const isSelected = selectedStatusType === st;
-                return (
-                  <div
-                    key={st}
-                    onClick={() => {
-                      setSelectedStatusType(st);
-                      if (!customStatusText) setCustomStatusText(PRESENCE_CONFIG[st].desc);
-                    }}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
-                      isSelected ? "border-emerald-500 bg-emerald-500/10 shadow-xs font-bold" : "bg-card hover:bg-muted/30"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base">{PRESENCE_CONFIG[st].icon}</span>
-                      <div>
-                        <div className="text-xs">{PRESENCE_CONFIG[st].label}</div>
-                        <div className="text-[10px] text-muted-foreground font-normal">{PRESENCE_CONFIG[st].desc}</div>
-                      </div>
-                    </div>
-                    {isSelected && <CheckCheck className="size-4 text-emerald-600" />}
-                  </div>
-                );
-              })}
+          <div className="space-y-3 py-2 text-xs">
+            <div>
+              <Label className="text-xs font-semibold">Meeting Title</Label>
+              <Input
+                placeholder="e.g. Sprint Architecture Sync"
+                value={meetingForm.title}
+                onChange={(e) => setMeetingForm((prev) => ({ ...prev, title: e.target.value }))}
+                className="h-8 text-xs mt-1"
+              />
             </div>
 
-            <div className="space-y-1 pt-1">
-              <Label className="text-xs font-semibold">Custom Status Message (Optional)</Label>
-              <Input
-                placeholder="e.g. In client meeting, reviewing Q3 payroll..."
-                value={customStatusText}
-                onChange={(e) => setCustomStatusText(e.target.value)}
-                className="text-xs h-9"
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-xs font-semibold">Date</Label>
+                <Input
+                  type="date"
+                  value={meetingForm.date}
+                  onChange={(e) => setMeetingForm((prev) => ({ ...prev, date: e.target.value }))}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold">Start Time</Label>
+                <Input
+                  type="time"
+                  value={meetingForm.startTime}
+                  onChange={(e) => setMeetingForm((prev) => ({ ...prev, startTime: e.target.value }))}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold">End Time</Label>
+                <Input
+                  type="time"
+                  value={meetingForm.endTime}
+                  onChange={(e) => setMeetingForm((prev) => ({ ...prev, endTime: e.target.value }))}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold">Meeting Type</Label>
+              <div className="flex items-center gap-3 mt-1.5">
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                  <input
+                    type="radio"
+                    name="mType"
+                    checked={meetingForm.meetingType === "video"}
+                    onChange={() => setMeetingForm((prev) => ({ ...prev, meetingType: "video" }))}
+                  />
+                  <span>Video Conference</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                  <input
+                    type="radio"
+                    name="mType"
+                    checked={meetingForm.meetingType === "voice"}
+                    onChange={() => setMeetingForm((prev) => ({ ...prev, meetingType: "voice" }))}
+                  />
+                  <span>Voice Conference</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold">Agenda / Description</Label>
+              <textarea
+                rows={3}
+                placeholder="Meeting agenda items and preparation notes..."
+                value={meetingForm.agenda}
+                onChange={(e) => setMeetingForm((prev) => ({ ...prev, agenda: e.target.value }))}
+                className="w-full mt-1 p-2 rounded-lg border bg-background text-xs"
               />
             </div>
           </div>
 
           <DialogFooter className="pt-2 border-t flex justify-between">
-            <Button size="sm" variant="outline" onClick={() => setIsStatusModalOpen(false)} className="text-xs">
+            <Button size="sm" variant="outline" onClick={() => setIsScheduleModalOpen(false)} className="text-xs">
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={() => handleSavePresence(selectedStatusType, customStatusText)}
+              onClick={handleCreateScheduledMeeting}
+              disabled={!meetingForm.title.trim()}
               className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              Update Status
+              Confirm Schedule
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL 2: CREATE DEPARTMENT GROUP */}
-      <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+      {/* 6. START CALL / QUICK DIAL MODAL */}
+      <Dialog open={isNewCallModalOpen} onOpenChange={setIsNewCallModalOpen}>
+        <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-black">
-              <Users className="size-5 text-emerald-600" /> Create Department Channel
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <PhoneCall className="size-5 text-emerald-600" /> Start VoIP or Video Call
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Select employee participants, upload group photo, and configure permissions.
+              Select any registered colleague from the organization database.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Group / Channel Name *</Label>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 size-3.5 text-muted-foreground" />
               <Input
-                placeholder="e.g. Sales & Field Operations"
+                placeholder="Search staff by name or designation..."
+                value={callSearchQuery}
+                onChange={(e) => setCallSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+
+            <div className="max-h-56 overflow-y-auto border rounded-xl divide-y bg-card">
+              {employeesList
+                .filter(
+                  (e) =>
+                    !callSearchQuery ||
+                    e.full_name.toLowerCase().includes(callSearchQuery.toLowerCase()) ||
+                    e.role.toLowerCase().includes(callSearchQuery.toLowerCase()),
+                )
+                .map((emp) => (
+                  <div key={emp.id} className="p-2.5 flex items-center justify-between hover:bg-muted/20 text-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Avatar className="size-8 border">
+                        <AvatarImage src={emp.avatar_url} />
+                        <AvatarFallback className="text-[10px] font-bold">{getInitials(emp.full_name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-xs truncate text-foreground">{emp.full_name}</div>
+                        <span className="text-[10px] text-muted-foreground font-mono block truncate">{emp.role}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStartCall("voice", emp.full_name, emp.avatar_url, emp.role, emp.id, emp.email, emp.phone)}
+                        className="h-7 text-xs font-semibold text-emerald-600 border-emerald-500/30 hover:bg-emerald-50 gap-1"
+                      >
+                        <Phone className="size-3" /> Voice
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStartCall("video", emp.full_name, emp.avatar_url, emp.role, emp.id, emp.email, emp.phone)}
+                        className="h-7 text-xs font-semibold text-blue-600 border-blue-500/30 hover:bg-blue-50 gap-1"
+                      >
+                        <Video className="size-3" /> Video
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2 border-t">
+            <Button size="sm" variant="outline" onClick={() => setIsNewCallModalOpen(false)} className="text-xs">
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 7. IN-PAGE FILE / IMAGE PREVIEW MODAL */}
+      {previewModalFile && (
+        <Dialog open={!!previewModalFile} onOpenChange={(open) => !open && setPreviewModalFile(null)}>
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-4">
+            <DialogHeader className="flex flex-row items-center justify-between border-b pb-3 space-y-0">
+              <DialogTitle className="text-sm font-bold flex items-center gap-2 truncate pr-4">
+                <FileText className="size-4 text-emerald-600 shrink-0" />
+                <span className="truncate">{previewModalFile.name}</span>
+              </DialogTitle>
+              <a
+                href={previewModalFile.url}
+                download={previewModalFile.name}
+                className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+              >
+                <Download className="size-3.5" /> Download
+              </a>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-auto flex items-center justify-center p-2 min-h-[40vh] bg-muted/20 rounded-xl border mt-3">
+              {previewModalFile.type === "image" ? (
+                <img
+                  src={previewModalFile.url}
+                  alt={previewModalFile.name}
+                  className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-sm"
+                />
+              ) : (
+                <div className="p-8 text-center space-y-3">
+                  <FileText className="size-14 mx-auto text-emerald-600 opacity-60" />
+                  <div>
+                    <h4 className="font-semibold text-sm text-foreground">{previewModalFile.name}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">Ready for download.</p>
+                  </div>
+                  <a
+                    href={previewModalFile.url}
+                    download={previewModalFile.name}
+                    className="inline-flex items-center gap-1.5 h-8 px-4 text-xs font-semibold bg-emerald-600 text-white rounded-lg"
+                  >
+                    <Download className="size-3.5" /> Download Document
+                  </a>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 8. CREATE GROUP CHANNEL MODAL */}
+      <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <FolderPlus className="size-5 text-emerald-600" /> Create Department Channel
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Collaborate across departments with multi-member channels and administrative controls.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div>
+              <Label className="text-xs font-semibold">Channel Name *</Label>
+              <Input
+                placeholder="e.g. Engineering & Architecture"
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
-                className="text-xs h-9"
+                className="h-8 text-xs mt-1"
               />
             </div>
 
-            {/* Real File Upload for Group Photo */}
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Group Profile Photo</Label>
-              <input
-                type="file"
-                ref={groupCreateImageInputRef}
-                accept="image/*"
-                onChange={handleCreateGroupImageSelected}
-                className="hidden"
+            <div>
+              <Label className="text-xs font-semibold">Channel Description / Topic (Optional)</Label>
+              <Input
+                placeholder="e.g. Daily sprint standup, design reviews & releases"
+                value={groupDescription}
+                onChange={(e) => setGroupDescription(e.target.value)}
+                className="h-8 text-xs mt-1"
               />
-              <div className="flex items-center gap-3 p-3 rounded-xl border bg-muted/20">
-                <Avatar className="size-12 border-2 border-emerald-500">
-                  <AvatarImage src={newGroupAvatar} />
-                  <AvatarFallback className="bg-emerald-600 text-white font-bold text-sm">
-                    {getInitials(newGroupName || "Group")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-1">
-                  <Button
+            </div>
+
+            <div className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/20">
+              <div>
+                <p className="font-semibold text-xs text-foreground">Only Admins Can Post</p>
+                <p className="text-[10px] text-muted-foreground">Broadcast-only announcements channel</p>
+              </div>
+              <Switch
+                checked={onlyAdminsCanSend}
+                onCheckedChange={setOnlyAdminsCanSend}
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs font-semibold">
+                  Select Members ({selectedGroupMembers.length} selected)
+                </Label>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
                     type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => groupCreateImageInputRef.current?.click()}
-                    className="h-8 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30"
+                    onClick={() => setSelectedGroupMembers(employeesList.map((e) => e.id))}
+                    className="text-emerald-600 hover:underline font-semibold"
                   >
-                    <Camera className="size-3.5" /> Upload Photo from Computer
-                  </Button>
-                  <span className="text-[10px] text-muted-foreground block">
-                    PNG, JPG, or WEBP up to 5MB
-                  </span>
+                    Select All
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGroupMembers([])}
+                    className="text-muted-foreground hover:underline"
+                  >
+                    Clear
+                  </button>
                 </div>
               </div>
-            </div>
 
-            {/* Select Employee Members */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">
-                Select Initial Members ({selectedGroupMembers.length})
-              </Label>
-              <div className="max-h-44 overflow-y-auto border rounded-xl p-2 space-y-1 bg-muted/20">
-                {employeesList.map((emp) => {
-                  const isChecked = selectedGroupMembers.includes(emp.id);
-                  return (
-                    <div
-                      key={emp.id}
-                      onClick={() => {
-                        if (isChecked)
-                          setSelectedGroupMembers(selectedGroupMembers.filter((id) => id !== emp.id));
-                        else setSelectedGroupMembers([...selectedGroupMembers, emp.id]);
-                      }}
-                      className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer ${
-                        isChecked ? "bg-emerald-500/10 border-emerald-500/40 font-bold" : "bg-card"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Avatar className="size-7">
-                          <AvatarImage src={emp.avatar_url} />
-                          <AvatarFallback className="text-[10px] font-bold">{getInitials(emp.full_name)}</AvatarFallback>
-                        </Avatar>
-                        <span>
-                          {emp.full_name} ({emp.email})
-                        </span>
-                      </div>
-                      <Checkbox checked={isChecked} />
-                    </div>
-                  );
-                })}
+              <div className="relative mb-2">
+                <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search colleagues to add..."
+                  value={groupMemberSearch}
+                  onChange={(e) => setGroupMemberSearch(e.target.value)}
+                  className="pl-8 h-7 text-xs bg-muted/30"
+                />
               </div>
-            </div>
 
-            {/* Group Permissions Toggle */}
-            <div className="flex items-center justify-between p-3 rounded-xl border bg-amber-500/10 border-amber-500/30">
-              <div>
-                <p className="font-bold text-xs text-amber-800 dark:text-amber-300">
-                  Only Admins Can Send Messages
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  Restrict this channel to broadcast announcements only.
-                </p>
+              <div className="max-h-48 overflow-y-auto border rounded-xl divide-y bg-card">
+                {employeesList.length === 0 ? (
+                  <p className="p-4 text-center text-muted-foreground text-xs">No employees found in database.</p>
+                ) : (
+                  employeesList
+                    .filter(
+                      (emp) =>
+                        !groupMemberSearch ||
+                        emp.full_name.toLowerCase().includes(groupMemberSearch.toLowerCase()) ||
+                        emp.role.toLowerCase().includes(groupMemberSearch.toLowerCase()),
+                    )
+                    .map((emp) => {
+                      const isChecked = selectedGroupMembers.includes(emp.id);
+                      return (
+                        <div
+                          key={emp.id}
+                          onClick={() =>
+                            setSelectedGroupMembers((prev) =>
+                              isChecked ? prev.filter((id) => id !== emp.id) : [...prev, emp.id],
+                            )
+                          }
+                          className="p-2 flex items-center justify-between hover:bg-muted/30 cursor-pointer select-none"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <Avatar className="size-7 border shrink-0">
+                              <AvatarImage src={emp.avatar_url} />
+                              <AvatarFallback className="text-[10px] font-bold">
+                                {getInitials(emp.full_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-xs truncate text-foreground">{emp.full_name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{emp.role}</p>
+                            </div>
+                          </div>
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              setSelectedGroupMembers((prev) =>
+                                checked ? Array.from(new Set([...prev, emp.id])) : prev.filter((id) => id !== emp.id),
+                              );
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      );
+                    })
+                )}
               </div>
-              <Switch checked={onlyAdminsCanSend} onCheckedChange={setOnlyAdminsCanSend} />
             </div>
           </div>
 
@@ -2529,290 +3415,111 @@ function TeamWhatsAppChatAddon() {
               disabled={!newGroupName.trim()}
               className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              Create Channel
+              Create Channel ({selectedGroupMembers.length + 1} Members)
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL 3: GROUP SETTINGS & MEMBER MANAGEMENT */}
-      <Dialog open={isGroupInfoOpen} onOpenChange={setIsGroupInfoOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-black">
-              <Shield className="size-5 text-emerald-600" /> Channel Passport & Members
-            </DialogTitle>
-          </DialogHeader>
-
-          {currentThread && (
-            <div className="space-y-4 py-2 text-xs">
-              {/* Group Profile Header with Avatar Uploader */}
-              <div className="flex items-center gap-3 p-3.5 rounded-xl bg-muted/20 border">
-                <input
-                  type="file"
-                  ref={groupAvatarInputRef}
-                  accept="image/*"
-                  onChange={handleGroupAvatarFileChange}
-                  className="hidden"
-                />
-                <div className="relative group cursor-pointer" onClick={() => groupAvatarInputRef.current?.click()}>
-                  <Avatar className="size-14 border-2 border-emerald-500 shadow-2xs">
-                    <AvatarImage src={currentThread.avatarUrl} />
-                    <AvatarFallback className="bg-emerald-700 text-white font-bold text-base">
-                      {getInitials(currentThread.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white">
-                    <Camera className="size-4" />
-                  </div>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-sm text-foreground truncate">{currentThread.name}</h4>
-                  <span className="text-[11px] text-muted-foreground block font-mono">
-                    {currentThread.participantIds.length} Total Members
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="link"
-                    onClick={() => groupAvatarInputRef.current?.click()}
-                    className="p-0 h-5 text-[10px] text-emerald-600 font-semibold"
-                  >
-                    Change Group Photo
-                  </Button>
-                </div>
-              </div>
-
-              {/* Members List Header & Add Member Button */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="font-bold text-xs text-foreground">
-                    Channel Members ({currentThread.participantIds.length})
-                  </Label>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsAddMemberOpen(true)}
-                    className="h-7 text-xs font-bold gap-1 text-emerald-600 border-emerald-500/30"
-                  >
-                    <UserPlus className="size-3" /> Add Member
-                  </Button>
-                </div>
-
-                {/* Members List Container */}
-                <div className="max-h-48 overflow-y-auto border rounded-xl divide-y bg-card">
-                  {currentThread.participantIds.map((pId) => {
-                    const emp = employeesList.find((e) => e.id === pId);
-                    const isAdmin = currentThread.groupAdminIds?.includes(pId) || pId === "super_admin";
-                    const isSelf = pId === myUserId || pId === "super_admin";
-                    const displayName = emp?.full_name || (pId === "super_admin" ? "Super Admin" : "Staff Member");
-                    const displayAvatar = emp?.avatar_url;
-
-                    return (
-                      <div key={pId} className="p-2.5 flex items-center justify-between text-xs hover:bg-muted/20 transition-colors">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Avatar className="size-8 border">
-                            <AvatarImage src={displayAvatar} />
-                            <AvatarFallback className="text-[10px] font-bold">
-                              {getInitials(displayName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <div className="font-bold text-xs truncate flex items-center gap-1.5">
-                              <span>{displayName}</span>
-                              {isAdmin && (
-                                <Badge className="text-[8px] bg-emerald-600 text-white font-bold py-0 h-3.5">
-                                  Admin
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="text-[10px] text-muted-foreground font-mono truncate block">
-                              {emp?.role || "Team Member"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {!isSelf && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleRemoveMemberFromGroup(pId, displayName)}
-                            className="size-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                            title="Remove Member from Group"
-                          >
-                            <UserMinus className="size-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Danger Zone: Leave Group & Delete Group */}
-              <div className="pt-3 border-t space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleLeaveGroup}
-                    className="text-xs font-semibold text-rose-600 hover:bg-rose-50 border-rose-200 gap-1.5 h-8"
-                  >
-                    <LogOut className="size-3.5" /> Leave Channel
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleDeleteGroup}
-                    className="text-xs font-bold gap-1.5 h-8"
-                  >
-                    <Trash2 className="size-3.5" /> Delete Channel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="pt-2 border-t">
-            <Button size="sm" onClick={() => setIsGroupInfoOpen(false)} className="text-xs font-bold w-full">
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL 4: ADD MEMBER TO EXISTING GROUP */}
+      {/* 9. ADD MEMBERS TO CHANNEL MODAL */}
       <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
-              <UserPlus className="size-5 text-emerald-600" /> Add Member to Channel
+              <UserPlus className="size-5 text-emerald-600" /> Add Members to Channel
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Search and add employees to &quot;{currentThread?.name}&quot;.
+              Select team members to join {currentThread?.name}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs">
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 size-3.5 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search employees by name or email..."
+                placeholder="Search colleagues to invite..."
                 value={addMemberSearch}
                 onChange={(e) => setAddMemberSearch(e.target.value)}
-                className="pl-8 h-8 text-xs"
+                className="pl-8 h-8 text-xs bg-muted/30"
               />
             </div>
 
-            <div className="max-h-48 overflow-y-auto border rounded-xl divide-y">
+            <div className="max-h-56 overflow-y-auto border rounded-xl divide-y bg-card">
               {employeesList
-                .filter((e) => !currentThread?.participantIds.includes(e.id))
+                .filter((emp) => !(currentThread?.participantIds || []).includes(emp.id))
                 .filter(
-                  (e) =>
+                  (emp) =>
                     !addMemberSearch ||
-                    e.full_name.toLowerCase().includes(addMemberSearch.toLowerCase()) ||
-                    e.email.toLowerCase().includes(addMemberSearch.toLowerCase()),
-                )
-                .map((emp) => (
-                  <div key={emp.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-muted/20">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Avatar className="size-7">
-                        <AvatarImage src={emp.avatar_url} />
-                        <AvatarFallback className="text-[10px] font-bold">{getInitials(emp.full_name)}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="font-bold text-xs truncate">{emp.full_name}</div>
-                        <span className="text-[10px] text-muted-foreground font-mono block truncate">{emp.email}</span>
+                    emp.full_name.toLowerCase().includes(addMemberSearch.toLowerCase()) ||
+                    emp.role.toLowerCase().includes(addMemberSearch.toLowerCase()),
+                ).length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  All eligible colleagues are already members of this channel.
+                </div>
+              ) : (
+                employeesList
+                  .filter((emp) => !(currentThread?.participantIds || []).includes(emp.id))
+                  .filter(
+                    (emp) =>
+                      !addMemberSearch ||
+                      emp.full_name.toLowerCase().includes(addMemberSearch.toLowerCase()) ||
+                      emp.role.toLowerCase().includes(addMemberSearch.toLowerCase()),
+                  )
+                  .map((emp) => {
+                    const isChecked = selectedAddMembers.includes(emp.id);
+                    return (
+                      <div
+                        key={emp.id}
+                        onClick={() =>
+                          setSelectedAddMembers((prev) =>
+                            isChecked ? prev.filter((id) => id !== emp.id) : [...prev, emp.id],
+                          )
+                        }
+                        className="p-2.5 flex items-center justify-between hover:bg-muted/30 cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <Avatar className="size-8 border shrink-0">
+                            <AvatarImage src={emp.avatar_url} />
+                            <AvatarFallback className="text-[10px] font-bold">
+                              {getInitials(emp.full_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-xs truncate text-foreground">{emp.full_name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{emp.role}</p>
+                          </div>
+                        </div>
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            setSelectedAddMembers((prev) =>
+                              checked ? Array.from(new Set([...prev, emp.id])) : prev.filter((id) => id !== emp.id),
+                            );
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                       </div>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        handleAddMemberToGroup(emp);
-                        setIsAddMemberOpen(false);
-                      }}
-                      className="h-7 text-xs font-bold bg-emerald-600 text-white gap-1"
-                    >
-                      <Plus className="size-3" /> Add
-                    </Button>
-                  </div>
-                ))}
+                    );
+                  })
+              )}
             </div>
           </div>
 
-          <DialogFooter className="pt-2 border-t">
+          <DialogFooter className="pt-2 border-t flex justify-between">
             <Button size="sm" variant="outline" onClick={() => setIsAddMemberOpen(false)} className="text-xs">
               Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleAddMembersToCurrentGroup(selectedAddMembers)}
+              disabled={selectedAddMembers.length === 0}
+              className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Add {selectedAddMembers.length} Member(s)
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* MODAL 5: IN-PAGE FILE / PDF / IMAGE PREVIEW CONTAINER */}
-      {previewModalFile && (
-        <Dialog open={!!previewModalFile} onOpenChange={(open) => !open && setPreviewModalFile(null)}>
-          <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-4">
-            <DialogHeader className="flex flex-row items-center justify-between border-b pb-3 space-y-0">
-              <DialogTitle className="text-sm font-black flex items-center gap-2 truncate pr-4">
-                <FileText className="size-4 text-emerald-600 shrink-0" />
-                <span className="truncate">{previewModalFile.name}</span>
-                {previewModalFile.size && (
-                  <Badge variant="outline" className="text-[10px] font-mono shrink-0">
-                    {previewModalFile.size}
-                  </Badge>
-                )}
-              </DialogTitle>
-              <div className="flex items-center gap-2 pr-6 shrink-0">
-                <a
-                  href={previewModalFile.url}
-                  download={previewModalFile.name}
-                  className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-2xs"
-                >
-                  <Download className="size-3.5" /> Download
-                </a>
-              </div>
-            </DialogHeader>
-
-            {/* In-Page Container Viewer */}
-            <div className="flex-1 overflow-auto flex items-center justify-center p-2 min-h-[50vh] bg-muted/20 rounded-xl border mt-3">
-              {previewModalFile.type === "image" ? (
-                <img
-                  src={previewModalFile.url}
-                  alt={previewModalFile.name}
-                  className="max-h-[70vh] max-w-full object-contain rounded-lg shadow-sm"
-                 loading="lazy"/>
-              ) : previewModalFile.type === "pdf" ||
-                previewModalFile.url.startsWith("data:application/pdf") ||
-                previewModalFile.name.toLowerCase().endsWith(".pdf") ? (
-                <iframe
-                  src={previewModalFile.url}
-                  title={previewModalFile.name}
-                  className="w-full h-[70vh] rounded-lg border bg-white"
-                />
-              ) : (
-                <div className="p-8 text-center space-y-3">
-                  <FileText className="size-16 mx-auto text-emerald-600 opacity-60" />
-                  <div>
-                    <h4 className="font-bold text-sm text-foreground">{previewModalFile.name}</h4>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Document format ready for preview & download.
-                    </p>
-                  </div>
-                  <a
-                    href={previewModalFile.url}
-                    download={previewModalFile.name}
-                    className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-                  >
-                    <Download className="size-4" /> Download ({previewModalFile.size || "File"})
-                  </a>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </PlanGuard>
   );
 }

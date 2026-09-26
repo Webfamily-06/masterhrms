@@ -143,6 +143,13 @@ model Tenant {
   projectTasks           ProjectTask[]
   cashRegisters          CashRegister[]
   registerShifts         RegisterShift[]
+  salaryComponents       SalaryComponent[]
+  salaryStructures       SalaryStructure[]
+  salaryAssignments      EmployeeSalaryAssignment[]
+  statutoryRules         StatutoryRule[]
+  taxDeclarations        EmployeeTaxDeclaration[]
+  payrollSnapshots       PayrollSnapshot[]
+  genericFormTemplates   GenericFormTemplate[]
   @@map("tenants")
 }
 
@@ -206,6 +213,22 @@ model Employee {
   status         EmployeeStatus @default(active)
   salary         Decimal?       @db.Decimal(12, 2)
   joinedAt       DateTime?      @map("joined_at")
+  pan            String?        @db.VarChar(20)
+  aadhaar        String?        @db.VarChar(20)
+  uan            String?        @db.VarChar(20)
+  esiNumber      String?        @map("esi_number") @db.VarChar(50)
+  bankName       String?        @map("bank_name") @db.VarChar(100)
+  bankAccount    String?        @map("bank_account") @db.VarChar(50)
+  bankIfsc       String?        @map("bank_ifsc") @db.VarChar(20)
+  bankBranch     String?        @map("bank_branch") @db.VarChar(100)
+  dateOfBirth    DateTime?      @map("date_of_birth") @db.Date
+  gender         String?        @db.VarChar(20)
+  taxRegime      String         @default("new") @map("tax_regime") @db.VarChar(20)
+  state          String?        @db.VarChar(100)
+  pfEligible     Boolean        @default(true) @map("pf_eligible")
+  esiEligible    Boolean        @default(true) @map("esi_eligible")
+  ptEligible     Boolean        @default(true) @map("pt_eligible")
+  tdsEligible    Boolean        @default(true) @map("tds_eligible")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
@@ -217,6 +240,9 @@ model Employee {
   attendance                  Attendance[]
   leaveRequests               LeaveRequest[]
   payslips                    Payslip[]
+  salaryAssignments           EmployeeSalaryAssignment[]
+  taxDeclarations             EmployeeTaxDeclaration[]
+  payrollSnapshots            PayrollSnapshot[]
   okrObjectives               OkrObjective[]
   okrCheckins                 OkrCheckin[]
   okrReviewsReceived          OkrReview[]                   @relation("OkrReviewsReceived")
@@ -304,17 +330,24 @@ model LeaveRequest {
 }
 
 model PayrollRun {
-  id          String        @id @default(uuid()) @db.VarChar(36)
-  tenantId    String        @map("tenant_id") @db.VarChar(36)
-  periodMonth Int           @map("period_month")
-  periodYear  Int           @map("period_year")
-  totalAmount Decimal?      @map("total_amount") @db.Decimal(15, 2)
-  status      PayrollStatus @default(draft)
-  processedAt DateTime?     @map("processed_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
+  id              String        @id @default(uuid()) @db.VarChar(36)
+  tenantId        String        @map("tenant_id") @db.VarChar(36)
+  periodMonth     Int           @map("period_month")
+  periodYear      Int           @map("period_year")
+  totalAmount     Decimal?      @map("total_amount") @db.Decimal(15, 2)
+  totalNet        Decimal?      @map("total_net") @db.Decimal(15, 2)
+  totalDeductions Decimal?      @map("total_deductions") @db.Decimal(15, 2)
+  employeeCount   Int           @default(0) @map("employee_count")
+  approvalStatus  String        @default("draft") @map("approval_status") @db.VarChar(30) // draft, calculated, under_review, approved, finalized, paid
+  approvedBy      String?       @map("approved_by") @db.VarChar(150)
+  approvedAt      DateTime?     @map("approved_at")
+  status          PayrollStatus @default(draft)
+  processedAt     DateTime?     @map("processed_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  payslips Payslip[]
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payslips  Payslip[]
+  snapshots PayrollSnapshot[]
 
   @@index([tenantId, status])  // Perf: payroll run listing
   @@index([tenantId, periodYear, periodMonth]) // Perf: period-based lookup
@@ -341,6 +374,228 @@ model Payslip {
   @@index([tenantId, employeeId])
   @@index([tenantId, payrollRunId])
   @@map("payslips")
+}
+
+model SalaryComponent {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  tenantId        String   @map("tenant_id") @db.VarChar(36)
+  name            String   @db.VarChar(100)
+  code            String   @db.VarChar(50)
+  type            String   @db.VarChar(20) // earning, deduction, reimbursement, statutory_employer
+  calculationType String   @map("calculation_type") @db.VarChar(50) // flat, percentage_of_ctc, percentage_of_basic, formula, statutory_esi, fixed_amount
+  formulaString   String?  @map("formula_string") @db.VarChar(500)
+  defaultValue    Decimal  @default(0.00) @map("default_value") @db.Decimal(12, 2)
+  isTaxable       Boolean  @default(true) @map("is_taxable")
+  isStatutory     Boolean  @default(false) @map("is_statutory")
+  includeInPf     Boolean  @default(false) @map("include_in_pf")
+  includeInEsi    Boolean  @default(false) @map("include_in_esi")
+  roundOff        String   @default("nearest") @map("round_off") @db.VarChar(20)
+  sortOrder       Int      @default(0) @map("sort_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  description     String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant         Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  structureItems SalaryStructureItem[]
+  salaryItems    EmployeeSalaryItem[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, type])
+  @@map("salary_components")
+}
+
+model SalaryStructure {
+  id                  String   @id @default(uuid()) @db.VarChar(36)
+  tenantId            String   @map("tenant_id") @db.VarChar(36)
+  name                String   @db.VarChar(150)
+  description         String?  @db.Text
+  isDefault           Boolean  @default(false) @map("is_default")
+  baseCalculationDays Int      @default(26) @map("base_calculation_days")
+  payFrequency        String   @default("monthly") @map("pay_frequency") @db.VarChar(30)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       SalaryStructureItem[]
+  assignments EmployeeSalaryAssignment[]
+
+  @@index([tenantId, isDefault])
+  @@map("salary_structures")
+}
+
+model SalaryStructureItem {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  structureId     String   @map("structure_id") @db.VarChar(36)
+  componentId     String   @map("component_id") @db.VarChar(36)
+  calculationType String   @map("calculation_type") @db.VarChar(50)
+  value           Decimal  @default(0.00) @db.Decimal(12, 4)
+  formula         String?  @db.VarChar(500)
+  sortOrder       Int      @default(0) @map("sort_order")
+
+  structure SalaryStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  component SalaryComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@index([structureId, sortOrder])
+  @@map("salary_structure_items")
+}
+
+model EmployeeSalaryAssignment {
+  id            String    @id @default(uuid()) @db.VarChar(36)
+  tenantId      String    @map("tenant_id") @db.VarChar(36)
+  employeeId    String    @map("employee_id") @db.VarChar(36)
+  structureId   String?   @map("structure_id") @db.VarChar(36)
+  ctcAnnual     Decimal   @map("ctc_annual") @db.Decimal(15, 2)
+  ctcMonthly    Decimal   @map("ctc_monthly") @db.Decimal(15, 2)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  isCurrent     Boolean   @default(true) @map("is_current")
+  taxRegime     String    @default("new") @map("tax_regime") @db.VarChar(20)
+  remarks       String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee  Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  structure SalaryStructure?     @relation(fields: [structureId], references: [id], onDelete: SetNull)
+  items     EmployeeSalaryItem[]
+
+  @@index([tenantId, employeeId, isCurrent])
+  @@map("employee_salary_assignments")
+}
+
+model EmployeeSalaryItem {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  assignmentId  String   @map("assignment_id") @db.VarChar(36)
+  componentId   String   @map("component_id") @db.VarChar(36)
+  monthlyAmount Decimal  @map("monthly_amount") @db.Decimal(12, 2)
+  annualAmount  Decimal  @map("annual_amount") @db.Decimal(15, 2)
+
+  assignment EmployeeSalaryAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  component  SalaryComponent          @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+  @@map("employee_salary_items")
+}
+
+model StatutoryRule {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  tenantId      String   @map("tenant_id") @db.VarChar(36)
+  ruleType      String   @map("rule_type") @db.VarChar(50) // EPF, ESI, PT, GRATUITY, TDS_ITA2025
+  stateCode     String?  @map("state_code") @db.VarChar(50) // MH, KA, TN, TS, WB, DL, GJ, etc.
+  configJson    Json     @map("config_json")
+  effectiveFrom DateTime @default(now()) @map("effective_from") @db.Date
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, ruleType, isActive])
+  @@map("statutory_rules")
+}
+
+model EmployeeTaxDeclaration {
+  id                     String    @id @default(uuid()) @db.VarChar(36)
+  tenantId               String    @map("tenant_id") @db.VarChar(36)
+  employeeId             String    @map("employee_id") @db.VarChar(36)
+  financialYear          String    @map("financial_year") @db.VarChar(20) // e.g. "2025-2026", "2026-2027"
+  taxRegime              String    @default("new") @map("tax_regime") @db.VarChar(20)
+  houseRentPaid          Decimal   @default(0.00) @map("house_rent_paid") @db.Decimal(12, 2)
+  landlordPan            String?   @map("landlord_pan") @db.VarChar(20)
+  landlordName           String?   @map("landlord_name") @db.VarChar(150)
+  landlordAddress        String?   @map("landlord_address") @db.Text
+  section80C             Decimal   @default(0.00) @map("section_80c") @db.Decimal(12, 2)
+  section80D             Decimal   @default(0.00) @map("section_80d") @db.Decimal(12, 2)
+  section80G             Decimal   @default(0.00) @map("section_80g") @db.Decimal(12, 2)
+  homeLoanInterest       Decimal   @default(0.00) @map("home_loan_interest") @db.Decimal(12, 2)
+  otherIncome            Decimal   @default(0.00) @map("other_income") @db.Decimal(12, 2)
+  totalDeductionClaimed  Decimal   @default(0.00) @map("total_deduction_claimed") @db.Decimal(12, 2)
+  totalDeductionApproved Decimal   @default(0.00) @map("total_deduction_approved") @db.Decimal(12, 2)
+  status                 String    @default("draft") @db.VarChar(30) // draft, submitted, verified, rejected
+  verifiedBy             String?   @map("verified_by") @db.VarChar(150)
+  verifiedAt             DateTime? @map("verified_at")
+  remarks                String?   @db.Text
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  proofs   TaxDeclarationProof[]
+
+  @@unique([tenantId, employeeId, financialYear])
+  @@index([tenantId, financialYear, status])
+  @@map("employee_tax_declarations")
+}
+
+model TaxDeclarationProof {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  declarationId   String   @map("declaration_id") @db.VarChar(36)
+  section         String   @db.VarChar(50)
+  fileName        String   @map("file_name") @db.VarChar(255)
+  fileUrl         String   @map("file_url") @db.VarChar(500)
+  fileType        String?  @map("file_type") @db.VarChar(100)
+  declaredAmount  Decimal  @default(0.00) @map("declared_amount") @db.Decimal(12, 2)
+  approvedAmount  Decimal  @default(0.00) @map("approved_amount") @db.Decimal(12, 2)
+  status          String   @default("pending") @db.VarChar(30) // pending, verified, rejected
+  rejectionReason String?  @map("rejection_reason") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  declaration EmployeeTaxDeclaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+
+  @@index([declarationId, section])
+  @@map("tax_declaration_proofs")
+}
+
+model PayrollSnapshot {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  tenantId        String   @map("tenant_id") @db.VarChar(36)
+  payrollRunId    String   @map("payroll_run_id") @db.VarChar(36)
+  employeeId      String   @map("employee_id") @db.VarChar(36)
+  periodMonth     Int      @map("period_month")
+  periodYear      Int      @map("period_year")
+  snapshotData    Json     @map("snapshot_data")
+  ctcAnnual       Decimal  @map("ctc_annual") @db.Decimal(15, 2)
+  grossEarned     Decimal  @map("gross_earned") @db.Decimal(12, 2)
+  totalDeductions Decimal  @map("total_deductions") @db.Decimal(12, 2)
+  netPay          Decimal  @map("net_pay") @db.Decimal(12, 2)
+  lopDays         Decimal  @default(0.00) @map("lop_days") @db.Decimal(5, 2)
+  payableDays     Decimal  @default(26.00) @map("payable_days") @db.Decimal(5, 2)
+  isLocked        Boolean  @default(true) @map("is_locked")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, payrollRunId])
+  @@index([tenantId, employeeId, periodYear, periodMonth])
+  @@map("payroll_snapshots")
+}
+
+model GenericFormTemplate {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  title       String   @db.VarChar(255)
+  code        String   @db.VarChar(100)
+  category    String   @default("statutory") @db.VarChar(50) // statutory, payroll, employee, appraisal, claims, generic
+  entityType  String   @default("employee") @map("entity_type") @db.VarChar(50) // employee, payroll, tax, crm, generic
+  description String?  @db.Text
+  layoutJson  Json?    @map("layout_json")
+  fieldsJson  Json     @map("fields_json")
+  formulasJson Json?   @map("formulas_json")
+  isSystem    Boolean  @default(false) @map("is_system")
+  isPublished Boolean  @default(true) @map("is_published")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, category, isPublished])
+  @@map("generic_form_templates")
 }
 
 model CmsPage {

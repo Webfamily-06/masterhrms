@@ -979,73 +979,10 @@ workspaceRouter.get("/google/drive-files", async (req: AuthRequest, res: Respons
   try {
     const tenantId = req.user!.tenantId!;
 
-    let docs = await prisma.companyDocument.findMany({
+    const docs = await prisma.companyDocument.findMany({
       where: { tenantId },
       orderBy: { updatedAt: "desc" },
     });
-
-    // Seed realistic initial company documents if none exist yet
-    if (docs.length === 0) {
-      const seedTemplates = [
-        {
-          tenantId,
-          documentCode: "DOC-DRV-001",
-          title: "Master ERP Employee Handbook 2026",
-          category: "Company Policy",
-          fileName: "Employee_Handbook_2026.pdf",
-          fileSize: "2.4 MB",
-          fileType: "application/pdf",
-          status: "verified",
-          requiresSignature: false,
-          verifiedBy: "HR Directorate",
-        },
-        {
-          tenantId,
-          documentCode: "DOC-DRV-002",
-          title: "Q2 Financial Audit & P&L Statement.spreadsheet",
-          category: "Financial Statement",
-          fileName: "Q2_Audit_Report.xlsx",
-          fileSize: "4.8 MB",
-          fileType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          status: "verified",
-          requiresSignature: false,
-          verifiedBy: "Finance Lead",
-        },
-        {
-          tenantId,
-          documentCode: "DOC-DRV-003",
-          title: "Standard Employment Agreement Template.document",
-          category: "Employment Contract",
-          fileName: "Offer_Letter_Template_v3.docx",
-          fileSize: "840 KB",
-          fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          status: "pending_signature",
-          requiresSignature: true,
-          verifiedBy: "Legal Ops",
-        },
-        {
-          tenantId,
-          documentCode: "DOC-DRV-004",
-          title: "Corporate Certificate of Incorporation.pdf",
-          category: "KYC & Identity",
-          fileName: "Incorporation_Certificate.pdf",
-          fileSize: "1.9 MB",
-          fileType: "application/pdf",
-          status: "verified",
-          requiresSignature: false,
-          verifiedBy: "Executive Office",
-        },
-      ];
-
-      for (const t of seedTemplates) {
-        await prisma.companyDocument.create({ data: t });
-      }
-
-      docs = await prisma.companyDocument.findMany({
-        where: { tenantId },
-        orderBy: { updatedAt: "desc" },
-      });
-    }
 
     const driveFiles = docs.map((doc) => {
       let type: "folder" | "document" | "spreadsheet" | "pdf" = "document";
