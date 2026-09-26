@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import fs from "fs";
 import path from "path";
+import { generateFunctionMasterMatrix } from "../audit_functions_forensic";
 
 export const docsRouter = Router();
 
@@ -535,33 +536,151 @@ function getDocsMetadata() {
     },
   ];
 
-  // Metrics summary
-  const totalModules = moduleMatrix.length;
-  const workingModules = moduleMatrix.filter((m) => m.overallStatus === "WORKING").length;
-  const partialModules = moduleMatrix.filter((m) => m.overallStatus === "PARTIAL").length;
-  const missingModules = moduleMatrix.filter((m) => m.overallStatus === "MISSING").length;
-  const brokenModules = moduleMatrix.filter((m) => m.overallStatus === "BROKEN").length;
+  // Function-Level Matrix and Dynamic Health Stats
+  const matrixResult = generateFunctionMasterMatrix();
+
+  // API Breakdown
+  const methodCounts: Record<string, number> = {};
+  const moduleMethodCounts: Record<string, any> = {};
+  discovered.endpoints.forEach((e: any) => {
+    methodCounts[e.method] = (methodCounts[e.method] || 0) + 1;
+    if (!moduleMethodCounts[e.module]) moduleMethodCounts[e.module] = { GET: 0, POST: 0, PUT: 0, DELETE: 0, PATCH: 0, total: 0 };
+    moduleMethodCounts[e.module][e.method] = (moduleMethodCounts[e.module][e.method] || 0) + 1;
+    moduleMethodCounts[e.module].total++;
+  });
+
+  const knownIssues = [
+    {
+      id: "ISSUE-EMP-01",
+      module: "Employee Directory & Core HR",
+      function: "Employee Bulk Excel Import",
+      problem: "File upload dropzone does not process rows into MySQL database",
+      currentBehavior: "User uploads .xlsx, preview shows client file, but no records inserted into Employee table",
+      expectedBehavior: "Batch stream parser inserts valid rows, auto-generates employee codes, and reports row validation errors",
+      rootCause: "Backend endpoint POST /api/employees/bulk-import is missing from employees.routes.ts",
+      affectedApis: ["POST /api/employees/bulk-import"],
+      affectedPages: ["/employees"],
+      severity: "HIGH",
+      currentStatus: "MISSING",
+      recommendedFix: "Implement streaming Excel parser using xlsx/exceljs with Prisma bulk transaction in Phase 2",
+      phase: "PHASE-2",
+    },
+    {
+      id: "ISSUE-ATT-01",
+      module: "Attendance & Biometrics",
+      function: "Geo-Fenced Mobile Clock-In Validation",
+      problem: "Clock-in allowed outside office geographic boundaries",
+      currentBehavior: "Lat/Long coordinates are saved, but punch is marked 'present' regardless of distance",
+      expectedBehavior: "Rejects or flags clock-in if GPS distance exceeds tenant configured office radius (e.g. 100m)",
+      rootCause: "Spatial haversine distance verification formula not hooked to punch validation guard",
+      affectedApis: ["POST /api/attendance/punch"],
+      affectedPages: ["/attendance"],
+      severity: "MEDIUM",
+      currentStatus: "PARTIAL",
+      recommendedFix: "Add geolib / haversine distance check against tenant branch coordinates in Phase 2",
+      phase: "PHASE-2",
+    },
+    {
+      id: "ISSUE-PAY-01",
+      module: "Statutory Payroll & Tax",
+      function: "Direct Bank NACH / NEFT Payout API Hook",
+      problem: "Automated 1-click corporate bank disbursement hook is not connected",
+      currentBehavior: "System generates bank transfer CSV/Excel file requiring manual net-banking portal upload",
+      expectedBehavior: "Direct API payout initiation via ICICI Corporate Banking or RazorpayX API",
+      rootCause: "Corporate banking Open Banking gateway webhook listener scheduled for Phase 2",
+      affectedApis: ["POST /api/payroll/:id/payout"],
+      affectedPages: ["/payroll"],
+      severity: "MEDIUM",
+      currentStatus: "PARTIAL",
+      recommendedFix: "Integrate ICICI Bank EazyPay / RazorpayX corporate payout SDK in Phase 2",
+      phase: "PHASE-2",
+    },
+    {
+      id: "ISSUE-POS-01",
+      module: "Point of Sale (POS Terminal)",
+      function: "Offline Dexie.js Zero-Downtime Cart & Reconciliation",
+      problem: "Offline transaction queue requires automatic background conflict resolution daemon",
+      currentBehavior: "Sales cached in browser IndexedDB; cashier must manually review held orders",
+      expectedBehavior: "Background Service Worker auto-syncs transactions upon internet reconnection and decrements MySQL stock",
+      rootCause: "Service Worker background sync event not registered with WebSocket conflict resolver",
+      affectedApis: ["POST /api/sales/sync-offline"],
+      affectedPages: ["/pos"],
+      severity: "HIGH",
+      currentStatus: "PARTIAL",
+      recommendedFix: "Build Dexie sync worker with FIFO queue and stock reconciliation in Phase 2",
+      phase: "PHASE-2",
+    },
+    {
+      id: "ISSUE-ACC-01",
+      module: "Double-Entry Accounting",
+      function: "Automated Bank Statement OCR Reconciliation",
+      problem: "Bank statement PDF/OFX upload dropzone does not parse statement transactions to General Ledger",
+      currentBehavior: "Dropzone captures file, but automatic match against JournalEntry items is not implemented",
+      expectedBehavior: "AI OCR extracts transactions and suggests 1-click reconciliation against ledger payments",
+      rootCause: "Backend PDF/OFX parser service is not implemented",
+      affectedApis: ["POST /api/accounting/reconcile"],
+      affectedPages: ["/accounting"],
+      severity: "LOW",
+      currentStatus: "MISSING",
+      recommendedFix: "Implement bank OFX/CSV/PDF parser with rule-based auto-reconciliation in Phase 2",
+      phase: "PHASE-2",
+    },
+    {
+      id: "ISSUE-ALT-01",
+      module: "E-Commerce & External Sync",
+      function: "WhatsApp Message Queue Worker",
+      problem: "WhatsApp notifications lack persistent Redis retry queue on network timeout",
+      currentBehavior: "Meta Cloud API called synchronously; network drops cause unretried notification failure",
+      expectedBehavior: "Failed message attempts push to BullMQ Redis queue with exponential backoff",
+      rootCause: "BullMQ queue worker architecture deferred to Phase 2",
+      affectedApis: ["POST /api/alerts/whatsapp"],
+      affectedPages: ["/whatsapp-alerts"],
+      severity: "MEDIUM",
+      currentStatus: "PARTIAL",
+      recommendedFix: "Add BullMQ persistent worker process for WhatsApp broadcasts in Phase 2",
+      phase: "PHASE-2",
+    },
+  ];
 
   cachedMetadata = {
     system: {
       name: "Master ERP / HRMS Enterprise SaaS Platform",
       version: "2.4.0-Production",
       lastAuditDate: "2026-09-26",
-      auditedBy: "Antigravity Forensic Architecture Engine",
+      auditedBy: "Antigravity Forensic Architecture Engine (Pass 2)",
       databaseModelsCount: discovered.models?.length || 106,
       backendEndpointsCount: discovered.endpoints?.length || 421,
       frontendRoutesCount: 117,
-      totalModulesCount: totalModules,
-      workingModulesCount: workingModules,
-      partialModulesCount: partialModules,
-      missingModulesCount: missingModules,
-      brokenModulesCount: brokenModules,
+      totalModulesCount: matrixResult.stats.totalModules,
+      workingModulesCount: matrixResult.stats.workingModules,
+      partialModulesCount: matrixResult.stats.partialModules,
+      missingModulesCount: matrixResult.stats.missingModules,
+      brokenModulesCount: matrixResult.stats.brokenModules,
+      totalFunctionsCount: matrixResult.stats.totalFunctions,
+      workingFunctionsCount: matrixResult.stats.workingFunctions,
+      partialFunctionsCount: matrixResult.stats.partialFunctions,
+      missingFunctionsCount: matrixResult.stats.missingFunctions,
+      brokenFunctionsCount: matrixResult.stats.brokenFunctions,
+      functionCompletionPct: matrixResult.stats.functionCompletionPct,
+      moduleCompletionPct: matrixResult.stats.moduleCompletionPct,
+      apiDocumentationCoveragePct: matrixResult.stats.apiDocumentationCoveragePct,
+      frontendRouteCoveragePct: matrixResult.stats.frontendRouteCoveragePct,
+      databaseDocumentationCoveragePct: matrixResult.stats.databaseDocumentationCoveragePct,
+      workflowDocumentationCoveragePct: matrixResult.stats.workflowDocumentationCoveragePct,
     },
     portals,
-    moduleMatrix,
+    modulesSummary: matrixResult.modulesSummary,
+    functions: matrixResult.functions,
+    stats: matrixResult.stats,
+    apiBreakdown: {
+      total: discovered.endpoints?.length || 421,
+      methods: methodCounts,
+      moduleWise: moduleMethodCounts,
+    },
     endpoints: discovered.endpoints || [],
     models: discovered.models || [],
     workflows,
+    knownIssues,
     phase2Backlog,
   };
 
@@ -587,14 +706,32 @@ docsRouter.post("/execute", requireAuth, async (req: Request, res: Response) => 
       return res.status(400).json({ error: "Method and URL are required" });
     }
 
-    // Local target server URL
+    // Prevent SSRF: only allow requests targeting /api/* or /iclock*
+    if (!url.startsWith("/api/") && !url.startsWith("/iclock") && !url.startsWith(`http://localhost:${process.env.PORT || 4000}/api/`)) {
+      return res.status(400).json({ error: "Security Guard: The API console can only execute internal /api/* endpoints." });
+    }
+
     const targetUrl = url.startsWith("http") ? url : `http://localhost:${process.env.PORT || 4000}${url}`;
 
-    // Pass caller's authorization header if not overridden
-    const forwardHeaders: Record<string, string> = {
+    // Security Guard: Check if caller is super_admin before permitting tenant switching
+    const isSuperAdmin = (req as any).user?.roles?.includes("super_admin");
+    const callerTenantId = (req as any).user?.tenantId;
+
+    const safeHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+      // Strictly enforce caller's own authenticated token; prevent token substitution
+      Authorization: req.headers.authorization as string,
+    };
+
+    if (isSuperAdmin && headers["x-tenant-id"]) {
+      safeHeaders["x-tenant-id"] = headers["x-tenant-id"];
+    } else if (callerTenantId) {
+      safeHeaders["x-tenant-id"] = callerTenantId;
+    }
+
+    const forwardHeaders = {
       ...headers,
+      ...safeHeaders, // Overwrites any malicious overrides
     };
 
     const startTime = Date.now();
