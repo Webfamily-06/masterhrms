@@ -20,6 +20,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CareersRouteImport } from './routes/careers'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as HelpCenterRouteImport } from './routes/help-center'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as OfflineRouteImport } from './routes/offline'
@@ -183,6 +184,11 @@ const ContactRoute = ContactRouteImport.update({
 const CustomerDisplayRoute = CustomerDisplayRouteImport.update({
   id: '/customer-display',
   path: '/customer-display',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpCenterRoute = HelpCenterRouteImport.update({
@@ -807,6 +813,7 @@ export interface FileRoutesByFullPath {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/docs': typeof DocsRoute
   '/help-center': typeof HelpCenterRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
@@ -928,6 +935,7 @@ export interface FileRoutesByTo {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/docs': typeof DocsRoute
   '/help-center': typeof HelpCenterRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
@@ -1050,6 +1058,7 @@ export interface FileRoutesById {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/docs': typeof DocsRoute
   '/help-center': typeof HelpCenterRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
@@ -1174,6 +1183,7 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/docs'
     | '/help-center'
     | '/maintenance'
     | '/offline'
@@ -1295,6 +1305,7 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/docs'
     | '/help-center'
     | '/maintenance'
     | '/offline'
@@ -1416,6 +1427,7 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/docs'
     | '/help-center'
     | '/maintenance'
     | '/offline'
@@ -1540,6 +1552,7 @@ export interface RootRouteChildren {
   CareersRoute: typeof CareersRoute
   ContactRoute: typeof ContactRoute
   CustomerDisplayRoute: typeof CustomerDisplayRoute
+  DocsRoute: typeof DocsRoute
   HelpCenterRoute: typeof HelpCenterRoute
   MaintenanceRoute: typeof MaintenanceRoute
   OfflineRoute: typeof OfflineRoute
@@ -1638,6 +1651,13 @@ declare module '@tanstack/react-router' {
       path: '/customer-display'
       fullPath: '/customer-display'
       preLoaderRoute: typeof CustomerDisplayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help-center': {
@@ -2661,6 +2681,7 @@ const rootRouteChildren: RootRouteChildren = {
   CareersRoute: CareersRoute,
   ContactRoute: ContactRoute,
   CustomerDisplayRoute: CustomerDisplayRoute,
+  DocsRoute: DocsRoute,
   HelpCenterRoute: HelpCenterRoute,
   MaintenanceRoute: MaintenanceRoute,
   OfflineRoute: OfflineRoute,

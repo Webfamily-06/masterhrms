@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useState } from "react";
@@ -237,6 +237,11 @@ function ApiDocsAdminStudio() {
           </Button>
           <Button size="sm" onClick={() => setIsNewKeyModalOpen(true)} className="gap-2">
             <Plus className="size-4" /> Generate API Key
+          </Button>
+          <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500 text-white" asChild>
+            <Link to="/docs">
+              <Globe className="size-4" /> Full Developer Portal (/docs)
+            </Link>
           </Button>
         </div>
       </div>

@@ -49,6 +49,7 @@ import { suppliersRouter } from "./routes/suppliers.routes";
 import { purchasesRouter } from "./routes/purchases.routes";
 import { adjustmentsRouter } from "./routes/adjustments.routes";
 import { paymentsRouter, razorpayWebhookHandler } from "./routes/payments.routes";
+import { docsRouter } from "./routes/docs.routes";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -141,6 +142,7 @@ app.use("/api/suppliers", suppliersRouter);
 app.use("/api/purchases", purchasesRouter);
 app.use("/api/adjustments", adjustmentsRouter);
 app.use("/api/payments", paymentsRouter);
+app.use("/api/docs", docsRouter);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

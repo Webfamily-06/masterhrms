@@ -953,6 +953,18 @@ export function DreamsSidebar({
               </Link>
             </li>
 
+            {/* Developer Portal */}
+            <li>
+              <Link
+                to="/docs"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/docs" && "active", "text-blue-600 dark:text-blue-400 font-medium")}
+              >
+                <i className="ph-duotone ph-code"></i>
+                <span>Developer Docs & API</span>
+              </Link>
+            </li>
+
             {/* Super Admin Console (Conditional) */}
             {isSuperAdmin && (
               <li>
