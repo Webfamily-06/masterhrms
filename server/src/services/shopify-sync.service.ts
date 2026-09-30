@@ -1,4 +1,5 @@
 import { prisma } from "../prisma";
+import { InventoryMovementService, STOCK_MOVEMENT_TYPES } from "./inventory-movement.service";
 import https from "https";
 import { URL } from "url";
 
@@ -418,21 +419,41 @@ export async function syncShopifyProducts(
           created++;
         }
 
-        // Upsert stock in ProductWarehouse for instant POS deduction
-        await prisma.productWarehouse.upsert({
+        // Upsert stock in ProductWarehouse via Centralized Stock Engine
+        const existingPw = await prisma.productWarehouse.findUnique({
           where: {
             productId_warehouseId: {
               productId: savedProduct.id,
               warehouseId: warehouseId!,
             },
           },
-          update: { quantity: stockQty },
-          create: {
+        });
+
+        const currentQty = existingPw ? Number(existingPw.quantity) : 0;
+        const delta = stockQty - currentQty;
+        if (delta > 0) {
+          await InventoryMovementService.increaseStock({
+            tenantId,
             productId: savedProduct.id,
             warehouseId: warehouseId!,
-            quantity: stockQty,
-          },
-        });
+            quantity: delta,
+            movementType: STOCK_MOVEMENT_TYPES.ADJUSTMENT_IN,
+            referenceType: "SHOPIFY_SYNC",
+            referenceId: sp.id ? String(sp.id) : undefined,
+            notes: `Shopify inventory pull sync (+${delta})`,
+          });
+        } else if (delta < 0) {
+          await InventoryMovementService.decreaseStock({
+            tenantId,
+            productId: savedProduct.id,
+            warehouseId: warehouseId!,
+            quantity: Math.abs(delta),
+            movementType: STOCK_MOVEMENT_TYPES.ADJUSTMENT_OUT,
+            referenceType: "SHOPIFY_SYNC",
+            referenceId: sp.id ? String(sp.id) : undefined,
+            notes: `Shopify inventory pull sync deduction (${delta})`,
+          });
+        }
 
         syncedCatalogItems.push({
           id: savedProduct.id,
@@ -658,12 +679,22 @@ export async function syncShopifyOrders(
             },
           });
 
-          // Deduct stock if paid/completed
+          // Deduct stock if paid/completed via Centralized Stock Engine
           if (o.financial_status === "paid" && warehouse) {
-            await prisma.productWarehouse.updateMany({
-              where: { productId: product.id, warehouseId: warehouse.id },
-              data: { quantity: { decrement: item.quantity || 1 } },
-            });
+            try {
+              await InventoryMovementService.decreaseStock({
+                tenantId: product.tenantId,
+                productId: product.id,
+                warehouseId: warehouse.id,
+                quantity: Number(item.quantity || 1),
+                movementType: STOCK_MOVEMENT_TYPES.POS_SALE,
+                referenceType: "SHOPIFY_ORDER",
+                referenceId: String(o.id),
+                notes: `Shopify order ${o.name || o.order_number || o.id} fulfillment`,
+              });
+            } catch (err: any) {
+              console.warn(`Shopify order stock deduction failed for ${product.name}:`, err.message);
+            }
           }
         }
       }

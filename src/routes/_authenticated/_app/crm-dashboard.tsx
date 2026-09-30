@@ -489,10 +489,8 @@ export default function CrmDashboardPage() {
 
 					</div>
 					
-					<div className="grid grid-cols-1 xl:grid-cols-12 xxl:grid-cols-12 gap-3">
-
-						
-						<div className="bg-white border border-border-color rounded-md p-4 xl:col-span-6 xxl:col-span-5">
+					<div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+						<div className="bg-white border border-border-color rounded-md p-4 xl:col-span-5">
 							<div className="flex items-center justify-between flex-wrap gap-2 mb-3">
 								<h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Contact By Sources</h3>
 								<div className="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
@@ -565,7 +563,7 @@ export default function CrmDashboardPage() {
 						</div>
 
 						
-						<div className="bg-white border border-border-color rounded-md p-4 pb-1.5 xl:col-span-6 xxl:col-span-7">
+						<div className="bg-white border border-border-color rounded-md p-4 pb-1.5 xl:col-span-7">
 							<div className="flex items-center justify-between flex-wrap gap-2 mb-3">
 								<h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recent Contacts</h3>
 								<div className="flex items-center gap-2">

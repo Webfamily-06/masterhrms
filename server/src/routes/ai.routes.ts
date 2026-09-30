@@ -1,10 +1,20 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { prisma } from "../prisma";
 import { autoPostPurchaseToLedger, autoPostSaleToLedger } from "../services/ledger-posting.service";
 import { resolveTenantId } from "../lib/tenant";
+import { InventoryMovementService } from "../services/inventory-movement.service";
+import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
 
 export const aiRouter = Router();
+
+// Step 3.3.5: Enforce Request-Scoped Tenant Context on all AI endpoints.
+// The OCR save path writes tenant-owned Purchase/Product/Supplier rows through the
+// tenant-isolated Prisma proxy, which fails closed (TENANT_CONTEXT_REQUIRED) without
+// an active AsyncLocalStorage context. This aligns aiRouter with every other
+// tenant-scoped router (products, sales, purchases, transfers, adjustments).
+aiRouter.use(requireAuth, resolveTenantContext);
 
 // Knowledge Base for ERP & HRMS AI Copilot
 const ERP_KNOWLEDGE_BASE: Record<string, string> = {
@@ -106,26 +116,26 @@ aiRouter.post("/generate-content", requireAuth, async (req: AuthRequest, res: Re
 **Language**: ${language}  
 **Tone**: ${tone}  
 
-### 🌟 About the Role
+### About the Role
 We are seeking a talented and proactive **${topic}** to join our fast-scaling team. In this role, you will lead high-impact initiatives, collaborate closely with cross-functional teams, and contribute to our strategic goals.
 
-### 📋 Key Responsibilities
+### Key Responsibilities
 - Drive end-to-end execution of projects related to ${description || topic}.
 - Partner with leadership and stakeholders to define key deliverables and milestones.
 - Ensure exceptional quality, compliance, and adherence to company standards.
 - Mentor junior team members and foster a high-performance culture.
 
-### 🎯 Requirements & Qualifications
+### Requirements & Qualifications
 - Proven track record and relevant experience in this domain.
 - Strong analytical and problem-solving abilities with a ${tone.toLowerCase()} communication style.
 - Ability to thrive in a collaborative, fast-paced environment.
 
-### 🎁 What We Offer
+### What We Offer
 - Competitive compensation + performance bonuses.
 - Comprehensive health insurance and wellness benefits.
 - Flexible working arrangements and professional growth stipends.`;
       } else if (contentType === "hr_announcement") {
-        content = `📢 **OFFICIAL COMPANY CIRCULAR**
+        content = `**OFFICIAL COMPANY CIRCULAR**
 **Subject**: ${topic}  
 **Target Audience**: ${audience}  
 **Date**: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}  
@@ -150,20 +160,20 @@ Warm regards,
 **People & Culture Department**  
 *Master ERP Enterprise*`;
       } else if (contentType === "marketing_copy") {
-        content = `🚀 **Transform Your Business with ${topic}**
+        content = `**Transform Your Business with ${topic}**
 
 Are you ready to elevate your workflow and achieve unprecedented efficiency?
 
-${description ? `👉 **${description}**` : `Discover the next-generation solution tailored specifically for ${audience}.`}
+${description ? `**${description}**` : `Discover the next-generation solution tailored specifically for ${audience}.`}
 
 ### Why Industry Leaders Choose Us:
-✨ **Maximum ROI**: Engineered to deliver measurable results from Day 1.  
-⚡ **Seamless Speed**: Eliminate manual bottlenecks with automated workflows.  
-🔒 **Enterprise Security**: Built with bank-grade multi-tenant compliance.  
+**Maximum ROI**: Engineered to deliver measurable results from Day 1.  
+**Seamless Speed**: Eliminate manual bottlenecks with automated workflows.  
+**Enterprise Security**: Built with bank-grade multi-tenant compliance.  
 
-👉 **Take Action Today**: Start your 14-day free trial or contact our sales team to schedule a custom demo!`;
+**Take Action Today**: Start your 14-day free trial or contact our sales team to schedule a custom demo!`;
       } else if (contentType === "email_newsletter") {
-        content = `✉️ **Subject**: ${topic} — Exclusive Insights for ${audience}
+        content = `**Subject**: ${topic} — Exclusive Insights for ${audience}
 
 Hello [First Name],
 
@@ -290,7 +300,7 @@ aiRouter.post("/ask", requireAuth, async (req: AuthRequest, res: Response) => {
     let reply = "";
 
     if (lower.includes("leave") || lower.includes("vacation") || lower.includes("sick")) {
-      reply = `📋 **Leave Management Policy**:
+      reply = `**Leave Management Policy**:
 ${ERP_KNOWLEDGE_BASE.leave}
 - **Employee Action**: Submit leave request from the Leave page.
 - **Manager Action**: Approve/Reject with 1-click status updates and WhatsApp notifications.`;
@@ -299,16 +309,16 @@ ${ERP_KNOWLEDGE_BASE.leave}
 ${ERP_KNOWLEDGE_BASE.attendance}
 - **Biometric Integration**: ${ERP_KNOWLEDGE_BASE.biometric}`;
     } else if (lower.includes("payroll") || lower.includes("salary") || lower.includes("payslip") || lower.includes("pf") || lower.includes("tax")) {
-      reply = `💰 **Payroll & Compensation**:
+      reply = `**Payroll & Compensation**:
 ${ERP_KNOWLEDGE_BASE.payroll}
 - **Tax Breakdown**: ${ERP_KNOWLEDGE_BASE.gst}`;
     } else if (lower.includes("accounting") || lower.includes("ledger") || lower.includes("balance sheet") || lower.includes("debit") || lower.includes("credit")) {
-      reply = `📊 **Double-Entry General Ledger**:
+      reply = `**Double-Entry General Ledger**:
 ${ERP_KNOWLEDGE_BASE.accounting}
 - **Chart of Accounts**: Standard 5-tier classification (Assets, Liabilities, Equity, Revenue, Expenses).
 - **Journal Entries**: Strict balance validation prevents un-posted transactions.`;
     } else if (lower.includes("announcement") || lower.includes("circular")) {
-      reply = `📢 **Draft Company Announcement**:
+      reply = `**Draft Company Announcement**:
 
 **Subject**: Welcome to Our Growing Team & Quarterly Highlights!
 
@@ -321,7 +331,7 @@ Please join us in giving them a warm welcome. Let's continue pushing forward on 
 Best regards,  
 **People & Operations Team**`;
     } else if (lower.includes("job") || lower.includes("recruitment") || lower.includes("developer")) {
-      reply = `🎯 **Draft Job Description**:
+      reply = `**Draft Job Description**:
 
 **Job Title**: Senior Full Stack Developer (React & Node.js)  
 **Location**: Hybrid / Remote  
@@ -337,7 +347,7 @@ Best regards,
 - Strong knowledge of relational databases and multi-tenant systems.
 - Competitive salary + stock options + comprehensive health benefits.`;
     } else {
-      reply = `🤖 **Master ERP AI Assistant**:
+      reply = `**Master ERP AI Assistant**:
 
 Thank you for your question! Here is how you can achieve this in Master ERP:
 1. **Real-time Navigation**: Use the sidebar menu to navigate directly to the relevant module.
@@ -567,58 +577,62 @@ aiRouter.post("/ocr/save", requireAuth, async (req: AuthRequest, res: Response) 
       const purchaseNo =
         extracted.invoiceNumber || `PO-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
 
-      // Create Purchase Order in MySQL
-      const purchase = await prisma.purchase.create({
-        data: {
-          tenantId,
-          purchaseNo,
-          supplierId: supplier.id,
-          warehouseId: defaultWarehouse.id,
-          status: "received",
-          paymentStatus: "unpaid",
-          total: totalVal,
-          paidAmount: 0,
-          notes: extracted.notes || `Scanned via AI OCR: ${fileName}`,
-          details: {
-            create: productLineDetails.map(({ product, item }) => ({
-              productId: product.id,
-              productName: product.name,
-              cost: Number(item.rate || 0),
-              quantity: Math.max(1, Number(item.qty || 1)),
-              taxRate: Number(extracted.taxPercent || 18),
-              subtotal: Number(item.amount || item.qty * item.rate),
-            })),
-          },
-        },
+      // Idempotency check: if purchase with this purchaseNo already exists for this tenant, return it
+      const existingPurchase = await prisma.purchase.findUnique({
+        where: { tenantId_purchaseNo: { tenantId, purchaseNo } },
         include: { details: true, supplier: true, warehouse: true },
       });
 
-      // Auto-increment warehouse stock on receipt
-      for (const { product, item } of productLineDetails) {
-        const qty = Math.max(1, Number(item.qty || 1));
-        await prisma.productWarehouse.upsert({
-          where: {
-            productId_warehouseId: {
-              productId: product.id,
-              warehouseId: defaultWarehouse.id,
-            },
-          },
-          update: { quantity: { increment: qty } },
-          create: {
-            productId: product.id,
-            warehouseId: defaultWarehouse.id,
-            quantity: qty,
-          },
+      if (existingPurchase) {
+        return res.status(200).json({
+          success: true,
+          type: "purchase",
+          id: existingPurchase.id,
+          referenceNo: existingPurchase.purchaseNo,
+          message: `Purchase Order ${existingPurchase.purchaseNo} already exists (idempotent).`,
+          isDuplicate: true,
+          data: existingPurchase,
         });
       }
 
-      // Auto-post Purchase to General Ledger
-      await autoPostPurchaseToLedger({
-        tenantId,
-        purchaseId: purchase.id,
-        purchaseNo: purchase.purchaseNo,
-        total: totalVal,
-        isPaid: false,
+      // Create Purchase Order in MySQL with status "ordered" (Pending Physical Goods Receipt)
+      // Step 3.3.5: details are created as sibling statements inside one transaction instead of a
+      // nested create — PurchaseDetail is a child-dependent model without a tenant_id column, and the
+      // tenant-isolation proxy injects tenantId into nested creates, which Prisma rejects as unknown.
+      const purchase = await prisma.$transaction(async (tx) => {
+        const created = await tx.purchase.create({
+          data: {
+            tenantId,
+            purchaseNo,
+            supplierId: supplier.id,
+            warehouseId: defaultWarehouse.id,
+            status: "ordered",
+            paymentStatus: "unpaid",
+            total: totalVal,
+            paidAmount: 0,
+            notes: extracted.notes || `Scanned via AI OCR: ${fileName}`,
+          },
+        });
+
+        for (const { product, item } of productLineDetails) {
+          await tx.purchaseDetail.create({
+            data: {
+              purchaseId: created.id,
+              productId: product.id,
+              productName: product.name,
+              cost: Number(item.rate || 0),
+              // purchase_details.quantity is Int: clamp to 1 (whole-unit minimum)
+              quantity: Math.max(1, Math.round(Number(item.qty || 1))),
+              taxRate: Number(extracted.taxPercent || 18),
+              subtotal: Number(item.amount || (Number(item.qty || 1) * Number(item.rate || 0))),
+            },
+          });
+        }
+
+        return await tx.purchase.findUniqueOrThrow({
+          where: { id: created.id },
+          include: { details: true, supplier: true, warehouse: true },
+        });
       });
 
       return res.status(201).json({
@@ -626,7 +640,8 @@ aiRouter.post("/ocr/save", requireAuth, async (req: AuthRequest, res: Response) 
         type: "purchase",
         id: purchase.id,
         referenceNo: purchase.purchaseNo,
-        message: `Successfully created Purchase Order ${purchase.purchaseNo} and auto-posted to General Ledger!`,
+        message: `Successfully created Purchase Order ${purchase.purchaseNo} (Pending physical goods receipt).`,
+        data: purchase,
       });
     } else {
       // Create Customer Invoice in MySQL

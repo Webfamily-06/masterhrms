@@ -404,11 +404,11 @@ export function SupportPage() {
                 >
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="addon_upgrade">🚀 Addon Suite Upgrade</SelectItem>
-                    <SelectItem value="billing_invoices">💳 Billing & Invoices</SelectItem>
-                    <SelectItem value="technical_api">🔌 Technical & API Limits</SelectItem>
-                    <SelectItem value="feature_request">💡 Feature Request</SelectItem>
-                    <SelectItem value="general_support">💬 General Platform Support</SelectItem>
+                    <SelectItem value="addon_upgrade">Addon Suite Upgrade</SelectItem>
+                    <SelectItem value="billing_invoices">Billing & Invoices</SelectItem>
+                    <SelectItem value="technical_api">Technical & API Limits</SelectItem>
+                    <SelectItem value="feature_request">Feature Request</SelectItem>
+                    <SelectItem value="general_support">General Platform Support</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

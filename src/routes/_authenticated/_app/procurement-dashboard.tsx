@@ -355,7 +355,7 @@ export default function ProcurementDashboardPage() {
 
 					
 					<div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
-						<div className="bg-white border border-border-color rounded-md p-4 xxl:col-span-4 xl:col-span-12">
+						<div className="bg-white border border-border-color rounded-md p-4 xl:col-span-4">
 							<div className="flex items-center justify-between mb-3">
 								<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Supplier Performance</h2>
 								<div className="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
@@ -381,7 +381,7 @@ export default function ProcurementDashboardPage() {
 							<div id="proc-supplier-perf-chart"></div>
 							<div className="flex items-center justify-center gap-4 mt-2 text-[11px]"><div className="flex items-center gap-1"><span className="size-2 rounded-full bg-info"></span><span className="text-default">Quality</span></div><div className="flex items-center gap-1"><span className="size-2 rounded-full bg-orange"></span><span className="text-default">Cost Efficiency</span></div></div>
 						</div>
-						<div className="bg-white border border-border-color rounded-md p-4 xxl:col-span-4 xl:col-span-6">
+						<div className="bg-white border border-border-color rounded-md p-4 xl:col-span-4">
 							<div className="flex items-center justify-between mb-3">
 								<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Spend by Category</h2>
 								<div className="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
@@ -413,7 +413,7 @@ export default function ProcurementDashboardPage() {
 								<div className="flex items-center justify-between gap-2 text-[11px]"><div className="flex items-center gap-2"><span className="size-2 rounded-full bg-info"></span><span className="text-default">Electronics</span></div><span className="font-semibold text-gray-900">20%</span></div>
 							</div>
 						</div>
-						<div className="bg-white border border-border-color rounded-md p-4 xxl:col-span-4 xl:col-span-6">
+						<div className="bg-white border border-border-color rounded-md p-4 xl:col-span-4">
 							<div className="flex items-center justify-between mb-3">
 								<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Order Status</h2>
 								<div className="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">

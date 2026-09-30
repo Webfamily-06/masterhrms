@@ -83,7 +83,7 @@ export function PublicQrAssetPage() {
         <div className="flex items-center justify-between no-print">
           <div className="flex items-center gap-2">
             <div className="size-8 rounded-lg bg-primary/10 text-primary grid place-items-center font-bold">
-              {asset.categoryRel?.icon || "💻"}
+              {asset.categoryRel?.icon || ""}
             </div>
             <span className="text-xs font-mono font-bold text-foreground">
               Master Workspace HRMS · Asset Passport

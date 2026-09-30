@@ -17,6 +17,7 @@ import {
   Lock,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { resolveDefaultRoute, extractRolesFromToken } from "@/lib/auth-navigation";
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -184,7 +185,9 @@ function Verify2faPage() {
             : "Identity verified! Welcome back."
         );
 
-        navigate({ to: redirect || "/dashboard" });
+        const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
+        const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
+        navigate({ to: resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }) });
       } else {
         throw new Error(res.error || "Failed to verify 2FA code.");
       }

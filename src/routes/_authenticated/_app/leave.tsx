@@ -307,6 +307,18 @@ function Leave() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Cancel mutation
+  const cancelMut = useMutation({
+    mutationFn: async (id: string) => {
+      return api.post(`/leave/requests/${id}/cancel`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leave-requests"] });
+      toast.success("Leave request cancelled.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // Create / Update Leave Type Mutation
   const saveTypeMut = useMutation({
     mutationFn: async () => {
@@ -639,24 +651,41 @@ function Leave() {
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
-                            {(isHR || isManager) && r.status === "pending" ? (
+                            {r.status === "pending" ? (
                               <div className="flex items-center justify-end gap-1.5">
+                                {(isHR || isManager) && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2.5 text-xs font-bold border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 gap-1"
+                                      onClick={() => approveMut.mutate(r.id)}
+                                      disabled={approveMut.isPending}
+                                    >
+                                      <Check className="size-3.5" /> Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2.5 text-xs font-bold border-rose-500/40 text-rose-600 hover:bg-rose-500/10 gap-1"
+                                      onClick={() => setRejectTarget({ id: r.id, name: `${r.employees?.first_name} ${r.employees?.last_name}` })}
+                                    >
+                                      <X className="size-3.5" /> Reject
+                                    </Button>
+                                  </>
+                                )}
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2.5 text-xs font-bold border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 gap-1"
-                                  onClick={() => approveMut.mutate(r.id)}
-                                  disabled={approveMut.isPending}
+                                  variant="ghost"
+                                  className="h-7 px-2 text-xs font-medium text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to cancel this leave request?")) {
+                                      cancelMut.mutate(r.id);
+                                    }
+                                  }}
+                                  disabled={cancelMut.isPending}
                                 >
-                                  <Check className="size-3.5" /> Approve
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2.5 text-xs font-bold border-rose-500/40 text-rose-600 hover:bg-rose-500/10 gap-1"
-                                  onClick={() => setRejectTarget({ id: r.id, name: `${r.employees?.first_name} ${r.employees?.last_name}` })}
-                                >
-                                  <X className="size-3.5" /> Reject
+                                  Cancel
                                 </Button>
                               </div>
                             ) : (

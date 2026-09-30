@@ -52,4 +52,11 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardFooter.displayName = "CardFooter";
 
+export const pastelCardTokens = {
+  blue: "bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300",
+  green: "bg-gradient-to-r from-green-50 to-green-100 dark:from-green-950/40 dark:to-green-900/40 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300",
+  orange: "bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950/40 dark:to-orange-900/40 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300",
+  purple: "bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950/40 dark:to-purple-900/40 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300",
+} as const;
+
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };

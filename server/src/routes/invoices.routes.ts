@@ -1,15 +1,28 @@
 import { Router, Response } from "express";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
-import crypto from "crypto";
-import { autoPostSaleToLedger } from "../services/ledger-posting.service";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { autoPostSaleToLedger, autoPostCustomerPaymentToLedger, PeriodPostingError } from "../services/ledger-posting.service";
+import { InventoryMovementService } from "../services/inventory-movement.service";
+import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
+import { InsufficientStockError } from "../services/inventory-movement.errors";
 
 export const invoicesRouter = Router();
+
+// Enforce requireAuth and resolveTenantContext on all non-public invoice routes
+invoicesRouter.use((req, res, next) => {
+  if (req.path.startsWith("/public")) {
+    return next();
+  }
+  return requireAuth(req as AuthRequest, res, () => {
+    return resolveTenantContext(req as any, res, next);
+  });
+});
 
 // GET /api/invoices - List formal invoices from Sale table or fallback
 invoicesRouter.get("/", requireAuth, requirePermission("finance.invoices.view"), async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = req.user?.tenantId!;
 
     const sales = await prisma.sale.findMany({
       where: { tenantId },
@@ -75,41 +88,153 @@ invoicesRouter.get("/", requireAuth, requirePermission("finance.invoices.view"),
   }
 });
 
-// POST /api/invoices - Create formal invoice (persists in Sale table)
+// POST /api/invoices - Create formal invoice (persists in Sale table and SaleDetail lines)
 invoicesRouter.post("/", requireAuth, requirePermission("finance.invoices.create"), async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = req.user?.tenantId!;
     const body = req.body;
 
     const count = await prisma.sale.count({ where: { tenantId } });
     const invoiceNo = body.number || body.invoiceNo || `INV-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
 
-    const lines: any[] = body.lines || [];
-    const subtotal = Number(body.subtotal || lines.reduce((acc, l) => acc + (Number(l.rate || 0) * Number(l.qty || 1)), 0));
-    const cgst = Number(body.cgst || 0);
-    const sgst = Number(body.sgst || 0);
-    const igst = Number(body.igst || 0);
-    const total = Number(body.total || body.amount || subtotal + cgst + sgst + igst);
+    const lines: any[] = Array.isArray(body.lines) ? body.lines : [];
+    const subtotal = Number(body.subtotal || lines.reduce((acc, l) => acc + (Number(l.rate || l.unitPrice || 0) * Number(l.qty || l.quantity || 1) - Number(l.discount || 0)), 0));
 
-    const sale = await prisma.sale.create({
-      data: {
-        tenantId,
-        invoiceNo,
-        type: "invoice",
-        customerName: body.client || body.customerName || "B2B Client",
-        customerGstin: body.client_gstin || body.clientGstin || "",
-        subtotal,
-        taxMode: body.tax_mode || body.taxMode || "sgst_cgst",
-        cgst,
-        sgst,
-        igst,
-        totalTax: cgst + sgst + igst,
-        total,
-        paidAmount: body.status === "paid" ? total : 0,
-        paymentStatus: body.status === "paid" ? "paid" : "unpaid",
-        notes: body.notes || "",
-        dueDate: body.dueDate ? new Date(body.dueDate) : null,
-      },
+    // Determine Indian GST mode (Intra-state CGST+SGST vs Inter-state IGST)
+    const clientGstin = (body.client_gstin || body.clientGstin || "").trim();
+    const customerState = body.customerState || body.clientState || (clientGstin.length >= 2 ? clientGstin.slice(0, 2) : "");
+    const companyState = body.companyState || "29"; // Default Karnataka state code 29
+    let taxMode: "sgst_cgst" | "igst" = body.taxMode || body.tax_mode;
+
+    if (!taxMode) {
+      if (customerState && customerState !== companyState) {
+        taxMode = "igst";
+      } else {
+        taxMode = "sgst_cgst";
+      }
+    }
+
+    // Calculate line-level taxes if not provided directly
+    let calculatedTotalTax = 0;
+    for (const l of lines) {
+      const lineQty = Number(l.qty || l.quantity || 1);
+      const lineRate = Number(l.rate || l.unitPrice || 0);
+      const lineTaxRate = Number(l.gst_rate !== undefined ? l.gst_rate : l.taxRate || 0);
+      const lineTaxAmt = Number(l.gst_amount !== undefined ? l.gst_amount : l.taxAmount || (lineRate * lineQty * (lineTaxRate / 100)));
+      calculatedTotalTax += lineTaxAmt;
+    }
+
+    const totalTax = Number(body.totalTax !== undefined ? body.totalTax : body.total_gst !== undefined ? body.total_gst : calculatedTotalTax);
+
+    let cgst = Number(body.cgst || 0);
+    let sgst = Number(body.sgst || 0);
+    let igst = Number(body.igst || 0);
+
+    if (cgst === 0 && sgst === 0 && igst === 0 && totalTax > 0) {
+      if (taxMode === "igst") {
+        igst = totalTax;
+      } else {
+        cgst = Math.round((totalTax / 2) * 100) / 100;
+        sgst = Math.round((totalTax / 2) * 100) / 100;
+      }
+    }
+
+    const total = Number(body.total || body.amount || (subtotal + cgst + sgst + igst));
+
+    // Check optional customer relation
+    let customerId = body.customerId || null;
+    if (!customerId && (body.client || body.customerName)) {
+      const existingCustomer = await prisma.customer.findFirst({
+        where: { tenantId, name: body.client || body.customerName },
+      });
+      if (existingCustomer) customerId = existingCustomer.id;
+    }
+
+    const { sale, formattedLines } = await prisma.$transaction(async (tx) => {
+      const createdSale = await tx.sale.create({
+        data: {
+          tenantId,
+          invoiceNo,
+          type: "invoice",
+          customerId,
+          warehouseId: body.warehouseId || null,
+          customerName: body.client || body.customerName || "B2B Client",
+          customerGstin: clientGstin,
+          subtotal,
+          taxMode,
+          cgst,
+          sgst,
+          igst,
+          totalTax: cgst + sgst + igst,
+          total,
+          paidAmount: body.status === "paid" ? total : 0,
+          paymentStatus: body.status === "paid" ? "paid" : "unpaid",
+          notes: body.notes || "",
+          dueDate: body.dueDate ? new Date(body.dueDate) : null,
+          date: body.date ? new Date(body.date) : new Date(),
+        },
+      });
+
+      const lineOut: any[] = [];
+      for (const l of lines) {
+        const lineName = l.description || l.name || "Item";
+        let pId = l.productId || l.id;
+
+        let prod = pId ? await tx.product.findFirst({ where: { id: pId, tenantId } }) : null;
+        if (!prod) {
+          prod = await tx.product.findFirst({ where: { tenantId, name: lineName } });
+        }
+        if (!prod) {
+          prod = await tx.product.create({
+            data: {
+              tenantId,
+              name: lineName,
+              sku: l.sku || `INV-${Date.now().toString().slice(-6)}`,
+              purchasePrice: 0,
+              salePrice: Number(l.rate || l.unitPrice || 0),
+              lowStockThreshold: 0,
+            },
+          });
+        }
+
+        const lineQty = Number(l.qty || l.quantity || 1);
+        const lineRate = Number(l.rate || l.unitPrice || 0);
+        const lineTaxRate = Number(l.gst_rate !== undefined ? l.gst_rate : l.taxRate || 0);
+        const lineTaxAmt = Number(l.gst_amount !== undefined ? l.gst_amount : l.taxAmount || (lineRate * lineQty * (lineTaxRate / 100)));
+        const lineDiscount = Number(l.discount || 0);
+        const lineSubtotal = (lineRate * lineQty) - lineDiscount + lineTaxAmt;
+
+        const detail = await tx.saleDetail.create({
+          data: {
+            saleId: createdSale.id,
+            productId: prod.id,
+            productName: lineName,
+            sku: l.sku || prod.sku,
+            hsnSac: l.hsn_sac || l.hsnSac || null,
+            unit: l.unit || "Pcs",
+            price: lineRate,
+            quantity: lineQty,
+            taxRate: lineTaxRate,
+            taxAmount: lineTaxAmt,
+            discount: lineDiscount,
+            subtotal: lineSubtotal,
+          },
+        });
+
+        lineOut.push({
+          id: detail.productId,
+          description: detail.productName,
+          hsn_sac: detail.hsnSac || "",
+          qty: detail.quantity,
+          unit: detail.unit || "Pcs",
+          rate: Number(detail.price),
+          gst_rate: Number(detail.taxRate),
+          amount: Number(detail.price) * detail.quantity,
+          gst_amount: Number(detail.taxAmount),
+        });
+      }
+
+      return { sale: createdSale, formattedLines: lineOut };
     });
 
     // ⚡ Auto-post to Double-Entry General Ledger
@@ -129,16 +254,303 @@ invoicesRouter.post("/", requireAuth, requirePermission("finance.invoices.create
       id: sale.id,
       number: invoiceNo,
       invoiceNo,
+      date: sale.date.toISOString(),
+      dueDate: sale.dueDate ? sale.dueDate.toISOString() : sale.date.toISOString(),
+      client: sale.customerName,
+      client_gstin: sale.customerGstin,
+      tax_mode: sale.taxMode,
+      taxMode: sale.taxMode,
+      subtotal: Number(sale.subtotal),
+      cgst: Number(sale.cgst),
+      sgst: Number(sale.sgst),
+      igst: Number(sale.igst),
+      total_gst: Number(sale.totalTax),
+      totalGst: Number(sale.totalTax),
+      total: Number(sale.total),
+      amount: Number(sale.total),
+      status: sale.paymentStatus,
+      lines: formattedLines,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
 });
 
+// GET /api/invoices/:id - Retrieve single invoice with details & payments
+invoicesRouter.get("/:id", requireAuth, requirePermission("finance.invoices.view"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+
+    const sale = await prisma.sale.findFirst({
+      where: {
+        tenantId,
+        OR: [{ id }, { invoiceNo: id }],
+      },
+      include: {
+        customer: true,
+        warehouse: true,
+        details: true,
+        payments: {
+          orderBy: { paidAt: "asc" },
+        },
+      },
+    });
+
+    if (!sale) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const formatted = {
+      id: sale.id,
+      number: sale.invoiceNo,
+      invoiceNo: sale.invoiceNo,
+      date: sale.date.toISOString(),
+      dueDate: sale.dueDate ? sale.dueDate.toISOString() : sale.date.toISOString(),
+      client: sale.customerName || sale.customer?.name || "B2B Client",
+      client_gstin: sale.customerGstin || sale.customer?.gstin || "",
+      clientGstin: sale.customerGstin || sale.customer?.gstin || "",
+      client_address: sale.customer?.address || "",
+      clientAddress: sale.customer?.address || "",
+      client_email: sale.customer?.email || "",
+      clientEmail: sale.customer?.email || "",
+      status: sale.paymentStatus === "paid" ? "paid" : Number(sale.paidAmount) > 0 ? "partial" : "sent",
+      paymentStatus: sale.paymentStatus,
+      tax_mode: sale.taxMode || "sgst_cgst",
+      taxMode: sale.taxMode || "sgst_cgst",
+      subtotal: Number(sale.subtotal),
+      total_gst: Number(sale.totalTax),
+      totalGst: Number(sale.totalTax),
+      cgst: Number(sale.cgst),
+      sgst: Number(sale.sgst),
+      igst: Number(sale.igst),
+      total: Number(sale.total),
+      amount: Number(sale.total),
+      paidAmount: Number(sale.paidAmount),
+      remainingBalance: Math.max(0, Number(sale.total) - Number(sale.paidAmount)),
+      notes: sale.notes || "",
+      terms: "Standard 30 days payment terms",
+      created_at: sale.createdAt.toISOString(),
+      lines: sale.details.map((d) => ({
+        id: d.productId,
+        description: d.productName,
+        hsn_sac: d.hsnSac || "",
+        qty: d.quantity,
+        unit: d.unit || "Pcs",
+        rate: Number(d.price),
+        gst_rate: Number(d.taxRate),
+        amount: Number(d.price) * d.quantity,
+        gst_amount: Number(d.taxAmount),
+      })),
+      payments: sale.payments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        method: p.method,
+        referenceNo: p.referenceNo,
+        notes: (p as any).notes || "",
+        paidAt: p.paidAt.toISOString(),
+      })),
+    };
+
+    return res.json(formatted);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch invoice" });
+  }
+});
+
+// GET /api/invoices/:id/payments - Retrieve all payments for an invoice
+invoicesRouter.get("/:id/payments", requireAuth, requirePermission("finance.invoices.view"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+
+    const sale = await prisma.sale.findFirst({
+      where: {
+        tenantId,
+        OR: [{ id }, { invoiceNo: id }],
+      },
+      select: { id: true, invoiceNo: true, total: true, paidAmount: true, paymentStatus: true },
+    });
+
+    if (!sale) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const payments = await prisma.salePayment.findMany({
+      where: { saleId: sale.id },
+      orderBy: { paidAt: "asc" },
+    });
+
+    return res.json({
+      invoiceId: sale.id,
+      invoiceNo: sale.invoiceNo,
+      total: Number(sale.total),
+      paidAmount: Number(sale.paidAmount),
+      remainingBalance: Math.max(0, Number(sale.total) - Number(sale.paidAmount)),
+      paymentStatus: sale.paymentStatus,
+      payments: payments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        method: p.method,
+        referenceNo: p.referenceNo,
+        notes: (p as any).notes || "",
+        paidAt: p.paidAt.toISOString(),
+      })),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch invoice payments" });
+  }
+});
+
+// POST /api/invoices/:id/payments - Record customer payment for invoice
+invoicesRouter.post("/:id/payments", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+    const body = req.body;
+
+    const paymentAmount = Number(body.amount);
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+      return res.status(400).json({ error: "Payment amount must be greater than 0" });
+    }
+
+    const method = body.method || body.paymentMethod || "Bank Transfer";
+    const referenceNo = body.referenceNo || `PAY-${Date.now()}`;
+    const notes = body.notes || "";
+    const idempotencyKey = body.idempotencyKey || null;
+
+    if (idempotencyKey) {
+      const existing = await prisma.salePayment.findFirst({
+        where: { saleId: id, idempotencyKey },
+      });
+      if (existing) {
+        return res.status(409).json({
+          error: "A payment with this idempotency key has already been recorded",
+          code: "DUPLICATE_PAYMENT",
+          payment: existing,
+        });
+      }
+    }
+
+    const { payment, updatedSale } = await prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({
+        where: {
+          tenantId,
+          OR: [{ id }, { invoiceNo: id }],
+        },
+      });
+
+      if (!sale) {
+        throw new Error("NOT_FOUND");
+      }
+
+      const total = Number(sale.total);
+      const currentPaid = Number(sale.paidAmount);
+      const remainingBalance = Math.round((total - currentPaid) * 100) / 100;
+
+      if (paymentAmount > remainingBalance + 0.001) {
+        throw new Error(`OVERPAYMENT: Payment amount (${paymentAmount}) exceeds remaining balance (${remainingBalance})`);
+      }
+
+      const newPaidAmount = Math.round((currentPaid + paymentAmount) * 100) / 100;
+      const newPaymentStatus = newPaidAmount >= total - 0.001 ? "paid" : "partial";
+
+      const updateCount = await tx.sale.updateMany({
+        where: {
+          id: sale.id,
+          tenantId,
+          paidAmount: sale.paidAmount,
+        },
+        data: {
+          paidAmount: newPaidAmount,
+          paymentStatus: newPaymentStatus,
+          paymentMethod: method,
+        },
+      });
+
+      if (updateCount.count === 0) {
+        throw new Error("PAYMENT_RACE: Concurrent payment detected. Please retry.");
+      }
+
+      const newPayment = await tx.salePayment.create({
+        data: {
+          saleId: sale.id,
+          amount: paymentAmount,
+          method,
+          referenceNo,
+          notes,
+          idempotencyKey,
+          paidAt: body.date ? new Date(body.date) : new Date(),
+          createdById: (req.user as any)?.userId || (req.user as any)?.id,
+        },
+      });
+
+      const fresh = await tx.sale.findUnique({
+        where: { id: sale.id },
+        include: { customer: true, details: true, payments: true },
+      });
+
+      return { payment: newPayment, updatedSale: fresh };
+    });
+
+    // Auto-post to General Ledger
+    try {
+      await autoPostCustomerPaymentToLedger({
+        tenantId,
+        paymentId: payment.id,
+        saleId: updatedSale!.id,
+        invoiceNo: updatedSale?.invoiceNo || id,
+        amount: paymentAmount,
+        method,
+        customerName: updatedSale?.customerName || updatedSale?.customer?.name,
+      });
+    } catch (glErr: any) {
+      console.error("Auto-post invoice payment to ledger error:", glErr);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Payment of ${paymentAmount} recorded successfully`,
+      payment: {
+        id: payment.id,
+        amount: Number(payment.amount),
+        method: payment.method,
+        referenceNo: payment.referenceNo,
+        notes: (payment as any).notes || "",
+        paidAt: payment.paidAt.toISOString(),
+      },
+      invoice: {
+        id: updatedSale?.id,
+        number: updatedSale?.invoiceNo,
+        total: Number(updatedSale?.total),
+        paidAmount: Number(updatedSale?.paidAmount),
+        remainingBalance: Math.max(0, Number(updatedSale?.total) - Number(updatedSale?.paidAmount)),
+        paymentStatus: updatedSale?.paymentStatus,
+      },
+    });
+  } catch (err: any) {
+    console.error("Invoice payment error:", err);
+    if (err.message === "NOT_FOUND") {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    if (err.message?.startsWith("OVERPAYMENT")) {
+      return res.status(400).json({ error: err.message, code: "OVERPAYMENT" });
+    }
+    if (err.message?.startsWith("PAYMENT_RACE")) {
+      return res.status(409).json({ error: err.message, code: "PAYMENT_RACE" });
+    }
+    if (err instanceof PeriodPostingError || err.code === "PERIOD_CLOSED_FOR_POSTING") {
+      return res.status(400).json({ error: err.message, code: "PERIOD_CLOSED_FOR_POSTING" });
+    }
+    return res.status(500).json({ error: err.message || "Failed to record invoice payment" });
+  }
+});
+
+
 // GET /api/invoices/pos/sales - Retrieve POS sales directly from relational MySQL Sale table
 invoicesRouter.get("/pos/sales", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = req.user?.tenantId!;
 
     const sales = await prisma.sale.findMany({
       where: { tenantId },
@@ -190,7 +602,7 @@ invoicesRouter.get("/pos/sales", requireAuth, async (req: AuthRequest, res: Resp
 // POST /api/invoices/pos/sales - POS Checkout with ATOMIC WAREHOUSE STOCK DEDUCTION
 invoicesRouter.post("/pos/sales", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = req.user?.tenantId!;
     const body = req.body;
 
     const items: any[] = body.items || [];
@@ -201,8 +613,28 @@ invoicesRouter.post("/pos/sales", requireAuth, async (req: AuthRequest, res: Res
     const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId, isDefault: true } });
     const warehouseId = defaultWh ? defaultWh.id : (await prisma.warehouse.findFirst({ where: { tenantId } }))?.id;
 
+    // Idempotency check: if a sale with this receiptNo already exists, return it
+    const receiptNo = body.receiptNo;
+    if (receiptNo) {
+      const existingSale = await prisma.sale.findFirst({
+        where: { tenantId, invoiceNo: receiptNo },
+        include: { details: true, payments: true },
+      });
+      if (existingSale) {
+        return res.json({
+          ...body,
+          id: existingSale.id,
+          receiptNo: existingSale.invoiceNo,
+          invoiceNo: existingSale.invoiceNo,
+          completedAt: existingSale.createdAt.toISOString(),
+          isDuplicate: true,
+        });
+      }
+    }
+
     const count = await prisma.sale.count({ where: { tenantId } });
-    const invoiceNo = body.receiptNo || `REC-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+    const entropy = Math.floor(1000 + Math.random() * 9000);
+    const invoiceNo = body.receiptNo || `REC-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}-${entropy}`;
 
     const sale = await prisma.$transaction(async (tx) => {
       const createdSale = await tx.sale.create({
@@ -254,15 +686,27 @@ invoicesRouter.post("/pos/sales", requireAuth, async (req: AuthRequest, res: Res
           },
         });
 
-        // Decrement warehouse stock atomically
+        // Decrement warehouse stock atomically via Centralized Stock Engine
         if (warehouseId && productId) {
-          const pw = await tx.productWarehouse.findUnique({
-            where: { productId_warehouseId: { productId, warehouseId } },
+          const product = await tx.product.findUnique({
+            where: { id: productId },
+            select: { id: true, name: true, type: true },
           });
-          if (pw) {
-            await tx.productWarehouse.update({
-              where: { id: pw.id },
-              data: { quantity: { decrement: lineQty } },
+
+          const isService = product?.type?.toLowerCase() === "service";
+
+          if (!isService) {
+            await InventoryMovementService.decreaseStock({
+              tenantId,
+              productId,
+              warehouseId,
+              quantity: lineQty,
+              movementType: STOCK_MOVEMENT_TYPES.POS_SALE,
+              referenceType: "SALE",
+              referenceId: createdSale.id,
+              createdById: (req as any).user?.userId || (req as any).user?.id,
+              notes: `POS Sale checkout (${invoiceNo})`,
+              tx,
             });
           }
         }
@@ -300,6 +744,14 @@ invoicesRouter.post("/pos/sales", requireAuth, async (req: AuthRequest, res: Res
     });
   } catch (err: any) {
     console.error("POS sale error:", err);
+    if (err instanceof InsufficientStockError || err.code === "INSUFFICIENT_STOCK") {
+      return res.status(409).json({
+        error: err.message,
+        code: "INSUFFICIENT_STOCK",
+        productId: err.productId,
+        warehouseId: err.warehouseId,
+      });
+    }
     return res.status(500).json({ error: err.message || "Failed to process POS sale" });
   }
 });
@@ -307,7 +759,7 @@ invoicesRouter.post("/pos/sales", requireAuth, async (req: AuthRequest, res: Res
 // GET /api/invoices/pos/held - Retrieve held orders from HeldOrder table
 invoicesRouter.get("/pos/held", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = req.user?.tenantId!;
     const held = await prisma.heldOrder.findMany({
       where: { tenantId },
       orderBy: { heldAt: "desc" },
@@ -334,7 +786,7 @@ invoicesRouter.get("/pos/held", requireAuth, async (req: AuthRequest, res: Respo
 // POST /api/invoices/pos/held - Save held order to HeldOrder table
 invoicesRouter.post("/pos/held", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId || "default";
+    const tenantId = req.user?.tenantId!;
     const { heldOrders } = req.body;
 
     if (Array.isArray(heldOrders)) {
@@ -369,7 +821,7 @@ invoicesRouter.get("/public/client/statement", async (req, res) => {
     }
 
     // Find sales matching customer
-    const sales = await prisma.sale.findMany({
+    const sales = await (rawPrisma || prisma).sale.findMany({
       where: {
         OR: [
           { customer: { email: { contains: query } } },
@@ -412,7 +864,7 @@ invoicesRouter.get("/public/client/statement", async (req, res) => {
       status: s.paymentStatus || (Number(s.paidAmount) >= Number(s.total) ? "paid" : "unpaid"),
     }));
 
-    const proposals = await prisma.crmProposal.findMany({
+    const proposals = await (rawPrisma || prisma).crmProposal.findMany({
       where: {
         OR: [
           { clientEmail: { contains: query } },
@@ -470,7 +922,7 @@ invoicesRouter.get("/public/:id", async (req, res) => {
   try {
     const id = req.params.id;
 
-    const sale = await prisma.sale.findFirst({
+    const sale = await (rawPrisma || prisma).sale.findFirst({
       where: {
         OR: [{ id }, { invoiceNo: id }],
       },
@@ -542,7 +994,7 @@ invoicesRouter.post("/public/:id/pay", async (req, res) => {
     const id = req.params.id;
     const { paymentMethod = "online", transactionId = `TXN-${Date.now()}` } = req.body;
 
-    const sale = await prisma.sale.findFirst({
+    const sale = await (rawPrisma || prisma).sale.findFirst({
       where: {
         OR: [{ id }, { invoiceNo: id }],
       },
@@ -552,7 +1004,7 @@ invoicesRouter.post("/public/:id/pay", async (req, res) => {
       return res.status(404).json({ error: "Invoice not found" });
     }
 
-    const updated = await prisma.sale.update({
+    const updated = await (rawPrisma || prisma).sale.update({
       where: { id: sale.id },
       data: {
         paymentStatus: "paid",

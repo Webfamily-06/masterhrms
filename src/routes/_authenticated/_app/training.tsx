@@ -634,7 +634,7 @@ export function TrainingPage() {
                                 : "bg-muted text-muted-foreground"
                             }`}
                           >
-                            {en.status === "completed" ? "✓ Certified" : en.status.replace("_", " ")}
+                            {en.status === "completed" ? "Certified" : en.status.replace("_", " ")}
                           </Badge>
                         </TableCell>
 
@@ -1534,7 +1534,7 @@ export function TrainingPage() {
 
             <div className="space-y-1">
               <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-xs font-black">
-                ✓ Verified Digital Certificate
+                Verified Digital Certificate
               </Badge>
               <h2 className="text-lg font-black text-foreground pt-1">Certificate of Completion</h2>
               <p className="text-xs text-muted-foreground">This certifies that</p>

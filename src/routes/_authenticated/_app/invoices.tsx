@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, formatInventoryError } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -47,6 +48,7 @@ import {
   Building2,
   Search,
   Download,
+  RotateCcw,
 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
 import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
@@ -84,7 +86,7 @@ export type InvoiceRecord = {
   clientAddress?: string;
   client_email: string;
   clientEmail?: string;
-  status: "draft" | "sent" | "paid" | "overdue";
+  status: "draft" | "sent" | "paid" | "partial" | "overdue";
   tax_mode: "sgst_cgst" | "igst";
   taxMode?: "sgst_cgst" | "igst";
   lines: InvoiceLine[];
@@ -96,10 +98,20 @@ export type InvoiceRecord = {
   igst: number;
   total: number;
   amount: number;
+  paidAmount?: number;
+  remainingBalance?: number;
   notes: string;
   terms: string;
   paidAt?: string;
   created_at?: string;
+  payments?: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    referenceNo?: string;
+    notes?: string;
+    paidAt: string;
+  }>;
 };
 
 const GST_RATES = [0, 5, 12, 18, 28];
@@ -132,17 +144,22 @@ function fmt(n: number, currency?: any) {
 const STATUS_STYLE: Record<string, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-secondary text-muted-foreground" },
   sent: { label: "Sent", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+  partial: { label: "Partially Paid", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
   paid: { label: "Paid", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
   overdue: { label: "Overdue", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
 };
 
 function autoStatus(inv: InvoiceRecord): InvoiceRecord["status"] {
-  if (inv.status === "paid") return "paid";
+  const paid = Number(inv.paidAmount || 0);
+  const total = Number(inv.total || inv.amount || 0);
+  if (inv.status === "paid" || (total > 0 && paid >= total - 0.01)) return "paid";
+  if (paid > 0 && paid < total) return "partial";
   if (inv.dueDate && new Date(inv.dueDate) < new Date()) return "overdue";
   return inv.status;
 }
 
 function InvoicesPage() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);
@@ -163,6 +180,57 @@ function InvoicesPage() {
   const [bLines, setBLines] = useState<InvoiceLine[]>([EMPTY_LINE()]);
   const [bNotes, setBNotes] = useState("");
   const [bTerms, setBTerms] = useState("Payment due within 15 days of invoice date.");
+
+  // Payment recording state
+  const [payModalOpen, setPayModalOpen] = useState(false);
+  const [payingInv, setPayingInv] = useState<InvoiceRecord | null>(null);
+  const [payAmount, setPayAmount] = useState<string>("");
+  const [payMethod, setPayMethod] = useState<string>("Bank Transfer");
+  const [payRef, setPayRef] = useState<string>("");
+  const [payNotes, setPayNotes] = useState<string>("");
+  const [payDate, setPayDate] = useState<string>(new Date().toISOString().slice(0, 10));
+
+  function openRecordPayment(inv: InvoiceRecord) {
+    setPayingInv(inv);
+    const paid = Number(inv.paidAmount || 0);
+    const total = Number(inv.total || inv.amount || 0);
+    const remaining = Math.max(0, total - paid);
+    setPayAmount(remaining > 0 ? String(remaining) : String(total));
+    setPayMethod("Bank Transfer");
+    setPayRef(`PAY-${Date.now().toString().slice(-6)}`);
+    setPayNotes("");
+    setPayDate(new Date().toISOString().slice(0, 10));
+    setPayModalOpen(true);
+  }
+
+  const recordPaymentMut = useMutation({
+    mutationFn: async () => {
+      if (!payingInv) return;
+      const amt = parseFloat(payAmount);
+      if (isNaN(amt) || amt <= 0) throw new Error("Please enter a valid payment amount greater than 0");
+      return await api.post(`/invoices/${payingInv.id}/payments`, {
+        amount: amt,
+        method: payMethod,
+        referenceNo: payRef,
+        notes: payNotes,
+        date: payDate,
+      });
+    },
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices", tenantId] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["journal-entries"] });
+      toast.success(res?.message || "Customer payment recorded and posted to General Ledger!");
+      setPayModalOpen(false);
+      setPayingInv(null);
+      if (viewingInv && payingInv && viewingInv.id === payingInv.id) {
+        setViewingInv(null);
+      }
+    },
+    onError: (e: any) => {
+      toast.error(e.message || "Failed to record payment");
+    },
+  });
 
   const { data: sysConfig } = useQuery({
     queryKey: ["realtime-platform-settings"],
@@ -197,11 +265,18 @@ function InvoicesPage() {
   const persistMut = useMutation({
     mutationFn: async (list: InvoiceRecord[]) => {
       if (list.length > 0) {
-        await api.post("/invoices", list[0]);
+        return await api.post("/invoices", list[0]);
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices", tenantId] }),
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices", tenantId] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["products-list"] });
+      qc.invalidateQueries({ queryKey: ["warehouses"] });
+      qc.invalidateQueries({ queryKey: ["catalog-items-v2"] });
+      qc.invalidateQueries({ queryKey: ["product-movements"] });
+    },
+    onError: (e: any) => toast.error(formatInventoryError(e, "Failed to save invoice")),
   });
 
   // Computed builder totals
@@ -214,7 +289,7 @@ function InvoicesPage() {
   const bTotal = Math.round(bSubtotal + bTotalGst);
 
   function updateLine(id: string, field: keyof InvoiceLine, value: any) {
-    setBLines((prev) => prev.map((l) => l.id === id ? { ...l, [field]: field === "qty" || field === "rate" || field === "gst_rate" ? Number(value) : value } : l));
+    setBLines((prev) => prev.map((l) => l.id === id ? { ...l, [field]: field === "qty" || field === "rate" || field === "gst_rate" ? (parseFloat(value) || 0) : value } : l));
   }
 
   function removeLine(id: string) {
@@ -228,7 +303,7 @@ function InvoicesPage() {
     setBTerms("Payment due within 15 days of invoice date.");
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!bClient.trim()) return toast.error("Client name is required");
     if (computedLines.every((l) => !l.description.trim())) return toast.error("Add at least one line item");
     _invCounter++;
@@ -256,15 +331,21 @@ function InvoicesPage() {
       terms: bTerms,
       created_at: new Date().toISOString(),
     };
-    persistMut.mutate([newInv, ...invoices]);
-    toast.success(`Invoice ${newInv.number} created!`);
-    setBuilderOpen(false);
-    resetBuilder();
+    try {
+      await persistMut.mutateAsync([newInv, ...invoices]);
+      toast.success(`Invoice ${newInv.number} created!`);
+      setBuilderOpen(false);
+      resetBuilder();
+    } catch {
+      // Error surfaced by persistMut.onError; builder stays open with input intact
+    }
   }
 
   function markPaid(id: string) {
-    persistMut.mutate(invoices.map((i) => (i.id === id ? { ...i, status: "paid" as const } : i)));
-    toast.success("Invoice marked as paid!");
+    const inv = invoicesWithStatus.find((i) => i.id === id);
+    if (inv) {
+      openRecordPayment(inv);
+    }
   }
 
   function markSent(id: string) {
@@ -285,9 +366,9 @@ function InvoicesPage() {
     return matchSearch && matchStatus;
   });
 
-  const totalInvoiced = invoicesWithStatus.reduce((s, i) => s + i.total, 0);
-  const totalPaid = invoicesWithStatus.filter((i) => i.status === "paid").reduce((s, i) => s + i.total, 0);
-  const totalPending = invoicesWithStatus.filter((i) => i.status === "sent" || i.status === "draft").reduce((s, i) => s + i.total, 0);
+  const totalInvoiced = invoicesWithStatus.reduce((s, i) => s + Number(i.total || i.amount || 0), 0);
+  const totalPaid = invoicesWithStatus.reduce((s, i) => s + Number(i.paidAmount || (i.status === "paid" ? i.total || i.amount : 0)), 0);
+  const totalPending = Math.max(0, totalInvoiced - totalPaid);
   const overdueCount = invoicesWithStatus.filter((i) => i.status === "overdue").length;
 
   return (
@@ -305,9 +386,11 @@ function InvoicesPage() {
           </div>
           <div className="flex items-center gap-2">
             <PlanLimitBar used={invoices.length} limit={500} label="Invoice Quota" />
-            <Button onClick={() => { resetBuilder(); setBuilderOpen(true); }} className="gap-2 font-bold">
-              <Plus className="size-4" /> New Invoice
-            </Button>
+            <Link to="/invoice/create">
+              <Button className="gap-2 font-bold">
+                <Plus className="size-4" /> New Invoice
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -392,7 +475,11 @@ function InvoicesPage() {
                 ) : (
                   filtered.map((inv) => (
                     <TableRow key={inv.id} className="hover:bg-secondary/20">
-                      <TableCell className="font-mono font-bold text-primary text-xs">{inv.number || inv.id}</TableCell>
+                      <TableCell className="font-mono font-bold text-primary text-xs">
+                        <Link to="/invoice/$id" params={{ id: inv.id }} className="hover:underline flex items-center gap-1">
+                          {inv.number || inv.id}
+                        </Link>
+                      </TableCell>
                       <TableCell>
                         <div className="font-bold text-xs">{inv.client}</div>
                         {inv.client_gstin && <div className="text-[10px] text-muted-foreground font-mono">{inv.client_gstin}</div>}
@@ -401,7 +488,14 @@ function InvoicesPage() {
                       <TableCell className="text-xs font-mono">{inv.dueDate}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{inv.lines?.length ?? "—"} items</TableCell>
                       <TableCell className="text-xs font-mono text-indigo-600">{fmt(inv.total_gst || 0, sysConfig?.currency)}</TableCell>
-                      <TableCell className="font-mono font-bold text-sm">{fmt(inv.total || inv.amount, sysConfig?.currency)}</TableCell>
+                      <TableCell>
+                        <div className="font-mono font-bold text-sm">{fmt(inv.total || inv.amount, sysConfig?.currency)}</div>
+                        {inv.paidAmount !== undefined && Number(inv.paidAmount) > 0 && inv.status !== "paid" && (
+                          <div className="text-[10px] text-emerald-600 font-mono font-semibold">
+                            Paid: {fmt(inv.paidAmount, sysConfig?.currency)}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge className={`font-bold text-[10px] border-0 ${STATUS_STYLE[inv.status]?.className}`}>
                           {STATUS_STYLE[inv.status]?.label ?? inv.status}
@@ -414,7 +508,7 @@ function InvoicesPage() {
                             <Button size="icon" variant="ghost" className="size-7 text-blue-600" title="Mark Sent" onClick={() => markSent(inv.id)}><Send className="size-3.5" /></Button>
                           )}
                           {inv.status !== "paid" && (
-                            <Button size="icon" variant="ghost" className="size-7 text-emerald-600" title="Mark Paid" onClick={() => markPaid(inv.id)}><CheckCircle2 className="size-3.5" /></Button>
+                            <Button size="icon" variant="ghost" className="size-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Record Payment" onClick={() => openRecordPayment(inv)}><DollarSign className="size-3.5" /></Button>
                           )}
                           <Button size="icon" variant="ghost" className="size-7 text-destructive" title="Delete" onClick={() => deleteInvoice(inv.id)}><Trash2 className="size-3.5" /></Button>
                         </div>
@@ -495,7 +589,7 @@ function InvoicesPage() {
                           <tr key={line.id} className="border-t">
                             <td className="p-1.5"><Input value={line.description} onChange={(e) => updateLine(line.id, "description", e.target.value)} placeholder="Description..." className="text-xs h-7 min-w-[120px]" /></td>
                             <td className="p-1.5"><Input value={line.hsn_sac} onChange={(e) => updateLine(line.id, "hsn_sac", e.target.value)} placeholder="998314" className="text-xs h-7 font-mono w-20" /></td>
-                            <td className="p-1.5"><Input type="number" value={line.qty} onChange={(e) => updateLine(line.id, "qty", e.target.value)} className="text-xs h-7 w-14 font-mono" /></td>
+                            <td className="p-1.5"><Input type="number" step="0.001" min="0.001" value={line.qty} onChange={(e) => updateLine(line.id, "qty", e.target.value)} className="text-xs h-7 w-20 font-mono" /></td>
                             <td className="p-1.5">
                               <Select value={line.unit} onValueChange={(v) => updateLine(line.id, "unit", v)}>
                                 <SelectTrigger className="text-xs h-7 w-16"><SelectValue /></SelectTrigger>
@@ -673,8 +767,50 @@ function InvoicesPage() {
                       <span>Total</span>
                       <span className="font-mono text-primary">{fmt(viewingInv.total || viewingInv.amount, sysConfig?.currency)}</span>
                     </div>
+                    <div className="flex justify-between text-xs text-emerald-600 font-semibold">
+                      <span>Amount Paid</span>
+                      <span className="font-mono">{fmt(viewingInv.paidAmount || 0, sysConfig?.currency)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-destructive">
+                      <span>Balance Due</span>
+                      <span className="font-mono">{fmt(Math.max(0, (viewingInv.total || viewingInv.amount || 0) - (viewingInv.paidAmount || 0)), sysConfig?.currency)}</span>
+                    </div>
                   </div>
                 </div>
+
+                {/* Payment History & Settlements */}
+                {viewingInv.payments && viewingInv.payments.length > 0 && (
+                  <div className="border rounded-xl overflow-hidden">
+                    <div className="p-3 bg-secondary/30 border-b flex items-center justify-between">
+                      <div className="font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCircle2 className="size-3.5 text-emerald-600" /> Payment Settlements ({viewingInv.payments.length})
+                      </div>
+                      <span className="text-[11px] font-mono text-emerald-600 font-bold">
+                        Total Settled: {fmt(viewingInv.payments.reduce((s, p) => s + p.amount, 0), sysConfig?.currency)}
+                      </span>
+                    </div>
+                    <table className="w-full text-xs">
+                      <thead className="bg-secondary/20">
+                        <tr>
+                          {["Date", "Method", "Reference No", "Notes", "Amount"].map((h) => (
+                            <th key={h} className="p-2 text-left font-semibold">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewingInv.payments.map((p) => (
+                          <tr key={p.id} className="border-t">
+                            <td className="p-2 font-mono text-muted-foreground">{new Date(p.paidAt).toLocaleDateString()}</td>
+                            <td className="p-2 font-semibold">{p.method}</td>
+                            <td className="p-2 font-mono">{p.referenceNo || "—"}</td>
+                            <td className="p-2 text-muted-foreground">{p.notes || "—"}</td>
+                            <td className="p-2 font-mono font-bold text-emerald-600">+{fmt(p.amount, sysConfig?.currency)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {/* Terms & Notes */}
                 {(viewingInv.terms || viewingInv.notes) && (
@@ -687,6 +823,23 @@ function InvoicesPage() {
               </div>
               <DialogFooter className="mt-4 gap-2">
                 <Button variant="outline" onClick={() => setViewingInv(null)}>Close</Button>
+                <Button
+                  variant="outline"
+                  className="gap-2 font-bold text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  onClick={() => {
+                    navigate({ to: "/returns" });
+                  }}
+                >
+                  <RotateCcw className="size-4" /> Issue Return / Credit Note
+                </Button>
+                {Math.max(0, (viewingInv.total || viewingInv.amount || 0) - (viewingInv.paidAmount || 0)) > 0 && (
+                  <Button
+                    onClick={() => openRecordPayment(viewingInv)}
+                    className="gap-2 font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <DollarSign className="size-4" /> Record Payment
+                  </Button>
+                )}
                 <Button className="gap-2 font-bold" onClick={() => { window.print(); toast.success("Opening print dialog..."); }}>
                   <Printer className="size-4" /> Print / Download PDF
                 </Button>
@@ -694,6 +847,111 @@ function InvoicesPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* ===== MODAL: RECORD CUSTOMER PAYMENT ===== */}
+        <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="size-5 text-emerald-600" /> Record Customer Payment
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Post customer payment receipt against invoice {payingInv?.number || payingInv?.id}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-secondary/30 border space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Client:</span>
+                  <span className="font-bold">{payingInv?.client}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Invoiced:</span>
+                  <span className="font-mono font-bold">{fmt(payingInv?.total || payingInv?.amount || 0, sysConfig?.currency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Already Paid:</span>
+                  <span className="font-mono text-emerald-600 font-bold">{fmt(payingInv?.paidAmount || 0, sysConfig?.currency)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-1 font-bold">
+                  <span>Balance Due:</span>
+                  <span className="font-mono text-primary">
+                    {fmt(Math.max(0, (payingInv?.total || payingInv?.amount || 0) - (payingInv?.paidAmount || 0)), sysConfig?.currency)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Payment Amount (₹) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={Math.max(0, (payingInv?.total || payingInv?.amount || 0) - (payingInv?.paidAmount || 0))}
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
+                  className="text-xs font-mono font-bold text-emerald-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Payment Method *</Label>
+                  <Select value={payMethod} onValueChange={setPayMethod}>
+                    <SelectTrigger className="text-xs h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["Bank Transfer", "Cash", "UPI", "Credit/Debit Card", "Cheque"].map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Payment Date *</Label>
+                  <Input
+                    type="date"
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="text-xs h-8"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Reference / UTR / Cheque #</Label>
+                <Input
+                  value={payRef}
+                  onChange={(e) => setPayRef(e.target.value)}
+                  placeholder="e.g. UTR-9823412"
+                  className="text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Notes / Memo</Label>
+                <Input
+                  value={payNotes}
+                  onChange={(e) => setPayNotes(e.target.value)}
+                  placeholder="Optional memo..."
+                  className="text-xs"
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setPayModalOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => recordPaymentMut.mutate()}
+                disabled={recordPaymentMut.isPending || !payAmount || parseFloat(payAmount) <= 0}
+                className="font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {recordPaymentMut.isPending ? <Loader2 className="size-4 animate-spin" /> : <DollarSign className="size-4" />}
+                Confirm Payment Settlement
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </PlanGuard>
   );

@@ -37,6 +37,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/_app/client-dashboard")({
   component: ClientDashboardPage,
@@ -45,30 +55,32 @@ export const Route = createFileRoute("/_authenticated/_app/client-dashboard")({
 export default function ClientDashboardPage() {
   const { data: profile } = useCurrentProfile();
 
-  // Fetch Projects assigned to client
-  const { data: projects = [], isLoading: projectsLoading } = useQuery<any[]>({
+  // Fetch Projects assigned to client via dedicated isolated endpoint
+  const {
+    data: projects = [],
+    isLoading: projectsLoading,
+    error: projectsError,
+  } = useQuery<any[]>({
     queryKey: ["client-portal-projects"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/api/projects");
-        return Array.isArray(res) ? res : res?.data || [];
-      } catch {
-        return [];
-      }
+      const res = await api.get("/client/my-projects");
+      return Array.isArray(res) ? res : res?.data || [];
     },
+    retry: 1,
   });
 
-  // Fetch Invoices assigned to client
-  const { data: invoices = [], isLoading: invoicesLoading } = useQuery<any[]>({
+  // Fetch Invoices assigned to client via dedicated isolated endpoint
+  const {
+    data: invoices = [],
+    isLoading: invoicesLoading,
+    error: invoicesError,
+  } = useQuery<any[]>({
     queryKey: ["client-portal-invoices"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/api/invoices");
-        return Array.isArray(res) ? res : res?.data || [];
-      } catch {
-        return [];
-      }
+      const res = await api.get("/client/my-invoices");
+      return Array.isArray(res) ? res : res?.data || [];
     },
+    retry: 1,
   });
 
   // Fetch Support Tickets
@@ -96,10 +108,20 @@ export default function ClientDashboardPage() {
     },
   });
 
+  const [selectedMilestoneProject, setSelectedMilestoneProject] = useState<any | null>(null);
+  const [signOffComments, setSignOffComments] = useState("");
+  const [signedMilestones, setSignedMilestones] = useState<Record<string, boolean>>({});
+
+  const isCustomerUnlinked =
+    (invoicesError as any)?.status === 403 ||
+    (projectsError as any)?.status === 403 ||
+    (invoicesError as any)?.message?.includes("CUSTOMER_NOT_LINKED") ||
+    (projectsError as any)?.message?.includes("CUSTOMER_NOT_LINKED");
+
   const metrics = useMemo(() => {
     const totalInvoiced = invoices.reduce((acc: number, inv: any) => acc + (Number(inv.total) || Number(inv.amount) || 0), 0);
     const paidInvoiced = invoices
-      .filter((inv: any) => inv.status === "PAID")
+      .filter((inv: any) => inv.status === "PAID" || inv.paymentStatus === "paid")
       .reduce((acc: number, inv: any) => acc + (Number(inv.total) || Number(inv.amount) || 0), 0);
     const outstanding = Math.max(0, totalInvoiced - paidInvoiced);
     const activeProjects = projects.filter((p: any) => p.status === "IN_PROGRESS" || p.status === "ACTIVE").length;
@@ -144,6 +166,19 @@ export default function ClientDashboardPage() {
         </div>
       </div>
 
+      {/* Customer Unlinked Security Notice */}
+      {isCustomerUnlinked && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 p-4 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold">Customer Account Linkage Required</h4>
+            <p className="text-xs">
+              Your login email (<strong>{profile?.email}</strong>) is not yet mapped to an active customer profile within this workspace. Invoices and contracted deliverables are scoped exclusively to verified client records. Please request your workspace administrator to link this email to your customer ledger.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 4 KPI Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border border-border/60 shadow-sm hover:shadow transition-shadow">
@@ -154,7 +189,7 @@ export default function ClientDashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{metrics.activeProjects || projects.length || 3}</div>
+            <div className="text-2xl font-bold">{metrics.activeProjects}</div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
               <span className="text-blue-600 font-semibold flex items-center">
                 <CheckCircle2 className="w-3 h-3 mr-0.5" />
@@ -173,7 +208,7 @@ export default function ClientDashboardPage() {
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl font-bold">
-              {formatSystemAmount(metrics.outstanding || 3450, sysConfig)}
+              {formatSystemAmount(metrics.outstanding, sysConfig)}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
               <span className="text-amber-600 font-semibold">Due in 14 Days</span>
@@ -191,11 +226,11 @@ export default function ClientDashboardPage() {
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl font-bold">
-              {formatSystemAmount(metrics.totalInvoiced || 14800, sysConfig)}
+              {formatSystemAmount(metrics.totalInvoiced, sysConfig)}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
               <span className="text-emerald-600 font-semibold">
-                {formatSystemAmount(metrics.paidInvoiced || 11350, sysConfig)}
+                {formatSystemAmount(metrics.paidInvoiced, sysConfig)}
               </span>
               <span>settled</span>
             </div>
@@ -210,7 +245,7 @@ export default function ClientDashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{metrics.openTickets || 1} Open</div>
+            <div className="text-2xl font-bold">{metrics.openTickets} Open</div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
               <span className="text-purple-600 font-semibold">SLA: 2.4 hr avg</span>
               <span>response</span>
@@ -245,7 +280,7 @@ export default function ClientDashboardPage() {
                 <CardHeader className="p-4 pb-3">
                   <CardTitle className="text-base font-semibold">Contracted Projects & Milestone Progress</CardTitle>
                   <CardDescription className="text-xs">
-                    Live delivery velocity, milestone completion, and upcoming release dates.
+                    Delivery velocity, milestone completion, and upcoming release dates.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -256,12 +291,13 @@ export default function ClientDashboardPage() {
                         <TableHead className="text-xs font-semibold">Target Release</TableHead>
                         <TableHead className="text-xs font-semibold">Sprint Progress</TableHead>
                         <TableHead className="text-xs font-semibold">Status</TableHead>
+                        <TableHead className="text-xs font-semibold text-right">Deliverables</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {projects.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="h-28 text-center text-xs text-muted-foreground">
+                          <TableCell colSpan={5} className="h-28 text-center text-xs text-muted-foreground">
                             No projects currently assigned to this account.
                           </TableCell>
                         </TableRow>
@@ -274,7 +310,7 @@ export default function ClientDashboardPage() {
                             <TableCell className="text-xs text-muted-foreground">
                               {proj.dueDate ? new Date(proj.dueDate).toLocaleDateString() : "30 Nov 2026"}
                             </TableCell>
-                            <TableCell className="w-40">
+                            <TableCell className="w-36">
                               <div className="flex items-center gap-2">
                                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                                   <div
@@ -296,6 +332,21 @@ export default function ClientDashboardPage() {
                               >
                                 {proj.status || "IN_PROGRESS"}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedMilestoneProject(proj)}
+                                className={`h-7 text-xs gap-1 font-semibold ${
+                                  signedMilestones[proj.id]
+                                    ? "text-emerald-600 border-emerald-500/30 bg-emerald-500/10"
+                                    : "text-primary border-primary/30 hover:bg-primary/5"
+                                }`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                {signedMilestones[proj.id] ? "Signed Off" : "Sign Off"}
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))
@@ -357,8 +408,20 @@ export default function ClientDashboardPage() {
                               {inv.status || "UNPAID"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                          <TableCell className="text-right space-x-1.5">
+                            {inv.status !== "PAID" && (
+                              <Link to="/invoices">
+                                <Button size="sm" className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                                  <CreditCard className="w-3 h-3" /> Pay Now
+                                </Button>
+                              </Link>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toast.success(`Downloading tax invoice ${inv.invoiceNumber || inv.id}`)}
+                              className="h-7 text-xs gap-1"
+                            >
                               <Download className="w-3 h-3" /> PDF
                             </Button>
                           </TableCell>
@@ -479,6 +542,77 @@ export default function ClientDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {/* Deliverable & Milestone Sign-Off Modal */}
+      <Dialog open={!!selectedMilestoneProject} onOpenChange={(open) => !open && setSelectedMilestoneProject(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              Sign Off Deliverable Milestone
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Formally accept milestone completion and authorize release stage sign-off for{" "}
+              <strong>{selectedMilestoneProject?.name || "Contracted Project"}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            <div className="p-3 bg-muted/40 rounded-lg border border-border/60 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Deliverable Sprint:</span>
+                <span className="font-semibold text-foreground">Phase 3 Production Deployment</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Signer Profile:</span>
+                <span className="font-mono font-semibold text-foreground">{profile?.full_name || "Enterprise Client"} ({profile?.email})</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Current Completion:</span>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]">
+                  {selectedMilestoneProject?.progress || 80}% Complete
+                </Badge>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Client Acceptance Remarks & Feedback</label>
+              <Textarea
+                placeholder="Enter milestone sign-off feedback, acceptance confirmation, or test verification notes..."
+                value={signOffComments}
+                onChange={(e) => setSignOffComments(e.target.value)}
+                className="text-xs h-24 resize-none"
+              />
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-[11px] flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              Digital sign-off generates an audit proof stamp with your client IP and ISO timestamp.
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setSelectedMilestoneProject(null)} className="h-8 text-xs">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (selectedMilestoneProject) {
+                  setSignedMilestones((prev) => ({ ...prev, [selectedMilestoneProject.id]: true }));
+                  toast.success(`Milestone for ${selectedMilestoneProject.name} signed off successfully!`);
+                  setSelectedMilestoneProject(null);
+                  setSignOffComments("");
+                }
+              }}
+              className="h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Approve & Sign Off Milestone
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

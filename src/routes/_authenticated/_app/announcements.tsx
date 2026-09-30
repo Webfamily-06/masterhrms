@@ -746,12 +746,12 @@ export function AnnouncementsPage() {
                 <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="company_news">📰 Company News</SelectItem>
-                    <SelectItem value="policy_update">🛡️ Policy Update</SelectItem>
-                    <SelectItem value="event">🌿 Event & Wellness</SelectItem>
-                    <SelectItem value="celebration">🎉 Celebration</SelectItem>
-                    <SelectItem value="urgent_alert">🚨 Urgent Alert</SelectItem>
-                    <SelectItem value="holiday">🏖️ Holiday Notice</SelectItem>
+                    <SelectItem value="company_news">Company News</SelectItem>
+                    <SelectItem value="policy_update">Policy Update</SelectItem>
+                    <SelectItem value="event">Event & Wellness</SelectItem>
+                    <SelectItem value="celebration">Celebration</SelectItem>
+                    <SelectItem value="urgent_alert">Urgent Alert</SelectItem>
+                    <SelectItem value="holiday">Holiday Notice</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -776,8 +776,8 @@ export function AnnouncementsPage() {
                 <Select value={form.targetType} onValueChange={(v) => setForm({ ...form, targetType: v })}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all_company">🏢 All Company</SelectItem>
-                    <SelectItem value="department">👥 Specific Department</SelectItem>
+                    <SelectItem value="all_company">All Company</SelectItem>
+                    <SelectItem value="department">Specific Department</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

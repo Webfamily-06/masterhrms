@@ -450,7 +450,7 @@ export function OffboardingPage() {
                                   exit.itClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
                                 }`}
                               >
-                                IT {exit.itClearance ? "✓" : "—"}
+                                IT {exit.itClearance ? "Cleared" : "—"}
                               </Badge>
                               <Badge
                                 variant="outline"
@@ -458,7 +458,7 @@ export function OffboardingPage() {
                                   exit.financeClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
                                 }`}
                               >
-                                Finance {exit.financeClearance ? "✓" : "—"}
+                                Finance {exit.financeClearance ? "Cleared" : "—"}
                               </Badge>
                               <Badge
                                 variant="outline"
@@ -466,7 +466,7 @@ export function OffboardingPage() {
                                   exit.hrClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
                                 }`}
                               >
-                                HR {exit.hrClearance ? "✓" : "—"}
+                                HR {exit.hrClearance ? "Cleared" : "—"}
                               </Badge>
                               <Badge
                                 variant="outline"
@@ -474,7 +474,7 @@ export function OffboardingPage() {
                                   exit.adminClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-muted text-muted-foreground"
                                 }`}
                               >
-                                Admin {exit.adminClearance ? "✓" : "—"}
+                                Admin {exit.adminClearance ? "Cleared" : "—"}
                               </Badge>
                             </div>
                           </TableCell>
@@ -746,7 +746,7 @@ export function OffboardingPage() {
                                 : "bg-muted text-muted-foreground"
                             }`}
                           >
-                            {exit.status === "completed" ? "✓ Relieved & Certified" : "Pending Clearance"}
+                            {exit.status === "completed" ? "Relieved & Certified" : "Pending Clearance"}
                           </Badge>
                         </TableCell>
 
@@ -952,7 +952,7 @@ export function OffboardingPage() {
                         selectedExitPassport.itClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600"
                       }`}
                     >
-                      {selectedExitPassport.itClearance ? "Cleared ✓" : "Pending"}
+                      {selectedExitPassport.itClearance ? "Cleared" : "Pending"}
                     </Badge>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Laptops, monitors, security tokens, and email accounts.</p>
@@ -984,7 +984,7 @@ export function OffboardingPage() {
                         selectedExitPassport.financeClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600"
                       }`}
                     >
-                      {selectedExitPassport.financeClearance ? "Cleared ✓" : "Pending"}
+                      {selectedExitPassport.financeClearance ? "Cleared" : "Pending"}
                     </Badge>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Expense audits, gratuity, leave encashment, and loans.</p>
@@ -1016,7 +1016,7 @@ export function OffboardingPage() {
                         selectedExitPassport.hrClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600"
                       }`}
                     >
-                      {selectedExitPassport.hrClearance ? "Cleared ✓" : "Pending"}
+                      {selectedExitPassport.hrClearance ? "Cleared" : "Pending"}
                     </Badge>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Exit interview feedback, handover documentation.</p>
@@ -1048,7 +1048,7 @@ export function OffboardingPage() {
                         selectedExitPassport.adminClearance ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600"
                       }`}
                     >
-                      {selectedExitPassport.adminClearance ? "Cleared ✓" : "Pending"}
+                      {selectedExitPassport.adminClearance ? "Cleared" : "Pending"}
                     </Badge>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Physical ID card, parking tag, and cabinet keys.</p>
@@ -1276,7 +1276,7 @@ export function OffboardingPage() {
                 </div>
 
                 <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-mono">
-                  ✓ Verified Digital Credential
+                  Verified Digital Credential
                 </Badge>
               </div>
             </div>

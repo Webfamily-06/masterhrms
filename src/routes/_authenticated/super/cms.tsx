@@ -464,7 +464,7 @@ function PageEditorForm({
             <div className="flex items-center gap-2 border px-3 py-1.5 rounded-lg bg-background text-xs">
               <Switch checked={published} onCheckedChange={setPublished} id="published-toggle" />
               <Label htmlFor="published-toggle" className="cursor-pointer font-medium text-xs">
-                {published ? "Published (Live)" : "Draft (Hidden)"}
+                {published ? "Published" : "Draft"}
               </Label>
             </div>
 
@@ -688,12 +688,12 @@ function PageEditorForm({
                       <div className="max-w-3xl mx-auto p-4 rounded-xl bg-secondary/30 border flex flex-wrap items-center justify-between text-xs gap-4 font-mono">
                         {content.author && (
                           <div>
-                            ✍️ Author: <strong className="text-foreground">{content.author}</strong>
+                            Author: <strong className="text-foreground">{content.author}</strong>
                           </div>
                         )}
                         {content.client && (
                           <div>
-                            🏢 Client: <strong className="text-foreground">{content.client}</strong>
+                            Client: <strong className="text-foreground">{content.client}</strong>
                           </div>
                         )}
                         {content.impact && (
@@ -760,7 +760,7 @@ function PageEditorForm({
                                   <td className="p-3">
                                     {v.us ? (
                                       <Badge className="bg-emerald-600 text-white">
-                                        ✓ Our Platform
+                                        Our Platform
                                       </Badge>
                                     ) : (
                                       <span className="text-muted-foreground">—</span>
@@ -1266,11 +1266,11 @@ function CreatePageDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="blog">📝 Blog & Insights Article</SelectItem>
-                <SelectItem value="casestudy">🏢 Enterprise Case Study</SelectItem>
-                <SelectItem value="landing">🚀 ERP Feature / Landing Page</SelectItem>
-                <SelectItem value="legal">📜 Legal Terms & Policy</SelectItem>
-                <SelectItem value="blank">📄 Blank Page Template</SelectItem>
+                <SelectItem value="blog">Blog & Insights Article</SelectItem>
+                <SelectItem value="casestudy">Enterprise Case Study</SelectItem>
+                <SelectItem value="landing">ERP Feature / Landing Page</SelectItem>
+                <SelectItem value="legal">Legal Terms & Policy</SelectItem>
+                <SelectItem value="blank">Blank Page Template</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -133,7 +133,7 @@ export function useAddon(addonSlug: "okr-performance" | "asset-management" | str
     refetch,
     startTrial: startTrialMutation.mutateAsync,
     isStartingTrial: startTrialMutation.isPending,
-    subscribe: subscribeMutation.mutateAsync,
+    subscribe: (plan?: string) => subscribeMutation.mutateAsync(plan || "pro_annual"),
     isSubscribing: subscribeMutation.isPending,
     cancel: cancelMutation.mutateAsync,
     isCancelling: cancelMutation.isPending,

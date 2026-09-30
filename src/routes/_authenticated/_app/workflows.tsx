@@ -74,88 +74,6 @@ export type ExecutionLog = {
   executedAt: string;
 };
 
-const DEFAULT_RULES: AutomationRule[] = [
-  {
-    id: "wf-1",
-    name: "Auto-Escalate High-Value Expense Claims",
-    triggerEvent: "expense_submitted",
-    condition: "Claim Amount > ₹15,000",
-    actionType: "escalate_to_director",
-    actionDescription: "Auto-escalate for Finance Director expedited review & approval",
-    isActive: true,
-    executionCount: 14,
-    lastExecutedAt: "Yesterday, 4:15 PM",
-  },
-  {
-    id: "wf-2",
-    name: "Urgent Helpdesk SLA Auto-Escalation",
-    triggerEvent: "ticket_created",
-    condition: "Priority == 'Critical' && Unassigned > 2 hours",
-    actionType: "escalate_to_director",
-    actionDescription: "Auto-assign to Tier-3 Operations Lead & send urgent push alert",
-    isActive: true,
-    executionCount: 6,
-    lastExecutedAt: "Today, 11:30 AM",
-  },
-  {
-    id: "wf-3",
-    name: "New Hire IT Hardware Provisioning",
-    triggerEvent: "candidate_hired",
-    condition: "Status changed to 'Offer Accepted'",
-    actionType: "create_it_ticket",
-    actionDescription: "Auto-create IT Asset Request for workstation laptop & ID badge",
-    isActive: true,
-    executionCount: 8,
-    lastExecutedAt: "3 days ago",
-  },
-  {
-    id: "wf-4",
-    name: "Extended Sick Leave Medical Certificate Alert",
-    triggerEvent: "leave_submitted",
-    condition: "Leave Type == 'Sick Leave' && Days > 3",
-    actionType: "send_slack_alert",
-    actionDescription: "Send automated WhatsApp/Email notification requesting medical fit certificate",
-    isActive: true,
-    executionCount: 21,
-    lastExecutedAt: "Today, 9:45 AM",
-  },
-];
-
-const DEFAULT_LOGS: ExecutionLog[] = [
-  {
-    id: "log-1",
-    ruleName: "Urgent Helpdesk SLA Auto-Escalation",
-    triggerEvent: "ticket_created",
-    entityDetails: "Ticket #TKT-2026-089 (Server Outage)",
-    status: "Escalated",
-    executedAt: "Today, 11:30 AM",
-  },
-  {
-    id: "log-2",
-    ruleName: "Auto-Escalate High-Value Expense Claims",
-    triggerEvent: "expense_submitted",
-    entityDetails: "Claim #EXP-772 (Client Travel - ₹34,500)",
-    status: "Success",
-    executedAt: "Yesterday, 4:15 PM",
-  },
-  {
-    id: "log-3",
-    ruleName: "Extended Sick Leave Medical Certificate Alert",
-    triggerEvent: "leave_submitted",
-    entityDetails: "Leave #LV-449 (4 Days Medical Leave)",
-    status: "Success",
-    executedAt: "Yesterday, 9:45 AM",
-  },
-  {
-    id: "log-4",
-    ruleName: "New Hire IT Hardware Provisioning",
-    triggerEvent: "candidate_hired",
-    entityDetails: "Candidate: Priya Sharma (Sr Frontend Eng)",
-    status: "Success",
-    executedAt: "3 days ago",
-  },
-];
-
 export function WorkflowsPage() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);
@@ -174,101 +92,98 @@ export function WorkflowsPage() {
     actionDescription: "Auto-escalate for managerial review",
   });
 
-  // Query Workflows Data (Rules & Logs)
-  const { data: storeData } = useQuery<{ rules: AutomationRule[]; logs: ExecutionLog[] }>({
-    queryKey: ["tenant-automation-rules", tenantId],
+  // Fetch Automation Rules from DB
+  const { data: rules = [] } = useQuery<AutomationRule[]>({
+    queryKey: ["automation-rules", tenantId],
     queryFn: async () => {
       try {
-        const page = await api.get(`/cms/pages/tenant-${tenantId}-automation-rules`);
-        if (page?.content) {
-          const c = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
-          if (Array.isArray(c)) {
-            return { rules: c, logs: DEFAULT_LOGS };
-          }
-          return {
-            rules: c.rules || DEFAULT_RULES,
-            logs: c.logs || DEFAULT_LOGS,
-          };
-        }
-        return { rules: DEFAULT_RULES, logs: DEFAULT_LOGS };
+        const res = await api.get("/workflows/rules");
+        return Array.isArray(res) ? res : [];
       } catch {
-        return { rules: DEFAULT_RULES, logs: DEFAULT_LOGS };
+        return [];
       }
     },
+    enabled: !!tenantId && tenantId !== "default",
   });
 
-  const rules = storeData?.rules || DEFAULT_RULES;
-  const logs = storeData?.logs || DEFAULT_LOGS;
+  // Fetch Execution Logs from DB
+  const { data: logs = [] } = useQuery<ExecutionLog[]>({
+    queryKey: ["automation-logs", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/workflows/logs");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!tenantId && tenantId !== "default",
+  });
 
-  const saveMutation = useMutation({
-    mutationFn: async (payload: { rules: AutomationRule[]; logs: ExecutionLog[] }) => {
-      await api.put(`/cms/pages/tenant-${tenantId}-automation-rules`, {
-        title: "Tenant Automation Rules",
-        content: payload,
-        published: true,
-      });
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof ruleForm) => {
+      await api.post("/workflows/rules", data);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tenant-automation-rules", tenantId] });
+      qc.invalidateQueries({ queryKey: ["automation-rules", tenantId] });
       setIsAddRuleOpen(false);
+      setRuleForm({ name: "", triggerEvent: "expense_submitted", condition: "Amount > ₹15,000", actionType: "escalate_to_director", actionDescription: "Auto-escalate for managerial review" });
+      toast.success("Workflow rule saved and activated!");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   function handleCreateRule() {
     if (!ruleForm.name.trim()) return toast.error("Rule name is required");
-
-    const newRule: AutomationRule = {
-      id: `wf-${Date.now()}`,
-      name: ruleForm.name.trim(),
-      triggerEvent: ruleForm.triggerEvent,
-      condition: ruleForm.condition,
-      actionType: ruleForm.actionType,
-      actionDescription: ruleForm.actionDescription,
-      isActive: true,
-      executionCount: 0,
-      lastExecutedAt: "Never",
-    };
-
-    saveMutation.mutate({ rules: [newRule, ...rules], logs });
-    toast.success("Workflow rule saved and activated!");
+    createMutation.mutate(ruleForm);
   }
 
-  function toggleRuleActive(ruleId: string) {
-    const updated = rules.map((r) => (r.id === ruleId ? { ...r, isActive: !r.isActive } : r));
-    saveMutation.mutate({ rules: updated, logs });
-    toast.success("Rule status updated.");
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      await api.put(`/workflows/rules/${id}`, { isActive });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["automation-rules", tenantId] });
+      toast.success("Rule status updated.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function toggleRuleActive(rule: AutomationRule) {
+    toggleMutation.mutate({ id: rule.id, isActive: !rule.isActive });
   }
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/workflows/rules/${id}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["automation-rules", tenantId] });
+      toast.success("Rule deleted.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   function handleDeleteRule(ruleId: string) {
-    const updated = rules.filter((r) => r.id !== ruleId);
-    saveMutation.mutate({ rules: updated, logs });
-    toast.success("Rule deleted.");
+    deleteMutation.mutate(ruleId);
   }
 
+  const triggerMutation = useMutation({
+    mutationFn: async (rule: AutomationRule) => {
+      await api.post(`/workflows/rules/${rule.id}/trigger`, {
+        entityDetails: `Manual Test Execution (${rule.condition})`,
+      });
+    },
+    onSuccess: (_, rule) => {
+      qc.invalidateQueries({ queryKey: ["automation-rules", tenantId] });
+      qc.invalidateQueries({ queryKey: ["automation-logs", tenantId] });
+      toast.success(`Action executed: ${rule.actionDescription}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   function handleTriggerTest(rule: AutomationRule) {
-    const newLog: ExecutionLog = {
-      id: `log-${Date.now()}`,
-      ruleName: rule.name,
-      triggerEvent: rule.triggerEvent,
-      entityDetails: `Manual Test Execution (${rule.condition})`,
-      status: rule.actionType === "escalate_to_director" ? "Escalated" : "Success",
-      executedAt: "Just now",
-    };
-
-    const updatedRules = rules.map((r) =>
-      r.id === rule.id
-        ? {
-            ...r,
-            executionCount: r.executionCount + 1,
-            lastExecutedAt: "Just now",
-          }
-        : r
-    );
-
-    const updatedLogs = [newLog, ...logs];
-    saveMutation.mutate({ rules: updatedRules, logs: updatedLogs });
-    toast.success(`⚡ Action executed: ${rule.actionDescription}`);
+    triggerMutation.mutate(rule);
   }
 
   return (
@@ -352,14 +267,16 @@ export function WorkflowsPage() {
                         onClick={() => handleTriggerTest(rule)}
                         className="h-7 text-[11px] font-bold gap-1 text-emerald-600 border-emerald-600/30 hover:bg-emerald-500/10"
                         title="Simulate Event & Execute Rule"
+                        disabled={triggerMutation.isPending}
                       >
                         <Play className="size-3" /> Run Test
                       </Button>
                       <Button
                         size="sm"
                         variant={rule.isActive ? "outline" : "secondary"}
-                        onClick={() => toggleRuleActive(rule.id)}
+                        onClick={() => toggleRuleActive(rule)}
                         className="h-7 text-[11px] font-bold"
+                        disabled={toggleMutation.isPending}
                       >
                         {rule.isActive ? "Pause" : "Enable"}
                       </Button>
@@ -411,7 +328,7 @@ export function WorkflowsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="font-mono text-xs text-right text-muted-foreground">
-                          {log.executedAt}
+                          {new Date(log.executedAt).toLocaleString()}
                         </TableCell>
                       </TableRow>
                     ))}

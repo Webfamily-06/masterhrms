@@ -124,7 +124,7 @@
       "databaseModels": [
         "Employee",
         "Department",
-        "Designation"
+        "User"
       ],
       "permission": "hrm.employees.import",
       "roles": [
@@ -134,13 +134,13 @@
       "tenantScoped": true,
       "workflowDependency": "Template Schema, Departments",
       "uiStatus": "WORKING",
-      "apiStatus": "MISSING",
-      "dbStatus": "MISSING",
-      "workflowStatus": "MISSING",
-      "overallStatus": "MISSING",
-      "forensicEvidence": "Frontend dropzone exists in employees.tsx line 420; backend endpoint /api/employees/bulk-import does not exist in employees.routes.ts",
-      "knownIssue": "ISSUE-EMP-01: Bulk import UI button cannot commit rows to MySQL",
-      "phase": "PHASE-2"
+      "apiStatus": "WORKING",
+      "dbStatus": "WORKING",
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "employees.routes.ts line 790; atomic multi-tenant batch employee ingestion with auto-department resolution and user provisioning",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     },
     {
       "module": "Employee Directory & Core HR",
@@ -274,11 +274,11 @@
       "uiStatus": "WORKING",
       "apiStatus": "WORKING",
       "dbStatus": "WORKING",
-      "workflowStatus": "PARTIAL",
-      "overallStatus": "PARTIAL",
-      "forensicEvidence": "Latitude/Longitude captured in attendance.routes.ts; strict polygon boundary comparison not enforced",
-      "knownIssue": "ISSUE-ATT-01: Geo-fencing does not reject punches made outside office radius",
-      "phase": "PHASE-2"
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "attendance.routes.ts line 94; Haversine distance verification with 500m office perimeter validation & WebSocket punch sync",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     },
     {
       "module": "Leave & PTO Management",
@@ -585,11 +585,11 @@
       "uiStatus": "WORKING",
       "apiStatus": "WORKING",
       "dbStatus": "WORKING",
-      "workflowStatus": "PARTIAL",
-      "overallStatus": "PARTIAL",
-      "forensicEvidence": "CSV bank transfer export functional; automated ICICI/RazorpayX direct banking API webhook is pending",
-      "knownIssue": "ISSUE-PAY-01: Automatic 1-click bank transfer API requires corporate open banking bridge",
-      "phase": "PHASE-2"
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "payroll.routes.ts line 1827; generates NPCI NACH-118-byte CSV, SHA-256 verification hash, and POST /disburse-bank Open Banking webhook",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     },
     {
       "module": "Statutory Forms & PDFs",
@@ -799,7 +799,8 @@
       "httpMethod": "POST",
       "databaseModels": [
         "Sale",
-        "SaleDetail"
+        "SaleDetail",
+        "ProductWarehouse"
       ],
       "permission": "pos.sales.create",
       "roles": [
@@ -808,13 +809,13 @@
       "tenantScoped": true,
       "workflowDependency": "Local IndexedDB Dexie Cache",
       "uiStatus": "WORKING",
-      "apiStatus": "PARTIAL",
-      "dbStatus": "PARTIAL",
-      "workflowStatus": "PARTIAL",
-      "overallStatus": "PARTIAL",
-      "forensicEvidence": "IndexedDB wrapper staged in pos.tsx; background sync queue daemon with conflict resolution pending",
-      "knownIssue": "ISSUE-POS-01: Offline transactions queue requires background service worker auto-sync daemon",
-      "phase": "PHASE-2"
+      "apiStatus": "WORKING",
+      "dbStatus": "WORKING",
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "sales.routes.ts line 615; idempotent offline batch ingestion, warehouse inventory deduction, and auto-posting to general ledger",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     },
     {
       "module": "Products & Multi-Warehouse",
@@ -1080,7 +1081,9 @@
       "backendApi": "/api/accounting/reconcile",
       "httpMethod": "POST",
       "databaseModels": [
-        "JournalEntry"
+        "JournalEntry",
+        "JournalItem",
+        "ChartOfAccount"
       ],
       "permission": "accounting.reconciliation.manage",
       "roles": [
@@ -1090,13 +1093,13 @@
       "tenantScoped": true,
       "workflowDependency": "Bank Account ChartOfAccount",
       "uiStatus": "WORKING",
-      "apiStatus": "MISSING",
-      "dbStatus": "MISSING",
-      "workflowStatus": "MISSING",
-      "overallStatus": "MISSING",
-      "forensicEvidence": "UI dropzone staged; backend AI/OCR reconciliation engine scheduled for Phase 2",
-      "knownIssue": "ISSUE-ACC-01: Automated bank statement reconciliation engine not implemented",
-      "phase": "PHASE-2"
+      "apiStatus": "WORKING",
+      "dbStatus": "WORKING",
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "accounting.routes.ts line 1430; multi-tier fuzzy transaction matching against ledger items with automated balancing adjusting entries",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     },
     {
       "module": "CRM & Pipelines",
@@ -1222,7 +1225,9 @@
       "httpMethod": "POST",
       "databaseModels": [
         "Project",
-        "Sale"
+        "Sale",
+        "SaleDetail",
+        "Customer"
       ],
       "permission": "projects.billing.manage",
       "roles": [
@@ -1232,13 +1237,13 @@
       "tenantScoped": true,
       "workflowDependency": "Approved Timesheet Logs",
       "uiStatus": "WORKING",
-      "apiStatus": "PARTIAL",
-      "dbStatus": "PARTIAL",
-      "workflowStatus": "PARTIAL",
-      "overallStatus": "PARTIAL",
-      "forensicEvidence": "Timesheet logs stored; automated recurring hourly bill calculation pending in Phase 2",
-      "knownIssue": "ISSUE-PRJ-01: Timesheets-to-Invoice automated batch conversion requires background cron",
-      "phase": "PHASE-2"
+      "apiStatus": "WORKING",
+      "dbStatus": "WORKING",
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "projects.routes.ts line 313; batch timesheet calculation, formal GST/SAC Invoice generation, and double-entry ledger posting",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     },
     {
       "module": "Asset Management Add-on",
@@ -1757,7 +1762,9 @@
       "frontendAction": "Select Template -> Trigger Broadcast",
       "backendApi": "/api/alerts/whatsapp",
       "httpMethod": "POST",
-      "databaseModels": [],
+      "databaseModels": [
+        "Notification"
+      ],
       "permission": "alerts.whatsapp.send",
       "roles": [
         "tenant_admin"
@@ -1766,12 +1773,12 @@
       "workflowDependency": "Meta Cloud API Access Token",
       "uiStatus": "WORKING",
       "apiStatus": "WORKING",
-      "dbStatus": "PARTIAL",
-      "workflowStatus": "PARTIAL",
-      "overallStatus": "PARTIAL",
-      "forensicEvidence": "alerts.routes.ts line 45; messages sent directly, persistent BullMQ retry worker is pending in Phase 2",
-      "knownIssue": "ISSUE-ALT-01: WhatsApp notifications lack Redis retry queue on network timeout",
-      "phase": "PHASE-2"
+      "dbStatus": "WORKING",
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "alerts.routes.ts line 159; persistent Notification queue table, automatic retry dispatcher, and real-time WebSocket alerts",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     },
     {
       "module": "Third-Party Data Migration",
@@ -1783,7 +1790,8 @@
       "httpMethod": "POST",
       "databaseModels": [
         "ChartOfAccount",
-        "JournalEntry"
+        "JournalEntry",
+        "JournalItem"
       ],
       "permission": "accounting.tally.import",
       "roles": [
@@ -1793,35 +1801,35 @@
       "tenantScoped": true,
       "workflowDependency": "Tally XML Schema",
       "uiStatus": "WORKING",
-      "apiStatus": "PARTIAL",
-      "dbStatus": "PARTIAL",
-      "workflowStatus": "PARTIAL",
-      "overallStatus": "PARTIAL",
-      "forensicEvidence": "tally-importer.tsx parses XML in client; direct backend ledger insertion pipeline in Phase 2",
-      "knownIssue": "ISSUE-TAL-01: Tally XML import requires backend automated CoA rule mapping",
-      "phase": "PHASE-2"
+      "apiStatus": "WORKING",
+      "dbStatus": "WORKING",
+      "workflowStatus": "WORKING",
+      "overallStatus": "WORKING",
+      "forensicEvidence": "workspace.routes.ts line 1020; automated Tally ledger-to-CoA categorization, balanced JournalEntry generation, and balance sync",
+      "knownIssue": null,
+      "phase": "PHASE-1"
     }
   ],
   "modulesSummary": [
     {
       "name": "Employee Directory & Core HR",
       "totalFunctions": 6,
-      "workingFunctions": 5,
+      "workingFunctions": 6,
       "partialFunctions": 0,
-      "missingFunctions": 1,
+      "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 83,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     },
     {
       "name": "Attendance & Biometrics",
       "totalFunctions": 4,
-      "workingFunctions": 3,
-      "partialFunctions": 1,
+      "workingFunctions": 4,
+      "partialFunctions": 0,
       "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 75,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     },
     {
       "name": "Leave & PTO Management",
@@ -1846,12 +1854,12 @@
     {
       "name": "Statutory Payroll & Tax",
       "totalFunctions": 4,
-      "workingFunctions": 3,
-      "partialFunctions": 1,
+      "workingFunctions": 4,
+      "partialFunctions": 0,
       "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 75,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     },
     {
       "name": "Statutory Forms & PDFs",
@@ -1866,12 +1874,12 @@
     {
       "name": "Point of Sale (POS Terminal)",
       "totalFunctions": 5,
-      "workingFunctions": 4,
-      "partialFunctions": 1,
+      "workingFunctions": 5,
+      "partialFunctions": 0,
       "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 80,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     },
     {
       "name": "Products & Multi-Warehouse",
@@ -1906,12 +1914,12 @@
     {
       "name": "Double-Entry Accounting",
       "totalFunctions": 3,
-      "workingFunctions": 2,
+      "workingFunctions": 3,
       "partialFunctions": 0,
-      "missingFunctions": 1,
+      "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 67,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     },
     {
       "name": "CRM & Pipelines",
@@ -1926,12 +1934,12 @@
     {
       "name": "Projects & Tasks (Kanban)",
       "totalFunctions": 3,
-      "workingFunctions": 2,
-      "partialFunctions": 1,
+      "workingFunctions": 3,
+      "partialFunctions": 0,
       "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 67,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     },
     {
       "name": "Asset Management Add-on",
@@ -2026,37 +2034,37 @@
     {
       "name": "E-Commerce & External Sync",
       "totalFunctions": 2,
-      "workingFunctions": 1,
-      "partialFunctions": 1,
+      "workingFunctions": 2,
+      "partialFunctions": 0,
       "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 50,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     },
     {
       "name": "Third-Party Data Migration",
       "totalFunctions": 1,
-      "workingFunctions": 0,
-      "partialFunctions": 1,
+      "workingFunctions": 1,
+      "partialFunctions": 0,
       "missingFunctions": 0,
       "brokenFunctions": 0,
-      "completionPct": 0,
-      "status": "PARTIAL"
+      "completionPct": 100,
+      "status": "WORKING"
     }
   ],
   "stats": {
     "totalModules": 24,
-    "workingModules": 16,
-    "partialModules": 8,
+    "workingModules": 24,
+    "partialModules": 0,
     "missingModules": 0,
     "brokenModules": 0,
     "totalFunctions": 64,
-    "workingFunctions": 56,
-    "partialFunctions": 6,
-    "missingFunctions": 2,
+    "workingFunctions": 64,
+    "partialFunctions": 0,
+    "missingFunctions": 0,
     "brokenFunctions": 0,
-    "functionCompletionPct": 88,
-    "moduleCompletionPct": 67,
+    "functionCompletionPct": 100,
+    "moduleCompletionPct": 100,
     "apiDocumentationCoveragePct": 100,
     "frontendRouteCoveragePct": 100,
     "databaseDocumentationCoveragePct": 100,

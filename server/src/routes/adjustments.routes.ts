@@ -1,7 +1,9 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { InventoryMovementService } from "../services/inventory-movement.service";
+import { InsufficientStockError, InvalidQuantityError } from "../services/inventory-movement.errors";
 import { autoPostStockAdjustmentToLedger } from "../services/ledger-posting.service";
 import { broadcastToTenant } from "../socket";
 import { resolveTenantId } from "../lib/tenant";
@@ -9,6 +11,9 @@ import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const adjustmentsRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all stock adjustment endpoints
+adjustmentsRouter.use(requireAuth, resolveTenantContext);
 
 /**
  * GET /api/adjustments
@@ -83,7 +88,7 @@ adjustmentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) 
       }
 
       for (const d of adj.details) {
-        const qty = d.quantity || 0;
+        const qty = Number(d.quantity || 0);
         const price = Number(d.product?.purchasePrice || 0);
         if (isAdd) {
           totalAddedUnits += qty;
@@ -196,7 +201,7 @@ adjustmentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response)
             where: { id: d.productId },
             select: { purchasePrice: true },
           });
-          totalValuation += d.quantity * Number(product?.purchasePrice || 0);
+          totalValuation += Number(d.quantity) * Number(product?.purchasePrice || 0);
         }
 
         await autoPostStockAdjustmentToLedger({
@@ -238,7 +243,7 @@ adjustmentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response)
       reason,
       details: details.map((d: any) => ({
         productId: d.productId,
-        quantity: Math.max(1, Math.floor(Number(d.quantity) || 1)),
+        quantity: d.quantity !== undefined ? d.quantity : 1,
       })),
     });
 
@@ -253,7 +258,7 @@ adjustmentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response)
     products.forEach((p) => priceMap.set(p.id, Number(p.purchasePrice || 0)));
 
     for (const d of details) {
-      const qty = Math.max(1, Math.floor(Number(d.quantity) || 1));
+      const qty = Number(d.quantity || 1);
       const cost = priceMap.get(d.productId) || 0;
       totalValuation += qty * cost;
     }
@@ -281,6 +286,12 @@ adjustmentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response)
     });
   } catch (err: any) {
     console.error("POST /api/adjustments error:", err);
+    if (err instanceof InsufficientStockError || err.code === "INSUFFICIENT_STOCK" || err.message?.includes("Insufficient stock")) {
+      return res.status(409).json({ error: err.message, code: "INSUFFICIENT_STOCK" });
+    }
+    if (err instanceof InvalidQuantityError || err.code === "INVALID_QUANTITY") {
+      return res.status(400).json({ error: err.message, code: "INVALID_QUANTITY" });
+    }
     return res.status(400).json({ error: err.message || "Failed to record stock adjustment" });
   }
 });

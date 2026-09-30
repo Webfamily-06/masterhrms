@@ -20,8 +20,13 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CareersRouteImport } from './routes/careers'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
+import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as DocsRouteImport } from './routes/docs'
+import { Route as Error404RouteImport } from './routes/error-404'
+import { Route as Error500RouteImport } from './routes/error-500'
 import { Route as HelpCenterRouteImport } from './routes/help-center'
+import { Route as LockScreenRouteImport } from './routes/lock-screen'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OgPreviewRouteImport } from './routes/og-preview'
@@ -47,53 +52,86 @@ import { Route as PaymentSuccessRouteImport } from './routes/payment.success'
 import { Route as AuthenticatedAppAccountingRouteImport } from './routes/_authenticated/_app/accounting'
 import { Route as AuthenticatedAppAdjustmentsRouteImport } from './routes/_authenticated/_app/adjustments'
 import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/_app/ai'
+import { Route as AuthenticatedAppAiAttendanceInsightsRouteImport } from './routes/_authenticated/_app/ai-attendance-insights'
+import { Route as AuthenticatedAppAiConfigurationRouteImport } from './routes/_authenticated/_app/ai-configuration'
 import { Route as AuthenticatedAppAiOcrRouteImport } from './routes/_authenticated/_app/ai-ocr'
+import { Route as AuthenticatedAppAiPayrollForecastRouteImport } from './routes/_authenticated/_app/ai-payroll-forecast'
+import { Route as AuthenticatedAppAiSettingsRouteImport } from './routes/_authenticated/_app/ai-settings'
+import { Route as AuthenticatedAppAiTeamPerformanceInsightsRouteImport } from './routes/_authenticated/_app/ai-team-performance-insights'
 import { Route as AuthenticatedAppAiWriterRouteImport } from './routes/_authenticated/_app/ai-writer'
 import { Route as AuthenticatedAppAnalyticsRouteImport } from './routes/_authenticated/_app/analytics'
 import { Route as AuthenticatedAppAnnouncementsRouteImport } from './routes/_authenticated/_app/announcements'
+import { Route as AuthenticatedAppAssetDashboardRouteImport } from './routes/_authenticated/_app/asset-dashboard'
 import { Route as AuthenticatedAppAssetsRouteImport } from './routes/_authenticated/_app/assets'
 import { Route as AuthenticatedAppAttendanceRouteImport } from './routes/_authenticated/_app/attendance'
+import { Route as AuthenticatedAppAttendanceEmployeeRouteImport } from './routes/_authenticated/_app/attendance-employee'
+import { Route as AuthenticatedAppAttendanceReportRouteImport } from './routes/_authenticated/_app/attendance-report'
+import { Route as AuthenticatedAppAwardsRouteImport } from './routes/_authenticated/_app/awards'
 import { Route as AuthenticatedAppBiometricRouteImport } from './routes/_authenticated/_app/biometric'
 import { Route as AuthenticatedAppBiometricSyncRouteImport } from './routes/_authenticated/_app/biometric-sync'
 import { Route as AuthenticatedAppCalendarRouteImport } from './routes/_authenticated/_app/calendar'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/_app/chat'
 import { Route as AuthenticatedAppClientDashboardRouteImport } from './routes/_authenticated/_app/client-dashboard'
+import { Route as AuthenticatedAppContactsRouteImport } from './routes/_authenticated/_app/contacts'
 import { Route as AuthenticatedAppCrmRouteImport } from './routes/_authenticated/_app/crm'
 import { Route as AuthenticatedAppCrmDashboardRouteImport } from './routes/_authenticated/_app/crm-dashboard'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/_app/dashboard'
+import { Route as AuthenticatedAppDealsDashboardRouteImport } from './routes/_authenticated/_app/deals-dashboard'
+import { Route as AuthenticatedAppDepartmentsRouteImport } from './routes/_authenticated/_app/departments'
+import { Route as AuthenticatedAppDesignationsRouteImport } from './routes/_authenticated/_app/designations'
 import { Route as AuthenticatedAppDocumentsRouteImport } from './routes/_authenticated/_app/documents'
 import { Route as AuthenticatedAppEmployeeDashboardRouteImport } from './routes/_authenticated/_app/employee-dashboard'
 import { Route as AuthenticatedAppEmployeeDetailsRouteImport } from './routes/_authenticated/_app/employee-details'
+import { Route as AuthenticatedAppEmployeeReportRouteImport } from './routes/_authenticated/_app/employee-report'
 import { Route as AuthenticatedAppEmployeesRouteImport } from './routes/_authenticated/_app/employees'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/_app/expenses'
+import { Route as AuthenticatedAppExpensesReportRouteImport } from './routes/_authenticated/_app/expenses-report'
 import { Route as AuthenticatedAppFinanceDashboardRouteImport } from './routes/_authenticated/_app/finance-dashboard'
 import { Route as AuthenticatedAppFormsRouteImport } from './routes/_authenticated/_app/forms'
 import { Route as AuthenticatedAppGoogleWorkspaceRouteImport } from './routes/_authenticated/_app/google-workspace'
+import { Route as AuthenticatedAppHelpDeskDashboardRouteImport } from './routes/_authenticated/_app/help-desk-dashboard'
 import { Route as AuthenticatedAppHelpdeskRouteImport } from './routes/_authenticated/_app/helpdesk'
+import { Route as AuthenticatedAppHolidaysRouteImport } from './routes/_authenticated/_app/holidays'
 import { Route as AuthenticatedAppHrmRouteImport } from './routes/_authenticated/_app/hrm'
 import { Route as AuthenticatedAppIntegrationsRouteImport } from './routes/_authenticated/_app/integrations'
 import { Route as AuthenticatedAppInventoryDashboardRouteImport } from './routes/_authenticated/_app/inventory-dashboard'
+import { Route as AuthenticatedAppInvoiceReportRouteImport } from './routes/_authenticated/_app/invoice-report'
 import { Route as AuthenticatedAppInvoicesRouteImport } from './routes/_authenticated/_app/invoices'
+import { Route as AuthenticatedAppItAdminDashboardRouteImport } from './routes/_authenticated/_app/it-admin-dashboard'
+import { Route as AuthenticatedAppLeadsDashboardRouteImport } from './routes/_authenticated/_app/leads-dashboard'
+import { Route as AuthenticatedAppLearningAnalyticsRouteImport } from './routes/_authenticated/_app/learning-analytics'
 import { Route as AuthenticatedAppLeaveRouteImport } from './routes/_authenticated/_app/leave'
+import { Route as AuthenticatedAppLeaveReportRouteImport } from './routes/_authenticated/_app/leave-report'
 import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/_app/marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/_app/media'
 import { Route as AuthenticatedAppNotesRouteImport } from './routes/_authenticated/_app/notes'
+import { Route as AuthenticatedAppNoticePeriodTrackerRouteImport } from './routes/_authenticated/_app/notice-period-tracker'
 import { Route as AuthenticatedAppOffboardingRouteImport } from './routes/_authenticated/_app/offboarding'
 import { Route as AuthenticatedAppOkrRouteImport } from './routes/_authenticated/_app/okr'
+import { Route as AuthenticatedAppPaymentReportRouteImport } from './routes/_authenticated/_app/payment-report'
 import { Route as AuthenticatedAppPayrollRouteImport } from './routes/_authenticated/_app/payroll'
+import { Route as AuthenticatedAppPayrollDashboardRouteImport } from './routes/_authenticated/_app/payroll-dashboard'
+import { Route as AuthenticatedAppPayslipReportRouteImport } from './routes/_authenticated/_app/payslip-report'
+import { Route as AuthenticatedAppPerformanceAppraisalRouteImport } from './routes/_authenticated/_app/performance-appraisal'
+import { Route as AuthenticatedAppPerformanceIndicatorRouteImport } from './routes/_authenticated/_app/performance-indicator'
+import { Route as AuthenticatedAppPerformanceReviewRouteImport } from './routes/_authenticated/_app/performance-review'
 import { Route as AuthenticatedAppPosRouteImport } from './routes/_authenticated/_app/pos'
 import { Route as AuthenticatedAppPosDashboardRouteImport } from './routes/_authenticated/_app/pos-dashboard'
 import { Route as AuthenticatedAppProcurementDashboardRouteImport } from './routes/_authenticated/_app/procurement-dashboard'
 import { Route as AuthenticatedAppProductsRouteImport } from './routes/_authenticated/_app/products'
 import { Route as AuthenticatedAppProjectDashboardRouteImport } from './routes/_authenticated/_app/project-dashboard'
+import { Route as AuthenticatedAppProjectReportRouteImport } from './routes/_authenticated/_app/project-report'
 import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/_app/projects'
 import { Route as AuthenticatedAppProposalsRouteImport } from './routes/_authenticated/_app/proposals'
 import { Route as AuthenticatedAppPurchasesRouteImport } from './routes/_authenticated/_app/purchases'
 import { Route as AuthenticatedAppRazorpayGatewayRouteImport } from './routes/_authenticated/_app/razorpay-gateway'
 import { Route as AuthenticatedAppRecruitmentRouteImport } from './routes/_authenticated/_app/recruitment'
+import { Route as AuthenticatedAppRecruitmentDashboardRouteImport } from './routes/_authenticated/_app/recruitment-dashboard'
+import { Route as AuthenticatedAppReturnsRouteImport } from './routes/_authenticated/_app/returns'
 import { Route as AuthenticatedAppSalesDashboardRouteImport } from './routes/_authenticated/_app/sales-dashboard'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/_app/settings'
 import { Route as AuthenticatedAppSetupNotesRouteImport } from './routes/_authenticated/_app/setup-notes'
+import { Route as AuthenticatedAppShiftSwapRequestsRouteImport } from './routes/_authenticated/_app/shift-swap-requests'
 import { Route as AuthenticatedAppShiftsRouteImport } from './routes/_authenticated/_app/shifts'
 import { Route as AuthenticatedAppShopifyRouteImport } from './routes/_authenticated/_app/shopify'
 import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_authenticated/_app/subscription'
@@ -102,14 +140,23 @@ import { Route as AuthenticatedAppSupportRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppSupportDashboardRouteImport } from './routes/_authenticated/_app/support-dashboard'
 import { Route as AuthenticatedAppSystemStatesRouteImport } from './routes/_authenticated/_app/system-states'
 import { Route as AuthenticatedAppTallyImporterRouteImport } from './routes/_authenticated/_app/tally-importer'
+import { Route as AuthenticatedAppTasksRouteImport } from './routes/_authenticated/_app/tasks'
+import { Route as AuthenticatedAppTicketReportsRouteImport } from './routes/_authenticated/_app/ticket-reports'
+import { Route as AuthenticatedAppTimesheetsRouteImport } from './routes/_authenticated/_app/timesheets'
 import { Route as AuthenticatedAppTodoRouteImport } from './routes/_authenticated/_app/todo'
 import { Route as AuthenticatedAppTrainingRouteImport } from './routes/_authenticated/_app/training'
 import { Route as AuthenticatedAppTransfersRouteImport } from './routes/_authenticated/_app/transfers'
 import { Route as AuthenticatedAppUsersRouteImport } from './routes/_authenticated/_app/users'
+import { Route as AuthenticatedAppWarningsRouteImport } from './routes/_authenticated/_app/warnings'
 import { Route as AuthenticatedAppWhatsappAlertsRouteImport } from './routes/_authenticated/_app/whatsapp-alerts'
 import { Route as AuthenticatedAppWorkflowsRouteImport } from './routes/_authenticated/_app/workflows'
 import { Route as AuthenticatedAppWorkspaceRouteImport } from './routes/_authenticated/_app/workspace'
+import { Route as AuthenticatedClientIndexRouteImport } from './routes/_authenticated/client/index'
+import { Route as AuthenticatedClientDashboardRouteImport } from './routes/_authenticated/client/dashboard'
+import { Route as AuthenticatedEmployeeIndexRouteImport } from './routes/_authenticated/employee/index'
+import { Route as AuthenticatedEmployeeDashboardRouteImport } from './routes/_authenticated/employee/dashboard'
 import { Route as AuthenticatedSuperIndexRouteImport } from './routes/_authenticated/super/index'
+import { Route as AuthenticatedSuperAgentsRouteImport } from './routes/_authenticated/super/agents'
 import { Route as AuthenticatedSuperAnalyticsRouteImport } from './routes/_authenticated/super/analytics'
 import { Route as AuthenticatedSuperApiDocsRouteImport } from './routes/_authenticated/super/api-docs'
 import { Route as AuthenticatedSuperBackupRouteImport } from './routes/_authenticated/super/backup'
@@ -118,6 +165,7 @@ import { Route as AuthenticatedSuperCaseStudiesRouteImport } from './routes/_aut
 import { Route as AuthenticatedSuperCmsRouteImport } from './routes/_authenticated/super/cms'
 import { Route as AuthenticatedSuperDomainsRouteImport } from './routes/_authenticated/super/domains'
 import { Route as AuthenticatedSuperEmailTemplatesRouteImport } from './routes/_authenticated/super/email-templates'
+import { Route as AuthenticatedSuperEscalationRulesRouteImport } from './routes/_authenticated/super/escalation-rules'
 import { Route as AuthenticatedSuperLanguagesRouteImport } from './routes/_authenticated/super/languages'
 import { Route as AuthenticatedSuperMarketplaceRouteImport } from './routes/_authenticated/super/marketplace'
 import { Route as AuthenticatedSuperMediaRouteImport } from './routes/_authenticated/super/media'
@@ -126,11 +174,20 @@ import { Route as AuthenticatedSuperPlansRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSuperProfileRouteImport } from './routes/_authenticated/super/profile'
 import { Route as AuthenticatedSuperRolesRouteImport } from './routes/_authenticated/super/roles'
 import { Route as AuthenticatedSuperSettingsRouteImport } from './routes/_authenticated/super/settings'
+import { Route as AuthenticatedSuperSlaPoliciesRouteImport } from './routes/_authenticated/super/sla-policies'
 import { Route as AuthenticatedSuperSupportRouteImport } from './routes/_authenticated/super/support'
+import { Route as AuthenticatedSuperTenantSupportTicketsRouteImport } from './routes/_authenticated/super/tenant-support-tickets'
+import { Route as AuthenticatedSuperTenantUsageMetricsRouteImport } from './routes/_authenticated/super/tenant-usage-metrics'
 import { Route as AuthenticatedSuperTenantsRouteImport } from './routes/_authenticated/super/tenants'
 import { Route as AuthenticatedSuperTransactionsRouteImport } from './routes/_authenticated/super/transactions'
+import { Route as AuthenticatedSuperUsersRouteImport } from './routes/_authenticated/super/users'
+import { Route as AuthenticatedTenantIndexRouteImport } from './routes/_authenticated/tenant/index'
 import { Route as PortalInvoicesIdRouteImport } from './routes/portal.invoices.$id'
 import { Route as PortalProposalsIdRouteImport } from './routes/portal.proposals.$id'
+import { Route as AuthenticatedAppInvoiceIdRouteImport } from './routes/_authenticated/_app/invoice.$id'
+import { Route as AuthenticatedAppInvoiceCreateRouteImport } from './routes/_authenticated/_app/invoice.create'
+import { Route as AuthenticatedAppProjectIdRouteImport } from './routes/_authenticated/_app/project.$id'
+import { Route as AuthenticatedAppInvoiceIdPrintRouteImport } from './routes/_authenticated/_app/invoice.$id.print'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -186,14 +243,39 @@ const CustomerDisplayRoute = CustomerDisplayRouteImport.update({
   path: '/customer-display',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeveloperRoute = DeveloperRouteImport.update({
+  id: '/developer',
+  path: '/developer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Error404Route = Error404RouteImport.update({
+  id: '/error-404',
+  path: '/error-404',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Error500Route = Error500RouteImport.update({
+  id: '/error-500',
+  path: '/error-500',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpCenterRoute = HelpCenterRouteImport.update({
   id: '/help-center',
   path: '/help-center',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LockScreenRoute = LockScreenRouteImport.update({
+  id: '/lock-screen',
+  path: '/lock-screen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MaintenanceRoute = MaintenanceRouteImport.update({
@@ -322,11 +404,41 @@ const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
   path: '/ai',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppAiAttendanceInsightsRoute =
+  AuthenticatedAppAiAttendanceInsightsRouteImport.update({
+    id: '/ai-attendance-insights',
+    path: '/ai-attendance-insights',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAiConfigurationRoute =
+  AuthenticatedAppAiConfigurationRouteImport.update({
+    id: '/ai-configuration',
+    path: '/ai-configuration',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppAiOcrRoute = AuthenticatedAppAiOcrRouteImport.update({
   id: '/ai-ocr',
   path: '/ai-ocr',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppAiPayrollForecastRoute =
+  AuthenticatedAppAiPayrollForecastRouteImport.update({
+    id: '/ai-payroll-forecast',
+    path: '/ai-payroll-forecast',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAiSettingsRoute =
+  AuthenticatedAppAiSettingsRouteImport.update({
+    id: '/ai-settings',
+    path: '/ai-settings',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAiTeamPerformanceInsightsRoute =
+  AuthenticatedAppAiTeamPerformanceInsightsRouteImport.update({
+    id: '/ai-team-performance-insights',
+    path: '/ai-team-performance-insights',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppAiWriterRoute =
   AuthenticatedAppAiWriterRouteImport.update({
     id: '/ai-writer',
@@ -345,6 +457,12 @@ const AuthenticatedAppAnnouncementsRoute =
     path: '/announcements',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppAssetDashboardRoute =
+  AuthenticatedAppAssetDashboardRouteImport.update({
+    id: '/asset-dashboard',
+    path: '/asset-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppAssetsRoute = AuthenticatedAppAssetsRouteImport.update({
   id: '/assets',
   path: '/assets',
@@ -356,6 +474,23 @@ const AuthenticatedAppAttendanceRoute =
     path: '/attendance',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppAttendanceEmployeeRoute =
+  AuthenticatedAppAttendanceEmployeeRouteImport.update({
+    id: '/attendance-employee',
+    path: '/attendance-employee',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAttendanceReportRoute =
+  AuthenticatedAppAttendanceReportRouteImport.update({
+    id: '/attendance-report',
+    path: '/attendance-report',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAwardsRoute = AuthenticatedAppAwardsRouteImport.update({
+  id: '/awards',
+  path: '/awards',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppBiometricRoute =
   AuthenticatedAppBiometricRouteImport.update({
     id: '/biometric',
@@ -385,6 +520,12 @@ const AuthenticatedAppClientDashboardRoute =
     path: '/client-dashboard',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppContactsRoute =
+  AuthenticatedAppContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppCrmRoute = AuthenticatedAppCrmRouteImport.update({
   id: '/crm',
   path: '/crm',
@@ -400,6 +541,24 @@ const AuthenticatedAppDashboardRoute =
   AuthenticatedAppDashboardRouteImport.update({
     id: '/dashboard',
     path: '/dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppDealsDashboardRoute =
+  AuthenticatedAppDealsDashboardRouteImport.update({
+    id: '/deals-dashboard',
+    path: '/deals-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppDepartmentsRoute =
+  AuthenticatedAppDepartmentsRouteImport.update({
+    id: '/departments',
+    path: '/departments',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppDesignationsRoute =
+  AuthenticatedAppDesignationsRouteImport.update({
+    id: '/designations',
+    path: '/designations',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppDocumentsRoute =
@@ -420,6 +579,12 @@ const AuthenticatedAppEmployeeDetailsRoute =
     path: '/employee-details',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppEmployeeReportRoute =
+  AuthenticatedAppEmployeeReportRouteImport.update({
+    id: '/employee-report',
+    path: '/employee-report',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppEmployeesRoute =
   AuthenticatedAppEmployeesRouteImport.update({
     id: '/employees',
@@ -430,6 +595,12 @@ const AuthenticatedAppExpensesRoute =
   AuthenticatedAppExpensesRouteImport.update({
     id: '/expenses',
     path: '/expenses',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppExpensesReportRoute =
+  AuthenticatedAppExpensesReportRouteImport.update({
+    id: '/expenses-report',
+    path: '/expenses-report',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppFinanceDashboardRoute =
@@ -449,10 +620,22 @@ const AuthenticatedAppGoogleWorkspaceRoute =
     path: '/google-workspace',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppHelpDeskDashboardRoute =
+  AuthenticatedAppHelpDeskDashboardRouteImport.update({
+    id: '/help-desk-dashboard',
+    path: '/help-desk-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppHelpdeskRoute =
   AuthenticatedAppHelpdeskRouteImport.update({
     id: '/helpdesk',
     path: '/helpdesk',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppHolidaysRoute =
+  AuthenticatedAppHolidaysRouteImport.update({
+    id: '/holidays',
+    path: '/holidays',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppHrmRoute = AuthenticatedAppHrmRouteImport.update({
@@ -472,10 +655,34 @@ const AuthenticatedAppInventoryDashboardRoute =
     path: '/inventory-dashboard',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppInvoiceReportRoute =
+  AuthenticatedAppInvoiceReportRouteImport.update({
+    id: '/invoice-report',
+    path: '/invoice-report',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppInvoicesRoute =
   AuthenticatedAppInvoicesRouteImport.update({
     id: '/invoices',
     path: '/invoices',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppItAdminDashboardRoute =
+  AuthenticatedAppItAdminDashboardRouteImport.update({
+    id: '/it-admin-dashboard',
+    path: '/it-admin-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppLeadsDashboardRoute =
+  AuthenticatedAppLeadsDashboardRouteImport.update({
+    id: '/leads-dashboard',
+    path: '/leads-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppLearningAnalyticsRoute =
+  AuthenticatedAppLearningAnalyticsRouteImport.update({
+    id: '/learning-analytics',
+    path: '/learning-analytics',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppLeaveRoute = AuthenticatedAppLeaveRouteImport.update({
@@ -483,6 +690,12 @@ const AuthenticatedAppLeaveRoute = AuthenticatedAppLeaveRouteImport.update({
   path: '/leave',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppLeaveReportRoute =
+  AuthenticatedAppLeaveReportRouteImport.update({
+    id: '/leave-report',
+    path: '/leave-report',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppMarketplaceRoute =
   AuthenticatedAppMarketplaceRouteImport.update({
     id: '/marketplace',
@@ -499,6 +712,12 @@ const AuthenticatedAppNotesRoute = AuthenticatedAppNotesRouteImport.update({
   path: '/notes',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppNoticePeriodTrackerRoute =
+  AuthenticatedAppNoticePeriodTrackerRouteImport.update({
+    id: '/notice-period-tracker',
+    path: '/notice-period-tracker',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppOffboardingRoute =
   AuthenticatedAppOffboardingRouteImport.update({
     id: '/offboarding',
@@ -510,11 +729,47 @@ const AuthenticatedAppOkrRoute = AuthenticatedAppOkrRouteImport.update({
   path: '/okr',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppPaymentReportRoute =
+  AuthenticatedAppPaymentReportRouteImport.update({
+    id: '/payment-report',
+    path: '/payment-report',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppPayrollRoute = AuthenticatedAppPayrollRouteImport.update({
   id: '/payroll',
   path: '/payroll',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppPayrollDashboardRoute =
+  AuthenticatedAppPayrollDashboardRouteImport.update({
+    id: '/payroll-dashboard',
+    path: '/payroll-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppPayslipReportRoute =
+  AuthenticatedAppPayslipReportRouteImport.update({
+    id: '/payslip-report',
+    path: '/payslip-report',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppPerformanceAppraisalRoute =
+  AuthenticatedAppPerformanceAppraisalRouteImport.update({
+    id: '/performance-appraisal',
+    path: '/performance-appraisal',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppPerformanceIndicatorRoute =
+  AuthenticatedAppPerformanceIndicatorRouteImport.update({
+    id: '/performance-indicator',
+    path: '/performance-indicator',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppPerformanceReviewRoute =
+  AuthenticatedAppPerformanceReviewRouteImport.update({
+    id: '/performance-review',
+    path: '/performance-review',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppPosRoute = AuthenticatedAppPosRouteImport.update({
   id: '/pos',
   path: '/pos',
@@ -542,6 +797,12 @@ const AuthenticatedAppProjectDashboardRoute =
   AuthenticatedAppProjectDashboardRouteImport.update({
     id: '/project-dashboard',
     path: '/project-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppProjectReportRoute =
+  AuthenticatedAppProjectReportRouteImport.update({
+    id: '/project-report',
+    path: '/project-report',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppProjectsRoute =
@@ -574,6 +835,17 @@ const AuthenticatedAppRecruitmentRoute =
     path: '/recruitment',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppRecruitmentDashboardRoute =
+  AuthenticatedAppRecruitmentDashboardRouteImport.update({
+    id: '/recruitment-dashboard',
+    path: '/recruitment-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppReturnsRoute = AuthenticatedAppReturnsRouteImport.update({
+  id: '/returns',
+  path: '/returns',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppSalesDashboardRoute =
   AuthenticatedAppSalesDashboardRouteImport.update({
     id: '/sales-dashboard',
@@ -590,6 +862,12 @@ const AuthenticatedAppSetupNotesRoute =
   AuthenticatedAppSetupNotesRouteImport.update({
     id: '/setup-notes',
     path: '/setup-notes',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppShiftSwapRequestsRoute =
+  AuthenticatedAppShiftSwapRequestsRouteImport.update({
+    id: '/shift-swap-requests',
+    path: '/shift-swap-requests',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppShiftsRoute = AuthenticatedAppShiftsRouteImport.update({
@@ -637,6 +915,23 @@ const AuthenticatedAppTallyImporterRoute =
     path: '/tally-importer',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppTasksRoute = AuthenticatedAppTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
+const AuthenticatedAppTicketReportsRoute =
+  AuthenticatedAppTicketReportsRouteImport.update({
+    id: '/ticket-reports',
+    path: '/ticket-reports',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppTimesheetsRoute =
+  AuthenticatedAppTimesheetsRouteImport.update({
+    id: '/timesheets',
+    path: '/timesheets',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppTodoRoute = AuthenticatedAppTodoRouteImport.update({
   id: '/todo',
   path: '/todo',
@@ -659,6 +954,12 @@ const AuthenticatedAppUsersRoute = AuthenticatedAppUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppWarningsRoute =
+  AuthenticatedAppWarningsRouteImport.update({
+    id: '/warnings',
+    path: '/warnings',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppWhatsappAlertsRoute =
   AuthenticatedAppWhatsappAlertsRouteImport.update({
     id: '/whatsapp-alerts',
@@ -677,11 +978,41 @@ const AuthenticatedAppWorkspaceRoute =
     path: '/workspace',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedClientIndexRoute =
+  AuthenticatedClientIndexRouteImport.update({
+    id: '/client/',
+    path: '/client/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedClientDashboardRoute =
+  AuthenticatedClientDashboardRouteImport.update({
+    id: '/client/dashboard',
+    path: '/client/dashboard',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedEmployeeIndexRoute =
+  AuthenticatedEmployeeIndexRouteImport.update({
+    id: '/employee/',
+    path: '/employee/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedEmployeeDashboardRoute =
+  AuthenticatedEmployeeDashboardRouteImport.update({
+    id: '/employee/dashboard',
+    path: '/employee/dashboard',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSuperIndexRoute = AuthenticatedSuperIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedSuperRouteRoute,
 } as any)
+const AuthenticatedSuperAgentsRoute =
+  AuthenticatedSuperAgentsRouteImport.update({
+    id: '/agents',
+    path: '/agents',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const AuthenticatedSuperAnalyticsRoute =
   AuthenticatedSuperAnalyticsRouteImport.update({
     id: '/analytics',
@@ -726,6 +1057,12 @@ const AuthenticatedSuperEmailTemplatesRoute =
   AuthenticatedSuperEmailTemplatesRouteImport.update({
     id: '/email-templates',
     path: '/email-templates',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
+const AuthenticatedSuperEscalationRulesRoute =
+  AuthenticatedSuperEscalationRulesRouteImport.update({
+    id: '/escalation-rules',
+    path: '/escalation-rules',
     getParentRoute: () => AuthenticatedSuperRouteRoute,
   } as any)
 const AuthenticatedSuperLanguagesRoute =
@@ -773,10 +1110,28 @@ const AuthenticatedSuperSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedSuperRouteRoute,
   } as any)
+const AuthenticatedSuperSlaPoliciesRoute =
+  AuthenticatedSuperSlaPoliciesRouteImport.update({
+    id: '/sla-policies',
+    path: '/sla-policies',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const AuthenticatedSuperSupportRoute =
   AuthenticatedSuperSupportRouteImport.update({
     id: '/support',
     path: '/support',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
+const AuthenticatedSuperTenantSupportTicketsRoute =
+  AuthenticatedSuperTenantSupportTicketsRouteImport.update({
+    id: '/tenant-support-tickets',
+    path: '/tenant-support-tickets',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
+const AuthenticatedSuperTenantUsageMetricsRoute =
+  AuthenticatedSuperTenantUsageMetricsRouteImport.update({
+    id: '/tenant-usage-metrics',
+    path: '/tenant-usage-metrics',
     getParentRoute: () => AuthenticatedSuperRouteRoute,
   } as any)
 const AuthenticatedSuperTenantsRoute =
@@ -791,6 +1146,17 @@ const AuthenticatedSuperTransactionsRoute =
     path: '/transactions',
     getParentRoute: () => AuthenticatedSuperRouteRoute,
   } as any)
+const AuthenticatedSuperUsersRoute = AuthenticatedSuperUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthenticatedSuperRouteRoute,
+} as any)
+const AuthenticatedTenantIndexRoute =
+  AuthenticatedTenantIndexRouteImport.update({
+    id: '/tenant/',
+    path: '/tenant/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const PortalInvoicesIdRoute = PortalInvoicesIdRouteImport.update({
   id: '/invoices/$id',
   path: '/invoices/$id',
@@ -801,6 +1167,30 @@ const PortalProposalsIdRoute = PortalProposalsIdRouteImport.update({
   path: '/proposals/$id',
   getParentRoute: () => PortalRoute,
 } as any)
+const AuthenticatedAppInvoiceIdRoute =
+  AuthenticatedAppInvoiceIdRouteImport.update({
+    id: '/invoice/$id',
+    path: '/invoice/$id',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppInvoiceCreateRoute =
+  AuthenticatedAppInvoiceCreateRouteImport.update({
+    id: '/invoice/create',
+    path: '/invoice/create',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppProjectIdRoute =
+  AuthenticatedAppProjectIdRouteImport.update({
+    id: '/project/$id',
+    path: '/project/$id',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppInvoiceIdPrintRoute =
+  AuthenticatedAppInvoiceIdPrintRouteImport.update({
+    id: '/print',
+    path: '/print',
+    getParentRoute: () => AuthenticatedAppInvoiceIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -813,8 +1203,13 @@ export interface FileRoutesByFullPath {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/developer': typeof DeveloperRoute
   '/docs': typeof DocsRoute
+  '/error-404': typeof Error404Route
+  '/error-500': typeof Error500Route
   '/help-center': typeof HelpCenterRoute
+  '/lock-screen': typeof LockScreenRoute
+  '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
@@ -839,53 +1234,86 @@ export interface FileRoutesByFullPath {
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
+  '/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
+  '/ai-configuration': typeof AuthenticatedAppAiConfigurationRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
+  '/ai-payroll-forecast': typeof AuthenticatedAppAiPayrollForecastRoute
+  '/ai-settings': typeof AuthenticatedAppAiSettingsRoute
+  '/ai-team-performance-insights': typeof AuthenticatedAppAiTeamPerformanceInsightsRoute
   '/ai-writer': typeof AuthenticatedAppAiWriterRoute
   '/analytics': typeof AuthenticatedAppAnalyticsRoute
   '/announcements': typeof AuthenticatedAppAnnouncementsRoute
+  '/asset-dashboard': typeof AuthenticatedAppAssetDashboardRoute
   '/assets': typeof AuthenticatedAppAssetsRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/attendance-employee': typeof AuthenticatedAppAttendanceEmployeeRoute
+  '/attendance-report': typeof AuthenticatedAppAttendanceReportRoute
+  '/awards': typeof AuthenticatedAppAwardsRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/calendar': typeof AuthenticatedAppCalendarRoute
   '/chat': typeof AuthenticatedAppChatRoute
   '/client-dashboard': typeof AuthenticatedAppClientDashboardRoute
+  '/contacts': typeof AuthenticatedAppContactsRoute
   '/crm': typeof AuthenticatedAppCrmRoute
   '/crm-dashboard': typeof AuthenticatedAppCrmDashboardRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/deals-dashboard': typeof AuthenticatedAppDealsDashboardRoute
+  '/departments': typeof AuthenticatedAppDepartmentsRoute
+  '/designations': typeof AuthenticatedAppDesignationsRoute
   '/documents': typeof AuthenticatedAppDocumentsRoute
   '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
+  '/employee-report': typeof AuthenticatedAppEmployeeReportRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
   '/expenses': typeof AuthenticatedAppExpensesRoute
+  '/expenses-report': typeof AuthenticatedAppExpensesReportRoute
   '/finance-dashboard': typeof AuthenticatedAppFinanceDashboardRoute
   '/forms': typeof AuthenticatedAppFormsRoute
   '/google-workspace': typeof AuthenticatedAppGoogleWorkspaceRoute
+  '/help-desk-dashboard': typeof AuthenticatedAppHelpDeskDashboardRoute
   '/helpdesk': typeof AuthenticatedAppHelpdeskRoute
+  '/holidays': typeof AuthenticatedAppHolidaysRoute
   '/hrm': typeof AuthenticatedAppHrmRoute
   '/integrations': typeof AuthenticatedAppIntegrationsRoute
   '/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
+  '/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
   '/invoices': typeof AuthenticatedAppInvoicesRoute
+  '/it-admin-dashboard': typeof AuthenticatedAppItAdminDashboardRoute
+  '/leads-dashboard': typeof AuthenticatedAppLeadsDashboardRoute
+  '/learning-analytics': typeof AuthenticatedAppLearningAnalyticsRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
+  '/leave-report': typeof AuthenticatedAppLeaveReportRoute
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
   '/notes': typeof AuthenticatedAppNotesRoute
+  '/notice-period-tracker': typeof AuthenticatedAppNoticePeriodTrackerRoute
   '/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/okr': typeof AuthenticatedAppOkrRoute
+  '/payment-report': typeof AuthenticatedAppPaymentReportRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
+  '/payroll-dashboard': typeof AuthenticatedAppPayrollDashboardRoute
+  '/payslip-report': typeof AuthenticatedAppPayslipReportRoute
+  '/performance-appraisal': typeof AuthenticatedAppPerformanceAppraisalRoute
+  '/performance-indicator': typeof AuthenticatedAppPerformanceIndicatorRoute
+  '/performance-review': typeof AuthenticatedAppPerformanceReviewRoute
   '/pos': typeof AuthenticatedAppPosRoute
   '/pos-dashboard': typeof AuthenticatedAppPosDashboardRoute
   '/procurement-dashboard': typeof AuthenticatedAppProcurementDashboardRoute
   '/products': typeof AuthenticatedAppProductsRoute
   '/project-dashboard': typeof AuthenticatedAppProjectDashboardRoute
+  '/project-report': typeof AuthenticatedAppProjectReportRoute
   '/projects': typeof AuthenticatedAppProjectsRoute
   '/proposals': typeof AuthenticatedAppProposalsRoute
   '/purchases': typeof AuthenticatedAppPurchasesRoute
   '/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/recruitment': typeof AuthenticatedAppRecruitmentRoute
+  '/recruitment-dashboard': typeof AuthenticatedAppRecruitmentDashboardRoute
+  '/returns': typeof AuthenticatedAppReturnsRoute
   '/sales-dashboard': typeof AuthenticatedAppSalesDashboardRoute
   '/settings': typeof AuthenticatedAppSettingsRoute
   '/setup-notes': typeof AuthenticatedAppSetupNotesRoute
+  '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
@@ -894,13 +1322,20 @@ export interface FileRoutesByFullPath {
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
   '/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
+  '/tasks': typeof AuthenticatedAppTasksRoute
+  '/ticket-reports': typeof AuthenticatedAppTicketReportsRoute
+  '/timesheets': typeof AuthenticatedAppTimesheetsRoute
   '/todo': typeof AuthenticatedAppTodoRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
   '/users': typeof AuthenticatedAppUsersRoute
+  '/warnings': typeof AuthenticatedAppWarningsRoute
   '/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
   '/workflows': typeof AuthenticatedAppWorkflowsRoute
   '/workspace': typeof AuthenticatedAppWorkspaceRoute
+  '/client/dashboard': typeof AuthenticatedClientDashboardRoute
+  '/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
+  '/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -909,6 +1344,7 @@ export interface FileRoutesByFullPath {
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
+  '/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
   '/super/marketplace': typeof AuthenticatedSuperMarketplaceRoute
   '/super/media': typeof AuthenticatedSuperMediaRoute
@@ -917,12 +1353,23 @@ export interface FileRoutesByFullPath {
   '/super/profile': typeof AuthenticatedSuperProfileRoute
   '/super/roles': typeof AuthenticatedSuperRolesRoute
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
+  '/super/sla-policies': typeof AuthenticatedSuperSlaPoliciesRoute
   '/super/support': typeof AuthenticatedSuperSupportRoute
+  '/super/tenant-support-tickets': typeof AuthenticatedSuperTenantSupportTicketsRoute
+  '/super/tenant-usage-metrics': typeof AuthenticatedSuperTenantUsageMetricsRoute
   '/super/tenants': typeof AuthenticatedSuperTenantsRoute
   '/super/transactions': typeof AuthenticatedSuperTransactionsRoute
+  '/super/users': typeof AuthenticatedSuperUsersRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
+  '/client/': typeof AuthenticatedClientIndexRoute
+  '/employee/': typeof AuthenticatedEmployeeIndexRoute
   '/super/': typeof AuthenticatedSuperIndexRoute
+  '/tenant/': typeof AuthenticatedTenantIndexRoute
+  '/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
+  '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
+  '/project/$id': typeof AuthenticatedAppProjectIdRoute
+  '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -935,8 +1382,13 @@ export interface FileRoutesByTo {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/developer': typeof DeveloperRoute
   '/docs': typeof DocsRoute
+  '/error-404': typeof Error404Route
+  '/error-500': typeof Error500Route
   '/help-center': typeof HelpCenterRoute
+  '/lock-screen': typeof LockScreenRoute
+  '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
@@ -960,53 +1412,86 @@ export interface FileRoutesByTo {
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
+  '/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
+  '/ai-configuration': typeof AuthenticatedAppAiConfigurationRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
+  '/ai-payroll-forecast': typeof AuthenticatedAppAiPayrollForecastRoute
+  '/ai-settings': typeof AuthenticatedAppAiSettingsRoute
+  '/ai-team-performance-insights': typeof AuthenticatedAppAiTeamPerformanceInsightsRoute
   '/ai-writer': typeof AuthenticatedAppAiWriterRoute
   '/analytics': typeof AuthenticatedAppAnalyticsRoute
   '/announcements': typeof AuthenticatedAppAnnouncementsRoute
+  '/asset-dashboard': typeof AuthenticatedAppAssetDashboardRoute
   '/assets': typeof AuthenticatedAppAssetsRoute
   '/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/attendance-employee': typeof AuthenticatedAppAttendanceEmployeeRoute
+  '/attendance-report': typeof AuthenticatedAppAttendanceReportRoute
+  '/awards': typeof AuthenticatedAppAwardsRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/calendar': typeof AuthenticatedAppCalendarRoute
   '/chat': typeof AuthenticatedAppChatRoute
   '/client-dashboard': typeof AuthenticatedAppClientDashboardRoute
+  '/contacts': typeof AuthenticatedAppContactsRoute
   '/crm': typeof AuthenticatedAppCrmRoute
   '/crm-dashboard': typeof AuthenticatedAppCrmDashboardRoute
   '/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/deals-dashboard': typeof AuthenticatedAppDealsDashboardRoute
+  '/departments': typeof AuthenticatedAppDepartmentsRoute
+  '/designations': typeof AuthenticatedAppDesignationsRoute
   '/documents': typeof AuthenticatedAppDocumentsRoute
   '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
+  '/employee-report': typeof AuthenticatedAppEmployeeReportRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
   '/expenses': typeof AuthenticatedAppExpensesRoute
+  '/expenses-report': typeof AuthenticatedAppExpensesReportRoute
   '/finance-dashboard': typeof AuthenticatedAppFinanceDashboardRoute
   '/forms': typeof AuthenticatedAppFormsRoute
   '/google-workspace': typeof AuthenticatedAppGoogleWorkspaceRoute
+  '/help-desk-dashboard': typeof AuthenticatedAppHelpDeskDashboardRoute
   '/helpdesk': typeof AuthenticatedAppHelpdeskRoute
+  '/holidays': typeof AuthenticatedAppHolidaysRoute
   '/hrm': typeof AuthenticatedAppHrmRoute
   '/integrations': typeof AuthenticatedAppIntegrationsRoute
   '/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
+  '/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
   '/invoices': typeof AuthenticatedAppInvoicesRoute
+  '/it-admin-dashboard': typeof AuthenticatedAppItAdminDashboardRoute
+  '/leads-dashboard': typeof AuthenticatedAppLeadsDashboardRoute
+  '/learning-analytics': typeof AuthenticatedAppLearningAnalyticsRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
+  '/leave-report': typeof AuthenticatedAppLeaveReportRoute
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
   '/notes': typeof AuthenticatedAppNotesRoute
+  '/notice-period-tracker': typeof AuthenticatedAppNoticePeriodTrackerRoute
   '/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/okr': typeof AuthenticatedAppOkrRoute
+  '/payment-report': typeof AuthenticatedAppPaymentReportRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
+  '/payroll-dashboard': typeof AuthenticatedAppPayrollDashboardRoute
+  '/payslip-report': typeof AuthenticatedAppPayslipReportRoute
+  '/performance-appraisal': typeof AuthenticatedAppPerformanceAppraisalRoute
+  '/performance-indicator': typeof AuthenticatedAppPerformanceIndicatorRoute
+  '/performance-review': typeof AuthenticatedAppPerformanceReviewRoute
   '/pos': typeof AuthenticatedAppPosRoute
   '/pos-dashboard': typeof AuthenticatedAppPosDashboardRoute
   '/procurement-dashboard': typeof AuthenticatedAppProcurementDashboardRoute
   '/products': typeof AuthenticatedAppProductsRoute
   '/project-dashboard': typeof AuthenticatedAppProjectDashboardRoute
+  '/project-report': typeof AuthenticatedAppProjectReportRoute
   '/projects': typeof AuthenticatedAppProjectsRoute
   '/proposals': typeof AuthenticatedAppProposalsRoute
   '/purchases': typeof AuthenticatedAppPurchasesRoute
   '/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/recruitment': typeof AuthenticatedAppRecruitmentRoute
+  '/recruitment-dashboard': typeof AuthenticatedAppRecruitmentDashboardRoute
+  '/returns': typeof AuthenticatedAppReturnsRoute
   '/sales-dashboard': typeof AuthenticatedAppSalesDashboardRoute
   '/settings': typeof AuthenticatedAppSettingsRoute
   '/setup-notes': typeof AuthenticatedAppSetupNotesRoute
+  '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
@@ -1015,13 +1500,20 @@ export interface FileRoutesByTo {
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
   '/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/tally-importer': typeof AuthenticatedAppTallyImporterRoute
+  '/tasks': typeof AuthenticatedAppTasksRoute
+  '/ticket-reports': typeof AuthenticatedAppTicketReportsRoute
+  '/timesheets': typeof AuthenticatedAppTimesheetsRoute
   '/todo': typeof AuthenticatedAppTodoRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
   '/users': typeof AuthenticatedAppUsersRoute
+  '/warnings': typeof AuthenticatedAppWarningsRoute
   '/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
   '/workflows': typeof AuthenticatedAppWorkflowsRoute
   '/workspace': typeof AuthenticatedAppWorkspaceRoute
+  '/client/dashboard': typeof AuthenticatedClientDashboardRoute
+  '/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
+  '/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -1030,6 +1522,7 @@ export interface FileRoutesByTo {
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
+  '/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
   '/super/marketplace': typeof AuthenticatedSuperMarketplaceRoute
   '/super/media': typeof AuthenticatedSuperMediaRoute
@@ -1038,12 +1531,23 @@ export interface FileRoutesByTo {
   '/super/profile': typeof AuthenticatedSuperProfileRoute
   '/super/roles': typeof AuthenticatedSuperRolesRoute
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
+  '/super/sla-policies': typeof AuthenticatedSuperSlaPoliciesRoute
   '/super/support': typeof AuthenticatedSuperSupportRoute
+  '/super/tenant-support-tickets': typeof AuthenticatedSuperTenantSupportTicketsRoute
+  '/super/tenant-usage-metrics': typeof AuthenticatedSuperTenantUsageMetricsRoute
   '/super/tenants': typeof AuthenticatedSuperTenantsRoute
   '/super/transactions': typeof AuthenticatedSuperTransactionsRoute
+  '/super/users': typeof AuthenticatedSuperUsersRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
+  '/client': typeof AuthenticatedClientIndexRoute
+  '/employee': typeof AuthenticatedEmployeeIndexRoute
   '/super': typeof AuthenticatedSuperIndexRoute
+  '/tenant': typeof AuthenticatedTenantIndexRoute
+  '/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
+  '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
+  '/project/$id': typeof AuthenticatedAppProjectIdRoute
+  '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1058,8 +1562,13 @@ export interface FileRoutesById {
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
+  '/developer': typeof DeveloperRoute
   '/docs': typeof DocsRoute
+  '/error-404': typeof Error404Route
+  '/error-500': typeof Error500Route
   '/help-center': typeof HelpCenterRoute
+  '/lock-screen': typeof LockScreenRoute
+  '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
@@ -1085,53 +1594,86 @@ export interface FileRoutesById {
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/_authenticated/_app/ai': typeof AuthenticatedAppAiRoute
+  '/_authenticated/_app/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
+  '/_authenticated/_app/ai-configuration': typeof AuthenticatedAppAiConfigurationRoute
   '/_authenticated/_app/ai-ocr': typeof AuthenticatedAppAiOcrRoute
+  '/_authenticated/_app/ai-payroll-forecast': typeof AuthenticatedAppAiPayrollForecastRoute
+  '/_authenticated/_app/ai-settings': typeof AuthenticatedAppAiSettingsRoute
+  '/_authenticated/_app/ai-team-performance-insights': typeof AuthenticatedAppAiTeamPerformanceInsightsRoute
   '/_authenticated/_app/ai-writer': typeof AuthenticatedAppAiWriterRoute
   '/_authenticated/_app/analytics': typeof AuthenticatedAppAnalyticsRoute
   '/_authenticated/_app/announcements': typeof AuthenticatedAppAnnouncementsRoute
+  '/_authenticated/_app/asset-dashboard': typeof AuthenticatedAppAssetDashboardRoute
   '/_authenticated/_app/assets': typeof AuthenticatedAppAssetsRoute
   '/_authenticated/_app/attendance': typeof AuthenticatedAppAttendanceRoute
+  '/_authenticated/_app/attendance-employee': typeof AuthenticatedAppAttendanceEmployeeRoute
+  '/_authenticated/_app/attendance-report': typeof AuthenticatedAppAttendanceReportRoute
+  '/_authenticated/_app/awards': typeof AuthenticatedAppAwardsRoute
   '/_authenticated/_app/biometric': typeof AuthenticatedAppBiometricRoute
   '/_authenticated/_app/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
   '/_authenticated/_app/calendar': typeof AuthenticatedAppCalendarRoute
   '/_authenticated/_app/chat': typeof AuthenticatedAppChatRoute
   '/_authenticated/_app/client-dashboard': typeof AuthenticatedAppClientDashboardRoute
+  '/_authenticated/_app/contacts': typeof AuthenticatedAppContactsRoute
   '/_authenticated/_app/crm': typeof AuthenticatedAppCrmRoute
   '/_authenticated/_app/crm-dashboard': typeof AuthenticatedAppCrmDashboardRoute
   '/_authenticated/_app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/_authenticated/_app/deals-dashboard': typeof AuthenticatedAppDealsDashboardRoute
+  '/_authenticated/_app/departments': typeof AuthenticatedAppDepartmentsRoute
+  '/_authenticated/_app/designations': typeof AuthenticatedAppDesignationsRoute
   '/_authenticated/_app/documents': typeof AuthenticatedAppDocumentsRoute
   '/_authenticated/_app/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/_authenticated/_app/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
+  '/_authenticated/_app/employee-report': typeof AuthenticatedAppEmployeeReportRoute
   '/_authenticated/_app/employees': typeof AuthenticatedAppEmployeesRoute
   '/_authenticated/_app/expenses': typeof AuthenticatedAppExpensesRoute
+  '/_authenticated/_app/expenses-report': typeof AuthenticatedAppExpensesReportRoute
   '/_authenticated/_app/finance-dashboard': typeof AuthenticatedAppFinanceDashboardRoute
   '/_authenticated/_app/forms': typeof AuthenticatedAppFormsRoute
   '/_authenticated/_app/google-workspace': typeof AuthenticatedAppGoogleWorkspaceRoute
+  '/_authenticated/_app/help-desk-dashboard': typeof AuthenticatedAppHelpDeskDashboardRoute
   '/_authenticated/_app/helpdesk': typeof AuthenticatedAppHelpdeskRoute
+  '/_authenticated/_app/holidays': typeof AuthenticatedAppHolidaysRoute
   '/_authenticated/_app/hrm': typeof AuthenticatedAppHrmRoute
   '/_authenticated/_app/integrations': typeof AuthenticatedAppIntegrationsRoute
   '/_authenticated/_app/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
+  '/_authenticated/_app/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
   '/_authenticated/_app/invoices': typeof AuthenticatedAppInvoicesRoute
+  '/_authenticated/_app/it-admin-dashboard': typeof AuthenticatedAppItAdminDashboardRoute
+  '/_authenticated/_app/leads-dashboard': typeof AuthenticatedAppLeadsDashboardRoute
+  '/_authenticated/_app/learning-analytics': typeof AuthenticatedAppLearningAnalyticsRoute
   '/_authenticated/_app/leave': typeof AuthenticatedAppLeaveRoute
+  '/_authenticated/_app/leave-report': typeof AuthenticatedAppLeaveReportRoute
   '/_authenticated/_app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/_app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/_app/notes': typeof AuthenticatedAppNotesRoute
+  '/_authenticated/_app/notice-period-tracker': typeof AuthenticatedAppNoticePeriodTrackerRoute
   '/_authenticated/_app/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/_authenticated/_app/okr': typeof AuthenticatedAppOkrRoute
+  '/_authenticated/_app/payment-report': typeof AuthenticatedAppPaymentReportRoute
   '/_authenticated/_app/payroll': typeof AuthenticatedAppPayrollRoute
+  '/_authenticated/_app/payroll-dashboard': typeof AuthenticatedAppPayrollDashboardRoute
+  '/_authenticated/_app/payslip-report': typeof AuthenticatedAppPayslipReportRoute
+  '/_authenticated/_app/performance-appraisal': typeof AuthenticatedAppPerformanceAppraisalRoute
+  '/_authenticated/_app/performance-indicator': typeof AuthenticatedAppPerformanceIndicatorRoute
+  '/_authenticated/_app/performance-review': typeof AuthenticatedAppPerformanceReviewRoute
   '/_authenticated/_app/pos': typeof AuthenticatedAppPosRoute
   '/_authenticated/_app/pos-dashboard': typeof AuthenticatedAppPosDashboardRoute
   '/_authenticated/_app/procurement-dashboard': typeof AuthenticatedAppProcurementDashboardRoute
   '/_authenticated/_app/products': typeof AuthenticatedAppProductsRoute
   '/_authenticated/_app/project-dashboard': typeof AuthenticatedAppProjectDashboardRoute
+  '/_authenticated/_app/project-report': typeof AuthenticatedAppProjectReportRoute
   '/_authenticated/_app/projects': typeof AuthenticatedAppProjectsRoute
   '/_authenticated/_app/proposals': typeof AuthenticatedAppProposalsRoute
   '/_authenticated/_app/purchases': typeof AuthenticatedAppPurchasesRoute
   '/_authenticated/_app/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/_authenticated/_app/recruitment': typeof AuthenticatedAppRecruitmentRoute
+  '/_authenticated/_app/recruitment-dashboard': typeof AuthenticatedAppRecruitmentDashboardRoute
+  '/_authenticated/_app/returns': typeof AuthenticatedAppReturnsRoute
   '/_authenticated/_app/sales-dashboard': typeof AuthenticatedAppSalesDashboardRoute
   '/_authenticated/_app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/_app/setup-notes': typeof AuthenticatedAppSetupNotesRoute
+  '/_authenticated/_app/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/_authenticated/_app/shifts': typeof AuthenticatedAppShiftsRoute
   '/_authenticated/_app/shopify': typeof AuthenticatedAppShopifyRoute
   '/_authenticated/_app/subscription': typeof AuthenticatedAppSubscriptionRoute
@@ -1140,13 +1682,20 @@ export interface FileRoutesById {
   '/_authenticated/_app/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
   '/_authenticated/_app/system-states': typeof AuthenticatedAppSystemStatesRoute
   '/_authenticated/_app/tally-importer': typeof AuthenticatedAppTallyImporterRoute
+  '/_authenticated/_app/tasks': typeof AuthenticatedAppTasksRoute
+  '/_authenticated/_app/ticket-reports': typeof AuthenticatedAppTicketReportsRoute
+  '/_authenticated/_app/timesheets': typeof AuthenticatedAppTimesheetsRoute
   '/_authenticated/_app/todo': typeof AuthenticatedAppTodoRoute
   '/_authenticated/_app/training': typeof AuthenticatedAppTrainingRoute
   '/_authenticated/_app/transfers': typeof AuthenticatedAppTransfersRoute
   '/_authenticated/_app/users': typeof AuthenticatedAppUsersRoute
+  '/_authenticated/_app/warnings': typeof AuthenticatedAppWarningsRoute
   '/_authenticated/_app/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
   '/_authenticated/_app/workflows': typeof AuthenticatedAppWorkflowsRoute
   '/_authenticated/_app/workspace': typeof AuthenticatedAppWorkspaceRoute
+  '/_authenticated/client/dashboard': typeof AuthenticatedClientDashboardRoute
+  '/_authenticated/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
+  '/_authenticated/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/_authenticated/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/_authenticated/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/_authenticated/super/backup': typeof AuthenticatedSuperBackupRoute
@@ -1155,6 +1704,7 @@ export interface FileRoutesById {
   '/_authenticated/super/cms': typeof AuthenticatedSuperCmsRoute
   '/_authenticated/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/_authenticated/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
+  '/_authenticated/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
   '/_authenticated/super/languages': typeof AuthenticatedSuperLanguagesRoute
   '/_authenticated/super/marketplace': typeof AuthenticatedSuperMarketplaceRoute
   '/_authenticated/super/media': typeof AuthenticatedSuperMediaRoute
@@ -1163,12 +1713,23 @@ export interface FileRoutesById {
   '/_authenticated/super/profile': typeof AuthenticatedSuperProfileRoute
   '/_authenticated/super/roles': typeof AuthenticatedSuperRolesRoute
   '/_authenticated/super/settings': typeof AuthenticatedSuperSettingsRoute
+  '/_authenticated/super/sla-policies': typeof AuthenticatedSuperSlaPoliciesRoute
   '/_authenticated/super/support': typeof AuthenticatedSuperSupportRoute
+  '/_authenticated/super/tenant-support-tickets': typeof AuthenticatedSuperTenantSupportTicketsRoute
+  '/_authenticated/super/tenant-usage-metrics': typeof AuthenticatedSuperTenantUsageMetricsRoute
   '/_authenticated/super/tenants': typeof AuthenticatedSuperTenantsRoute
   '/_authenticated/super/transactions': typeof AuthenticatedSuperTransactionsRoute
+  '/_authenticated/super/users': typeof AuthenticatedSuperUsersRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
+  '/_authenticated/client/': typeof AuthenticatedClientIndexRoute
+  '/_authenticated/employee/': typeof AuthenticatedEmployeeIndexRoute
   '/_authenticated/super/': typeof AuthenticatedSuperIndexRoute
+  '/_authenticated/tenant/': typeof AuthenticatedTenantIndexRoute
+  '/_authenticated/_app/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
+  '/_authenticated/_app/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
+  '/_authenticated/_app/project/$id': typeof AuthenticatedAppProjectIdRoute
+  '/_authenticated/_app/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1183,8 +1744,13 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/developer'
     | '/docs'
+    | '/error-404'
+    | '/error-500'
     | '/help-center'
+    | '/lock-screen'
+    | '/login'
     | '/maintenance'
     | '/offline'
     | '/og-preview'
@@ -1209,53 +1775,86 @@ export interface FileRouteTypes {
     | '/accounting'
     | '/adjustments'
     | '/ai'
+    | '/ai-attendance-insights'
+    | '/ai-configuration'
     | '/ai-ocr'
+    | '/ai-payroll-forecast'
+    | '/ai-settings'
+    | '/ai-team-performance-insights'
     | '/ai-writer'
     | '/analytics'
     | '/announcements'
+    | '/asset-dashboard'
     | '/assets'
     | '/attendance'
+    | '/attendance-employee'
+    | '/attendance-report'
+    | '/awards'
     | '/biometric'
     | '/biometric-sync'
     | '/calendar'
     | '/chat'
     | '/client-dashboard'
+    | '/contacts'
     | '/crm'
     | '/crm-dashboard'
     | '/dashboard'
+    | '/deals-dashboard'
+    | '/departments'
+    | '/designations'
     | '/documents'
     | '/employee-dashboard'
     | '/employee-details'
+    | '/employee-report'
     | '/employees'
     | '/expenses'
+    | '/expenses-report'
     | '/finance-dashboard'
     | '/forms'
     | '/google-workspace'
+    | '/help-desk-dashboard'
     | '/helpdesk'
+    | '/holidays'
     | '/hrm'
     | '/integrations'
     | '/inventory-dashboard'
+    | '/invoice-report'
     | '/invoices'
+    | '/it-admin-dashboard'
+    | '/leads-dashboard'
+    | '/learning-analytics'
     | '/leave'
+    | '/leave-report'
     | '/marketplace'
     | '/media'
     | '/notes'
+    | '/notice-period-tracker'
     | '/offboarding'
     | '/okr'
+    | '/payment-report'
     | '/payroll'
+    | '/payroll-dashboard'
+    | '/payslip-report'
+    | '/performance-appraisal'
+    | '/performance-indicator'
+    | '/performance-review'
     | '/pos'
     | '/pos-dashboard'
     | '/procurement-dashboard'
     | '/products'
     | '/project-dashboard'
+    | '/project-report'
     | '/projects'
     | '/proposals'
     | '/purchases'
     | '/razorpay-gateway'
     | '/recruitment'
+    | '/recruitment-dashboard'
+    | '/returns'
     | '/sales-dashboard'
     | '/settings'
     | '/setup-notes'
+    | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
     | '/subscription'
@@ -1264,13 +1863,20 @@ export interface FileRouteTypes {
     | '/support-dashboard'
     | '/system-states'
     | '/tally-importer'
+    | '/tasks'
+    | '/ticket-reports'
+    | '/timesheets'
     | '/todo'
     | '/training'
     | '/transfers'
     | '/users'
+    | '/warnings'
     | '/whatsapp-alerts'
     | '/workflows'
     | '/workspace'
+    | '/client/dashboard'
+    | '/employee/dashboard'
+    | '/super/agents'
     | '/super/analytics'
     | '/super/api-docs'
     | '/super/backup'
@@ -1279,6 +1885,7 @@ export interface FileRouteTypes {
     | '/super/cms'
     | '/super/domains'
     | '/super/email-templates'
+    | '/super/escalation-rules'
     | '/super/languages'
     | '/super/marketplace'
     | '/super/media'
@@ -1287,12 +1894,23 @@ export interface FileRouteTypes {
     | '/super/profile'
     | '/super/roles'
     | '/super/settings'
+    | '/super/sla-policies'
     | '/super/support'
+    | '/super/tenant-support-tickets'
+    | '/super/tenant-usage-metrics'
     | '/super/tenants'
     | '/super/transactions'
+    | '/super/users'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
+    | '/client/'
+    | '/employee/'
     | '/super/'
+    | '/tenant/'
+    | '/invoice/$id'
+    | '/invoice/create'
+    | '/project/$id'
+    | '/invoice/$id/print'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1305,8 +1923,13 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/developer'
     | '/docs'
+    | '/error-404'
+    | '/error-500'
     | '/help-center'
+    | '/lock-screen'
+    | '/login'
     | '/maintenance'
     | '/offline'
     | '/og-preview'
@@ -1330,53 +1953,86 @@ export interface FileRouteTypes {
     | '/accounting'
     | '/adjustments'
     | '/ai'
+    | '/ai-attendance-insights'
+    | '/ai-configuration'
     | '/ai-ocr'
+    | '/ai-payroll-forecast'
+    | '/ai-settings'
+    | '/ai-team-performance-insights'
     | '/ai-writer'
     | '/analytics'
     | '/announcements'
+    | '/asset-dashboard'
     | '/assets'
     | '/attendance'
+    | '/attendance-employee'
+    | '/attendance-report'
+    | '/awards'
     | '/biometric'
     | '/biometric-sync'
     | '/calendar'
     | '/chat'
     | '/client-dashboard'
+    | '/contacts'
     | '/crm'
     | '/crm-dashboard'
     | '/dashboard'
+    | '/deals-dashboard'
+    | '/departments'
+    | '/designations'
     | '/documents'
     | '/employee-dashboard'
     | '/employee-details'
+    | '/employee-report'
     | '/employees'
     | '/expenses'
+    | '/expenses-report'
     | '/finance-dashboard'
     | '/forms'
     | '/google-workspace'
+    | '/help-desk-dashboard'
     | '/helpdesk'
+    | '/holidays'
     | '/hrm'
     | '/integrations'
     | '/inventory-dashboard'
+    | '/invoice-report'
     | '/invoices'
+    | '/it-admin-dashboard'
+    | '/leads-dashboard'
+    | '/learning-analytics'
     | '/leave'
+    | '/leave-report'
     | '/marketplace'
     | '/media'
     | '/notes'
+    | '/notice-period-tracker'
     | '/offboarding'
     | '/okr'
+    | '/payment-report'
     | '/payroll'
+    | '/payroll-dashboard'
+    | '/payslip-report'
+    | '/performance-appraisal'
+    | '/performance-indicator'
+    | '/performance-review'
     | '/pos'
     | '/pos-dashboard'
     | '/procurement-dashboard'
     | '/products'
     | '/project-dashboard'
+    | '/project-report'
     | '/projects'
     | '/proposals'
     | '/purchases'
     | '/razorpay-gateway'
     | '/recruitment'
+    | '/recruitment-dashboard'
+    | '/returns'
     | '/sales-dashboard'
     | '/settings'
     | '/setup-notes'
+    | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
     | '/subscription'
@@ -1385,13 +2041,20 @@ export interface FileRouteTypes {
     | '/support-dashboard'
     | '/system-states'
     | '/tally-importer'
+    | '/tasks'
+    | '/ticket-reports'
+    | '/timesheets'
     | '/todo'
     | '/training'
     | '/transfers'
     | '/users'
+    | '/warnings'
     | '/whatsapp-alerts'
     | '/workflows'
     | '/workspace'
+    | '/client/dashboard'
+    | '/employee/dashboard'
+    | '/super/agents'
     | '/super/analytics'
     | '/super/api-docs'
     | '/super/backup'
@@ -1400,6 +2063,7 @@ export interface FileRouteTypes {
     | '/super/cms'
     | '/super/domains'
     | '/super/email-templates'
+    | '/super/escalation-rules'
     | '/super/languages'
     | '/super/marketplace'
     | '/super/media'
@@ -1408,12 +2072,23 @@ export interface FileRouteTypes {
     | '/super/profile'
     | '/super/roles'
     | '/super/settings'
+    | '/super/sla-policies'
     | '/super/support'
+    | '/super/tenant-support-tickets'
+    | '/super/tenant-usage-metrics'
     | '/super/tenants'
     | '/super/transactions'
+    | '/super/users'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
+    | '/client'
+    | '/employee'
     | '/super'
+    | '/tenant'
+    | '/invoice/$id'
+    | '/invoice/create'
+    | '/project/$id'
+    | '/invoice/$id/print'
   id:
     | '__root__'
     | '/'
@@ -1427,8 +2102,13 @@ export interface FileRouteTypes {
     | '/careers'
     | '/contact'
     | '/customer-display'
+    | '/developer'
     | '/docs'
+    | '/error-404'
+    | '/error-500'
     | '/help-center'
+    | '/lock-screen'
+    | '/login'
     | '/maintenance'
     | '/offline'
     | '/og-preview'
@@ -1454,53 +2134,86 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/accounting'
     | '/_authenticated/_app/adjustments'
     | '/_authenticated/_app/ai'
+    | '/_authenticated/_app/ai-attendance-insights'
+    | '/_authenticated/_app/ai-configuration'
     | '/_authenticated/_app/ai-ocr'
+    | '/_authenticated/_app/ai-payroll-forecast'
+    | '/_authenticated/_app/ai-settings'
+    | '/_authenticated/_app/ai-team-performance-insights'
     | '/_authenticated/_app/ai-writer'
     | '/_authenticated/_app/analytics'
     | '/_authenticated/_app/announcements'
+    | '/_authenticated/_app/asset-dashboard'
     | '/_authenticated/_app/assets'
     | '/_authenticated/_app/attendance'
+    | '/_authenticated/_app/attendance-employee'
+    | '/_authenticated/_app/attendance-report'
+    | '/_authenticated/_app/awards'
     | '/_authenticated/_app/biometric'
     | '/_authenticated/_app/biometric-sync'
     | '/_authenticated/_app/calendar'
     | '/_authenticated/_app/chat'
     | '/_authenticated/_app/client-dashboard'
+    | '/_authenticated/_app/contacts'
     | '/_authenticated/_app/crm'
     | '/_authenticated/_app/crm-dashboard'
     | '/_authenticated/_app/dashboard'
+    | '/_authenticated/_app/deals-dashboard'
+    | '/_authenticated/_app/departments'
+    | '/_authenticated/_app/designations'
     | '/_authenticated/_app/documents'
     | '/_authenticated/_app/employee-dashboard'
     | '/_authenticated/_app/employee-details'
+    | '/_authenticated/_app/employee-report'
     | '/_authenticated/_app/employees'
     | '/_authenticated/_app/expenses'
+    | '/_authenticated/_app/expenses-report'
     | '/_authenticated/_app/finance-dashboard'
     | '/_authenticated/_app/forms'
     | '/_authenticated/_app/google-workspace'
+    | '/_authenticated/_app/help-desk-dashboard'
     | '/_authenticated/_app/helpdesk'
+    | '/_authenticated/_app/holidays'
     | '/_authenticated/_app/hrm'
     | '/_authenticated/_app/integrations'
     | '/_authenticated/_app/inventory-dashboard'
+    | '/_authenticated/_app/invoice-report'
     | '/_authenticated/_app/invoices'
+    | '/_authenticated/_app/it-admin-dashboard'
+    | '/_authenticated/_app/leads-dashboard'
+    | '/_authenticated/_app/learning-analytics'
     | '/_authenticated/_app/leave'
+    | '/_authenticated/_app/leave-report'
     | '/_authenticated/_app/marketplace'
     | '/_authenticated/_app/media'
     | '/_authenticated/_app/notes'
+    | '/_authenticated/_app/notice-period-tracker'
     | '/_authenticated/_app/offboarding'
     | '/_authenticated/_app/okr'
+    | '/_authenticated/_app/payment-report'
     | '/_authenticated/_app/payroll'
+    | '/_authenticated/_app/payroll-dashboard'
+    | '/_authenticated/_app/payslip-report'
+    | '/_authenticated/_app/performance-appraisal'
+    | '/_authenticated/_app/performance-indicator'
+    | '/_authenticated/_app/performance-review'
     | '/_authenticated/_app/pos'
     | '/_authenticated/_app/pos-dashboard'
     | '/_authenticated/_app/procurement-dashboard'
     | '/_authenticated/_app/products'
     | '/_authenticated/_app/project-dashboard'
+    | '/_authenticated/_app/project-report'
     | '/_authenticated/_app/projects'
     | '/_authenticated/_app/proposals'
     | '/_authenticated/_app/purchases'
     | '/_authenticated/_app/razorpay-gateway'
     | '/_authenticated/_app/recruitment'
+    | '/_authenticated/_app/recruitment-dashboard'
+    | '/_authenticated/_app/returns'
     | '/_authenticated/_app/sales-dashboard'
     | '/_authenticated/_app/settings'
     | '/_authenticated/_app/setup-notes'
+    | '/_authenticated/_app/shift-swap-requests'
     | '/_authenticated/_app/shifts'
     | '/_authenticated/_app/shopify'
     | '/_authenticated/_app/subscription'
@@ -1509,13 +2222,20 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/support-dashboard'
     | '/_authenticated/_app/system-states'
     | '/_authenticated/_app/tally-importer'
+    | '/_authenticated/_app/tasks'
+    | '/_authenticated/_app/ticket-reports'
+    | '/_authenticated/_app/timesheets'
     | '/_authenticated/_app/todo'
     | '/_authenticated/_app/training'
     | '/_authenticated/_app/transfers'
     | '/_authenticated/_app/users'
+    | '/_authenticated/_app/warnings'
     | '/_authenticated/_app/whatsapp-alerts'
     | '/_authenticated/_app/workflows'
     | '/_authenticated/_app/workspace'
+    | '/_authenticated/client/dashboard'
+    | '/_authenticated/employee/dashboard'
+    | '/_authenticated/super/agents'
     | '/_authenticated/super/analytics'
     | '/_authenticated/super/api-docs'
     | '/_authenticated/super/backup'
@@ -1524,6 +2244,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/cms'
     | '/_authenticated/super/domains'
     | '/_authenticated/super/email-templates'
+    | '/_authenticated/super/escalation-rules'
     | '/_authenticated/super/languages'
     | '/_authenticated/super/marketplace'
     | '/_authenticated/super/media'
@@ -1532,12 +2253,23 @@ export interface FileRouteTypes {
     | '/_authenticated/super/profile'
     | '/_authenticated/super/roles'
     | '/_authenticated/super/settings'
+    | '/_authenticated/super/sla-policies'
     | '/_authenticated/super/support'
+    | '/_authenticated/super/tenant-support-tickets'
+    | '/_authenticated/super/tenant-usage-metrics'
     | '/_authenticated/super/tenants'
     | '/_authenticated/super/transactions'
+    | '/_authenticated/super/users'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
+    | '/_authenticated/client/'
+    | '/_authenticated/employee/'
     | '/_authenticated/super/'
+    | '/_authenticated/tenant/'
+    | '/_authenticated/_app/invoice/$id'
+    | '/_authenticated/_app/invoice/create'
+    | '/_authenticated/_app/project/$id'
+    | '/_authenticated/_app/invoice/$id/print'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1552,8 +2284,13 @@ export interface RootRouteChildren {
   CareersRoute: typeof CareersRoute
   ContactRoute: typeof ContactRoute
   CustomerDisplayRoute: typeof CustomerDisplayRoute
+  DeveloperRoute: typeof DeveloperRoute
   DocsRoute: typeof DocsRoute
+  Error404Route: typeof Error404Route
+  Error500Route: typeof Error500Route
   HelpCenterRoute: typeof HelpCenterRoute
+  LockScreenRoute: typeof LockScreenRoute
+  LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
   OfflineRoute: typeof OfflineRoute
   OgPreviewRoute: typeof OgPreviewRoute
@@ -1653,6 +2390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerDisplayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/developer': {
+      id: '/developer'
+      path: '/developer'
+      fullPath: '/developer'
+      preLoaderRoute: typeof DeveloperRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs': {
       id: '/docs'
       path: '/docs'
@@ -1660,11 +2404,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/error-404': {
+      id: '/error-404'
+      path: '/error-404'
+      fullPath: '/error-404'
+      preLoaderRoute: typeof Error404RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/error-500': {
+      id: '/error-500'
+      path: '/error-500'
+      fullPath: '/error-500'
+      preLoaderRoute: typeof Error500RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help-center': {
       id: '/help-center'
       path: '/help-center'
       fullPath: '/help-center'
       preLoaderRoute: typeof HelpCenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lock-screen': {
+      id: '/lock-screen'
+      path: '/lock-screen'
+      fullPath: '/lock-screen'
+      preLoaderRoute: typeof LockScreenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/maintenance': {
@@ -1842,11 +2614,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAiRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/ai-attendance-insights': {
+      id: '/_authenticated/_app/ai-attendance-insights'
+      path: '/ai-attendance-insights'
+      fullPath: '/ai-attendance-insights'
+      preLoaderRoute: typeof AuthenticatedAppAiAttendanceInsightsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/ai-configuration': {
+      id: '/_authenticated/_app/ai-configuration'
+      path: '/ai-configuration'
+      fullPath: '/ai-configuration'
+      preLoaderRoute: typeof AuthenticatedAppAiConfigurationRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/ai-ocr': {
       id: '/_authenticated/_app/ai-ocr'
       path: '/ai-ocr'
       fullPath: '/ai-ocr'
       preLoaderRoute: typeof AuthenticatedAppAiOcrRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/ai-payroll-forecast': {
+      id: '/_authenticated/_app/ai-payroll-forecast'
+      path: '/ai-payroll-forecast'
+      fullPath: '/ai-payroll-forecast'
+      preLoaderRoute: typeof AuthenticatedAppAiPayrollForecastRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/ai-settings': {
+      id: '/_authenticated/_app/ai-settings'
+      path: '/ai-settings'
+      fullPath: '/ai-settings'
+      preLoaderRoute: typeof AuthenticatedAppAiSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/ai-team-performance-insights': {
+      id: '/_authenticated/_app/ai-team-performance-insights'
+      path: '/ai-team-performance-insights'
+      fullPath: '/ai-team-performance-insights'
+      preLoaderRoute: typeof AuthenticatedAppAiTeamPerformanceInsightsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/ai-writer': {
@@ -1870,6 +2677,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAnnouncementsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/asset-dashboard': {
+      id: '/_authenticated/_app/asset-dashboard'
+      path: '/asset-dashboard'
+      fullPath: '/asset-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppAssetDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/assets': {
       id: '/_authenticated/_app/assets'
       path: '/assets'
@@ -1882,6 +2696,27 @@ declare module '@tanstack/react-router' {
       path: '/attendance'
       fullPath: '/attendance'
       preLoaderRoute: typeof AuthenticatedAppAttendanceRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/attendance-employee': {
+      id: '/_authenticated/_app/attendance-employee'
+      path: '/attendance-employee'
+      fullPath: '/attendance-employee'
+      preLoaderRoute: typeof AuthenticatedAppAttendanceEmployeeRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/attendance-report': {
+      id: '/_authenticated/_app/attendance-report'
+      path: '/attendance-report'
+      fullPath: '/attendance-report'
+      preLoaderRoute: typeof AuthenticatedAppAttendanceReportRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/awards': {
+      id: '/_authenticated/_app/awards'
+      path: '/awards'
+      fullPath: '/awards'
+      preLoaderRoute: typeof AuthenticatedAppAwardsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/biometric': {
@@ -1919,6 +2754,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppClientDashboardRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/contacts': {
+      id: '/_authenticated/_app/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof AuthenticatedAppContactsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/crm': {
       id: '/_authenticated/_app/crm'
       path: '/crm'
@@ -1938,6 +2780,27 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedAppDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/deals-dashboard': {
+      id: '/_authenticated/_app/deals-dashboard'
+      path: '/deals-dashboard'
+      fullPath: '/deals-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppDealsDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/departments': {
+      id: '/_authenticated/_app/departments'
+      path: '/departments'
+      fullPath: '/departments'
+      preLoaderRoute: typeof AuthenticatedAppDepartmentsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/designations': {
+      id: '/_authenticated/_app/designations'
+      path: '/designations'
+      fullPath: '/designations'
+      preLoaderRoute: typeof AuthenticatedAppDesignationsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/documents': {
@@ -1961,6 +2824,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppEmployeeDetailsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/employee-report': {
+      id: '/_authenticated/_app/employee-report'
+      path: '/employee-report'
+      fullPath: '/employee-report'
+      preLoaderRoute: typeof AuthenticatedAppEmployeeReportRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/employees': {
       id: '/_authenticated/_app/employees'
       path: '/employees'
@@ -1973,6 +2843,13 @@ declare module '@tanstack/react-router' {
       path: '/expenses'
       fullPath: '/expenses'
       preLoaderRoute: typeof AuthenticatedAppExpensesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/expenses-report': {
+      id: '/_authenticated/_app/expenses-report'
+      path: '/expenses-report'
+      fullPath: '/expenses-report'
+      preLoaderRoute: typeof AuthenticatedAppExpensesReportRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/finance-dashboard': {
@@ -1996,11 +2873,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppGoogleWorkspaceRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/help-desk-dashboard': {
+      id: '/_authenticated/_app/help-desk-dashboard'
+      path: '/help-desk-dashboard'
+      fullPath: '/help-desk-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppHelpDeskDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/helpdesk': {
       id: '/_authenticated/_app/helpdesk'
       path: '/helpdesk'
       fullPath: '/helpdesk'
       preLoaderRoute: typeof AuthenticatedAppHelpdeskRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/holidays': {
+      id: '/_authenticated/_app/holidays'
+      path: '/holidays'
+      fullPath: '/holidays'
+      preLoaderRoute: typeof AuthenticatedAppHolidaysRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/hrm': {
@@ -2024,6 +2915,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppInventoryDashboardRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/invoice-report': {
+      id: '/_authenticated/_app/invoice-report'
+      path: '/invoice-report'
+      fullPath: '/invoice-report'
+      preLoaderRoute: typeof AuthenticatedAppInvoiceReportRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/invoices': {
       id: '/_authenticated/_app/invoices'
       path: '/invoices'
@@ -2031,11 +2929,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppInvoicesRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/it-admin-dashboard': {
+      id: '/_authenticated/_app/it-admin-dashboard'
+      path: '/it-admin-dashboard'
+      fullPath: '/it-admin-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppItAdminDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/leads-dashboard': {
+      id: '/_authenticated/_app/leads-dashboard'
+      path: '/leads-dashboard'
+      fullPath: '/leads-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppLeadsDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/learning-analytics': {
+      id: '/_authenticated/_app/learning-analytics'
+      path: '/learning-analytics'
+      fullPath: '/learning-analytics'
+      preLoaderRoute: typeof AuthenticatedAppLearningAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/leave': {
       id: '/_authenticated/_app/leave'
       path: '/leave'
       fullPath: '/leave'
       preLoaderRoute: typeof AuthenticatedAppLeaveRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/leave-report': {
+      id: '/_authenticated/_app/leave-report'
+      path: '/leave-report'
+      fullPath: '/leave-report'
+      preLoaderRoute: typeof AuthenticatedAppLeaveReportRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/marketplace': {
@@ -2059,6 +2985,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppNotesRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/notice-period-tracker': {
+      id: '/_authenticated/_app/notice-period-tracker'
+      path: '/notice-period-tracker'
+      fullPath: '/notice-period-tracker'
+      preLoaderRoute: typeof AuthenticatedAppNoticePeriodTrackerRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/offboarding': {
       id: '/_authenticated/_app/offboarding'
       path: '/offboarding'
@@ -2073,11 +3006,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppOkrRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/payment-report': {
+      id: '/_authenticated/_app/payment-report'
+      path: '/payment-report'
+      fullPath: '/payment-report'
+      preLoaderRoute: typeof AuthenticatedAppPaymentReportRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/payroll': {
       id: '/_authenticated/_app/payroll'
       path: '/payroll'
       fullPath: '/payroll'
       preLoaderRoute: typeof AuthenticatedAppPayrollRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/payroll-dashboard': {
+      id: '/_authenticated/_app/payroll-dashboard'
+      path: '/payroll-dashboard'
+      fullPath: '/payroll-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppPayrollDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/payslip-report': {
+      id: '/_authenticated/_app/payslip-report'
+      path: '/payslip-report'
+      fullPath: '/payslip-report'
+      preLoaderRoute: typeof AuthenticatedAppPayslipReportRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/performance-appraisal': {
+      id: '/_authenticated/_app/performance-appraisal'
+      path: '/performance-appraisal'
+      fullPath: '/performance-appraisal'
+      preLoaderRoute: typeof AuthenticatedAppPerformanceAppraisalRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/performance-indicator': {
+      id: '/_authenticated/_app/performance-indicator'
+      path: '/performance-indicator'
+      fullPath: '/performance-indicator'
+      preLoaderRoute: typeof AuthenticatedAppPerformanceIndicatorRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/performance-review': {
+      id: '/_authenticated/_app/performance-review'
+      path: '/performance-review'
+      fullPath: '/performance-review'
+      preLoaderRoute: typeof AuthenticatedAppPerformanceReviewRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/pos': {
@@ -2115,6 +3090,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProjectDashboardRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/project-report': {
+      id: '/_authenticated/_app/project-report'
+      path: '/project-report'
+      fullPath: '/project-report'
+      preLoaderRoute: typeof AuthenticatedAppProjectReportRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/projects': {
       id: '/_authenticated/_app/projects'
       path: '/projects'
@@ -2150,6 +3132,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRecruitmentRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/recruitment-dashboard': {
+      id: '/_authenticated/_app/recruitment-dashboard'
+      path: '/recruitment-dashboard'
+      fullPath: '/recruitment-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppRecruitmentDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/returns': {
+      id: '/_authenticated/_app/returns'
+      path: '/returns'
+      fullPath: '/returns'
+      preLoaderRoute: typeof AuthenticatedAppReturnsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/sales-dashboard': {
       id: '/_authenticated/_app/sales-dashboard'
       path: '/sales-dashboard'
@@ -2169,6 +3165,13 @@ declare module '@tanstack/react-router' {
       path: '/setup-notes'
       fullPath: '/setup-notes'
       preLoaderRoute: typeof AuthenticatedAppSetupNotesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/shift-swap-requests': {
+      id: '/_authenticated/_app/shift-swap-requests'
+      path: '/shift-swap-requests'
+      fullPath: '/shift-swap-requests'
+      preLoaderRoute: typeof AuthenticatedAppShiftSwapRequestsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/shifts': {
@@ -2227,6 +3230,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTallyImporterRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/tasks': {
+      id: '/_authenticated/_app/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AuthenticatedAppTasksRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/ticket-reports': {
+      id: '/_authenticated/_app/ticket-reports'
+      path: '/ticket-reports'
+      fullPath: '/ticket-reports'
+      preLoaderRoute: typeof AuthenticatedAppTicketReportsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/timesheets': {
+      id: '/_authenticated/_app/timesheets'
+      path: '/timesheets'
+      fullPath: '/timesheets'
+      preLoaderRoute: typeof AuthenticatedAppTimesheetsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/todo': {
       id: '/_authenticated/_app/todo'
       path: '/todo'
@@ -2255,6 +3279,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppUsersRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/warnings': {
+      id: '/_authenticated/_app/warnings'
+      path: '/warnings'
+      fullPath: '/warnings'
+      preLoaderRoute: typeof AuthenticatedAppWarningsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/whatsapp-alerts': {
       id: '/_authenticated/_app/whatsapp-alerts'
       path: '/whatsapp-alerts'
@@ -2276,11 +3307,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppWorkspaceRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/client/': {
+      id: '/_authenticated/client/'
+      path: '/client'
+      fullPath: '/client/'
+      preLoaderRoute: typeof AuthenticatedClientIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/client/dashboard': {
+      id: '/_authenticated/client/dashboard'
+      path: '/client/dashboard'
+      fullPath: '/client/dashboard'
+      preLoaderRoute: typeof AuthenticatedClientDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/employee/': {
+      id: '/_authenticated/employee/'
+      path: '/employee'
+      fullPath: '/employee/'
+      preLoaderRoute: typeof AuthenticatedEmployeeIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/employee/dashboard': {
+      id: '/_authenticated/employee/dashboard'
+      path: '/employee/dashboard'
+      fullPath: '/employee/dashboard'
+      preLoaderRoute: typeof AuthenticatedEmployeeDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/super/': {
       id: '/_authenticated/super/'
       path: '/'
       fullPath: '/super/'
       preLoaderRoute: typeof AuthenticatedSuperIndexRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
+    '/_authenticated/super/agents': {
+      id: '/_authenticated/super/agents'
+      path: '/agents'
+      fullPath: '/super/agents'
+      preLoaderRoute: typeof AuthenticatedSuperAgentsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
     '/_authenticated/super/analytics': {
@@ -2339,6 +3405,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperEmailTemplatesRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/escalation-rules': {
+      id: '/_authenticated/super/escalation-rules'
+      path: '/escalation-rules'
+      fullPath: '/super/escalation-rules'
+      preLoaderRoute: typeof AuthenticatedSuperEscalationRulesRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/_authenticated/super/languages': {
       id: '/_authenticated/super/languages'
       path: '/languages'
@@ -2395,11 +3468,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperSettingsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/sla-policies': {
+      id: '/_authenticated/super/sla-policies'
+      path: '/sla-policies'
+      fullPath: '/super/sla-policies'
+      preLoaderRoute: typeof AuthenticatedSuperSlaPoliciesRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/_authenticated/super/support': {
       id: '/_authenticated/super/support'
       path: '/support'
       fullPath: '/super/support'
       preLoaderRoute: typeof AuthenticatedSuperSupportRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
+    '/_authenticated/super/tenant-support-tickets': {
+      id: '/_authenticated/super/tenant-support-tickets'
+      path: '/tenant-support-tickets'
+      fullPath: '/super/tenant-support-tickets'
+      preLoaderRoute: typeof AuthenticatedSuperTenantSupportTicketsRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
+    '/_authenticated/super/tenant-usage-metrics': {
+      id: '/_authenticated/super/tenant-usage-metrics'
+      path: '/tenant-usage-metrics'
+      fullPath: '/super/tenant-usage-metrics'
+      preLoaderRoute: typeof AuthenticatedSuperTenantUsageMetricsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
     '/_authenticated/super/tenants': {
@@ -2416,6 +3510,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperTransactionsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/users': {
+      id: '/_authenticated/super/users'
+      path: '/users'
+      fullPath: '/super/users'
+      preLoaderRoute: typeof AuthenticatedSuperUsersRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
+    '/_authenticated/tenant/': {
+      id: '/_authenticated/tenant/'
+      path: '/tenant'
+      fullPath: '/tenant/'
+      preLoaderRoute: typeof AuthenticatedTenantIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/portal/invoices/$id': {
       id: '/portal/invoices/$id'
       path: '/invoices/$id'
@@ -2430,60 +3538,135 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalProposalsIdRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/_authenticated/_app/invoice/$id': {
+      id: '/_authenticated/_app/invoice/$id'
+      path: '/invoice/$id'
+      fullPath: '/invoice/$id'
+      preLoaderRoute: typeof AuthenticatedAppInvoiceIdRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/invoice/create': {
+      id: '/_authenticated/_app/invoice/create'
+      path: '/invoice/create'
+      fullPath: '/invoice/create'
+      preLoaderRoute: typeof AuthenticatedAppInvoiceCreateRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/project/$id': {
+      id: '/_authenticated/_app/project/$id'
+      path: '/project/$id'
+      fullPath: '/project/$id'
+      preLoaderRoute: typeof AuthenticatedAppProjectIdRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/invoice/$id/print': {
+      id: '/_authenticated/_app/invoice/$id/print'
+      path: '/print'
+      fullPath: '/invoice/$id/print'
+      preLoaderRoute: typeof AuthenticatedAppInvoiceIdPrintRouteImport
+      parentRoute: typeof AuthenticatedAppInvoiceIdRoute
+    }
   }
 }
+
+interface AuthenticatedAppInvoiceIdRouteChildren {
+  AuthenticatedAppInvoiceIdPrintRoute: typeof AuthenticatedAppInvoiceIdPrintRoute
+}
+
+const AuthenticatedAppInvoiceIdRouteChildren: AuthenticatedAppInvoiceIdRouteChildren =
+  {
+    AuthenticatedAppInvoiceIdPrintRoute: AuthenticatedAppInvoiceIdPrintRoute,
+  }
+
+const AuthenticatedAppInvoiceIdRouteWithChildren =
+  AuthenticatedAppInvoiceIdRoute._addFileChildren(
+    AuthenticatedAppInvoiceIdRouteChildren,
+  )
 
 interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAccountingRoute: typeof AuthenticatedAppAccountingRoute
   AuthenticatedAppAdjustmentsRoute: typeof AuthenticatedAppAdjustmentsRoute
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
+  AuthenticatedAppAiAttendanceInsightsRoute: typeof AuthenticatedAppAiAttendanceInsightsRoute
+  AuthenticatedAppAiConfigurationRoute: typeof AuthenticatedAppAiConfigurationRoute
   AuthenticatedAppAiOcrRoute: typeof AuthenticatedAppAiOcrRoute
+  AuthenticatedAppAiPayrollForecastRoute: typeof AuthenticatedAppAiPayrollForecastRoute
+  AuthenticatedAppAiSettingsRoute: typeof AuthenticatedAppAiSettingsRoute
+  AuthenticatedAppAiTeamPerformanceInsightsRoute: typeof AuthenticatedAppAiTeamPerformanceInsightsRoute
   AuthenticatedAppAiWriterRoute: typeof AuthenticatedAppAiWriterRoute
   AuthenticatedAppAnalyticsRoute: typeof AuthenticatedAppAnalyticsRoute
   AuthenticatedAppAnnouncementsRoute: typeof AuthenticatedAppAnnouncementsRoute
+  AuthenticatedAppAssetDashboardRoute: typeof AuthenticatedAppAssetDashboardRoute
   AuthenticatedAppAssetsRoute: typeof AuthenticatedAppAssetsRoute
   AuthenticatedAppAttendanceRoute: typeof AuthenticatedAppAttendanceRoute
+  AuthenticatedAppAttendanceEmployeeRoute: typeof AuthenticatedAppAttendanceEmployeeRoute
+  AuthenticatedAppAttendanceReportRoute: typeof AuthenticatedAppAttendanceReportRoute
+  AuthenticatedAppAwardsRoute: typeof AuthenticatedAppAwardsRoute
   AuthenticatedAppBiometricRoute: typeof AuthenticatedAppBiometricRoute
   AuthenticatedAppBiometricSyncRoute: typeof AuthenticatedAppBiometricSyncRoute
   AuthenticatedAppCalendarRoute: typeof AuthenticatedAppCalendarRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRoute
   AuthenticatedAppClientDashboardRoute: typeof AuthenticatedAppClientDashboardRoute
+  AuthenticatedAppContactsRoute: typeof AuthenticatedAppContactsRoute
   AuthenticatedAppCrmRoute: typeof AuthenticatedAppCrmRoute
   AuthenticatedAppCrmDashboardRoute: typeof AuthenticatedAppCrmDashboardRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
+  AuthenticatedAppDealsDashboardRoute: typeof AuthenticatedAppDealsDashboardRoute
+  AuthenticatedAppDepartmentsRoute: typeof AuthenticatedAppDepartmentsRoute
+  AuthenticatedAppDesignationsRoute: typeof AuthenticatedAppDesignationsRoute
   AuthenticatedAppDocumentsRoute: typeof AuthenticatedAppDocumentsRoute
   AuthenticatedAppEmployeeDashboardRoute: typeof AuthenticatedAppEmployeeDashboardRoute
   AuthenticatedAppEmployeeDetailsRoute: typeof AuthenticatedAppEmployeeDetailsRoute
+  AuthenticatedAppEmployeeReportRoute: typeof AuthenticatedAppEmployeeReportRoute
   AuthenticatedAppEmployeesRoute: typeof AuthenticatedAppEmployeesRoute
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
+  AuthenticatedAppExpensesReportRoute: typeof AuthenticatedAppExpensesReportRoute
   AuthenticatedAppFinanceDashboardRoute: typeof AuthenticatedAppFinanceDashboardRoute
   AuthenticatedAppFormsRoute: typeof AuthenticatedAppFormsRoute
   AuthenticatedAppGoogleWorkspaceRoute: typeof AuthenticatedAppGoogleWorkspaceRoute
+  AuthenticatedAppHelpDeskDashboardRoute: typeof AuthenticatedAppHelpDeskDashboardRoute
   AuthenticatedAppHelpdeskRoute: typeof AuthenticatedAppHelpdeskRoute
+  AuthenticatedAppHolidaysRoute: typeof AuthenticatedAppHolidaysRoute
   AuthenticatedAppHrmRoute: typeof AuthenticatedAppHrmRoute
   AuthenticatedAppIntegrationsRoute: typeof AuthenticatedAppIntegrationsRoute
   AuthenticatedAppInventoryDashboardRoute: typeof AuthenticatedAppInventoryDashboardRoute
+  AuthenticatedAppInvoiceReportRoute: typeof AuthenticatedAppInvoiceReportRoute
   AuthenticatedAppInvoicesRoute: typeof AuthenticatedAppInvoicesRoute
+  AuthenticatedAppItAdminDashboardRoute: typeof AuthenticatedAppItAdminDashboardRoute
+  AuthenticatedAppLeadsDashboardRoute: typeof AuthenticatedAppLeadsDashboardRoute
+  AuthenticatedAppLearningAnalyticsRoute: typeof AuthenticatedAppLearningAnalyticsRoute
   AuthenticatedAppLeaveRoute: typeof AuthenticatedAppLeaveRoute
+  AuthenticatedAppLeaveReportRoute: typeof AuthenticatedAppLeaveReportRoute
   AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppNotesRoute: typeof AuthenticatedAppNotesRoute
+  AuthenticatedAppNoticePeriodTrackerRoute: typeof AuthenticatedAppNoticePeriodTrackerRoute
   AuthenticatedAppOffboardingRoute: typeof AuthenticatedAppOffboardingRoute
   AuthenticatedAppOkrRoute: typeof AuthenticatedAppOkrRoute
+  AuthenticatedAppPaymentReportRoute: typeof AuthenticatedAppPaymentReportRoute
   AuthenticatedAppPayrollRoute: typeof AuthenticatedAppPayrollRoute
+  AuthenticatedAppPayrollDashboardRoute: typeof AuthenticatedAppPayrollDashboardRoute
+  AuthenticatedAppPayslipReportRoute: typeof AuthenticatedAppPayslipReportRoute
+  AuthenticatedAppPerformanceAppraisalRoute: typeof AuthenticatedAppPerformanceAppraisalRoute
+  AuthenticatedAppPerformanceIndicatorRoute: typeof AuthenticatedAppPerformanceIndicatorRoute
+  AuthenticatedAppPerformanceReviewRoute: typeof AuthenticatedAppPerformanceReviewRoute
   AuthenticatedAppPosRoute: typeof AuthenticatedAppPosRoute
   AuthenticatedAppPosDashboardRoute: typeof AuthenticatedAppPosDashboardRoute
   AuthenticatedAppProcurementDashboardRoute: typeof AuthenticatedAppProcurementDashboardRoute
   AuthenticatedAppProductsRoute: typeof AuthenticatedAppProductsRoute
   AuthenticatedAppProjectDashboardRoute: typeof AuthenticatedAppProjectDashboardRoute
+  AuthenticatedAppProjectReportRoute: typeof AuthenticatedAppProjectReportRoute
   AuthenticatedAppProjectsRoute: typeof AuthenticatedAppProjectsRoute
   AuthenticatedAppProposalsRoute: typeof AuthenticatedAppProposalsRoute
   AuthenticatedAppPurchasesRoute: typeof AuthenticatedAppPurchasesRoute
   AuthenticatedAppRazorpayGatewayRoute: typeof AuthenticatedAppRazorpayGatewayRoute
   AuthenticatedAppRecruitmentRoute: typeof AuthenticatedAppRecruitmentRoute
+  AuthenticatedAppRecruitmentDashboardRoute: typeof AuthenticatedAppRecruitmentDashboardRoute
+  AuthenticatedAppReturnsRoute: typeof AuthenticatedAppReturnsRoute
   AuthenticatedAppSalesDashboardRoute: typeof AuthenticatedAppSalesDashboardRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppSetupNotesRoute: typeof AuthenticatedAppSetupNotesRoute
+  AuthenticatedAppShiftSwapRequestsRoute: typeof AuthenticatedAppShiftSwapRequestsRoute
   AuthenticatedAppShiftsRoute: typeof AuthenticatedAppShiftsRoute
   AuthenticatedAppShopifyRoute: typeof AuthenticatedAppShopifyRoute
   AuthenticatedAppSubscriptionRoute: typeof AuthenticatedAppSubscriptionRoute
@@ -2492,69 +3675,121 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppSupportDashboardRoute: typeof AuthenticatedAppSupportDashboardRoute
   AuthenticatedAppSystemStatesRoute: typeof AuthenticatedAppSystemStatesRoute
   AuthenticatedAppTallyImporterRoute: typeof AuthenticatedAppTallyImporterRoute
+  AuthenticatedAppTasksRoute: typeof AuthenticatedAppTasksRoute
+  AuthenticatedAppTicketReportsRoute: typeof AuthenticatedAppTicketReportsRoute
+  AuthenticatedAppTimesheetsRoute: typeof AuthenticatedAppTimesheetsRoute
   AuthenticatedAppTodoRoute: typeof AuthenticatedAppTodoRoute
   AuthenticatedAppTrainingRoute: typeof AuthenticatedAppTrainingRoute
   AuthenticatedAppTransfersRoute: typeof AuthenticatedAppTransfersRoute
   AuthenticatedAppUsersRoute: typeof AuthenticatedAppUsersRoute
+  AuthenticatedAppWarningsRoute: typeof AuthenticatedAppWarningsRoute
   AuthenticatedAppWhatsappAlertsRoute: typeof AuthenticatedAppWhatsappAlertsRoute
   AuthenticatedAppWorkflowsRoute: typeof AuthenticatedAppWorkflowsRoute
   AuthenticatedAppWorkspaceRoute: typeof AuthenticatedAppWorkspaceRoute
+  AuthenticatedAppInvoiceIdRoute: typeof AuthenticatedAppInvoiceIdRouteWithChildren
+  AuthenticatedAppInvoiceCreateRoute: typeof AuthenticatedAppInvoiceCreateRoute
+  AuthenticatedAppProjectIdRoute: typeof AuthenticatedAppProjectIdRoute
 }
 
 const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppAccountingRoute: AuthenticatedAppAccountingRoute,
   AuthenticatedAppAdjustmentsRoute: AuthenticatedAppAdjustmentsRoute,
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
+  AuthenticatedAppAiAttendanceInsightsRoute:
+    AuthenticatedAppAiAttendanceInsightsRoute,
+  AuthenticatedAppAiConfigurationRoute: AuthenticatedAppAiConfigurationRoute,
   AuthenticatedAppAiOcrRoute: AuthenticatedAppAiOcrRoute,
+  AuthenticatedAppAiPayrollForecastRoute:
+    AuthenticatedAppAiPayrollForecastRoute,
+  AuthenticatedAppAiSettingsRoute: AuthenticatedAppAiSettingsRoute,
+  AuthenticatedAppAiTeamPerformanceInsightsRoute:
+    AuthenticatedAppAiTeamPerformanceInsightsRoute,
   AuthenticatedAppAiWriterRoute: AuthenticatedAppAiWriterRoute,
   AuthenticatedAppAnalyticsRoute: AuthenticatedAppAnalyticsRoute,
   AuthenticatedAppAnnouncementsRoute: AuthenticatedAppAnnouncementsRoute,
+  AuthenticatedAppAssetDashboardRoute: AuthenticatedAppAssetDashboardRoute,
   AuthenticatedAppAssetsRoute: AuthenticatedAppAssetsRoute,
   AuthenticatedAppAttendanceRoute: AuthenticatedAppAttendanceRoute,
+  AuthenticatedAppAttendanceEmployeeRoute:
+    AuthenticatedAppAttendanceEmployeeRoute,
+  AuthenticatedAppAttendanceReportRoute: AuthenticatedAppAttendanceReportRoute,
+  AuthenticatedAppAwardsRoute: AuthenticatedAppAwardsRoute,
   AuthenticatedAppBiometricRoute: AuthenticatedAppBiometricRoute,
   AuthenticatedAppBiometricSyncRoute: AuthenticatedAppBiometricSyncRoute,
   AuthenticatedAppCalendarRoute: AuthenticatedAppCalendarRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRoute,
   AuthenticatedAppClientDashboardRoute: AuthenticatedAppClientDashboardRoute,
+  AuthenticatedAppContactsRoute: AuthenticatedAppContactsRoute,
   AuthenticatedAppCrmRoute: AuthenticatedAppCrmRoute,
   AuthenticatedAppCrmDashboardRoute: AuthenticatedAppCrmDashboardRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
+  AuthenticatedAppDealsDashboardRoute: AuthenticatedAppDealsDashboardRoute,
+  AuthenticatedAppDepartmentsRoute: AuthenticatedAppDepartmentsRoute,
+  AuthenticatedAppDesignationsRoute: AuthenticatedAppDesignationsRoute,
   AuthenticatedAppDocumentsRoute: AuthenticatedAppDocumentsRoute,
   AuthenticatedAppEmployeeDashboardRoute:
     AuthenticatedAppEmployeeDashboardRoute,
   AuthenticatedAppEmployeeDetailsRoute: AuthenticatedAppEmployeeDetailsRoute,
+  AuthenticatedAppEmployeeReportRoute: AuthenticatedAppEmployeeReportRoute,
   AuthenticatedAppEmployeesRoute: AuthenticatedAppEmployeesRoute,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,
+  AuthenticatedAppExpensesReportRoute: AuthenticatedAppExpensesReportRoute,
   AuthenticatedAppFinanceDashboardRoute: AuthenticatedAppFinanceDashboardRoute,
   AuthenticatedAppFormsRoute: AuthenticatedAppFormsRoute,
   AuthenticatedAppGoogleWorkspaceRoute: AuthenticatedAppGoogleWorkspaceRoute,
+  AuthenticatedAppHelpDeskDashboardRoute:
+    AuthenticatedAppHelpDeskDashboardRoute,
   AuthenticatedAppHelpdeskRoute: AuthenticatedAppHelpdeskRoute,
+  AuthenticatedAppHolidaysRoute: AuthenticatedAppHolidaysRoute,
   AuthenticatedAppHrmRoute: AuthenticatedAppHrmRoute,
   AuthenticatedAppIntegrationsRoute: AuthenticatedAppIntegrationsRoute,
   AuthenticatedAppInventoryDashboardRoute:
     AuthenticatedAppInventoryDashboardRoute,
+  AuthenticatedAppInvoiceReportRoute: AuthenticatedAppInvoiceReportRoute,
   AuthenticatedAppInvoicesRoute: AuthenticatedAppInvoicesRoute,
+  AuthenticatedAppItAdminDashboardRoute: AuthenticatedAppItAdminDashboardRoute,
+  AuthenticatedAppLeadsDashboardRoute: AuthenticatedAppLeadsDashboardRoute,
+  AuthenticatedAppLearningAnalyticsRoute:
+    AuthenticatedAppLearningAnalyticsRoute,
   AuthenticatedAppLeaveRoute: AuthenticatedAppLeaveRoute,
+  AuthenticatedAppLeaveReportRoute: AuthenticatedAppLeaveReportRoute,
   AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppNotesRoute: AuthenticatedAppNotesRoute,
+  AuthenticatedAppNoticePeriodTrackerRoute:
+    AuthenticatedAppNoticePeriodTrackerRoute,
   AuthenticatedAppOffboardingRoute: AuthenticatedAppOffboardingRoute,
   AuthenticatedAppOkrRoute: AuthenticatedAppOkrRoute,
+  AuthenticatedAppPaymentReportRoute: AuthenticatedAppPaymentReportRoute,
   AuthenticatedAppPayrollRoute: AuthenticatedAppPayrollRoute,
+  AuthenticatedAppPayrollDashboardRoute: AuthenticatedAppPayrollDashboardRoute,
+  AuthenticatedAppPayslipReportRoute: AuthenticatedAppPayslipReportRoute,
+  AuthenticatedAppPerformanceAppraisalRoute:
+    AuthenticatedAppPerformanceAppraisalRoute,
+  AuthenticatedAppPerformanceIndicatorRoute:
+    AuthenticatedAppPerformanceIndicatorRoute,
+  AuthenticatedAppPerformanceReviewRoute:
+    AuthenticatedAppPerformanceReviewRoute,
   AuthenticatedAppPosRoute: AuthenticatedAppPosRoute,
   AuthenticatedAppPosDashboardRoute: AuthenticatedAppPosDashboardRoute,
   AuthenticatedAppProcurementDashboardRoute:
     AuthenticatedAppProcurementDashboardRoute,
   AuthenticatedAppProductsRoute: AuthenticatedAppProductsRoute,
   AuthenticatedAppProjectDashboardRoute: AuthenticatedAppProjectDashboardRoute,
+  AuthenticatedAppProjectReportRoute: AuthenticatedAppProjectReportRoute,
   AuthenticatedAppProjectsRoute: AuthenticatedAppProjectsRoute,
   AuthenticatedAppProposalsRoute: AuthenticatedAppProposalsRoute,
   AuthenticatedAppPurchasesRoute: AuthenticatedAppPurchasesRoute,
   AuthenticatedAppRazorpayGatewayRoute: AuthenticatedAppRazorpayGatewayRoute,
   AuthenticatedAppRecruitmentRoute: AuthenticatedAppRecruitmentRoute,
+  AuthenticatedAppRecruitmentDashboardRoute:
+    AuthenticatedAppRecruitmentDashboardRoute,
+  AuthenticatedAppReturnsRoute: AuthenticatedAppReturnsRoute,
   AuthenticatedAppSalesDashboardRoute: AuthenticatedAppSalesDashboardRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppSetupNotesRoute: AuthenticatedAppSetupNotesRoute,
+  AuthenticatedAppShiftSwapRequestsRoute:
+    AuthenticatedAppShiftSwapRequestsRoute,
   AuthenticatedAppShiftsRoute: AuthenticatedAppShiftsRoute,
   AuthenticatedAppShopifyRoute: AuthenticatedAppShopifyRoute,
   AuthenticatedAppSubscriptionRoute: AuthenticatedAppSubscriptionRoute,
@@ -2563,13 +3798,20 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppSupportDashboardRoute: AuthenticatedAppSupportDashboardRoute,
   AuthenticatedAppSystemStatesRoute: AuthenticatedAppSystemStatesRoute,
   AuthenticatedAppTallyImporterRoute: AuthenticatedAppTallyImporterRoute,
+  AuthenticatedAppTasksRoute: AuthenticatedAppTasksRoute,
+  AuthenticatedAppTicketReportsRoute: AuthenticatedAppTicketReportsRoute,
+  AuthenticatedAppTimesheetsRoute: AuthenticatedAppTimesheetsRoute,
   AuthenticatedAppTodoRoute: AuthenticatedAppTodoRoute,
   AuthenticatedAppTrainingRoute: AuthenticatedAppTrainingRoute,
   AuthenticatedAppTransfersRoute: AuthenticatedAppTransfersRoute,
   AuthenticatedAppUsersRoute: AuthenticatedAppUsersRoute,
+  AuthenticatedAppWarningsRoute: AuthenticatedAppWarningsRoute,
   AuthenticatedAppWhatsappAlertsRoute: AuthenticatedAppWhatsappAlertsRoute,
   AuthenticatedAppWorkflowsRoute: AuthenticatedAppWorkflowsRoute,
   AuthenticatedAppWorkspaceRoute: AuthenticatedAppWorkspaceRoute,
+  AuthenticatedAppInvoiceIdRoute: AuthenticatedAppInvoiceIdRouteWithChildren,
+  AuthenticatedAppInvoiceCreateRoute: AuthenticatedAppInvoiceCreateRoute,
+  AuthenticatedAppProjectIdRoute: AuthenticatedAppProjectIdRoute,
 }
 
 const AuthenticatedAppRouteRouteWithChildren =
@@ -2578,6 +3820,7 @@ const AuthenticatedAppRouteRouteWithChildren =
   )
 
 interface AuthenticatedSuperRouteRouteChildren {
+  AuthenticatedSuperAgentsRoute: typeof AuthenticatedSuperAgentsRoute
   AuthenticatedSuperAnalyticsRoute: typeof AuthenticatedSuperAnalyticsRoute
   AuthenticatedSuperApiDocsRoute: typeof AuthenticatedSuperApiDocsRoute
   AuthenticatedSuperBackupRoute: typeof AuthenticatedSuperBackupRoute
@@ -2586,6 +3829,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperCmsRoute: typeof AuthenticatedSuperCmsRoute
   AuthenticatedSuperDomainsRoute: typeof AuthenticatedSuperDomainsRoute
   AuthenticatedSuperEmailTemplatesRoute: typeof AuthenticatedSuperEmailTemplatesRoute
+  AuthenticatedSuperEscalationRulesRoute: typeof AuthenticatedSuperEscalationRulesRoute
   AuthenticatedSuperLanguagesRoute: typeof AuthenticatedSuperLanguagesRoute
   AuthenticatedSuperMarketplaceRoute: typeof AuthenticatedSuperMarketplaceRoute
   AuthenticatedSuperMediaRoute: typeof AuthenticatedSuperMediaRoute
@@ -2594,14 +3838,19 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperProfileRoute: typeof AuthenticatedSuperProfileRoute
   AuthenticatedSuperRolesRoute: typeof AuthenticatedSuperRolesRoute
   AuthenticatedSuperSettingsRoute: typeof AuthenticatedSuperSettingsRoute
+  AuthenticatedSuperSlaPoliciesRoute: typeof AuthenticatedSuperSlaPoliciesRoute
   AuthenticatedSuperSupportRoute: typeof AuthenticatedSuperSupportRoute
+  AuthenticatedSuperTenantSupportTicketsRoute: typeof AuthenticatedSuperTenantSupportTicketsRoute
+  AuthenticatedSuperTenantUsageMetricsRoute: typeof AuthenticatedSuperTenantUsageMetricsRoute
   AuthenticatedSuperTenantsRoute: typeof AuthenticatedSuperTenantsRoute
   AuthenticatedSuperTransactionsRoute: typeof AuthenticatedSuperTransactionsRoute
+  AuthenticatedSuperUsersRoute: typeof AuthenticatedSuperUsersRoute
   AuthenticatedSuperIndexRoute: typeof AuthenticatedSuperIndexRoute
 }
 
 const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren =
   {
+    AuthenticatedSuperAgentsRoute: AuthenticatedSuperAgentsRoute,
     AuthenticatedSuperAnalyticsRoute: AuthenticatedSuperAnalyticsRoute,
     AuthenticatedSuperApiDocsRoute: AuthenticatedSuperApiDocsRoute,
     AuthenticatedSuperBackupRoute: AuthenticatedSuperBackupRoute,
@@ -2611,6 +3860,8 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperDomainsRoute: AuthenticatedSuperDomainsRoute,
     AuthenticatedSuperEmailTemplatesRoute:
       AuthenticatedSuperEmailTemplatesRoute,
+    AuthenticatedSuperEscalationRulesRoute:
+      AuthenticatedSuperEscalationRulesRoute,
     AuthenticatedSuperLanguagesRoute: AuthenticatedSuperLanguagesRoute,
     AuthenticatedSuperMarketplaceRoute: AuthenticatedSuperMarketplaceRoute,
     AuthenticatedSuperMediaRoute: AuthenticatedSuperMediaRoute,
@@ -2619,9 +3870,15 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperProfileRoute: AuthenticatedSuperProfileRoute,
     AuthenticatedSuperRolesRoute: AuthenticatedSuperRolesRoute,
     AuthenticatedSuperSettingsRoute: AuthenticatedSuperSettingsRoute,
+    AuthenticatedSuperSlaPoliciesRoute: AuthenticatedSuperSlaPoliciesRoute,
     AuthenticatedSuperSupportRoute: AuthenticatedSuperSupportRoute,
+    AuthenticatedSuperTenantSupportTicketsRoute:
+      AuthenticatedSuperTenantSupportTicketsRoute,
+    AuthenticatedSuperTenantUsageMetricsRoute:
+      AuthenticatedSuperTenantUsageMetricsRoute,
     AuthenticatedSuperTenantsRoute: AuthenticatedSuperTenantsRoute,
     AuthenticatedSuperTransactionsRoute: AuthenticatedSuperTransactionsRoute,
+    AuthenticatedSuperUsersRoute: AuthenticatedSuperUsersRoute,
     AuthenticatedSuperIndexRoute: AuthenticatedSuperIndexRoute,
   }
 
@@ -2634,12 +3891,22 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAppRouteRoute: typeof AuthenticatedAppRouteRouteWithChildren
   AuthenticatedSuperRouteRoute: typeof AuthenticatedSuperRouteRouteWithChildren
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedClientDashboardRoute: typeof AuthenticatedClientDashboardRoute
+  AuthenticatedEmployeeDashboardRoute: typeof AuthenticatedEmployeeDashboardRoute
+  AuthenticatedClientIndexRoute: typeof AuthenticatedClientIndexRoute
+  AuthenticatedEmployeeIndexRoute: typeof AuthenticatedEmployeeIndexRoute
+  AuthenticatedTenantIndexRoute: typeof AuthenticatedTenantIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAppRouteRoute: AuthenticatedAppRouteRouteWithChildren,
   AuthenticatedSuperRouteRoute: AuthenticatedSuperRouteRouteWithChildren,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedClientDashboardRoute: AuthenticatedClientDashboardRoute,
+  AuthenticatedEmployeeDashboardRoute: AuthenticatedEmployeeDashboardRoute,
+  AuthenticatedClientIndexRoute: AuthenticatedClientIndexRoute,
+  AuthenticatedEmployeeIndexRoute: AuthenticatedEmployeeIndexRoute,
+  AuthenticatedTenantIndexRoute: AuthenticatedTenantIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -2681,8 +3948,13 @@ const rootRouteChildren: RootRouteChildren = {
   CareersRoute: CareersRoute,
   ContactRoute: ContactRoute,
   CustomerDisplayRoute: CustomerDisplayRoute,
+  DeveloperRoute: DeveloperRoute,
   DocsRoute: DocsRoute,
+  Error404Route: Error404Route,
+  Error500Route: Error500Route,
   HelpCenterRoute: HelpCenterRoute,
+  LockScreenRoute: LockScreenRoute,
+  LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
   OfflineRoute: OfflineRoute,
   OgPreviewRoute: OgPreviewRoute,

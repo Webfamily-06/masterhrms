@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, formatInventoryError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,9 @@ import {
   Ban,
   CreditCard,
   FileSpreadsheet,
+  AlertTriangle,
+  History,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatSystemAmount } from "@/lib/currency";
@@ -90,6 +93,16 @@ interface Purchase {
   details: PurchaseDetail[];
 }
 
+interface PurchasePayment {
+  id: string;
+  purchaseId: string;
+  amount: number;
+  method: string;
+  referenceNo?: string;
+  notes?: string;
+  paidAt: string;
+}
+
 interface Supplier {
   id: string;
   name: string;
@@ -110,6 +123,7 @@ interface Product {
 }
 
 export default function PurchasesPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -118,6 +132,7 @@ export default function PurchasesPage() {
   const [paymentModalPurchase, setPaymentModalPurchase] = useState<Purchase | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
+  const [payReferenceNo, setPayReferenceNo] = useState("");
 
   // Create form state
   const [supplierId, setSupplierId] = useState("");
@@ -140,6 +155,27 @@ export default function PurchasesPage() {
     },
   });
   const purchases: Purchase[] = purchasesRes || [];
+
+  // 1b. AP Summary (outstanding payables)
+  const { data: apSummary } = useQuery({
+    queryKey: ["ap-summary"],
+    queryFn: async () => {
+      const res = await api.get<{ data: any }>("/api/suppliers/ap-summary");
+      return res.data || null;
+    },
+  });
+
+  // 1c. Payment history for the currently-viewed PO
+  const { data: paymentHistoryRes } = useQuery({
+    queryKey: ["purchase-payments", selectedPurchase?.id],
+    queryFn: async () => {
+      if (!selectedPurchase) return [];
+      const res = await api.get<{ data: PurchasePayment[] }>(`/api/purchases/${selectedPurchase.id}/payments`);
+      return res.data || [];
+    },
+    enabled: Boolean(selectedPurchase),
+  });
+  const paymentHistory: PurchasePayment[] = paymentHistoryRes || [];
 
   // 2. Fetch Suppliers
   const { data: suppliersRes } = useQuery({
@@ -184,9 +220,14 @@ export default function PurchasesPage() {
       queryClient.invalidateQueries({ queryKey: ["purchases-list"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-list"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-inventory-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products-list"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["product-movements"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to create purchase order");
+      toast.error(formatInventoryError(err, "Failed to create purchase order"));
     },
   });
 
@@ -202,22 +243,30 @@ export default function PurchasesPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["purchases-list"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-inventory-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products-list"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["product-movements"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to update purchase status");
+      toast.error(formatInventoryError(err, "Failed to update purchase status"));
     },
   });
 
   const recordPaymentMutation = useMutation({
-    mutationFn: async ({ id, amount, method }: { id: string; amount: number; method: string }) => {
-      const res = await api.post(`/api/purchases/${id}/payments`, { amount, paymentMethod: method });
+    mutationFn: async ({ id, amount, method, referenceNo }: { id: string; amount: number; method: string; referenceNo?: string }) => {
+      const res = await api.post(`/api/purchases/${id}/payments`, { amount, paymentMethod: method, referenceNo: referenceNo || undefined });
       return res.data;
     },
     onSuccess: () => {
       toast.success("Supplier payment recorded successfully!");
       setPaymentModalPurchase(null);
       setPayAmount(0);
+      setPayReferenceNo("");
       queryClient.invalidateQueries({ queryKey: ["purchases-list"] });
+      queryClient.invalidateQueries({ queryKey: ["ap-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-payments"] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error || err.message || "Failed to record payment");
@@ -232,6 +281,7 @@ export default function PurchasesPage() {
     setNotes("");
     setPoDate(new Date().toISOString().slice(0, 10));
     setLineItems([{ productId: "", productName: "", cost: 0, quantity: 1, taxRate: 18 }]);
+    setPayReferenceNo("");
   };
 
   const handleAddLineItem = () => {
@@ -271,7 +321,7 @@ export default function PurchasesPage() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const validItems = lineItems.filter((it) => it.productId && it.quantity > 0);
+    const validItems = lineItems.filter((it) => it.productId && Number(it.quantity) > 0);
     if (validItems.length === 0) {
       toast.error("Please add at least one product line item");
       return;
@@ -384,7 +434,7 @@ export default function PurchasesPage() {
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="border border-border/70 shadow-xs">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
@@ -426,6 +476,20 @@ export default function PurchasesPage() {
             </div>
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
               <DollarSign className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border border-border/70 shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">AP Outstanding</p>
+              <h3 className="text-xl font-bold text-rose-600 mt-1">{formatSystemAmount(apSummary?.outstanding ?? 0)}</h3>
+              {apSummary && apSummary.unpaidCount > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">{apSummary.unpaidCount} open POs</p>
+              )}
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-600">
+              <AlertTriangle className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
@@ -533,6 +597,22 @@ export default function PurchasesPage() {
                                 disabled={updateStatusMutation.isPending}
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Receive
+                              </Button>
+                            )}
+
+                            {po.status !== "cancelled" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                onClick={() => {
+                                  if (confirm(`Are you sure you want to cancel purchase order ${po.purchaseNo}?${po.status === "received" ? " This will deduct received stock from the warehouse." : ""}`)) {
+                                    updateStatusMutation.mutate({ id: po.id, status: "cancelled" });
+                                  }
+                                }}
+                                disabled={updateStatusMutation.isPending}
+                              >
+                                <Ban className="w-3.5 h-3.5 mr-1" /> Cancel
                               </Button>
                             )}
 
@@ -689,13 +769,14 @@ export default function PurchasesPage() {
                         />
                       </div>
 
-                      <div className="w-20 space-y-1">
+                      <div className="w-24 space-y-1">
                         <Input
                           type="number"
-                          min="1"
+                          step="0.001"
+                          min="0.001"
                           placeholder="Qty"
                           value={item.quantity}
-                          onChange={(e) => handleItemFieldChange(idx, "quantity", parseInt(e.target.value) || 1)}
+                          onChange={(e) => handleItemFieldChange(idx, "quantity", parseFloat(e.target.value) || 0)}
                           className="h-9 text-xs"
                         />
                       </div>
@@ -889,7 +970,9 @@ export default function PurchasesPage() {
                         <TableRow key={item.id}>
                           <TableCell className="text-xs font-medium">{item.productName || item.product?.name}</TableCell>
                           <TableCell className="text-xs text-right">{formatSystemAmount(Number(item.cost))}</TableCell>
-                          <TableCell className="text-xs text-center font-bold">{item.quantity}</TableCell>
+                          <TableCell className="text-xs text-center font-bold font-mono">
+                            {Number(item.quantity).toFixed(3)}
+                          </TableCell>
                           <TableCell className="text-xs text-right font-bold text-emerald-600">
                             {formatSystemAmount(Number(item.subtotal))}
                           </TableCell>
@@ -904,6 +987,71 @@ export default function PurchasesPage() {
                 <span>Total Amount:</span>
                 <span className="text-emerald-600">{formatSystemAmount(Number(selectedPurchase.total))}</span>
               </div>
+
+              {/* Payment History Feed */}
+              {paymentHistory.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5" /> Payment Installments
+                  </h4>
+                  <div className="space-y-1.5">
+                    {paymentHistory.map((pmt, idx) => (
+                      <div key={pmt.id} className="flex items-center justify-between p-2 rounded bg-muted/30 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-600 font-bold text-[10px]">{idx + 1}</span>
+                          <div>
+                            <span className="font-medium text-foreground">{pmt.method}</span>
+                            {pmt.referenceNo && <span className="text-muted-foreground ml-1.5">· {pmt.referenceNo}</span>}
+                            <p className="text-muted-foreground text-[10px]">{new Date(pmt.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-emerald-600">{formatSystemAmount(Number(pmt.amount))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedPurchase.status !== "cancelled" && (
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                  {selectedPurchase.status === "ordered" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                      onClick={() => updateStatusMutation.mutate({ id: selectedPurchase.id, status: "received" })}
+                      disabled={updateStatusMutation.isPending}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Mark Received
+                    </Button>
+                  )}
+                  {selectedPurchase.status === "received" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 border-amber-200"
+                      onClick={() => {
+                        navigate({ to: "/returns" });
+                      }}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 mr-1" /> Issue Return / Debit Note
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to cancel purchase order ${selectedPurchase.purchaseNo}?${selectedPurchase.status === "received" ? " This will deduct received stock from the warehouse." : ""}`)) {
+                        updateStatusMutation.mutate({ id: selectedPurchase.id, status: "cancelled" });
+                      }
+                    }}
+                    disabled={updateStatusMutation.isPending}
+                  >
+                    <Ban className="w-3.5 h-3.5 mr-1" /> Cancel PO
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

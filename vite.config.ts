@@ -1,10 +1,7 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - TanStack devtools (dev-only, first), tanstackStart, viteReact, tailwindcss, tsConfigPaths,
-//     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
-//     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
 
@@ -66,57 +63,62 @@ function updateEnvMiddlewarePlugin() {
 }
 
 export default defineConfig({
-  vite: {
-    plugins: [updateEnvMiddlewarePlugin()],
-    optimizeDeps: {
-      force: true,
-    },
-    build: {
-      chunkSizeWarningLimit: 1000,
-      rollupOptions: {
-        output: {
-          manualChunks(id: string) {
-            if (id.includes("node_modules")) {
-              if (id.includes("apexcharts") || id.includes("react-apexcharts")) {
-                return "vendor-apexcharts";
-              }
-              if (id.includes("recharts")) {
-                return "vendor-recharts";
-              }
-              if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("canvg")) {
-                return "vendor-pdf";
-              }
-              if (id.includes("lucide-react") || id.includes("@phosphor-icons")) {
-                return "vendor-icons";
-              }
-              if (id.includes("@radix-ui")) {
-                return "vendor-radix";
-              }
-              if (id.includes("date-fns") || id.includes("flatpickr")) {
-                return "vendor-dates";
-              }
-              if (id.includes("socket.io-client") || id.includes("engine.io-client")) {
-                return "vendor-sockets";
-              }
-              if (id.includes("@tanstack")) {
-                return "vendor-tanstack";
-              }
-              return "vendor";
+  plugins: [
+    tailwindcss(),
+    tanstackStart({
+      server: { entry: "server" },
+      vite: {
+        installDevServerMiddleware: true,
+      },
+    }),
+    react(),
+    updateEnvMiddlewarePlugin(),
+  ],
+  resolve: {
+    tsconfigPaths: true,
+  },
+  optimizeDeps: {
+    force: true,
+  },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes("node_modules")) {
+            if (id.includes("apexcharts") || id.includes("react-apexcharts")) {
+              return "vendor-apexcharts";
             }
-          },
+            if (id.includes("recharts")) {
+              return "vendor-recharts";
+            }
+            if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("canvg")) {
+              return "vendor-pdf";
+            }
+            if (id.includes("lucide-react") || id.includes("@phosphor-icons")) {
+              return "vendor-icons";
+            }
+            if (id.includes("@radix-ui")) {
+              return "vendor-radix";
+            }
+            if (id.includes("date-fns") || id.includes("flatpickr")) {
+              return "vendor-dates";
+            }
+            if (id.includes("socket.io-client") || id.includes("engine.io-client")) {
+              return "vendor-sockets";
+            }
+            if (id.includes("@tanstack")) {
+              return "vendor-tanstack";
+            }
+            return "vendor";
+          }
         },
       },
     },
-    server: {
-      headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    },
   },
-  tanstackStart: {
-    server: { entry: "server" },
-    vite: {
-      installDevServerMiddleware: true,
+  server: {
+    headers: {
+      "Cache-Control": "no-cache, no-store, must-revalidate",
     },
   },
 });

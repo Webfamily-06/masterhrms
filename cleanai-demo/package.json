@@ -1,0 +1,14 @@
+{
+  "name": "cleanai-sample-project",
+  "version": "1.0.0",
+  "description": "A sample TypeScript project with dead code — try CleanAI on it!",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "cleanai-demo": true,
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

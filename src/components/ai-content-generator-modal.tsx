@@ -165,7 +165,7 @@ export function AIContentGeneratorModal({
 
       setResults(generatedOutputs);
       setSelectedResultIndex(0);
-      toast.success(`✨ Generated ${generatedOutputs.length} AI variation(s) using ${activeModel}!`);
+      toast.success(`Generated ${generatedOutputs.length} AI variation(s) using ${activeModel}!`);
     } catch (err: any) {
       toast.error("AI generation failed: " + err.message);
     } finally {
@@ -176,7 +176,7 @@ export function AIContentGeneratorModal({
   function handleCopy(text: string, index: number) {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
-    toast.success("✓ Copied to clipboard!");
+    toast.success("Copied to clipboard!");
     setTimeout(() => setCopiedIndex(null), 2000);
   }
 
@@ -187,13 +187,13 @@ export function AIContentGeneratorModal({
       return;
     }
     navigator.clipboard.writeText(selected);
-    toast.success("✓ Copied selected text!");
+    toast.success("Copied selected text!");
   }
 
   function handleInsertText(text: string) {
     if (onInsert) {
       onInsert(text);
-      toast.success("✓ Inserted into form!");
+      toast.success("Inserted into form!");
       onOpenChange(false);
     }
   }
@@ -204,7 +204,7 @@ export function AIContentGeneratorModal({
         <DialogHeader>
           <div className="flex items-center justify-between">
             <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5">
-              ✨ Model: {activeModel}
+              Model: {activeModel}
             </Badge>
             <Badge variant="secondary" className="text-[10px] font-mono">
               Provider: {activeProvider}

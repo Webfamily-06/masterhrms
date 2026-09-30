@@ -83,7 +83,7 @@ assetsRouter.get("/categories", async (req: AuthRequest, res: Response) => {
 assetsRouter.post("/categories", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
-    const { name, description, icon = "💻", prefix = "AST" } = req.body;
+    const { name, description, icon = "laptop", prefix = "AST" } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: "Category name is required." });

@@ -39,7 +39,7 @@ const DEFAULT_ADDONS_DICT: Record<string, AddonRow> = {
     description: "Seamless WhatsApp Business Cloud API integration.",
     long_description: "Deliver instant automated push alerts to employees and managers for shifts, clock-in reminders, payslips, and leave request decisions.",
     category: "Communication",
-    icon: "💬",
+    icon: "message-square",
     price_monthly: 999,
     developer: "Master ERP Core Team",
     status: "active",
@@ -58,7 +58,7 @@ const DEFAULT_ADDONS_DICT: Record<string, AddonRow> = {
     description: "Direct TCP/IP and cloud webhook listener.",
     long_description: "Connect physical attendance machines directly to your MySQL cloud instance with millisecond synchronization.",
     category: "Hardware",
-    icon: "📟",
+    icon: "cpu",
     price_monthly: 1499,
     developer: "Master Hardware Team",
     status: "active",
@@ -169,7 +169,7 @@ function AddonDetail() {
                 <ul className="grid sm:grid-cols-2 gap-2">
                   {features.map((f, i) => (
                     <li key={i} className="flex gap-2 text-sm">
-                      <span className="text-primary mt-1">✓</span> <span>{f}</span>
+                      <span className="text-primary mt-1">•</span> <span>{f}</span>
                     </li>
                   ))}
                 </ul>

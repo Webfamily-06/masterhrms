@@ -1,13 +1,14 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { ERP_MODULES } from "../lib/erp-modules";
 import { getWorkspacePolicy } from "../services/workspace-policy.service";
 
 export const workspaceRouter = Router();
 
-// All workspace routes require valid authentication
-workspaceRouter.use(requireAuth);
+// All workspace routes require valid authentication and resolved tenant context
+workspaceRouter.use(requireAuth, resolveTenantContext);
 
 workspaceRouter.get("/subscription", async (req: AuthRequest, res: Response) => {
   try {
@@ -1014,3 +1015,362 @@ workspaceRouter.get("/google/drive-files", async (req: AuthRequest, res: Respons
     return res.status(500).json({ error: err.message || "Failed to fetch Drive files" });
   }
 });
+
+// -------------------------------------------------------------
+// 18. POST /api/workspace/tally-import - Tally ERP XML Auto-Ledger Ingestion
+// -------------------------------------------------------------
+workspaceRouter.post("/tally-import", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId!;
+    const { fileName = "tally_export.xml", vouchers = [], rows = [] } = req.body;
+
+    const dataRows = (rows.length > 0 ? rows : vouchers) as any[];
+
+    if (!Array.isArray(dataRows) || dataRows.length === 0) {
+      return res.status(400).json({ error: "No Tally transactions or vouchers provided in payload." });
+    }
+
+    let importedCount = 0;
+    let createdAccountsCount = 0;
+
+    // Helper to resolve or auto-create ChartOfAccount
+    async function resolveTallyAccount(name: string, typeHint: string = "expense"): Promise<any> {
+      const cleanName = name.trim();
+      let account = await prisma.chartOfAccount.findFirst({
+        where: { tenantId, accountName: cleanName },
+      });
+
+      if (!account) {
+        // Auto-assign account type based on standard Tally naming patterns
+        let accountType = typeHint;
+        let category = "indirect_expense";
+        const lower = cleanName.toLowerCase();
+
+        if (lower.includes("sales") || lower.includes("revenue") || lower.includes("income")) {
+          accountType = "revenue";
+          category = "direct_income";
+        } else if (lower.includes("purchase") || lower.includes("cost of goods")) {
+          accountType = "expense";
+          category = "direct_expense";
+        } else if (lower.includes("bank") || lower.includes("hdfc") || lower.includes("icici") || lower.includes("sbi") || lower.includes("cash")) {
+          accountType = "asset";
+          category = "current_asset";
+        } else if (lower.includes("debtor") || lower.includes("receivable") || lower.includes("customer")) {
+          accountType = "asset";
+          category = "current_asset";
+        } else if (lower.includes("creditor") || lower.includes("payable") || lower.includes("vendor") || lower.includes("supplier")) {
+          accountType = "liability";
+          category = "current_liability";
+        } else if (lower.includes("capital") || lower.includes("equity") || lower.includes("drawing")) {
+          accountType = "equity";
+          category = "equity";
+        }
+
+        const count = await prisma.chartOfAccount.count({ where: { tenantId } });
+        const accountCode = `TL-${1000 + count + 1}`;
+
+        account = await prisma.chartOfAccount.create({
+          data: {
+            tenantId,
+            accountCode,
+            accountName: cleanName,
+            accountType,
+            category,
+            balance: 0,
+            isSystem: false,
+          },
+        });
+        createdAccountsCount++;
+      }
+
+      return account;
+    }
+
+    // Default primary cash/bank asset account for offsets
+    let primaryBank = await prisma.chartOfAccount.findFirst({
+      where: { tenantId, accountCode: "1020" },
+    });
+    if (!primaryBank) {
+      primaryBank = await prisma.chartOfAccount.findFirst({
+        where: { tenantId, accountType: "asset" },
+      });
+    }
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const ledgerName = row.ledger || row.partyName || row.accountName || "Tally General Ledger";
+      const amount = Math.abs(Number(row.amount || row.debit || row.credit || 0));
+      const isDebit = Boolean(Number(row.debit || 0) > 0 || (row.type || "").toLowerCase().includes("payment") || (row.type || "").toLowerCase().includes("debit"));
+
+      if (amount <= 0) continue;
+
+      const targetAccount = await resolveTallyAccount(ledgerName, isDebit ? "expense" : "revenue");
+
+      await prisma.$transaction(async (tx) => {
+        const entryCount = await tx.journalEntry.count({ where: { tenantId } });
+        const entryNumber = `TALLY-${Date.now().toString().slice(-4)}-${entryCount + 1}`;
+
+        await tx.journalEntry.create({
+          data: {
+            tenantId,
+            entryNumber,
+            entryDate: row.date ? new Date(row.date) : new Date(),
+            reference: row.voucherNo || `TALLY-VCH-${i + 1}`,
+            referenceType: "tally_erp_xml",
+            description: row.narration || `Tally Ingested: ${ledgerName} (${row.type || "Journal"})`,
+            totalAmount: amount,
+            status: "posted",
+            items: {
+              create: [
+                {
+                  accountId: targetAccount.id,
+                  type: isDebit ? "debit" : "credit",
+                  debit: isDebit ? amount : 0,
+                  credit: isDebit ? 0 : amount,
+                  notes: row.narration || `Tally: ${ledgerName}`,
+                },
+                ...(primaryBank
+                  ? [
+                      {
+                        accountId: primaryBank.id,
+                        type: isDebit ? "credit" : "debit",
+                        debit: isDebit ? 0 : amount,
+                        credit: isDebit ? amount : 0,
+                        notes: `Offset against ${primaryBank.accountName}`,
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          },
+        });
+
+        // Update account balances
+        await tx.chartOfAccount.update({
+          where: { id: targetAccount.id },
+          data: { balance: { increment: isDebit ? amount : -amount } },
+        });
+
+        if (primaryBank) {
+          await tx.chartOfAccount.update({
+            where: { id: primaryBank.id },
+            data: { balance: { increment: isDebit ? -amount : amount } },
+          });
+        }
+      });
+
+      importedCount++;
+    }
+
+    return res.status(201).json({
+      success: true,
+      fileName,
+      totalVouchers: dataRows.length,
+      importedCount,
+      accountsCreated: createdAccountsCount,
+      message: `Tally ERP XML mapping successfully posted ${importedCount} double-entry transactions and created ${createdAccountsCount} ledger accounts in MySQL!`,
+    });
+  } catch (err: any) {
+    console.error("POST /api/workspace/tally-import error:", err);
+    return res.status(500).json({ error: err.message || "Failed to process Tally XML import" });
+  }
+});
+
+// ==========================================
+// TENANT-SCOPED SETTINGS & BRANDING
+// ==========================================
+
+// GET /api/workspace/settings (Fetch tenant branding & organization settings)
+workspaceRouter.get("/settings", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        logoUrl: true,
+        timezone: true,
+        createdAt: true,
+      },
+    });
+
+    if (!tenant) return res.status(404).json({ error: "Tenant workspace not found." });
+
+    const settingsPage = await prisma.cmsPage.findUnique({
+      where: { slug: `tenant-${tenantId}-settings` },
+    });
+
+    const defaultBrand = {
+      titleText: tenant.name,
+      footerText: `© ${new Date().getFullYear()} ${tenant.name}. All rights reserved.`,
+      logoDark: tenant.logoUrl,
+      logoLight: tenant.logoUrl,
+      favicon: tenant.logoUrl,
+      themeColor: "indigo",
+      themeMode: "light",
+      currency: "INR",
+      currencySymbol: "₹",
+    };
+
+    const pageContent = (settingsPage?.content as any) || {};
+    const company = pageContent.company || {
+      name: tenant.name,
+      companyName: tenant.name,
+      timezone: tenant.timezone,
+    };
+
+    return res.json({
+      tenant,
+      brand: settingsPage?.content ? { ...defaultBrand, ...pageContent } : defaultBrand,
+      company,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch workspace settings." });
+  }
+});
+
+// PUT /api/workspace/settings/brand (Update tenant branding)
+workspaceRouter.put("/settings/brand", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const {
+      logoUrl,
+      logoDark,
+      logoLight,
+      favicon,
+      titleText,
+      footerText,
+      themeColor,
+      themeMode,
+      currency,
+      currencySymbol,
+    } = req.body;
+
+    // Update Tenant entity logoUrl if provided
+    if (logoUrl || logoDark) {
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { logoUrl: logoUrl || logoDark },
+      });
+    }
+
+    const previous = await prisma.cmsPage.findUnique({
+      where: { slug: `tenant-${tenantId}-settings` },
+    });
+
+    const previousContent = (previous?.content && typeof previous.content === "object" && !Array.isArray(previous.content))
+      ? (previous.content as Record<string, any>)
+      : {};
+
+    const content = {
+      ...previousContent,
+      ...(logoUrl !== undefined && { logoUrl }),
+      ...(logoDark !== undefined && { logoDark }),
+      ...(logoLight !== undefined && { logoLight }),
+      ...(favicon !== undefined && { favicon }),
+      ...(titleText !== undefined && { titleText }),
+      ...(footerText !== undefined && { footerText }),
+      ...(themeColor !== undefined && { themeColor }),
+      ...(themeMode !== undefined && { themeMode }),
+      ...(currency !== undefined && { currency }),
+      ...(currencySymbol !== undefined && { currencySymbol }),
+    };
+
+    const saved = await prisma.cmsPage.upsert({
+      where: { slug: `tenant-${tenantId}-settings` },
+      create: {
+        slug: `tenant-${tenantId}-settings`,
+        title: `Workspace ${tenantId} Settings`,
+        content,
+        updatedBy: req.user!.userId,
+      },
+      update: {
+        content,
+        updatedBy: req.user!.userId,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: "Branding settings saved successfully.",
+      brand: saved.content,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update branding settings." });
+  }
+});
+
+// PUT /api/workspace/settings/company (Update company address & profile)
+workspaceRouter.put("/settings/company", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const companyName = req.body.companyName || req.body.name;
+    const { timezone, address, phone, email, city, state, country, zipCode, taxNumber } = req.body;
+
+    if (companyName || timezone) {
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          ...(companyName && { name: companyName }),
+          ...(timezone && { timezone }),
+        },
+      });
+    }
+
+    const previous = await prisma.cmsPage.findUnique({
+      where: { slug: `tenant-${tenantId}-settings` },
+    });
+
+    const previousContent = (previous?.content as any) || {};
+    const updatedCompany = {
+      ...(previousContent.company || {}),
+      ...(companyName && { name: companyName, companyName }),
+      ...(timezone && { timezone }),
+      ...(address !== undefined && { address }),
+      ...(phone !== undefined && { phone }),
+      ...(email !== undefined && { email }),
+      ...(city !== undefined && { city }),
+      ...(state !== undefined && { state }),
+      ...(country !== undefined && { country }),
+      ...(zipCode !== undefined && { zipCode }),
+      ...(taxNumber !== undefined && { taxNumber }),
+    };
+
+    const content = {
+      ...previousContent,
+      company: updatedCompany,
+    };
+
+    await prisma.cmsPage.upsert({
+      where: { slug: `tenant-${tenantId}-settings` },
+      create: {
+        slug: `tenant-${tenantId}-settings`,
+        title: `Workspace ${tenantId} Settings`,
+        content,
+        updatedBy: req.user!.userId,
+      },
+      update: {
+        content,
+        updatedBy: req.user!.userId,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: "Company details updated successfully.",
+      company: updatedCompany,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update company settings." });
+  }
+});
+
+

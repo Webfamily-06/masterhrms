@@ -29,10 +29,14 @@ import {
   Sparkles, Users, Clock, CalendarCheck, Wallet, Briefcase, GraduationCap, HelpCircle,
   Receipt, FileText, FolderLock, Layers, FileSpreadsheet, Workflow, BarChart3,
   ShoppingCart, Landmark, Kanban, MessageSquare, Package, Store, Compass,
-  Fingerprint, ScanLine, HardDrive, Target, ArrowRightLeft, Truck, Building2, SlidersHorizontal
+  Fingerprint, ScanLine, HardDrive, Target, ArrowRightLeft, Truck, Building2, SlidersHorizontal,
+  CalendarDays, Trophy, ShieldAlert
 } from "lucide-react";
-import { api, clearToken } from "@/lib/api";
+import { api, clearToken, setToken } from "@/lib/api";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
+import { useTenantBranding } from "@/lib/useTenantBranding";
 
 export const Route = createFileRoute("/_authenticated/_app")({
   component: AppShell,
@@ -40,6 +44,18 @@ export const Route = createFileRoute("/_authenticated/_app")({
 
 const ALL_SEARCH_ITEMS = [
   { title: "HRM Dashboard", url: "/dashboard", group: "ERP Core", icon: Home },
+  { title: "Deals Dashboard", url: "/deals-dashboard", group: "ERP Core", icon: Compass },
+  { title: "Leads Dashboard", url: "/leads-dashboard", group: "ERP Core", icon: Users },
+  { title: "Payroll Dashboard", url: "/payroll-dashboard", group: "ERP Core", icon: Wallet },
+  { title: "Recruitment Dashboard", url: "/recruitment-dashboard", group: "ERP Core", icon: Briefcase },
+  { title: "Help Desk Dashboard", url: "/help-desk-dashboard", group: "ERP Core", icon: HelpCircle },
+  { title: "Asset Dashboard", url: "/asset-dashboard", group: "ERP Core", icon: HardDrive },
+  { title: "IT Admin Dashboard", url: "/it-admin-dashboard", group: "ERP Core", icon: SlidersHorizontal },
+  { title: "Learning Analytics", url: "/learning-analytics", group: "ERP Core", icon: GraduationCap },
+  { title: "AI Attendance Insights", url: "/ai-attendance-insights", group: "AI Center", icon: Sparkles },
+  { title: "AI Payroll Forecast", url: "/ai-payroll-forecast", group: "AI Center", icon: Sparkles },
+  { title: "AI Team Performance Insights", url: "/ai-team-performance-insights", group: "AI Center", icon: Sparkles },
+  { title: "AI Settings & Configuration", url: "/ai-configuration", group: "AI Center", icon: Settings },
   { title: "POS Dashboard", url: "/pos-dashboard", group: "ERP Core", icon: ShoppingCart },
   { title: "Inventory Dashboard", url: "/inventory-dashboard", group: "ERP Core", icon: Package },
   { title: "Sales CRM Dashboard", url: "/crm-dashboard", group: "ERP Core", icon: Compass },
@@ -68,8 +84,11 @@ const ALL_SEARCH_ITEMS = [
   { title: "HRM Hub & Overview", url: "/hrm", group: "HRM Suite", icon: Users },
   { title: "Employee Directory", url: "/employees", group: "HRM Suite", icon: Users },
   { title: "Attendance & Clock", url: "/attendance", group: "HRM Suite", icon: Clock },
+  { title: "Employee Attendance Matrix", url: "/attendance-employee", group: "HRM Suite", icon: CalendarDays },
   { title: "Leave Management", url: "/leave", group: "HRM Suite", icon: CalendarCheck },
   { title: "Shift Rostering", url: "/shifts", group: "HRM Suite", icon: Layers },
+  { title: "Shift Swap Requests", url: "/shift-swap-requests", group: "HRM Suite", icon: ArrowRightLeft },
+  { title: "Personal Tasks Board", url: "/tasks", group: "Platform", icon: Kanban },
   { title: "Payroll Runs", url: "/payroll", group: "HRM Suite", icon: Wallet },
   { title: "Recruitment (ATS)", url: "/recruitment", group: "HRM Suite", icon: Briefcase },
   { title: "Training & LMS", url: "/training", group: "HRM Suite", icon: GraduationCap },
@@ -78,8 +97,11 @@ const ALL_SEARCH_ITEMS = [
   { title: "OKR & Goals", url: "/okr", group: "HRM Suite", icon: Target },
   { title: "Asset Management", url: "/assets", group: "HRM Suite", icon: HardDrive },
   { title: "Offboarding & Exit", url: "/offboarding", group: "HRM Suite", icon: LogOut },
+  { title: "Notice Period Tracker", url: "/notice-period-tracker", group: "HRM Suite", icon: LogOut },
+  { title: "Awards & Recognitions", url: "/awards", group: "HRM Suite", icon: Trophy },
+  { title: "Disciplinary Warnings", url: "/warnings", group: "HRM Suite", icon: ShieldAlert },
   { title: "Biometric Hardware", url: "/biometric", group: "HRM Suite", icon: Fingerprint },
-  { title: "Live Biometric Agent", url: "/biometric-sync", group: "HRM Suite", icon: Fingerprint },
+  { title: "Biometric Device Agent", url: "/biometric-sync", group: "HRM Suite", icon: Fingerprint },
   { title: "Form Builder", url: "/forms", group: "HRM Suite", icon: FileSpreadsheet },
   { title: "Automation Rules", url: "/workflows", group: "HRM Suite", icon: Workflow },
   { title: "People Analytics", url: "/analytics", group: "HRM Suite", icon: BarChart3 },
@@ -98,8 +120,17 @@ const ALL_SEARCH_ITEMS = [
 function AppShell() {
   const { data: profile, isLoading, error: profileError, refetch: reloadProfile } = useCurrentProfile();
   const { loading } = useSession();
+  const { branding } = useTenantBranding();
   const navigate = useNavigate();
   const path = useRouterState({ select: (r) => r.location.pathname });
+
+  const userRoles = profile?.roles || [];
+  const isAdminOrSuper = userRoles.some((r) =>
+    ["admin", "super_admin", "tenant_admin", "hr_admin", "manager"].includes(r)
+  );
+  const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
+  const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
+  const homeRoute = isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
 
   
 
@@ -161,6 +192,7 @@ function AppShell() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [leavingImpersonation, setLeavingImpersonation] = useState(false);
 
   // Synchronize full-view, mini-sidebar classes on document.body and document.documentElement
   useEffect(() => {
@@ -227,7 +259,15 @@ function AppShell() {
     navigate({ to: "/auth" });
   }
 
-  if (profileError) return <div className="min-h-screen grid place-items-center p-6"><div role="alert" className="max-w-md space-y-4 rounded-lg border p-6"><h1 className="font-semibold">Workspace unavailable</h1><p className="text-sm">{profileError.message}</p><div className="flex gap-4"><button onClick={() => reloadProfile()} className="underline">Retry</button><button onClick={handleSignOut} className="underline">Sign out</button></div></div></div>;
+  if (profileError) {
+    return (
+      <WorkspaceUnavailableView
+        error={profileError}
+        onRetry={() => reloadProfile()}
+        onSignOut={handleSignOut}
+      />
+    );
+  }
 
   if (loading || isLoading || !profile) {
     return (
@@ -270,6 +310,40 @@ function AppShell() {
 
   const roleLabel = (profile.roles?.[0] || "member").replace(/_/g, " ");
 
+  const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
+  const impersonatedTenantName = typeof window !== "undefined" ? localStorage.getItem("hrms_impersonated_tenant_name") : null;
+
+  async function handleLeaveImpersonation() {
+    setLeavingImpersonation(true);
+    try {
+      const res = await api.post("/super/leave-impersonation");
+      if (res?.token) {
+        setToken(res.token);
+      } else {
+        const backup = localStorage.getItem("hrms_super_admin_backup_token");
+        if (backup) setToken(backup);
+      }
+      localStorage.removeItem("hrms_impersonation_active");
+      localStorage.removeItem("hrms_impersonated_tenant_name");
+      localStorage.removeItem("hrms_super_admin_backup_token");
+      toast.success("Exited impersonation. Returned to Super Admin console.");
+      window.location.href = "/super";
+    } catch (e: any) {
+      const backup = localStorage.getItem("hrms_super_admin_backup_token");
+      if (backup) {
+        setToken(backup);
+        localStorage.removeItem("hrms_impersonation_active");
+        localStorage.removeItem("hrms_impersonated_tenant_name");
+        localStorage.removeItem("hrms_super_admin_backup_token");
+        window.location.href = "/super";
+      } else {
+        toast.error(e.message || "Failed to exit impersonation");
+      }
+    } finally {
+      setLeavingImpersonation(false);
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -279,6 +353,29 @@ function AppShell() {
         fullView && "full-view full-width"
       )}
     >
+      {/* Impersonation Banner */}
+      {isImpersonating && (
+        <div className="bg-amber-600 dark:bg-amber-700 text-white px-4 py-2 flex items-center justify-between text-xs font-semibold shadow-md z-50 sticky top-0">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-white animate-ping shrink-0" />
+            <span>
+              SUPER ADMIN IMPERSONATION: Acting as administrator for{" "}
+              <strong className="underline underline-offset-2">{impersonatedTenantName || "Workspace"}</strong>. Actions affect this tenant's live database.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[11px] font-bold px-2.5 py-0 bg-white text-amber-700 hover:bg-slate-100 border-none shadow-xs shrink-0"
+            onClick={handleLeaveImpersonation}
+            disabled={leavingImpersonation}
+          >
+            {leavingImpersonation ? <Loader2 className="size-3 animate-spin mr-1" /> : <LogOut className="size-3 mr-1" />}
+            Exit Impersonation
+          </Button>
+        </div>
+      )}
+
       {/* Dreams ERP Sidenav */}
       <DreamsSidebar
         profile={profile}
@@ -307,8 +404,16 @@ function AppShell() {
             </button>
 
             {/* Mobile Brand Logo (Visible only on mobile / tablet < 992px) */}
-            <Link to="/dashboard" className="logo lg:hidden flex items-center gap-1.5 shrink-0">
-              <img src="/logo.webp" alt="Master Platform" className="h-7 max-h-7 w-auto object-contain"  loading="lazy"/>
+            <Link to={homeRoute} className="logo lg:hidden flex items-center gap-1.5 shrink-0">
+              <img
+                src={branding.logoUrl || "/logo.webp"}
+                alt={branding.name || "Master Platform"}
+                className="h-7 max-h-7 w-auto object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/logo.webp";
+                }}
+                loading="lazy"
+              />
             </Link>
 
             {/* Desktop Full Sidebar / Mini Sidebar Toggle Button */}
@@ -324,7 +429,7 @@ function AppShell() {
                 }
               }}
               className={cn(
-                "sidenav-toggle-btn topbar-link shrink-0 size-9 text-[18px] hidden lg:flex items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs",
+                "sidenav-toggle-btn topbar-link shrink-0 size-8 text-[18px] hidden lg:flex items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs",
                 collapsed
                   ? "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
                   : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
@@ -332,7 +437,7 @@ function AppShell() {
               aria-label="Toggle Sidebar Mini Rail"
               title={collapsed ? "Expand Sidebar to Full Width (250px)" : "Collapse Sidebar to Mini Rail (72px)"}
             >
-              <i className={cn("ph-duotone", collapsed ? "ph-caret-right" : "ph-caret-left")}></i>
+              <i className={cn("ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
 
             {/* Active Company / Workspace Selector Dropdown */}
@@ -361,7 +466,6 @@ function AppShell() {
                     <img src="/favicon.webp" alt="Tenant" className="size-4"  loading="lazy"/>
                   </div>
                   <span className="truncate">{profile.tenant?.name || "Falcon LLP"}</span>
-                  <Badge variant="outline" className="ms-auto text-[9px] py-0 px-1 border-primary/40 text-primary">Live</Badge>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
@@ -419,7 +523,7 @@ function AppShell() {
               <Link
                 to="/chat"
                 className="topbar-link flex items-center justify-center size-8 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:bg-light text-foreground shadow-xs"
-                title="Team Chat & Live Messaging"
+                title="Team Chat"
               >
                 <i className="ph-duotone ph-chats-circle text-base"></i>
               </Link>
@@ -575,7 +679,7 @@ function AppShell() {
 
       {/* Main Page Wrapper */}
       <div className="page-wrapper">
-        <main className="content p-3 lg:p-6 min-w-0">
+        <main className="content min-w-0">
           <Outlet />
         </main>
       </div>

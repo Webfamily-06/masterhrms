@@ -177,7 +177,7 @@ function PublicCareersPage() {
       <section className="py-16 px-4 bg-gradient-to-b from-primary/5 via-background to-background border-b text-center">
         <div className="max-w-3xl mx-auto space-y-4">
           <Badge className="bg-primary/10 text-primary border-primary/20 font-bold text-xs py-0.5 px-3">
-            🚀 We're Hiring Ambitious Talent
+            We're Hiring Ambitious Talent
           </Badge>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-tight">
             Build the future with {tenant?.name || "our team"}

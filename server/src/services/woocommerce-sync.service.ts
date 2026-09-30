@@ -1,4 +1,5 @@
 import { prisma } from "../prisma";
+import { InventoryMovementService, STOCK_MOVEMENT_TYPES } from "./inventory-movement.service";
 import http from "http";
 import https from "https";
 import { URL } from "url";
@@ -431,13 +432,26 @@ export async function syncWooCommerceProducts(tenantId: string, mode: "pull" | "
           },
         });
 
-        await prisma.productWarehouse.create({
-          data: {
+        if (stock > 0) {
+          await InventoryMovementService.increaseStock({
+            tenantId,
             productId: newProd.id,
             warehouseId: warehouse.id,
             quantity: stock,
-          },
-        });
+            movementType: STOCK_MOVEMENT_TYPES.OPENING_STOCK,
+            referenceType: "WOOCOMMERCE_IMPORT",
+            referenceId: String(p.id),
+            notes: "WooCommerce imported opening stock",
+          });
+        } else {
+          await prisma.productWarehouse.create({
+            data: {
+              productId: newProd.id,
+              warehouseId: warehouse.id,
+              quantity: 0,
+            },
+          });
+        }
         added++;
       }
     }

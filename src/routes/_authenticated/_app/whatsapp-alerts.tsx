@@ -97,7 +97,7 @@ const DEFAULT_BOT_RULES: BotRule[] = [
   {
     id: "bot-1",
     keyword: "PAYSLIP",
-    replyText: "📄 Here is your latest Payslip for this month! Link: https://masterhrms.com/payslip",
+    replyText: "Here is your latest Payslip for this month! Link: https://masterhrms.com/payslip",
     action: "send_payslip",
     enabled: true,
   },
@@ -105,14 +105,14 @@ const DEFAULT_BOT_RULES: BotRule[] = [
     id: "bot-2",
     keyword: "LEAVE",
     replyText:
-      "🏖️ Your Leave Balance: Casual: 4 Days | Sick: 6 Days | Earned: 12 Days. Type APPLY LEAVE to initiate.",
+      "Your Leave Balance: Casual: 4 Days | Sick: 6 Days | Earned: 12 Days. Type APPLY LEAVE to initiate.",
     action: "send_leave_balance",
     enabled: true,
   },
   {
     id: "bot-3",
     keyword: "ATTENDANCE",
-    replyText: "⏱️ Today's Clock-in: 09:14 AM (On Time) | Shift Ends: 06:00 PM.",
+    replyText: "Today's Clock-in: 09:14 AM (On Time) | Shift Ends: 06:00 PM.",
     action: "check_in_status",
     enabled: true,
   },
@@ -120,7 +120,7 @@ const DEFAULT_BOT_RULES: BotRule[] = [
     id: "bot-4",
     keyword: "HELP",
     replyText:
-      "👋 Master HRMS WhatsApp Assistant! Reply with: \n1. PAYSLIP - Get latest payslip\n2. LEAVE - Check leave balance\n3. ATTENDANCE - Today's check-in status",
+      "Master HRMS WhatsApp Assistant! Reply with: \n1. PAYSLIP - Get latest payslip\n2. LEAVE - Check leave balance\n3. ATTENDANCE - Today's check-in status",
     action: "reply_text",
     enabled: true,
   },
@@ -147,7 +147,7 @@ function WhatsAppAlertsPage() {
   >([
     {
       sender: "bot",
-      text: "👋 Hi! Master HRMS Inbound WhatsApp Bot is Active. Type PAYSLIP, LEAVE, or ATTENDANCE.",
+      text: "Hi! Master HRMS Inbound WhatsApp Bot is Active. Type PAYSLIP, LEAVE, or ATTENDANCE.",
       time: "10:00 AM",
     },
   ]);
@@ -315,7 +315,7 @@ function WhatsAppAlertsPage() {
       console.error("Bot simulation error:", err);
       const fallbackMsg = {
         sender: "bot" as const,
-        text: `🤖 Error querying server. Type HELP to see available commands.`,
+        text: `Error querying server. Type HELP to see available commands.`,
         time: timeStr,
       };
       setSimChatHistory((prev) => [...prev, userMsg, fallbackMsg]);
@@ -607,7 +607,7 @@ function WhatsAppAlertsPage() {
                             variant={l.direction === "inbound" ? "secondary" : "outline"}
                             className="text-[10px]"
                           >
-                            {l.direction === "inbound" ? "📥 INBOUND BOT" : "📤 OUTBOUND"}
+                            {l.direction === "inbound" ? "INBOUND BOT" : "OUTBOUND"}
                           </Badge>
                         </td>
                         <td className="p-2.5 font-semibold">{l.recipient}</td>

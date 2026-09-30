@@ -111,7 +111,7 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
 
       if (products.length > 0) {
         const formatted = products.map((p) => {
-          const totalStock = p.warehouseStocks.reduce((sum, ws) => sum + ws.quantity, 0);
+          const totalStock = p.warehouseStocks.reduce((sum, ws) => sum + Number(ws.quantity), 0);
           return {
             id: p.id,
             name: p.name,

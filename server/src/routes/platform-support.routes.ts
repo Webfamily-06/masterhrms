@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
-import { prisma } from "../prisma";
+import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
+const prisma = rawPrisma || proxiedPrisma;
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
@@ -68,8 +69,89 @@ platformSupportRouter.get("/tickets", requireAuth, async (req: AuthRequest, res:
     const tenantId = req.user?.tenantId;
     const isSuperAdmin = req.user?.roles?.includes("super_admin");
 
-    if (!isSuperAdmin && tenantId) {
-      // seed disabled
+    // Dynamic initial seed if empty
+    const currentCount = await prisma.platformSupportTicket.count();
+    if (currentCount === 0) {
+      const tenants = await prisma.tenant.findMany({ take: 5 });
+      if (tenants.length > 0) {
+        const seedTickets = [
+          {
+            ticketCode: "TIC0016",
+            subject: "Login not working",
+            requestType: "Access Issue",
+            priority: "high",
+            status: "open",
+            tenantId: tenants[0].id,
+            messages: "Users are experiencing 401 errors when accessing the tenant dashboard after standard logout.",
+          },
+          {
+            ticketCode: "TIC0015",
+            subject: "HR module not loading",
+            requestType: "Module Issue",
+            priority: "medium",
+            status: "open",
+            tenantId: tenants[1]?.id || tenants[0].id,
+            messages: "The employee profile tab takes over 15 seconds to fetch records from the server.",
+          },
+          {
+            ticketCode: "TIC0014",
+            subject: "Failed payments notice received",
+            requestType: "Billing & Payments",
+            priority: "low",
+            status: "on_hold",
+            tenantId: tenants[2]?.id || tenants[0].id,
+            messages: "Our latest credit card payment was marked failed despite funds being settled.",
+          },
+          {
+            ticketCode: "TIC0013",
+            subject: "Billing amount incorrect",
+            requestType: "Billing & Payments",
+            priority: "medium",
+            status: "open",
+            tenantId: tenants[3]?.id || tenants[0].id,
+            messages: "Invoice shows 50 users instead of the 25 users allowed on our current subscription.",
+          },
+          {
+            ticketCode: "TIC0012",
+            subject: "Webhook delivery failure to ERP",
+            requestType: "API / Integration Issues",
+            priority: "high",
+            status: "open",
+            tenantId: tenants[0].id,
+            messages: "Webhook endpoint returning 502 bad gateway during employee check-in sync events.",
+          },
+          {
+            ticketCode: "TIC0011",
+            subject: "Plan upgrade to Enterprise inquiry",
+            requestType: "Plan / Subscription Issues",
+            priority: "low",
+            status: "resolved",
+            tenantId: tenants[1]?.id || tenants[0].id,
+            messages: "We would like to upgrade from Advanced to Enterprise for custom domain support.",
+          },
+        ];
+
+        for (const st of seedTickets) {
+          const t = await prisma.platformSupportTicket.create({
+            data: {
+              ticketCode: st.ticketCode,
+              subject: st.subject,
+              requestType: st.requestType,
+              priority: st.priority,
+              status: st.status,
+              tenantId: st.tenantId,
+            },
+          });
+          await prisma.platformTicketMessage.create({
+            data: {
+              ticketId: t.id,
+              senderType: "tenant_admin",
+              senderName: "Tenant Administrator",
+              message: st.messages,
+            },
+          });
+        }
+      }
     }
 
     const { requestType, priority, status, search, targetTenantId } = req.query;
@@ -99,7 +181,7 @@ platformSupportRouter.get("/tickets", requireAuth, async (req: AuthRequest, res:
       ];
     }
 
-    const pagination = parsePaginationParams(req, "createdAt", 20);
+    const pagination = parsePaginationParams(req, "createdAt", 50);
 
     const [total, tickets] = await Promise.all([
       prisma.platformSupportTicket.count({ where }),
@@ -127,27 +209,31 @@ platformSupportRouter.get("/tickets", requireAuth, async (req: AuthRequest, res:
   }
 });
 
-// POST /api/support/platform/tickets (Tenant Admin creates platform request)
+// POST /api/support/platform/tickets (Tenant Admin or Super Admin creates ticket)
 platformSupportRouter.post("/tickets", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+    let targetTenantId = req.user?.tenantId || req.body?.tenantId;
+    if (!targetTenantId) {
+      const firstTenant = await prisma.tenant.findFirst();
+      if (!firstTenant) return res.status(400).json({ error: "No tenants exist to attach ticket to." });
+      targetTenantId = firstTenant.id;
+    }
 
     const { subject, requestType, targetAddonSlug, priority, message, attachmentUrl } = req.body;
 
-    if (!subject || !message) {
-      return res.status(400).json({ error: "Subject and message are required." });
+    if (!subject) {
+      return res.status(400).json({ error: "Subject is required." });
     }
 
     const randomCode = Math.floor(1000 + Math.random() * 9000);
-    const ticketCode = `SUP-${randomCode}`;
+    const ticketCode = `TIC00${randomCode}`;
 
     const ticket = await prisma.platformSupportTicket.create({
       data: {
-        tenantId,
+        tenantId: targetTenantId,
         ticketCode,
         subject,
-        requestType: requestType || "general_support",
+        requestType: requestType || "Access Issue",
         targetAddonSlug: targetAddonSlug || null,
         priority: (priority || "medium").toLowerCase(),
         status: "open",
@@ -157,9 +243,9 @@ platformSupportRouter.post("/tickets", requireAuth, async (req: AuthRequest, res
     await prisma.platformTicketMessage.create({
       data: {
         ticketId: ticket.id,
-        senderType: "tenant_admin",
-        senderName: req.user?.email || "Organization Admin",
-        message,
+        senderType: req.user?.roles?.includes("super_admin") ? "super_admin" : "tenant_admin",
+        senderName: req.user?.email || "Support Agent",
+        message: message || "Support ticket created for workspace review.",
         attachmentUrl: attachmentUrl || null,
       },
     });
@@ -175,6 +261,33 @@ platformSupportRouter.post("/tickets", requireAuth, async (req: AuthRequest, res
     return res.status(201).json(refreshed);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to create platform support ticket." });
+  }
+});
+
+// PUT /api/support/platform/tickets/:id (Update ticket status or priority)
+platformSupportRouter.put("/tickets/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, priority, subject, requestType } = req.body;
+
+    const data: any = {};
+    if (status) data.status = status;
+    if (priority) data.priority = priority.toLowerCase();
+    if (subject) data.subject = subject;
+    if (requestType) data.requestType = requestType;
+
+    const updated = await prisma.platformSupportTicket.update({
+      where: { id },
+      data,
+      include: {
+        tenant: true,
+        messages: { orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update support ticket." });
   }
 });
 
@@ -289,7 +402,7 @@ platformSupportRouter.post("/tickets/:id/action", requireAuth, requireSuperAdmin
           ticketId: id,
           senderType: "super_admin",
           senderName: "Super Admin Platform Engine",
-          message: `🎉 Great news! Super Admin has approved and automatically enabled the '${ticket.targetAddonSlug.toUpperCase()}' enterprise add-on suite for your organization!`,
+          message: `Great news! Super Admin has approved and automatically enabled the '${ticket.targetAddonSlug.toUpperCase()}' enterprise add-on suite for your organization!`,
         },
       });
     }

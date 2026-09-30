@@ -94,7 +94,7 @@ function CmsPage() {
                       <td className="p-3 font-medium">{v.name}</td>
                       <td className="p-3 text-muted-foreground">{v.notes}</td>
                       <td className="p-3">
-                        {v.us ? <span className="text-primary font-semibold">✓ Us</span> : "—"}
+                        {v.us ? <span className="text-primary font-semibold">Us</span> : "—"}
                       </td>
                     </tr>
                   ))}

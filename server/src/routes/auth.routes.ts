@@ -6,7 +6,8 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
-import { prisma } from "../prisma";
+import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
+const prisma = rawPrisma || proxiedPrisma;
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 
@@ -165,6 +166,78 @@ authRouter.post("/register", async (req, res) => {
       return res.status(400).json({ error: err.errors[0].message });
     }
     return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/auth/unlock
+// Unlocks a session locked due to inactivity
+const unlockSchema = z.object({
+  email: z.string().email().optional(),
+  password: z.string().min(1),
+});
+
+authRouter.post("/unlock", async (req, res) => {
+  try {
+    const { email, password } = unlockSchema.parse(req.body);
+    let userEmail = email?.toLowerCase().trim();
+
+    if (!userEmail && req.headers.authorization) {
+      try {
+        const token = req.headers.authorization.replace("Bearer ", "");
+        const parts = token.split(".");
+        if (parts.length >= 2) {
+          const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+          userEmail = payload.email?.toLowerCase().trim();
+        }
+      } catch {}
+    }
+
+    if (!userEmail) {
+      return res.status(400).json({ error: "Email is required to unlock session." });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail },
+      include: {
+        profile: true,
+        roles: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "User account not found." });
+    }
+
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      return res.status(400).json({ error: "Incorrect password. Please try again." });
+    }
+
+    const roles = user.roles.map((r) => r.role);
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      tenantId: user.profile?.tenantId,
+      roles,
+    });
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        profile: user.profile,
+        roles,
+      },
+      roles,
+      message: "Session unlocked successfully!",
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to unlock session." });
   }
 });
 
@@ -666,7 +739,8 @@ authRouter.post("/2fa/setup-confirm", requireAuth, async (req: AuthRequest, res:
 // GET /api/auth/me
 authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let user = await prisma.user.findUnique({
+    const db = rawPrisma || prisma;
+    const user = await db.user.findUnique({
       where: { id: req.user!.userId },
       include: {
         profile: {
@@ -691,7 +765,7 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
     let allowedDashboards: string[] = [];
 
     if (tenantId) {
-      const tenantMods = await prisma.tenantModule.findMany({
+      const tenantMods = await db.tenantModule.findMany({
         where: { tenantId },
       });
       const disabledKeySet = new Set(
@@ -702,7 +776,7 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       const isSuper = roles.includes("super_admin");
 
       if (isSuper) {
-        const allPerms = await prisma.permission.findMany({ select: { code: true } });
+        const allPerms = await db.permission.findMany({ select: { code: true } });
         permissions = allPerms.map((p) => p.code);
         workspaceRole = {
           id: "super_admin_role",
@@ -713,7 +787,7 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
         };
         allowedDashboards = ERP_MODULES.map((m) => m.key);
       } else {
-        let assignment = await prisma.userRoleAssignment.findUnique({
+        let assignment = await db.userRoleAssignment.findUnique({
           where: {
             userId_tenantId: {
               userId: user!.id,
@@ -731,15 +805,22 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
           },
         });
 
-        if (!assignment && ((roles as string[]).includes("admin") || (roles as string[]).includes("workspace_admin"))) {
-          const adminRole = await prisma.workspaceRole.findUnique({
+        const isAdminUser =
+          (roles as string[]).includes("admin") ||
+          (roles as string[]).includes("workspace_admin") ||
+          (roles as string[]).includes("tenant_admin") ||
+          (roles as string[]).includes("hr_admin") ||
+          (roles as string[]).includes("Workspace Admin");
+
+        if (!assignment && isAdminUser) {
+          const adminRole = await db.workspaceRole.findUnique({
             where: { tenantId_name: { tenantId, name: "Workspace Admin" } },
             include: {
               permissions: { include: { permission: true } },
             },
           });
           if (adminRole) {
-            await prisma.userRoleAssignment.create({
+            await db.userRoleAssignment.create({
               data: {
                 userId: user!.id,
                 tenantId,
@@ -760,13 +841,13 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
           };
 
           if (assignment.role.name === "Workspace Admin") {
-            const allPerms = await prisma.permission.findMany({ select: { code: true } });
+            const allPerms = await db.permission.findMany({ select: { code: true } });
             permissions = allPerms.map((p) => p.code);
           } else {
             permissions = assignment.role.permissions.map((rp) => rp.permission.code);
           }
         } else {
-          const employeeRole = await prisma.workspaceRole.findUnique({
+          const employeeRole = await db.workspaceRole.findUnique({
             where: { tenantId_name: { tenantId, name: "Employee" } },
             include: {
               permissions: { include: { permission: true } },
@@ -806,7 +887,14 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       twoFactorEnabled: user!.twoFactorEnabled,
     });
   } catch (err: any) {
-    return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+    console.error("[/auth/me] Workspace initialization error:", err);
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0]?.message || "Validation failed" });
+    }
+    return res.status(err.status || 500).json({
+      error: "Workspace temporarily unavailable. Please retry or sign in again.",
+      code: "WORKSPACE_INIT_ERROR",
+    });
   }
 });
 

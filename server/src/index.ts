@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 import path from "path";
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../.env") }); // project root .env
+dotenv.config({ path: path.resolve(__dirname, "../.env") }); // server/.env (override)
+dotenv.config(); // cwd fallback
 
 import express from "express";
 import cors from "cors";
@@ -50,6 +51,11 @@ import { purchasesRouter } from "./routes/purchases.routes";
 import { adjustmentsRouter } from "./routes/adjustments.routes";
 import { paymentsRouter, razorpayWebhookHandler } from "./routes/payments.routes";
 import { docsRouter } from "./routes/docs.routes";
+import { returnsRouter } from "./routes/returns.routes";
+import { clientRouter } from "./routes/client.routes";
+import { awardsRouter } from "./routes/awards.routes";
+import { warningsRouter } from "./routes/warnings.routes";
+import { workflowsRouter } from "./routes/workflows.routes";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -102,6 +108,9 @@ app.use("/api/dashboard", dashboardRouter); // Aggregation endpoint — replaces
 app.use("/api/employees", employeesRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/leave", leaveRouter);
+app.use("/api/leaves", leaveRouter);
+app.use("/api/awards", awardsRouter);
+app.use("/api/warnings", warningsRouter);
 app.use("/api/payroll", payrollRouter);
 app.use("/api/invoices", invoicesRouter);
 app.use("/api/crm", crmRouter);
@@ -143,6 +152,9 @@ app.use("/api/purchases", purchasesRouter);
 app.use("/api/adjustments", adjustmentsRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/docs", docsRouter);
+app.use("/api/returns", returnsRouter);
+app.use("/api/client", clientRouter);
+app.use("/api/workflows", workflowsRouter);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

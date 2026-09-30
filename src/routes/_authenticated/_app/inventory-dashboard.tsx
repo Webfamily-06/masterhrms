@@ -120,9 +120,9 @@ export default function InventoryDashboardPage() {
         </div>
 
         {/* Top KPI Grid */}
-        <div className="grid grid-cols-1 xxl:grid-cols-12 lg:grid-cols-12 md:grid-cols-12 gap-3 mb-3 w-full">
+        <div className="grid grid-cols-1 xl:grid-cols-12 lg:grid-cols-12 md:grid-cols-12 gap-3 mb-3 w-full">
           {/* Card 1 & 2: Total Stock & Inventory Value */}
-          <div className="flex flex-col gap-3 xxl:col-span-3 lg:col-span-6 md:col-span-6 min-w-0">
+          <div className="flex flex-col gap-3 xl:col-span-3 lg:col-span-6 md:col-span-6 min-w-0">
             <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 relative overflow-hidden flex-1 shadow-2xs">
               <div className="flex items-start justify-between mb-2">
                 <div>
@@ -131,9 +131,6 @@ export default function InventoryDashboardPage() {
                     <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
                       {invLoading ? "..." : totalStock.toLocaleString("en-IN")}
                     </h2>
-                    <span className="text-[11px] font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 px-1.5 py-0.5 rounded">
-                      Live
-                    </span>
                   </div>
                 </div>
                 <div className="size-9 rounded-md bg-emerald-500 flex items-center justify-center shrink-0">
@@ -165,7 +162,7 @@ export default function InventoryDashboardPage() {
           </div>
 
           {/* Card 3: Category Distribution */}
-          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xxl:col-span-4 lg:col-span-6 md:col-span-6 min-w-0 shadow-2xs">
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-4 lg:col-span-6 md:col-span-6 min-w-0 shadow-2xs">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Category Distribution</h3>
               <Badge variant="outline" className="text-xs">
@@ -187,7 +184,7 @@ export default function InventoryDashboardPage() {
           </div>
 
           {/* Card 4: Product Stock Levels & Alerts */}
-          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xxl:col-span-5 lg:col-span-12 md:col-span-12 min-w-0 shadow-2xs">
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-5 lg:col-span-12 md:col-span-12 min-w-0 shadow-2xs">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Stock Health & Alerts</h3>
               <div className="flex items-center gap-2">

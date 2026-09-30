@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, formatInventoryError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,9 +169,13 @@ export default function TransfersPage() {
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["transfers-warehouse-summary"] });
       queryClient.invalidateQueries({ queryKey: ["products-for-transfer"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["product-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-inventory-products"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-inventory-metrics"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to create transfer");
+      toast.error(formatInventoryError(err, "Failed to create transfer"));
     },
   });
 
@@ -188,9 +192,13 @@ export default function TransfersPage() {
       queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["transfers-warehouse-summary"] });
       queryClient.invalidateQueries({ queryKey: ["products-for-transfer"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["product-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-inventory-products"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-inventory-metrics"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to update transfer status");
+      toast.error(formatInventoryError(err, "Failed to update transfer status"));
     },
   });
 
@@ -212,7 +220,8 @@ export default function TransfersPage() {
 
   const handleItemChange = (index: number, field: "productId" | "quantity", value: any) => {
     const next = [...transferItems];
-    next[index] = { ...next[index], [field]: value };
+    const parsedValue = field === "quantity" ? parseFloat(value) || 0 : value;
+    next[index] = { ...next[index], [field]: parsedValue };
     setTransferItems(next);
   };
 
@@ -492,8 +501,8 @@ export default function TransfersPage() {
                             {t.details?.length || 0} Products
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center font-semibold text-xs">
-                          {totalUnits}
+                        <TableCell className="text-center font-semibold text-xs font-mono">
+                          {Number(totalUnits).toFixed(3)}
                         </TableCell>
                         <TableCell>{getStatusBadge(t.status)}</TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
@@ -661,15 +670,16 @@ export default function TransfersPage() {
                         )}
                       </div>
 
-                      <div className="w-28 space-y-1">
+                      <div className="w-32 space-y-1">
                         <Input
                           type="number"
-                          min="1"
+                          step="0.001"
+                          min="0.001"
                           max={fromWarehouseId ? availableStock : undefined}
                           value={item.quantity}
-                          onChange={(e) => handleItemChange(idx, "quantity", parseInt(e.target.value) || 1)}
-                          className={`h-9 text-xs ${isStockInsufficient ? "border-rose-500 bg-rose-50/50" : ""}`}
-                          placeholder="Qty"
+                          onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
+                          className={`h-9 text-xs font-mono font-bold ${isStockInsufficient ? "border-rose-500 bg-rose-50/50" : ""}`}
+                          placeholder="0.000"
                         />
                         {isStockInsufficient && (
                           <span className="text-[10px] text-rose-600 flex items-center gap-0.5">
@@ -771,7 +781,7 @@ export default function TransfersPage() {
                         <TableRow key={item.id}>
                           <TableCell className="text-xs font-medium">{item.product?.name || item.productId}</TableCell>
                           <TableCell className="text-xs text-muted-foreground font-mono">{item.product?.sku || "—"}</TableCell>
-                          <TableCell className="text-xs text-right font-bold">{item.quantity}</TableCell>
+                          <TableCell className="text-xs text-right font-bold font-mono">{Number(item.quantity).toFixed(3)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

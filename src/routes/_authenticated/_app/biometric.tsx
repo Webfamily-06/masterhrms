@@ -758,7 +758,7 @@ export function BiometricPage() {
           </div>
 
           <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-mono gap-1">
-            <Activity className="size-3" /> Live Punch Stream (Auto-Refreshes)
+            <Activity className="size-3" /> Punch Activity Stream
           </Badge>
         </div>
 
@@ -1338,7 +1338,7 @@ export function BiometricPage() {
             <div className="p-3.5 rounded-xl border bg-emerald-500/5 border-emerald-500/20 space-y-2">
               <div className="flex items-center gap-2">
                 <Badge className="bg-emerald-600 text-white text-[10px] font-bold">How LAN 24/7 Sync Works</Badge>
-                <span className="font-bold text-foreground">Local TCP/IP ➔ Cloud Bridge Daemon</span>
+                <span className="font-bold text-foreground">Local TCP/IP &rarr; Cloud Bridge Daemon</span>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 If your biometric machine is connected to your local office Wi-Fi / Router (e.g. <code>10.10.10.222:4370</code>) and cannot reach the public internet directly, run our lightweight <strong>Local Sync Agent</strong> on any office computer. It listens to the machine on LAN 24/7 and automatically pushes every punch to your Cloud HRMS in real-time.

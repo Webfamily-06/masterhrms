@@ -199,7 +199,7 @@ export default function PublicStorefrontPage() {
           <div className="flex items-center gap-4">
             <span>Currency: <strong className="text-white font-mono">INR (₹)</strong></span>
             <span className="hidden sm:inline">•</span>
-            <span className="hidden sm:inline text-emerald-400 font-semibold">✨ Nationwide Free Express Shipping on B2B Orders</span>
+            <span className="hidden sm:inline text-emerald-400 font-semibold">Nationwide Free Express Shipping on B2B Orders</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">

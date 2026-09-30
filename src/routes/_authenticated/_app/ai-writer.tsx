@@ -210,7 +210,7 @@ export function AIWriterPage() {
   // Copy Handlers
   function copyFullText(text: string) {
     navigator.clipboard.writeText(text);
-    toast.success("✓ Full text copied to clipboard!");
+    toast.success("Full text copied to clipboard!");
   }
 
   function copySelectedText() {
@@ -219,7 +219,7 @@ export function AIWriterPage() {
       return toast.info("Please highlight/select text inside the preview box first.");
     }
     navigator.clipboard.writeText(selected);
-    toast.success("✓ Selected text copied to clipboard!");
+    toast.success("Selected text copied to clipboard!");
   }
 
   function downloadAsMarkdown(text: string, title: string) {
@@ -230,7 +230,7 @@ export function AIWriterPage() {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
-    toast.success("✓ Downloaded as Markdown (.md)");
+    toast.success("Downloaded as Markdown (.md)");
   }
 
   return (

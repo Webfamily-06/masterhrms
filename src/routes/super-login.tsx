@@ -397,6 +397,28 @@ function SuperLoginPage() {
                 </p>
               </div>
 
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-primary flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5" /> Root Administrator Access
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("admin@masterhrms.com");
+                      setPassword("admin123");
+                    }}
+                    className="text-[11px] font-bold text-primary underline hover:text-primary/80 cursor-pointer"
+                  >
+                    Fill Credentials
+                  </button>
+                </div>
+                <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground pt-0.5">
+                  <span>admin@masterhrms.com</span>
+                  <span>admin123</span>
+                </div>
+              </div>
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">Administrator Work Email</Label>

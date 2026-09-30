@@ -497,7 +497,7 @@ function RolesAdminStudio() {
                       </SelectItem>
                     ))}
                     <SelectItem value="unassigned" className="text-xs">
-                      ⚠️ No Roles Assigned
+                      No Roles Assigned
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -1056,7 +1056,7 @@ function AddUserDialog({
                 </SelectItem>
                 {tenants.map((t) => (
                   <SelectItem key={t.id} value={t.id} className="text-xs">
-                    🏢 {t.name} ({t.slug})
+                    {t.name} ({t.slug})
                   </SelectItem>
                 ))}
               </SelectContent>

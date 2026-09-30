@@ -1,10 +1,16 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { InventoryMovementService } from "../services/inventory-movement.service";
+import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
 
 export const productsRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all product catalog & inventory endpoints
+productsRouter.use(requireAuth, resolveTenantContext);
 
 // Helper to ensure default warehouse exists
 async function ensureDefaultWarehouse(tenantId: string) {
@@ -75,7 +81,7 @@ productsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => 
     ]);
 
     const formatted = products.map((p) => {
-      const totalStock = p.warehouseStocks.reduce((sum, ws) => sum + ws.quantity, 0);
+      const totalStock = p.warehouseStocks.reduce((sum, ws) => sum + Number(ws.quantity), 0);
       return {
         id: p.id,
         name: p.name,
@@ -168,13 +174,28 @@ productsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =>
       });
 
       const initialQty = Number(body.quantity || body.stock || 0);
-      await tx.productWarehouse.create({
-        data: {
+      if (initialQty > 0) {
+        await InventoryMovementService.increaseStock({
+          tenantId,
           productId: product.id,
           warehouseId: body.warehouseId || defaultWh.id,
           quantity: initialQty,
-        },
-      });
+          movementType: STOCK_MOVEMENT_TYPES.OPENING_STOCK,
+          referenceType: "PRODUCT",
+          referenceId: product.id,
+          createdById: (req.user as any)?.userId || (req.user as any)?.id,
+          notes: "Initial opening stock upon product creation",
+          tx,
+        });
+      } else {
+        await tx.productWarehouse.create({
+          data: {
+            productId: product.id,
+            warehouseId: body.warehouseId || defaultWh.id,
+            quantity: 0,
+          },
+        });
+      }
 
       return product;
     });
@@ -186,7 +207,7 @@ productsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =>
   }
 });
 
-// PUT /api/products/:id - Update product
+// PUT /api/products/:id - Update product (metadata, pricing, tax, category - stock updates cannot be overwritten directly)
 productsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
@@ -215,22 +236,6 @@ productsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) 
         image: body.image !== undefined ? body.image : existing.image,
       },
     });
-
-    if (body.quantity !== undefined || body.stock !== undefined) {
-      const defaultWh = await ensureDefaultWarehouse(tenantId);
-      const targetQty = Number(body.quantity !== undefined ? body.quantity : body.stock);
-      await prisma.productWarehouse.upsert({
-        where: {
-          productId_warehouseId: { productId: id, warehouseId: body.warehouseId || defaultWh.id },
-        },
-        update: { quantity: targetQty },
-        create: {
-          productId: id,
-          warehouseId: body.warehouseId || defaultWh.id,
-          quantity: targetQty,
-        },
-      });
-    }
 
     return res.json(updated);
   } catch (err: any) {
@@ -593,18 +598,71 @@ productsRouter.post("/stock/add", requireAuth, async (req: AuthRequest, res: Res
     if (!tenantId) return;
     const { productId, warehouseId, quantity } = req.body;
     if (!productId || !warehouseId) return res.status(400).json({ error: "productId and warehouseId are required" });
-    const qty = Number(quantity);
-    if (isNaN(qty) || qty <= 0) return res.status(400).json({ error: "Valid quantity is required" });
 
-    const whStock = await prisma.productWarehouse.upsert({
-      where: { productId_warehouseId: { productId, warehouseId } },
-      update: { quantity: { increment: qty } },
-      create: { productId, warehouseId, quantity: qty },
+    const movementResult = await InventoryMovementService.increaseStock({
+      tenantId,
+      productId,
+      warehouseId,
+      quantity,
+      movementType: STOCK_MOVEMENT_TYPES.OPENING_STOCK,
+      referenceType: "MANUAL_ADD",
+      createdById: (req.user as any)?.userId || (req.user as any)?.id,
+      notes: "Manual stock addition via products API",
     });
 
-    return res.json({ success: true, stock: whStock });
+    const whStock = await prisma.productWarehouse.findUnique({
+      where: { productId_warehouseId: { productId, warehouseId } },
+    });
+
+    return res.json({ success: true, stock: whStock, movement: movementResult });
   } catch (err: any) {
+    if (err.name === "InventoryDomainError" || err.statusCode) {
+      return res.status(err.statusCode || 400).json({ error: err.message, code: err.code });
+    }
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/products/:id/movements - Paginated stock movement ledger for a product
+productsRouter.get("/:id/movements", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+
+    const product = await prisma.product.findFirst({ where: { id, tenantId } });
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const pagination = parsePaginationParams(req, "createdAt", 30);
+    const warehouseId = req.query.warehouseId as string | undefined;
+
+    const where: any = { tenantId, productId: id };
+    if (warehouseId && warehouseId !== "all") {
+      where.warehouseId = warehouseId;
+    }
+
+    const [total, movements] = await Promise.all([
+      prisma.stockMovement.count({ where }),
+      prisma.stockMovement.findMany({
+        where,
+        include: {
+          warehouse: { select: { id: true, name: true, location: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+      }),
+    ]);
+
+    if (pagination.isPaginated) {
+      return res.json(formatPaginatedResponse(movements, total, pagination));
+    }
+
+    return res.json({ data: movements, total });
+  } catch (err: any) {
+    console.error("GET /api/products/:id/movements error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch stock movements" });
   }
 });
 

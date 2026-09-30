@@ -2,7 +2,7 @@
  * Backend API Client for Master HRMS (Node.js + Express + MySQL)
  */
 
-export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+export const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:4000/api";
 
 function getToken(): string | null {
   return localStorage.getItem("hrms_auth_token");
@@ -19,7 +19,47 @@ export function clearToken() {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message); }
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string,
+    public details?: any,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export function formatInventoryError(err: unknown, defaultMessage = "Inventory operation failed"): string {
+  if (err instanceof ApiError) {
+    if (err.status === 409 || err.code === "INSUFFICIENT_STOCK") {
+      const details = err.details;
+      if (details?.requested !== undefined && details?.available !== undefined) {
+        return `Insufficient stock! Requested: ${details.requested}, Available: ${details.available}`;
+      }
+      return err.message || "Insufficient stock for this operation.";
+    }
+    return err.message;
+  }
+
+  if (err && typeof err === "object") {
+    const anyErr = err as any;
+    const data = anyErr.response?.data || anyErr.data || anyErr;
+    if (data.status === 409 || data.code === "INSUFFICIENT_STOCK" || anyErr.status === 409) {
+      const details = data.details || anyErr.details;
+      if (details?.requested !== undefined && details?.available !== undefined) {
+        return `Insufficient stock! Requested: ${details.requested}, Available: ${details.available}`;
+      }
+      if (data.error) return data.error;
+    }
+    if (anyErr.message) return anyErr.message;
+    if (data.error) return data.error;
+  }
+
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return defaultMessage;
 }
 
 export async function apiRequest<T = any>(
@@ -80,7 +120,12 @@ export async function apiRequest<T = any>(
       }
     }
 
-    throw new ApiError(data.error || `Request failed with status ${response.status}`, response.status);
+    throw new ApiError(
+      data.error || `Request failed with status ${response.status}`,
+      response.status,
+      data.code,
+      data.details
+    );
   }
 
   return data as T;

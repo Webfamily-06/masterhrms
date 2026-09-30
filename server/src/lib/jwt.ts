@@ -8,6 +8,10 @@ export interface JwtPayload {
   email: string;
   tenantId?: string | null;
   roles: string[];
+  permissions?: string[];
+  isImpersonating?: boolean;
+  impersonatorUserId?: string;
+  impersonatorEmail?: string;
 }
 
 export interface MfaPendingPayload {

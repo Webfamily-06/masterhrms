@@ -594,7 +594,7 @@ function RecruitmentHub() {
                           <div className="pt-2 border-t flex items-center justify-between gap-1" onClick={(e) => e.stopPropagation()}>
                             {c.isConvertedToEmployee ? (
                               <Badge className="text-[9px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
-                                ✓ Staff Member
+                                Staff Member
                               </Badge>
                             ) : (
                               <Select
@@ -823,7 +823,7 @@ function RecruitmentHub() {
                         <TableCell>
                           {c.isConvertedToEmployee ? (
                             <Badge className="text-[9px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
-                              ✓ Converted to Staff
+                              Converted to Staff
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground text-[11px]">—</span>
@@ -1097,7 +1097,7 @@ function RecruitmentHub() {
                 </div>
                 {selectedCandidate.isConvertedToEmployee && (
                   <Badge className="text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
-                    ✓ Active Employee
+                    Active Employee
                   </Badge>
                 )}
               </DialogTitle>
@@ -1307,7 +1307,7 @@ function RecruitmentHub() {
                 </Button>
               ) : (
                 <Badge className="text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 mr-auto">
-                  ✓ Converted to Employee
+                  Converted to Employee
                 </Badge>
               )}
 

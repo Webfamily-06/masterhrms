@@ -132,7 +132,7 @@ export function AssetManagementPage() {
 
   const [categoryForm, setCategoryForm] = useState({
     name: "",
-    icon: "💻",
+    icon: "laptop",
     prefix: "AST",
     description: "",
   });
@@ -985,7 +985,7 @@ export function AssetManagementPage() {
                 <div key={cat.id} className="p-3.5 rounded-xl border bg-muted/20 space-y-2 flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">{cat.icon || "💻"}</span>
+                      <span className="text-xl">{cat.icon || ""}</span>
                       <div>
                         <span className="font-bold text-xs text-foreground block">{cat.name}</span>
                         <Badge variant="outline" className="text-[9px] font-mono border-primary/30 text-primary">
@@ -1571,7 +1571,7 @@ export function AssetManagementPage() {
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Emoji / Icon</Label>
               <Input
-                placeholder="🪑"
+                placeholder="chair"
                 value={categoryForm.icon}
                 onChange={(e) => setCategoryForm({ ...categoryForm, icon: e.target.value })}
                 className="h-8 text-xs"

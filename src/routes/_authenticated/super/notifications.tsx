@@ -38,7 +38,7 @@ const DEFAULT_NOTIFICATIONS: NotificationTemplate[] = [
     id: "n-2",
     trigger_event: "Payroll Released",
     channel: "push",
-    title_template: "Salary Processed 💸",
+    title_template: "Salary Processed",
     body_template: "Your salary for {{month}} has been deposited to your bank account.",
     enabled: true,
   },

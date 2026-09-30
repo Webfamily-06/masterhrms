@@ -520,7 +520,7 @@ function BiometricSyncPage() {
 
       setQuickRegModalPunch(null);
       toast.success(
-        `🎉 ${payload.firstName} ${payload.lastName} registered as Employee (${payload.employeeCode}) & Attendance Synced to MySQL!`,
+        `${payload.firstName} ${payload.lastName} registered as Employee (${payload.employeeCode}) & Attendance Synced to MySQL!`,
       );
     } catch (err: any) {
       toast.error(`Registration failed: ${err.message}`);
@@ -537,7 +537,7 @@ function BiometricSyncPage() {
     try {
       const res = await api.post(`/biometric/devices/${device.id}/ping`);
       if (res?.online) {
-        toast.success(`🟢 Device Online! Latency: ${res.latencyMs || 12}ms`);
+        toast.success(`Device Online! Latency: ${res.latencyMs || 12}ms`);
       } else {
         toast.warning(res?.message || `Device is currently offline or unreachable on local network.`);
       }
@@ -546,10 +546,10 @@ function BiometricSyncPage() {
       const localResult = await pingBiometricDevice(device.ip, device.port);
       if (localResult.success) {
         toast.success(
-          `🟢 Hardware Reachable on WiFi LAN at ${device.ip}:${device.port} (${localResult.latencyMs}ms latency).`,
+          `Hardware Reachable on WiFi LAN at ${device.ip}:${device.port} (${localResult.latencyMs}ms latency).`,
         );
       } else {
-        toast.error(`❌ Connection Failed: ${localResult.error || err.message}`);
+        toast.error(`Connection Failed: ${localResult.error || err.message}`);
       }
     } finally {
       setTestingPingId(null);
@@ -580,7 +580,7 @@ function BiometricSyncPage() {
           `Local WiFi probe succeeded (${pingResult.latencyMs}ms). Queued ADMS command for cloud push.`,
         );
       } else {
-        toast.error(`❌ Sync Failed: ${err.message || "Hardware terminal unreachable."}`);
+        toast.error(`Sync Failed: ${err.message || "Hardware terminal unreachable."}`);
       }
     } finally {
       setSyncingDeviceId(null);
@@ -675,7 +675,7 @@ function BiometricSyncPage() {
     setActiveTab("punches");
 
     toast.success(
-      `✅ Ingested ${importedCount} punch records from "${importFileName}" into MySQL Attendance!`,
+      `Ingested ${importedCount} punch records from "${importFileName}" into MySQL Attendance!`,
     );
   }
 

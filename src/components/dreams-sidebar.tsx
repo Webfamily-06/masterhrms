@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import type { ProfileWithRoles } from "@/lib/session";
 import { isModuleAllowed, isWorkspaceAdminUser } from "@/lib/permissions";
+import { useTenantBranding } from "@/lib/useTenantBranding";
 import { cn } from "@/lib/utils";
 
 interface DreamsSidebarProps {
@@ -23,6 +24,7 @@ export function DreamsSidebar({
   fullView = false,
   onToggleFullView,
 }: DreamsSidebarProps) {
+  const { branding } = useTenantBranding();
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const [isHovered, setIsHovered] = useState(false);
   const [ignoreHover, setIgnoreHover] = useState(false);
@@ -39,6 +41,7 @@ export function DreamsSidebar({
   // Submenu toggle states
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     dashboards: true,
+    aiCenter: true,
     hrm: true,
     apps: false,
     inventory: false,
@@ -55,7 +58,14 @@ export function DreamsSidebar({
     }));
   };
 
-  const isSuperAdmin = profile?.roles?.includes("super_admin");
+  const userRoles = profile?.roles || [];
+  const isSuperAdmin = userRoles.includes("super_admin");
+  const isAdminOrSuper = userRoles.some((r) =>
+    ["admin", "super_admin", "tenant_admin", "hr_admin", "manager"].includes(r)
+  );
+  const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
+  const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
+  const homeRoute = isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
 
   return (
     <aside
@@ -80,63 +90,55 @@ export function DreamsSidebar({
         {isMini ? (
           /* Mini Mode Centered Favicon */
           <Link
-            to="/dashboard"
+            to={homeRoute}
             className="flex items-center justify-center size-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Master HRMS & ERP"
+            title={branding.name || "Master HRMS & ERP"}
           >
             <img
-              src="/favicon.webp"
-              alt="Master HRMS"
+              src={branding.faviconUrl || "/favicon.webp"}
+              alt={branding.name || "Master HRMS"}
               className="size-7 object-contain"
-             loading="lazy"/>
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "/favicon.webp";
+              }}
+              loading="lazy"
+            />
           </Link>
         ) : (
           <>
             {/* Full Brand Logo */}
             <Link
-              to="/dashboard"
+              to={homeRoute}
               className="brand-logo logo flex items-center gap-2 flex-1 min-w-0 overflow-hidden"
               onClick={onCloseMobile}
             >
               <img
-                src="/logo.webp"
-                alt="Master HRMS & ERP"
+                src={branding.logoUrl || "/logo.webp"}
+                alt={branding.name || "Master HRMS & ERP"}
                 className="h-8 max-h-8 w-auto object-contain dark:brightness-110"
-               loading="lazy"/>
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/logo.webp";
+                }}
+                loading="lazy"
+              />
             </Link>
 
-            {/* Desktop Pin / Hover Mode Switch Button */}
+            {/* Desktop Collapse / Expand Button */}
             <button
               type="button"
               id="toggle_btn"
               onClick={handleToggleCollapse}
               className={cn(
-                "hidden lg:flex items-center justify-center size-8 rounded-lg border transition-all cursor-pointer shadow-xs",
+                "hidden lg:flex items-center justify-center size-7 rounded-md border transition-all cursor-pointer shadow-xs",
                 collapsed
                   ? "bg-slate-100 dark:bg-slate-800 border-border-color text-muted-foreground hover:text-primary"
                   : "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
               )}
-              title={collapsed ? "Pin Sidebar (Fixed 250px)" : "Unpin Sidebar (Mini Hover Mode)"}
-              aria-label="Toggle Sidebar Pin Mode"
+              title={collapsed ? "Expand Sidebar (250px)" : "Collapse Sidebar (72px)"}
+              aria-label="Toggle Sidebar"
             >
-              <i className={cn("text-base ph-duotone", collapsed ? "ph-circle" : "ph-record")}></i>
+              <i className={cn("text-base ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
-
-            {/* Quick Full View Dashboard Toggle Button */}
-            {onToggleFullView && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFullView();
-                }}
-                className="hidden lg:flex items-center justify-center size-8 rounded-lg border border-border-color bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-xs"
-                title="Full View Dashboard (Hide Sidebar)"
-                aria-label="Full View Dashboard"
-              >
-                <i className="text-base ph-duotone ph-arrows-out-line-horizontal"></i>
-              </button>
-            )}
 
             {/* Mobile Close X Button */}
             <button
@@ -165,11 +167,254 @@ export function DreamsSidebar({
         }}
       >
         <div id="sidebar-menu" className="sidebar-menu">
-          <ul>
-            {/* ===================== MAIN ===================== */}
-            <li className="menu-title">
-              <span>MAIN</span>
-            </li>
+          {isClientOnly ? (
+            <ul>
+              <li className="menu-title">
+                <span>CLIENT PORTAL</span>
+              </li>
+              <li>
+                <Link
+                  to="/client-dashboard"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/client-dashboard" && "active")}
+                >
+                  <i className="ph-duotone ph-squares-four"></i>
+                  <span>Client Dashboard</span>
+                </Link>
+              </li>
+
+              <li className="menu-title">
+                <span>DELIVERABLES & BILLING</span>
+              </li>
+              <li>
+                <Link
+                  to="/invoices"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/invoices" && "active")}
+                >
+                  <i className="ph-duotone ph-receipt"></i>
+                  <span>Invoices & Receipts</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/projects"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/projects" && "active")}
+                >
+                  <i className="ph-duotone ph-kanban"></i>
+                  <span>Contracted Projects</span>
+                </Link>
+              </li>
+
+              <li className="menu-title">
+                <span>COMMUNICATIONS</span>
+              </li>
+              <li>
+                <Link
+                  to="/helpdesk"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/helpdesk" && "active")}
+                >
+                  <i className="ph-duotone ph-lifebuoy"></i>
+                  <span>Support Tickets</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/chat"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/chat" && "active")}
+                >
+                  <i className="ph-duotone ph-chat-circle-dots"></i>
+                  <span>Direct Messages</span>
+                </Link>
+              </li>
+            </ul>
+          ) : isEmployeeOnly ? (
+            <ul>
+              <li className="menu-title">
+                <span>EMPLOYEE WORKSPACE</span>
+              </li>
+              <li>
+                <Link
+                  to="/employee-dashboard"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/employee-dashboard" && "active")}
+                >
+                  <i className="ph-duotone ph-squares-four"></i>
+                  <span>My Dashboard</span>
+                </Link>
+              </li>
+
+              <li className="menu-title">
+                <span>TIME & ATTENDANCE</span>
+              </li>
+              <li>
+                <Link
+                  to="/attendance"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/attendance" && "active")}
+                >
+                  <i className="ph-duotone ph-clock"></i>
+                  <span>Attendance & Punch</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/attendance-employee"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/attendance-employee" && "active")}
+                >
+                  <i className="ph-duotone ph-calendar-dots"></i>
+                  <span>Monthly Attendance Matrix</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/leave"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/leave" && "active")}
+                >
+                  <i className="ph-duotone ph-calendar-blank"></i>
+                  <span>Leave Requests</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/shifts"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/shifts" && "active")}
+                >
+                  <i className="ph-duotone ph-calendar-check"></i>
+                  <span>My Shifts</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/shift-swap-requests"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/shift-swap-requests" && "active")}
+                >
+                  <i className="ph-duotone ph-arrows-left-right"></i>
+                  <span>Shift Swap Requests</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/tasks"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/tasks" && "active")}
+                >
+                  <i className="ph-duotone ph-kanban"></i>
+                  <span>My Tasks Board</span>
+                </Link>
+              </li>
+
+              <li className="menu-title">
+                <span>PAYROLL & CLAIMS</span>
+              </li>
+              <li>
+                <Link
+                  to="/payroll"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/payroll" && "active")}
+                >
+                  <i className="ph-duotone ph-money"></i>
+                  <span>My Payslips</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/expenses"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/expenses" && "active")}
+                >
+                  <i className="ph-duotone ph-receipt"></i>
+                  <span>Expense Claims</span>
+                </Link>
+              </li>
+
+              <li className="menu-title">
+                <span>WORK & COLLABORATION</span>
+              </li>
+              <li>
+                <Link
+                  to="/todo"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/todo" && "active")}
+                >
+                  <i className="ph-duotone ph-check-square"></i>
+                  <span>My Tasks</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/training"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/training" && "active")}
+                >
+                  <i className="ph-duotone ph-graduation-cap"></i>
+                  <span>Training & Learning</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/forms"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/forms" && "active")}
+                >
+                  <i className="ph-duotone ph-files"></i>
+                  <span>Company Forms</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/documents"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/documents" && "active")}
+                >
+                  <i className="ph-duotone ph-folder"></i>
+                  <span>My Documents</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/announcements"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/announcements" && "active")}
+                >
+                  <i className="ph-duotone ph-megaphone"></i>
+                  <span>Announcements</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/helpdesk"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/helpdesk" && "active")}
+                >
+                  <i className="ph-duotone ph-lifebuoy"></i>
+                  <span>Helpdesk Tickets</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/chat"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/chat" && "active")}
+                >
+                  <i className="ph-duotone ph-chat-circle-dots"></i>
+                  <span>Team Chat</span>
+                </Link>
+              </li>
+            </ul>
+          ) : (
+            <ul>
+              {/* ===================== MAIN ===================== */}
+              <li className="menu-title">
+                <span>MAIN</span>
+              </li>
 
             {/* Dashboards Submenu */}
             <li className="submenu">
@@ -223,6 +468,78 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/client-dashboard" && "active")}
                   >
                     Client Portal
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/deals-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/deals-dashboard" && "active")}
+                  >
+                    Deals Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/leads-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/leads-dashboard" && "active")}
+                  >
+                    Leads Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/payroll-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/payroll-dashboard" && "active")}
+                  >
+                    Payroll Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/recruitment-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/recruitment-dashboard" && "active")}
+                  >
+                    Recruitment Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/help-desk-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/help-desk-dashboard" && "active")}
+                  >
+                    Help Desk Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/asset-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/asset-dashboard" && "active")}
+                  >
+                    Asset Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/it-admin-dashboard"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/it-admin-dashboard" && "active")}
+                  >
+                    IT Admin Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/learning-analytics"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/learning-analytics" && "active")}
+                  >
+                    Learning Analytics
                   </Link>
                 </li>
                 {isModuleAllowed("pos", profile) && (<li>
@@ -300,6 +617,80 @@ export function DreamsSidebar({
               </ul>
             </li>
 
+            {/* HRMS AI Center Submenu */}
+            <li className="submenu">
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  toggleSubmenu("aiCenter");
+                }}
+                className={cn(
+                  "cursor-pointer",
+                  openMenus.aiCenter && "subdrop",
+                  [
+                    "/ai",
+                    "/ai-attendance-insights",
+                    "/ai-payroll-forecast",
+                    "/ai-team-performance-insights",
+                    "/ai-configuration",
+                    "/ai-settings"
+                  ].includes(currentPath) && "active"
+                )}
+              >
+                <i className="ph-duotone ph-sparkle text-purple-600"></i>
+                <span>AI Center</span>
+                <span className="menu-arrow"></span>
+              </a>
+              <ul style={{ display: !isMini && openMenus.aiCenter ? "block" : "none" }}>
+                <li>
+                  <Link
+                    to="/ai-attendance-insights"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/ai-attendance-insights" && "active")}
+                  >
+                    AI Attendance Insights
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/ai-payroll-forecast"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/ai-payroll-forecast" && "active")}
+                  >
+                    AI Payroll Forecast
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/ai-team-performance-insights"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/ai-team-performance-insights" && "active")}
+                  >
+                    AI Team Performance
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/ai-configuration"
+                    onClick={onCloseMobile}
+                    className={cn((currentPath === "/ai-configuration" || currentPath === "/ai-settings") && "active")}
+                  >
+                    AI Settings
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/ai"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/ai" && "active")}
+                  >
+                    AI Copilot & Hub
+                  </Link>
+                </li>
+              </ul>
+            </li>
+
             {/* Applications Submenu */}
             <li className="submenu">
               <a
@@ -363,6 +754,15 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/todo" && "active")}
                   >
                     Todo Action List
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/tasks"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/tasks" && "active")}
+                  >
+                    Personal Tasks Board
                   </Link>
                 </li>
                 <li>
@@ -489,6 +889,19 @@ export function DreamsSidebar({
             {/* ===================== SALES & BILLING ===================== */}
             <li className="menu-title">
               <span>SALES & BILLING</span>
+            </li>
+            <li>
+              <Link
+                to="/contacts"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/contacts" && "active")}
+              >
+                <i className="ph-duotone ph-identification-badge"></i>
+                <span>Contacts CRM</span>
+                <span className="badge badge-xs bg-emerald-500 text-white ml-auto font-bold px-1.5 py-0.5 rounded text-[10px]">
+                  CRM
+                </span>
+              </Link>
             </li>
             <li>
               <Link
@@ -643,6 +1056,24 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
+                    to="/shift-swap-requests"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/shift-swap-requests" && "active")}
+                  >
+                    Shift Swap Requests
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/attendance-employee"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/attendance-employee" && "active")}
+                  >
+                    Attendance Matrix
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     to="/biometric"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/biometric" && "active")}
@@ -656,7 +1087,7 @@ export function DreamsSidebar({
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/biometric-sync" && "active")}
                   >
-                    Live Device Agent
+                    Device Sync Agent
                   </Link>
                 </li>
               </ul>
@@ -729,6 +1160,8 @@ export function DreamsSidebar({
                     "/helpdesk",
                     "/documents",
                     "/announcements",
+                    "/awards",
+                    "/warnings",
                     "/offboarding",
                     "/forms",
                     "/workflows",
@@ -812,6 +1245,33 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/offboarding" && "active")}
                   >
                     Exit & Offboarding
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/notice-period-tracker"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/notice-period-tracker" && "active")}
+                  >
+                    Notice Period Tracker
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/awards"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/awards" && "active")}
+                  >
+                    Awards & Honors
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/warnings"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/warnings" && "active")}
+                  >
+                    Disciplinary Warnings
                   </Link>
                 </li>
               </ul>
@@ -953,15 +1413,27 @@ export function DreamsSidebar({
               </Link>
             </li>
 
-            {/* Developer Portal */}
+            {/* Developer Docs Portal */}
             <li>
               <Link
                 to="/docs"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/docs" && "active", "text-blue-600 dark:text-blue-400 font-medium")}
               >
-                <i className="ph-duotone ph-code"></i>
-                <span>Developer Docs & API</span>
+                <i className="ph-duotone ph-book-open"></i>
+                <span>Documentation Portal</span>
+              </Link>
+            </li>
+
+            {/* Developer Console & API Panel */}
+            <li>
+              <Link
+                to="/developer"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/developer" && "active", "text-indigo-600 dark:text-indigo-400 font-medium")}
+              >
+                <i className="ph-duotone ph-terminal-window"></i>
+                <span>Developer API Console</span>
               </Link>
             </li>
 
@@ -982,6 +1454,7 @@ export function DreamsSidebar({
               </li>
             )}
           </ul>
+          )}
         </div>
       </div>
     </aside>

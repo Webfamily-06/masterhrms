@@ -217,7 +217,7 @@ const DEFAULT_SETTINGS: SuperSettings = {
   maintenanceMode: false,
   maintenanceScheduled: false,
   maintenanceNoticeMessage:
-    "⚠️ SYSTEM NOTICE: Scheduled platform maintenance in progress. Please save your work.",
+    "SYSTEM NOTICE: Scheduled platform maintenance in progress. Please save your work.",
   maintenanceStartTime: "2026-07-28 02:00 AM UTC",
   maintenanceEndTime: "2026-07-28 04:00 AM UTC",
 

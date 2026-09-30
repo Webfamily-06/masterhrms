@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, formatInventoryError } from "@/lib/api";
 import { getSocketClient } from "@/lib/socket";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -298,28 +298,42 @@ function PosPage() {
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      toast.success("🌐 Network connection restored!");
+      toast.success("Network connection restored!");
       try {
         const stored = localStorage.getItem(`pos_offline_sales_${tenantId}`);
         const queue: PosSale[] = stored ? JSON.parse(stored) : [];
         if (queue.length > 0) {
           toast.info(`Syncing ${queue.length} offline sale(s) to server...`);
+          const failed: PosSale[] = [];
           for (const sale of queue) {
-            await api.post("/invoices/pos/sales", sale);
+            try {
+              await api.post("/invoices/pos/sales", sale);
+            } catch (err: any) {
+              failed.push(sale);
+              toast.error(`Offline sale sync error (${sale.receiptNo}): ${formatInventoryError(err)}`);
+            }
           }
-          localStorage.removeItem(`pos_offline_sales_${tenantId}`);
-          setOfflineQueue([]);
+          if (failed.length > 0) {
+            localStorage.setItem(`pos_offline_sales_${tenantId}`, JSON.stringify(failed));
+            setOfflineQueue(failed);
+            toast.warning(`${queue.length - failed.length} sale(s) synced, ${failed.length} held in queue due to errors.`);
+          } else {
+            localStorage.removeItem(`pos_offline_sales_${tenantId}`);
+            setOfflineQueue([]);
+            toast.success(`All ${queue.length} offline sale(s) synced to database!`);
+          }
           qc.invalidateQueries({ queryKey: ["pos-sales", tenantId] });
-          toast.success(`✓ All ${queue.length} offline sale(s) synced to database!`);
+          qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
+          qc.invalidateQueries({ queryKey: ["products"] });
         }
       } catch (err: any) {
-        toast.error("Offline sync partially failed: " + err.message);
+        toast.error("Offline sync error: " + (err.message || "Unknown error"));
       }
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      toast.warning("📡 Offline mode active. Sales will be safely cached locally.");
+      toast.warning("Offline mode active. Sales will be safely cached locally.");
     };
 
     window.addEventListener("online", handleOnline);
@@ -470,11 +484,17 @@ function PosPage() {
   const persistSales = useMutation({
     mutationFn: async (list: PosSale[]) => {
       if (list.length > 0) {
-        await api.post("/invoices/pos/sales", list[0]);
+        return await api.post("/invoices/pos/sales", list[0]);
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pos-sales", tenantId] }),
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pos-sales", tenantId] });
+      qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["catalog-items-v2"] });
+      qc.invalidateQueries({ queryKey: ["product-movements"] });
+    },
+    onError: (e: any) => toast.error(formatInventoryError(e, "POS checkout failed")),
   });
 
   const persistHeld = useMutation({
@@ -510,9 +530,9 @@ function PosPage() {
     if (product) {
       playScannerBeep();
       addToCart(product);
-      toast.success(`✓ [SCANNED] Added "${product.name}" to cart!`);
+      toast.success(`[SCANNED] Added "${product.name}" to cart!`);
     } else {
-      toast.error(`❌ No product found for Barcode/SKU: "${trimmed}"`);
+      toast.error(`No product found for Barcode/SKU: "${trimmed}"`);
     }
     setBarcodeInput("");
   }, [products]);
@@ -608,7 +628,7 @@ function PosPage() {
     return counts;
   }, [products]);
 
-  // ⚡ Real-time Inventory & Stock Synchronization across open POS counters
+  // Real-time Inventory & Stock Synchronization across open POS counters
   useEffect(() => {
     const socket = getSocketClient();
 
@@ -653,7 +673,7 @@ function PosPage() {
   const { igst, cgst, sgst, total } = computeTax(subtotal || 1, discountAmt, taxMode, cart.length ? cart : [{ price: 1, qty: 1, gst_rate: 18 } as any]);
   const realTax = cart.length ? computeTax(subtotal, discountAmt, taxMode, cart) : { igst: 0, cgst: 0, sgst: 0, total: 0 };
 
-  // ⚡ Real-time Dual-Screen Customer Display Cart Broadcast (Zero Latency BroadcastChannel + Socket.io)
+  // Real-time Dual-Screen Customer Display Cart Broadcast (Zero Latency BroadcastChannel + Socket.io)
   useEffect(() => {
     try {
       const channel = new BroadcastChannel("stocky_pos_display");
@@ -690,14 +710,30 @@ function PosPage() {
 
 
   function updateQty(id: string, delta: number) {
-    setCart((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
+    setCart((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const newQty = Math.max(0.001, Number((i.qty + delta).toFixed(3)));
+        return { ...i, qty: newQty };
+      })
+    );
+  }
+
+  function setDirectQty(id: string, qty: number) {
+    setCart((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const validQty = Math.max(0.001, Number(Number(qty).toFixed(3)));
+        return { ...i, qty: validQty };
+      })
+    );
   }
 
   function removeFromCart(id: string) {
     setCart((prev) => prev.filter((i) => i.id !== id));
   }
 
-  function handleCheckout() {
+  async function handleCheckout() {
     if (cart.length === 0) return toast.error("Cart is empty");
     const sale: PosSale = {
       id: `SALE-${Date.now()}`,
@@ -730,21 +766,26 @@ function PosPage() {
       setCustomerName("");
       setCustomerGstin("");
       setDiscountPct(0);
-      toast.warning(`📡 Offline: Sale of ${fmt(realTax.total, sysConfig?.currency)} stored in local cache!`);
+      toast.warning(`Offline: Sale of ${fmt(realTax.total, sysConfig?.currency)} stored in local cache!`);
     } else {
-      persistSales.mutate([sale, ...salesHistory]);
-      setLastReceipt(sale);
-      setIsReceiptOpen(true);
-      setCart([]);
-      setCustomerName("");
-      setCustomerGstin("");
-      setDiscountPct(0);
-      toast.success(`Sale of ${fmt(realTax.total, sysConfig?.currency)} recorded!`);
       try {
-        const ch = new BroadcastChannel("stocky_pos_display");
-        ch.postMessage({ type: "SALE_COMPLETED", receiptNo: sale.receiptNo });
-        ch.close();
-      } catch {}
+        await persistSales.mutateAsync([sale, ...salesHistory]);
+        setLastReceipt(sale);
+        setIsReceiptOpen(true);
+        setCart([]);
+        setCustomerName("");
+        setCustomerGstin("");
+        setDiscountPct(0);
+        toast.success(`Sale of ${fmt(realTax.total, sysConfig?.currency)} recorded!`);
+        try {
+          const ch = new BroadcastChannel("stocky_pos_display");
+          ch.postMessage({ type: "SALE_COMPLETED", receiptNo: sale.receiptNo });
+          ch.close();
+        } catch {}
+      } catch (err: any) {
+        // Error already surfaced by persistSales.onError with formatInventoryError.
+        // Cart and customer details are preserved so cashier can resolve the stock shortage.
+      }
     }
   }
 
@@ -1134,7 +1175,19 @@ function PosPage() {
                             >
                               <Minus className="size-3" />
                             </Button>
-                            <span className="text-xs font-bold w-6 text-center font-mono">{item.qty}</span>
+                            <input
+                              type="number"
+                              step="0.001"
+                              min="0.001"
+                              value={item.qty}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (!isNaN(val) && val > 0) {
+                                  setDirectQty(item.id, val);
+                                }
+                              }}
+                              className="text-xs font-bold w-12 text-center font-mono bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-orange-500 rounded px-0.5"
+                            />
                             <Button
                               size="icon"
                               variant="ghost"
@@ -1211,11 +1264,19 @@ function PosPage() {
                   {/* Pay Now Button */}
                   <Button
                     onClick={handleCheckout}
-                    disabled={cart.length === 0}
+                    disabled={cart.length === 0 || persistSales.isPending}
                     className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm rounded-2xl shadow-md gap-2"
                   >
-                    <Receipt className="size-4" />
-                    <span>Pay Now • {fmt(realTax.total, sysConfig?.currency)}</span>
+                    {persistSales.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Receipt className="size-4" />
+                    )}
+                    <span>
+                      {persistSales.isPending
+                        ? "Processing Sale..."
+                        : `Pay Now • ${fmt(realTax.total, sysConfig?.currency)}`}
+                    </span>
                   </Button>
 
                   {/* Park / Hold Order Actions */}

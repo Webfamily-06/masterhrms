@@ -1,11 +1,16 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { InventoryMovementService } from "../services/inventory-movement.service";
+import { InsufficientStockError } from "../services/inventory-movement.errors";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const transfersRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all stock transfer endpoints
+transfersRouter.use(requireAuth, resolveTenantContext);
 
 /**
  * GET /api/transfers
@@ -90,6 +95,10 @@ transfersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
       return res.status(400).json({ error: "Source and destination warehouses are required" });
     }
 
+    if (fromWarehouseId === toWarehouseId) {
+      return res.status(400).json({ error: "Source and destination warehouses cannot be the same" });
+    }
+
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "At least one product item is required" });
     }
@@ -105,6 +114,9 @@ transfersRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
     return res.status(201).json({ data: transfer, message: "Transfer request created successfully" });
   } catch (err: any) {
     console.error("Failed to create transfer:", err);
+    if (err instanceof InsufficientStockError || err.code === "INSUFFICIENT_STOCK" || err.message?.includes("Insufficient stock")) {
+      return res.status(409).json({ error: err.message, code: "INSUFFICIENT_STOCK" });
+    }
     return res.status(400).json({ error: err.message || "Transfer creation failed" });
   }
 });
@@ -136,6 +148,9 @@ transfersRouter.patch("/:id/status", requireAuth, async (req: AuthRequest, res: 
     return res.json({ data: updated, message: `Transfer marked as ${status}` });
   } catch (err: any) {
     console.error("Failed to update transfer status:", err);
+    if (err instanceof InsufficientStockError || err.code === "INSUFFICIENT_STOCK" || err.message?.includes("Insufficient stock")) {
+      return res.status(409).json({ error: err.message, code: "INSUFFICIENT_STOCK" });
+    }
     return res.status(400).json({ error: err.message || "Status transition failed" });
   }
 });

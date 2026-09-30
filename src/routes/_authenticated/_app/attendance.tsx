@@ -76,7 +76,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/_app/attendance")({
   component: AttendancePage,
-  head: () => ({ meta: [{ title: "Live Attendance & Biometric Logs — Master HRMS" }] }),
+  head: () => ({ meta: [{ title: "Attendance & Biometric Logs — Master HRMS" }] }),
 });
 
 function calcHours(checkIn: string | null, checkOut: string | null): number {
@@ -184,7 +184,7 @@ function AttendancePage() {
       }
     },
     onSuccess: () => {
-      toast.success("✅ Office Starting & Ending Hours updated successfully!");
+      toast.success("Office Starting & Ending Hours updated successfully!");
       setIsShiftModalOpen(false);
       qc.invalidateQueries({ queryKey: ["shifts-list"] });
       qc.invalidateQueries({ queryKey: ["attendance-table-records"] });
@@ -206,7 +206,7 @@ function AttendancePage() {
           address: "Office Perimeter (GPS Verified)",
         });
         setIsGettingGps(false);
-        toast.success(`📍 GPS Verified: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+        toast.success(`GPS Verified: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
       },
       () => {
         setIsGettingGps(false);
@@ -356,7 +356,7 @@ function AttendancePage() {
       });
     },
     onSuccess: () => {
-      toast.success("✅ Checked in successfully!");
+      toast.success("Checked in successfully!");
       qc.invalidateQueries({ queryKey: ["attendance-today"] });
       qc.invalidateQueries({ queryKey: ["attendance-table-records"] });
     },
@@ -700,7 +700,7 @@ function AttendancePage() {
                   title="Capture & Verify Office GPS Geofence"
                 >
                   <MapPin className={`size-3.5 ${isGettingGps ? "animate-bounce text-primary" : ""}`} />
-                  {gpsLocation ? "📍 Geofence Verified" : "Verify GPS"}
+                  {gpsLocation ? "Geofence Verified" : "Verify GPS"}
                 </Button>
 
                 <Button
@@ -1206,7 +1206,7 @@ function AttendancePage() {
                     <span>AI Detected Attendance Anomalies</span>
                   </CardTitle>
                   <Badge variant="outline" className="text-[10px] font-mono border-amber-500/30 text-amber-600 bg-amber-500/5">
-                    Live Scan
+                    Active
                   </Badge>
                 </div>
               </CardHeader>

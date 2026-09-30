@@ -127,7 +127,7 @@ export async function notifySaleCompleted(sale: {
   const isHighValue = sale.total >= alertConfig.slack.highValueThreshold;
   const msg = ` <b>POS SALE COMPLETED</b>: Receipt <code>#${sale.receiptNo}</code>
 Total: <b>₹${sale.total.toLocaleString("en-IN")}</b> | Mode: ${sale.paymentMode || "Cash"}
-Customer: ${sale.customer || "Walk-in"} | Cashier: ${sale.cashier || "Staff"}${isHighValue ? " 🚀 <b>[HIGH VALUE TRANSACTION]</b>" : ""}`;
+Customer: ${sale.customer || "Walk-in"} | Cashier: ${sale.cashier || "Staff"}${isHighValue ? " <b>[HIGH VALUE TRANSACTION]</b>" : ""}`;
 
   if (isHighValue || alertConfig.slack.enabled) {
     await dispatchSlackNotification(msg);

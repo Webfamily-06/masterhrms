@@ -15,7 +15,7 @@ import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { Toaster } from "@/components/ui/sonner";
-import { OfflineBanner, SessionExpiredModal } from "@/components/system-states";
+import { OfflineBanner, SessionExpiredModal, InactivityTracker } from "@/components/system-states";
 
 function NotFoundComponent() {
   return <NotFoundView />;
@@ -55,7 +55,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: "/ui-assets/libs/lucide-static/font/lucide.css" },
       { rel: "stylesheet", href: "/ui-assets/libs/@fortawesome/fontawesome-free/css/fontawesome.min.css" },
       { rel: "stylesheet", href: "/ui-assets/libs/@fortawesome/fontawesome-free/css/all.min.css" },
-      { rel: "stylesheet", href: "/ui-assets/css/style.css" }
+      { rel: "stylesheet", href: "/ui-assets/libs/@tabler/icons-webfont/tabler-icons.min.css" },
+      { rel: "stylesheet", href: "/ui-assets/css/style.css" },
     ],
   }),
   shellComponent: RootShell,
@@ -66,7 +67,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
         <HeadContent />
         {/* Synchronous 0ms Head Script to prevent color glitch & dark theme FOUC */}
@@ -79,7 +80,7 @@ function RootShell({ children }: { children: ReactNode }) {
                   if (theme === "dark" || (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
                     document.documentElement.classList.add("dark"); document.documentElement.setAttribute("data-theme", "dark");
                   } else {
-                    document.documentElement.classList.remove("dark"); document.documentElement.removeAttribute("data-theme");
+                    document.documentElement.classList.remove("dark"); document.documentElement.setAttribute("data-theme", "light");
                   }
                   var c = localStorage.getItem("master_hrms_primary_color");
                   if (c) document.documentElement.style.setProperty("--primary", c);
@@ -171,6 +172,7 @@ function RootComponent() {
       <PlatformFaviconSync />
       <OfflineBanner />
       <SessionExpiredModal />
+      <InactivityTracker />
       <Outlet />
       <Toaster richColors position="top-right" />
     </QueryClientProvider>

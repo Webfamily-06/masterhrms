@@ -60,10 +60,10 @@ type DriveFile = {
 };
 
 const FILE_ICONS: Record<DriveFile["type"], string> = {
-  folder: "📁",
-  document: "📄",
-  spreadsheet: "📊",
-  pdf: "📋",
+  folder: "Folder",
+  document: "Doc",
+  spreadsheet: "Sheet",
+  pdf: "PDF",
 };
 
 function GoogleWorkspacePage() {
@@ -455,7 +455,7 @@ function GoogleWorkspacePage() {
                     {driveFiles.map((f) => (
                       <tr key={f.id} className="border-t hover:bg-secondary/20 cursor-pointer">
                         <td className="p-2.5 font-semibold flex items-center gap-2">
-                          <span className="text-base">{FILE_ICONS[f.type] || "📄"}</span>
+                          <span className="text-xs uppercase font-mono px-1.5 py-0.5 rounded bg-muted border border-border">{FILE_ICONS[f.type] || "FILE"}</span>
                           <div>
                             <div>{f.name}</div>
                             {f.documentCode && (

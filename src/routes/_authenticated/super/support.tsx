@@ -223,11 +223,11 @@ export function SupportDeskAdmin() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="addon_upgrade">🚀 Addon Upgrade</SelectItem>
-              <SelectItem value="billing_invoices">💳 Billing & Invoices</SelectItem>
-              <SelectItem value="technical_api">🔌 Technical & API</SelectItem>
-              <SelectItem value="feature_request">💡 Feature Request</SelectItem>
-              <SelectItem value="general_support">💬 General Support</SelectItem>
+              <SelectItem value="addon_upgrade">Addon Upgrade</SelectItem>
+              <SelectItem value="billing_invoices">Billing & Invoices</SelectItem>
+              <SelectItem value="technical_api">Technical & API</SelectItem>
+              <SelectItem value="feature_request">Feature Request</SelectItem>
+              <SelectItem value="general_support">General Support</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -426,7 +426,7 @@ export function SupportDeskAdmin() {
                     </Button>
                   ) : (
                     <Badge className="bg-emerald-600 text-white text-[10px] font-bold gap-1">
-                      ✓ Module Active
+                      Module Active
                     </Badge>
                   )}
                 </div>

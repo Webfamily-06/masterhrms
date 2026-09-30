@@ -481,3 +481,16 @@ okrRouter.post("/reviews", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: err.message || "Failed to submit review." });
   }
 });
+
+/**
+ * -------------------------------------------------------------
+ * 4. OKR PERFORMANCE INDICATORS & APPRAISALS
+ * -------------------------------------------------------------
+ */
+okrRouter.get("/indicators", async (_req: AuthRequest, res: Response) => {
+  return res.json({ indicators: [] });
+});
+
+okrRouter.get("/appraisals", async (_req: AuthRequest, res: Response) => {
+  return res.json({ appraisals: [] });
+});

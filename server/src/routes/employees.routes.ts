@@ -3,9 +3,89 @@ import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 
 export const employeesRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all employee endpoints
+employeesRouter.use(requireAuth, resolveTenantContext);
+
+// ---------------------------------------------------------------------------
+// PII MASKING — WAVE 2 SECURITY ENFORCEMENT
+// Protects Aadhaar, PAN, Bank Account numbers from exposure to non-privileged
+// users. Only HR admins and payroll managers may see full statutory identifiers.
+// Compliant with: Aadhaar Act 2016, DPDP Act 2023, Income-tax Act Section 139A.
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true if the requesting user has elevated HR/Finance privileges that
+ * entitle them to view full statutory PII (Aadhaar, PAN, bank account).
+ */
+function callerHasStatutoryPIIAccess(req: AuthRequest): boolean {
+  if (!req.user) return false;
+  // Super admins always have full access
+  if (req.user.roles?.includes("super_admin")) return true;
+  // Workspace Admin and HR Admin have full access (Workspace Admin bypass is in requirePermission)
+  if (req.user.roles?.includes("admin") || req.user.roles?.includes("hr_admin") || req.user.roles?.includes("Workspace Admin")) return true;
+  // Explicit HR/payroll permission — granted to HR managers and finance roles
+  const hrPermissions = ["hrm.employees.manage", "hrm.payroll.manage"];
+  const userPerms: string[] = (req.user as any).permissions || [];
+  return hrPermissions.some((p) => userPerms.includes(p));
+}
+
+/**
+ * Masks a numeric-identifier string, keeping only the last `visible` characters.
+ * Example: maskNumeric("123456789012", 4) => "XXXXXXXX9012"
+ */
+function maskNumeric(value: string | null | undefined, visible = 4): string | null {
+  if (!value) return value ?? null;
+  const s = String(value);
+  if (s.length <= visible) return s; // too short to meaningfully mask
+  return "X".repeat(s.length - visible) + s.slice(-visible);
+}
+
+/**
+ * Masks an alphanumeric PAN, keeping last 4 alphanumeric characters visible.
+ * Example: maskPAN("ABCDE1234F") => "XXXXXX234F"
+ */
+function maskPAN(value: string | null | undefined): string | null {
+  if (!value) return value ?? null;
+  const s = String(value);
+  if (s.length <= 4) return s;
+  return "X".repeat(s.length - 4) + s.slice(-4);
+}
+
+/**
+ * Apply statutory PII masking to a single employee record if the caller is
+ * not entitled to view full sensitive identifiers.
+ */
+function applyPIIMask(employee: any, req: AuthRequest): any {
+  if (!employee) return employee;
+  if (callerHasStatutoryPIIAccess(req)) return employee; // no masking for privileged callers
+
+  // Check self-access: employee can view their own profile unmasked
+  const selfEmployeeId = (req.user as any)?.employeeId;
+  if (selfEmployeeId && selfEmployeeId === employee.id) return employee;
+
+  return {
+    ...employee,
+    aadhaar: maskNumeric(employee.aadhaar, 4),
+    pan: maskPAN(employee.pan),
+    bankAccount: maskNumeric(employee.bankAccount, 4),
+    // UAN and ESI are less sensitive but mask for consistency
+    uan: maskNumeric(employee.uan, 4),
+    esiNumber: maskNumeric(employee.esiNumber, 4),
+  };
+}
+
+/**
+ * Apply PII masking to an array of employee records.
+ */
+function applyPIIMaskList(employees: any[], req: AuthRequest): any[] {
+  if (callerHasStatutoryPIIAccess(req)) return employees;
+  return employees.map((emp) => applyPIIMask(emp, req));
+}
 
 function parseEmployeeStatus(status?: any): "active" | "on_leave" | "terminated" {
   if (!status) return "active";
@@ -93,12 +173,15 @@ employeesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
       }),
     ]);
 
+    // WAVE 2 — Apply PII masking based on caller privilege
+    const maskedEmployees = applyPIIMaskList(employees, req);
+
     if (pagination.isPaginated) {
-      return res.json(formatPaginatedResponse(employees, total, pagination));
+      return res.json(formatPaginatedResponse(maskedEmployees, total, pagination));
     }
 
     res.setHeader("X-Total-Count", String(total));
-    return res.json(employees);
+    return res.json(maskedEmployees);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
@@ -206,7 +289,7 @@ employeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create")
     });
 
     return created;
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     return res.status(201).json(employee);
   } catch (err: any) {
@@ -250,28 +333,111 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
       tdsEligible,
     } = req.body;
 
+    const tenantId = req.user?.tenantId;
+    const isSuperAdmin = req.user?.roles?.includes("super_admin");
+
     const existingEmp = await prisma.employee.findUnique({
       where: { id },
       include: { user: true },
     });
 
-    if (avatarUrl && existingEmp) {
-      if (existingEmp.userId) {
-        await prisma.profile.upsert({
-          where: { userId: existingEmp.userId },
-          create: {
-            userId: existingEmp.userId,
-            fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
-            email: email ? email.toLowerCase().trim() : existingEmp.email,
-            avatarUrl,
-            tenantId: existingEmp.tenantId,
+    if (!existingEmp || (!isSuperAdmin && tenantId && existingEmp.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Employee not found." });
+    }
+
+    // Resolve the new status being applied
+    const newStatus = status ? parseEmployeeStatus(status) : existingEmp.status;
+    const isReactivation = existingEmp.status === "terminated" && newStatus === "active";
+
+    // WAVE 2 — REACTIVATION CAPACITY ENFORCEMENT
+    // When reactivating a terminated employee, enforce subscription seat limits
+    // atomically using a pessimistic row lock on the tenant row.
+    if (isReactivation && tenantId) {
+      const employee = await prisma.$transaction(async (tx) => {
+        // This executes SELECT ... FOR UPDATE on the tenant row and checks maxEmployees
+        await lockWorkspaceCapacity(tx, tenantId, "employees", 1);
+
+        // Perform the avatar update inside the same transaction if required
+        if (avatarUrl && existingEmp.userId) {
+          await tx.profile.upsert({
+            where: { userId: existingEmp.userId },
+            create: {
+              userId: existingEmp.userId,
+              fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
+              email: email ? email.toLowerCase().trim() : existingEmp.email,
+              avatarUrl,
+              tenantId: existingEmp.tenantId,
+            },
+            update: {
+              avatarUrl,
+              fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
+            },
+          });
+        }
+
+        return tx.employee.update({
+          where: { id },
+          data: {
+            firstName,
+            lastName,
+            email: email ? email.toLowerCase().trim() : undefined,
+            phone,
+            position,
+            employeeCode,
+            departmentId: departmentId || null,
+            managerId: managerId || null,
+            employmentType: employmentType ? parseEmploymentType(employmentType) : undefined,
+            status: newStatus,
+            salary: salary !== undefined && salary !== "" && !isNaN(Number(salary)) ? Number(salary) : undefined,
+            joinedAt: joinedAt && !isNaN(Date.parse(joinedAt)) ? new Date(joinedAt) : undefined,
+            ...(pan !== undefined && { pan: pan ? String(pan).toUpperCase().trim() : null }),
+            ...(aadhaar !== undefined && { aadhaar: aadhaar ? String(aadhaar).trim() : null }),
+            ...(uan !== undefined && { uan: uan ? String(uan).trim() : null }),
+            ...(esiNumber !== undefined && { esiNumber: esiNumber ? String(esiNumber).trim() : null }),
+            ...(bankName !== undefined && { bankName: bankName ? String(bankName).trim() : null }),
+            ...(bankAccount !== undefined && { bankAccount: bankAccount ? String(bankAccount).trim() : null }),
+            ...(bankIfsc !== undefined && { bankIfsc: bankIfsc ? String(bankIfsc).toUpperCase().trim() : null }),
+            ...(bankBranch !== undefined && { bankBranch: bankBranch ? String(bankBranch).trim() : null }),
+            ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth && !isNaN(Date.parse(dateOfBirth)) ? new Date(dateOfBirth) : null }),
+            ...(gender !== undefined && { gender: gender ? String(gender).trim() : null }),
+            ...(taxRegime !== undefined && { taxRegime: taxRegime === "old" ? "old" : "new" }),
+            ...(state !== undefined && { state: state ? String(state).trim() : null }),
+            ...(pfEligible !== undefined && { pfEligible: Boolean(pfEligible) }),
+            ...(esiEligible !== undefined && { esiEligible: Boolean(esiEligible) }),
+            ...(ptEligible !== undefined && { ptEligible: Boolean(ptEligible) }),
+            ...(tdsEligible !== undefined && { tdsEligible: Boolean(tdsEligible) }),
           },
-          update: {
-            avatarUrl,
-            fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
+          include: {
+            department: true,
+            user: {
+              select: {
+                profile: {
+                  select: { avatarUrl: true },
+                },
+              },
+            },
           },
         });
-      }
+      }, { timeout: 30000, maxWait: 10000 });
+      return res.json(employee);
+    }
+
+    // --- Non-reactivation update path (no capacity check needed) ---
+    if (avatarUrl && existingEmp.userId) {
+      await prisma.profile.upsert({
+        where: { userId: existingEmp.userId },
+        create: {
+          userId: existingEmp.userId,
+          fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
+          email: email ? email.toLowerCase().trim() : existingEmp.email,
+          avatarUrl,
+          tenantId: existingEmp.tenantId,
+        },
+        update: {
+          avatarUrl,
+          fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
+        },
+      });
     }
 
     const employee = await prisma.employee.update({
@@ -286,7 +452,7 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
         departmentId: departmentId || null,
         managerId: managerId || null,
         employmentType: employmentType ? parseEmploymentType(employmentType) : undefined,
-        status: status ? parseEmployeeStatus(status) : undefined,
+        status: newStatus,
         salary: salary !== undefined && salary !== "" && !isNaN(Number(salary)) ? Number(salary) : undefined,
         joinedAt: joinedAt && !isNaN(Date.parse(joinedAt)) ? new Date(joinedAt) : undefined,
         ...(pan !== undefined && { pan: pan ? String(pan).toUpperCase().trim() : null }),
@@ -330,12 +496,17 @@ employeesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respon
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "Employee ID is required" });
 
-    // Verify employee exists
+    const tenantId = req.user?.tenantId;
+    const isSuperAdmin = req.user?.roles?.includes("super_admin");
+
+    // Verify employee exists and belongs to current tenant
     const employee = await prisma.employee.findUnique({
       where: { id },
-      select: { id: true, userId: true, firstName: true, lastName: true },
+      select: { id: true, userId: true, firstName: true, lastName: true, tenantId: true },
     });
-    if (!employee) return res.status(404).json({ error: "Employee not found" });
+    if (!employee || (!isSuperAdmin && tenantId && employee.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Employee not found" });
+    }
 
     await prisma.$transaction(async (tx) => {
       // 1. Attendance records
@@ -605,6 +776,41 @@ employeesRouter.delete("/departments/:id", requireAuth, async (req: AuthRequest,
   }
 });
 
+// GET /api/employees/:id (Fetch single employee record with tenant boundary)
+employeesRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    const isSuperAdmin = req.user?.roles?.includes("super_admin");
+
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: {
+        department: true,
+        manager: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+        user: {
+          select: {
+            profile: {
+              select: { avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!employee || (!isSuperAdmin && tenantId && employee.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Employee not found" });
+    }
+
+    // WAVE 2 — Apply PII masking based on caller privilege
+    return res.json(applyPIIMask(employee, req));
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+  }
+});
+
 // POST /api/employees/:id/reset-2fa (Tenant Admin resets 2FA for an employee)
 employeesRouter.post("/:id/reset-2fa", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -739,4 +945,147 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
     return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
   }
 });
+
+// POST /api/employees/bulk-import
+// Imports multiple employees in batch with auto department resolution & KYC ingestion
+employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = await getTenantId(req);
+    const rawList = Array.isArray(req.body) ? req.body : req.body.employees || req.body.data || [];
+
+    if (!Array.isArray(rawList) || rawList.length === 0) {
+      return res.status(400).json({ error: "An array of employee records is required in 'employees'." });
+    }
+
+    const importedEmployees: any[] = [];
+    const errors: Array<{ index: number; email?: string; error: string }> = [];
+    let skippedCount = 0;
+
+    // Cache departments to avoid repeated queries
+    const existingDepts = await prisma.department.findMany({ where: { tenantId } });
+    const deptMap = new Map<string, string>();
+    for (const d of existingDepts) {
+      deptMap.set(d.name.toLowerCase().trim(), d.id);
+    }
+
+    for (let i = 0; i < rawList.length; i++) {
+      const row = rawList[i];
+      const firstName = (row.firstName || row.first_name || "").trim();
+      const lastName = (row.lastName || row.last_name || "").trim();
+      const rawEmail = (row.email || "").trim().toLowerCase();
+
+      if (!firstName || !rawEmail) {
+        errors.push({ index: i, email: rawEmail, error: "First name and email are mandatory." });
+        continue;
+      }
+
+      // Check if employee already exists in this tenant
+      const existing = await prisma.employee.findFirst({
+        where: { tenantId, email: rawEmail },
+      });
+
+      if (existing) {
+        skippedCount++;
+        continue;
+      }
+
+      // Resolve department
+      let departmentId = row.departmentId || row.department_id || null;
+      const deptName = (row.department || row.departmentName || "").trim();
+      if (!departmentId && deptName) {
+        const lowerDept = deptName.toLowerCase();
+        if (deptMap.has(lowerDept)) {
+          departmentId = deptMap.get(lowerDept);
+        } else {
+          try {
+            const newDept = await prisma.department.create({
+              data: { tenantId, name: deptName },
+            });
+            deptMap.set(lowerDept, newDept.id);
+            departmentId = newDept.id;
+          } catch {}
+        }
+      }
+
+      try {
+        const created = await prisma.$transaction(async (tx) => {
+          let userId: string | undefined;
+          try {
+            userId = await provisionEmployeeUser(tx, {
+              tenantId,
+              email: rawEmail,
+              firstName,
+              lastName: lastName || "-",
+              phone: row.phone || null,
+              password: row.password || "Password@123",
+            });
+          } catch {}
+
+          const empCode = row.employeeCode || row.employee_code || `EMP-${Date.now().toString().slice(-4)}${i}`;
+
+          return await tx.employee.create({
+            data: {
+              tenantId,
+              userId: userId || null,
+              firstName,
+              lastName: lastName || "-",
+              email: rawEmail,
+              phone: row.phone || null,
+              position: row.position || row.designation || "Team Member",
+              employeeCode: empCode,
+              departmentId,
+              employmentType: parseEmploymentType(row.employmentType || row.employment_type),
+              status: parseEmployeeStatus(row.status),
+              salary: row.salary ? Number(row.salary) : null,
+              joinedAt: row.joinedAt ? new Date(row.joinedAt) : new Date(),
+              pan: row.pan ? String(row.pan).toUpperCase().trim() : null,
+              aadhaar: row.aadhaar ? String(row.aadhaar).trim() : null,
+              uan: row.uan ? String(row.uan).trim() : null,
+              esiNumber: row.esiNumber || row.esi_number ? String(row.esiNumber || row.esi_number).trim() : null,
+              bankName: row.bankName || row.bank_name || null,
+              bankAccount: row.bankAccount || row.bank_account || null,
+              bankIfsc: row.bankIfsc || row.bank_ifsc ? String(row.bankIfsc || row.bank_ifsc).toUpperCase().trim() : null,
+              bankBranch: row.bankBranch || row.bank_branch || null,
+              taxRegime: row.taxRegime === "old" ? "old" : "new",
+              state: row.state || "MH",
+            },
+            include: {
+              department: true,
+            },
+          });
+        });
+
+        importedEmployees.push(created);
+      } catch (insertErr: any) {
+        errors.push({ index: i, email: rawEmail, error: insertErr.message || "Failed to create employee" });
+      }
+    }
+
+    // Log bulk audit activity
+    try {
+      await prisma.auditLog.create({
+        data: {
+          tenantId,
+          userId: req.user?.userId || (req.user as any)?.id,
+          action: "EMPLOYEES_BULK_IMPORTED",
+          entity: "Employee",
+          details: `Bulk imported ${importedEmployees.length} employees (skipped: ${skippedCount}, errors: ${errors.length})`,
+        },
+      });
+    } catch {}
+
+    return res.json({
+      success: true,
+      total: rawList.length,
+      imported: importedEmployees.length,
+      skipped: skippedCount,
+      failed: errors.length,
+      employees: importedEmployees,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Internal server error during bulk import" });
+  }
+});
+
 

@@ -78,7 +78,7 @@ export function useRealtimeSocket() {
     }
 
     function onNewPunch(punch: any) {
-      toast.info(`⚡ Live Attendance: ${punch.employeeName} clocked ${punch.type === "check_in" ? "IN" : "OUT"} at ${punch.time}`);
+      toast.info(`Live Attendance: ${punch.employeeName} clocked ${punch.type === "check_in" ? "IN" : "OUT"} at ${punch.time}`);
       qc.invalidateQueries({ queryKey: ["realtime-tenant-dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["attendance-records"] });
     }

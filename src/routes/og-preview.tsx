@@ -315,7 +315,7 @@ function OgPreviewPage() {
 
                   {errorType === "no_og_data" && (
                     <p className="text-xs text-muted-foreground pt-2">
-                      💡 <strong>Tip for Developers:</strong> Add{" "}
+                      <strong>Tip for Developers:</strong> Add{" "}
                       <code>&lt;meta property="og:title" content="..."&gt;</code> and{" "}
                       <code>&lt;meta property="og:image" content="..."&gt;</code> to your HTML{" "}
                       <code>&lt;head&gt;</code> section.

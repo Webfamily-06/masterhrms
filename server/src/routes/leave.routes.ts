@@ -1,11 +1,15 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { broadcastToTenant } from "../socket";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const leaveRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all leave endpoints
+leaveRouter.use(requireAuth, resolveTenantContext);
 
 // GET /api/leave/types
 leaveRouter.get("/types", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -116,8 +120,8 @@ leaveRouter.get("/balances", requireAuth, async (req: AuthRequest, res: Response
   }
 });
 
-// GET /api/leave/requests (Stocky Rule 0: Universal Query Contract)
-leaveRouter.get("/requests", requireAuth, async (req: AuthRequest, res: Response) => {
+// GET /api/leave/requests and /api/leave (Stocky Rule 0: Universal Query Contract)
+const handleGetLeaveRequests = async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -173,10 +177,13 @@ leaveRouter.get("/requests", requireAuth, async (req: AuthRequest, res: Response
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
-});
+};
 
-// POST /api/leave/requests (with strict quota enforcement)
-leaveRouter.post("/requests", requireAuth, async (req: AuthRequest, res: Response) => {
+leaveRouter.get("/requests", requireAuth, handleGetLeaveRequests);
+leaveRouter.get("/", requireAuth, handleGetLeaveRequests);
+
+// POST /api/leave/requests and /api/leave (with strict quota enforcement)
+const handleCreateLeaveRequest = async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -272,19 +279,22 @@ leaveRouter.post("/requests", requireAuth, async (req: AuthRequest, res: Respons
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
-});
+};
 
-// PATCH /api/leave/requests/:id/status (with auto-attendance synchronization on approval)
-leaveRouter.patch("/requests/:id/status", requireAuth, async (req: AuthRequest, res: Response) => {
+leaveRouter.post("/requests", requireAuth, handleCreateLeaveRequest);
+leaveRouter.post("/", requireAuth, handleCreateLeaveRequest);
+
+// Handler function for updating leave request status & attendance synchronization
+async function handleLeaveStatusUpdate(req: AuthRequest, res: Response) {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, rejectReason } = req.body;
 
-    if (!["approved", "rejected", "pending"].includes(status)) {
-      return res.status(400).json({ error: "Invalid status" });
+    if (!["approved", "rejected", "pending", "cancelled"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status. Must be approved, rejected, pending, or cancelled." });
     }
 
     const existing = await prisma.leaveRequest.findFirst({
@@ -338,6 +348,23 @@ leaveRouter.patch("/requests/:id/status", requireAuth, async (req: AuthRequest, 
         });
         cur.setDate(cur.getDate() + 1);
       }
+    } else if (status === "cancelled" && existing.status === "approved") {
+      // Revert attendance records previously set to on_leave
+      const cur = new Date(existing.startDate);
+      const end = new Date(existing.endDate);
+
+      while (cur <= end) {
+        const dayDate = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate());
+        await prisma.attendance.deleteMany({
+          where: {
+            tenantId,
+            employeeId: existing.employeeId,
+            date: dayDate,
+            status: "on_leave",
+          },
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
     }
 
     broadcastToTenant(tenantId, "leave:updated", request);
@@ -352,7 +379,84 @@ leaveRouter.patch("/requests/:id/status", requireAuth, async (req: AuthRequest, 
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
-});
+}
+
+// PATCH /api/leave/requests/:id/status
+leaveRouter.patch("/requests/:id/status", requireAuth, handleLeaveStatusUpdate);
+
+// PATCH & PUT /api/leave/requests/:id
+leaveRouter.patch("/requests/:id", requireAuth, handleLeaveStatusUpdate);
+leaveRouter.put("/requests/:id", requireAuth, handleLeaveStatusUpdate);
+
+// POST & PUT /api/leave/requests/:id/cancel (Self-service cancellation for employees or HR)
+const handleLeaveCancellation = async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { id } = req.params;
+
+    const existing = await prisma.leaveRequest.findFirst({
+      where: { id, tenantId },
+      include: { employee: true, leaveType: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Leave request not found." });
+    }
+
+    if ((existing.status as string) === "cancelled") {
+      return res.status(400).json({ error: "Leave request is already cancelled." });
+    }
+
+    const request = await prisma.leaveRequest.update({
+      where: { id },
+      data: {
+        status: "cancelled" as any,
+      },
+      include: {
+        employee: true,
+        leaveType: true,
+      },
+    });
+
+    if (existing.status === "approved") {
+      const cur = new Date(existing.startDate);
+      const end = new Date(existing.endDate);
+
+      while (cur <= end) {
+        const dayDate = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate());
+        await prisma.attendance.deleteMany({
+          where: {
+            tenantId,
+            employeeId: existing.employeeId,
+            date: dayDate,
+            status: "on_leave",
+          },
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    broadcastToTenant(tenantId, "leave:updated", request);
+    broadcastToTenant(tenantId, "notification:new", {
+      title: "Leave Request Cancelled",
+      description: `Leave request for ${(request as any).employee?.firstName || "Employee"} was cancelled.`,
+      type: "leave",
+      timestamp: new Date().toISOString(),
+    });
+
+    return res.json(request);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to cancel leave request." });
+  }
+};
+
+leaveRouter.post("/requests/:id/cancel", requireAuth, handleLeaveCancellation);
+leaveRouter.put("/requests/:id/cancel", requireAuth, handleLeaveCancellation);
+leaveRouter.post("/:id/cancel", requireAuth, handleLeaveCancellation);
+leaveRouter.put("/:id/cancel", requireAuth, handleLeaveCancellation);
+
 
 // POST /api/leave/types
 leaveRouter.post("/types", requireAuth, async (req: AuthRequest, res: Response) => {

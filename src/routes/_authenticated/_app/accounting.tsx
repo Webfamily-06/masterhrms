@@ -24,6 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ChartOfAccountsTable } from "@/components/accounting/chart-of-accounts-table";
+import { BankAccountsManager } from "@/components/accounting/bank-accounts-manager";
+import { FinancialStatementsView } from "@/components/accounting/financial-statements-view";
 import {
   Landmark,
   Plus,
@@ -82,6 +85,7 @@ export function AccountingAppSuite() {
   const [trialBalanceSearch, setTrialBalanceSearch] = useState("");
   const [inventorySearch, setInventorySearch] = useState("");
   const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string | null>(null);
+  const canManagePeriods = Boolean((user as any)?.roles?.some((role: string) => ["admin", "super_admin", "Workspace Admin"].includes(role)));
 
   // Modals
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -142,6 +146,19 @@ export function AccountingAppSuite() {
         return [];
       }
     },
+  });
+
+  const { data: fiscalYears = [], isLoading: isFiscalYearsLoading } = useQuery({
+    queryKey: ["accounting-fiscal-years", tenantId],
+    queryFn: async () => {
+      const res = await api.get("/accounting/fiscal-years");
+      return Array.isArray(res?.data) ? res.data : [];
+    },
+  });
+  const periodStatusMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "close" | "reopen" }) => api.post(`/accounting/periods/${id}/${action}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["accounting-fiscal-years", tenantId] }); toast.success("Accounting period status updated"); },
+    onError: (err: any) => toast.error(err?.response?.data?.error || err.message || "Unable to update period"),
   });
 
   // 3. Fetch Journal Entries
@@ -230,7 +247,7 @@ export function AccountingAppSuite() {
       return await api.post("/accounting/transfers", payload);
     },
     onSuccess: () => {
-      toast.success("✓ Internal bank/cash transfer executed & posted to General Ledger!");
+      toast.success("Internal bank/cash transfer executed & posted to General Ledger!");
       setIsTransferModalOpen(false);
       setTransferForm({ fromAccount: "1020", toAccount: "1010", amount: "", reference: "", notes: "" });
       qc.invalidateQueries({ queryKey: ["accounting-accounts", tenantId] });
@@ -290,23 +307,6 @@ export function AccountingAppSuite() {
   const totalCredit = journalForm.items.reduce((sum, i) => sum + (parseFloat(i.credit) || 0), 0);
   const isJournalBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
 
-  // Filtered Accounts
-  const filteredAccounts = accounts.filter((acc: any) => {
-    const matchType = accountFilter === "all" || acc.accountType === accountFilter;
-    const matchSearch =
-      acc.accountName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      acc.accountCode.includes(searchTerm);
-    return matchType && matchSearch;
-  });
-
-  // Filtered Trial Balance Accounts
-  const filteredTrialBalanceAccounts = (trialBalanceData?.accounts || []).filter((acc: any) => {
-    return (
-      acc.accountName.toLowerCase().includes(trialBalanceSearch.toLowerCase()) ||
-      acc.accountCode.toLowerCase().includes(trialBalanceSearch.toLowerCase())
-    );
-  });
-
   // Filtered Inventory Valuation Products
   const filteredValuationProducts = (inventoryValuationData?.products || []).filter((p: any) => {
     return (
@@ -315,29 +315,6 @@ export function AccountingAppSuite() {
       (p.category && p.category.toLowerCase().includes(inventorySearch.toLowerCase()))
     );
   });
-
-  // CSV Exporters
-  const exportTrialBalanceCSV = () => {
-    if (!trialBalanceData?.accounts?.length) return;
-    const headers = ["Account Code", "Account Name", "Type", "Category", "Debit", "Credit"];
-    const rows = trialBalanceData.accounts.map((a: any) => [
-      `"${a.accountCode}"`,
-      `"${a.accountName.replace(/"/g, '""')}"`,
-      `"${a.accountType}"`,
-      `"${a.category}"`,
-      Number(a.debit || 0).toFixed(2),
-      Number(a.credit || 0).toFixed(2),
-    ]);
-    const csv = [headers.join(","), ...rows.map((r: any[]) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Trial_Balance_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const exportValuationCSV = () => {
     if (!inventoryValuationData?.products?.length) return;
@@ -416,6 +393,9 @@ export function AccountingAppSuite() {
             </TabsTrigger>
             <TabsTrigger value="journals" className="text-xs gap-1.5 py-1.5">
               <Scale className="size-3.5" /> Journal Entries ({journalEntries.length})
+            </TabsTrigger>
+            <TabsTrigger value="periods" className="text-xs gap-1.5 py-1.5">
+              <Calendar className="size-3.5" /> Fiscal Periods
             </TabsTrigger>
             <TabsTrigger value="banking" className="text-xs gap-1.5 py-1.5">
               <CreditCard className="size-3.5" /> Banking & Transfers
@@ -560,118 +540,34 @@ export function AccountingAppSuite() {
             </div>
           </TabsContent>
 
+          <TabsContent value="periods" className="space-y-4">
+            <Card className="border shadow-xs">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-sm">Fiscal Years & Monthly Accounting Periods</CardTitle>
+                <CardDescription className="text-xs">Closed periods reject all new and backdated ledger postings.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 divide-y">
+                {isFiscalYearsLoading ? <p className="p-4 text-xs text-muted-foreground">Loading fiscal periods…</p> : fiscalYears.length === 0 ? <p className="p-4 text-xs text-muted-foreground">No fiscal year has been configured yet.</p> : fiscalYears.map((year: any) => (
+                  <div key={year.id} className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">{year.name}</p><p className="text-xs text-muted-foreground">{new Date(year.startDate).toLocaleDateString()} – {new Date(year.endDate).toLocaleDateString()}</p></div><Badge className={year.status === "closed" ? "bg-rose-600" : "bg-emerald-600"}>{year.status}</Badge></div>
+                    <div className="rounded-md border divide-y">{year.periods?.map((period: any) => <div key={period.id} className="flex items-center justify-between p-2.5 text-xs"><span>{period.name} · {new Date(period.startDate).toLocaleDateString()} – {new Date(period.endDate).toLocaleDateString()}</span><div className="flex items-center gap-2"><Badge variant="outline" className={period.status === "closed" ? "border-rose-300 text-rose-700" : "border-emerald-300 text-emerald-700"}>{period.status}</Badge>{canManagePeriods && <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={periodStatusMutation.isPending} onClick={() => periodStatusMutation.mutate({ id: period.id, action: period.status === "closed" ? "reopen" : "close" })}>{period.status === "closed" ? "Reopen" : "Close"}</Button>}</div></div>)}</div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* ========================================================= */}
           {/* TAB 2: CHART OF ACCOUNTS */}
           {/* ========================================================= */}
           <TabsContent value="accounts" className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search account code or name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 h-8 text-xs"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Select value={accountFilter} onValueChange={setAccountFilter}>
-                  <SelectTrigger className="h-8 text-xs w-36">
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="asset">Assets (1000–1999)</SelectItem>
-                    <SelectItem value="liability">Liabilities (2000–2999)</SelectItem>
-                    <SelectItem value="equity">Equity (3000–3999)</SelectItem>
-                    <SelectItem value="revenue">Revenue (4000–4999)</SelectItem>
-                    <SelectItem value="expense">Expenses (5000–6999)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Card className="border shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-muted/50 border-b text-[11px] font-bold text-muted-foreground uppercase">
-                    <tr>
-                      <th className="p-3">Code</th>
-                      <th className="p-3">Account Name</th>
-                      <th className="p-3">Classification</th>
-                      <th className="p-3">Category</th>
-                      <th className="p-3 text-right">Current Balance</th>
-                      <th className="p-3 text-center">Status</th>
-                      <th className="p-3 text-right">Statement</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {filteredAccounts.map((acc: any) => (
-                      <tr key={acc.id} className="hover:bg-muted/20">
-                        <td className="p-3 font-mono font-bold text-primary">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLedgerAccount(acc.id)}
-                            className="hover:underline text-left"
-                            title="View General Ledger Statement"
-                          >
-                            {acc.accountCode}
-                          </button>
-                        </td>
-                        <td className="p-3 font-semibold text-foreground">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLedgerAccount(acc.id)}
-                            className="hover:underline text-left"
-                            title="View General Ledger Statement"
-                          >
-                            {acc.accountName}
-                          </button>
-                        </td>
-                        <td className="p-3">
-                          <Badge
-                            variant="secondary"
-                            className={`text-[10px] capitalize font-semibold ${
-                              acc.accountType === "asset"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : acc.accountType === "liability"
-                                  ? "bg-rose-50 text-rose-700"
-                                  : acc.accountType === "revenue"
-                                    ? "bg-sky-50 text-sky-700"
-                                    : "bg-purple-50 text-purple-700"
-                            }`}
-                          >
-                            {acc.accountType}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-muted-foreground capitalize">
-                          {acc.category?.replace("_", " ") || "General"}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-foreground">
-                          {formatSystemAmount(acc.balance)}
-                        </td>
-                        <td className="p-3 text-center">
-                          <Badge className="text-[9px] bg-emerald-500 text-white font-bold py-0 h-4">
-                            Active
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedLedgerAccount(acc.id)}
-                            className="h-6 text-[10px] px-2 gap-1 text-primary hover:bg-primary/10 border-primary/20"
-                          >
-                            <FileText className="size-3" /> Ledger
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+            <ChartOfAccountsTable
+              accounts={accounts}
+              isLoading={isAccountsLoading}
+              onSelectLedgerAccount={setSelectedLedgerAccount}
+              onCreateAccount={async (data) => createAccountMutation.mutateAsync(data)}
+              isCreating={createAccountMutation.isPending}
+            />
           </TabsContent>
 
           {/* ========================================================= */}
@@ -746,141 +642,24 @@ export function AccountingAppSuite() {
           {/* TAB 4: BANKING & TRANSFERS */}
           {/* ========================================================= */}
           <TabsContent value="banking" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {accounts
-                .filter((a: any) => a.accountType === "asset" && (a.accountCode.startsWith("10") || a.category === "current_asset"))
-                .slice(0, 6)
-                .map((bankAcc: any) => (
-                  <Card key={bankAcc.id} className="border shadow-xs p-4 space-y-3 bg-gradient-to-br from-card to-secondary/30">
-                    <div className="flex items-center justify-between">
-                      <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold">
-                        {bankAcc.accountName} ({bankAcc.accountCode})
-                      </Badge>
-                      <Landmark className="size-4 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-xl font-black tracking-tight">
-                        {formatSystemAmount(bankAcc.balance)}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">{bankAcc.description || "Active Operating Vault"}</p>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground border-t pt-2 flex justify-between">
-                      <span>Code: {bankAcc.accountCode}</span>
-                      <span className="text-emerald-600 font-bold">✓ Active Balance</span>
-                    </div>
-                  </Card>
-                ))}
-            </div>
+            <BankAccountsManager
+              accounts={accounts}
+              isLoading={isAccountsLoading}
+              onExecuteTransfer={async (data) => transferMutation.mutateAsync(data as any)}
+              isTransferring={transferMutation.isPending}
+            />
           </TabsContent>
 
           {/* ========================================================= */}
           {/* TAB 5: BALANCE SHEET & PROFIT AND LOSS */}
           {/* ========================================================= */}
           <TabsContent value="statements" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Balance Sheet */}
-              <Card className="border shadow-xs">
-                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <Scale className="size-4 text-primary" /> Balance Sheet Statement
-                    </CardTitle>
-                    <CardDescription className="text-[10px]">
-                      Assets = Liabilities + Equity + Net Profit
-                    </CardDescription>
-                  </div>
-                  <Badge className="text-[9px] bg-emerald-500 text-white font-bold">
-                    BALANCED ✓
-                  </Badge>
-                </CardHeader>
-                <CardContent className="p-4 space-y-4 text-xs">
-                  <div>
-                    <h4 className="font-bold text-primary uppercase text-[11px] border-b pb-1 mb-2">
-                      Assets (₹{statementsData?.balanceSheet?.totalAssets?.toLocaleString() || "0"})
-                    </h4>
-                    <div className="space-y-1.5">
-                      {statementsData?.balanceSheet?.assets?.map((a: any) => (
-                        <div key={a.id} className="flex justify-between py-1 border-b border-border/30">
-                          <span>{a.accountName} ({a.accountCode})</span>
-                          <span className="font-mono font-bold">{formatSystemAmount(a.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold text-rose-600 uppercase text-[11px] border-b pb-1 mb-2">
-                      Liabilities & Equity (₹{statementsData?.balanceSheet?.balancedTotalLiabEquity?.toLocaleString() || "0"})
-                    </h4>
-                    <div className="space-y-1.5">
-                      {statementsData?.balanceSheet?.liabilities?.map((l: any) => (
-                        <div key={l.id} className="flex justify-between py-1 border-b border-border/30">
-                          <span>{l.accountName} ({l.accountCode})</span>
-                          <span className="font-mono font-bold">{formatSystemAmount(l.balance)}</span>
-                        </div>
-                      ))}
-                      <div className="flex justify-between py-1 border-b border-border/30 text-emerald-600 font-bold">
-                        <span>Retained Earnings / Net Profit</span>
-                        <span className="font-mono">{formatSystemAmount(statementsData?.balanceSheet?.netProfit || 0)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Profit & Loss (P&L) */}
-              <Card className="border shadow-xs">
-                <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
-                      <TrendingUp className="size-4 text-emerald-500" /> Profit & Loss Statement
-                    </CardTitle>
-                    <CardDescription className="text-[10px]">
-                      Revenue minus Operating Expenses
-                    </CardDescription>
-                  </div>
-                  <Badge className="text-[10px] bg-primary/10 text-primary font-bold">
-                    Margin: {statementsData?.profitAndLoss?.profitMarginPct || 0}%
-                  </Badge>
-                </CardHeader>
-                <CardContent className="p-4 space-y-4 text-xs">
-                  <div>
-                    <h4 className="font-bold text-emerald-600 uppercase text-[11px] border-b pb-1 mb-2">
-                      Operating Revenues (+{formatSystemAmount(statementsData?.profitAndLoss?.totalRevenue || 0)})
-                    </h4>
-                    <div className="space-y-1.5">
-                      {statementsData?.profitAndLoss?.revenue?.map((r: any) => (
-                        <div key={r.id} className="flex justify-between py-1 border-b border-border/30">
-                          <span>{r.accountName}</span>
-                          <span className="font-mono font-bold text-emerald-600">+{formatSystemAmount(r.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="font-bold text-rose-600 uppercase text-[11px] border-b pb-1 mb-2">
-                      Operating Expenses (-{formatSystemAmount(statementsData?.profitAndLoss?.totalExpenses || 0)})
-                    </h4>
-                    <div className="space-y-1.5">
-                      {statementsData?.profitAndLoss?.expenses?.map((e: any) => (
-                        <div key={e.id} className="flex justify-between py-1 border-b border-border/30">
-                          <span>{e.accountName}</span>
-                          <span className="font-mono font-bold text-rose-600">-{formatSystemAmount(e.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-secondary/50 rounded-xl flex items-center justify-between font-bold text-sm">
-                    <span>Net Operating Profit</span>
-                    <span className="font-mono text-emerald-600">
-                      {formatSystemAmount(statementsData?.profitAndLoss?.netProfit || 0)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <FinancialStatementsView
+              statementsData={statementsData}
+              trialBalanceData={trialBalanceData}
+              isLoading={isTrialBalanceLoading}
+              onSelectLedgerAccount={setSelectedLedgerAccount}
+            />
           </TabsContent>
 
           {/* ========================================================= */}
@@ -948,131 +727,12 @@ export function AccountingAppSuite() {
           {/* TAB: TRIAL BALANCE */}
           {/* ========================================================= */}
           <TabsContent value="trial-balance" className="space-y-4">
-            {/* Header Controls & Status Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border shadow-2xs">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold">Comprehensive Trial Balance</h3>
-                  {trialBalanceData?.isBalanced ? (
-                    <Badge className="bg-emerald-600 text-white font-bold text-xs py-0.5 px-2">
-                      ✓ BOOKS BALANCED (DR = CR)
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-rose-600 text-white font-bold text-xs py-0.5 px-2 flex items-center gap-1">
-                      <AlertCircle className="size-3" />
-                      UNBALANCED (Diff: {formatSystemAmount(trialBalanceData?.difference || 0)})
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  As of {trialBalanceData?.asOfDate || new Date().toISOString().split("T")[0]} • Strict double-entry debit & credit equation verification across all nominal, real, and personal ledger accounts.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="relative w-48 sm:w-60">
-                  <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search account..."
-                    value={trialBalanceSearch}
-                    onChange={(e) => setTrialBalanceSearch(e.target.value)}
-                    className="pl-8 h-8 text-xs"
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={exportTrialBalanceCSV}
-                  disabled={!trialBalanceData?.accounts?.length}
-                  className="h-8 text-xs font-semibold gap-1.5"
-                >
-                  <FileDown className="size-3.5" /> Export CSV
-                </Button>
-              </div>
-            </div>
-
-            {/* Trial Balance Table */}
-            <Card className="border shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-muted/50 border-b text-[11px] font-bold text-muted-foreground uppercase">
-                    <tr>
-                      <th className="p-3">Code</th>
-                      <th className="p-3">Account Title</th>
-                      <th className="p-3">Classification</th>
-                      <th className="p-3">Category</th>
-                      <th className="p-3 text-right">Debit (DR)</th>
-                      <th className="p-3 text-right">Credit (CR)</th>
-                      <th className="p-3 text-right">Ledger</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y font-mono">
-                    {filteredTrialBalanceAccounts.map((row: any) => (
-                      <tr key={row.id} className="hover:bg-muted/20 font-sans">
-                        <td className="p-3 font-mono font-bold text-primary">{row.accountCode}</td>
-                        <td className="p-3 font-semibold text-foreground">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLedgerAccount(row.id)}
-                            className="hover:underline text-left"
-                            title="View Ledger Statement"
-                          >
-                            {row.accountName}
-                          </button>
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="secondary" className="text-[10px] capitalize font-medium">
-                            {row.accountType}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-muted-foreground capitalize text-[11px]">
-                          {row.category?.replace("_", " ") || "General"}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-emerald-600">
-                          {row.debit > 0 ? formatSystemAmount(row.debit) : "—"}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-rose-600">
-                          {row.credit > 0 ? formatSystemAmount(row.credit) : "—"}
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setSelectedLedgerAccount(row.id)}
-                            className="h-6 text-[10px] px-2 gap-1 text-primary hover:bg-primary/10"
-                          >
-                            <FileText className="size-3" /> Ledger
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  {/* Totals Summary Footer */}
-                  <tfoot className="bg-muted/70 border-t-2 font-mono font-black text-xs">
-                    <tr>
-                      <td colSpan={4} className="p-3 text-right font-sans uppercase text-muted-foreground tracking-wide">
-                        Total Summation (Debit / Credit Equation)
-                      </td>
-                      <td className="p-3 text-right text-emerald-600 font-mono text-sm">
-                        {formatSystemAmount(trialBalanceData?.totalDebits || 0)}
-                      </td>
-                      <td className="p-3 text-right text-rose-600 font-mono text-sm">
-                        {formatSystemAmount(trialBalanceData?.totalCredits || 0)}
-                      </td>
-                      <td className="p-3 text-right font-sans">
-                        {trialBalanceData?.isBalanced ? (
-                          <span className="text-[10px] text-emerald-600 font-bold">✓ Net 0.00 Diff</span>
-                        ) : (
-                          <span className="text-[10px] text-rose-600 font-bold">
-                            Diff: {formatSystemAmount(trialBalanceData?.difference || 0)}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </Card>
+            <FinancialStatementsView
+              statementsData={statementsData}
+              trialBalanceData={trialBalanceData}
+              isLoading={isTrialBalanceLoading}
+              onSelectLedgerAccount={setSelectedLedgerAccount}
+            />
           </TabsContent>
 
           {/* ========================================================= */}

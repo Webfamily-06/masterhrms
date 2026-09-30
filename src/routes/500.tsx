@@ -4,9 +4,8 @@ import { ServerErrorView } from "@/components/error-pages/server-error-view";
 export const Route = createFileRoute("/500")({
   component: () => (
     <ServerErrorView
-      error={new Error("Simulated 500 Server Error: Application database connection pool interrupted.")}
-      customTitle="500 - Internal Server Error"
-      customMessage="Our server encountered an unexpected error or database interruption while processing your request."
+      customTitle="Oops, something went wrong"
+      customMessage="Server Error 500. We apologise and are fixing the problem. Please try again at a later stage"
     />
   ),
   head: () => ({

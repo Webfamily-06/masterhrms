@@ -114,13 +114,13 @@ export type CrmCompany = {
 };
 
 const STAGES: { id: CrmLead["stage"]; label: string; color: string; bg: string }[] = [
-  { id: "lead", label: "🔵 New Lead", color: "text-blue-600", bg: "bg-blue-500/10 border-blue-500/20" },
-  { id: "contacted", label: "🟡 Contacted", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/20" },
-  { id: "qualified", label: "🟢 Qualified", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  { id: "proposal", label: "🟠 Proposal", color: "text-orange-600", bg: "bg-orange-500/10 border-orange-500/20" },
-  { id: "negotiation", label: "🟣 Negotiation", color: "text-purple-600", bg: "bg-purple-500/10 border-purple-500/20" },
-  { id: "won", label: "🟢 Won", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/20" },
-  { id: "lost", label: "🔴 Lost", color: "text-red-600", bg: "bg-red-500/10 border-red-500/20" },
+  { id: "lead", label: "New Lead", color: "text-blue-600", bg: "bg-blue-500/10 border-blue-500/20" },
+  { id: "contacted", label: "Contacted", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/20" },
+  { id: "qualified", label: "Qualified", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/20" },
+  { id: "proposal", label: "Proposal", color: "text-orange-600", bg: "bg-orange-500/10 border-orange-500/20" },
+  { id: "negotiation", label: "Negotiation", color: "text-purple-600", bg: "bg-purple-500/10 border-purple-500/20" },
+  { id: "won", label: "Won", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/20" },
+  { id: "lost", label: "Lost", color: "text-red-600", bg: "bg-red-500/10 border-red-500/20" },
 ];
 
 const SOURCES = [
@@ -133,19 +133,6 @@ const SOURCES = [
   "Partner",
 ];
 
-const DEFAULT_CONTACTS: CrmContact[] = [
-  { id: "cnt-1", name: "Darlee Robertson", role: "Facility Manager", company: "Apex Global", email: "darlee@apex.example", phone: "+1 (555) 234-8901", location: "San Francisco, USA", rating: 4.8, status: "active" },
-  { id: "cnt-2", name: "Sharon Roy", role: "VP of Technology", company: "Nexus Dynamics", email: "sharon@nexus.example", phone: "+1 (555) 987-1234", location: "London, UK", rating: 4.5, status: "active" },
-  { id: "cnt-3", name: "Vaughan Lewis", role: "Chief Procurement Officer", company: "Vanguard Retail", email: "vaughan@vanguard.example", phone: "+91 98765 43210", location: "Bangalore, IN", rating: 4.9, status: "active" },
-  { id: "cnt-4", name: "Jessica Wheeler", role: "Operations Director", company: "Horizon Bio", email: "jessica@horizon.example", phone: "+65 6789 0123", location: "Singapore", rating: 4.2, status: "active" },
-];
-
-const DEFAULT_COMPANIES: CrmCompany[] = [
-  { id: "cmp-1", name: "Apex Global Enterprises", industry: "Enterprise SaaS & Cloud", employeesCount: "250-500", annualRevenue: 2400000, website: "https://apex.example", location: "California, USA", dealsCount: 3 },
-  { id: "cmp-2", name: "Nexus Dynamics Ltd", industry: "FinTech & Payments", employeesCount: "50-200", annualRevenue: 1500000, website: "https://nexus.example", location: "London, UK", dealsCount: 2 },
-  { id: "cmp-3", name: "Vanguard Retail Logistics", industry: "Retail & Supply Chain", employeesCount: "1000+", annualRevenue: 8500000, website: "https://vanguard.example", location: "Mumbai, India", dealsCount: 4 },
-  { id: "cmp-4", name: "Horizon Bio Labs", industry: "Healthcare & Life Sciences", employeesCount: "100-250", annualRevenue: 3200000, website: "https://horizon.example", location: "Singapore", dealsCount: 1 },
-];
 
 const EMPTY_LEAD: Omit<CrmLead, "id" | "createdAt"> = {
   name: "",
@@ -175,16 +162,6 @@ function CrmPage() {
   const [viewingLead, setViewingLead] = useState<CrmLead | null>(null);
   const [form, setForm] = useState<Omit<CrmLead, "id" | "createdAt">>(EMPTY_LEAD);
 
-  // Contacts & Companies state
-  const [contacts, setContacts] = useState<CrmContact[]>(() => {
-    const saved = localStorage.getItem(`hrms_crm_contacts_${tenantId}`);
-    return saved ? JSON.parse(saved) : DEFAULT_CONTACTS;
-  });
-  const [companies, setCompanies] = useState<CrmCompany[]>(() => {
-    const saved = localStorage.getItem(`hrms_crm_companies_${tenantId}`);
-    return saved ? JSON.parse(saved) : DEFAULT_COMPANIES;
-  });
-
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: "",
@@ -205,15 +182,33 @@ function CrmPage() {
     location: "",
   });
 
-  function saveContacts(newContacts: CrmContact[]) {
-    setContacts(newContacts);
-    localStorage.setItem(`hrms_crm_contacts_${tenantId}`, JSON.stringify(newContacts));
-  }
+  // Fetch contacts from DB
+  const { data: contacts = [] } = useQuery<CrmContact[]>({
+    queryKey: ["crm-contacts", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/crm/contacts");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!tenantId && tenantId !== "default",
+  });
 
-  function saveCompanies(newCompanies: CrmCompany[]) {
-    setCompanies(newCompanies);
-    localStorage.setItem(`hrms_crm_companies_${tenantId}`, JSON.stringify(newCompanies));
-  }
+  // Fetch companies from DB
+  const { data: companies = [] } = useQuery<CrmCompany[]>({
+    queryKey: ["crm-companies", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/crm/companies");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!tenantId && tenantId !== "default",
+  });
 
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ["crm-pipeline", tenantId],
@@ -332,43 +327,74 @@ function CrmPage() {
     }
   }
 
+  const contactMutation = useMutation({
+    mutationFn: async (data: typeof contactForm) => {
+      await api.post("/crm/contacts", { ...data, rating: 5.0, status: "active" });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crm-contacts", tenantId] });
+      setIsContactModalOpen(false);
+      setContactForm({ name: "", role: "", company: "", email: "", phone: "", location: "" });
+      toast.success("Contact added successfully.");
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to add contact"),
+  });
+
   function handleSaveContact() {
     if (!contactForm.name.trim() || !contactForm.email.trim()) {
       toast.error("Contact name and email are required");
       return;
     }
-    const newCnt: CrmContact = {
-      id: `cnt-${Date.now()}`,
-      ...contactForm,
-      rating: 5.0,
-      status: "active",
-    };
-    saveContacts([newCnt, ...contacts]);
-    setIsContactModalOpen(false);
-    setContactForm({ name: "", role: "", company: "", email: "", phone: "", location: "" });
-    toast.success("Contact added successfully.");
+    contactMutation.mutate(contactForm);
   }
+
+  const companyMutation = useMutation({
+    mutationFn: async (data: typeof companyForm) => {
+      await api.post("/crm/companies", {
+        name: data.name.trim(),
+        industry: data.industry.trim() || "Technology",
+        employeesCount: data.employeesCount,
+        annualRevenue: Number(data.annualRevenue) || 0,
+        website: data.website.trim(),
+        location: data.location.trim(),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crm-companies", tenantId] });
+      setIsCompanyModalOpen(false);
+      setCompanyForm({ name: "", industry: "", employeesCount: "50-200", annualRevenue: "500000", website: "", location: "" });
+      toast.success("Company organization added.");
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to add company"),
+  });
 
   function handleSaveCompany() {
     if (!companyForm.name.trim()) {
       toast.error("Company name is required");
       return;
     }
-    const newCmp: CrmCompany = {
-      id: `cmp-${Date.now()}`,
-      name: companyForm.name.trim(),
-      industry: companyForm.industry.trim() || "Technology",
-      employeesCount: companyForm.employeesCount,
-      annualRevenue: Number(companyForm.annualRevenue) || 0,
-      website: companyForm.website.trim(),
-      location: companyForm.location.trim(),
-      dealsCount: 0,
-    };
-    saveCompanies([newCmp, ...companies]);
-    setIsCompanyModalOpen(false);
-    setCompanyForm({ name: "", industry: "", employeesCount: "50-200", annualRevenue: "500000", website: "", location: "" });
-    toast.success("Company organization added.");
+    companyMutation.mutate(companyForm);
   }
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/crm/contacts/${id}`).catch(() => {});
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crm-contacts", tenantId] });
+      toast.success("Contact removed.");
+    },
+  });
+
+  const deleteCompanyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/crm/companies/${id}`).catch(() => {});
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crm-companies", tenantId] });
+      toast.success("Company removed.");
+    },
+  });
 
   return (
     <PlanGuard moduleName="CRM & Sales Pipeline" requiredPlan="starter">
@@ -658,8 +684,7 @@ function CrmPage() {
                               variant="ghost"
                               className="size-7 text-rose-500"
                               onClick={() => {
-                                saveContacts(contacts.filter((x) => x.id !== c.id));
-                                toast.success("Contact removed.");
+                                deleteContactMutation.mutate(c.id);
                               }}
                             >
                               <Trash2 className="size-3.5" />
@@ -716,8 +741,7 @@ function CrmPage() {
                             variant="ghost"
                             className="size-7 text-rose-500"
                             onClick={() => {
-                              saveCompanies(companies.filter((x) => x.id !== cmp.id));
-                              toast.success("Company removed.");
+                              deleteCompanyMutation.mutate(cmp.id);
                             }}
                           >
                             <Trash2 className="size-3.5" />

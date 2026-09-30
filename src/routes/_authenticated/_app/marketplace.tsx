@@ -476,7 +476,7 @@ function MarketplacePage() {
     } catch {}
 
     toast.success(
-      `🎉 Payment Verified via ${paymentDetails.method}! Addon "${addon.name}" is now active on your workspace!`,
+      `Payment Verified via ${paymentDetails.method}! Addon "${addon.name}" is now active on your workspace!`,
     );
     setSelectedAddonForPayment(null);
     setSelectedAddonForDetails(null);
@@ -798,7 +798,7 @@ function MarketplacePage() {
                     <div>
                       {installed ? (
                         <Badge className="bg-emerald-500 text-white font-bold">
-                          ✓ INSTALLED & ACTIVE
+                          INSTALLED & ACTIVE
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-muted-foreground font-mono">

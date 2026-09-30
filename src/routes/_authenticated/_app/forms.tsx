@@ -300,13 +300,12 @@ export function FormsPage() {
   const { data: complianceQueryData, isLoading: loadingCompliance } = useQuery({
     queryKey: ["compliance-eligibility", selectedEmployeeId, selectedFY, selectedQuarter],
     queryFn: async () => {
-      const res: any = await api.get("/compliance/forms/eligibility", {
-        params: {
-          employeeId: selectedEmployeeId || undefined,
-          financialYear: selectedFY,
-          quarter: selectedQuarter,
-        },
-      });
+      const params = new URLSearchParams();
+      if (selectedEmployeeId) params.set("employeeId", selectedEmployeeId);
+      if (selectedFY) params.set("financialYear", selectedFY);
+      if (selectedQuarter) params.set("quarter", selectedQuarter);
+      const queryString = params.toString();
+      const res: any = await api.get(`/compliance/forms/eligibility${queryString ? `?${queryString}` : ""}`);
       return res;
     },
     enabled: true,

@@ -1,11 +1,16 @@
 import { Router, Response } from "express";
+import { AttendanceStatus } from "@prisma/client";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { broadcastToTenant } from "../socket";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const attendanceRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all attendance endpoints
+attendanceRouter.use(requireAuth, resolveTenantContext);
 
 // GET /api/attendance (Stocky Rule 0: Universal Query Contract)
 attendanceRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -91,13 +96,270 @@ attendanceRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =
   }
 });
 
+function calculateHaversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // Earth's radius in metres
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// POST /api/attendance (Manual Attendance Recording by HR / Admin)
+attendanceRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { employeeId, date, checkIn, checkOut, totalHours, hours, status, notes } = req.body;
+    if (!employeeId || !date) {
+      return res.status(400).json({ error: "employeeId and date are required." });
+    }
+
+    const attendanceDate = new Date(date);
+    attendanceDate.setUTCHours(0, 0, 0, 0);
+
+    const calculatedHours = Number(totalHours ?? hours ?? 0);
+    let attendanceStatus: any = status || "present";
+    if (calculatedHours > 0 && calculatedHours < 4 && attendanceStatus === "present") {
+      attendanceStatus = "half_day";
+    }
+
+    const attendance = await prisma.attendance.upsert({
+      where: {
+        tenantId_employeeId_date: {
+          tenantId,
+          employeeId,
+          date: attendanceDate,
+        },
+      },
+      create: {
+        tenantId,
+        employeeId,
+        date: attendanceDate,
+        checkIn: checkIn ? new Date(checkIn) : null,
+        checkOut: checkOut ? new Date(checkOut) : null,
+        hours: calculatedHours || null,
+        status: attendanceStatus,
+        notes: notes || null,
+      },
+      update: {
+        checkIn: checkIn ? new Date(checkIn) : undefined,
+        checkOut: checkOut ? new Date(checkOut) : undefined,
+        hours: calculatedHours || undefined,
+        status: attendanceStatus,
+        notes: notes || undefined,
+      },
+      include: {
+        employee: {
+          select: { firstName: true, lastName: true, employeeCode: true },
+        },
+      },
+    });
+
+    broadcastToTenant(tenantId, "attendance:updated", attendance);
+    return res.status(201).json(attendance);
+  } catch (err: any) {
+    console.error("[POST /api/attendance] error:", err);
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/attendance/punch (Unified Mobile Geo-Fenced Punch Engine)
+attendanceRouter.post("/punch", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { employeeId, type = "check_in", latitude, longitude, notes, deviceId } = req.body;
+    let targetEmployeeId = employeeId;
+
+    if (!targetEmployeeId) {
+      const emp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user!.userId },
+      });
+      if (!emp) {
+        return res.status(400).json({ error: "Employee record not found for current user." });
+      }
+      targetEmployeeId = emp.id;
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Geo-Fence Validation
+    let geoFenceNote = "";
+    let isGeoFenceValid = true;
+    let distanceToOffice = 0;
+
+    if (latitude !== undefined && longitude !== undefined) {
+      const office = await prisma.warehouse.findFirst({
+        where: { tenantId },
+        select: { name: true },
+      });
+
+      // Default corporate headquarters coordinates or warehouse coordinates (Mumbai BKC fallback: 19.0657, 72.8687)
+      const officeLat = 19.0657;
+      const officeLng = 72.8687;
+      const allowedRadiusMeters = 500; // 500 meters allowed radius
+
+      distanceToOffice = calculateHaversineDistanceMeters(
+        Number(latitude),
+        Number(longitude),
+        officeLat,
+        officeLng
+      );
+
+      if (distanceToOffice > allowedRadiusMeters) {
+        isGeoFenceValid = false;
+        geoFenceNote = `[Geo-Fence Warning: ${Math.round(distanceToOffice)}m from office perimeter]`;
+      } else {
+        geoFenceNote = `[Geo-Verified: ${Math.round(distanceToOffice)}m from office]`;
+      }
+    }
+
+    if (type === "check_out") {
+      const existing = await prisma.attendance.findUnique({
+        where: {
+          tenantId_employeeId_date: {
+            tenantId,
+            employeeId: targetEmployeeId,
+            date: today,
+          },
+        },
+      });
+
+      if (!existing || !existing.checkIn) {
+        return res.status(400).json({ error: "No check-in record found for today to check out from." });
+      }
+
+      const diffMs = now.getTime() - existing.checkIn.getTime();
+      const totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+      let newStatus: AttendanceStatus = existing.status;
+      if (totalHours < 4 && existing.status !== "late") newStatus = "half_day";
+
+      const updated = await prisma.attendance.update({
+        where: { id: existing.id },
+        data: {
+          checkOut: now,
+          hours: totalHours,
+          status: newStatus,
+          notes: [existing.notes, geoFenceNote, notes].filter(Boolean).join(" | "),
+        },
+        include: { employee: true },
+      });
+
+      broadcastToTenant(tenantId, "attendance:updated", updated);
+      broadcastToTenant(tenantId, "punch:new", {
+        type: "check_out",
+        employeeName: `${updated.employee?.firstName || ""} ${updated.employee?.lastName || ""}`.trim(),
+        time: now.toLocaleTimeString(),
+        hours: totalHours,
+        geoFenceValid: isGeoFenceValid,
+        distanceMeters: Math.round(distanceToOffice),
+        timestamp: now.toISOString(),
+      });
+
+      return res.json({ success: true, action: "check_out", attendance: updated, geoFence: { valid: isGeoFenceValid, distanceMeters: Math.round(distanceToOffice) } });
+    }
+
+    // Check-in logic
+    const existing = await prisma.attendance.findUnique({
+      where: {
+        tenantId_employeeId_date: {
+          tenantId,
+          employeeId: targetEmployeeId,
+          date: today,
+        },
+      },
+    });
+
+    if (existing && existing.checkIn) {
+      return res.status(400).json({ error: "Already checked in for today." });
+    }
+
+    let status: "present" | "late" = "present";
+    let lateNote = "";
+
+    const roster = await prisma.shiftRoster.findUnique({
+      where: {
+        tenantId_employeeId_rosterDate: {
+          tenantId,
+          employeeId: targetEmployeeId,
+          rosterDate: today,
+        },
+      },
+      include: { shift: true },
+    });
+
+    if (roster?.shift?.startTime && roster.shift.startTime !== "00:00") {
+      const [shH, shM] = roster.shift.startTime.split(":").map(Number);
+      const shiftStartTime = new Date(today);
+      shiftStartTime.setHours(shH, shM, 0, 0);
+      const graceThreshold = new Date(shiftStartTime.getTime() + 15 * 60 * 1000);
+
+      if (now > graceThreshold) {
+        status = "late";
+        const diffMinutes = Math.round((now.getTime() - shiftStartTime.getTime()) / (60 * 1000));
+        lateNote = `Late In by ${diffMinutes} min(s)`;
+      }
+    }
+
+    const combinedNotes = [lateNote, geoFenceNote, notes, deviceId ? `Device: ${deviceId}` : ""].filter(Boolean).join(" | ");
+
+    const attendance = await prisma.attendance.upsert({
+      where: {
+        tenantId_employeeId_date: {
+          tenantId,
+          employeeId: targetEmployeeId,
+          date: today,
+        },
+      },
+      update: {
+        checkIn: now,
+        status,
+        notes: combinedNotes || undefined,
+      },
+      create: {
+        tenantId,
+        employeeId: targetEmployeeId,
+        date: today,
+        checkIn: now,
+        status,
+        notes: combinedNotes || null,
+      },
+      include: { employee: true },
+    });
+
+    broadcastToTenant(tenantId, "attendance:updated", attendance);
+    broadcastToTenant(tenantId, "punch:new", {
+      type: "check_in",
+      employeeName: `${attendance.employee?.firstName || ""} ${attendance.employee?.lastName || ""}`.trim(),
+      time: now.toLocaleTimeString(),
+      status,
+      geoFenceValid: isGeoFenceValid,
+      distanceMeters: Math.round(distanceToOffice),
+      timestamp: now.toISOString(),
+    });
+
+    return res.json({ success: true, action: "check_in", attendance, geoFence: { valid: isGeoFenceValid, distanceMeters: Math.round(distanceToOffice) } });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
 // POST /api/attendance/check-in (with Shift Roster auto-grace and late-in calculation)
 attendanceRouter.post("/check-in", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const { employeeId, notes } = req.body;
+    const { employeeId, notes, latitude, longitude } = req.body;
     let targetEmployeeId = employeeId;
 
     if (!targetEmployeeId) {
@@ -157,7 +419,14 @@ attendanceRouter.post("/check-in", requireAuth, async (req: AuthRequest, res: Re
       }
     }
 
-    const combinedNotes = [lateNote, notes].filter(Boolean).join(" | ");
+    // Geo-fence check if coordinates passed
+    let geoNote = "";
+    if (latitude && longitude) {
+      const dist = calculateHaversineDistanceMeters(Number(latitude), Number(longitude), 19.0657, 72.8687);
+      geoNote = dist <= 500 ? `[Geo-Verified: ${Math.round(dist)}m]` : `[Geo-Warning: ${Math.round(dist)}m]`;
+    }
+
+    const combinedNotes = [lateNote, geoNote, notes].filter(Boolean).join(" | ");
 
     const attendance = await prisma.attendance.upsert({
       where: {
@@ -274,6 +543,64 @@ attendanceRouter.post("/check-out", requireAuth, async (req: AuthRequest, res: R
     return res.json(attendance);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/attendance/regularize (Employee Attendance Regularization Request)
+attendanceRouter.post("/regularize", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { employeeId, date, checkIn, checkOut, reason } = req.body;
+    let targetEmployeeId = employeeId;
+    if (!targetEmployeeId) {
+      const emp = await prisma.employee.findFirst({ where: { tenantId, userId: req.user!.userId } });
+      if (!emp) return res.status(400).json({ error: "Employee record not found." });
+      targetEmployeeId = emp.id;
+    }
+
+    if (!date) return res.status(400).json({ error: "Date is required." });
+
+    const targetDate = new Date(date);
+    const d = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()));
+    const cIn = checkIn ? new Date(`${date}T${checkIn}`) : new Date(`${date}T09:00:00`);
+    const cOut = checkOut ? new Date(`${date}T${checkOut}`) : new Date(`${date}T18:00:00`);
+    const diffMs = cOut.getTime() - cIn.getTime();
+    const hours = Math.max(0, Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100);
+
+    const record = await prisma.attendance.upsert({
+      where: {
+        tenantId_employeeId_date: {
+          tenantId,
+          employeeId: targetEmployeeId,
+          date: d,
+        },
+      },
+      create: {
+        tenantId,
+        employeeId: targetEmployeeId,
+        date: d,
+        checkIn: cIn,
+        checkOut: cOut,
+        hours,
+        status: "present",
+        notes: `[Regularization Request]: ${reason || "Manual attendance adjustment"}`,
+      },
+      update: {
+        checkIn: cIn,
+        checkOut: cOut,
+        hours,
+        status: "present",
+        notes: `[Regularized]: ${reason || "Manual attendance adjustment"}`,
+      },
+      include: { employee: true },
+    });
+
+    broadcastToTenant(tenantId, "attendance:updated", record);
+    return res.json({ success: true, message: "Attendance regularized successfully.", record });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to regularize attendance." });
   }
 });
 

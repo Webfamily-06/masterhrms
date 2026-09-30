@@ -5,3 +5,4 @@ export * from "./error-state";
 export * from "./success-state";
 export * from "./offline-banner";
 export * from "./session-expired-modal";
+export * from "./inactivity-tracker";

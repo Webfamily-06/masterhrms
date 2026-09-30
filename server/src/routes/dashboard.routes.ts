@@ -1,29 +1,18 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 
 export const dashboardRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all dashboard routes
+dashboardRouter.use(requireAuth, resolveTenantContext);
 
 /**
  * Helper to safely extract tenantId with robust fallback
  */
-async function getTenant(req: AuthRequest, res: Response): Promise<string | null> {
-  let tenantId = req.user?.tenantId || (req.headers["x-tenant-id"] as string);
-  if (!tenantId || tenantId === "default") {
-    if (req.user?.userId) {
-      try {
-        const profile = await prisma.profile.findUnique({
-          where: { userId: req.user.userId },
-          select: { tenantId: true },
-        });
-        if (profile?.tenantId) {
-          tenantId = profile.tenantId;
-        }
-      } catch (e) {
-        // ignore profile error
-      }
-    }
-  }
+function getTenant(req: AuthRequest, res: Response): string | null {
+  const tenantId = req.user?.tenantId || (req.headers["x-tenant-id"] as string);
   if (!tenantId || tenantId === "default") {
     res.status(403).json({ error: "Forbidden: Valid workspace context is required." });
     return null;
@@ -36,8 +25,8 @@ async function getTenant(req: AuthRequest, res: Response): Promise<string | null
 // -----------------------------------------------------------------------------
 // HRM HUB REALTIME DATABASE METRICS (/api/dashboard/hrm-hub)
 // -----------------------------------------------------------------------------
-dashboardRouter.get("/hrm-hub", requireAuth, async (req: AuthRequest, res: Response) => {
-  const tenantId = await getTenant(req, res);
+dashboardRouter.get("/hrm-hub", async (req: AuthRequest, res: Response) => {
+  const tenantId = getTenant(req, res);
   if (!tenantId) return;
 
   try {
@@ -47,6 +36,8 @@ dashboardRouter.get("/hrm-hub", requireAuth, async (req: AuthRequest, res: Respo
 
     const [
       totalEmployees,
+      activeEmployees,
+      totalHeadcount,
       newEmployeesThisMonth,
       todayAttendanceList,
       onLeaveToday,
@@ -56,8 +47,14 @@ dashboardRouter.get("/hrm-hub", requireAuth, async (req: AuthRequest, res: Respo
       recentEmps,
       latestPayroll,
     ] = await Promise.all([
+      // Operational workforce: current staff (active + on_leave, excluding terminated)
+      prisma.employee.count({ where: { tenantId, status: { not: "terminated" } } }),
+      // Active staff
+      prisma.employee.count({ where: { tenantId, status: "active" } }),
+      // Total registered records in directory
       prisma.employee.count({ where: { tenantId } }),
-      prisma.employee.count({ where: { tenantId, createdAt: { gte: startOfMonth } } }),
+      // New this month
+      prisma.employee.count({ where: { tenantId, status: { not: "terminated" }, createdAt: { gte: startOfMonth } } }),
       prisma.attendance.findMany({
         where: { tenantId, date: todayUtc },
         include: {
@@ -78,12 +75,12 @@ dashboardRouter.get("/hrm-hub", requireAuth, async (req: AuthRequest, res: Respo
       prisma.leaveRequest.count({ where: { tenantId, status: "pending" } }),
       prisma.expenseClaim.count({ where: { tenantId, status: "pending" } }),
       prisma.employee.aggregate({
-        where: { tenantId },
+        where: { tenantId, status: { not: "terminated" } },
         _sum: { salary: true },
         _count: { id: true },
       }),
       prisma.employee.findMany({
-        where: { tenantId },
+        where: { tenantId, status: { not: "terminated" } },
         orderBy: { createdAt: "desc" },
         take: 6,
         select: { id: true, firstName: true, lastName: true, employeeCode: true, position: true, createdAt: true },
@@ -129,6 +126,9 @@ dashboardRouter.get("/hrm-hub", requireAuth, async (req: AuthRequest, res: Respo
 
     return res.json({
       totalEmployees,
+      totalWorkforce: totalEmployees,
+      activeEmployees,
+      totalHeadcount,
       newEmployeesThisMonth,
       presentToday,
       lateToday,
@@ -154,8 +154,8 @@ dashboardRouter.get("/hrm-hub", requireAuth, async (req: AuthRequest, res: Respo
 
 // 1. HRM DASHBOARD AGGREGATION (REALTIME DATABASE METRICS)
 // -----------------------------------------------------------------------------
-dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response) => {
-  const tenantId = await getTenant(req, res);
+dashboardRouter.get("/hrm", async (req: AuthRequest, res: Response) => {
+  const tenantId = getTenant(req, res);
   if (!tenantId) return;
 
   try {
@@ -167,7 +167,9 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
     sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
 
     const [
-      totalEmployees,
+      totalWorkforce,
+      activeEmployees,
+      totalHeadcount,
       newEmployeesThisMonth,
       todayAttendanceList,
       onLeaveCount,
@@ -182,10 +184,14 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
       avgSalaryAgg,
       monthAttendances,
     ] = await Promise.all([
-      // 1. Active workforce
+      // 1. Current active workforce (active + on_leave, excluding terminated)
+      prisma.employee.count({ where: { tenantId, status: { not: "terminated" } } }),
+      // 2. Active employees on duty
       prisma.employee.count({ where: { tenantId, status: "active" } }),
-      // 2. New this month
-      prisma.employee.count({ where: { tenantId, createdAt: { gte: startOfMonth } } }),
+      // 3. Total registered employee headcount
+      prisma.employee.count({ where: { tenantId } }),
+      // 4. New this month
+      prisma.employee.count({ where: { tenantId, status: { not: "terminated" }, createdAt: { gte: startOfMonth } } }),
       // 3. Today's real attendance
       prisma.attendance.findMany({
         where: { tenantId, date: { gte: todayUtc, lte: endOfToday } },
@@ -284,10 +290,10 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
     const presentToday = todayAttendanceList.filter((a) => isPresentPunch(a)).length;
     // Late threshold: checked in after 9:30 AM local (UTC+5:30 -> 04:00 UTC)
     const lateToday = todayAttendanceList.filter((a) => isLatePunch(a)).length;
-    const absentToday = Math.max(0, totalEmployees - presentToday - onLeaveCount);
+    const absentToday = Math.max(0, totalWorkforce - presentToday - onLeaveCount);
     const remoteToday = 0; // In-office biometric synced
 
-    const attendanceRate = totalEmployees > 0 ? ((presentToday / totalEmployees) * 100).toFixed(1) : "0.0";
+    const attendanceRate = totalWorkforce > 0 ? ((presentToday / totalWorkforce) * 100).toFixed(1) : "0.0";
 
     // 7-day attendance trend grouping
     const weeklyCategories: string[] = [];
@@ -305,15 +311,15 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
     }
     const weeklyTotalPresent = weeklyData.reduce((sum, n) => sum + n, 0);
     const weeklyAvgPresent = weeklyData.length > 0 ? Math.round(weeklyTotalPresent / weeklyData.length) : 0;
-    const weeklyAvgRate = totalEmployees > 0 && weeklyData.length > 0
-      ? ((weeklyAvgPresent / totalEmployees) * 100).toFixed(1)
+    const weeklyAvgRate = totalWorkforce > 0 && weeklyData.length > 0
+      ? ((weeklyAvgPresent / totalWorkforce) * 100).toFixed(1)
       : "0.0";
 
     // Month-to-date attendance metrics
     const monthTotalPresent = (monthAttendances || []).filter((a) => isPresentPunch(a)).length;
     const monthTotalLate = (monthAttendances || []).filter((a) => isLatePunch(a)).length;
     const daysPassedInMonth = Math.max(1, now.getUTCDate());
-    const expectedMonthPunches = totalEmployees * daysPassedInMonth;
+    const expectedMonthPunches = totalWorkforce * daysPassedInMonth;
     const monthlyRate = expectedMonthPunches > 0
       ? Math.min(100, Number(((monthTotalPresent / expectedMonthPunches) * 100).toFixed(1)))
       : 0;
@@ -341,7 +347,10 @@ dashboardRouter.get("/hrm", requireAuth, async (req: AuthRequest, res: Response)
     const totalOpenings = allJobPostings.reduce((acc, j) => acc + (j.openingsCount || 1), 0);
 
     return res.json({
-      totalWorkforce: totalEmployees,
+      totalWorkforce,
+      totalEmployees: totalWorkforce,
+      totalHeadcount,
+      activeEmployees,
       newThisMonth: newEmployeesThisMonth,
       onLeaveToday: onLeaveCount,
       attendanceRate: Number(attendanceRate),
@@ -631,7 +640,7 @@ dashboardRouter.get("/inventory", requireAuth, async (req: AuthRequest, res: Res
     const lowStockAlerts: any[] = [];
 
     productsWithStock.forEach((p) => {
-      const stockQty = p.warehouseStocks.reduce((acc, ws) => acc + ws.quantity, 0);
+      const stockQty = p.warehouseStocks.reduce((acc, ws) => acc + Number(ws.quantity), 0);
       totalStockUnits += stockQty;
       totalValuation += stockQty * Number(p.salePrice || 0);
 

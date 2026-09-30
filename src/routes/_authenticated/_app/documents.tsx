@@ -615,7 +615,7 @@ export function DocumentsPage() {
                 >
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="company_wide">🌐 Company-Wide (All Staff)</SelectItem>
+                    <SelectItem value="company_wide">Company-Wide (All Staff)</SelectItem>
                     {employees.map((e: any) => (
                       <SelectItem key={e.id} value={e.id}>
                         {e.first_name} {e.last_name} ({e.employee_code})
@@ -718,7 +718,7 @@ export function DocumentsPage() {
                       onTouchEnd={stopDrawing}
                     />
                     <div className="absolute bottom-2 right-3 text-[10px] font-mono text-muted-foreground/60 select-none">
-                      Sign above line ✍️
+                      Sign above line
                     </div>
                   </div>
                 </TabsContent>
@@ -808,7 +808,7 @@ export function DocumentsPage() {
                       <Award className="size-3.5 text-emerald-600" /> Signer Authentication
                     </span>
                     <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[9px] font-mono">
-                      ✓ Valid Signature
+                      Valid Signature
                     </Badge>
                   </div>
 

@@ -1370,6 +1370,7 @@ function Payroll() {
                       onClick={async () => {
                         try {
                           const res = await generateOfficialStatutoryPdf({
+                            formCode: "form_16",
                             actGroup: "ita_2025",
                             actTitle: "Income-tax Act, 2025",
                             formNumber: "FORM NO. 16",
@@ -1458,6 +1459,7 @@ function Payroll() {
                   onClick={async () => {
                     try {
                       const res = await generateOfficialStatutoryPdf({
+                        formCode: "form_138",
                         actGroup: "ita_2025",
                         actTitle: "Income-tax Act, 2025",
                         formNumber: "FORM NO. 138",

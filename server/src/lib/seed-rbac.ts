@@ -1,4 +1,4 @@
-import { prisma } from "../prisma";
+import { rawPrisma as prisma } from "../prisma";
 import { getAllPermissionDefinitions, ERP_MODULES } from "./erp-modules";
 
 export async function seedRbac() {

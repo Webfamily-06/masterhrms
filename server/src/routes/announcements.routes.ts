@@ -1,9 +1,14 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { getTenantDb } from "../context/tenant-context";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const announcementsRouter = Router();
+
+// Controlled Pilot Integration: Enforce Request-Scoped Tenant Context on all announcement endpoints
+announcementsRouter.use(requireAuth, resolveTenantContext);
 
 // Auto-seed initial enterprise announcements if none exist for tenant
 async function ensureSeedAnnouncements(tenantId: string) {
@@ -18,7 +23,7 @@ async function ensureSeedAnnouncements(tenantId: string) {
     data: [
       {
         tenantId,
-        title: "🚀 Annual Company Strategy & Product Roadmap 2026 Kickoff",
+        title: "Annual Company Strategy & Product Roadmap 2026 Kickoff",
         summary: "Join us this Friday at 4:00 PM for the All-Hands meeting to review our global expansion, new product suites, and Q1 goals.",
         content: `Dear Team,\n\nWe are thrilled to announce our 2026 Annual All-Hands Kickoff meeting! Over the past year, we have scaled our customer base and launched state-of-the-art enterprise modules.\n\n### Key Agenda:\n1. 2025 Retrospective & Key Milestones Achieved.\n2. 2026 Product Strategy & Global Expansion.\n3. Department Highlights & Team Recognition.\n4. Open Q&A with Executive Leadership.\n\n**Date & Time:** Friday, 4:00 PM - 5:30 PM (IST)\n**Location:** Main Townhall & Global Virtual Stream`,
         category: "company_news",
@@ -33,7 +38,7 @@ async function ensureSeedAnnouncements(tenantId: string) {
       },
       {
         tenantId,
-        title: "🛡️ Mandatory Cybersecurity & SOC2 Compliance Policy Update",
+        title: "Mandatory Cybersecurity & SOC2 Compliance Policy Update",
         summary: "All employees are required to review the updated SOC2 Type II data protection policy and complete digital acknowledgement by month-end.",
         content: `Attention All Employees,\n\nAs part of our continuous commitment to data privacy and SOC2 Type II compliance, we have updated our internal Security & Clean Desk Policy.\n\n### Compliance Requirements:\n- Enable Multi-Factor Authentication (MFA) on all company accounts.\n- Never share client credentials or sensitive PII over unencrypted channels.\n- Lock workstations when away from your desk.\n\n**Please click the 'Acknowledge Policy' button below to record your formal compliance signature.**`,
         category: "policy_update",
@@ -48,7 +53,7 @@ async function ensureSeedAnnouncements(tenantId: string) {
       },
       {
         tenantId,
-        title: "🎉 Diwali & Festive Season Holiday Schedule",
+        title: "Diwali & Festive Season Holiday Schedule",
         summary: "Official announcement regarding upcoming festive holidays and emergency support rostering schedule.",
         content: `Dear Colleagues,\n\nIn celebration of the upcoming festive season, please note the official office holiday schedule.\n\n- **Office Closure:** Oct 20th - Oct 22nd\n- **Emergency On-Call Support:** Managed via Shift Rostering schedule.\n- **Regular Business Resumes:** Oct 23rd at 9:00 AM.\n\nWishing you and your families a joyous and prosperous festive season!`,
         category: "holiday",
@@ -62,7 +67,7 @@ async function ensureSeedAnnouncements(tenantId: string) {
       },
       {
         tenantId,
-        title: "🌿 Employee Wellness Program & Annual Health Checkups",
+        title: "Employee Wellness Program & Annual Health Checkups",
         summary: "Complimentary comprehensive annual health checkups scheduled at our partner hospital network starting next week.",
         content: `Hi Everyone,\n\nYour health and wellbeing are our top priority. We are pleased to launch our Annual Health & Wellness Program in partnership with Apollo Healthcare.\n\n### Included Benefits:\n- Full executive health screening & blood work panel.\n- Eye care & dental checkups.\n- 1-on-1 nutritional consultation.\n\nSlots are available on a first-come, first-served basis. Coordinate with your department HR partner to reserve your preferred date.`,
         category: "event",
@@ -82,13 +87,12 @@ async function ensureSeedAnnouncements(tenantId: string) {
  * GET /api/announcements
  * Lists announcements for the current tenant with category, search, priority, and pin sorting.
  */
-announcementsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
+announcementsRouter.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    // seed disabled
-
+    const db = getTenantDb(req);
     const { category, priority, search, departmentId } = req.query;
 
     const where: any = { tenantId };
@@ -122,8 +126,8 @@ announcementsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response
     const pagination = parsePaginationParams(req, "publishDate", 20);
 
     const [total, announcements] = await Promise.all([
-      prisma.announcement.count({ where }),
-      prisma.announcement.findMany({
+      db.announcement.count({ where }),
+      db.announcement.findMany({
         where,
         include: {
           targetDepartment: true,
@@ -177,17 +181,18 @@ announcementsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response
  * GET /api/announcements/summary/stats
  * Metrics: total count, pinned count, urgent alerts, policy compliance rate.
  */
-announcementsRouter.get("/summary/stats", requireAuth, async (req: AuthRequest, res: Response) => {
+announcementsRouter.get("/summary/stats", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    const all = await prisma.announcement.findMany({
+    const db = getTenantDb(req);
+    const all = await db.announcement.findMany({
       where: { tenantId },
       include: { acknowledgements: true },
     });
 
-    const totalEmployees = await prisma.employee.count({
+    const totalEmployees = await db.employee.count({
       where: { tenantId, status: "active" },
     });
 
@@ -226,12 +231,13 @@ announcementsRouter.get("/summary/stats", requireAuth, async (req: AuthRequest, 
  * GET /api/announcements/:id
  * Get single announcement and increment view count
  */
-announcementsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+announcementsRouter.get("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
+    const db = getTenantDb(req);
 
-    const announcement = await prisma.announcement.update({
+    const announcement = await db.announcement.update({
       where: { id },
       data: { viewCount: { increment: 1 } },
       include: {
@@ -262,10 +268,11 @@ announcementsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Respo
  * POST /api/announcements
  * Create new company broadcast / announcement
  */
-announcementsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
+announcementsRouter.post("/", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+    const db = getTenantDb(req);
 
     const {
       title,
@@ -287,7 +294,7 @@ announcementsRouter.post("/", requireAuth, async (req: AuthRequest, res: Respons
       return res.status(400).json({ error: "Title and Content are required fields." });
     }
 
-    const newAnnouncement = await prisma.announcement.create({
+    const newAnnouncement = await db.announcement.create({
       data: {
         tenantId,
         title,
@@ -320,9 +327,10 @@ announcementsRouter.post("/", requireAuth, async (req: AuthRequest, res: Respons
  * PUT /api/announcements/:id
  * Update announcement
  */
-announcementsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+announcementsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const db = getTenantDb(req);
     const {
       title,
       summary,
@@ -339,7 +347,7 @@ announcementsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Respo
       acknowledgementRequired,
     } = req.body;
 
-    const updated = await prisma.announcement.update({
+    const updated = await db.announcement.update({
       where: { id },
       data: {
         title,
@@ -371,10 +379,11 @@ announcementsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Respo
  * DELETE /api/announcements/:id
  * Delete announcement
  */
-announcementsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+announcementsRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    await prisma.announcement.delete({ where: { id } });
+    const db = getTenantDb(req);
+    await db.announcement.delete({ where: { id } });
     return res.json({ success: true, message: "Announcement deleted successfully." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete announcement." });
@@ -385,7 +394,7 @@ announcementsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Re
  * POST /api/announcements/:id/acknowledge
  * Employee records official acknowledgement / digital compliance signature
  */
-announcementsRouter.post("/:id/acknowledge", requireAuth, async (req: AuthRequest, res: Response) => {
+announcementsRouter.post("/:id/acknowledge", async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
@@ -394,7 +403,8 @@ announcementsRouter.post("/:id/acknowledge", requireAuth, async (req: AuthReques
     if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
     if (!employeeId) return res.status(400).json({ error: "Employee identification required." });
 
-    const acknowledgement = await prisma.announcementAcknowledgement.upsert({
+    const db = getTenantDb(req);
+    const acknowledgement = await db.announcementAcknowledgement.upsert({
       where: {
         announcementId_employeeId: {
           announcementId: id,

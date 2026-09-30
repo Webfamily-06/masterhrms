@@ -203,7 +203,7 @@ function AiOcrPage() {
       setEditData(null);
       toast.success(
         res?.message ||
-          `Successfully saved as ${targetType === "purchase" ? "Purchase Order" : "Invoice"} & auto-posted to General Ledger!`
+          `Successfully saved as ${targetType === "purchase" ? "Purchase Order (Pending Goods Receipt)" : "Invoice"}!`
       );
       qc.invalidateQueries({ queryKey: ["purchases"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });

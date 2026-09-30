@@ -93,36 +93,6 @@ export type PurchasedAddonItem = {
   install_url?: string;
 };
 
-const DEFAULT_PLANS: SubscriptionPlan[] = [
-  {
-    id: "p1",
-    name: "Starter Plan",
-    price_monthly: 1999,
-    price_annual: 19990,
-    max_employees: 25,
-    features: ["Core HR & Attendance", "Standard Support", "Basic Reporting"],
-    included_addon_ids: [],
-  },
-  {
-    id: "p2",
-    name: "Growth Plan",
-    price_monthly: 4999,
-    price_annual: 49990,
-    popular: true,
-    max_employees: 100,
-    features: ["Core HR & Shifts", "Automated Payroll Runs", "Multi-Tier Leaves", "5 Free Addons"],
-    included_addon_ids: ["whatsapp-alerts", "ai-ocr"],
-  },
-  {
-    id: "p3",
-    name: "Enterprise Plan",
-    price_monthly: 12999,
-    price_annual: 129990,
-    max_employees: 9999,
-    features: ["All 16 HRM Modules", "Unlimited Addons", "Dedicated Success Manager", "24/7 Priority SLA"],
-    included_addon_ids: [],
-  },
-];
 
 export function SubscriptionPage() {
   const qc = useQueryClient();
@@ -191,18 +161,24 @@ export function SubscriptionPage() {
   const [viewingInvoice, setViewingInvoice] = useState<TenantInvoice | null>(null);
   const printAreaRef = useRef<HTMLDivElement>(null);
 
-  // 1. Fetch Subscription Plans
+  // 1. Fetch Subscription Plans from DB (real plans configured by super admin)
   const { data: plansData = [] } = useQuery({
     queryKey: ["public-plans-list"],
     queryFn: async () => {
       try {
+        // Try real DB-backed plans first
+        const res = await api.get("/super/plans");
+        if (Array.isArray(res) && res.length > 0) {
+          return res as SubscriptionPlan[];
+        }
+        // Fallback: try CMS-stored monetization plans
         const page = await api.get("/cms/pages/system-monetization-plans");
         if (page?.content && typeof page.content === "object" && "plans" in page.content) {
           return (page.content as any).plans as SubscriptionPlan[];
         }
         return [];
       } catch {
-        return DEFAULT_PLANS;
+        return [];
       }
     },
   });
@@ -433,7 +409,7 @@ export function SubscriptionPage() {
                       </Badge>
                     </div>
                     <Badge className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                      ✓ {addon.status?.toUpperCase() || "ACTIVE"}
+                      {addon.status?.toUpperCase() || "ACTIVE"}
                     </Badge>
                   </div>
 
@@ -526,7 +502,7 @@ export function SubscriptionPage() {
                       </td>
                       <td className="p-3 text-center">
                         <Badge className="text-[9px] bg-emerald-500 text-white font-bold py-0 h-4 uppercase">
-                          ✓ PAID
+                          PAID
                         </Badge>
                       </td>
                       <td className="p-3 text-center">

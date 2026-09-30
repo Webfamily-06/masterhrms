@@ -1,10 +1,15 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { assertOpenPeriodForPosting, PeriodPostingError, parseAccountingDate } from "../services/fiscal-period.service";
 
 export const accountingRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all accounting endpoints
+accountingRouter.use(requireAuth, resolveTenantContext);
 
 // Standard 17 Seed Accounts
 const DEFAULT_ACCOUNTS = [
@@ -172,11 +177,11 @@ accountingRouter.get("/accounts", requireAuth, async (req: AuthRequest, res: Res
   }
 });
 
-accountingRouter.post("/accounts", requireAuth, async (req: AuthRequest, res: Response) => {
+accountingRouter.post("/accounts", requirePermission("finance.accounts.create"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
-    const { accountCode, accountName, accountType, category, description, currency, balance } = req.body;
+    const { accountCode, accountName, accountType, category, description, currency, balance, parentAccountId } = req.body;
 
     if (!accountCode || !accountName || !accountType) {
       return res.status(400).json({ error: "Code, name, and account type are required" });
@@ -189,6 +194,10 @@ accountingRouter.post("/accounts", requireAuth, async (req: AuthRequest, res: Re
       return res.status(400).json({ error: "Account code already exists" });
     }
 
+    if (parentAccountId) {
+      const parent = await prisma.chartOfAccount.findFirst({ where: { id: parentAccountId, tenantId } });
+      if (!parent) return res.status(400).json({ error: "Parent account must belong to this tenant" });
+    }
     const account = await prisma.chartOfAccount.create({
       data: {
         tenantId,
@@ -198,6 +207,7 @@ accountingRouter.post("/accounts", requireAuth, async (req: AuthRequest, res: Re
         category: category || "current_asset",
         currency: currency || "INR",
         description,
+        parentAccountId: parentAccountId || null,
         balance: Number(balance || 0),
       },
     });
@@ -206,6 +216,102 @@ accountingRouter.post("/accounts", requireAuth, async (req: AuthRequest, res: Re
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to create account" });
   }
+});
+
+accountingRouter.put("/accounts/:id", requirePermission("finance.accounts.edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res); if (!tenantId) return;
+    const account = await prisma.chartOfAccount.findFirst({ where: { id: req.params.id, tenantId } });
+    if (!account) return res.status(404).json({ error: "Account not found" });
+    const { accountCode, accountName, accountType, category, description, currency, status, parentAccountId } = req.body;
+    if (account.isSystem && ((accountCode && accountCode !== account.accountCode) || (accountName && accountName !== account.accountName))) {
+      return res.status(400).json({ error: "System account code and name cannot be changed" });
+    }
+    if (parentAccountId === account.id) return res.status(400).json({ error: "An account cannot be its own parent" });
+    if (parentAccountId) {
+      const parent = await prisma.chartOfAccount.findFirst({ where: { id: parentAccountId, tenantId } });
+      if (!parent) return res.status(400).json({ error: "Parent account must belong to this tenant" });
+      let cursor: any = parent;
+      while (cursor) {
+        if (cursor.id === account.id) return res.status(400).json({ error: "Circular account hierarchy is not allowed" });
+        cursor = cursor.parentAccountId ? await prisma.chartOfAccount.findFirst({ where: { id: cursor.parentAccountId, tenantId } }) : null;
+      }
+    }
+    if (accountCode && accountCode !== account.accountCode) {
+      const duplicate = await prisma.chartOfAccount.findFirst({ where: { tenantId, accountCode } });
+      if (duplicate) return res.status(400).json({ error: "Account code already exists" });
+    }
+    const updated = await prisma.chartOfAccount.update({ where: { id: account.id }, data: {
+      ...(accountCode ? { accountCode } : {}), ...(accountName ? { accountName } : {}), ...(accountType ? { accountType } : {}),
+      ...(category ? { category } : {}), ...(currency ? { currency } : {}), ...(description !== undefined ? { description } : {}),
+      ...(status ? { status } : {}), ...(parentAccountId !== undefined ? { parentAccountId: parentAccountId || null } : {}),
+    } });
+    return res.json({ success: true, data: updated });
+  } catch (error: any) { return res.status(500).json({ error: error.message || "Failed to update account" }); }
+});
+
+accountingRouter.delete("/accounts/:id", requirePermission("finance.accounts.delete"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res); if (!tenantId) return;
+    const account = await prisma.chartOfAccount.findFirst({ where: { id: req.params.id, tenantId }, include: { _count: { select: { journalItems: true, childAccounts: true } } } });
+    if (!account) return res.status(404).json({ error: "Account not found" });
+    if (account.isSystem) return res.status(400).json({ error: "System accounts cannot be deleted" });
+    if (account._count.journalItems || account._count.childAccounts) return res.status(400).json({ error: "Accounts with journal entries or child accounts cannot be deleted" });
+    await prisma.chartOfAccount.delete({ where: { id: account.id } });
+    return res.status(204).send();
+  } catch (error: any) { return res.status(500).json({ error: error.message || "Failed to delete account" }); }
+});
+
+// Fiscal configuration is intentionally explicit: posting remains compatible for
+// existing tenants until they create their first fiscal year and monthly periods.
+accountingRouter.get("/fiscal-years", requirePermission("finance.accounts.view"), async (req: AuthRequest, res: Response) => {
+  try { const tenantId = resolveTenantId(req, res); if (!tenantId) return;
+    const data = await prisma.fiscalYear.findMany({ where: { tenantId }, include: { periods: { orderBy: { startDate: "asc" } } }, orderBy: { startDate: "desc" } });
+    return res.json({ success: true, data });
+  } catch (error: any) { return res.status(500).json({ error: error.message || "Failed to list fiscal years" }); }
+});
+
+accountingRouter.post("/fiscal-years", requirePermission("finance.accounts.manage"), async (req: AuthRequest, res: Response) => {
+  try { const tenantId = resolveTenantId(req, res); if (!tenantId) return;
+    const { name, startDate, endDate, isCurrent = false } = req.body;
+    if (!name || !startDate || !endDate) return res.status(400).json({ error: "Name, start date, and end date are required" });
+    const start = parseAccountingDate(startDate); const end = parseAccountingDate(endDate);
+    if (end < start) return res.status(400).json({ error: "Fiscal year end date cannot precede start date" });
+    const overlap = await prisma.fiscalYear.findFirst({ where: { tenantId, startDate: { lte: end }, endDate: { gte: start } } });
+    if (overlap) return res.status(400).json({ error: "Fiscal years cannot overlap" });
+    const created = await prisma.$transaction(async (tx) => {
+      if (isCurrent) await tx.fiscalYear.updateMany({ where: { tenantId, isCurrent: true }, data: { isCurrent: false } });
+      return tx.fiscalYear.create({ data: { tenantId, name, startDate: start, endDate: end, isCurrent: Boolean(isCurrent) } });
+    });
+    return res.status(201).json({ success: true, data: created });
+  } catch (error: any) { return res.status(500).json({ error: error.message || "Failed to create fiscal year" }); }
+});
+
+accountingRouter.post("/fiscal-years/:id/periods", requirePermission("finance.accounts.manage"), async (req: AuthRequest, res: Response) => {
+  try { const tenantId = resolveTenantId(req, res); if (!tenantId) return;
+    const year = await prisma.fiscalYear.findFirst({ where: { id: req.params.id, tenantId } });
+    if (!year) return res.status(404).json({ error: "Fiscal year not found" });
+    if (year.status === "closed") return res.status(400).json({ error: "Closed fiscal years cannot be changed" });
+    const { name, startDate, endDate } = req.body;
+    if (!name || !startDate || !endDate) return res.status(400).json({ error: "Name, start date, and end date are required" });
+    const start = parseAccountingDate(startDate); const end = parseAccountingDate(endDate);
+    if (end < start || start < year.startDate || end > year.endDate) return res.status(400).json({ error: "Period boundaries must be within the fiscal year" });
+    const overlap = await prisma.accountingPeriod.findFirst({ where: { fiscalYearId: year.id, startDate: { lte: end }, endDate: { gte: start } } });
+    if (overlap) return res.status(400).json({ error: "Accounting periods cannot overlap" });
+    const period = await prisma.accountingPeriod.create({ data: { tenantId, fiscalYearId: year.id, name, startDate: start, endDate: end } });
+    return res.status(201).json({ success: true, data: period });
+  } catch (error: any) { return res.status(500).json({ error: error.message || "Failed to create accounting period" }); }
+});
+
+accountingRouter.post("/periods/:id/:action(close|reopen)", requirePermission("finance.accounts.manage"), async (req: AuthRequest, res: Response) => {
+  try { const tenantId = resolveTenantId(req, res); if (!tenantId) return;
+    const period = await prisma.accountingPeriod.findFirst({ where: { id: req.params.id, tenantId }, include: { fiscalYear: true } });
+    if (!period) return res.status(404).json({ error: "Accounting period not found" });
+    const closing = req.params.action === "close";
+    if (period.fiscalYear.status === "closed" && !closing) return res.status(400).json({ error: "A period in a closed fiscal year cannot be reopened" });
+    const data = await prisma.accountingPeriod.update({ where: { id: period.id }, data: closing ? { status: "closed", closedAt: new Date(), closedById: req.user!.userId } : { status: "open", closedAt: null, closedById: null } });
+    return res.json({ success: true, data });
+  } catch (error: any) { return res.status(500).json({ error: error.message || "Failed to change accounting period status" }); }
 });
 
 // -------------------------------------------------------------
@@ -295,6 +401,7 @@ accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, 
     const entryNumber = `JE-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
 
     const journalEntry = await prisma.$transaction(async (tx) => {
+      await assertOpenPeriodForPosting(tx, tenantId, entryDate ? new Date(entryDate) : new Date());
       const entry = await tx.journalEntry.create({
         data: {
           tenantId,
@@ -313,10 +420,25 @@ accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, 
         const c = Number(item.credit || 0);
         const type = d > 0 ? "debit" : "credit";
 
+        // Resolve accountId — accept either a direct UUID or an accountCode string
+        let resolvedAccountId: string = item.accountId;
+        if (!resolvedAccountId && item.accountCode) {
+          const found = await tx.chartOfAccount.findFirst({
+            where: { tenantId, accountCode: item.accountCode },
+          });
+          if (!found) {
+            throw new Error(`Account with code '${item.accountCode}' not found for tenant ${tenantId}`);
+          }
+          resolvedAccountId = found.id;
+        }
+        if (!resolvedAccountId) {
+          throw new Error("Each journal item must supply either accountId or accountCode");
+        }
+
         await tx.journalItem.create({
           data: {
             journalEntryId: entry.id,
-            accountId: item.accountId,
+            accountId: resolvedAccountId,
             type,
             debit: d,
             credit: c,
@@ -325,7 +447,7 @@ accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, 
         });
 
         // Update Account Balance in Database
-        const acc = await tx.chartOfAccount.findUnique({ where: { id: item.accountId } });
+        const acc = await tx.chartOfAccount.findUnique({ where: { id: resolvedAccountId } });
         if (acc) {
           let delta = 0;
           if (acc.accountType === "asset" || acc.accountType === "expense") {
@@ -334,7 +456,7 @@ accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, 
             delta = c - d;
           }
           await tx.chartOfAccount.update({
-            where: { id: item.accountId },
+            where: { id: resolvedAccountId },
             data: { balance: { increment: delta } },
           });
         }
@@ -345,6 +467,7 @@ accountingRouter.post("/journal-entries", requireAuth, async (req: AuthRequest, 
 
     return res.status(201).json({ success: true, data: journalEntry });
   } catch (error: any) {
+    if (error instanceof PeriodPostingError) return res.status(400).json({ error: error.message, code: error.code });
     return res.status(500).json({ error: error.message || "Failed to create journal entry" });
   }
 });
@@ -370,9 +493,16 @@ accountingRouter.post("/journal-entries/:id/void", requireAuth, async (req: Auth
       return res.status(400).json({ error: "Journal entry is already voided" });
     }
 
-    const contraNumber = `CNTR-${original.entryNumber}`;
+    if (original.referenceType === "contra_reversal") {
+      return res.status(400).json({ error: "Cannot void a contra reversal entry" });
+    }
+
+    const year = new Date().getFullYear();
+    const count = await prisma.journalEntry.count({ where: { tenantId } });
+    const contraNumber = `JE-${year}-REV-${String(count + 1).padStart(4, "0")}`;
 
     const contraEntry = await prisma.$transaction(async (tx) => {
+      await assertOpenPeriodForPosting(tx, tenantId, new Date());
       // Mark original as voided
       await tx.journalEntry.update({
         where: { id: original.id },
@@ -433,6 +563,9 @@ accountingRouter.post("/journal-entries/:id/void", requireAuth, async (req: Auth
       data: contraEntry,
     });
   } catch (err: any) {
+    if (err instanceof PeriodPostingError) {
+      return res.status(422).json({ error: err.message, code: "PERIOD_CLOSED" });
+    }
     console.error("Contra void error:", err);
     return res.status(500).json({ error: err.message || "Failed to void journal entry" });
   }
@@ -475,6 +608,7 @@ accountingRouter.post("/transfers", requireAuth, async (req: AuthRequest, res: R
     const entryNumber = `TRF-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
 
     const journalEntry = await prisma.$transaction(async (tx) => {
+      await assertOpenPeriodForPosting(tx, tenantId, new Date());
       const entry = await tx.journalEntry.create({
         data: {
           tenantId,
@@ -604,22 +738,172 @@ accountingRouter.get("/reports/aging", requireAuth, async (req: AuthRequest, res
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    // Calculate real GST from tax accounts
-    const gstPayableAccount = await prisma.chartOfAccount.findFirst({
-      where: { tenantId, accountCode: "2020" },
+    const now = new Date();
+
+    // 1. Calculate Accounts Receivable Invoice Aging
+    const sales = await prisma.sale.findMany({
+      where: {
+        tenantId,
+        paymentStatus: { in: ["unpaid", "partial"] },
+      },
+      include: {
+        customer: { select: { id: true, name: true } },
+      },
+      orderBy: { date: "asc" },
     });
 
-    const netGstPayable = Number(gstPayableAccount?.balance || 0);
+    const customerAgingMap = new Map<string, {
+      customer: string;
+      customerId: string;
+      current: number;
+      days30: number;
+      days60: number;
+      days90: number;
+      days90Plus: number;
+      total: number;
+    }>();
+
+    for (const s of sales) {
+      const remaining = Math.max(0, Number(s.total) - Number(s.paidAmount));
+      if (remaining <= 0) continue;
+
+      const custId = s.customerId || "walk-in";
+      const custName = s.customer?.name || s.customerName || "Walk-in Customer";
+
+      if (!customerAgingMap.has(custId)) {
+        customerAgingMap.set(custId, {
+          customer: custName,
+          customerId: custId,
+          current: 0,
+          days30: 0,
+          days60: 0,
+          days90: 0,
+          days90Plus: 0,
+          total: 0,
+        });
+      }
+
+      const entry = customerAgingMap.get(custId)!;
+      const refDate = s.dueDate || s.date;
+      const diffMs = now.getTime() - new Date(refDate).getTime();
+      const overdueDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (overdueDays <= 0) {
+        entry.current += remaining;
+      } else if (overdueDays <= 30) {
+        entry.days30 += remaining;
+      } else if (overdueDays <= 60) {
+        entry.days60 += remaining;
+      } else if (overdueDays <= 90) {
+        entry.days90 += remaining;
+      } else {
+        entry.days90Plus += remaining;
+      }
+      entry.total += remaining;
+    }
+
+    const invoiceAging = Array.from(customerAgingMap.values()).map((row) => ({
+      ...row,
+      current: Math.round(row.current * 100) / 100,
+      days30: Math.round(row.days30 * 100) / 100,
+      days60: Math.round(row.days60 * 100) / 100,
+      days90: Math.round(row.days90 * 100) / 100,
+      days90Plus: Math.round(row.days90Plus * 100) / 100,
+      total: Math.round(row.total * 100) / 100,
+    }));
+
+    // 2. Calculate Accounts Payable Vendor Bill Aging
+    const purchases = await prisma.purchase.findMany({
+      where: {
+        tenantId,
+        paymentStatus: { in: ["unpaid", "partial"] },
+        status: { not: "cancelled" },
+      },
+      include: {
+        supplier: { select: { id: true, name: true } },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    const supplierAgingMap = new Map<string, {
+      supplier: string;
+      supplierId: string;
+      current: number;
+      days30: number;
+      days60: number;
+      days90: number;
+      days90Plus: number;
+      total: number;
+    }>();
+
+    for (const p of purchases) {
+      const remaining = Math.max(0, Number(p.total) - Number(p.paidAmount));
+      if (remaining <= 0) continue;
+
+      const suppId = p.supplierId || "general-vendor";
+      const suppName = p.supplier?.name || "General Supplier";
+
+      if (!supplierAgingMap.has(suppId)) {
+        supplierAgingMap.set(suppId, {
+          supplier: suppName,
+          supplierId: suppId,
+          current: 0,
+          days30: 0,
+          days60: 0,
+          days90: 0,
+          days90Plus: 0,
+          total: 0,
+        });
+      }
+
+      const entry = supplierAgingMap.get(suppId)!;
+      const refDate = p.date;
+      const diffMs = now.getTime() - new Date(refDate).getTime();
+      const overdueDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (overdueDays <= 0) {
+        entry.current += remaining;
+      } else if (overdueDays <= 30) {
+        entry.days30 += remaining;
+      } else if (overdueDays <= 60) {
+        entry.days60 += remaining;
+      } else if (overdueDays <= 90) {
+        entry.days90 += remaining;
+      } else {
+        entry.days90Plus += remaining;
+      }
+      entry.total += remaining;
+    }
+
+    const billAging = Array.from(supplierAgingMap.values()).map((row) => ({
+      ...row,
+      current: Math.round(row.current * 100) / 100,
+      days30: Math.round(row.days30 * 100) / 100,
+      days60: Math.round(row.days60 * 100) / 100,
+      days90: Math.round(row.days90 * 100) / 100,
+      days90Plus: Math.round(row.days90Plus * 100) / 100,
+      total: Math.round(row.total * 100) / 100,
+    }));
+
+    // 3. Real GST Tax Reconciliation
+    const [gstPayableAccount, gstInputAccount] = await Promise.all([
+      prisma.chartOfAccount.findFirst({ where: { tenantId, accountCode: "2020" } }),
+      prisma.chartOfAccount.findFirst({ where: { tenantId, accountCode: "1040" } }),
+    ]);
+
+    const salesGstCollected = Number(gstPayableAccount?.balance || 0);
+    const purchaseGstPaid = Number(gstInputAccount?.balance || 0);
+    const netGstPayable = salesGstCollected - purchaseGstPaid;
 
     return res.json({
       success: true,
       data: {
-        invoiceAging: [],
-        billAging: [],
+        invoiceAging,
+        billAging,
         taxSummary: {
-          salesGstCollected: netGstPayable > 0 ? netGstPayable : 0,
-          purchaseGstPaid: netGstPayable < 0 ? Math.abs(netGstPayable) : 0,
-          netGstPayable: netGstPayable,
+          salesGstCollected: Math.max(0, salesGstCollected),
+          purchaseGstPaid: Math.max(0, purchaseGstPaid),
+          netGstPayable,
         },
       },
     });
@@ -950,14 +1234,14 @@ accountingRouter.get("/reports/inventory-valuation", requireAuth, async (req: Au
 
     const valuationRows = products.map((prod) => {
       // Total On-hand Stock across all warehouses
-      const onHandQty = prod.warehouseStocks.reduce((sum, ws) => sum + ws.quantity, 0);
+      const onHandQty = prod.warehouseStocks.reduce((sum, ws) => sum + Number(ws.quantity), 0);
       totalStockUnits += onHandQty;
 
       // Weighted Average Purchase Cost (WAC) from actual PurchaseDetail records
       let weightedCost = Number(prod.purchasePrice || 0);
       if (prod.purchaseDetails && prod.purchaseDetails.length > 0) {
-        const totalCostSum = prod.purchaseDetails.reduce((sum, pd) => sum + (Number(pd.cost) * pd.quantity), 0);
-        const totalQtySum = prod.purchaseDetails.reduce((sum, pd) => sum + pd.quantity, 0);
+        const totalCostSum = prod.purchaseDetails.reduce((sum, pd) => sum + (Number(pd.cost) * Number(pd.quantity)), 0);
+        const totalQtySum = prod.purchaseDetails.reduce((sum, pd) => sum + Number(pd.quantity), 0);
         if (totalQtySum > 0) {
           weightedCost = totalCostSum / totalQtySum;
         }
@@ -976,8 +1260,8 @@ accountingRouter.get("/reports/inventory-valuation", requireAuth, async (req: Au
       const warehouseBreakdown = prod.warehouseStocks.map((ws) => ({
         warehouseId: ws.warehouseId,
         warehouseName: ws.warehouse.name,
-        quantity: ws.quantity,
-        assetValue: ws.quantity * weightedCost,
+        quantity: Number(ws.quantity),
+        assetValue: Number(ws.quantity) * weightedCost,
       }));
 
       return {
@@ -1324,6 +1608,7 @@ accountingRouter.post("/tally/import", requireAuth, async (req: AuthRequest, res
       const entryDate = row.date ? new Date(row.date) : new Date();
 
       await prisma.$transaction(async (tx) => {
+        await assertOpenPeriodForPosting(tx, tenantId, isNaN(entryDate.getTime()) ? new Date() : entryDate);
         const je = await tx.journalEntry.create({
           data: {
             tenantId,
@@ -1419,6 +1704,255 @@ accountingRouter.post("/tally/import", requireAuth, async (req: AuthRequest, res
   } catch (err: any) {
     console.error("POST /api/accounting/tally/import error:", err);
     return res.status(500).json({ error: err.message || "Failed to commit Tally import" });
+  }
+});
+
+// -------------------------------------------------------------
+// 6. AUTOMATED BANK STATEMENT OCR & RECONCILIATION ENGINE
+// -------------------------------------------------------------
+
+/**
+ * POST /api/accounting/reconcile
+ * Matches incoming bank feed/statement entries against ledger JournalItems.
+ */
+accountingRouter.post("/reconcile", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const {
+      accountId,
+      transactions = [],
+      autoPostUnmatched = false,
+      suspenseAccountId,
+    } = req.body;
+
+    // Validate account
+    let targetAccount = null;
+    if (accountId) {
+      targetAccount = await prisma.chartOfAccount.findFirst({
+        where: { id: accountId, tenantId },
+      });
+    }
+
+    if (!targetAccount) {
+      // Default to Primary Operating Bank Account (code 1020)
+      targetAccount = await prisma.chartOfAccount.findFirst({
+        where: { tenantId, accountCode: "1020" },
+      });
+      if (!targetAccount) {
+        targetAccount = await prisma.chartOfAccount.findFirst({
+          where: { tenantId, accountType: "asset" },
+        });
+      }
+    }
+
+    if (!targetAccount) {
+      return res.status(400).json({ error: "No valid bank or cash asset account found for reconciliation." });
+    }
+
+    // Fetch existing posted journal items for this account
+    const existingItems = await prisma.journalItem.findMany({
+      where: {
+        accountId: targetAccount.id,
+        journalEntry: { tenantId, status: "posted" },
+      },
+      include: {
+        journalEntry: {
+          select: { id: true, entryNumber: true, entryDate: true, reference: true, description: true },
+        },
+      },
+      take: 500,
+      orderBy: { createdAt: "desc" },
+    });
+
+    const reconciledLines: any[] = [];
+    let matchedCount = 0;
+    let potentialMatchCount = 0;
+    let unmatchedCount = 0;
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+
+    for (let i = 0; i < transactions.length; i++) {
+      const tx = transactions[i];
+      const amount = Math.abs(Number(tx.amount || 0));
+      const isDeposit = (tx.type || "").toLowerCase() === "credit" || Number(tx.amount || 0) > 0;
+      const ref = (tx.referenceNo || tx.reference || "").trim().toLowerCase();
+      const desc = (tx.description || "").trim().toLowerCase();
+
+      if (isDeposit) totalDeposits += amount;
+      else totalWithdrawals += amount;
+
+      // Exact Match Strategy: Check reference number or exact amount and direction
+      const exactMatch = existingItems.find((item) => {
+        const itemAmt = isDeposit ? Number(item.debit) : Number(item.credit);
+        const itemRef = (item.journalEntry?.reference || "").toLowerCase();
+        const amtMatches = Math.abs(itemAmt - amount) < 0.01;
+        const refMatches = ref && itemRef.includes(ref);
+        return amtMatches && (refMatches || (!ref && amtMatches));
+      });
+
+      if (exactMatch) {
+        matchedCount++;
+        reconciledLines.push({
+          lineId: `line-${i + 1}`,
+          statementDate: tx.date || new Date().toISOString(),
+          description: tx.description,
+          amount,
+          type: isDeposit ? "credit" : "debit",
+          referenceNo: tx.referenceNo || null,
+          status: "MATCHED",
+          matchConfidence: 0.98,
+          matchedJournalItem: {
+            id: exactMatch.id,
+            entryNumber: exactMatch.journalEntry.entryNumber,
+            date: exactMatch.journalEntry.entryDate,
+            description: exactMatch.journalEntry.description,
+          },
+        });
+        continue;
+      }
+
+      // Potential Match: Check amount match without matching reference
+      const potentialMatch = existingItems.find((item) => {
+        const itemAmt = isDeposit ? Number(item.debit) : Number(item.credit);
+        return Math.abs(itemAmt - amount) < 0.01;
+      });
+
+      if (potentialMatch) {
+        potentialMatchCount++;
+        reconciledLines.push({
+          lineId: `line-${i + 1}`,
+          statementDate: tx.date || new Date().toISOString(),
+          description: tx.description,
+          amount,
+          type: isDeposit ? "credit" : "debit",
+          referenceNo: tx.referenceNo || null,
+          status: "POTENTIAL_MATCH",
+          matchConfidence: 0.75,
+          matchedJournalItem: {
+            id: potentialMatch.id,
+            entryNumber: potentialMatch.journalEntry.entryNumber,
+            date: potentialMatch.journalEntry.entryDate,
+          },
+        });
+        continue;
+      }
+
+      // Unmatched row
+      unmatchedCount++;
+      let autoPostedEntry = null;
+
+      // If requested, auto-post an adjusting entry to suspense / miscellaneous
+      if (autoPostUnmatched) {
+        try {
+          const entryCount = await prisma.journalEntry.count({ where: { tenantId } });
+          const entryNumber = `RECON-${Date.now().toString().slice(-4)}-${entryCount + 1}`;
+
+          // Find or fallback to suspense account
+          let offsetAccount = suspenseAccountId
+            ? await prisma.chartOfAccount.findUnique({ where: { id: suspenseAccountId } })
+            : null;
+
+          if (!offsetAccount) {
+            offsetAccount = await prisma.chartOfAccount.findFirst({
+              where: {
+                tenantId,
+                accountType: isDeposit ? "revenue" : "expense",
+              },
+            });
+          }
+
+          if (offsetAccount) {
+            autoPostedEntry = await prisma.$transaction(async (ptx) => {
+              await assertOpenPeriodForPosting(ptx, tenantId, tx.date ? new Date(tx.date) : new Date());
+              const createdEntry = await ptx.journalEntry.create({
+                data: {
+                  tenantId,
+                  entryNumber,
+                  entryDate: tx.date ? new Date(tx.date) : new Date(),
+                  reference: tx.referenceNo || `BANK-RECON-${Date.now()}`,
+                  referenceType: "bank_reconcile",
+                  description: `Auto-Reconciliation: ${tx.description || "Unmatched bank transaction"}`,
+                  totalAmount: amount,
+                  status: "posted",
+                  items: {
+                    create: [
+                      {
+                        accountId: targetAccount!.id,
+                        type: isDeposit ? "debit" : "credit",
+                        debit: isDeposit ? amount : 0,
+                        credit: isDeposit ? 0 : amount,
+                        notes: `Reconciled ${targetAccount!.accountName}`,
+                      },
+                      {
+                        accountId: offsetAccount!.id,
+                        type: isDeposit ? "credit" : "debit",
+                        debit: isDeposit ? 0 : amount,
+                        credit: isDeposit ? amount : 0,
+                        notes: `Offset against ${offsetAccount!.accountName}`,
+                      },
+                    ],
+                  },
+                },
+              });
+
+              // Adjust bank balance
+              await ptx.chartOfAccount.update({
+                where: { id: targetAccount!.id },
+                data: {
+                  balance: {
+                    increment: isDeposit ? amount : -amount,
+                  },
+                },
+              });
+
+              return createdEntry;
+            });
+          }
+        } catch (autoErr) {
+          console.warn("Failed to auto-post reconciliation entry:", autoErr);
+        }
+      }
+
+      reconciledLines.push({
+        lineId: `line-${i + 1}`,
+        statementDate: tx.date || new Date().toISOString(),
+        description: tx.description,
+        amount,
+        type: isDeposit ? "credit" : "debit",
+        referenceNo: tx.referenceNo || null,
+        status: "UNMATCHED",
+        matchConfidence: 0.0,
+        autoPosted: Boolean(autoPostedEntry),
+        autoPostedEntryNumber: autoPostedEntry?.entryNumber,
+      });
+    }
+
+    return res.json({
+      success: true,
+      account: {
+        id: targetAccount.id,
+        name: targetAccount.accountName,
+        code: targetAccount.accountCode,
+        currentBalance: Number(targetAccount.balance),
+      },
+      summary: {
+        totalLines: transactions.length,
+        matchedCount,
+        potentialMatchCount,
+        unmatchedCount,
+        matchRatePct: transactions.length > 0 ? Math.round((matchedCount / transactions.length) * 100) : 100,
+        totalDeposits,
+        totalWithdrawals,
+        netFlow: totalDeposits - totalWithdrawals,
+      },
+      lines: reconciledLines,
+      message: `Reconciliation audit processed: ${matchedCount} matched, ${potentialMatchCount} potential, ${unmatchedCount} unmatched.`,
+    });
+  } catch (err: any) {
+    console.error("POST /api/accounting/reconcile error:", err);
+    return res.status(500).json({ error: err.message || "Failed to process bank statement reconciliation" });
   }
 });
 

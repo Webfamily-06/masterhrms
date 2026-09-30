@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -43,6 +43,7 @@ import {
   Folder,
   Edit2,
   Trash2,
+  ExternalLink,
   ArrowRight,
   Loader2,
   CalendarDays,
@@ -818,7 +819,11 @@ function ProjectsPage() {
                               style={{ background: p.color }}
                             />
                             <div className="min-w-0">
-                              <h3 className="font-bold text-sm text-foreground truncate">{p.name}</h3>
+                              <h3 className="font-bold text-sm text-foreground truncate">
+                                <Link to="/project/$id" params={{ id: p.id }} className="hover:text-primary transition-colors">
+                                  {p.name}
+                                </Link>
+                              </h3>
                               <p className="text-[11px] text-muted-foreground font-mono">{pTasks.length} Work Items</p>
                             </div>
                           </div>
@@ -875,17 +880,28 @@ function ProjectsPage() {
                       </div>
 
                       <div className="px-5 py-3 bg-muted/20 border-t flex items-center justify-between">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setActiveProjectId(p.id);
-                            setViewMode("kanban");
-                          }}
-                          className="text-xs font-bold text-primary hover:bg-primary/10 gap-1.5 h-8"
-                        >
-                          <Kanban className="size-3.5" /> Open Kanban Board
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Link to="/project/$id" params={{ id: p.id }}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs font-semibold gap-1 h-8"
+                            >
+                              <ExternalLink className="size-3.5" /> Details
+                            </Button>
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setActiveProjectId(p.id);
+                              setViewMode("kanban");
+                            }}
+                            className="text-xs font-bold text-primary hover:bg-primary/10 gap-1.5 h-8"
+                          >
+                            <Kanban className="size-3.5" /> Kanban
+                          </Button>
+                        </div>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -970,8 +986,10 @@ function ProjectsPage() {
                           <TableRow key={p.id} className="hover:bg-muted/20">
                             <TableCell className="font-bold text-foreground">
                               <div className="flex items-center gap-2">
-                                <span className="size-2 rounded-full" style={{ background: p.color }} />
-                                <span>{p.name}</span>
+                                <span className="size-2 rounded-full shrink-0" style={{ background: p.color }} />
+                                <Link to="/project/$id" params={{ id: p.id }} className="hover:text-primary transition-colors font-semibold">
+                                  {p.name}
+                                </Link>
                               </div>
                             </TableCell>
                             <TableCell className="text-center font-mono font-bold">

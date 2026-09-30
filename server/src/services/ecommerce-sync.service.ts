@@ -1,4 +1,5 @@
 import { prisma } from "../prisma";
+import { InventoryMovementService, STOCK_MOVEMENT_TYPES } from "./inventory-movement.service";
 
 export interface WooCommerceCredentials {
   enabled: boolean;
@@ -409,18 +410,29 @@ export async function syncWooCommerce(tenantId: string): Promise<SyncResult> {
         },
       });
 
-      if (pw) {
-        await prisma.productWarehouse.update({
-          where: { id: pw.id },
-          data: { quantity: stockQty },
+      const currentQty = pw ? Number(pw.quantity) : 0;
+      const delta = stockQty - currentQty;
+      if (delta > 0) {
+        await InventoryMovementService.increaseStock({
+          tenantId,
+          productId: prdId,
+          warehouseId: warehouse.id,
+          quantity: delta,
+          movementType: STOCK_MOVEMENT_TYPES.ADJUSTMENT_IN,
+          referenceType: "ECOMMERCE_SYNC",
+          referenceId: String(p.id),
+          notes: `WooCommerce stock sync (+${delta})`,
         });
-      } else {
-        await prisma.productWarehouse.create({
-          data: {
-            productId: prdId,
-            warehouseId: warehouse.id,
-            quantity: stockQty,
-          },
+      } else if (delta < 0) {
+        await InventoryMovementService.decreaseStock({
+          tenantId,
+          productId: prdId,
+          warehouseId: warehouse.id,
+          quantity: Math.abs(delta),
+          movementType: STOCK_MOVEMENT_TYPES.ADJUSTMENT_OUT,
+          referenceType: "ECOMMERCE_SYNC",
+          referenceId: String(p.id),
+          notes: `WooCommerce stock sync deduction (${delta})`,
         });
       }
     } catch (err: any) {
@@ -568,18 +580,29 @@ export async function syncShopify(tenantId: string): Promise<SyncResult> {
         },
       });
 
-      if (pw) {
-        await prisma.productWarehouse.update({
-          where: { id: pw.id },
-          data: { quantity: stockQty },
+      const currentQty = pw ? Number(pw.quantity) : 0;
+      const delta = stockQty - currentQty;
+      if (delta > 0) {
+        await InventoryMovementService.increaseStock({
+          tenantId,
+          productId: prdId,
+          warehouseId: warehouse.id,
+          quantity: delta,
+          movementType: STOCK_MOVEMENT_TYPES.ADJUSTMENT_IN,
+          referenceType: "ECOMMERCE_SYNC",
+          referenceId: String(sp.id),
+          notes: `Shopify stock sync (+${delta})`,
         });
-      } else {
-        await prisma.productWarehouse.create({
-          data: {
-            productId: prdId,
-            warehouseId: warehouse.id,
-            quantity: stockQty,
-          },
+      } else if (delta < 0) {
+        await InventoryMovementService.decreaseStock({
+          tenantId,
+          productId: prdId,
+          warehouseId: warehouse.id,
+          quantity: Math.abs(delta),
+          movementType: STOCK_MOVEMENT_TYPES.ADJUSTMENT_OUT,
+          referenceType: "ECOMMERCE_SYNC",
+          referenceId: String(sp.id),
+          notes: `Shopify stock sync deduction (${delta})`,
         });
       }
     } catch (err: any) {

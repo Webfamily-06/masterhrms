@@ -8,9 +8,12 @@ export interface TenantBranding {
   name: string;
   slug: string;
   logoUrl: string;
+  logoDark?: string;
   faviconUrl: string;
   primaryColor: string;
   timezone: string;
+  currency?: string;
+  currencySymbol?: string;
   isWhiteLabeled: boolean;
   subscription?: {
     planName: string;
@@ -22,25 +25,62 @@ export const DEFAULT_BRANDING: TenantBranding = {
   resolved: false,
   name: "Master ERP & HRMS",
   slug: "default",
-  logoUrl: "/images/logo.svg",
-  faviconUrl: "/favicon.ico",
+  logoUrl: "/logo.webp",
+  logoDark: "/logo.webp",
+  faviconUrl: "/favicon.webp",
   primaryColor: "#FF6B00",
   timezone: "Asia/Kolkata",
+  currency: "INR",
+  currencySymbol: "₹",
   isWhiteLabeled: false,
 };
 
 export function useTenantBranding() {
+  const hasAuthToken = typeof window !== "undefined" && !!localStorage.getItem("hrms_auth_token");
+
   const { data: branding = DEFAULT_BRANDING, isLoading } = useQuery<TenantBranding>({
-    queryKey: ["public-tenant-branding"],
+    queryKey: ["tenant-branding", hasAuthToken],
     queryFn: async () => {
       try {
-        const res = await api.get("/auth/public/tenant/resolve");
-        return res || DEFAULT_BRANDING;
-      } catch (err) {
+        if (hasAuthToken) {
+          // Authenticated: fetch tenant-isolated settings
+          const res = await api.get("/workspace/settings");
+          if (res && (res.tenant || res.brand)) {
+            const tenant = res.tenant || {};
+            const brand = res.brand || {};
+            return {
+              resolved: true,
+              id: tenant.id,
+              name: brand.titleText || tenant.name || DEFAULT_BRANDING.name,
+              slug: tenant.slug || "default",
+              logoUrl: brand.logoLight || brand.logoDark || tenant.logoUrl || DEFAULT_BRANDING.logoUrl,
+              logoDark: brand.logoDark || brand.logoLight || tenant.logoUrl || DEFAULT_BRANDING.logoUrl,
+              faviconUrl: brand.favicon || tenant.logoUrl || DEFAULT_BRANDING.faviconUrl,
+              primaryColor: brand.themeColor ? (brand.themeColor.startsWith("#") ? brand.themeColor : "#FF6B00") : (tenant.primaryColor || "#FF6B00"),
+              timezone: tenant.timezone || "Asia/Kolkata",
+              currency: brand.currency || "INR",
+              currencySymbol: brand.currencySymbol || "₹",
+              isWhiteLabeled: true,
+            };
+          }
+        }
+        // Public / Unauthenticated
+        const publicRes = await api.get("/auth/public/tenant/resolve");
+        if (publicRes && publicRes.resolved) {
+          return {
+            ...DEFAULT_BRANDING,
+            ...publicRes,
+            logoUrl: publicRes.logoUrl || DEFAULT_BRANDING.logoUrl,
+            logoDark: publicRes.logoUrl || DEFAULT_BRANDING.logoDark,
+            faviconUrl: publicRes.faviconUrl || DEFAULT_BRANDING.faviconUrl,
+          };
+        }
+        return publicRes || DEFAULT_BRANDING;
+      } catch {
         return DEFAULT_BRANDING;
       }
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Dynamically apply Favicon and Brand Colors

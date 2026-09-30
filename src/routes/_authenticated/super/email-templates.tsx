@@ -38,7 +38,7 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
     <div style="text-align: center; margin-bottom: 20px;">
       <img src="https://masterhrms.com/logo.png" alt="Master HRMS Logo" style="height: 40px;"  loading="lazy"/>
     </div>
-    <h2 style="color: #0f172a; margin-top: 0;">Welcome aboard, {{user_name}}! 🎉</h2>
+    <h2 style="color: #0f172a; margin-top: 0;">Welcome aboard, {{user_name}}!</h2>
     <p style="color: #475569; line-height: 1.6;">Your company workspace <strong>{{company_name}}</strong> has been successfully provisioned on Master HRMS.</p>
     <div style="text-align: center; margin: 30px 0;">
       <a href="{{login_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; display: inline-block;">Access Workspace →</a>
@@ -58,7 +58,7 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
     html_body: `<html lang="en">
 <body style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 20px;">
   <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; border: 1px solid #e2e8f0;">
-    <h2 style="color: #0f172a; margin-top: 0;">Payslip Generated 💸</h2>
+    <h2 style="color: #0f172a; margin-top: 0;">Payslip Generated</h2>
     <p style="color: #475569;">Hello {{employee_name}}, your payslip for <strong>{{month}}</strong> has been generated.</p>
     <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px dashed #cbd5e1;">
       <span style="font-size: 14px; color: #64748b;">Net Disbursed Salary:</span>

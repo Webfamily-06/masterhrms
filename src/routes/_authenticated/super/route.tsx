@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { api, clearToken } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/command";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveDefaultRoute } from "@/lib/auth-navigation";
+import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
 
 export const Route = createFileRoute("/_authenticated/super")({
   component: SuperShell,
@@ -38,15 +40,16 @@ type SuperNavItem = {
 
 const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   // ── Core Orchestration
-  { to: "/super", label: "Root Command Center", iconClass: "ph-gauge", group: "Core Orchestration" },
+  { to: "/super", label: "Dashboard", iconClass: "ph-gauge", group: "Core Orchestration" },
   { to: "/super/tenants", label: "Tenant Workspaces", iconClass: "ph-buildings", group: "Core Orchestration", badge: "Multi-Tenant" },
+  { to: "/super/tenant-usage-metrics", label: "Tenant Usage Metrics", iconClass: "ph-chart-bar", group: "Core Orchestration" },
   { to: "/super/plans", label: "Subscription Plans", iconClass: "ph-credit-card", group: "Core Orchestration" },
   { to: "/super/domains", label: "Custom Domains", iconClass: "ph-globe-hemisphere-west", group: "Core Orchestration" },
   { to: "/super/transactions", label: "Purchase Transactions", iconClass: "ph-receipt", group: "Core Orchestration" },
   { to: "/super/roles", label: "Roles & RBAC Matrix", iconClass: "ph-shield-check", group: "Core Orchestration" },
 
   // ── Ecosystem & Marketplace
-  { to: "/super/marketplace", label: "Addons Marketplace", iconClass: "ph-storefront", group: "Ecosystem & Apps", badge: "500+ Live" },
+  { to: "/super/marketplace", label: "Addons Marketplace", iconClass: "ph-storefront", group: "Ecosystem & Apps", badge: "500+" },
 
   // ── Marketing & CMS
   { to: "/super/cms", label: "Visual CMS Studio", iconClass: "ph-article", group: "Marketing & CMS", badge: "Studio 2.0" },
@@ -54,7 +57,11 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: "/super/case-studies", label: "Case Studies", iconClass: "ph-briefcase", group: "Marketing & CMS" },
   { to: "/super/media", label: "Media Library", iconClass: "ph-image", group: "Marketing & CMS" },
 
-  // ── Communications
+  // ── Communications & Support Tickets
+  { to: "/super/tenant-support-tickets", label: "Tenant Support Tickets", iconClass: "ph-ticket", group: "Communications" },
+  { to: "/super/agents", label: "Support Agents", iconClass: "ph-headset", group: "Communications" },
+  { to: "/super/sla-policies", label: "SLA Policies", iconClass: "ph-shield-check", group: "Communications" },
+  { to: "/super/escalation-rules", label: "Escalation Rules", iconClass: "ph-warning-octagon", group: "Communications" },
   { to: "/super/support", label: "Global Support Desk", iconClass: "ph-lifebuoy", group: "Communications" },
   { to: "/super/email-templates", label: "Email Templates", iconClass: "ph-envelope", group: "Communications" },
   { to: "/super/notifications", label: "Broadcast Alerts", iconClass: "ph-bell", group: "Communications" },
@@ -154,43 +161,24 @@ function SuperSidebar({
                 alt="Master Platform"
                 className="h-8 max-h-8 w-auto object-contain dark:brightness-110"
                loading="lazy"/>
-              <Badge className="bg-purple-600 text-white text-[9px] font-mono uppercase font-bold py-0 h-4 shrink-0">
-                ROOT
-              </Badge>
             </Link>
 
-            {/* Desktop Pin / Hover Mode Switch Button */}
+            {/* Desktop Collapse / Expand Button */}
             <button
               type="button"
               id="toggle_btn"
               onClick={handleToggleCollapse}
               className={cn(
-                "hidden lg:flex items-center justify-center size-8 rounded-lg border transition-all cursor-pointer shadow-xs",
+                "hidden lg:flex items-center justify-center size-7 rounded-md border transition-all cursor-pointer shadow-xs",
                 collapsed
                   ? "bg-slate-100 dark:bg-slate-800 border-border-color text-muted-foreground hover:text-purple-600"
                   : "bg-purple-600/10 border-purple-600/20 text-purple-600 hover:bg-purple-600/20"
               )}
-              title={collapsed ? "Pin Sidebar (Fixed 250px)" : "Unpin Sidebar (Mini Hover Mode)"}
-              aria-label="Toggle Sidebar Pin Mode"
+              title={collapsed ? "Expand Sidebar (250px)" : "Collapse Sidebar (72px)"}
+              aria-label="Toggle Sidebar"
             >
-              <i className={cn("text-base ph-duotone", collapsed ? "ph-circle" : "ph-record")}></i>
+              <i className={cn("text-base ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
-
-            {/* Quick Full View Console Toggle Button */}
-            {onToggleFullView && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFullView();
-                }}
-                className="hidden lg:flex items-center justify-center size-8 rounded-lg border border-border-color bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:text-purple-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-xs"
-                title="Full View Console (Hide Sidebar)"
-                aria-label="Full View Console"
-              >
-                <i className="text-base ph-duotone ph-arrows-out-line-horizontal"></i>
-              </button>
-            )}
 
             {/* Mobile Close X Button */}
             <button
@@ -221,7 +209,7 @@ function SuperSidebar({
         <div id="sidebar-menu" className="sidebar-menu">
           <ul>
             {groups.map((group) => (
-              <div key={group.title} className="contents">
+              <Fragment key={group.title}>
                 <li className="menu-title">
                   <span>{group.title.toUpperCase()}</span>
                 </li>
@@ -253,7 +241,7 @@ function SuperSidebar({
                     </li>
                   );
                 })}
-              </div>
+              </Fragment>
             ))}
 
             {/* ===================== WORKSPACES & PLATFORM ===================== */}
@@ -269,9 +257,6 @@ function SuperSidebar({
               >
                 <i className="ph-duotone ph-buildings"></i>
                 <span>Switch to Tenant App</span>
-                <span className="text-[9px] px-1.5 py-0 h-4 font-mono font-bold shrink-0 ml-auto rounded border border-primary/30 text-primary bg-primary/10 inline-flex items-center">
-                  Live
-                </span>
               </Link>
             </li>
             <li>
@@ -282,7 +267,7 @@ function SuperSidebar({
                   onSignOut();
                 }}
                 className="text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
-                title="Sign Out of Root Console"
+                title="Sign Out of Admin Console"
               >
                 <i className="ph-duotone ph-sign-out"></i>
                 <span>Sign Out of Console</span>
@@ -402,7 +387,7 @@ function SuperShell() {
   useEffect(() => {
     if (!isLoading && !localStorage.getItem("hrms_auth_token")) navigate({ to: "/super-login" });
     if (!isLoading && profile && !profile.roles?.includes("super_admin")) {
-      navigate({ to: "/dashboard" });
+      navigate({ to: resolveDefaultRoute(profile.roles) });
     }
   }, [profile, isLoading, navigate]);
 
@@ -415,7 +400,15 @@ function SuperShell() {
     navigate({ to: "/super-login" });
   }
 
-  if (profileError) return <div role="alert" className="p-8 space-y-4"><p>{profileError.message}</p><button onClick={() => reloadProfile()} className="underline">Retry</button> <button onClick={handleSignOut} className="underline">Sign out</button></div>;
+  if (profileError) {
+    return (
+      <WorkspaceUnavailableView
+        error={profileError}
+        onRetry={() => reloadProfile()}
+        onSignOut={handleSignOut}
+      />
+    );
+  }
 
   if (loading || isLoading) {
     return (
@@ -424,7 +417,7 @@ function SuperShell() {
           <div className="size-12 rounded-2xl bg-purple-600/10 border border-purple-600/20 flex items-center justify-center">
             <Loader2 className="size-6 animate-spin text-purple-600" />
           </div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Verifying root access...</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Verifying platform access...</p>
         </div>
       </div>
     );
@@ -444,7 +437,7 @@ function SuperShell() {
   const currentItem = ALL_SUPER_SEARCH_ITEMS.find((item) =>
     item.to === "/super" ? path === "/super" : path.startsWith(item.to)
   );
-  const currentTitle = currentItem?.label || "Root Command Center";
+  const currentTitle = currentItem?.label || "Command Center";
 
   return (
     <div
@@ -485,8 +478,7 @@ function SuperShell() {
 
             {/* Mobile Brand Logo (Visible only on mobile / tablet < 992px) */}
             <Link to="/super" className="logo lg:hidden flex items-center gap-1.5 shrink-0">
-              <img src="/logo.webp" alt="Master Platform" className="h-7 max-h-7 w-auto object-contain"  loading="lazy"/>
-              <Badge className="bg-purple-600 text-white text-[8px] font-mono font-bold py-0 h-3.5 px-1">ROOT</Badge>
+              <img src="/logo.webp" alt="Master Platform" className="h-7 max-h-7 w-auto object-contain" loading="lazy"/>
             </Link>
 
             {/* Desktop Full Sidebar / Mini Sidebar Toggle Button */}
@@ -502,7 +494,7 @@ function SuperShell() {
                 }
               }}
               className={cn(
-                "sidenav-toggle-btn topbar-link shrink-0 size-9 text-[18px] hidden lg:flex items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs",
+                "sidenav-toggle-btn topbar-link shrink-0 size-8 text-[18px] hidden lg:flex items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs",
                 collapsed
                   ? "bg-purple-600/10 border-purple-600/20 text-purple-600 hover:bg-purple-600/20"
                   : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
@@ -510,12 +502,12 @@ function SuperShell() {
               aria-label="Toggle Sidebar Mini Rail"
               title={collapsed ? "Expand Sidebar to Full Width (250px)" : "Collapse Sidebar to Mini Rail (72px)"}
             >
-              <i className={cn("ph-duotone", collapsed ? "ph-caret-right" : "ph-caret-left")}></i>
+              <i className={cn("ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
 
             {/* Breadcrumb / Title */}
             <div className="hidden sm:flex items-center gap-2 text-xs font-semibold">
-              <Badge className="bg-purple-600 text-white text-[10px] font-bold py-0.5 px-2">ROOT CONSOLE</Badge>
+              <Badge className="bg-purple-600 text-white text-[10px] font-bold py-0.5 px-2">Super Admin</Badge>
               <span className="text-muted-foreground/60">/</span>
               <span className="text-foreground font-bold truncate max-w-[200px]">{currentTitle}</span>
             </div>

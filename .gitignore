@@ -95,3 +95,7 @@ super_admin_dashboard.png
 tenant_dashboard.png
 
 
+# Large asset / vendor source folders (excluded from repo)
+ui/
+ui-2/
+main-file/

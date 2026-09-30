@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { broadcastToTenant } from "../socket";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
@@ -11,7 +12,7 @@ export const crmRouter = Router();
 // ==========================================
 
 // GET /api/crm/leads - List all leads for tenant
-crmRouter.get("/leads", requireAuth, requirePermission("crm.leads.view"), async (req: AuthRequest, res: Response) => {
+crmRouter.get("/leads", requireAuth, resolveTenantContext, requirePermission("crm.leads.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const pagination = parsePaginationParams(req, "createdAt", 20);
@@ -122,7 +123,7 @@ crmRouter.get("/leads", requireAuth, requirePermission("crm.leads.view"), async 
 });
 
 // POST /api/crm/leads - Create new lead
-crmRouter.post("/leads", requireAuth, requirePermission("crm.leads.create"), async (req: AuthRequest, res: Response) => {
+crmRouter.post("/leads", requireAuth, resolveTenantContext, requirePermission("crm.leads.create"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const body = req.body;
@@ -166,7 +167,7 @@ crmRouter.post("/leads", requireAuth, requirePermission("crm.leads.create"), asy
 });
 
 // PUT /api/crm/leads/:id - Update lead details or drag-and-drop stage
-crmRouter.put("/leads/:id", requireAuth, requirePermission("crm.leads.edit"), async (req: AuthRequest, res: Response) => {
+crmRouter.put("/leads/:id", requireAuth, resolveTenantContext, requirePermission("crm.leads.edit"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -201,7 +202,7 @@ crmRouter.put("/leads/:id", requireAuth, requirePermission("crm.leads.edit"), as
 });
 
 // DELETE /api/crm/leads/:id - Remove lead
-crmRouter.delete("/leads/:id", requireAuth, requirePermission("crm.leads.delete"), async (req: AuthRequest, res: Response) => {
+crmRouter.delete("/leads/:id", requireAuth, resolveTenantContext, requirePermission("crm.leads.delete"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -222,7 +223,7 @@ crmRouter.delete("/leads/:id", requireAuth, requirePermission("crm.leads.delete"
 // ==========================================
 
 // GET /api/crm/proposals - List proposals
-crmRouter.get("/proposals", requireAuth, async (req: AuthRequest, res: Response) => {
+crmRouter.get("/proposals", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const pagination = parsePaginationParams(req, "createdAt", 20);
@@ -280,7 +281,7 @@ crmRouter.get("/proposals", requireAuth, async (req: AuthRequest, res: Response)
 });
 
 // POST /api/crm/proposals - Create proposal
-crmRouter.post("/proposals", requireAuth, async (req: AuthRequest, res: Response) => {
+crmRouter.post("/proposals", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const body = req.body;
@@ -336,7 +337,7 @@ crmRouter.post("/proposals", requireAuth, async (req: AuthRequest, res: Response
 });
 
 // PATCH /api/crm/proposals/:id - Update proposal status and fields
-crmRouter.patch("/proposals/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+crmRouter.patch("/proposals/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -397,7 +398,7 @@ crmRouter.patch("/proposals/:id", requireAuth, async (req: AuthRequest, res: Res
 });
 
 // POST /api/crm/proposals/:id/convert - One-click convert proposal to formal Sale Invoice
-crmRouter.post("/proposals/:id/convert", requireAuth, async (req: AuthRequest, res: Response) => {
+crmRouter.post("/proposals/:id/convert", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -462,7 +463,7 @@ crmRouter.post("/proposals/:id/convert", requireAuth, async (req: AuthRequest, r
 });
 
 // POST /api/crm/proposals/:id/convert-to-project - Convert Proposal into active Project with tasks
-crmRouter.post("/proposals/:id/convert-to-project", requireAuth, async (req: AuthRequest, res: Response) => {
+crmRouter.post("/proposals/:id/convert-to-project", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -542,7 +543,7 @@ crmRouter.post("/proposals/:id/convert-to-project", requireAuth, async (req: Aut
 });
 
 // DELETE /api/crm/proposals/:id - Delete proposal
-crmRouter.delete("/proposals/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+crmRouter.delete("/proposals/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -671,3 +672,476 @@ crmRouter.post("/proposals/public/:id/respond", async (req, res: Response) => {
   }
 });
 
+// ==========================================
+// CRM CONTACTS (Enterprise Directory & Passport)
+// ==========================================
+
+// GET /api/crm/contacts - List contacts for tenant
+crmRouter.get("/contacts", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const statusParam = typeof req.query.status === "string" ? req.query.status : undefined;
+    const sortParam = req.query.sort === "asc" ? "asc" : "desc";
+    const searchParam = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+
+    const where: any = { tenantId };
+    if (statusParam && statusParam !== "all") {
+      where.status = statusParam;
+    }
+    if (searchParam) {
+      where.OR = [
+        { name: { contains: searchParam } },
+        { email: { contains: searchParam } },
+        { phone: { contains: searchParam } },
+        { company: { contains: searchParam } },
+        { role: { contains: searchParam } },
+        { city: { contains: searchParam } },
+      ];
+    }
+
+    let contacts = await prisma.crmContact.findMany({
+      where,
+      orderBy: { createdAt: sortParam },
+    });
+
+    // Auto-seed realistic enterprise contacts if table empty for this tenant
+    if (contacts.length === 0 && !searchParam && (!statusParam || statusParam === "all")) {
+      const initialContacts = [
+        {
+          tenantId,
+          name: "Darlee Robertson",
+          email: "darlee@example.com",
+          phone: "(163) 2459 315",
+          role: "Facility Manager",
+          company: "TechCorp Solutions",
+          city: "Berlin",
+          country: "Germany",
+          rating: 4.2,
+          owner: (req.user as any)?.fullName || "Admin",
+          status: "active",
+          social: {
+            linkedin: "linkedin.com/in/darlee-robertson",
+            twitter: "@darlee_r",
+          },
+          activities: [
+            {
+              type: "call",
+              title: "Initial Qualification Call",
+              date: new Date(Date.now() - 86400000 * 2).toISOString(),
+              notes: "Discussed corporate facilities renewal and Q3 requirements.",
+            },
+            {
+              type: "email",
+              title: "Quotation Sent",
+              date: new Date(Date.now() - 86400000 * 4).toISOString(),
+              notes: "Shared standard ERP licensing schedule and implementation terms.",
+            },
+          ],
+          notes: "Key decision maker for European enterprise facilities rollout.",
+        },
+        {
+          tenantId,
+          name: "Alexander Kenn",
+          email: "alex@example.com",
+          phone: "+1 202 555 0173",
+          role: "Chief Executive Officer",
+          company: "TechCorp Inc",
+          city: "New York",
+          country: "USA",
+          rating: 4.8,
+          owner: (req.user as any)?.fullName || "Admin",
+          status: "active",
+          social: {
+            linkedin: "linkedin.com/in/alex-kenn-ceo",
+            twitter: "@akenn_tech",
+          },
+          activities: [
+            {
+              type: "meeting",
+              title: "Executive Strategic Review",
+              date: new Date(Date.now() - 86400000).toISOString(),
+              notes: "Finalized master multi-tenant subscription terms.",
+            },
+            {
+              type: "call",
+              title: "Contract Review Call",
+              date: new Date(Date.now() - 86400000 * 3).toISOString(),
+              notes: "Addressed SLA and high-availability queries.",
+            },
+          ],
+          notes: "High priority account. Prefers email follow-ups with concise milestone summaries.",
+        },
+        {
+          tenantId,
+          name: "Sharon Roy",
+          email: "sharon@example.com",
+          phone: "(145) 8965 241",
+          role: "Software Architect",
+          company: "Nova Digital Systems",
+          city: "London",
+          country: "United Kingdom",
+          rating: 4.5,
+          owner: (req.user as any)?.fullName || "Admin",
+          status: "active",
+          social: {
+            linkedin: "linkedin.com/in/sharon-roy-arch",
+          },
+          activities: [
+            {
+              type: "email",
+              title: "API Architecture Specs Exchanged",
+              date: new Date(Date.now() - 86400000 * 5).toISOString(),
+              notes: "Reviewed REST API and webhook integration capabilities.",
+            },
+          ],
+          notes: "Technical stakeholder evaluating custom POS and ERP integrations.",
+        },
+        {
+          tenantId,
+          name: "Vaughn Lewis",
+          email: "vaughn@example.com",
+          phone: "(178) 6589 423",
+          role: "Director of Operations",
+          company: "Global Logistics Group",
+          city: "Toronto",
+          country: "Canada",
+          rating: 4.0,
+          owner: (req.user as any)?.fullName || "Admin",
+          status: "inactive",
+          activities: [],
+          notes: "Legacy logistics contract on pause until next budget cycle in November.",
+        },
+      ];
+
+      for (const item of initialContacts) {
+        await prisma.crmContact.create({ data: item });
+      }
+
+      contacts = await prisma.crmContact.findMany({
+        where,
+        orderBy: { createdAt: sortParam },
+      });
+    }
+
+    const formatted = contacts.map((c) => ({
+      id: c.id,
+      name: c.name,
+      email: c.email || "",
+      phone: c.phone || "",
+      role: c.role || "",
+      company: c.company || "",
+      city: c.city || "",
+      country: c.country || "India",
+      location: [c.city, c.country].filter(Boolean).join(", ") || "Global",
+      rating: Number(c.rating),
+      owner: c.owner || "Admin",
+      status: c.status as "active" | "inactive",
+      social: (c.social as any) || {},
+      activities: (c.activities as any) || [],
+      notes: c.notes || "",
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    }));
+
+    return res.json(formatted);
+  } catch (err: any) {
+    console.error("CRM Contacts GET error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch CRM contacts" });
+  }
+});
+
+// POST /api/crm/contacts - Create contact
+crmRouter.post("/contacts", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const body = req.body;
+
+    if (!body.name || !body.name.trim()) {
+      return res.status(400).json({ error: "Contact name is required." });
+    }
+
+    const created = await prisma.crmContact.create({
+      data: {
+        tenantId,
+        name: body.name.trim(),
+        email: body.email?.trim() || null,
+        phone: body.phone?.trim() || null,
+        role: body.role?.trim() || null,
+        company: body.company?.trim() || null,
+        city: body.city?.trim() || null,
+        country: body.country?.trim() || "India",
+        rating: body.rating !== undefined ? Number(body.rating) : 4.5,
+        owner: body.owner || (req.user as any)?.fullName || "Admin",
+        status: body.status === "inactive" ? "inactive" : "active",
+        social: body.social || {},
+        activities: body.activities || [],
+        notes: body.notes || null,
+      },
+    });
+
+    broadcastToTenant(tenantId, "crm:contact:created", { id: created.id, name: created.name });
+
+    return res.status(201).json({
+      id: created.id,
+      name: created.name,
+      email: created.email || "",
+      phone: created.phone || "",
+      role: created.role || "",
+      company: created.company || "",
+      city: created.city || "",
+      country: created.country || "India",
+      location: [created.city, created.country].filter(Boolean).join(", ") || "Global",
+      rating: Number(created.rating),
+      owner: created.owner || "Admin",
+      status: created.status as "active" | "inactive",
+      social: (created.social as any) || {},
+      activities: (created.activities as any) || [],
+      notes: created.notes || "",
+      createdAt: created.createdAt.toISOString(),
+      updatedAt: created.updatedAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Contact POST error:", err);
+    return res.status(500).json({ error: err.message || "Failed to create CRM contact" });
+  }
+});
+
+// PUT /api/crm/contacts/:id - Update contact
+crmRouter.put("/contacts/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const body = req.body;
+
+    const existing = await prisma.crmContact.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Contact not found." });
+    }
+
+    const dataToUpdate: any = {};
+    if (body.name !== undefined) dataToUpdate.name = body.name.trim();
+    if (body.email !== undefined) dataToUpdate.email = body.email ? body.email.trim() : null;
+    if (body.phone !== undefined) dataToUpdate.phone = body.phone ? body.phone.trim() : null;
+    if (body.role !== undefined) dataToUpdate.role = body.role ? body.role.trim() : null;
+    if (body.company !== undefined) dataToUpdate.company = body.company ? body.company.trim() : null;
+    if (body.city !== undefined) dataToUpdate.city = body.city ? body.city.trim() : null;
+    if (body.country !== undefined) dataToUpdate.country = body.country ? body.country.trim() : "India";
+    if (body.rating !== undefined) dataToUpdate.rating = Number(body.rating);
+    if (body.owner !== undefined) dataToUpdate.owner = body.owner;
+    if (body.status !== undefined) dataToUpdate.status = body.status;
+    if (body.social !== undefined) dataToUpdate.social = body.social;
+    if (body.activities !== undefined) dataToUpdate.activities = body.activities;
+    if (body.notes !== undefined) dataToUpdate.notes = body.notes;
+
+    const updated = await prisma.crmContact.update({
+      where: { id: existing.id },
+      data: dataToUpdate,
+    });
+
+    broadcastToTenant(tenantId, "crm:contact:updated", { id: updated.id, name: updated.name });
+
+    return res.json({
+      id: updated.id,
+      name: updated.name,
+      email: updated.email || "",
+      phone: updated.phone || "",
+      role: updated.role || "",
+      company: updated.company || "",
+      city: updated.city || "",
+      country: updated.country || "India",
+      location: [updated.city, updated.country].filter(Boolean).join(", ") || "Global",
+      rating: Number(updated.rating),
+      owner: updated.owner || "Admin",
+      status: updated.status as "active" | "inactive",
+      social: (updated.social as any) || {},
+      activities: (updated.activities as any) || [],
+      notes: updated.notes || "",
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Contact PUT error:", err);
+    return res.status(500).json({ error: err.message || "Failed to update CRM contact" });
+  }
+});
+
+// DELETE /api/crm/contacts/:id - Delete contact
+crmRouter.delete("/contacts/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const deleted = await prisma.crmContact.deleteMany({
+      where: { id, tenantId },
+    });
+
+    if (deleted.count === 0) {
+      return res.status(404).json({ error: "Contact not found." });
+    }
+
+    broadcastToTenant(tenantId, "crm:contact:deleted", { id });
+
+    return res.json({ success: true, message: "Contact deleted successfully." });
+  } catch (err: any) {
+    console.error("CRM Contact DELETE error:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete CRM contact" });
+  }
+});
+
+
+// ==========================================
+// CRM COMPANIES (Relational MySQL backed)
+// ==========================================
+
+// GET /api/crm/companies - List companies for tenant
+crmRouter.get("/companies", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const searchParam = (req.query.search as string)?.trim() || "";
+
+    const where: any = { tenantId };
+    if (searchParam) {
+      where.OR = [
+        { name: { contains: searchParam } },
+        { industry: { contains: searchParam } },
+        { location: { contains: searchParam } },
+      ];
+    }
+
+    const companies = await prisma.crmCompany.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+
+    const formatted = companies.map((c) => ({
+      id: c.id,
+      name: c.name,
+      industry: c.industry || "",
+      employeesCount: c.employeesCount || "1-50",
+      annualRevenue: Number(c.annualRevenue),
+      website: c.website || "",
+      location: c.location || "",
+      dealsCount: c.dealsCount,
+      notes: c.notes || "",
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    }));
+
+    return res.json(formatted);
+  } catch (err: any) {
+    console.error("CRM Companies GET error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch CRM companies" });
+  }
+});
+
+// POST /api/crm/companies - Create company
+crmRouter.post("/companies", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const body = req.body;
+
+    if (!body.name || !body.name.trim()) {
+      return res.status(400).json({ error: "Company name is required." });
+    }
+
+    const created = await prisma.crmCompany.create({
+      data: {
+        tenantId,
+        name: body.name.trim(),
+        industry: body.industry?.trim() || null,
+        employeesCount: body.employeesCount || null,
+        annualRevenue: body.annualRevenue !== undefined ? Number(body.annualRevenue) : 0,
+        website: body.website?.trim() || null,
+        location: body.location?.trim() || null,
+        dealsCount: 0,
+        notes: body.notes || null,
+      },
+    });
+
+    broadcastToTenant(tenantId, "crm:company:created", { id: created.id, name: created.name });
+
+    return res.status(201).json({
+      id: created.id,
+      name: created.name,
+      industry: created.industry || "",
+      employeesCount: created.employeesCount || "1-50",
+      annualRevenue: Number(created.annualRevenue),
+      website: created.website || "",
+      location: created.location || "",
+      dealsCount: created.dealsCount,
+      notes: created.notes || "",
+      createdAt: created.createdAt.toISOString(),
+      updatedAt: created.updatedAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Company POST error:", err);
+    return res.status(500).json({ error: err.message || "Failed to create CRM company" });
+  }
+});
+
+// PUT /api/crm/companies/:id - Update company
+crmRouter.put("/companies/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const body = req.body;
+
+    const existing = await prisma.crmCompany.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Company not found." });
+    }
+
+    const dataToUpdate: any = {};
+    if (body.name !== undefined) dataToUpdate.name = body.name.trim();
+    if (body.industry !== undefined) dataToUpdate.industry = body.industry?.trim() || null;
+    if (body.employeesCount !== undefined) dataToUpdate.employeesCount = body.employeesCount;
+    if (body.annualRevenue !== undefined) dataToUpdate.annualRevenue = Number(body.annualRevenue);
+    if (body.website !== undefined) dataToUpdate.website = body.website?.trim() || null;
+    if (body.location !== undefined) dataToUpdate.location = body.location?.trim() || null;
+    if (body.dealsCount !== undefined) dataToUpdate.dealsCount = Number(body.dealsCount);
+    if (body.notes !== undefined) dataToUpdate.notes = body.notes;
+
+    const updated = await prisma.crmCompany.update({ where: { id: existing.id }, data: dataToUpdate });
+
+    broadcastToTenant(tenantId, "crm:company:updated", { id: updated.id, name: updated.name });
+
+    return res.json({
+      id: updated.id,
+      name: updated.name,
+      industry: updated.industry || "",
+      employeesCount: updated.employeesCount || "1-50",
+      annualRevenue: Number(updated.annualRevenue),
+      website: updated.website || "",
+      location: updated.location || "",
+      dealsCount: updated.dealsCount,
+      notes: updated.notes || "",
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Company PUT error:", err);
+    return res.status(500).json({ error: err.message || "Failed to update CRM company" });
+  }
+});
+
+// DELETE /api/crm/companies/:id - Delete company
+crmRouter.delete("/companies/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const deleted = await prisma.crmCompany.deleteMany({ where: { id, tenantId } });
+    if (deleted.count === 0) {
+      return res.status(404).json({ error: "Company not found." });
+    }
+
+    broadcastToTenant(tenantId, "crm:company:deleted", { id });
+    return res.json({ success: true, message: "Company deleted successfully." });
+  } catch (err: any) {
+    console.error("CRM Company DELETE error:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete CRM company" });
+  }
+});

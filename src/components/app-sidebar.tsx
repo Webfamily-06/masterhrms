@@ -45,6 +45,7 @@ import {
   ChevronDown,
   ChevronRight,
   Building2,
+  RotateCcw,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -341,9 +342,11 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {[
+                { title: "Contacts CRM", url: "/contacts", icon: Users },
                 { title: "CRM Pipelines", url: "/crm", icon: Target },
                 { title: "Proposals", url: "/proposals", icon: FileText },
                 { title: "Invoices & Billing", url: "/invoices", icon: Receipt },
+                { title: "Returns & Notes", url: "/returns", icon: RotateCcw },
                 { title: "Projects & Tasks", url: "/projects", icon: Kanban },
                 { title: "Team Chat", url: "/chat", icon: MessageSquare },
               ].map((item) => <SimpleNavItem key={item.url} item={item} />)}

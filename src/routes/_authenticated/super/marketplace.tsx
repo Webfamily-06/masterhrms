@@ -85,7 +85,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Seamless WhatsApp Business Cloud API integration for instant workforce notifications.",
     long_description: "Deliver instant automated push alerts to employees and managers for shifts, clock-in reminders, payslips, and leave request decisions.",
     category: "Communication",
-    icon: "💬",
+    icon: "message-square",
     price_monthly: 999,
     developer: "Master ERP Core Team",
     status: "active",
@@ -104,7 +104,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Direct TCP/IP and cloud webhook listener for physical attendance devices.",
     long_description: "Connect physical attendance machines directly to your MySQL cloud instance with millisecond synchronization and automated shift logs.",
     category: "Hardware",
-    icon: "📟",
+    icon: "cpu",
     price_monthly: 1499,
     developer: "Master Hardware Team",
     status: "active",
@@ -123,7 +123,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Multi-model AI studio supporting ChatGPT (OpenAI), Google Gemini, Claude, Groq & Mistral.",
     long_description: "Supercharge your business productivity with AI. Generate high-converting marketing copy, rich job descriptions, employee circulars, email campaigns, and customer support responses in 10+ languages with customized tone and creativity controls.",
     category: "AI & ML",
-    icon: "✨",
+    icon: "sparkles",
     price_monthly: 1499,
     developer: "Master AI Labs",
     status: "active",
@@ -142,7 +142,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Extract GSTIN, line items, and totals in seconds with deep machine vision scanning.",
     long_description: "Automate invoice entry with deep neural network scanning. Upload PDF/JPG vendor invoices to auto-populate line items, GST taxes, and totals.",
     category: "AI & ML",
-    icon: "⚡",
+    icon: "zap",
     price_monthly: 1999,
     developer: "Master AI Labs",
     status: "active",
@@ -161,7 +161,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Align enterprise goals with multi-rater performance feedback cycles and talent matrix reports.",
     long_description: "Enterprise goal hierarchy (Company → Department → Individual), progress check-in sliders, confidence metrics, 360 appraisal reviews on a 5.0 rating scale, and talent reports.",
     category: "Talent & Strategy",
-    icon: "🎯",
+    icon: "target",
     price_monthly: 1999,
     developer: "Master Strategy Labs",
     status: "active",
@@ -180,7 +180,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "End-to-end device registry, HR onboarding assignments & offboarding clearances.",
     long_description: "Comprehensive IT hardware repository with asset tags, serial tracking, employee check-in/out logs, service tickets, and 60-day warranty alerts.",
     category: "Hardware",
-    icon: "💻",
+    icon: "laptop",
     price_monthly: 1499,
     developer: "Master IT Systems",
     status: "active",
@@ -199,7 +199,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Enterprise double-entry accounting engine ensuring Assets = Liabilities + Equity balance.",
     long_description: "Manage 17 standard chart of accounts, balanced journal postings, general ledger reports, live Balance Sheet, and P&L financial statements with department budget tracking.",
     category: "Finance",
-    icon: "🏛️",
+    icon: "landmark",
     price_monthly: 1499,
     developer: "Master Finance Core",
     status: "active",
@@ -218,7 +218,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Build feedback surveys, employee onboarding forms, and compliance questionnaires.",
     long_description: "Create customized multi-step forms with text, dropdown, date, file upload, and signature fields. Track live submission tables and export results.",
     category: "Productivity",
-    icon: "📋",
+    icon: "clipboard",
     price_monthly: 999,
     developer: "Master Apps Team",
     status: "active",
@@ -237,7 +237,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Direct XML/ODBC sync with Tally accounting software.",
     long_description: "Two-way accounting bridge with Tally ERP 9 and Tally Prime for instant sales, purchases, and journal voucher exports.",
     category: "Finance",
-    icon: "📊",
+    icon: "bar-chart",
     price_monthly: 1299,
     developer: "Master ERP Core Team",
     status: "active",
@@ -256,7 +256,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Seamless checkout modal for client portals and subscription billing.",
     long_description: "Accept instant payments via UPI QR, Indian Debit/Credit Cards, and NetBanking with automated tax invoice receipt generation.",
     category: "Payments",
-    icon: "💳",
+    icon: "credit-card",
     price_monthly: 799,
     developer: "FinTech Team",
     status: "active",
@@ -275,7 +275,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Direct Google OAuth 2.0 calendar and cloud backup integration.",
     long_description: "Sync interview schedules, training calendars, and document vault backups with Google Workspace.",
     category: "Productivity",
-    icon: "📁",
+    icon: "folder",
     price_monthly: 499,
     developer: "Master Cloud",
     status: "active",
@@ -294,7 +294,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Automate repetitive company tasks with custom trigger-action workflows.",
     long_description: "Build visual automation rules connecting employee status changes, leave approvals, and invoice payments to webhook actions and notifications.",
     category: "Productivity",
-    icon: "⚡",
+    icon: "zap",
     price_monthly: 899,
     developer: "Master Automation Labs",
     status: "active",
@@ -313,7 +313,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Manage sales pipelines from initial lead to contract closed-won with stage tracking.",
     long_description: "Comprehensive CRM suite with 7 deal stages (New Lead, Contacted, Qualified, Proposal, Negotiation, Won, Lost), lead source tracking, deal value calculations, and 1-click proposal conversions.",
     category: "Sales & CRM",
-    icon: "🎯",
+    icon: "target",
     price_monthly: 1299,
     developer: "Master Sales Labs",
     status: "active",
@@ -332,7 +332,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "All-in-one Human Resource Management covering employees, attendance, payroll & shifts.",
     long_description: "The complete enterprise HRM package: employee KYC passports, multi-shift rostering, biometric hardware sync, automated monthly payroll with PF/TDS deductions, and multi-tier leave approvals.",
     category: "Talent & Strategy",
-    icon: "👥",
+    icon: "users",
     price_monthly: 1999,
     developer: "Master HRM Core",
     status: "active",
@@ -351,7 +351,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Full retail POS counter terminal with offline local cache and instant MySQL auto-sync.",
     long_description: "Enterprise Point of Sale terminal with barcode scanning, custom product discounts, multi-warehouse stock deduction, parked/held orders, and 80mm/58mm thermal receipt printing.",
     category: "Retail & POS",
-    icon: "🛒",
+    icon: "shopping-cart",
     price_monthly: 1499,
     developer: "Master POS Labs",
     status: "active",
@@ -370,7 +370,7 @@ const DEFAULT_MARKETPLACE_ADDONS: Addon[] = [
     description: "Enterprise product catalog management with custom categories, taxes, measurement units, and warehouse stock tracking.",
     long_description: "Manage your business inventory and services catalog in one place. Setup categories with custom color palettes, GST tax rates, units (Pcs, Kg, Box), multi-warehouse stock allocations, and product image gallery carousels.",
     category: "Retail & POS",
-    icon: "📦",
+    icon: "package",
     price_monthly: 1499,
     developer: "Master Inventory Labs",
     status: "active",
@@ -409,7 +409,7 @@ const emptyAddon: Omit<Addon, "id"> = {
   description: "",
   long_description: "",
   category: "Communication",
-  icon: "🧩",
+  icon: "puzzle",
   price_monthly: 0,
   developer: "Master ERP Core Team",
   status: "active",
@@ -657,7 +657,7 @@ function MarketplaceAdmin() {
                   All Items
                 </SelectItem>
                 <SelectItem value="featured" className="text-xs">
-                  ⭐ Featured Only
+                  Featured Only
                 </SelectItem>
                 <SelectItem value="free" className="text-xs">
                   Free ($0)
@@ -1028,7 +1028,7 @@ function MarketplaceAdmin() {
                     URL)
                   </span>
                   {editing.icon && (
-                    <span className="text-[10px] text-emerald-600 font-normal">✓ Icon set</span>
+                    <span className="text-[10px] text-emerald-600 font-normal">Icon set</span>
                   )}
                 </Label>
 

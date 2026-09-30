@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, formatInventoryError } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,8 @@ import {
   Barcode,
   Printer,
   Download,
+  History,
+  Loader2,
 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
 import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
@@ -260,6 +262,129 @@ const DEFAULT_CATALOG_ITEMS: CatalogItem[] = [
     createdAt: new Date().toISOString(),
   },
 ];
+
+function ProductStockMovementLedger({ productId }: { productId: string }) {
+  const { data: movementsRes, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["product-movements", productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const res = await api.get<{ data: any[]; total: number }>(`/products/${productId}/movements`);
+      return res.data || [];
+    },
+    enabled: !!productId,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="py-8 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin text-primary" />
+        <span className="text-xs">Loading stock movements ledger...</span>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-center space-y-2">
+        <p className="text-xs text-destructive font-medium">Failed to load movement ledger: {(error as any)?.message}</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()} className="h-7 text-xs">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const movements = Array.isArray(movementsRes) ? movementsRes : [];
+
+  if (movements.length === 0) {
+    return (
+      <div className="py-8 text-center text-muted-foreground text-xs space-y-1 bg-secondary/10 rounded-xl border border-dashed p-6">
+        <History className="size-8 mx-auto opacity-30 text-primary" />
+        <p className="font-semibold text-foreground">No stock movements recorded yet</p>
+        <p className="text-[11px] text-muted-foreground">All purchases, sales, transfers, and adjustments will appear here with full audit trail.</p>
+      </div>
+    );
+  }
+
+  const getMovementBadge = (type: string) => {
+    switch (type) {
+      case "OPENING_BALANCE":
+      case "STOCK_ADD":
+      case "PURCHASE_RECEIPT":
+      case "ADJUSTMENT_IN":
+      case "TRANSFER_IN":
+      case "RECONCILIATION":
+        return <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-[10px]">{type}</Badge>;
+      case "POS_SALE":
+      case "PURCHASE_RETURN":
+      case "ADJUSTMENT_OUT":
+      case "TRANSFER_OUT":
+      case "DAMAGE":
+        return <Badge variant="destructive" className="font-mono text-[10px]">{type}</Badge>;
+      default:
+        return <Badge variant="outline" className="font-mono text-[10px]">{type}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border overflow-hidden max-h-72 overflow-y-auto">
+        <Table>
+          <TableHeader className="bg-muted/50 sticky top-0">
+            <TableRow>
+              <TableHead className="text-[11px] h-8">Date & Time</TableHead>
+              <TableHead className="text-[11px] h-8">Movement Type</TableHead>
+              <TableHead className="text-[11px] h-8">Warehouse</TableHead>
+              <TableHead className="text-[11px] h-8 text-right">Qty Change</TableHead>
+              <TableHead className="text-[11px] h-8 text-right">Ending Balance</TableHead>
+              <TableHead className="text-[11px] h-8">Reference / Notes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {movements.map((m: any) => {
+              const isPositive = ["OPENING_BALANCE", "STOCK_ADD", "PURCHASE_RECEIPT", "ADJUSTMENT_IN", "TRANSFER_IN", "RECONCILIATION"].includes(m.movementType);
+              const qtyDisplay = Number(m.quantity).toFixed(3);
+              const afterQtyDisplay = m.afterQuantity !== null && m.afterQuantity !== undefined ? Number(m.afterQuantity).toFixed(3) : "-";
+
+              return (
+                <TableRow key={m.id} className="text-xs">
+                  <TableCell className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                    {new Date(m.createdAt).toLocaleString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </TableCell>
+                  <TableCell>{getMovementBadge(m.movementType)}</TableCell>
+                  <TableCell className="font-medium text-foreground">
+                    {m.warehouse?.name || "Warehouse"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-bold whitespace-nowrap">
+                    <span className={isPositive ? "text-emerald-600" : "text-rose-600"}>
+                      {isPositive ? `+${qtyDisplay}` : `-${qtyDisplay}`}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground">
+                    {afterQtyDisplay}
+                  </TableCell>
+                  <TableCell className="text-[11px] text-muted-foreground max-w-[180px] truncate" title={m.notes || m.referenceId}>
+                    {m.referenceType ? `${m.referenceType}: ` : ""}
+                    {m.notes || m.referenceId || "-"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex justify-between items-center text-[11px] text-muted-foreground px-1">
+        <span>Total movement records: <strong>{movements.length}</strong></span>
+        <span className="italic">Immutable, append-only StockMovement ledger</span>
+      </div>
+    </div>
+  );
+}
 
 export function ProductsAndServicesPage() {
   const qc = useQueryClient();
@@ -581,7 +706,7 @@ export function ProductsAndServicesPage() {
       await persistItems([newItem, ...items]);
       qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
       qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
-      toast.success(`🎉 ${newItem.type} "${newItem.name}" added to catalog successfully!`);
+      toast.success(`${newItem.type} "${newItem.name}" added to catalog successfully!`);
       setIsCreateModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to save item");
@@ -621,38 +746,42 @@ export function ProductsAndServicesPage() {
         items: [{ productId: transferStockItem.id, quantity: qty }],
         notes: "Inter-warehouse stock transfer requested from Products Studio"
       });
-    } catch (err) {
-      console.warn("Backend API sync fallback for transfer:", err);
-    }
 
-    // Update local state
-    const sourceWh = warehouses.find(w => w.id === transferFromWh);
-    const destWh = warehouses.find(w => w.id === transferToWh);
+      // Update local state
+      const sourceWh = warehouses.find(w => w.id === transferFromWh);
+      const destWh = warehouses.find(w => w.id === transferToWh);
 
-    const updated = items.map((item) => {
-      if (item.id === transferStockItem.id) {
-        const stocks = [...item.warehouseStocks];
-        const srcIdx = stocks.findIndex(w => w.warehouseId === transferFromWh);
-        const dstIdx = stocks.findIndex(w => w.warehouseId === transferToWh);
-        if (srcIdx >= 0) stocks[srcIdx].quantity = Math.max(0, stocks[srcIdx].quantity - qty);
-        if (dstIdx >= 0) {
-          stocks[dstIdx].quantity += qty;
-        } else {
-          stocks.push({
-            warehouseId: transferToWh,
-            warehouseName: destWh?.name || "Warehouse",
-            quantity: qty
-          });
+      const updated = items.map((item) => {
+        if (item.id === transferStockItem.id) {
+          const stocks = [...item.warehouseStocks];
+          const srcIdx = stocks.findIndex(w => w.warehouseId === transferFromWh);
+          const dstIdx = stocks.findIndex(w => w.warehouseId === transferToWh);
+          if (srcIdx >= 0) stocks[srcIdx].quantity = Number(Math.max(0, stocks[srcIdx].quantity - qty).toFixed(3));
+          if (dstIdx >= 0) {
+            stocks[dstIdx].quantity = Number((stocks[dstIdx].quantity + qty).toFixed(3));
+          } else {
+            stocks.push({
+              warehouseId: transferToWh,
+              warehouseName: destWh?.name || "Warehouse",
+              quantity: qty
+            });
+          }
+          return { ...item, warehouseStocks: stocks };
         }
-        return { ...item, warehouseStocks: stocks };
-      }
-      return item;
-    });
+        return item;
+      });
 
-    await persistItems(updated);
-    toast.success(`✓ Transferred ${qty} units from ${sourceWh?.name || "Source"} to ${destWh?.name || "Destination"}`);
-    setIsTransferring(false);
-    setTransferStockItem(null);
+      await persistItems(updated);
+      qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
+      qc.invalidateQueries({ queryKey: ["product-movements", transferStockItem.id] });
+      qc.invalidateQueries({ queryKey: ["stock-transfers"] });
+      toast.success(`Transferred ${qty} units from ${sourceWh?.name || "Source"} to ${destWh?.name || "Destination"}`);
+      setTransferStockItem(null);
+    } catch (err: any) {
+      toast.error(formatInventoryError(err, "Failed to submit stock transfer"));
+    } finally {
+      setIsTransferring(false);
+    }
   }
 
   async function handleAddStockSubmit() {
@@ -668,37 +797,39 @@ export function ProductsAndServicesPage() {
         warehouseId: selWarehouse.id,
         quantity: qtyToAdd,
       });
-    } catch (err) {
-      console.warn("Relational add stock fallback:", err);
-    }
 
-    const updated = items.map((item) => {
-      if (item.id === addStockItem.id) {
-        const stocks = [...item.warehouseStocks];
-        const whIndex = stocks.findIndex((w) => w.warehouseId === selWarehouse.id);
-        if (whIndex >= 0) {
-          stocks[whIndex].quantity += qtyToAdd;
-        } else {
-          stocks.push({
-            warehouseId: selWarehouse.id,
-            warehouseName: selWarehouse.name,
-            quantity: qtyToAdd,
-          });
+      const updated = items.map((item) => {
+        if (item.id === addStockItem.id) {
+          const stocks = [...item.warehouseStocks];
+          const whIndex = stocks.findIndex((w) => w.warehouseId === selWarehouse.id);
+          if (whIndex >= 0) {
+            stocks[whIndex].quantity = Number((stocks[whIndex].quantity + qtyToAdd).toFixed(3));
+          } else {
+            stocks.push({
+              warehouseId: selWarehouse.id,
+              warehouseName: selWarehouse.name,
+              quantity: qtyToAdd,
+            });
+          }
+          return {
+            ...item,
+            quantity: Number((item.quantity + qtyToAdd).toFixed(3)),
+            warehouseStocks: stocks,
+          };
         }
-        return {
-          ...item,
-          quantity: item.quantity + qtyToAdd,
-          warehouseStocks: stocks,
-        };
-      }
-      return item;
-    });
+        return item;
+      });
 
-    await persistItems(updated);
-    qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
-    qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
-    toast.success(`✓ Added ${qtyToAdd} ${addStockItem.unit} to "${selWarehouse.name}" for "${addStockItem.name}".`);
-    setAddStockItem(null);
+      await persistItems(updated);
+      qc.invalidateQueries({ queryKey: ["catalog-items-v2", tenantId] });
+      qc.invalidateQueries({ queryKey: ["pos-products-catalog", tenantId] });
+      qc.invalidateQueries({ queryKey: ["product-movements", addStockItem.id] });
+      qc.invalidateQueries({ queryKey: ["dashboard-inventory-products"] });
+      toast.success(`Added ${qtyToAdd} ${addStockItem.unit} to "${selWarehouse.name}" for "${addStockItem.name}".`);
+      setAddStockItem(null);
+    } catch (err: any) {
+      toast.error(formatInventoryError(err, "Failed to add stock"));
+    }
   }
 
   // Category Save
@@ -877,9 +1008,9 @@ export function ProductsAndServicesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all" className="text-xs">All Types</SelectItem>
-                      <SelectItem value="product" className="text-xs">📦 Products</SelectItem>
-                      <SelectItem value="service" className="text-xs">⚡ Services</SelectItem>
-                      <SelectItem value="part" className="text-xs">🔩 Parts</SelectItem>
+                      <SelectItem value="product" className="text-xs">Products</SelectItem>
+                      <SelectItem value="service" className="text-xs">Services</SelectItem>
+                      <SelectItem value="part" className="text-xs">Parts</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -1446,9 +1577,9 @@ export function ProductsAndServicesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Product" className="text-xs">📦 Product (Physical Goods)</SelectItem>
-                        <SelectItem value="Service" className="text-xs">⚡ Service (Labor / Consulting)</SelectItem>
-                        <SelectItem value="Part" className="text-xs">🔩 Part (Component / Hardware)</SelectItem>
+                        <SelectItem value="Product" className="text-xs">Product (Physical Goods)</SelectItem>
+                        <SelectItem value="Service" className="text-xs">Service (Labor / Consulting)</SelectItem>
+                        <SelectItem value="Part" className="text-xs">Part (Component / Hardware)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1491,7 +1622,7 @@ export function ProductsAndServicesPage() {
                     <div className="flex justify-between items-center">
                       <Label className="text-xs font-bold">SKU Code *</Label>
                       <button type="button" onClick={generateSKU} className="text-[10px] text-primary hover:underline font-bold">
-                        ⚡ Auto-Generate
+                        Auto-Generate
                       </button>
                     </div>
                     <Input
@@ -1611,11 +1742,16 @@ export function ProductsAndServicesPage() {
                       <Label className="text-xs font-bold">Initial Stock Quantity *</Label>
                       <Input
                         type="number"
-                        placeholder="10"
+                        step="0.001"
+                        min="0"
+                        placeholder="0.000"
                         value={formData.quantity}
-                        onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })}
                         className="h-9 text-xs font-mono font-bold"
                       />
+                      <p className="text-[10px] text-muted-foreground">
+                        Initial stock records an OPENING_BALANCE ledger entry. Ongoing inventory balances can only be modified via Stock Adjustments, Transfers, or Purchases.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1737,7 +1873,7 @@ export function ProductsAndServicesPage() {
                   </div>
                 ) : (
                   <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                    <strong className="block text-xs font-bold">⚡ Service Item Type Selected</strong>
+                    <strong className="block text-xs font-bold">Service Item Type Selected</strong>
                     <p className="text-[11px] mt-0.5">Physical warehouse allocation is not required for non-inventory consulting or cloud services.</p>
                   </div>
                 )}
@@ -1808,7 +1944,15 @@ export function ProductsAndServicesPage() {
                     </DialogDescription>
                   </DialogHeader>
 
-                  {/* 1. Image Carousel Banner */}
+                  <Tabs defaultValue="overview" className="w-full">
+                    <TabsList className="grid grid-cols-2 mb-3 w-full">
+                      <TabsTrigger value="overview" className="text-xs font-semibold">Product Overview & Specs</TabsTrigger>
+                      <TabsTrigger value="ledger" className="text-xs font-semibold flex items-center gap-1.5">
+                        <History className="size-3.5 text-primary" /> Stock Movement Ledger
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="overview" className="space-y-5 text-xs">
                   <div className="space-y-2">
                     <div className="h-56 relative rounded-2xl border overflow-hidden bg-secondary/30">
                       <img src={currentImg || "/images/no-image.webp"} alt={viewingItem.name} className="size-full object-cover" onError={(e) => { e.currentTarget.src = "/images/no-image.webp"; }}  loading="lazy"/>
@@ -1946,6 +2090,12 @@ export function ProductsAndServicesPage() {
                       <p className="text-muted-foreground leading-relaxed pt-1">{viewingItem.description}</p>
                     )}
                   </div>
+                </TabsContent>
+
+                <TabsContent value="ledger" className="pt-2">
+                  <ProductStockMovementLedger productId={viewingItem.id} />
+                </TabsContent>
+              </Tabs>
 
                   <DialogFooter className="flex justify-between sm:justify-between items-center w-full pt-3 border-t">
                     <Button size="sm" variant="outline" onClick={() => setViewingItem(null)}>
@@ -2021,15 +2171,17 @@ export function ProductsAndServicesPage() {
               <Label className="text-xs font-bold">Transfer Quantity ({transferStockItem?.unit || 'units'}) *</Label>
               <Input
                 type="number"
-                min="1"
+                step="0.001"
+                min="0.001"
+                placeholder="0.000"
                 className="text-xs font-mono font-bold"
                 value={transferQty}
-                onChange={(e) => setTransferQty(parseInt(e.target.value) || 1)}
+                onChange={(e) => setTransferQty(parseFloat(e.target.value) || 0)}
               />
             </div>
 
             <div className="rounded-lg bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/50 p-2.5 text-[11px] text-muted-foreground">
-              ⚡ State Machine: Automatically creates an approval record, logs the movement in <strong>ProductWarehouse</strong>, and syncs live with <strong>StockTransfer</strong>.
+              State Machine: Automatically creates an approval record, logs the movement in <strong>ProductWarehouse</strong>, and syncs live with <strong>StockTransfer</strong>.
             </div>
           </div>
 
@@ -2082,9 +2234,11 @@ export function ProductsAndServicesPage() {
                 <Label className="text-xs font-bold">Quantity to Add *</Label>
                 <Input
                   type="number"
-                  min="1"
+                  step="0.001"
+                  min="0.001"
+                  placeholder="0.000"
                   value={addStockQty}
-                  onChange={(e) => setAddStockQty(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setAddStockQty(parseFloat(e.target.value) || 0)}
                   className="h-9 text-xs font-mono font-bold"
                 />
               </div>

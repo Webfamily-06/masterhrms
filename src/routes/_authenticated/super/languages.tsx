@@ -175,7 +175,7 @@ function LanguageEditorAdminStudio() {
   const [isAddLangModalOpen, setIsAddLangModalOpen] = useState(false);
   const [newLangCode, setNewLangCode] = useState("");
   const [newLangName, setNewLangName] = useState("");
-  const [newLangFlag, setNewLangFlag] = useState("🌐");
+  const [newLangFlag, setNewLangFlag] = useState("EN");
 
   // Sync CMS Pages Text State
   const [isSyncingCms, setIsSyncingCms] = useState(false);
@@ -248,7 +248,7 @@ function LanguageEditorAdminStudio() {
     const newPack: LanguagePack = {
       code,
       name: newLangName.trim(),
-      flag: newLangFlag || "🌐",
+      flag: newLangFlag || "EN",
       isDefault: false,
       strings: { ...list[0].strings },
     };

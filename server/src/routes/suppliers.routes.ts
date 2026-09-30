@@ -1,11 +1,15 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { resolveTenantId } from "../lib/tenant";
 
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const suppliersRouter = Router();
+
+// Enforce Request-Scoped Tenant Context on all supplier endpoints
+suppliersRouter.use(requireAuth, resolveTenantContext);
 
 /**
  * GET /api/suppliers
@@ -41,7 +45,7 @@ suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
         include: {
           _count: { select: { purchases: true } },
           purchases: {
-            select: { total: true, status: true },
+            select: { total: true, paidAmount: true, paymentStatus: true, status: true },
           },
         },
         orderBy: { [sortField]: pagination.sortType },
@@ -50,7 +54,10 @@ suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
     ]);
 
     const formatted = suppliers.map((s) => {
-      const totalPurchasesAmount = s.purchases.reduce((sum, p) => sum + Number(p.total || 0), 0);
+      const activePurchases = s.purchases.filter((p) => p.status !== "cancelled");
+      const totalPurchasesAmount = activePurchases.reduce((sum, p) => sum + Number(p.total || 0), 0);
+      const totalPaid = activePurchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0);
+      const outstandingBalance = Math.max(0, totalPurchasesAmount - totalPaid);
       return {
         id: s.id,
         name: s.name,
@@ -62,6 +69,8 @@ suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
         country: s.country || "India",
         purchasesCount: s._count.purchases,
         totalPurchasesAmount,
+        totalPaid,
+        outstandingBalance,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
       };
@@ -76,6 +85,44 @@ suppliersRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
   } catch (err: any) {
     console.error("GET /api/suppliers error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch suppliers" });
+  }
+});
+
+/**
+ * GET /api/suppliers/ap-summary
+ * Tenant-wide Accounts Payable summary: total payable, total paid, outstanding balance,
+ * and count of suppliers with open payables. Used by the AP KPI card on the Purchases page.
+ */
+suppliersRouter.get("/ap-summary", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const purchases = await prisma.purchase.findMany({
+      where: { tenantId, status: { not: "cancelled" } },
+      select: { total: true, paidAmount: true, paymentStatus: true, supplierId: true },
+    });
+
+    const totalPayable = purchases.reduce((s, p) => s + Number(p.total || 0), 0);
+    const totalPaid = purchases.reduce((s, p) => s + Number(p.paidAmount || 0), 0);
+    const outstanding = Math.max(0, totalPayable - totalPaid);
+    const unpaidCount = purchases.filter((p) => p.paymentStatus !== "paid").length;
+    const suppliersWithOpenAP = new Set(
+      purchases.filter((p) => p.paymentStatus !== "paid" && p.supplierId).map((p) => p.supplierId)
+    ).size;
+
+    return res.json({
+      data: {
+        totalPayable,
+        totalPaid,
+        outstanding,
+        unpaidCount,
+        suppliersWithOpenAP,
+      },
+    });
+  } catch (err: any) {
+    console.error("GET /api/suppliers/ap-summary error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch AP summary" });
   }
 });
 
@@ -96,9 +143,10 @@ suppliersRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response)
           include: {
             warehouse: { select: { name: true } },
             _count: { select: { details: true } },
+            payments: { orderBy: { paidAt: "asc" } },
           },
           orderBy: { createdAt: "desc" },
-          take: 10,
+          take: 20,
         },
       },
     });
@@ -107,7 +155,18 @@ suppliersRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response)
       return res.status(404).json({ error: "Supplier not found" });
     }
 
-    return res.json({ data: supplier });
+    // Compute AP metrics for this supplier
+    const activePurchases = supplier.purchases.filter((p) => p.status !== "cancelled");
+    const totalPayable = activePurchases.reduce((s, p) => s + Number(p.total || 0), 0);
+    const totalPaid = activePurchases.reduce((s, p) => s + Number(p.paidAmount || 0), 0);
+    const outstandingBalance = Math.max(0, totalPayable - totalPaid);
+
+    return res.json({
+      data: {
+        ...supplier,
+        apMetrics: { totalPayable, totalPaid, outstandingBalance },
+      },
+    });
   } catch (err: any) {
     console.error("GET /api/suppliers/:id error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch supplier details" });

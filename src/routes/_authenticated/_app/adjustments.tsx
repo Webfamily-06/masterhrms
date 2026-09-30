@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, formatInventoryError } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,11 +189,14 @@ function AdjustmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products-list"] });
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-items-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["product-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-inventory-products"] });
       setIsNewModalOpen(false);
       resetForm();
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to record adjustment");
+      toast.error(formatInventoryError(err, "Failed to record adjustment"));
     },
   });
 
@@ -228,7 +231,7 @@ function AdjustmentsPage() {
       return;
     }
 
-    const validItems = lineItems.filter((i) => i.productId && i.quantity > 0);
+    const validItems = lineItems.filter((i) => i.productId && Number(i.quantity) > 0);
     if (validItems.length === 0) {
       toast.error("Please select at least one valid product and quantity");
       return;
@@ -453,9 +456,9 @@ function AdjustmentsPage() {
               ) : (
                 filteredAdjustments.map((adj) => {
                   const isAdd = adj.type === "addition";
-                  const totalUnits = adj.details.reduce((sum, d) => sum + (d.quantity || 0), 0);
+                  const totalUnits = adj.details.reduce((sum, d) => sum + (Number(d.quantity) || 0), 0);
                   const valuation = adj.details.reduce(
-                    (sum, d) => sum + (d.quantity || 0) * Number(d.product?.purchasePrice || 0),
+                    (sum, d) => sum + (Number(d.quantity) || 0) * Number(d.product?.purchasePrice || 0),
                     0
                   );
 
@@ -523,7 +526,7 @@ function AdjustmentsPage() {
                       <TableCell className="text-right font-mono font-semibold text-sm">
                         <span className={isAdd ? "text-emerald-600" : "text-rose-600"}>
                           {isAdd ? "+" : "-"}
-                          {totalUnits}
+                          {Number(totalUnits).toFixed(3)}
                         </span>
                       </TableCell>
 
@@ -682,7 +685,7 @@ function AdjustmentsPage() {
                         {targetWarehouseId && onHand !== null && (
                           <div className="text-[11px] text-muted-foreground mt-0.5 px-1">
                             Current On-Hand in Warehouse:{" "}
-                            <strong className="text-foreground font-mono">{onHand} units</strong>
+                            <strong className="text-foreground font-mono">{Number(onHand).toFixed(3)} units</strong>
                           </div>
                         )}
                       </div>
@@ -690,11 +693,12 @@ function AdjustmentsPage() {
                       <div className="col-span-3">
                         <Input
                           type="number"
-                          min="1"
-                          placeholder="Qty"
+                          step="0.001"
+                          min="0.001"
+                          placeholder="0.000"
                           value={item.quantity}
                           onChange={(e) =>
-                            handleUpdateItem(idx, "quantity", parseInt(e.target.value) || 1)
+                            handleUpdateItem(idx, "quantity", parseFloat(e.target.value) || 0)
                           }
                           className="h-8 text-xs text-right font-mono"
                         />
@@ -833,14 +837,14 @@ function AdjustmentsPage() {
                                 }
                               >
                                 {selectedAdjustment.type === "addition" ? "+" : "-"}
-                                {item.quantity}
+                                {Number(item.quantity).toFixed(3)}
                               </span>
                             </TableCell>
                             <TableCell className="text-xs font-mono text-right text-muted-foreground">
                               {formatSystemAmount(cost)}
                             </TableCell>
                             <TableCell className="text-xs font-mono font-semibold text-right">
-                              {formatSystemAmount(cost * item.quantity)}
+                              {formatSystemAmount(cost * Number(item.quantity))}
                             </TableCell>
                           </TableRow>
                         );

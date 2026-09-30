@@ -270,7 +270,7 @@ function Settings() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tenant-ai-settings", tenantId] });
       qc.invalidateQueries({ queryKey: ["tenant-ai-settings-page", tenantId] });
-      toast.success("✨ AI & ChatGPT API settings saved successfully!");
+      toast.success("AI & ChatGPT API settings saved successfully!");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to save AI configuration");
@@ -364,7 +364,7 @@ function Settings() {
       }
     },
     onSuccess: () => {
-      toast.success("✅ Default Office Work Timing & Shift Policy updated!");
+      toast.success("Default Office Work Timing & Shift Policy updated!");
       qc.invalidateQueries({ queryKey: ["shifts-list-settings"] });
       qc.invalidateQueries({ queryKey: ["attendance-table-records"] });
     },
@@ -380,7 +380,7 @@ function Settings() {
       });
     },
     onSuccess: () => {
-      toast.success("✅ Organization Profile & Legal Identity updated!");
+      toast.success("Organization Profile & Legal Identity updated!");
       qc.invalidateQueries({ queryKey: ["current-profile"] });
     },
     onError: (err: any) => toast.error(err.message || "Failed to update organization details"),
@@ -433,7 +433,7 @@ function Settings() {
       setNewLTName("");
       setNewLTDays(12);
       qc.invalidateQueries({ queryKey: ["leave-types"] });
-      toast.success("✅ Leave category added successfully!");
+      toast.success("Leave category added successfully!");
     },
     onError: (e: Error) => toast.error(e.message || "Failed to add leave category"),
   });
@@ -445,7 +445,7 @@ function Settings() {
     onSuccess: () => {
       setEditingLT(null);
       qc.invalidateQueries({ queryKey: ["leave-types"] });
-      toast.success("✅ Leave category updated successfully!");
+      toast.success("Leave category updated successfully!");
     },
     onError: (e: Error) => toast.error(e.message || "Failed to update leave category"),
   });
@@ -470,7 +470,7 @@ function Settings() {
       setNewDeptName("");
       setNewDeptDescription("");
       qc.invalidateQueries({ queryKey: ["departments"] });
-      toast.success("✅ Department added successfully!");
+      toast.success("Department added successfully!");
     },
     onError: (e: Error) => toast.error(e.message || "Failed to add department"),
   });
@@ -484,7 +484,7 @@ function Settings() {
       setEditDeptName("");
       setEditDeptDescription("");
       qc.invalidateQueries({ queryKey: ["departments"] });
-      toast.success("✅ Department updated successfully!");
+      toast.success("Department updated successfully!");
     },
     onError: (e: Error) => toast.error(e.message || "Failed to update department"),
   });
@@ -925,7 +925,7 @@ function Settings() {
                     <span>Annual Leave Categories & Quotas</span>
                   </CardTitle>
                   <CardDescription className="text-xs mt-0.5">
-                    Define leave categories, yearly quota days, and color badges. Click Edit (✏️) to modify any existing leave type.
+                    Define leave categories, yearly quota days, and color badges. Click Edit to modify any existing leave type.
                   </CardDescription>
                 </div>
                 <Badge variant="outline" className="text-[10px] font-mono border-amber-500/30 text-amber-600 bg-amber-500/5 font-bold">
@@ -1606,11 +1606,11 @@ function Settings() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai" className="text-xs">🤖 OpenAI (ChatGPT GPT-4o / GPT-4o-mini)</SelectItem>
-                    <SelectItem value="gemini" className="text-xs">✨ Google Gemini (Gemini 1.5 Pro / Flash)</SelectItem>
-                    <SelectItem value="claude" className="text-xs">🧠 Anthropic Claude (Claude 3.5 Sonnet)</SelectItem>
-                    <SelectItem value="groq" className="text-xs">⚡ Groq (Llama 3.1 70B Ultra-Fast)</SelectItem>
-                    <SelectItem value="deepseek" className="text-xs">🔬 DeepSeek AI (DeepSeek-V2 / Coder)</SelectItem>
+                    <SelectItem value="openai" className="text-xs">OpenAI (ChatGPT GPT-4o / GPT-4o-mini)</SelectItem>
+                    <SelectItem value="gemini" className="text-xs">Google Gemini (Gemini 1.5 Pro / Flash)</SelectItem>
+                    <SelectItem value="claude" className="text-xs">Anthropic Claude (Claude 3.5 Sonnet)</SelectItem>
+                    <SelectItem value="groq" className="text-xs">Groq (Llama 3.1 70B Ultra-Fast)</SelectItem>
+                    <SelectItem value="deepseek" className="text-xs">DeepSeek AI (DeepSeek-V2 / Coder)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1619,7 +1619,7 @@ function Settings() {
               <div className="p-3.5 rounded-xl border bg-secondary/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs flex items-center gap-1.5">
-                    🤖 OpenAI / ChatGPT Key & Model
+                    OpenAI / ChatGPT Key & Model
                   </span>
                   <a
                     href="https://platform.openai.com/api-keys"
@@ -1666,7 +1666,7 @@ function Settings() {
               <div className="p-3.5 rounded-xl border bg-secondary/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs flex items-center gap-1.5">
-                    ✨ Google Gemini Key & Model
+                    Google Gemini Key & Model
                   </span>
                   <a
                     href="https://aistudio.google.com/app/apikey"
@@ -1710,7 +1710,7 @@ function Settings() {
               <div className="p-3.5 rounded-xl border bg-secondary/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs flex items-center gap-1.5">
-                    🧠 Anthropic Claude Key & Model
+                    Anthropic Claude Key & Model
                   </span>
                   <a
                     href="https://console.anthropic.com/"
@@ -1826,7 +1826,7 @@ function Settings() {
                 ))}
               </div>
               <div className="flex justify-end pt-2 border-t">
-                <Button size="sm" onClick={() => toast.success("✅ Approval workflows updated successfully!")} className="text-xs font-bold gap-1.5">
+                <Button size="sm" onClick={() => toast.success("Approval workflows updated successfully!")} className="text-xs font-bold gap-1.5">
                   <Check className="size-3.5" /> Save Workflow Rules
                 </Button>
               </div>
@@ -1918,7 +1918,7 @@ function Settings() {
               </div>
 
               <div className="flex justify-end pt-2 border-t">
-                <Button size="sm" onClick={() => toast.success("✅ Salary & statutory rules saved!")} className="text-xs font-bold gap-1.5">
+                <Button size="sm" onClick={() => toast.success("Salary & statutory rules saved!")} className="text-xs font-bold gap-1.5">
                   <Check className="size-3.5" /> Save Salary Configuration
                 </Button>
               </div>
@@ -2006,7 +2006,7 @@ function Settings() {
               </div>
 
               <div className="flex justify-end pt-2 border-t">
-                <Button size="sm" onClick={() => toast.success("✅ Invoicing & billing settings updated!")} className="text-xs font-bold gap-1.5">
+                <Button size="sm" onClick={() => toast.success("Invoicing & billing settings updated!")} className="text-xs font-bold gap-1.5">
                   <Check className="size-3.5" /> Save Invoice Settings
                 </Button>
               </div>
@@ -2122,7 +2122,7 @@ function Settings() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          toast.success(`⚡ Manual trigger dispatched for "${job.name}"! Executed in ${job.executionTime}`);
+                          toast.success(`Manual trigger dispatched for "${job.name}"! Executed in ${job.executionTime}`);
                         }}
                         className="h-7 text-xs font-bold gap-1.5 shadow-2xs"
                       >

@@ -423,67 +423,6 @@ const DEFAULT_INVOICE_TEMPLATES: InvoiceTemplate[] = [
   },
 ];
 
-const DEFAULT_PLANS: SubscriptionPlan[] = [
-  {
-    id: "p1",
-    name: "Starter Plan",
-    price_monthly: 49,
-    price_annual: 470,
-    max_employees: 25,
-    features: ["Core HR", "Attendance", "Standard Support"],
-    included_addon_ids: [],
-  },
-  {
-    id: "p2",
-    name: "Growth Plan",
-    price_monthly: 149,
-    price_annual: 1430,
-    max_employees: 100,
-    features: ["Core HR", "Payroll", "Leave", "5 Addons"],
-    included_addon_ids: [],
-    popular: true,
-  },
-  {
-    id: "p3",
-    name: "Enterprise Plan",
-    price_monthly: 399,
-    price_annual: 3830,
-    max_employees: 500,
-    features: ["All Modules", "Unlimited Addons", "Dedicated Success"],
-    included_addon_ids: [],
-  },
-];
-
-const DEFAULT_ORDERS: CustomerOrder[] = [
-  {
-    id: "o1",
-    order_number: "ORD-9901",
-    tenant_name: "Acme Corp",
-    tenant_email: "billing@acmecorp.com",
-    plan_name: "Growth Plan (Annual Subscription)",
-    plan_description:
-      "Includes 100 Employee Roster Seats, General Ledger Accounting, POS Terminal, CRM Pipelines & Priority Support",
-    amount: 149,
-    payment_method: "Razorpay",
-    razorpay_payment_id: "pay_Rz98K4mN2Pq7L1",
-    status: "paid",
-    date: "2026-07-27",
-  },
-  {
-    id: "o2",
-    order_number: "ORD-9902",
-    tenant_name: "Cyberdyne Systems",
-    tenant_email: "accounts@cyberdyne.com",
-    plan_name: "Enterprise Multi-Entity Plan",
-    plan_description:
-      "Unlimited Employees & Multi-Tenant Data Isolation with 500+ Marketplace Addons & Dedicated Account SLA",
-    amount: 399,
-    payment_method: "Razorpay",
-    razorpay_payment_id: "pay_Pz9xK7mL2Nq4Rv",
-    status: "paid",
-    date: "2026-07-26",
-  },
-];
 
 function PlansMonetizationAdmin() {
   const qc = useQueryClient();
@@ -776,7 +715,7 @@ function PlansMonetizationAdmin() {
 
     saveMonetizationMutation.mutate({ bankTransfers: updatedTransfers, orders: updatedOrders });
     toast.success(
-      `🎉 Bank transfer approved! "${target.item_name || "Plan"}" activated for ${target.tenant_name}.`,
+      `Bank transfer approved! "${target.item_name || "Plan"}" activated for ${target.tenant_name}.`,
     );
   }
 
@@ -788,7 +727,7 @@ function PlansMonetizationAdmin() {
       b.id === id ? { ...b, status: "rejected" as const } : b,
     );
     saveMonetizationMutation.mutate({ bankTransfers: updatedTransfers, orders: orders });
-    toast.error(`❌ Bank transfer (Ref: ${target.reference_no}) rejected.`);
+    toast.error(`Bank transfer (Ref: ${target.reference_no}) rejected.`);
   }
 
   return (
@@ -920,7 +859,7 @@ function PlansMonetizationAdmin() {
                                 variant="outline"
                                 className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
                               >
-                                ✓ {name}
+                                {name}
                               </Badge>
                             ))}
                           </div>
@@ -1030,7 +969,7 @@ function PlansMonetizationAdmin() {
                   <div
                     dangerouslySetInnerHTML={{
                       __html: renderInvoiceHtml(
-                        orders[0] || DEFAULT_ORDERS[0],
+                        orders[0] || { id: "", order_number: "PREVIEW-001", tenant_name: "Sample Tenant", tenant_email: "tenant@example.com", plan_name: "Sample Plan", plan_description: "Preview of invoice template", amount: 0, payment_method: "", razorpay_payment_id: "", status: "paid", date: new Date().toISOString().split("T")[0] },
                         editingTemplateHtml || currentEditTemplate.html,
                       ),
                     }}
@@ -1360,7 +1299,7 @@ function PlansMonetizationAdmin() {
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
-                    <Store className="size-4" /> Default Activated Addons (Realtime Sync)
+                    <Store className="size-4" /> Default Activated Addons
                   </Label>
                   <span className="text-[10px] text-muted-foreground font-mono">
                     {(editingPlan.included_addon_ids || []).length} selected

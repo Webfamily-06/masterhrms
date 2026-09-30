@@ -1,4 +1,4 @@
-import { prisma } from "../prisma";
+import { rawPrisma as prisma } from "../prisma";
 
 export class WorkspacePolicyError extends Error {
   constructor(message: string, public status = 403) { super(message); }
@@ -47,10 +47,18 @@ export async function getWorkspacePolicy(tenantId: string, db: any = prisma) {
       if (error?.code !== "P2021") throw error;
     }
   }
-  const [subscription, catalog] = await Promise.all([
-    db.cmsPage.findUnique({ where: { slug: `tenant-${tenantId}-subscription` } }),
-    db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } }),
-  ]);
+  let subscription: any = null;
+  let catalog: any = null;
+  try {
+    subscription = await db.cmsPage.findUnique({ where: { slug: `tenant-${tenantId}-subscription` } });
+  } catch {
+    subscription = null;
+  }
+  try {
+    catalog = await db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } });
+  } catch {
+    catalog = null;
+  }
   return resolveWorkspacePolicy(subscription?.content || {}, Array.isArray(catalog?.content?.plans) ? catalog.content.plans : []);
 }
 

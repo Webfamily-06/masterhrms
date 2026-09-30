@@ -294,7 +294,7 @@ export default function CustomerPortalStatementPage() {
                   : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
               }`}
             >
-              {summary.totalOutstanding === 0 ? "✓ Account In Good Standing" : "Pending Settlement"}
+              {summary.totalOutstanding === 0 ? "Account In Good Standing" : "Pending Settlement"}
             </Badge>
             <div className="text-[10px] text-muted-foreground mt-1">Direct online settlement available</div>
           </Card>

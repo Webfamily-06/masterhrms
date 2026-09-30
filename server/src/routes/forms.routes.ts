@@ -20,7 +20,7 @@ async function ensureSeedForms(tenantId: string) {
   const pulseForm = await prisma.customForm.create({
     data: {
       tenantId,
-      title: "🌟 Q3 Employee Engagement & Work Culture Pulse Survey",
+      title: "Q3 Employee Engagement & Work Culture Pulse Survey",
       description: "Help us improve our workplace culture, tooling, and team happiness. Your honest responses are 100% anonymous.",
       category: "pulse_survey",
       status: "published",
@@ -71,7 +71,7 @@ async function ensureSeedForms(tenantId: string) {
   await prisma.customForm.create({
     data: {
       tenantId,
-      title: "💻 IT Hardware & Workstation Accessory Requisition",
+      title: "IT Hardware & Workstation Accessory Requisition",
       description: "Request monitors, laptop upgrades, peripherals, or specialized developer software licenses.",
       category: "it_request",
       status: "published",
@@ -120,7 +120,7 @@ async function ensureSeedForms(tenantId: string) {
   await prisma.customForm.create({
     data: {
       tenantId,
-      title: "🚀 New Hire 30-Day Onboarding & Mentorship Review",
+      title: "New Hire 30-Day Onboarding & Mentorship Review",
       description: "Tell us about your first month! How was your induction, buddy allocation, and team welcome?",
       category: "onboarding_checklist",
       status: "published",
