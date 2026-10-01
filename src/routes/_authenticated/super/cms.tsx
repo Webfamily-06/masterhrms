@@ -62,6 +62,12 @@ import {
   UserCheck,
   TrendingUp,
   Building2,
+  Star,
+  Award,
+  ArrowUp,
+  ArrowDown,
+  Edit,
+  MessageSquareQuote,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/super/cms")({
@@ -105,6 +111,7 @@ const CATEGORIES: { id: PageCategory; label: string; icon: any }[] = [
 
 function CmsStudio() {
   const qc = useQueryClient();
+  const [cmsTab, setCmsTab] = useState<"pages" | "faqs" | "testimonials">("pages");
   const [selectedCategory, setSelectedCategory] = useState<PageCategory>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -189,14 +196,53 @@ function CmsStudio() {
           <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
             <RefreshCw className="size-4" /> Refresh Studio
           </Button>
-          <Button size="sm" onClick={() => setIsCreateOpen(true)} className="gap-2">
-            <Plus className="size-4" /> Create New Page
-          </Button>
+          {cmsTab === "pages" && (
+            <Button size="sm" onClick={() => setIsCreateOpen(true)} className="gap-2">
+              <Plus className="size-4" /> Create New Page
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Main Studio Grid */}
-      {isLoading ? (
+      {/* Studio Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-border/60 pb-3">
+        <Button
+          variant={cmsTab === "pages" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCmsTab("pages")}
+          className="gap-2 text-xs"
+        >
+          <LayoutTemplate className="size-3.5" />
+          Pages & Visual Studio
+        </Button>
+        <Button
+          variant={cmsTab === "faqs" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCmsTab("faqs")}
+          className="gap-2 text-xs"
+        >
+          <HelpCircle className="size-3.5" />
+          FAQs Management
+        </Button>
+        <Button
+          variant={cmsTab === "testimonials" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCmsTab("testimonials")}
+          className="gap-2 text-xs"
+        >
+          <Award className="size-3.5" />
+          Testimonials Management
+        </Button>
+      </div>
+
+      {cmsTab === "faqs" ? (
+        <FaqManagerStudio />
+      ) : cmsTab === "testimonials" ? (
+        <TestimonialsManagerStudio />
+      ) : (
+        <>
+          {/* Main Studio Grid */}
+          {isLoading ? (
         <div className="min-h-[400px] grid place-items-center">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="size-8 animate-spin text-primary" />
@@ -335,17 +381,19 @@ function CmsStudio() {
         }}
       />
 
-      {/* Delete Page Dialog */}
-      {selectedPage && (
-        <DeletePageDialog
-          open={isDeleteOpen}
-          onOpenChange={setIsDeleteOpen}
-          page={selectedPage}
-          onDeleted={() => {
-            qc.invalidateQueries({ queryKey: ["cms-pages"] });
-            setSelectedId(null);
-          }}
-        />
+          {/* Delete Page Dialog */}
+          {selectedPage && (
+            <DeletePageDialog
+              open={isDeleteOpen}
+              onOpenChange={setIsDeleteOpen}
+              page={selectedPage}
+              onDeleted={() => {
+                qc.invalidateQueries({ queryKey: ["cms-pages"] });
+                setSelectedId(null);
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -1369,5 +1417,783 @@ function DeletePageDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ==========================================
+// P10: FAQ MANAGEMENT STUDIO COMPONENT
+// ==========================================
+function FaqManagerStudio() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFaq, setEditingFaq] = useState<any | null>(null);
+  const [deletingFaq, setDeletingFaq] = useState<any | null>(null);
+  const [form, setForm] = useState({
+    question: "",
+    answer: "",
+    category: "General",
+    isActive: true,
+  });
+
+  const { data: faqs = [], isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ["super-cms-faqs"],
+    queryFn: async () => {
+      const res = await api.get("/cms/faqs");
+      return Array.isArray(res) ? res : Array.isArray((res as any)?.data) ? (res as any).data : [];
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (editingFaq) {
+        const res = await api.put(`/cms/faqs/${editingFaq.id}`, form);
+        return res.data;
+      } else {
+        const res = await api.post("/cms/faqs", form);
+        return res.data;
+      }
+    },
+    onSuccess: () => {
+      toast.success(editingFaq ? "FAQ updated successfully!" : "FAQ created successfully!");
+      setIsModalOpen(false);
+      setEditingFaq(null);
+      setForm({ question: "", answer: "", category: "General", isActive: true });
+      qc.invalidateQueries({ queryKey: ["super-cms-faqs"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to save FAQ");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/cms/faqs/${id}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("FAQ deleted successfully");
+      setDeletingFaq(null);
+      qc.invalidateQueries({ queryKey: ["super-cms-faqs"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to delete FAQ");
+    },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      const res = await api.patch("/cms/faqs/reorder", { orderedIds });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["super-cms-faqs"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to reorder FAQs");
+    },
+  });
+
+  function handleMove(index: number, direction: "up" | "down") {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= faqs.length) return;
+    const items = [...faqs];
+    const [moved] = items.splice(index, 1);
+    items.splice(targetIndex, 0, moved);
+    reorderMutation.mutate(items.map((i: any) => i.id));
+  }
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return faqs.filter(
+      (f: any) =>
+        !q ||
+        (f.question || "").toLowerCase().includes(q) ||
+        (f.answer || "").toLowerCase().includes(q) ||
+        (f.category || "").toLowerCase().includes(q)
+    );
+  }, [faqs, search]);
+
+  return (
+    <div className="space-y-4">
+      {/* Top action bar */}
+      <Card className="p-4 border-border/60 shadow-xs bg-muted/10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="gap-1 text-xs">
+              <HelpCircle className="size-3.5 text-primary" /> {faqs.length} Total FAQs
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="h-8 text-xs gap-1.5"
+            >
+              <RefreshCw className={`size-3.5 ${isRefetching ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-1 max-w-md justify-end">
+            <div className="relative flex-1">
+              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search FAQs by question or answer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingFaq(null);
+                setForm({ question: "", answer: "", category: "General", isActive: true });
+                setIsModalOpen(true);
+              }}
+              className="h-8 text-xs gap-1.5 shadow-xs"
+            >
+              <Plus className="size-3.5" /> Add FAQ
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* FAQs Table */}
+      {isLoading ? (
+        <div className="py-20 grid place-items-center">
+          <Loader2 className="size-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <Card className="border border-border/60 shadow-xs overflow-hidden">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-muted/40 font-semibold border-b border-border/60 text-[11px] text-muted-foreground uppercase">
+              <tr>
+                <th className="p-3 pl-4 w-12 text-center">#</th>
+                <th className="p-3">Question & Answer</th>
+                <th className="p-3 w-40">Category</th>
+                <th className="p-3 w-28 text-center">Status</th>
+                <th className="p-3 w-28 text-center">Order</th>
+                <th className="p-3 pr-4 w-28 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-12 text-center text-muted-foreground">
+                    No FAQs found. Click "Add FAQ" to create one.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((item: any, idx: number) => (
+                  <tr key={item.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="p-3 pl-4 text-center font-mono text-muted-foreground">
+                      {idx + 1}
+                    </td>
+                    <td className="p-3">
+                      <div className="font-semibold text-foreground text-xs">{item.question}</div>
+                      <div className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                        {item.answer}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant="outline" className="text-[10px] capitalize">
+                        {item.category || "General"}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-center">
+                      <Badge
+                        variant={item.isActive !== false ? "default" : "outline"}
+                        className={`text-[9px] uppercase tracking-wider ${
+                          item.isActive !== false
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {item.isActive !== false ? "Live" : "Hidden"}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={idx === 0 || reorderMutation.isPending}
+                          onClick={() => handleMove(idx, "up")}
+                          title="Move Up"
+                        >
+                          <ArrowUp className="size-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={idx === filtered.length - 1 || reorderMutation.isPending}
+                          onClick={() => handleMove(idx, "down")}
+                          title="Move Down"
+                        >
+                          <ArrowDown className="size-3" />
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="p-3 pr-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => {
+                            setEditingFaq(item);
+                            setForm({
+                              question: item.question,
+                              answer: item.answer,
+                              category: item.category || "General",
+                              isActive: item.isActive !== false,
+                            });
+                            setIsModalOpen(true);
+                          }}
+                          title="Edit FAQ"
+                        >
+                          <Edit className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          onClick={() => setDeletingFaq(item)}
+                          title="Delete FAQ"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {/* ── Add / Edit FAQ Dialog ─── */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <HelpCircle className="size-5 text-primary" />
+              {editingFaq ? "Edit FAQ" : "Add New FAQ"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Manage public-facing frequently asked questions displayed on the landing page and help center.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-xs">
+            <div className="space-y-1.5">
+              <Label>Question</Label>
+              <Input
+                value={form.question}
+                onChange={(e) => setForm((p) => ({ ...p, question: e.target.value }))}
+                placeholder="e.g. How does biometric sync work?"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Answer</Label>
+              <Textarea
+                rows={4}
+                value={form.answer}
+                onChange={(e) => setForm((p) => ({ ...p, answer: e.target.value }))}
+                placeholder="Detailed answer explanation..."
+                className="text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Input
+                value={form.category}
+                onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                placeholder="Billing & Plans / Features / General"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border rounded-lg p-3">
+              <div>
+                <Label className="text-xs font-semibold">Active & Visible</Label>
+                <p className="text-[11px] text-muted-foreground">Show this FAQ publicly on the landing page</p>
+              </div>
+              <Switch
+                checked={form.isActive}
+                onCheckedChange={(checked) => setForm((p) => ({ ...p, isActive: checked }))}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={saveMutation.isPending || !form.question.trim() || !form.answer.trim()}
+              onClick={() => saveMutation.mutate()}
+            >
+              {saveMutation.isPending && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
+              {editingFaq ? "Update FAQ" : "Create FAQ"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete FAQ Dialog ─── */}
+      <Dialog open={!!deletingFaq} onOpenChange={(open) => !open && setDeletingFaq(null)}>
+        <DialogContent className="max-w-sm p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-rose-600 flex items-center gap-2">
+              <Trash2 className="size-5" /> Delete FAQ?
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground">
+            Are you sure you want to permanently delete FAQ:{" "}
+            <strong className="text-foreground">"{deletingFaq?.question}"</strong>?
+          </p>
+
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" size="sm" onClick={() => setDeletingFaq(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate(deletingFaq.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
+              Delete FAQ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ==========================================
+// P11: TESTIMONIAL MANAGEMENT STUDIO COMPONENT
+// ==========================================
+function TestimonialsManagerStudio() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [deletingItem, setDeletingItem] = useState<any | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    role: "",
+    company: "",
+    rating: 5,
+    content: "",
+    avatar: "/avatars/avatar-1.png",
+    isActive: true,
+  });
+
+  const { data: testimonials = [], isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ["super-cms-testimonials"],
+    queryFn: async () => {
+      const res = await api.get("/cms/testimonials");
+      return Array.isArray(res) ? res : Array.isArray((res as any)?.data) ? (res as any).data : [];
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (editingItem) {
+        const res = await api.put(`/cms/testimonials/${editingItem.id}`, form);
+        return res.data;
+      } else {
+        const res = await api.post("/cms/testimonials", form);
+        return res.data;
+      }
+    },
+    onSuccess: () => {
+      toast.success(editingItem ? "Testimonial updated successfully!" : "Testimonial created successfully!");
+      setIsModalOpen(false);
+      setEditingItem(null);
+      setForm({ name: "", role: "", company: "", rating: 5, content: "", avatar: "/avatars/avatar-1.png", isActive: true });
+      qc.invalidateQueries({ queryKey: ["super-cms-testimonials"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to save testimonial");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/cms/testimonials/${id}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Testimonial deleted successfully");
+      setDeletingItem(null);
+      qc.invalidateQueries({ queryKey: ["super-cms-testimonials"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to delete testimonial");
+    },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      const res = await api.patch("/cms/testimonials/reorder", { orderedIds });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["super-cms-testimonials"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to reorder testimonials");
+    },
+  });
+
+  function handleMove(index: number, direction: "up" | "down") {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= testimonials.length) return;
+    const items = [...testimonials];
+    const [moved] = items.splice(index, 1);
+    items.splice(targetIndex, 0, moved);
+    reorderMutation.mutate(items.map((i: any) => i.id));
+  }
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return testimonials.filter(
+      (t: any) =>
+        !q ||
+        (t.name || "").toLowerCase().includes(q) ||
+        (t.role || "").toLowerCase().includes(q) ||
+        (t.company || "").toLowerCase().includes(q) ||
+        (t.content || "").toLowerCase().includes(q)
+    );
+  }, [testimonials, search]);
+
+  return (
+    <div className="space-y-4">
+      {/* Top action bar */}
+      <Card className="p-4 border-border/60 shadow-xs bg-muted/10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="gap-1 text-xs">
+              <Award className="size-3.5 text-primary" /> {testimonials.length} Customer Testimonials
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="h-8 text-xs gap-1.5"
+            >
+              <RefreshCw className={`size-3.5 ${isRefetching ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-1 max-w-md justify-end">
+            <div className="relative flex-1">
+              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search testimonials by customer or company..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingItem(null);
+                setForm({ name: "", role: "", company: "", rating: 5, content: "", avatar: "/avatars/avatar-1.png", isActive: true });
+                setIsModalOpen(true);
+              }}
+              className="h-8 text-xs gap-1.5 shadow-xs"
+            >
+              <Plus className="size-3.5" /> Add Review
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Testimonials Table */}
+      {isLoading ? (
+        <div className="py-20 grid place-items-center">
+          <Loader2 className="size-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <Card className="border border-border/60 shadow-xs overflow-hidden">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-muted/40 font-semibold border-b border-border/60 text-[11px] text-muted-foreground uppercase">
+              <tr>
+                <th className="p-3 pl-4 w-12 text-center">#</th>
+                <th className="p-3 w-56">Customer</th>
+                <th className="p-3 w-28">Rating</th>
+                <th className="p-3">Review Content</th>
+                <th className="p-3 w-24 text-center">Status</th>
+                <th className="p-3 w-28 text-center">Order</th>
+                <th className="p-3 pr-4 w-28 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-muted-foreground">
+                    No testimonials found. Click "Add Review" to create one.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((item: any, idx: number) => (
+                  <tr key={item.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="p-3 pl-4 text-center font-mono text-muted-foreground">
+                      {idx + 1}
+                    </td>
+                    <td className="p-3">
+                      <div className="font-semibold text-foreground text-xs">{item.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {item.role} {item.company ? `· ${item.company}` : ""}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`size-3 ${
+                              star <= (item.rating || 5)
+                                ? "fill-amber-400 text-amber-400"
+                                : "text-muted-foreground/30"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-xs text-muted-foreground italic line-clamp-2">
+                        "{item.content}"
+                      </div>
+                    </td>
+                    <td className="p-3 text-center">
+                      <Badge
+                        variant={item.isActive !== false ? "default" : "outline"}
+                        className={`text-[9px] uppercase tracking-wider ${
+                          item.isActive !== false
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {item.isActive !== false ? "Live" : "Hidden"}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={idx === 0 || reorderMutation.isPending}
+                          onClick={() => handleMove(idx, "up")}
+                          title="Move Up"
+                        >
+                          <ArrowUp className="size-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          disabled={idx === filtered.length - 1 || reorderMutation.isPending}
+                          onClick={() => handleMove(idx, "down")}
+                          title="Move Down"
+                        >
+                          <ArrowDown className="size-3" />
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="p-3 pr-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => {
+                            setEditingItem(item);
+                            setForm({
+                              name: item.name,
+                              role: item.role || "",
+                              company: item.company || "",
+                              rating: item.rating || 5,
+                              content: item.content,
+                              avatar: item.avatar || "/avatars/avatar-1.png",
+                              isActive: item.isActive !== false,
+                            });
+                            setIsModalOpen(true);
+                          }}
+                          title="Edit Review"
+                        >
+                          <Edit className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          onClick={() => setDeletingItem(item)}
+                          title="Delete Review"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {/* ── Add / Edit Testimonial Dialog ─── */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Award className="size-5 text-primary" />
+              {editingItem ? "Edit Customer Review" : "Add Customer Review"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Manage verified customer testimonials showcased on public marketing pages.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-xs">
+            <div className="space-y-1.5">
+              <Label>Customer Name</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                placeholder="e.g. Sarah Jenkins"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Role / Title</Label>
+                <Input
+                  value={form.role}
+                  onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))}
+                  placeholder="Head of People"
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Company Name</Label>
+                <Input
+                  value={form.company}
+                  onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))}
+                  placeholder="FinTech Global"
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Star Rating</Label>
+              <Select
+                value={String(form.rating)}
+                onValueChange={(val) => setForm((p) => ({ ...p, rating: parseInt(val, 10) }))}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">★★★★★ (5 Stars - Exceptional)</SelectItem>
+                  <SelectItem value="4">★★★★☆ (4 Stars - Great)</SelectItem>
+                  <SelectItem value="3">★★★☆☆ (3 Stars - Average)</SelectItem>
+                  <SelectItem value="2">★★☆☆☆ (2 Stars - Fair)</SelectItem>
+                  <SelectItem value="1">★☆☆☆☆ (1 Star - Poor)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Review Text</Label>
+              <Textarea
+                rows={3}
+                value={form.content}
+                onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))}
+                placeholder="Customer review quotes and results..."
+                className="text-xs"
+              />
+            </div>
+
+            <div className="flex items-center justify-between border rounded-lg p-3">
+              <div>
+                <Label className="text-xs font-semibold">Active & Visible</Label>
+                <p className="text-[11px] text-muted-foreground">Show this testimonial on the landing page</p>
+              </div>
+              <Switch
+                checked={form.isActive}
+                onCheckedChange={(checked) => setForm((p) => ({ ...p, isActive: checked }))}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={saveMutation.isPending || !form.name.trim() || !form.content.trim()}
+              onClick={() => saveMutation.mutate()}
+            >
+              {saveMutation.isPending && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
+              {editingItem ? "Update Review" : "Create Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Testimonial Dialog ─── */}
+      <Dialog open={!!deletingItem} onOpenChange={(open) => !open && setDeletingItem(null)}>
+        <DialogContent className="max-w-sm p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-rose-600 flex items-center gap-2">
+              <Trash2 className="size-5" /> Delete Review?
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground">
+            Are you sure you want to permanently delete the review by{" "}
+            <strong className="text-foreground">"{deletingItem?.name}"</strong>?
+          </p>
+
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" size="sm" onClick={() => setDeletingItem(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate(deletingItem.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
+              Delete Review
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

@@ -513,6 +513,39 @@ productsRouter.delete("/taxes/:id", requireAuth, async (req: AuthRequest, res: R
   }
 });
 
+// PUT /api/products/taxes/:id - Update tax
+productsRouter.put("/taxes/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+    const { name, rate, isDefault } = req.body;
+
+    const existing = await prisma.taxRate.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: "Tax rate not found" });
+
+    if (isDefault) {
+      await prisma.taxRate.updateMany({
+        where: { tenantId, id: { not: id } },
+        data: { isDefault: false },
+      });
+    }
+
+    const updated = await prisma.taxRate.update({
+      where: { id },
+      data: {
+        ...(name !== undefined ? { name: name.trim() } : {}),
+        ...(rate !== undefined ? { rate: Number(rate) || 0 } : {}),
+        ...(isDefault !== undefined ? { isDefault: Boolean(isDefault) } : {}),
+      },
+    });
+
+    return res.json({ id: updated.id, name: updated.name, rate: Number(updated.rate), isDefault: updated.isDefault });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/products/units - List units
 productsRouter.get("/units", requireAuth, async (req: AuthRequest, res: Response) => {
   try {

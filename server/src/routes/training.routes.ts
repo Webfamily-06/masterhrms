@@ -368,3 +368,155 @@ trainingRouter.get("/summary", requireAuth, async (req: AuthRequest, res: Respon
     return res.status(500).json({ error: err.message || "Failed to generate academy summary." });
   }
 });
+
+// GET /api/training/certifications (List issued certifications for tenant)
+trainingRouter.get("/certifications", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const { search, courseId, employeeId } = req.query;
+    const where: any = {
+      tenantId,
+      certificateId: { not: null },
+    };
+
+    if (courseId && courseId !== "all") {
+      where.courseId = String(courseId);
+    }
+    if (employeeId && employeeId !== "all") {
+      where.employeeId = String(employeeId);
+    }
+    if (search) {
+      where.OR = [
+        { certificateId: { contains: String(search) } },
+        { course: { title: { contains: String(search) } } },
+        { employee: { firstName: { contains: String(search) } } },
+        { employee: { lastName: { contains: String(search) } } },
+      ];
+    }
+
+    const certifications = await prisma.courseEnrollment.findMany({
+      where,
+      include: {
+        course: true,
+        employee: {
+          include: { department: true },
+        },
+      },
+      orderBy: { certifiedAt: "desc" },
+    });
+
+    return res.json(certifications);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list certifications." });
+  }
+});
+
+// POST /api/training/certifications (Issue / Grant a certification)
+trainingRouter.post("/certifications", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const roles = req.user?.roles || [];
+    const isAuthorized = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r));
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Forbidden: Insufficient privileges to issue certifications." });
+    }
+
+    const { employeeId, courseId, certifiedAt, expiryDate, certificateId, score } = req.body;
+
+    if (!employeeId || !courseId) {
+      return res.status(400).json({ error: "Both employeeId and courseId are required." });
+    }
+
+    // Verify employee tenant boundary
+    const emp = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true, tenantId: true },
+    });
+    if (!emp || emp.tenantId !== tenantId) {
+      return res.status(400).json({ error: "Invalid employee or cross-tenant assignment rejected." });
+    }
+
+    // Verify course tenant boundary
+    const crs = await prisma.trainingCourse.findUnique({
+      where: { id: courseId },
+      select: { id: true, tenantId: true },
+    });
+    if (!crs || crs.tenantId !== tenantId) {
+      return res.status(400).json({ error: "Invalid training course or cross-tenant course rejected." });
+    }
+
+    const finalCertId = certificateId?.trim() || `CERT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const certification = await prisma.courseEnrollment.upsert({
+      where: {
+        tenantId_courseId_employeeId: {
+          tenantId,
+          courseId,
+          employeeId,
+        },
+      },
+      create: {
+        tenantId,
+        courseId,
+        employeeId,
+        status: "completed",
+        progressPercent: 100,
+        score: score !== undefined ? Number(score) : 100,
+        certificateId: finalCertId,
+        certifiedAt: certifiedAt ? new Date(certifiedAt) : new Date(),
+        expiryDate: expiryDate ? new Date(expiryDate) : null,
+      },
+      update: {
+        status: "completed",
+        progressPercent: 100,
+        score: score !== undefined ? Number(score) : 100,
+        certificateId: finalCertId,
+        certifiedAt: certifiedAt ? new Date(certifiedAt) : new Date(),
+        expiryDate: expiryDate ? new Date(expiryDate) : null,
+      },
+      include: {
+        course: true,
+        employee: {
+          include: { department: true },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Certification issued successfully (${finalCertId})`,
+      certification,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to issue certification." });
+  }
+});
+
+// DELETE /api/training/certifications/:id (Revoke certification)
+trainingRouter.delete("/certifications/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const roles = req.user?.roles || [];
+    const isAuthorized = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r));
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Forbidden: Insufficient privileges to revoke certifications." });
+    }
+
+    const { id } = req.params;
+    const existing = await prisma.courseEnrollment.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Certification record not found." });
+    }
+
+    await prisma.courseEnrollment.delete({ where: { id } });
+    return res.json({ success: true, message: "Certification record revoked successfully." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to revoke certification." });
+  }
+});

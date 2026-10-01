@@ -4,8 +4,13 @@ import { rawPrisma as prisma } from "../prisma";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 import { generateToken } from "../lib/jwt";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
+import fs from "fs";
+import path from "path";
 import { getIO } from "../socket";
 import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, syncSubscriptionPlans } from "../services/workspace-policy.service";
+import { generateDatabaseBackup, listBackupSnapshots, getBackupFilePath, deleteBackupSnapshot } from "../services/backup.service";
+import { getLanguagesList, getLanguagePhrases, saveLanguagePhrases, createLanguagePack, deleteLanguagePack, toggleLanguagePackStatus } from "../services/language.service";
 
 export const superRouter = Router();
 
@@ -1679,6 +1684,333 @@ superRouter.put("/tenants/:id/status", requireAuth, requireSuperAdmin, async (re
     return res.json({ success: true, status });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to update tenant status" });
+  }
+});
+
+// ==========================================
+// 12. P01: USER PASSWORD RESET
+// ==========================================
+const resetPasswordSchema = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters long"),
+  password_confirmation: z.string().optional(),
+});
+
+superRouter.put(["/users/:id/reset-password", "/users/:id/password"], requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const body = resetPasswordSchema.parse(req.body);
+
+    if (body.password_confirmation && body.password !== body.password_confirmation) {
+      return res.status(400).json({ error: "Password confirmation does not match." });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    const passwordHash = await bcrypt.hash(body.password, 10);
+    await prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
+
+    return res.json({
+      success: true,
+      message: "Password reset successfully.",
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to reset password." });
+  }
+});
+
+// ==========================================
+// 13. P01: LOGIN HISTORY
+// ==========================================
+superRouter.get(["/users/login-history", "/login-history"], requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const search = (req.query.search as string) || "";
+    const page = Math.max(1, parseInt((req.query.page as string) || "1", 10));
+    const perPage = Math.max(1, Math.min(100, parseInt((req.query.per_page as string) || (req.query.limit as string) || "15", 10)));
+    const sortField = (req.query.sort_field as string) || "date";
+    const sortDirection = ((req.query.sort_direction as string) || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { ip: { contains: search } },
+        { user: { email: { contains: search } } },
+        { user: { profile: { fullName: { contains: search } } } },
+      ];
+    }
+
+    const [total, records] = await Promise.all([
+      prisma.loginHistory.count({ where }),
+      prisma.loginHistory.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  fullName: true,
+                  avatarUrl: true,
+                  tenantId: true,
+                },
+              },
+              roles: {
+                select: {
+                  role: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: sortField === "ip" ? { ip: sortDirection } : { date: sortDirection },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+    ]);
+
+    const formatted = records.map((r: any) => ({
+      id: r.id,
+      userId: r.userId,
+      ip: r.ip,
+      date: r.date,
+      details: r.details,
+      createdBy: r.createdBy,
+      createdAt: r.createdAt,
+      user: {
+        id: r.user?.id,
+        name: r.user?.profile?.fullName || r.user?.email?.split("@")[0] || "User",
+        email: r.user?.email,
+        avatar: r.user?.profile?.avatarUrl || null,
+        type: r.user?.roles?.[0]?.role || "user",
+      },
+    }));
+
+    return res.json({
+      data: formatted,
+      total,
+      page,
+      perPage,
+      totalPages: Math.ceil(total / perPage),
+      from: (page - 1) * perPage + 1,
+      to: Math.min(page * perPage, total),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch login history." });
+  }
+});
+
+superRouter.get("/users/:id/login-history", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const records = await prisma.loginHistory.findMany({
+      where: { userId: id },
+      orderBy: { date: "desc" },
+      take: 50,
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            profile: { select: { fullName: true, avatarUrl: true } },
+            roles: { select: { role: true } },
+          },
+        },
+      },
+    });
+
+    const formatted = records.map((r: any) => ({
+      id: r.id,
+      userId: r.userId,
+      ip: r.ip,
+      date: r.date,
+      details: r.details,
+      createdAt: r.createdAt,
+      user: {
+        id: r.user?.id,
+        name: r.user?.profile?.fullName || r.user?.email || "User",
+        email: r.user?.email,
+        avatar: r.user?.profile?.avatarUrl || null,
+        type: r.user?.roles?.[0]?.role || "user",
+      },
+    }));
+
+    return res.json({ data: formatted, total: formatted.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch user login history." });
+  }
+});
+
+superRouter.delete(["/users/login-history/:id", "/login-history/:id"], requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.loginHistory.delete({ where: { id } });
+    return res.json({ success: true, message: "Login history record deleted successfully." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete login history record." });
+  }
+});
+
+// ==========================================
+// 14. P02: DATABASE BACKUP & RESTORE
+// ==========================================
+superRouter.get("/backup/snapshots", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const snapshots = listBackupSnapshots();
+    return res.json(snapshots);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list backup snapshots." });
+  }
+});
+
+superRouter.post("/backup/generate", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const snapshot = await generateDatabaseBackup();
+    return res.status(201).json({
+      success: true,
+      message: "Database backup snapshot generated successfully.",
+      snapshot,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to generate database backup." });
+  }
+});
+
+superRouter.get("/backup/download/:filename", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { filename } = req.params;
+    if (!filename || filename.includes("..") || path.basename(filename) !== filename) {
+      return res.status(400).json({ error: "Invalid backup filename." });
+    }
+    const safePath = getBackupFilePath(filename);
+    if (!safePath || !fs.existsSync(safePath)) {
+      return res.status(404).json({ error: "Backup file not found or inaccessible." });
+    }
+
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(safePath)}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+
+    const stream = fs.createReadStream(safePath);
+    stream.on("error", (streamErr) => {
+      if (!res.headersSent) {
+        res.status(500).json({ error: streamErr.message });
+      }
+    });
+    return stream.pipe(res);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to download backup file." });
+  }
+});
+
+superRouter.delete("/backup/:filename", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { filename } = req.params;
+    if (!filename || filename.includes("..") || path.basename(filename) !== filename) {
+      return res.status(400).json({ error: "Invalid backup filename." });
+    }
+    const success = deleteBackupSnapshot(filename);
+    if (!success) {
+      return res.status(404).json({ error: "Backup file not found or could not be removed." });
+    }
+    return res.json({ success: true, message: `Backup file '${filename}' deleted successfully.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete backup file." });
+  }
+});
+
+// ==========================================
+// 15. P03: MULTILINGUAL PHRASE EDITOR
+// ==========================================
+superRouter.get("/languages", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const languages = await getLanguagesList();
+    return res.json(languages);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch languages list." });
+  }
+});
+
+superRouter.get("/languages/:code", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { code } = req.params;
+    const phrases = await getLanguagePhrases(code);
+    return res.json({ code, phrases });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch language phrases." });
+  }
+});
+
+superRouter.put("/languages/:code", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { code } = req.params;
+    const phrases = req.body?.phrases || req.body?.data || req.body;
+    if (typeof phrases !== "object" || phrases === null) {
+      return res.status(400).json({ error: "Phrases dictionary must be a valid JSON object." });
+    }
+    await saveLanguagePhrases(code, phrases);
+    return res.json({
+      success: true,
+      message: `Translations for '${code}' saved successfully.`,
+      code,
+      phrases,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to save language phrases." });
+  }
+});
+
+const createLanguageSchema = z.object({
+  code: z.string().trim().min(2).max(10),
+  name: z.string().trim().min(1).max(255),
+  countryCode: z.string().trim().length(2),
+});
+
+superRouter.post("/languages", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { code, name, countryCode } = createLanguageSchema.parse(req.body);
+    const newLang = await createLanguagePack(code, name, countryCode);
+    return res.status(201).json({
+      success: true,
+      message: `Language '${name}' (${code}) created successfully.`,
+      language: newLang,
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to create language pack." });
+  }
+});
+
+superRouter.delete("/languages/:code", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { code } = req.params;
+    await deleteLanguagePack(code);
+    return res.json({ success: true, message: `Language '${code}' deleted successfully.` });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to delete language pack." });
+  }
+});
+
+superRouter.patch("/languages/:code/toggle", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { code } = req.params;
+    const updated = await toggleLanguagePackStatus(code);
+    return res.json({
+      success: true,
+      message: `Language '${code}' status updated.`,
+      language: updated,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to toggle language status." });
   }
 });
 

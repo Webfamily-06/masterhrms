@@ -715,3 +715,392 @@ publicJobsRouter.post("/:jobId/apply", async (req, res) => {
     return res.status(err.status || 500).json({ error: err.message || "Failed to submit application." });
   }
 });
+
+/**
+ * =============================================================
+ * CAMPUS HIRING & DRIVES (Tenant isolated)
+ * =============================================================
+ */
+
+// GET /api/recruitment/campus-candidates
+recruitmentRouter.get("/campus-candidates", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const { search, status, role, graduationYear } = req.query;
+    const where: any = { tenantId };
+
+    if (status && status !== "all") {
+      where.status = String(status);
+    }
+    if (role && role !== "all") {
+      where.jobRole = { contains: String(role) };
+    }
+    if (graduationYear && graduationYear !== "all") {
+      where.graduationYear = String(graduationYear);
+    }
+    if (search) {
+      where.OR = [
+        { studentName: { contains: String(search) } },
+        { email: { contains: String(search) } },
+        { branch: { contains: String(search) } },
+        { jobRole: { contains: String(search) } },
+        { recruiterName: { contains: String(search) } },
+      ];
+    }
+
+    const candidates = await prisma.campusCandidate.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.json(candidates);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list campus candidates." });
+  }
+});
+
+// POST /api/recruitment/campus-candidates
+recruitmentRouter.post("/campus-candidates", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const roles = req.user?.roles || [];
+    const isAuthorized = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r));
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Forbidden: Insufficient privileges to add campus candidates." });
+    }
+
+    const {
+      studentName,
+      email,
+      phone,
+      avatarUrl,
+      collegeName,
+      branch,
+      graduationYear,
+      jobRole,
+      recruiterName,
+      recruiterId,
+      status,
+    } = req.body;
+
+    if (!studentName || !graduationYear) {
+      return res.status(400).json({ error: "Student Name and Graduation Year are required." });
+    }
+
+    // Verify recruiter if specified
+    if (recruiterId) {
+      const rec = await prisma.employee.findUnique({
+        where: { id: recruiterId },
+        select: { id: true, tenantId: true },
+      });
+      if (!rec || rec.tenantId !== tenantId) {
+        return res.status(400).json({ error: "Invalid recruiter or cross-tenant recruiter rejected." });
+      }
+    }
+
+    const candidate = await prisma.campusCandidate.create({
+      data: {
+        tenantId,
+        studentName: studentName.trim(),
+        email: email ? email.trim().toLowerCase() : "",
+        phone: phone ? phone.trim() : null,
+        avatarUrl: avatarUrl ? avatarUrl.trim() : null,
+        collegeName: collegeName ? collegeName.trim() : null,
+        branch: branch ? branch.trim() : "B.E/CSE",
+        graduationYear: String(graduationYear).trim(),
+        jobRole: jobRole ? jobRole.trim() : "Software Engineer",
+        recruiterName: recruiterName ? recruiterName.trim() : null,
+        recruiterId: recruiterId || null,
+        status: status || "Applied",
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Campus candidate added successfully!",
+      candidate,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to add campus candidate." });
+  }
+});
+
+// PUT /api/recruitment/campus-candidates/:id
+recruitmentRouter.put("/campus-candidates/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const { id } = req.params;
+    const existing = await prisma.campusCandidate.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Campus candidate not found." });
+    }
+
+    const {
+      studentName,
+      email,
+      phone,
+      avatarUrl,
+      collegeName,
+      branch,
+      graduationYear,
+      jobRole,
+      recruiterName,
+      status,
+    } = req.body;
+
+    const updated = await prisma.campusCandidate.update({
+      where: { id },
+      data: {
+        ...(studentName && { studentName: studentName.trim() }),
+        ...(email !== undefined && { email: email.trim().toLowerCase() }),
+        ...(phone !== undefined && { phone: phone ? phone.trim() : null }),
+        ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(collegeName !== undefined && { collegeName }),
+        ...(branch && { branch: branch.trim() }),
+        ...(graduationYear && { graduationYear: String(graduationYear).trim() }),
+        ...(jobRole && { jobRole: jobRole.trim() }),
+        ...(recruiterName !== undefined && { recruiterName }),
+        ...(status && { status }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: "Candidate updated successfully.",
+      candidate: updated,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update candidate." });
+  }
+});
+
+// DELETE /api/recruitment/campus-candidates/:id
+recruitmentRouter.delete("/campus-candidates/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const roles = req.user?.roles || [];
+    const isAuthorized = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r));
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Forbidden: Insufficient privileges to delete campus candidates." });
+    }
+
+    const { id } = req.params;
+    const existing = await prisma.campusCandidate.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Campus candidate not found." });
+    }
+
+    await prisma.campusCandidate.delete({ where: { id } });
+    return res.json({ success: true, message: "Campus candidate record deleted." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete candidate." });
+  }
+});
+
+/**
+ * =============================================================
+ * EMPLOYEE REFERRALS SYSTEM (Tenant isolated)
+ * =============================================================
+ */
+
+// GET /api/recruitment/referrals
+recruitmentRouter.get("/referrals", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const { search, role, status } = req.query;
+    const where: any = { tenantId };
+
+    if (status && status !== "all") {
+      where.status = String(status);
+    }
+    if (role && role !== "all") {
+      where.jobTitle = { contains: String(role) };
+    }
+    if (search) {
+      where.OR = [
+        { referralCode: { contains: String(search) } },
+        { jobTitle: { contains: String(search) } },
+        { refereeName: { contains: String(search) } },
+        { refereeEmail: { contains: String(search) } },
+        { referrer: { firstName: { contains: String(search) } } },
+        { referrer: { lastName: { contains: String(search) } } },
+      ];
+    }
+
+    const referrals = await prisma.employeeReferral.findMany({
+      where,
+      include: {
+        referrer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            position: true,
+            department: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.json(referrals);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list employee referrals." });
+  }
+});
+
+// POST /api/recruitment/referrals
+recruitmentRouter.post("/referrals", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const {
+      referrerId,
+      jobTitle,
+      refereeName,
+      refereeEmail,
+      refereePhone,
+      refereeAvatarUrl,
+      bonusAmount,
+      notes,
+    } = req.body;
+
+    if (!referrerId || !jobTitle || !refereeName || !refereeEmail) {
+      return res.status(400).json({ error: "Referrer, Job Title, Referee Name, and Email are required." });
+    }
+
+    // Verify referrer employee belongs to tenant
+    const referrer = await prisma.employee.findUnique({
+      where: { id: referrerId },
+      select: { id: true, tenantId: true },
+    });
+    if (!referrer || referrer.tenantId !== tenantId) {
+      return res.status(400).json({ error: "Invalid referring employee or cross-tenant assignment rejected." });
+    }
+
+    const totalCount = await prisma.employeeReferral.count({ where: { tenantId } });
+    const referralCode = `Reff-${String(totalCount + 1).padStart(3, "0")}`;
+
+    const referral = await prisma.employeeReferral.create({
+      data: {
+        tenantId,
+        referralCode,
+        referrerId,
+        jobTitle: jobTitle.trim(),
+        refereeName: refereeName.trim(),
+        refereeEmail: refereeEmail.trim().toLowerCase(),
+        refereePhone: refereePhone ? refereePhone.trim() : null,
+        refereeAvatarUrl: refereeAvatarUrl || null,
+        bonusAmount: bonusAmount !== undefined ? Number(bonusAmount) : 100,
+        status: "pending",
+        notes: notes ? notes.trim() : null,
+      },
+      include: {
+        referrer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            position: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Referral registered successfully (${referralCode})`,
+      referral,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to create referral." });
+  }
+});
+
+// PUT /api/recruitment/referrals/:id
+recruitmentRouter.put("/referrals/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const { id } = req.params;
+    const existing = await prisma.employeeReferral.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Referral record not found." });
+    }
+
+    const { jobTitle, refereeName, refereeEmail, refereePhone, bonusAmount, status, notes } = req.body;
+
+    const updated = await prisma.employeeReferral.update({
+      where: { id },
+      data: {
+        ...(jobTitle && { jobTitle: jobTitle.trim() }),
+        ...(refereeName && { refereeName: refereeName.trim() }),
+        ...(refereeEmail && { refereeEmail: refereeEmail.trim().toLowerCase() }),
+        ...(refereePhone !== undefined && { refereePhone }),
+        ...(bonusAmount !== undefined && { bonusAmount: Number(bonusAmount) }),
+        ...(status && { status }),
+        ...(notes !== undefined && { notes }),
+      },
+      include: {
+        referrer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            position: true,
+            department: true,
+          },
+        },
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: "Referral updated successfully.",
+      referral: updated,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update referral." });
+  }
+});
+
+// DELETE /api/recruitment/referrals/:id
+recruitmentRouter.delete("/referrals/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const roles = req.user?.roles || [];
+    const isAuthorized = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r));
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Forbidden: Insufficient privileges to delete referrals." });
+    }
+
+    const { id } = req.params;
+    const existing = await prisma.employeeReferral.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Referral record not found." });
+    }
+
+    await prisma.employeeReferral.delete({ where: { id } });
+    return res.json({ success: true, message: "Referral record deleted." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete referral." });
+  }
+});
+

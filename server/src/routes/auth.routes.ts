@@ -10,6 +10,7 @@ import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
+import { recordLoginHistory } from "../services/login-history.service";
 
 export const authRouter = Router();
 
@@ -220,6 +221,7 @@ authRouter.post("/unlock", async (req, res) => {
       tenantId: user.profile?.tenantId,
       roles,
     });
+    await recordLoginHistory(req, user.id, user.id);
 
     return res.json({
       success: true,
@@ -273,6 +275,8 @@ authRouter.post("/login", async (req, res) => {
         tenantId: user.profile?.tenantId,
         roles,
       });
+      await recordLoginHistory(req, user.id, user.id);
+
       return res.json({
         token,
         user: {
@@ -540,6 +544,7 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
       tenantId: user.profile?.tenantId,
       roles,
     });
+    await recordLoginHistory(req, user.id, user.id);
 
     return res.json({
       success: true,

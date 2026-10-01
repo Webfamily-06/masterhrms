@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import { AuthRequest } from "./auth";
 import { TenantConnectionManager } from "../services/tenant-connection-manager.service";
 import { tenantStorage, TenantContext } from "../context/tenant-context";
+import { normalizeIp, matchIpOrCidr } from "../lib/ip-firewall";
 
 export interface TenantContextRequest extends AuthRequest {
   tenantContext?: TenantContext;
@@ -40,7 +41,34 @@ export async function resolveTenantContext(
       db: client,
     };
 
-    req.tenantContext = context;
+    // Active Banned IP Firewall Enforcement
+    const rawIp =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress ||
+      req.ip ||
+      "";
+    const clientIp = normalizeIp(rawIp);
+    if (clientIp) {
+      try {
+        const bannedRules = await client.bannedIp.findMany({
+          where: { tenantId, isActive: true },
+          select: { ipAddress: true, reason: true },
+        });
+        if (bannedRules.length > 0) {
+          const matched = bannedRules.find((rule: any) => matchIpOrCidr(clientIp, rule.ipAddress));
+          if (matched) {
+            return res.status(403).json({
+              error: "Access Denied: Your IP address is blocked by workspace security firewall.",
+              code: "IP_BANNED",
+              clientIp,
+              reason: matched.reason || undefined,
+            });
+          }
+        }
+      } catch (firewallErr) {
+        console.warn("[Firewall Check Warning]:", firewallErr);
+      }
+    }
 
     // Run remaining middleware and route handlers inside AsyncLocalStorage context scope
     tenantStorage.run(context, () => {

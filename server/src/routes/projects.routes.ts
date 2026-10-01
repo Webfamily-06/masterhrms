@@ -371,6 +371,68 @@ projectsRouter.get("/tasks", requireAuth, async (req: AuthRequest, res: Response
   }
 });
 
+// POST /api/projects/tasks - Create task directly (for global task board)
+projectsRouter.post("/tasks", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { title, description, priority, assignee, dueDate, status, projectId } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Task title is required." });
+    }
+
+    let targetProjectId = projectId;
+    if (!targetProjectId) {
+      let defaultPrj = await prisma.project.findFirst({ where: { tenantId } });
+      if (!defaultPrj) {
+        defaultPrj = await prisma.project.create({
+          data: {
+            tenantId,
+            name: "Hospital Administration System",
+            status: "in_progress",
+            priority: "high",
+          },
+        });
+      }
+      targetProjectId = defaultPrj.id;
+    }
+
+    const task = await prisma.projectTask.create({
+      data: {
+        tenantId,
+        projectId: targetProjectId,
+        title: title.trim(),
+        description: description || null,
+        status: status || "todo",
+        priority: priority || "medium",
+        assignedTo: assignee || null,
+        dueDate: dueDate ? new Date(dueDate) : null,
+      },
+      include: {
+        project: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      id: task.id,
+      projectId: task.projectId,
+      projectName: task.project?.name || "General Project",
+      title: task.title,
+      description: task.description || "",
+      status: task.status,
+      priority: task.priority,
+      assignee: task.assignedTo || "Unassigned",
+      dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : "",
+      createdAt: task.createdAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("Task POST error:", err);
+    return res.status(500).json({ error: err.message || "Failed to create task" });
+  }
+});
+
 // GET /api/projects/:id - Retrieve project details by ID with tasks, team, stats
 projectsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -650,6 +712,45 @@ projectsRouter.post("/:id/files", requireAuth, async (req: AuthRequest, res: Res
   }
 });
 
+// GET /api/projects/:id/tasks - Get tasks under a specific project
+projectsRouter.get("/:id/tasks", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id: projectId } = req.params;
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, tenantId },
+    });
+    if (!project) {
+      return res.status(404).json({ error: "Project not found in this workspace." });
+    }
+
+    const tasks = await prisma.projectTask.findMany({
+      where: { projectId: project.id, tenantId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.json({
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        projectId: t.projectId,
+        title: t.title,
+        description: t.description || "",
+        status: t.status,
+        priority: t.priority,
+        category: (t as any).category || "Web Layout",
+        progress: (t as any).progress || 0,
+        assignee: t.assignedTo || "Unassigned",
+        dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+        createdAt: t.createdAt.toISOString(),
+      })),
+    });
+  } catch (err: any) {
+    console.error("Project GET tasks error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch project tasks" });
+  }
+});
+
 // POST /api/projects/:id/tasks - Create task under project
 projectsRouter.post("/:id/tasks", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -713,10 +814,14 @@ projectsRouter.put("/tasks/:taskId", requireAuth, async (req: AuthRequest, res: 
     if (body.assignee !== undefined) dataToUpdate.assignedTo = body.assignee;
     if (body.dueDate !== undefined) dataToUpdate.dueDate = body.dueDate ? new Date(body.dueDate) : null;
 
-    await prisma.projectTask.updateMany({
+    const result = await prisma.projectTask.updateMany({
       where: { id: taskId, tenantId },
       data: dataToUpdate,
     });
+
+    if (result.count === 0) {
+      return res.status(404).json({ error: "Task not found in this workspace." });
+    }
 
     return res.json({ success: true, taskId });
   } catch (err: any) {

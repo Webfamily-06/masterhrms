@@ -206,6 +206,16 @@ export function DreamsSidebar({
                   <span>Contracted Projects</span>
                 </Link>
               </li>
+              <li>
+                <Link
+                  to="/task-board"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/task-board" && "active")}
+                >
+                  <i className="ph-duotone ph-kanban"></i>
+                  <span>Global Task Board</span>
+                </Link>
+              </li>
 
               <li className="menu-title">
                 <span>COMMUNICATIONS</span>
@@ -298,6 +308,26 @@ export function DreamsSidebar({
                 >
                   <i className="ph-duotone ph-arrows-left-right"></i>
                   <span>Shift Swap Requests</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/overtime"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/overtime" && "active")}
+                >
+                  <i className="ph-duotone ph-timer"></i>
+                  <span>Overtime Requests</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/work-from-home"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/work-from-home" && "active")}
+                >
+                  <i className="ph-duotone ph-house-line"></i>
+                  <span>Work From Home</span>
                 </Link>
               </li>
               <li>
@@ -632,6 +662,7 @@ export function DreamsSidebar({
                     "/ai",
                     "/ai-attendance-insights",
                     "/ai-payroll-forecast",
+                    "/ai-hiring-forecast",
                     "/ai-team-performance-insights",
                     "/ai-configuration",
                     "/ai-settings"
@@ -659,6 +690,15 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/ai-payroll-forecast" && "active")}
                   >
                     AI Payroll Forecast
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/ai-hiring-forecast"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/ai-hiring-forecast" && "active")}
+                  >
+                    AI Hiring Forecast
                   </Link>
                 </li>
                 <li>
@@ -731,6 +771,15 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
+                    to="/call-history"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/call-history" && "active")}
+                  >
+                    Call History
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     to="/calendar"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/calendar" && "active")}
@@ -763,6 +812,15 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/tasks" && "active")}
                   >
                     Personal Tasks Board
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/task-board"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/task-board" && "active")}
+                  >
+                    Enterprise Kanban Board
                   </Link>
                 </li>
                 <li>
@@ -905,6 +963,36 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
+                to="/companies"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/companies" && "active")}
+              >
+                <i className="ph-duotone ph-buildings"></i>
+                <span>CRM Companies</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/pipeline"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/pipeline" && "active")}
+              >
+                <i className="ph-duotone ph-git-branch"></i>
+                <span>Sales Pipelines</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/clients"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/clients" && "active")}
+              >
+                <i className="ph-duotone ph-users-three"></i>
+                <span>Clients Directory</span>
+              </Link>
+            </li>
+            <li>
+              <Link
                 to="/crm"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/crm" && "active")}
@@ -915,12 +1003,32 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
+                to={"/campaigns" as any}
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/campaigns" && "active")}
+              >
+                <i className="ph-duotone ph-megaphone"></i>
+                <span>Marketing Campaigns</span>
+              </Link>
+            </li>
+            <li>
+              <Link
                 to="/invoices"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/invoices" && "active")}
               >
                 <i className="ph-duotone ph-receipt"></i>
                 <span>Invoices & Billing</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to={"/recurring-invoices" as any}
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/recurring-invoices" && "active")}
+              >
+                <i className="ph-duotone ph-arrows-clockwise"></i>
+                <span>Recurring Invoices</span>
               </Link>
             </li>
             <li>
@@ -954,6 +1062,36 @@ export function DreamsSidebar({
               >
                 <i className="ph-duotone ph-bank"></i>
                 <span>Ledgers & Accounting</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/budgets"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/budgets" && "active")}
+              >
+                <i className="ph-duotone ph-piggy-bank"></i>
+                <span>Budgets & Financial Plans</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/taxes"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/taxes" && "active")}
+              >
+                <i className="ph-duotone ph-percent"></i>
+                <span>Tax Rates & GST Slabs</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/currencies"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/currencies" && "active")}
+              >
+                <i className="ph-duotone ph-coins"></i>
+                <span>Currencies & FX</span>
               </Link>
             </li>
             <li>
@@ -1017,6 +1155,9 @@ export function DreamsSidebar({
                     "/attendance",
                     "/leave",
                     "/shifts",
+                    "/shift-swap-requests",
+                    "/overtime",
+                    "/work-from-home",
                     "/biometric",
                     "/biometric-sync",
                   ].includes(currentPath) && "active"
@@ -1065,11 +1206,38 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
+                    to="/overtime"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/overtime" && "active")}
+                  >
+                    Overtime Requests
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/work-from-home"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/work-from-home" && "active")}
+                  >
+                    Work From Home (WFH)
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     to="/attendance-employee"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/attendance-employee" && "active")}
                   >
                     Attendance Matrix
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/daily-report"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/daily-report" && "active")}
+                  >
+                    Daily Attendance Report
                   </Link>
                 </li>
                 <li>
@@ -1116,7 +1284,7 @@ export function DreamsSidebar({
                 className={cn(
                   "cursor-pointer",
                   openMenus.talent && "subdrop",
-                  ["/recruitment", "/training"].includes(currentPath) && "active"
+                  ["/recruitment", "/training", "/certification-tracking", "/campus-hiring", "/referrals"].includes(currentPath) && "active"
                 )}
               >
                 <i className="ph-duotone ph-briefcase"></i>
@@ -1135,11 +1303,38 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
+                    to="/campus-hiring"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/campus-hiring" && "active")}
+                  >
+                    Campus Hiring
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/referrals"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/referrals" && "active")}
+                  >
+                    Employee Referrals
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     to="/training"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/training" && "active")}
                   >
                     Training & LMS
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/certification-tracking"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/certification-tracking" && "active")}
+                  >
+                    Certification Tracking
                   </Link>
                 </li>
               </ul>
@@ -1162,11 +1357,16 @@ export function DreamsSidebar({
                     "/announcements",
                     "/awards",
                     "/warnings",
+                    "/promotions",
+                    "/probation",
                     "/offboarding",
+                    "/resignation",
+                    "/termination",
                     "/forms",
                     "/workflows",
                     "/okr",
                     "/assets",
+                    "/provident-fund",
                   ].includes(currentPath) && "active"
                 )}
               >
@@ -1258,6 +1458,24 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
+                    to="/resignation"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/resignation" && "active")}
+                  >
+                    Resignations
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/termination"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/termination" && "active")}
+                  >
+                    Terminations
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     to="/awards"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/awards" && "active")}
@@ -1272,6 +1490,33 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/warnings" && "active")}
                   >
                     Disciplinary Warnings
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/promotions"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/promotions" && "active")}
+                  >
+                    Promotions & Transfers
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/probation"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/probation" && "active")}
+                  >
+                    Probation Management
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/provident-fund"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/provident-fund" && "active")}
+                  >
+                    Provident Fund
                   </Link>
                 </li>
               </ul>
@@ -1394,6 +1639,16 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
+                to={"/custom-fields" as any}
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/custom-fields" && "active")}
+              >
+                <i className="ph-duotone ph-sliders"></i>
+                <span>Custom Fields</span>
+              </Link>
+            </li>
+            <li>
+              <Link
                 to="/users"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/users" && "active")}
@@ -1410,6 +1665,36 @@ export function DreamsSidebar({
               >
                 <i className="ph-duotone ph-credit-card"></i>
                 <span>Plan & Subscription</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/ban-ip-address"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/ban-ip-address" && "active")}
+              >
+                <i className="ph-duotone ph-shield-warning"></i>
+                <span>Ban IP Address</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/clear-cache"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/clear-cache" && "active")}
+              >
+                <i className="ph-duotone ph-broom"></i>
+                <span>Clear Cache & Maintenance</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/cronjob"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/cronjob" && "active")}
+              >
+                <i className="ph-duotone ph-clock-counter-clockwise"></i>
+                <span>Cronjob Management</span>
               </Link>
             </li>
 

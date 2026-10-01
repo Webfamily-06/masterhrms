@@ -324,3 +324,342 @@ cmsRouter.get("/addons", async (req, res) => {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
 });
+
+// ==========================================
+// P10: FAQ MANAGEMENT
+// ==========================================
+const DEFAULT_FAQS = [
+  {
+    id: "faq-1",
+    question: "How do I upgrade or change my plan?",
+    answer: "You can upgrade or downgrade your subscription at any time from your billing settings. Plan adjustments take effect immediately.",
+    category: "Billing & Plans",
+    order: 1,
+    isActive: true,
+  },
+  {
+    id: "faq-2",
+    question: "Is there a free trial available?",
+    answer: "Yes, we offer a 14-day free trial on all plans with full access to all HRMS, payroll, and recruitment features.",
+    category: "General",
+    order: 2,
+    isActive: true,
+  },
+  {
+    id: "faq-3",
+    question: "Can I export payroll and attendance data?",
+    answer: "Yes, you can export complete payroll runs, attendance registers, and compliance reports to CSV, Excel, and PDF formats.",
+    category: "Features",
+    order: 3,
+    isActive: true,
+  },
+  {
+    id: "faq-4",
+    question: "Is biometric attendance sync supported?",
+    answer: "Yes, standard biometric devices such as ZKTeco and IP-based access controllers can be synced automatically.",
+    category: "Integrations",
+    order: 4,
+    isActive: true,
+  },
+];
+
+async function getStoredFaqs() {
+  const page = await prisma.cmsPage.findUnique({ where: { slug: "system-cms-faqs" } });
+  if (page?.content && Array.isArray((page.content as any).faqs)) {
+    return (page.content as any).faqs;
+  }
+  await prisma.cmsPage.upsert({
+    where: { slug: "system-cms-faqs" },
+    create: {
+      id: "system-cms-faqs",
+      slug: "system-cms-faqs",
+      title: "System FAQs",
+      content: { faqs: DEFAULT_FAQS },
+      published: true,
+    },
+    update: {},
+  });
+  return DEFAULT_FAQS;
+}
+
+cmsRouter.get("/faqs", async (_req, res) => {
+  try {
+    const faqs = await getStoredFaqs();
+    return res.json(faqs);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch FAQs" });
+  }
+});
+
+const faqSchema = z.object({
+  question: z.string().trim().min(3),
+  answer: z.string().trim().min(3),
+  category: z.string().trim().default("General"),
+  order: z.number().int().optional(),
+  isActive: z.boolean().default(true),
+});
+
+cmsRouter.post("/faqs", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const data = faqSchema.parse(req.body);
+    const faqs = await getStoredFaqs();
+    const newFaq = {
+      id: `faq-${Date.now()}`,
+      question: data.question,
+      answer: data.answer,
+      category: data.category,
+      order: data.order ?? faqs.length + 1,
+      isActive: data.isActive,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const updated = [...faqs, newFaq];
+    await prisma.cmsPage.upsert({
+      where: { slug: "system-cms-faqs" },
+      create: { id: "system-cms-faqs", slug: "system-cms-faqs", title: "System FAQs", content: { faqs: updated }, published: true },
+      update: { content: { faqs: updated } },
+    });
+    return res.status(201).json(newFaq);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors[0].message });
+    return res.status(500).json({ error: err.message || "Failed to create FAQ" });
+  }
+});
+
+cmsRouter.put("/faqs/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const faqs = await getStoredFaqs();
+    const index = faqs.findIndex((f: any) => f.id === id);
+    if (index === -1) return res.status(404).json({ error: "FAQ not found" });
+
+    const updatedFaq = {
+      ...faqs[index],
+      ...req.body,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    faqs[index] = updatedFaq;
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-cms-faqs" },
+      data: { content: { faqs } },
+    });
+    return res.json(updatedFaq);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update FAQ" });
+  }
+});
+
+cmsRouter.delete("/faqs/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const faqs = await getStoredFaqs();
+    const updated = faqs.filter((f: any) => f.id !== id);
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-cms-faqs" },
+      data: { content: { faqs: updated } },
+    });
+    return res.json({ success: true, message: "FAQ deleted successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete FAQ" });
+  }
+});
+
+cmsRouter.patch("/faqs/reorder", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) return res.status(400).json({ error: "orderedIds must be an array" });
+
+    const faqs = await getStoredFaqs();
+    const reordered = [...faqs].sort((a: any, b: any) => {
+      const idxA = orderedIds.indexOf(a.id);
+      const idxB = orderedIds.indexOf(b.id);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    }).map((item: any, idx: number) => ({ ...item, order: idx + 1 }));
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-cms-faqs" },
+      data: { content: { faqs: reordered } },
+    });
+    return res.json({ success: true, faqs: reordered });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to reorder FAQs" });
+  }
+});
+
+// ==========================================
+// P11: TESTIMONIAL MANAGEMENT
+// ==========================================
+const DEFAULT_TESTIMONIALS = [
+  {
+    id: "test-1",
+    name: "Sarah Jenkins",
+    role: "Head of People",
+    company: "FinTech Global",
+    rating: 5,
+    content: "Master HRMS transformed our distributed payroll and attendance pipeline across 12 countries seamlessly.",
+    avatar: "/avatars/avatar-1.png",
+    order: 1,
+    isActive: true,
+  },
+  {
+    id: "test-2",
+    name: "David Zhao",
+    role: "VP of Operations",
+    company: "Nexus Retail",
+    rating: 5,
+    content: "The multi-tenant isolation, shift scheduling, and fine-grained permissions have been completely rock solid.",
+    avatar: "/avatars/avatar-2.png",
+    order: 2,
+    isActive: true,
+  },
+  {
+    id: "test-3",
+    name: "Elena Rostova",
+    role: "HR Director",
+    company: "CloudScale",
+    rating: 5,
+    content: "Employees love the self-service portal, leave workflows, and instant payslip generation on both mobile and web.",
+    avatar: "/avatars/avatar-3.png",
+    order: 3,
+    isActive: true,
+  },
+];
+
+async function getStoredTestimonials() {
+  const page = await prisma.cmsPage.findUnique({ where: { slug: "system-cms-testimonials" } });
+  if (page?.content && Array.isArray((page.content as any).testimonials)) {
+    return (page.content as any).testimonials;
+  }
+  await prisma.cmsPage.upsert({
+    where: { slug: "system-cms-testimonials" },
+    create: {
+      id: "system-cms-testimonials",
+      slug: "system-cms-testimonials",
+      title: "System Testimonials",
+      content: { testimonials: DEFAULT_TESTIMONIALS },
+      published: true,
+    },
+    update: {},
+  });
+  return DEFAULT_TESTIMONIALS;
+}
+
+cmsRouter.get("/testimonials", async (_req, res) => {
+  try {
+    const testimonials = await getStoredTestimonials();
+    return res.json(testimonials);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch testimonials" });
+  }
+});
+
+const testimonialSchema = z.object({
+  name: z.string().trim().min(2),
+  role: z.string().trim().optional(),
+  company: z.string().trim().optional(),
+  rating: z.number().min(1).max(5).default(5),
+  content: z.string().trim().min(5),
+  avatar: z.string().optional(),
+  order: z.number().int().optional(),
+  isActive: z.boolean().default(true),
+});
+
+cmsRouter.post("/testimonials", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const data = testimonialSchema.parse(req.body);
+    const testimonials = await getStoredTestimonials();
+    const newTestimonial = {
+      id: `test-${Date.now()}`,
+      name: data.name,
+      role: data.role || "",
+      company: data.company || "",
+      rating: data.rating,
+      content: data.content,
+      avatar: data.avatar || "/avatars/avatar.png",
+      order: data.order ?? testimonials.length + 1,
+      isActive: data.isActive,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const updated = [...testimonials, newTestimonial];
+    await prisma.cmsPage.upsert({
+      where: { slug: "system-cms-testimonials" },
+      create: { id: "system-cms-testimonials", slug: "system-cms-testimonials", title: "System Testimonials", content: { testimonials: updated }, published: true },
+      update: { content: { testimonials: updated } },
+    });
+    return res.status(201).json(newTestimonial);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors[0].message });
+    return res.status(500).json({ error: err.message || "Failed to create testimonial" });
+  }
+});
+
+cmsRouter.put("/testimonials/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const testimonials = await getStoredTestimonials();
+    const index = testimonials.findIndex((t: any) => t.id === id);
+    if (index === -1) return res.status(404).json({ error: "Testimonial not found" });
+
+    const updatedTestimonial = {
+      ...testimonials[index],
+      ...req.body,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    testimonials[index] = updatedTestimonial;
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-cms-testimonials" },
+      data: { content: { testimonials } },
+    });
+    return res.json(updatedTestimonial);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update testimonial" });
+  }
+});
+
+cmsRouter.delete("/testimonials/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const testimonials = await getStoredTestimonials();
+    const updated = testimonials.filter((t: any) => t.id !== id);
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-cms-testimonials" },
+      data: { content: { testimonials: updated } },
+    });
+    return res.json({ success: true, message: "Testimonial deleted successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete testimonial" });
+  }
+});
+
+cmsRouter.patch("/testimonials/reorder", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) return res.status(400).json({ error: "orderedIds must be an array" });
+
+    const testimonials = await getStoredTestimonials();
+    const reordered = [...testimonials].sort((a: any, b: any) => {
+      const idxA = orderedIds.indexOf(a.id);
+      const idxB = orderedIds.indexOf(b.id);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    }).map((item: any, idx: number) => ({ ...item, order: idx + 1 }));
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-cms-testimonials" },
+      data: { content: { testimonials: reordered } },
+    });
+    return res.json({ success: true, testimonials: reordered });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to reorder testimonials" });
+  }
+});

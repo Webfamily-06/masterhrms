@@ -18,6 +18,7 @@ export type WorkspaceRoleInfo = {
 export type ProfileWithRoles = {
   id: string;
   tenant_id: string | null;
+  tenantId?: string | null;
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;

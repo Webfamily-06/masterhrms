@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState, useMemo, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,485 +30,503 @@ import {
   Loader2,
   Plus,
   Search,
-  CheckCircle2,
-  Languages,
-  Sparkles,
   Trash2,
+  Power,
+  Languages,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/super/languages")({
-  component: LanguageEditorAdminStudio,
-  head: () => ({ meta: [{ title: "Language Editor — Super Admin" }] }),
+  component: LanguageEditorPage,
+  head: () => ({ meta: [{ title: "Multilingual Phrase Editor — Super Admin" }] }),
 });
 
-export type LanguageDictionary = {
-  [key: string]: string;
-};
-
-export type LanguagePack = {
+export type LanguagePackMeta = {
   code: string;
   name: string;
   flag: string;
+  countryCode: string;
   isDefault?: boolean;
-  strings: LanguageDictionary;
+  enabled?: boolean;
 };
 
-const DEFAULT_LANGUAGES: LanguagePack[] = [
-  {
-    code: "en",
-    name: "English (US)",
-    flag: "🇺🇸",
-    isDefault: true,
-    strings: {
-      "app.title": "Master HRMS",
-      "nav.dashboard": "Dashboard",
-      "nav.employees": "Employees",
-      "nav.payroll": "Payroll & Tax",
-      "nav.attendance": "Attendance",
-      "nav.support": "Help & Support",
-      "nav.settings": "Settings",
-      "btn.save": "Save Changes",
-      "btn.cancel": "Cancel",
-      "status.active": "Active",
-    },
-  },
-  {
-    code: "es",
-    name: "Español",
-    flag: "🇪🇸",
-    isDefault: false,
-    strings: {
-      "app.title": "Master HRMS",
-      "nav.dashboard": "Panel de Control",
-      "nav.employees": "Empleados",
-      "nav.payroll": "Nómina e Impuestos",
-      "nav.attendance": "Asistencia",
-      "nav.support": "Soporte",
-      "nav.settings": "Configuración",
-      "btn.save": "Guardar Cambios",
-      "btn.cancel": "Cancelar",
-      "status.active": "Activo",
-    },
-  },
-  {
-    code: "fr",
-    name: "Français",
-    flag: "🇫🇷",
-    isDefault: false,
-    strings: {
-      "app.title": "Master HRMS",
-      "nav.dashboard": "Tableau de bord",
-      "nav.employees": "Employés",
-      "nav.payroll": "Paie et Taxes",
-      "nav.attendance": "Présence",
-      "nav.support": "Support",
-      "nav.settings": "Paramètres",
-      "btn.save": "Enregistrer",
-      "btn.cancel": "Annuler",
-      "status.active": "Actif",
-    },
-  },
-  {
-    code: "de",
-    name: "Deutsch",
-    flag: "🇩🇪",
-    isDefault: false,
-    strings: {
-      "app.title": "Master HRMS",
-      "nav.dashboard": "Übersicht",
-      "nav.employees": "Mitarbeiter",
-      "nav.payroll": "Lohnabrechnung",
-      "nav.attendance": "Anwesenheit",
-      "nav.support": "Support-Desk",
-      "nav.settings": "Systemeinstellungen",
-      "btn.save": "Änderungen speichern",
-      "btn.cancel": "Abbrechen",
-      "status.active": "Aktiv",
-    },
-  },
-  {
-    code: "hi",
-    name: "हिन्दी (Hindi)",
-    flag: "🇮🇳",
-    isDefault: false,
-    strings: {
-      "app.title": "Master HRMS",
-      "nav.dashboard": "डैशबोर्ड",
-      "nav.employees": "कर्मचारी निर्देशिका",
-      "nav.payroll": "पेरोल और कर",
-      "nav.attendance": "उपस्थिति रजिस्टर",
-      "nav.support": "सहायता केंद्र",
-      "nav.settings": "सिस्टम सेटिंग्स",
-      "btn.save": "सहेजें",
-      "btn.cancel": "रद्द करें",
-      "status.active": "सक्रिय",
-    },
-  },
-  {
-    code: "ar",
-    name: "العربية (Arabic)",
-    flag: "🇦🇪",
-    isDefault: false,
-    strings: {
-      "app.title": "Master HRMS",
-      "nav.dashboard": "لوحة التحكم",
-      "nav.employees": "دليل الموظفين",
-      "nav.payroll": "الرواتب والضرائب",
-      "nav.attendance": "سجل الحضور",
-      "nav.support": "مكتب الدعم",
-      "nav.settings": "إعدادات النظام",
-      "btn.save": "حفظ التغييرات",
-      "btn.cancel": "إلغاء",
-      "status.active": "نشط",
-    },
-  },
-];
+export type PhraseDictionary = Record<string, string>;
 
-function LanguageEditorAdminStudio() {
+function LanguageEditorPage() {
   const qc = useQueryClient();
   const [selectedLangCode, setSelectedLangCode] = useState("en");
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 30;
+
+  // Local editing dictionary state
+  const [localPhrases, setLocalPhrases] = useState<PhraseDictionary>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Add new phrase dialog
+  const [isAddPhraseOpen, setIsAddPhraseOpen] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
 
-  // Add New Language Modal State
-  const [isAddLangModalOpen, setIsAddLangModalOpen] = useState(false);
+  // Add new language dialog
+  const [isAddLangOpen, setIsAddLangOpen] = useState(false);
   const [newLangCode, setNewLangCode] = useState("");
   const [newLangName, setNewLangName] = useState("");
-  const [newLangFlag, setNewLangFlag] = useState("EN");
+  const [newLangCountry, setNewLangCountry] = useState("US");
 
-  // Sync CMS Pages Text State
-  const [isSyncingCms, setIsSyncingCms] = useState(false);
-
-  // 1. REALTIME QUERY: Fetch language packs from MySQL API
-  const {
-    data: langPacks,
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ["realtime-language-packs"],
+  // 1. Fetch available language packs from real backend
+  const { data: languages = [], isLoading: isLanguagesLoading } = useQuery<LanguagePackMeta[]>({
+    queryKey: ["super-languages-list"],
     queryFn: async () => {
-      try {
-        const page = await api.get("/cms/pages/system-language-packs");
-        if (page?.content && Array.isArray(page.content.languages)) {
-          return page.content.languages as LanguagePack[];
-        }
-        return DEFAULT_LANGUAGES;
-      } catch {
-        return DEFAULT_LANGUAGES;
-      }
+      const res = await api.get("/super/languages");
+      return Array.isArray(res) ? res : Array.isArray((res as any)?.data) ? (res as any).data : [];
     },
   });
 
-  const list = langPacks ?? DEFAULT_LANGUAGES;
-  const currentPack = list.find((l) => l.code === selectedLangCode) ?? list[0];
+  // 2. Fetch phrases for the selected language
+  const {
+    data: phrasesData,
+    isLoading: isPhrasesLoading,
+    refetch: refetchPhrases,
+  } = useQuery<{ code: string; phrases: PhraseDictionary }>({
+    queryKey: ["super-language-phrases", selectedLangCode],
+    queryFn: async () => {
+      const res = await api.get(`/super/languages/${selectedLangCode}`);
+      return (res as any)?.data || res;
+    },
+  });
 
-  // 2. REALTIME MUTATION: Save language packs to MySQL API
+  // Sync local phrases when loaded from server
+  useEffect(() => {
+    if (phrasesData?.phrases) {
+      setLocalPhrases(phrasesData.phrases);
+      setHasUnsavedChanges(false);
+      setCurrentPage(1);
+    }
+  }, [phrasesData, selectedLangCode]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  const currentLang = languages.find((l) => l.code === selectedLangCode) || languages[0];
+
+  // 3. Save Phrases Mutation
   const saveMutation = useMutation({
-    mutationFn: async (updatedList: LanguagePack[]) => {
-      await api.put("/cms/pages/system-language-packs", {
-        title: "System Language Localization Packs",
-        meta_description: "Realtime JSON language translation packs",
-        content: { languages: updatedList },
-        published: true,
-      });
+    mutationFn: async () => {
+      const res = await api.put(`/super/languages/${selectedLangCode}`, { phrases: localPhrases });
+      return res.data;
     },
     onSuccess: () => {
-      toast.success(`Language translation pack for ${currentPack.name} saved!`);
-      qc.invalidateQueries({ queryKey: ["realtime-language-packs"] });
+      toast.success(`Translations for '${currentLang?.name || selectedLangCode}' saved successfully!`);
+      setHasUnsavedChanges(false);
+      qc.invalidateQueries({ queryKey: ["super-language-phrases", selectedLangCode] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to save translations");
+    },
   });
 
-  function updateStringValue(key: string, val: string) {
-    const updatedStrings = { ...currentPack.strings, [key]: val };
-    const updatedPacks = list.map((l) =>
-      l.code === currentPack.code ? { ...l, strings: updatedStrings } : l,
-    );
-    saveMutation.mutate(updatedPacks);
+  // 4. Create Language Mutation
+  const createLangMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/super/languages", {
+        code: newLangCode.trim().toLowerCase(),
+        name: newLangName.trim(),
+        countryCode: newLangCountry.trim().toUpperCase(),
+      });
+      return res.data;
+    },
+    onSuccess: (data: any) => {
+      toast.success(data?.message || "Language pack created successfully!");
+      setIsAddLangOpen(false);
+      setSelectedLangCode(newLangCode.trim().toLowerCase());
+      setNewLangCode("");
+      setNewLangName("");
+      qc.invalidateQueries({ queryKey: ["super-languages-list"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to create language pack");
+    },
+  });
+
+  // 5. Delete Language Mutation
+  const deleteLangMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const res = await api.delete(`/super/languages/${code}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Language pack deleted");
+      setSelectedLangCode("en");
+      qc.invalidateQueries({ queryKey: ["super-languages-list"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to delete language");
+    },
+  });
+
+  // 6. Toggle Language Status
+  const toggleLangMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const res = await api.patch(`/super/languages/${code}/toggle`);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Language status updated");
+      qc.invalidateQueries({ queryKey: ["super-languages-list"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to toggle status");
+    },
+  });
+
+  function handlePhraseChange(key: string, value: string) {
+    setLocalPhrases((prev) => ({ ...prev, [key]: value }));
+    setHasUnsavedChanges(true);
   }
 
-  function handleAddStringKey() {
-    if (!newKey) return;
-    updateStringValue(newKey, newValue || newKey);
+  function handleAddNewPhrase() {
+    if (!newKey.trim()) {
+      toast.error("Phrase key is required");
+      return;
+    }
+    const key = newKey.trim();
+    const val = newValue.trim() || key;
+    setLocalPhrases((prev) => ({ ...prev, [key]: val }));
+    setHasUnsavedChanges(true);
     setNewKey("");
     setNewValue("");
-    toast.success(`Translation key "${newKey}" added`);
+    setIsAddPhraseOpen(false);
+    toast.success(`Phrase key '${key}' added to editor`);
   }
 
-  // Create New Language Handler
-  function handleCreateLanguage() {
-    if (!newLangCode || !newLangName) return toast.error("Please fill in language code and name");
-    const code = newLangCode.toLowerCase().trim();
+  // Filtered and paginated entries
+  const filteredEntries = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return Object.entries(localPhrases).filter(
+      ([k, v]) => !q || k.toLowerCase().includes(q) || (v || "").toLowerCase().includes(q),
+    );
+  }, [localPhrases, searchQuery]);
 
-    if (list.some((l) => l.code === code)) {
-      return toast.error("Language code already exists");
-    }
-
-    const newPack: LanguagePack = {
-      code,
-      name: newLangName.trim(),
-      flag: newLangFlag || "EN",
-      isDefault: false,
-      strings: { ...list[0].strings },
-    };
-
-    const updated = [...list, newPack];
-    saveMutation.mutate(updated);
-    setSelectedLangCode(code);
-    setIsAddLangModalOpen(false);
-    setNewLangCode("");
-    setNewLangName("");
-    toast.success(`New Language "${newLangName}" (${code}) added and active!`);
-  }
-
-  // Sync All CMS Pages Text into Translation Keys
-  async function handleSyncAllCmsText() {
-    setIsSyncingCms(true);
-    try {
-      const pages = await api.get("/cms/pages");
-      if (!Array.isArray(pages) || pages.length === 0) return toast.info("No CMS pages found to sync");
-
-      let extractedCount = 0;
-      const newStrings = { ...currentPack.strings };
-
-      pages.forEach((p: any) => {
-        const titleKey = `cms.page.${p.slug}.title`;
-        if (!newStrings[titleKey]) {
-          newStrings[titleKey] = p.title;
-          extractedCount++;
-        }
-      });
-
-      const updatedPacks = list.map((l) =>
-        l.code === currentPack.code ? { ...l, strings: newStrings } : l,
-      );
-      saveMutation.mutate(updatedPacks);
-      toast.success(
-        `Synced ${extractedCount} new text keys across all CMS pages into ${currentPack.name}!`,
-      );
-    } catch (err: any) {
-      toast.error(err.message || "Failed to sync CMS text");
-    } finally {
-      setIsSyncingCms(false);
-    }
-  }
-
-  const entries = Object.entries(currentPack.strings).filter(([k, v]) => {
-    const q = searchQuery.toLowerCase();
-    return !q || k.toLowerCase().includes(q) || v.toLowerCase().includes(q);
-  });
+  const totalPages = Math.ceil(filteredEntries.length / perPage) || 1;
+  const paginatedSlice = useMemo(() => {
+    const start = (currentPage - 1) * perPage;
+    return filteredEntries.slice(start, start + perPage);
+  }, [filteredEntries, currentPage, perPage]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">Language & Localization Editor</h1>
-            <Badge variant="secondary" className="gap-1 text-xs font-mono">
-              <Globe className="size-3 text-primary" /> Realtime Translations
+          <div className="flex items-center gap-2.5">
+            <Languages className="size-7 text-primary" />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              Multilingual Phrase Editor
+            </h1>
+            <Badge variant="secondary" className="gap-1 text-xs">
+              <Globe className="size-3 text-primary" /> {languages.length} Active Locales
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Add new languages, sync texts across all CMS pages, and customize headings and menu
-            items.
+            Manage UI labels, system terminology, and localized string dictionaries with real-time MySQL persistence.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <Button
             variant="outline"
             size="sm"
-            onClick={handleSyncAllCmsText}
-            disabled={isSyncingCms}
-            className="gap-1.5 text-xs"
+            onClick={() => refetchPhrases()}
+            className="gap-2 text-xs"
           >
-            {isSyncingCms ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="size-3.5 text-primary" />
-            )}
-            Sync All Pages Text
+            <RefreshCw className="size-3.5" /> Refresh
           </Button>
-
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
-            onClick={() => setIsAddLangModalOpen(true)}
+            onClick={() => setIsAddPhraseOpen(true)}
             className="gap-1.5 text-xs"
           >
-            <Languages className="size-3.5" /> + Add New Language
+            <Plus className="size-3.5" /> Add Phrase Key
           </Button>
-
-          <Select value={selectedLangCode} onValueChange={setSelectedLangCode}>
-            <SelectTrigger className="h-9 w-[180px] text-xs font-semibold">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {list.map((l) => (
-                <SelectItem key={l.code} value={l.code} className="text-xs font-semibold">
-                  <span className="mr-2">{l.flag}</span> {l.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Button
-            onClick={() => saveMutation.mutate(list)}
-            disabled={saveMutation.isPending}
-            className="gap-2 bg-primary font-bold"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsAddLangOpen(true)}
+            className="gap-1.5 text-xs"
+          >
+            <Plus className="size-3.5" /> Create Language
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending || !hasUnsavedChanges}
+            className="gap-2 text-xs shadow-xs"
           >
             {saveMutation.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-3.5 animate-spin" />
             ) : (
-              <Save className="size-4" />
+              <Save className="size-3.5" />
             )}
-            Save Translations
+            {hasUnsavedChanges ? "Save Changes *" : "Saved"}
           </Button>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="py-20 grid place-items-center">
-          <Loader2 className="size-8 animate-spin text-primary" />
+      {/* Control Bar: Language Selection & Search */}
+      <Card className="p-4 border-border/60 shadow-xs bg-muted/10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                Select Language:
+              </Label>
+              <Select value={selectedLangCode} onValueChange={(val) => setSelectedLangCode(val)}>
+                <SelectTrigger className="w-[200px] h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.map((l) => (
+                    <SelectItem key={l.code} value={l.code} className="text-xs">
+                      <span className="mr-2 font-mono uppercase font-bold text-primary">[{l.code}]</span>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {currentLang?.code !== "en" && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleLangMutation.mutate(currentLang.code)}
+                  disabled={toggleLangMutation.isPending}
+                  className="h-9 text-xs gap-1.5"
+                  title="Toggle enabled status"
+                >
+                  <Power className="size-3.5" />
+                  {currentLang.enabled === false ? "Enable Language" : "Disable Language"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to delete language pack '${currentLang.name}'?`)) {
+                      deleteLangMutation.mutate(currentLang.code);
+                    }
+                  }}
+                  disabled={deleteLangMutation.isPending}
+                  className="h-9 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                  title="Delete Language"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="relative min-w-[260px] max-w-sm flex-1">
+            <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search phrase key or translation text..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9 text-xs"
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* Phrase Table */}
+      {isLanguagesLoading || isPhrasesLoading ? (
+        <div className="py-24 grid place-items-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="size-8 animate-spin text-primary" />
+            <p className="text-xs text-muted-foreground">Loading translation dictionary...</p>
+          </div>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Quick Add Translation Key */}
-          <Card className="p-4 border shadow-xs">
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              <div className="flex-1 w-full space-y-1">
-                <Label className="text-xs font-semibold">New Translation Key String</Label>
-                <Input
-                  placeholder="e.g. menu.addons_store"
-                  value={newKey}
-                  onChange={(e) => setNewKey(e.target.value)}
-                  className="font-mono text-xs h-9"
-                />
-              </div>
+        <Card className="border border-border/60 shadow-xs overflow-hidden">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-muted/40 font-semibold border-b border-border/60 text-[11px] text-muted-foreground uppercase">
+              <tr>
+                <th className="p-3 pl-4 w-1/3">Phrase Key / English Baseline</th>
+                <th className="p-3 w-2/3">
+                  Translation in <span className="text-primary font-bold">{currentLang?.name || selectedLangCode}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {paginatedSlice.length === 0 ? (
+                <tr>
+                  <td colSpan={2} className="p-12 text-center text-muted-foreground">
+                    No phrases found matching "{searchQuery}". Click "Add Phrase Key" above to create one.
+                  </td>
+                </tr>
+              ) : (
+                paginatedSlice.map(([key, val]) => (
+                  <tr key={key} className="hover:bg-muted/20 transition-colors">
+                    <td className="p-3 pl-4 font-mono font-medium text-foreground align-top">
+                      <div className="break-all">{key}</div>
+                    </td>
+                    <td className="p-2.5 pr-4 align-top">
+                      <Input
+                        value={val || ""}
+                        onChange={(e) => handlePhraseChange(key, e.target.value)}
+                        className="h-8 text-xs font-sans bg-background"
+                        placeholder={`Translation for ${key}...`}
+                      />
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
 
-              <div className="flex-1 w-full space-y-1">
-                <Label className="text-xs font-semibold">
-                  Translated Value ({currentPack.name})
-                </Label>
-                <Input
-                  placeholder="e.g. Marketplace Extensions"
-                  value={newValue}
-                  onChange={(e) => setNewValue(e.target.value)}
-                  className="text-xs h-9"
-                />
-              </div>
+          {/* Pagination Bar */}
+          <div className="p-3.5 border-t border-border/60 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground">
+            <div>
+              Showing {filteredEntries.length === 0 ? 0 : (currentPage - 1) * perPage + 1} to{" "}
+              {Math.min(currentPage * perPage, filteredEntries.length)} of {filteredEntries.length} phrases
+            </div>
 
+            <div className="flex items-center gap-2">
               <Button
-                onClick={handleAddStringKey}
-                className="sm:mt-5 gap-1.5 h-9 shrink-0 text-xs font-bold"
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="h-8 text-xs gap-1 px-2.5"
               >
-                <Plus className="size-3.5" /> Add Key
+                <ArrowLeft className="size-3" /> Prev
+              </Button>
+              <span className="px-2 font-mono font-semibold text-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="h-8 text-xs gap-1 px-2.5"
+              >
+                Next <ArrowRight className="size-3" />
               </Button>
             </div>
-          </Card>
-
-          {/* Translation Dictionary Table */}
-          <Card className="p-4 border shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="relative max-w-md w-full">
-                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search keys or translated values..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-
-              <Badge variant="outline" className="font-mono text-xs self-start sm:self-auto">
-                {currentPack.flag} {currentPack.name} ({entries.length} Active Keys)
-              </Badge>
-            </div>
-
-            <div className="overflow-x-auto border rounded-xl">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-secondary/50 font-semibold border-b text-[10px] uppercase">
-                  <tr>
-                    <th className="p-3 pl-4 w-1/3">Translation Key String</th>
-                    <th className="p-3 pr-4">
-                      Translated Text Value ({currentPack.flag} {currentPack.name})
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {entries.map(([k, val]) => (
-                    <tr key={k}>
-                      <td className="p-3 pl-4 font-mono font-bold text-primary">{k}</td>
-                      <td className="p-3 pr-4">
-                        <Input
-                          value={val}
-                          onChange={(e) => updateStringValue(k, e.target.value)}
-                          className="h-8 text-xs bg-background"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
       )}
 
-      {/* ADD NEW LANGUAGE MODAL */}
-      <Dialog open={isAddLangModalOpen} onOpenChange={setIsAddLangModalOpen}>
-        <DialogContent className="max-w-md">
+      {/* ── Add Phrase Dialog ─── */}
+      <Dialog open={isAddPhraseOpen} onOpenChange={setIsAddPhraseOpen}>
+        <DialogContent className="max-w-md p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Languages className="size-5 text-primary" /> Add New Language Translation Pack
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Plus className="size-5 text-primary" />
+              Add Translation Phrase Key
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Add a new language pack to the topbar language switcher.
+              Add a new string token to the localization dictionary for this language.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Language Code *</Label>
-                <Input
-                  placeholder="e.g. ja, pt, it, ru"
-                  value={newLangCode}
-                  onChange={(e) => setNewLangCode(e.target.value)}
-                  className="font-mono text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Flag Emoji</Label>
-                <Input
-                  placeholder="e.g. 🇯🇵, 🇵🇹, 🇮🇹"
-                  value={newLangFlag}
-                  onChange={(e) => setNewLangFlag(e.target.value)}
-                  className="text-xs text-center"
-                />
-              </div>
+          <div className="space-y-4 pt-2 text-xs">
+            <div className="space-y-1.5">
+              <Label>Phrase Key (e.g. "Leave Balance")</Label>
+              <Input
+                value={newKey}
+                onChange={(e) => setNewKey(e.target.value)}
+                placeholder="Leave Balance"
+                className="h-9 text-xs"
+              />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Language Name *</Label>
+            <div className="space-y-1.5">
+              <Label>Initial Translation Text ({currentLang?.name})</Label>
               <Input
-                placeholder="e.g. Japanese (日本語), Português"
-                value={newLangName}
-                onChange={(e) => setNewLangName(e.target.value)}
-                className="text-xs"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                placeholder="Translated text..."
+                className="h-9 text-xs"
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddLangModalOpen(false)}>
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" size="sm" onClick={() => setIsAddPhraseOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateLanguage} className="bg-primary font-bold">
-              Add Language
+            <Button size="sm" onClick={handleAddNewPhrase}>
+              Add Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Create Language Dialog ─── */}
+      <Dialog open={isAddLangOpen} onOpenChange={setIsAddLangOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Globe className="size-5 text-primary" />
+              Register New Language Locale
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Register a new language code and clone the baseline dictionary.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-xs">
+            <div className="space-y-1.5">
+              <Label>Language Code (ISO 2-letter, e.g. "it", "ja", "pt")</Label>
+              <Input
+                value={newLangCode}
+                onChange={(e) => setNewLangCode(e.target.value)}
+                placeholder="it"
+                maxLength={10}
+                className="h-9 text-xs uppercase"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Display Name (e.g. "Italiano", "Japanese")</Label>
+              <Input
+                value={newLangName}
+                onChange={(e) => setNewLangName(e.target.value)}
+                placeholder="Italiano"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Country Code (2-letter flag, e.g. "IT", "JP")</Label>
+              <Input
+                value={newLangCountry}
+                onChange={(e) => setNewLangCountry(e.target.value)}
+                placeholder="IT"
+                maxLength={2}
+                className="h-9 text-xs uppercase"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" size="sm" onClick={() => setIsAddLangOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={createLangMutation.isPending || !newLangCode || !newLangName}
+              onClick={() => createLangMutation.mutate()}
+            >
+              {createLangMutation.isPending && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
+              Create Language
             </Button>
           </DialogFooter>
         </DialogContent>

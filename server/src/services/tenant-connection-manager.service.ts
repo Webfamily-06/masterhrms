@@ -180,6 +180,16 @@ export class TenantConnectionManager {
     }
   }
 
+  public async evictTenant(tenantId: string): Promise<boolean> {
+    const entry = this.poolCache.get(tenantId);
+    if (entry) {
+      this.poolCache.delete(tenantId);
+      await entry.client.$disconnect().catch(() => {});
+      return true;
+    }
+    return false;
+  }
+
   public getActiveCacheCount(): number {
     return this.poolCache.size;
   }

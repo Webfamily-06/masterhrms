@@ -56,6 +56,10 @@ import { clientRouter } from "./routes/client.routes";
 import { awardsRouter } from "./routes/awards.routes";
 import { warningsRouter } from "./routes/warnings.routes";
 import { workflowsRouter } from "./routes/workflows.routes";
+import { overtimeRouter, wfhRouter, promotionRouter, probationRouter, providentFundRouter, bannedIpRouter, systemMaintenanceRouter } from "./routes/hrm-extensions.routes";
+import { budgetsRouter } from "./routes/budgets.routes";
+import { customFieldsRouter } from "./routes/custom-fields.routes";
+import { campaignsRouter } from "./routes/campaigns.routes";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -155,6 +159,16 @@ app.use("/api/docs", docsRouter);
 app.use("/api/returns", returnsRouter);
 app.use("/api/client", clientRouter);
 app.use("/api/workflows", workflowsRouter);
+app.use("/api/overtime", overtimeRouter);
+app.use("/api/wfh", wfhRouter);
+app.use("/api/promotions", promotionRouter);
+app.use("/api/probation", probationRouter);
+app.use("/api/budgets", budgetsRouter);
+app.use("/api/provident-funds", providentFundRouter);
+app.use("/api/banned-ips", bannedIpRouter);
+app.use("/api/system", systemMaintenanceRouter);
+app.use("/api/custom-fields", customFieldsRouter);
+app.use("/api/campaigns", campaignsRouter);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

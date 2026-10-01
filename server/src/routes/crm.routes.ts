@@ -1145,3 +1145,220 @@ crmRouter.delete("/companies/:id", requireAuth, resolveTenantContext, async (req
     return res.status(500).json({ error: err.message || "Failed to delete CRM company" });
   }
 });
+
+// ==========================================
+// CALL HISTORY (Relational MySQL backed)
+// ==========================================
+
+// GET /api/crm/calls - List call history records
+crmRouter.get("/calls", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { search, callType, sort = "desc" } = req.query;
+
+    const where: any = { tenantId };
+    if (callType && callType !== "all") {
+      where.callType = String(callType);
+    }
+
+    if (search) {
+      const q = String(search).trim();
+      where.OR = [
+        { callerName: { contains: q } },
+        { callerEmail: { contains: q } },
+        { callerPhone: { contains: q } },
+      ];
+    }
+
+    let calls = await prisma.callHistoryRecord.findMany({
+      where,
+      orderBy: { callTime: sort === "asc" ? "asc" : "desc" },
+    });
+
+    // Auto-seed realistic demo calls if empty
+    if (calls.length === 0 && !search && (!callType || callType === "all")) {
+      const now = Date.now();
+      await prisma.callHistoryRecord.createMany({
+        data: [
+          {
+            tenantId,
+            callerName: "Anthony Lewis",
+            callerEmail: "anthony@example.com",
+            callerPhone: "(123) 4567 890",
+            callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-32.jpg",
+            callType: "incoming",
+            durationSeconds: 145, // 02:25
+            callTime: new Date(now - 2 * 3600 * 1000),
+            totalCalls: 20,
+            avgCallSeconds: 30,
+            avgWaitSeconds: 5,
+            status: "completed",
+          },
+          {
+            tenantId,
+            callerName: "Brian Villalobos",
+            callerEmail: "brian@example.com",
+            callerPhone: "(179) 7382 829",
+            callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-09.jpg",
+            callType: "outgoing",
+            durationSeconds: 70, // 01:10
+            callTime: new Date(now - 5 * 3600 * 1000),
+            totalCalls: 12,
+            avgCallSeconds: 45,
+            avgWaitSeconds: 3,
+            status: "completed",
+          },
+          {
+            tenantId,
+            callerName: "Harvey Smith",
+            callerEmail: "harvey@example.com",
+            callerPhone: "(184) 2719 738",
+            callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-01.jpg",
+            callType: "video",
+            durationSeconds: 240, // 04:00
+            callTime: new Date(now - 24 * 3600 * 1000),
+            totalCalls: 8,
+            avgCallSeconds: 120,
+            avgWaitSeconds: 10,
+            status: "completed",
+          },
+          {
+            tenantId,
+            callerName: "Stephan Peralt",
+            callerEmail: "peralt@example.com",
+            callerPhone: "(193) 7839 748",
+            callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-33.jpg",
+            callType: "incoming",
+            durationSeconds: 95,
+            callTime: new Date(now - 28 * 3600 * 1000),
+            totalCalls: 15,
+            avgCallSeconds: 25,
+            avgWaitSeconds: 4,
+            status: "completed",
+          },
+          {
+            tenantId,
+            callerName: "Doglas Martini",
+            callerEmail: "martni@example.com",
+            callerPhone: "(183) 9302 890",
+            callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-34.jpg",
+            callType: "outgoing",
+            durationSeconds: 65,
+            callTime: new Date(now - 48 * 3600 * 1000),
+            totalCalls: 18,
+            avgCallSeconds: 35,
+            avgWaitSeconds: 6,
+            status: "completed",
+          },
+          {
+            tenantId,
+            callerName: "Lori Broaddus",
+            callerEmail: "broaddus@example.com",
+            callerPhone: "(168) 8392 823",
+            callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-02.jpg",
+            callType: "missed",
+            durationSeconds: 0,
+            callTime: new Date(now - 72 * 3600 * 1000),
+            totalCalls: 5,
+            avgCallSeconds: 0,
+            avgWaitSeconds: 15,
+            status: "missed",
+          },
+        ],
+      });
+
+      calls = await prisma.callHistoryRecord.findMany({
+        where,
+        orderBy: { callTime: "desc" },
+      });
+    }
+
+    return res.json(calls);
+  } catch (err: any) {
+    console.error("CRM Calls GET error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch call history" });
+  }
+});
+
+// POST /api/crm/calls - Log a new call
+crmRouter.post("/calls", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const {
+      callerName,
+      callerEmail,
+      callerPhone,
+      callerAvatarUrl,
+      callType = "outgoing",
+      durationSeconds = 0,
+      notes,
+    } = req.body;
+
+    if (!callerName || !callerPhone) {
+      return res.status(400).json({ error: "Caller name and phone number are required." });
+    }
+
+    const record = await prisma.callHistoryRecord.create({
+      data: {
+        tenantId,
+        callerName: callerName.trim(),
+        callerEmail: callerEmail ? callerEmail.trim() : null,
+        callerPhone: callerPhone.trim(),
+        callerAvatarUrl: callerAvatarUrl || null,
+        callType,
+        durationSeconds: Number(durationSeconds) || 0,
+        callTime: new Date(),
+        status: callType === "missed" ? "missed" : "completed",
+        notes: notes || null,
+      },
+    });
+
+    return res.status(201).json(record);
+  } catch (err: any) {
+    console.error("CRM Calls POST error:", err);
+    return res.status(500).json({ error: err.message || "Failed to log call" });
+  }
+});
+
+// DELETE /api/crm/calls/:id - Delete a call record
+crmRouter.delete("/calls/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const deleted = await prisma.callHistoryRecord.deleteMany({
+      where: { id, tenantId },
+    });
+
+    if (deleted.count === 0) {
+      return res.status(404).json({ error: "Call record not found." });
+    }
+
+    return res.json({ success: true, message: "Call record deleted." });
+  } catch (err: any) {
+    console.error("CRM Calls DELETE error:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete call record" });
+  }
+});
+
+// POST /api/crm/calls/bulk-delete - Delete multiple call records
+crmRouter.post("/calls/bulk-delete", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "Array of IDs required." });
+    }
+
+    const deleted = await prisma.callHistoryRecord.deleteMany({
+      where: { id: { in: ids }, tenantId },
+    });
+
+    return res.json({ success: true, count: deleted.count });
+  } catch (err: any) {
+    console.error("CRM Calls Bulk DELETE error:", err);
+    return res.status(500).json({ error: err.message || "Failed to bulk delete call records" });
+  }
+});
+

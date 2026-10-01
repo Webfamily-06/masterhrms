@@ -20,11 +20,14 @@ offboardingRouter.get("/exits", requireAuth, async (req: AuthRequest, res: Respo
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    const { status, departmentId, search } = req.query;
+    const { status, departmentId, search, exitType } = req.query;
 
     const where: any = { tenantId };
     if (status && status !== "all") {
       where.status = String(status);
+    }
+    if (exitType && exitType !== "all") {
+      where.exitType = String(exitType);
     }
     if (departmentId && departmentId !== "all") {
       where.employee = { departmentId: String(departmentId) };
@@ -154,6 +157,39 @@ offboardingRouter.get("/exits/:id", requireAuth, async (req: AuthRequest, res: R
     return res.json(exit);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch exit details." });
+  }
+});
+
+// PUT /api/offboarding/exits/:id (Update Exit Record)
+offboardingRouter.put("/exits/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    const { resignationDate, lastWorkingDay, reason, exitType, noticePeriodDays } = req.body;
+
+    const existing = await prisma.employeeExit.findUnique({ where: { id } });
+    if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Exit record not found." });
+    }
+
+    const updated = await prisma.employeeExit.update({
+      where: { id },
+      data: {
+        ...(resignationDate ? { resignationDate: new Date(resignationDate) } : {}),
+        ...(lastWorkingDay ? { lastWorkingDay: new Date(lastWorkingDay) } : {}),
+        ...(reason !== undefined ? { reason } : {}),
+        ...(exitType ? { exitType } : {}),
+        ...(noticePeriodDays !== undefined ? { noticePeriodDays: Number(noticePeriodDays) } : {}),
+      },
+      include: {
+        employee: { include: { department: true } },
+        checklists: true,
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update exit record." });
   }
 });
 
