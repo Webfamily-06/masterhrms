@@ -79,7 +79,6 @@ dist/
 build/
 
 # IDE / AI tools
-.agents/
 .cursor/
 
 # Database dumps
@@ -96,9 +95,9 @@ tenant_dashboard.png
 
 
 # Large asset / vendor source folders (excluded from repo)
-ui/
-ui-2/
-main-file/
+/ui/
+/ui-2/
+/main-file/
 
 # Runtime storage & OCR models
 server/storage/
