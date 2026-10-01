@@ -3,6 +3,8 @@ import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
+import { AccessDenied } from "@/components/access-denied";
+import { isWorkspaceAdminUser } from "@/lib/permissions";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,6 +16,11 @@ export const Route = createFileRoute("/_authenticated/_app/finance-dashboard")({
 });
 
 export default function FinanceDashboardPage() {
+  const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
+  const isFinanceUser = isWorkspaceAdminUser(profile) ||
+    (profile?.roles ?? []).some((r: string) =>
+      ["admin", "super_admin", "hr_admin", "finance_admin", "payroll_manager"].includes(r)
+    );
   const [isMounted, setIsMounted] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState("2026");
@@ -35,7 +42,12 @@ export default function FinanceDashboardPage() {
       }
     },
     refetchInterval: 30000,
+    enabled: isFinanceUser,
   });
+
+  if (!isProfileLoading && !isFinanceUser) {
+    return <AccessDenied moduleName="Finance Dashboard" requiredPermission="finance.dashboard.view" />;
+  }
 
   const handleExport = (format: "pdf" | "excel") => {
     try {

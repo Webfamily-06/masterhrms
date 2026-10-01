@@ -72,12 +72,13 @@ function fmtDate(d: string | null | undefined) {
   }
 }
 
+import { AccessDenied } from "@/components/access-denied";
+import { isSuperAdminUser } from "@/lib/permissions";
+
 export function CronjobPage() {
   const qc = useQueryClient();
-  const { data: profile } = useCurrentProfile();
-  const isAdmin = (profile?.roles ?? []).some((r: string) =>
-    ["admin", "super_admin", "tenant_admin"].includes(r)
-  );
+  const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
+  const isSuperAdmin = isSuperAdminUser(profile);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -93,14 +94,25 @@ export function CronjobPage() {
     url: "",
   });
 
-  // ─── Query ────────────────────────────────────────────────────────────────
+  // ─── Query (Platform Super Admin Only) ──────────────────────────────────
   const { data: cronjobs = [], isLoading, refetch } = useQuery({
     queryKey: ["system-cronjobs"],
     queryFn: async () => {
       const res = await api.get("/system/cronjobs");
       return Array.isArray(res) ? res : res?.data || [];
     },
+    enabled: isSuperAdmin,
   });
+
+  if (!isProfileLoading && !isSuperAdmin) {
+    return (
+      <AccessDenied
+        moduleName="Automations & Centralized Cron Jobs"
+        message="Platform Architecture Standard: Cron job configuration, scheduling, execution monitoring, and management are centralized under Platform Super Admin. Tenant workspaces are not authorized to view or modify platform cronjobs."
+        requiredPermission="platform.cronjobs.manage"
+      />
+    );
+  }
 
   // ─── Mutations ────────────────────────────────────────────────────────────
   const createMutation = useMutation({
@@ -204,7 +216,7 @@ export function CronjobPage() {
             <Clock className="size-3.5" />
             <span>Cron Schedule Guide</span>
           </Button>
-          {isAdmin && (
+          {isSuperAdmin && (
             <Button
               size="sm"
               onClick={() => setAddOpen(true)}

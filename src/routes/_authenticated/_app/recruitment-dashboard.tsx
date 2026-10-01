@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/_authenticated/_app/recruitment-dashboard")({
   component: RecruitmentDashboardPage,
@@ -11,6 +13,14 @@ export const Route = createFileRoute("/_authenticated/_app/recruitment-dashboard
 
 export default function RecruitmentDashboardPage() {
   const [filterPeriod, setFilterPeriod] = useState("This Month");
+
+  const { data: recData, isLoading } = useQuery({
+    queryKey: ["dashboard-recruitment"],
+    queryFn: async () => {
+      const res = await api.get<any>("/dashboard/recruitment");
+      return res;
+    },
+  });
 
   const handlePrint = () => {
     window.print();
@@ -32,9 +42,9 @@ export default function RecruitmentDashboardPage() {
               Recruitment
             </Link>
             <i className="ph ph-caret-right text-[10px]"></i>
-            <span className="text-gray-900 font-medium">Analytics</span>
+            <span className="text-gray-900 dark:text-slate-100 font-medium">Analytics</span>
           </div>
-          <h1 className="text-gray-900 text-xl font-bold mb-0">Recruitment Analytics</h1>
+          <h1 className="text-gray-900 dark:text-slate-100 text-xl font-bold mb-0">Recruitment Analytics</h1>
         </div>
 
         <div className="flex items-center gap-2">
@@ -70,66 +80,68 @@ export default function RecruitmentDashboardPage() {
 
       {/* 4 Metric KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
-        {/* Card 1: Time to Hire */}
+        {/* Card 1: Active Job Openings */}
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 shadow-xs">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-default mb-2">Time to Hire</p>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">24 days</h2>
-              <span className="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
-                -3 days vs last month
+              <p className="text-sm text-default mb-2">Open Job Positions</p>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">{recData?.openJobs ?? 0}</h2>
+              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
+                Active Requisitions
               </span>
             </div>
             <div className="size-9 rounded-md bg-info-transparent flex items-center justify-center">
-              <i className="ph-duotone ph-clock text-info text-lg"></i>
+              <i className="ph-duotone ph-briefcase text-info text-lg"></i>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Offer Acceptance Rate */}
+        {/* Card 2: Total Candidates */}
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 shadow-xs">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-default mb-2">Offer Acceptance Rate</p>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">87.5%</h2>
+              <p className="text-sm text-default mb-2">Total Candidates</p>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">{recData?.totalCandidates ?? 0}</h2>
               <span className="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
-                +2.3% vs target
+                Active in pipeline
               </span>
             </div>
             <div className="size-9 rounded-md bg-success-transparent flex items-center justify-center">
-              <i className="ph-duotone ph-seal-check text-success text-lg"></i>
+              <i className="ph-duotone ph-users text-success text-lg"></i>
             </div>
           </div>
         </div>
 
-        {/* Card 3: Open Requisitions */}
+        {/* Card 3: Hired Candidates */}
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 shadow-xs">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-default mb-2">Open Requisitions</p>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">12</h2>
-              <span className="text-[10px] bg-warning-transparent text-warning px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
-                4 priority roles
-              </span>
-            </div>
-            <div className="size-9 rounded-md bg-warning-transparent flex items-center justify-center">
-              <i className="ph-duotone ph-briefcase text-warning text-lg"></i>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Applicants This Month */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 shadow-xs">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-default mb-2">Applicants This Month</p>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">164</h2>
-              <span className="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
-                +18.6% growth
+              <p className="text-sm text-default mb-2">Hired Candidates</p>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">{recData?.hiredCandidates ?? 0}</h2>
+              <span className="text-[10px] bg-purple-transparent text-purple px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
+                Successfully Placed
               </span>
             </div>
             <div className="size-9 rounded-md bg-purple-transparent flex items-center justify-center">
-              <i className="ph-duotone ph-user-plus text-purple text-lg"></i>
+              <i className="ph-duotone ph-seal-check text-purple text-lg"></i>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Placement Rate */}
+        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 shadow-xs">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-default mb-2">Placement Rate</p>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">
+                {recData?.totalCandidates ? `${Math.round(((recData?.hiredCandidates || 0) / recData.totalCandidates) * 100)}%` : "0%"}
+              </h2>
+              <span className="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
+                Hires vs applicants
+              </span>
+            </div>
+            <div className="size-9 rounded-md bg-warning-transparent flex items-center justify-center">
+              <i className="ph-duotone ph-chart-line-up text-warning text-lg"></i>
             </div>
           </div>
         </div>
@@ -328,6 +340,56 @@ export default function RecruitmentDashboardPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Live Recent Candidate Pipeline Table */}
+      <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 mt-3 shadow-xs">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold text-title">Recent Database Candidate Pipeline</h3>
+          <Link to="/recruitment" className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+            <span>View All Candidates</span>
+            <i className="ph ph-arrow-right"></i>
+          </Link>
+        </div>
+
+        {recData?.recentCandidates?.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-sm text-default border-b border-border-color">
+                  <th className="text-left py-2 px-2 font-semibold text-gray-900 dark:text-slate-200">Candidate</th>
+                  <th className="text-left py-2 px-2 font-semibold text-gray-900 dark:text-slate-200">Role / Posting</th>
+                  <th className="text-left py-2 px-2 font-semibold text-gray-900 dark:text-slate-200">Stage</th>
+                  <th className="text-right py-2 px-2 font-semibold text-gray-900 dark:text-slate-200">Applied Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recData.recentCandidates.map((c: any) => (
+                  <tr key={c.id} className="border-b border-border-color">
+                    <td className="py-2.5 px-2">
+                      <div className="font-semibold text-title">{c.name}</div>
+                      <div className="text-xs text-muted-foreground">{c.email}</div>
+                    </td>
+                    <td className="py-2.5 px-2 text-default">{c.jobTitle}</td>
+                    <td className="py-2.5 px-2">
+                      <span className="text-xs px-2 py-0.5 rounded capitalize bg-primary/10 text-primary font-medium">
+                        {c.stage}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2 text-right text-default text-xs">
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-muted-foreground text-sm">
+            <i className="ph-duotone ph-user-list text-3xl mb-1 block"></i>
+            No candidate applications recorded yet.
+          </div>
+        )}
       </div>
     </div>
   );

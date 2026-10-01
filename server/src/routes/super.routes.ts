@@ -179,7 +179,10 @@ superRouter.post("/impersonate/:tenantId", requireAuth, requireSuperAdmin, async
 });
 
 // POST /api/super/leave-impersonation (Restore Original Super Admin Session)
-superRouter.post("/leave-impersonation", requireAuth, async (req: AuthRequest, res: Response) => {
+// requireSuperAdmin is safe here: the impersonating JWT issued by /impersonate/:tenantId
+// always includes "super_admin" in its roles array, so this adds defense-in-depth
+// without breaking the impersonation exit workflow.
+superRouter.post("/leave-impersonation", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user?.isImpersonating) {
       return res.status(400).json({ error: "Active session is not an impersonation session." });

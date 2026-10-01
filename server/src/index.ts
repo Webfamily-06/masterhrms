@@ -15,6 +15,9 @@ import { employeesRouter } from "./routes/employees.routes";
 import { attendanceRouter } from "./routes/attendance.routes";
 import { leaveRouter } from "./routes/leave.routes";
 import { payrollRouter } from "./routes/payroll.routes";
+import { payrollPhase1Router } from "./routes/payroll-phase1.routes";
+import { bankDisbursementRouter } from "./routes/bank-disbursement.routes";
+import { statutoryReturnsRouter } from "./routes/statutory-returns.routes";
 import { invoicesRouter } from "./routes/invoices.routes";
 import { crmRouter } from "./routes/crm.routes";
 import { superRouter } from "./routes/super.routes";
@@ -27,6 +30,7 @@ import { expensesRouter } from "./routes/expenses.routes";
 import { trainingRouter } from "./routes/training.routes";
 import { offboardingRouter } from "./routes/offboarding.routes";
 import { documentsRouter } from "./routes/documents.routes";
+import { fbpRouter } from "./routes/fbp.routes";
 import { helpdeskRouter } from "./routes/helpdesk.routes";
 import { platformSupportRouter } from "./routes/platform-support.routes";
 import { announcementsRouter } from "./routes/announcements.routes";
@@ -60,10 +64,14 @@ import { overtimeRouter, wfhRouter, promotionRouter, probationRouter, providentF
 import { budgetsRouter } from "./routes/budgets.routes";
 import { customFieldsRouter } from "./routes/custom-fields.routes";
 import { campaignsRouter } from "./routes/campaigns.routes";
+import { todosRouter } from "./routes/todos.routes";
+import { notesRouter } from "./routes/notes.routes";
+import { calendarRouter } from "./routes/calendar.routes";
 
 import http from "http";
 import { initSocket } from "./socket";
 import { runBiometricAutoSync } from "./cron/biometric-sync";
+import { runBiometricReconciliation } from "./cron/biometric-reconcile.cron";
 
 dotenv.config();
 
@@ -116,6 +124,9 @@ app.use("/api/leaves", leaveRouter);
 app.use("/api/awards", awardsRouter);
 app.use("/api/warnings", warningsRouter);
 app.use("/api/payroll", payrollRouter);
+app.use("/api/payroll", payrollPhase1Router);
+app.use("/api/payroll/disbursement", bankDisbursementRouter);
+app.use("/api/payroll/statutory", statutoryReturnsRouter);
 app.use("/api/invoices", invoicesRouter);
 app.use("/api/crm", crmRouter);
 app.use("/api/super", superRouter);
@@ -130,6 +141,7 @@ app.use("/api/expenses", expensesRouter);
 app.use("/api/training", trainingRouter);
 app.use("/api/offboarding", offboardingRouter);
 app.use("/api/documents", documentsRouter);
+app.use("/api/fbp", fbpRouter);
 app.use("/api/helpdesk", helpdeskRouter);
 app.use("/api/support/platform", platformSupportRouter);
 app.use("/api/announcements", announcementsRouter);
@@ -169,6 +181,9 @@ app.use("/api/banned-ips", bannedIpRouter);
 app.use("/api/system", systemMaintenanceRouter);
 app.use("/api/custom-fields", customFieldsRouter);
 app.use("/api/campaigns", campaignsRouter);
+app.use("/api/todos", todosRouter);
+app.use("/api/notes", notesRouter);
+app.use("/api/calendar", calendarRouter);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -183,6 +198,32 @@ initSocket(server, allowedOrigins);
 setInterval(() => {
   runBiometricAutoSync();
 }, 30 * 60 * 1000);
+
+// Wave 2.3 — Nightly Biometric Reconciliation Cron (02:00 AM IST daily)
+// Replays offline buffer, resolves unmatched logs, and computes monthly LOP.
+function scheduleNightlyReconciliation() {
+  const now     = new Date();
+  // Target: next 02:00 IST = 20:30 UTC previous day
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const nowIST  = new Date(now.getTime() + IST_OFFSET_MS);
+  const next2AM = new Date(Date.UTC(
+    nowIST.getUTCFullYear(),
+    nowIST.getUTCMonth(),
+    nowIST.getUTCDate(),
+    2, 0, 0, 0, // 02:00 IST = subtract IST offset for UTC
+  ));
+  // next2AM is in "IST calendar" but stored as UTC — convert back to real UTC
+  let msUntilNext = (next2AM.getTime() - IST_OFFSET_MS) - now.getTime();
+  if (msUntilNext <= 0) msUntilNext += 24 * 60 * 60 * 1000; // push to tomorrow
+
+  setTimeout(async () => {
+    await runBiometricReconciliation();
+    scheduleNightlyReconciliation(); // reschedule for next day
+  }, msUntilNext);
+
+  console.log(`⏰ Biometric reconciliation scheduled in ${Math.round(msUntilNext / 60000)} min`);
+}
+scheduleNightlyReconciliation();
 
 server.listen(PORT, () => {
   console.log(`🚀 Master HRMS Backend Server running on http://localhost:${PORT}`);

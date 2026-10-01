@@ -73,6 +73,8 @@ import {
   Calculator,
   Users,
   FileSpreadsheet,
+  UploadCloud,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -232,7 +234,18 @@ export function ExpensesPage() {
     description: "",
     receiptUrl: "",
     receiptName: "receipt_proof.pdf",
+    storedDocumentId: "",
+    receiptHash: "",
+    receiptMime: "",
+    receiptSize: 0,
+    ocrExtracted: null as any,
+    ocrConfidence: null as number | null,
+    ocrStatus: "",
+    isDuplicateWarning: false,
   });
+
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [receiptUploadSuccess, setReceiptUploadSuccess] = useState<any>(null);
 
   const [categoryForm, setCategoryForm] = useState({
     name: "",
@@ -403,7 +416,93 @@ export function ExpensesPage() {
       description: "",
       receiptUrl: "",
       receiptName: "receipt_proof.pdf",
+      storedDocumentId: "",
+      receiptHash: "",
+      receiptMime: "",
+      receiptSize: 0,
+      ocrExtracted: null as any,
+      ocrConfidence: null as number | null,
+      ocrStatus: "",
+      isDuplicateWarning: false,
     });
+    setReceiptUploadSuccess(null);
+  }
+
+  async function handleReceiptUpload(file: File) {
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File exceeds maximum allowable size of 10MB");
+      return;
+    }
+
+    const validMimes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+    if (!validMimes.includes(file.type)) {
+      toast.error("Invalid file format. Only PDF, PNG, and JPEG documents are permitted.");
+      return;
+    }
+
+    setIsUploadingReceipt(true);
+    try {
+      const formData = new FormData();
+      formData.append("receipt", file);
+
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+      const res = await fetch("/api/expenses/claims/upload-receipt", {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to upload receipt");
+      }
+
+      setReceiptUploadSuccess(data);
+      const doc = data.storedDocument;
+      const ocr = data.ocr;
+      const dup = data.duplicateWarning;
+
+      setClaimForm((prev) => ({
+        ...prev,
+        storedDocumentId: doc.id,
+        receiptHash: doc.sha256Hash,
+        receiptMime: doc.mimeType,
+        receiptSize: doc.sizeBytes,
+        receiptUrl: `/api/documents/${doc.id}/stream`,
+        receiptName: doc.originalName,
+        ocrExtracted: ocr?.extracted || null,
+        ocrConfidence: ocr?.confidence ?? null,
+        ocrStatus: ocr?.status || "FAILED",
+        isDuplicateWarning: !!dup?.isDuplicate,
+      }));
+
+      if (dup?.isDuplicate) {
+        toast.warning(dup.message || "Potential duplicate receipt detected");
+      } else {
+        toast.success("Receipt securely encrypted and stored (SHA-256 verified)");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Receipt upload failed");
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  }
+
+  function applyOcrExtractedData() {
+    if (!claimForm.ocrExtracted) return;
+    const { merchant, amount, date } = claimForm.ocrExtracted;
+    setClaimForm((prev) => ({
+      ...prev,
+      merchant: merchant || prev.merchant,
+      amount: amount !== null && amount !== undefined ? String(amount) : prev.amount,
+      expenseDate: date || prev.expenseDate,
+      title: prev.title || (merchant ? `Expense at ${merchant}` : prev.title),
+    }));
+    toast.success("Advisory OCR values populated into claim form for review!");
   }
 
   function resetCategoryForm() {
@@ -673,19 +772,37 @@ export function ExpensesPage() {
                           </TableCell>
 
                           <TableCell>
-                            {claim.receiptUrl ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => window.open(claim.receiptUrl, "_blank")}
-                                className="h-6 text-[10px] font-semibold gap-1"
-                              >
-                                <FileText className="size-3 text-primary" />
-                                <span>View Receipt</span>
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground text-[10px] italic">No receipt</span>
-                            )}
+                            <div className="flex flex-col gap-1 items-start">
+                              {claim.storedDocumentId ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => window.open(`/api/documents/${claim.storedDocumentId}/stream`, "_blank")}
+                                  className="h-6 text-[10px] font-semibold gap-1 text-primary border-primary/20 hover:bg-primary/5"
+                                >
+                                  <FileText className="size-3 text-primary" />
+                                  <span>View Receipt</span>
+                                </Button>
+                              ) : claim.receiptUrl ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => window.open(claim.receiptUrl, "_blank")}
+                                  className="h-6 text-[10px] font-semibold gap-1"
+                                >
+                                  <FileText className="size-3 text-primary" />
+                                  <span>View Receipt</span>
+                                </Button>
+                              ) : (
+                                <span className="text-muted-foreground text-[10px] italic">No receipt</span>
+                              )}
+                              {claim.isDuplicateWarning && (
+                                <Badge variant="outline" className="text-[9px] font-bold bg-amber-500/10 text-amber-600 border-amber-500/30 gap-1 px-1.5 py-0 h-4">
+                                  <AlertCircle className="size-2.5" />
+                                  <span>Duplicate</span>
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
 
                           <TableCell>
@@ -1300,14 +1417,156 @@ export function ExpensesPage() {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Receipt Document / Invoice URL</Label>
-              <Input
-                placeholder="https://storage.googleapis.com/... or Google Drive URL"
-                value={claimForm.receiptUrl}
-                onChange={(e) => setClaimForm({ ...claimForm, receiptUrl: e.target.value })}
-                className="h-8 text-xs font-mono"
-              />
+            {/* Wave 2.1: Secure Document Subsystem & Advisory OCR */}
+            <div className="space-y-2 p-3 rounded-lg border bg-muted/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold flex items-center gap-1.5">
+                  <FileText className="size-3.5 text-primary" />
+                  <span>Receipt Document / Proof Attachment *</span>
+                </Label>
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Lock className="size-2.5 text-emerald-600" /> AES-256 Encrypted (Max 10MB)
+                </span>
+              </div>
+
+              {!claimForm.storedDocumentId ? (
+                <div className="border border-dashed rounded-lg p-4 text-center hover:bg-muted/30 transition-colors cursor-pointer relative">
+                  <input
+                    type="file"
+                    accept=".pdf,image/png,image/jpeg,image/jpg"
+                    disabled={isUploadingReceipt}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleReceiptUpload(file);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-1.5">
+                    {isUploadingReceipt ? (
+                      <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                        <Clock className="size-4 animate-spin text-primary" />
+                        <span>Encrypting, hashing & analyzing with OCR...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <UploadCloud className="size-6 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-foreground">Click to upload or drag & drop</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          PDF, PNG, JPG (Binary signature verified)
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 rounded bg-background border text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
+                      <div className="truncate">
+                        <span className="font-semibold text-foreground block truncate">{claimForm.receiptName}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          {(claimForm.receiptSize / 1024).toFixed(1)} KB • SHA-256: {claimForm.receiptHash.slice(0, 12)}...{claimForm.receiptHash.slice(-6)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => window.open(claimForm.receiptUrl, "_blank")}
+                        className="h-6 text-[10px] font-bold text-primary"
+                      >
+                        <Eye className="size-3 mr-1" /> View
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setClaimForm((prev) => ({
+                            ...prev,
+                            storedDocumentId: "",
+                            receiptHash: "",
+                            receiptMime: "",
+                            receiptSize: 0,
+                            receiptUrl: "",
+                            ocrExtracted: null,
+                            ocrConfidence: null,
+                            ocrStatus: "",
+                            isDuplicateWarning: false,
+                          }));
+                          setReceiptUploadSuccess(null);
+                        }}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-500"
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {claimForm.isDuplicateWarning && (
+                    <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2">
+                      <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold block">Advisory Duplicate Warning</span>
+                        <span className="text-[11px]">
+                          A receipt with this identical cryptographic SHA-256 hash was submitted within the last 60 days. Please verify this is not a duplicate reimbursement claim.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {claimForm.ocrExtracted && (
+                    <div className="p-2.5 rounded-lg border bg-primary/5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold flex items-center gap-1.5 text-primary text-[11px]">
+                          <Sparkles className="size-3.5" /> Advisory OCR Analysis (Tesseract)
+                        </span>
+                        {claimForm.ocrConfidence !== null && (
+                          <Badge variant="outline" className="text-[9px] font-mono">
+                            {claimForm.ocrConfidence}% confidence
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Merchant:</span>
+                          <span className="font-bold truncate block">{claimForm.ocrExtracted.merchant || "Not found"}</span>
+                        </div>
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Date:</span>
+                          <span className="font-bold block font-mono">{claimForm.ocrExtracted.date || "Not found"}</span>
+                        </div>
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Amount:</span>
+                          <span className="font-bold block font-mono text-primary">
+                            {claimForm.ocrExtracted.amount ? formatSystemAmount(claimForm.ocrExtracted.amount, sysConfig?.currency) : "Not found"}
+                          </span>
+                        </div>
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Tax / GST:</span>
+                          <span className="font-bold block font-mono">
+                            {claimForm.ocrExtracted.tax ? formatSystemAmount(claimForm.ocrExtracted.tax, sysConfig?.currency) : "N/A"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={applyOcrExtractedData}
+                        className="w-full h-7 text-[11px] font-bold gap-1 shadow-2xs"
+                      >
+                        <Check className="size-3" /> Populate Form with Advisory OCR Data
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -1571,17 +1830,57 @@ export function ExpensesPage() {
                 </div>
               )}
 
-              {selectedClaimPassport.receiptUrl && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open(selectedClaimPassport.receiptUrl, "_blank")}
-                  className="w-full h-8 text-xs font-semibold gap-1.5 shadow-2xs"
-                >
-                  <FileText className="size-3.5 text-primary" />
-                  <span>Open Attached Receipt Invoice</span>
-                  <ExternalLink className="size-3 text-muted-foreground" />
-                </Button>
+              {/* Wave 2.1: Secure Document Subsystem & Integrity Info */}
+              {(selectedClaimPassport.storedDocumentId || selectedClaimPassport.receiptUrl) && (
+                <div className="space-y-2 p-2.5 rounded-lg border bg-muted/20">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold flex items-center gap-1.5 text-foreground">
+                      <Lock className="size-3.5 text-emerald-600" /> Secure Receipt Document
+                    </span>
+                    <Badge variant="outline" className="text-[9px] font-mono bg-background">
+                      AES-256-GCM
+                    </Badge>
+                  </div>
+
+                  {selectedClaimPassport.receiptHash && (
+                    <div className="text-[10px] font-mono text-muted-foreground break-all bg-background p-1.5 rounded border">
+                      <span className="font-bold text-foreground">SHA-256: </span>
+                      {selectedClaimPassport.receiptHash}
+                    </div>
+                  )}
+
+                  {selectedClaimPassport.isDuplicateWarning && (
+                    <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] flex items-start gap-1.5">
+                      <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                      <span>Warning: Flagged as a potential duplicate receipt (identical cryptographic checksum in 60 days).</span>
+                    </div>
+                  )}
+
+                  {selectedClaimPassport.ocrStatus && (
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground px-1">
+                      <span>OCR Extraction: {selectedClaimPassport.ocrStatus}</span>
+                      {selectedClaimPassport.ocrConfidence !== null && (
+                        <span>Confidence: {selectedClaimPassport.ocrConfidence}%</span>
+                      )}
+                    </div>
+                  )}
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const streamUrl = selectedClaimPassport.storedDocumentId
+                        ? `/api/documents/${selectedClaimPassport.storedDocumentId}/stream`
+                        : selectedClaimPassport.receiptUrl;
+                      window.open(streamUrl, "_blank");
+                    }}
+                    className="w-full h-8 text-xs font-semibold gap-1.5 shadow-2xs bg-background"
+                  >
+                    <FileText className="size-3.5 text-primary" />
+                    <span>Stream Decrypted Receipt Proof</span>
+                    <ExternalLink className="size-3 text-muted-foreground" />
+                  </Button>
+                </div>
               )}
 
               {selectedClaimPassport.status === "reimbursed" && (

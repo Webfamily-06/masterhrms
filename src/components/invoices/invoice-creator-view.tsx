@@ -232,7 +232,7 @@ export function InvoiceCreatorView({
       const gross = qty * price;
 
       let disc = 0;
-      if (item.discountType === "percent") {
+      if ((item.discountType as string) === "percent" || (item.discountType as string) === "percentage") {
         disc = (gross * Number(item.discount || 0)) / 100;
       } else {
         disc = Number(item.discount || 0);
@@ -313,7 +313,7 @@ export function InvoiceCreatorView({
           name: item.name,
           hsn_sac: item.hsnSac || "",
           qty: Number(item.quantity || 1),
-          unit: item.unit || "Pcs",
+          unit: (item as any).unit || "Pcs",
           rate: Number(item.unitPrice || 0),
           unitPrice: Number(item.unitPrice || 0),
           discount: Number(item.discount || 0),

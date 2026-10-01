@@ -14,6 +14,7 @@ import {
   calculateStatutoryESI,
 } from "../services/payroll-engine.service";
 import { getStatutoryFormData } from "../services/statutory-form-data.service";
+import { TdsCalculatorService } from "../services/tds-calculator.service";
 
 export const payrollRouter = Router();
 
@@ -872,7 +873,7 @@ payrollRouter.get("/tax-declarations", requireAuth, async (req: AuthRequest, res
   }
 });
 
-// POST /api/payroll/tax-declarations (Submit / Update Form 12BB)
+// POST /api/payroll/tax-declarations (Submit / Update Form 12BB with PO-DEC-05 regime locking)
 payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -880,7 +881,7 @@ payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, re
 
     const {
       employeeId,
-      financialYear = "2025-2026",
+      financialYear = "2026-2027",
       taxRegime = "new",
       houseRentPaid = 0,
       landlordPan,
@@ -895,6 +896,35 @@ payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, re
     } = req.body;
 
     if (!employeeId) return res.status(400).json({ error: "Employee ID is required." });
+
+    const requestedRegime = taxRegime === "old" ? "old" : "new";
+
+    // PO-DEC-05: Check regime lock status
+    const existing = await prisma.employeeTaxDeclaration.findUnique({
+      where: {
+        tenantId_employeeId_financialYear: {
+          tenantId,
+          employeeId,
+          financialYear,
+        },
+      },
+    });
+
+    if (existing && existing.isRegimeLocked && existing.taxRegime !== requestedRegime) {
+      return res.status(403).json({
+        error: "Tax regime is locked for the current financial year pursuant to corporate policy (PO-DEC-05) and CBDT guidelines. Mid-year switching is not permitted.",
+        isRegimeLocked: true,
+        lockedRegime: existing.taxRegime,
+        regimeLockedAt: existing.regimeLockedAt,
+        regimeLockReason: existing.regimeLockReason,
+      });
+    }
+
+    // Landlord PAN advisory warning for rent > 1,00,000
+    let landlordPanWarning: string | null = null;
+    if (Number(houseRentPaid) > 100000 && !landlordPan) {
+      landlordPanWarning = "Annual rent exceeds ₹1,00,000. Landlord PAN is required under CBDT rules.";
+    }
 
     const totalClaimed =
       Number(houseRentPaid) +
@@ -915,7 +945,7 @@ payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, re
         tenantId,
         employeeId,
         financialYear,
-        taxRegime: taxRegime === "old" ? "old" : "new",
+        taxRegime: requestedRegime,
         houseRentPaid: Number(houseRentPaid),
         landlordPan: landlordPan ? String(landlordPan).toUpperCase().trim() : null,
         landlordName: landlordName ? String(landlordName).trim() : null,
@@ -931,7 +961,7 @@ payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, re
         remarks: remarks ? String(remarks).trim() : null,
       },
       update: {
-        taxRegime: taxRegime === "old" ? "old" : "new",
+        taxRegime: requestedRegime,
         houseRentPaid: Number(houseRentPaid),
         landlordPan: landlordPan ? String(landlordPan).toUpperCase().trim() : null,
         landlordName: landlordName ? String(landlordName).trim() : null,
@@ -955,38 +985,174 @@ payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, re
     // Also sync regime to Employee Master
     await prisma.employee.update({
       where: { id: employeeId },
-      data: { taxRegime: taxRegime === "old" ? "old" : "new" },
+      data: { taxRegime: requestedRegime },
     });
 
-    return res.status(201).json(declaration);
+    return res.status(201).json({
+      declaration,
+      landlordPanWarning,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
 });
 
-// POST /api/payroll/tax-declarations/:id/proofs
+// POST /api/payroll/tax-declarations/compare (Dual-regime calculator and optimizer)
+payrollRouter.post("/tax-declarations/compare", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      annualGrossSalary = 600000,
+      basicSalaryAnnual = annualGrossSalary * 0.50,
+      hraReceivedAnnual = annualGrossSalary * 0.20,
+      isMetro = false,
+      houseRentPaidAnnual = 0,
+      landlordPan = null,
+      section80C = 0,
+      section80D = 0,
+      section80G = 0,
+      homeLoanInterest = 0,
+      otherIncome = 0,
+    } = req.body;
+
+    const result = TdsCalculatorService.compareRegimes({
+      annualGrossSalary: Number(annualGrossSalary),
+      basicSalaryAnnual: Number(basicSalaryAnnual),
+      hraReceivedAnnual: Number(hraReceivedAnnual),
+      regime: "new",
+      isMetro: Boolean(isMetro),
+      houseRentPaidAnnual: Number(houseRentPaidAnnual),
+      landlordPan,
+      section80C: Number(section80C),
+      section80D: Number(section80D),
+      section80G: Number(section80G),
+      homeLoanInterest: Number(homeLoanInterest),
+      otherIncome: Number(otherIncome),
+    });
+
+    return res.json({
+      success: true,
+      comparison: result,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to compare tax regimes." });
+  }
+});
+
+// GET /api/payroll/tax-declarations/regime-status (Check employee's regime lock status)
+payrollRouter.get("/tax-declarations/regime-status", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const employeeId = (req.user as any)?.employeeId || (req.query.employeeId as string);
+    const financialYear = (req.query.financialYear as string) || "2026-2027";
+
+    if (!employeeId) return res.status(400).json({ error: "Employee ID is required." });
+
+    const declaration = await prisma.employeeTaxDeclaration.findUnique({
+      where: {
+        tenantId_employeeId_financialYear: {
+          tenantId,
+          employeeId,
+          financialYear,
+        },
+      },
+    });
+
+    return res.json({
+      success: true,
+      financialYear,
+      isRegimeLocked: declaration ? declaration.isRegimeLocked : false,
+      taxRegime: declaration ? declaration.taxRegime : "new",
+      regimeLockedAt: declaration?.regimeLockedAt || null,
+      regimeLockReason: declaration?.regimeLockReason || null,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to check regime status." });
+  }
+});
+
+// POST /api/payroll/tax-declarations/:id/proofs (Upload/link proof with encrypted document support)
 payrollRouter.post("/tax-declarations/:id/proofs", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { section, fileName, fileUrl, fileType, declaredAmount } = req.body;
+    const { section, fileName, fileUrl, fileType, declaredAmount, storedDocumentId } = req.body;
 
-    if (!fileName || !fileUrl || !section) {
-      return res.status(400).json({ error: "Section, File name, and URL are required." });
+    if (!section || (!fileName && !storedDocumentId)) {
+      return res.status(400).json({ error: "Section and either file name or stored document ID are required." });
     }
+
+    const resolvedFileUrl = storedDocumentId
+      ? `/api/documents/${storedDocumentId}/stream`
+      : (fileUrl || `/api/documents/proof_${Date.now()}`);
 
     const proof = await prisma.taxDeclarationProof.create({
       data: {
         declarationId: id,
         section,
-        fileName,
-        fileUrl,
+        fileName: fileName || `proof_${section}.pdf`,
+        fileUrl: resolvedFileUrl,
         fileType: fileType || "application/pdf",
+        storedDocumentId: storedDocumentId || null,
         declaredAmount: Number(declaredAmount || 0),
         status: "pending",
       },
     });
 
     return res.status(201).json(proof);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// PATCH /api/payroll/tax-declarations/:id/proofs/:proofId/status (HR Split-Pane Item Verification)
+payrollRouter.patch("/tax-declarations/:id/proofs/:proofId/status", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, proofId } = req.params;
+    const { status, approvedAmount, rejectionReason } = req.body;
+
+    const proof = await prisma.taxDeclarationProof.findUnique({
+      where: { id: proofId },
+    });
+
+    if (!proof || proof.declarationId !== id) {
+      return res.status(404).json({ error: "Proof record not found." });
+    }
+
+    const updatedProof = await prisma.taxDeclarationProof.update({
+      where: { id: proofId },
+      data: {
+        status: status || "verified",
+        approvedAmount: approvedAmount !== undefined ? Number(approvedAmount) : proof.declaredAmount,
+        rejectionReason: rejectionReason || null,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Recalculate total approved deductions for parent declaration
+    const allProofs = await prisma.taxDeclarationProof.findMany({
+      where: { declarationId: id },
+    });
+
+    const totalApproved = allProofs.reduce((sum, p) => {
+      return sum + (p.status === "verified" ? Number(p.approvedAmount) : 0);
+    }, 0);
+
+    const updatedDeclaration = await prisma.employeeTaxDeclaration.update({
+      where: { id },
+      data: {
+        totalDeductionApproved: totalApproved,
+        verifiedBy: (req.user as any)?.email || "HR Admin",
+        verifiedAt: new Date(),
+      },
+      include: { proofs: true, employee: true },
+    });
+
+    return res.json({
+      success: true,
+      proof: updatedProof,
+      declaration: updatedDeclaration,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
@@ -1592,6 +1758,16 @@ payrollRouter.get("/statutory-forms/form16/:employeeId", requireAuth, async (req
 
     const { employeeId } = req.params;
     const financialYear = String(req.query.financialYear || "2026-2027");
+
+    const isEmployeeRoleOnly = req.user?.roles?.includes("employee") && !req.user?.roles?.some((r: string) => ["super_admin", "admin", "hr_admin", "finance_admin", "payroll_manager"].includes(r));
+    if (isEmployeeRoleOnly) {
+      const selfEmp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+      });
+      if (!selfEmp || selfEmp.id !== employeeId) {
+        return res.status(403).json({ error: "Access denied: you can only view your own Form 16 certificate." });
+      }
+    }
 
     const statutoryData = await getStatutoryFormData({
       tenantId,

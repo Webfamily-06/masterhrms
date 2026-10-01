@@ -1,4 +1,6 @@
 import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
+import { AccessDenied } from "@/components/access-denied";
+import { isWorkspaceAdminUser } from "@/lib/permissions";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -87,12 +89,17 @@ export const Route = createFileRoute("/_authenticated/_app/settings")({
 
 function Settings() {
   const { user } = useSession();
-  const { data: profile } = useCurrentProfile(user);
+  const { data: profile, isLoading: isProfileLoading } = useCurrentProfile(user);
   const searchParams = useSearch({ from: "/_authenticated/_app/settings" });
   const qc = useQueryClient();
   const isHR = hasRole(profile, "hr_admin") || hasRole(profile, "super_admin");
+  const isAdmin = isWorkspaceAdminUser(profile) || isHR ||
+    (profile?.roles ?? []).some((r: string) => ["admin", "manager"].includes(r));
 
-  const [activeTab, setActiveTab] = useState<string>(searchParams.tab || "organization");
+  // Pure employees (no admin/HR/manager role) can only access the security tab (their own 2FA)
+  const isEmployeeOnly = !isAdmin && (profile?.roles ?? []).includes("employee");
+
+  const [activeTab, setActiveTab] = useState<string>(searchParams.tab || (isEmployeeOnly ? "security" : "organization"));
 
   // Sync tab with URL search parameter if changed
   useEffect(() => {
@@ -231,14 +238,6 @@ function Settings() {
     options: "",
     required: false,
   });
-
-  // Scheduled Automated Cron Jobs (cronjob.html)
-  const [cronJobs, setCronJobs] = useState([
-    { id: "cj-1", name: "Biometric Hardware Realtime Punch Sync", schedule: "Every 5 Minutes (*/5 * * * *)", lastRun: "2 mins ago", nextRun: "In 3 mins", status: "Active", executionTime: "1.2s" },
-    { id: "cj-2", name: "Midnight Attendance Ledger Auto-Lock & Absent Tagger", schedule: "Daily at 00:01 (1 0 * * *)", lastRun: "Today at 00:01", nextRun: "Tomorrow at 00:01", status: "Active", executionTime: "4.8s" },
-    { id: "cj-3", name: "Monthly Payroll Auto-Drafting & CTC Accruals", schedule: "28th of every month at 23:00 (0 23 28 * *)", lastRun: "28 Aug 2026", nextRun: "28 Sep 2026", status: "Active", executionTime: "12.4s" },
-    { id: "cj-4", name: "Database & Document Vault Cloud Backup (GCS)", schedule: "Daily at 02:00 (0 2 * * *)", lastRun: "Today at 02:00", nextRun: "Tomorrow at 02:00", status: "Active", executionTime: "45.1s" },
-  ]);
 
   const { data: savedAiSettings } = useQuery({
     queryKey: ["tenant-ai-settings-page", tenantId],
@@ -671,20 +670,24 @@ function Settings() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-muted/40 h-10 p-1 flex flex-wrap gap-1 w-full justify-start border">
-          <TabsTrigger value="workspace" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <Shield className="size-3.5 text-orange-500" />
-            <span>Workspace (Roles & Modules)</span>
-          </TabsTrigger>
+          {isAdmin && (
+            <>
+              <TabsTrigger value="workspace" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Shield className="size-3.5 text-orange-500" />
+                <span>Workspace (Roles &amp; Modules)</span>
+              </TabsTrigger>
 
-          <TabsTrigger value="organization" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <Building2 className="size-3.5 text-primary" />
-            <span>Organization & Office Timing</span>
-          </TabsTrigger>
+              <TabsTrigger value="organization" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Building2 className="size-3.5 text-primary" />
+                <span>Organization &amp; Office Timing</span>
+              </TabsTrigger>
 
-          <TabsTrigger value="config-hub" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <SlidersHorizontal className="size-3.5 text-indigo-500" />
-            <span>HRMS Portal Config Hub</span>
-          </TabsTrigger>
+              <TabsTrigger value="config-hub" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <SlidersHorizontal className="size-3.5 text-indigo-500" />
+                <span>HRMS Portal Config Hub</span>
+              </TabsTrigger>
+            </>
+          )}
 
           {isHR && (
             <>
@@ -699,39 +702,38 @@ function Settings() {
             </>
           )}
 
-          <TabsTrigger value="approvals" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <Workflow className="size-3.5 text-blue-500" />
-            <span>Approval Settings</span>
-          </TabsTrigger>
+          {isAdmin && (
+            <>
+              <TabsTrigger value="approvals" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Workflow className="size-3.5 text-blue-500" />
+                <span>Approval Settings</span>
+              </TabsTrigger>
 
-          <TabsTrigger value="salary-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <Calculator className="size-3.5 text-emerald-500" />
-            <span>Salary & Statutory</span>
-          </TabsTrigger>
+              <TabsTrigger value="salary-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Calculator className="size-3.5 text-emerald-500" />
+                <span>Salary &amp; Statutory</span>
+              </TabsTrigger>
 
-          <TabsTrigger value="invoice-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <FileText className="size-3.5 text-purple-500" />
-            <span>Invoice & Billing</span>
-          </TabsTrigger>
+              <TabsTrigger value="invoice-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <FileText className="size-3.5 text-purple-500" />
+                <span>Invoice &amp; Billing</span>
+              </TabsTrigger>
 
-          <TabsTrigger value="custom-fields" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <Code className="size-3.5 text-amber-500" />
-            <span>Custom Fields</span>
-          </TabsTrigger>
+              <TabsTrigger value="custom-fields" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Code className="size-3.5 text-amber-500" />
+                <span>Custom Fields</span>
+              </TabsTrigger>
 
-          <TabsTrigger value="cronjobs" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <Play className="size-3.5 text-rose-500" />
-            <span>Cron Automations</span>
-          </TabsTrigger>
+              <TabsTrigger value="ai-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Sparkles className="size-3.5 text-fuchsia-500" />
+                <span>AI &amp; ChatGPT Settings</span>
+              </TabsTrigger>
+            </>
+          )}
 
           <TabsTrigger value="security" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
             <ShieldCheck className="size-3.5 text-emerald-500" />
-            <span>Security & 2FA</span>
-          </TabsTrigger>
-
-          <TabsTrigger value="ai-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <Sparkles className="size-3.5 text-fuchsia-500" />
-            <span>AI & ChatGPT Settings</span>
+            <span>Security &amp; 2FA</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2083,55 +2085,6 @@ function Settings() {
                   ))}
                 </tbody>
               </table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ===================== TAB 10: CRON JOBS & AUTOMATION (cronjob.html) ===================== */}
-        <TabsContent value="cronjobs" className="space-y-4">
-          <Card className="border shadow-2xs">
-            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
-                  <Play className="size-4 text-rose-500" /> Scheduled Background Automations (Cron System)
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Automated background sync runners for attendance capture, midnight ledger lock, and payroll generation.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-3 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {cronJobs.map((job) => (
-                  <div key={job.id} className="p-4 rounded-xl border bg-card space-y-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-sm text-foreground">{job.name}</div>
-                      <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold">
-                        {job.status}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-1 text-[11px] font-mono text-muted-foreground p-2 rounded bg-muted/20 border">
-                      <div>Cron: <span className="font-bold text-foreground">{job.schedule}</span></div>
-                      <div>Last Run: <span className="text-foreground">{job.lastRun} ({job.executionTime})</span></div>
-                      <div>Next Execution: <span className="text-primary font-bold">{job.nextRun}</span></div>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          toast.success(`Manual trigger dispatched for "${job.name}"! Executed in ${job.executionTime}`);
-                        }}
-                        className="h-7 text-xs font-bold gap-1.5 shadow-2xs"
-                      >
-                        <Play className="size-3 text-primary" /> Trigger Now (Manual)
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

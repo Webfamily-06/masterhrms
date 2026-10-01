@@ -130,7 +130,19 @@ const handleGetLeaveRequests = async (req: AuthRequest, res: Response) => {
     const { employeeId, status, leaveTypeId } = req.query;
     const where: any = { tenantId };
 
-    if (employeeId && employeeId !== "all") where.employeeId = String(employeeId);
+    const isEmployeeRoleOnly = req.user?.roles?.includes("employee") && !req.user?.roles?.some((r: string) => ["super_admin", "admin", "hr_admin", "manager", "Workspace Admin"].includes(r));
+    if (isEmployeeRoleOnly) {
+      const selfEmp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+      });
+      if (selfEmp) {
+        where.employeeId = selfEmp.id;
+      } else {
+        return res.json(pagination.isPaginated ? formatPaginatedResponse([], 0, pagination) : []);
+      }
+    } else if (employeeId && employeeId !== "all") {
+      where.employeeId = String(employeeId);
+    }
     if (status && status !== "all") where.status = String(status);
     if (leaveTypeId && leaveTypeId !== "all") where.leaveTypeId = String(leaveTypeId);
 
@@ -306,6 +318,25 @@ async function handleLeaveStatusUpdate(req: AuthRequest, res: Response) {
       return res.status(404).json({ error: "Leave request not found." });
     }
 
+    const userRoles = req.user?.roles || [];
+    const isManagerOrAdmin = userRoles.some((r: string) =>
+      ["super_admin", "admin", "hr_admin", "manager", "Workspace Admin"].includes(r)
+    );
+
+    if (["approved", "rejected"].includes(status) && !isManagerOrAdmin) {
+      return res.status(403).json({ error: "Forbidden: Only managers and administrators can approve or reject leave requests." });
+    }
+
+    if (status === "cancelled") {
+      const selfEmp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+      });
+      const isOwner = selfEmp && existing.employeeId === selfEmp.id;
+      if (!isOwner && !isManagerOrAdmin) {
+        return res.status(403).json({ error: "Forbidden: You can only cancel your own leave requests." });
+      }
+    }
+
     const request = await prisma.leaveRequest.update({
       where: { id },
       data: {
@@ -403,6 +434,18 @@ const handleLeaveCancellation = async (req: AuthRequest, res: Response) => {
 
     if (!existing) {
       return res.status(404).json({ error: "Leave request not found." });
+    }
+
+    const userRoles = req.user?.roles || [];
+    const isManagerOrAdmin = userRoles.some((r: string) =>
+      ["super_admin", "admin", "hr_admin", "manager", "Workspace Admin"].includes(r)
+    );
+    const selfEmp = await prisma.employee.findFirst({
+      where: { tenantId, userId: req.user?.userId },
+    });
+    const isOwner = selfEmp && existing.employeeId === selfEmp.id;
+    if (!isOwner && !isManagerOrAdmin) {
+      return res.status(403).json({ error: "Forbidden: You can only cancel your own leave requests." });
     }
 
     if ((existing.status as string) === "cancelled") {

@@ -98,7 +98,6 @@ export function ChartOfAccountsTable({
     {
       key: "accountCode",
       header: "Code",
-      sortable: true,
       className: "w-[120px]",
       render: (val, row) => (
         <button
@@ -114,7 +113,6 @@ export function ChartOfAccountsTable({
     {
       key: "accountName",
       header: "Account Name",
-      sortable: true,
       render: (val, row) => (
         <div>
           <button
@@ -136,7 +134,6 @@ export function ChartOfAccountsTable({
     {
       key: "accountType",
       header: "Classification",
-      sortable: true,
       className: "w-[140px]",
       render: (val) => {
         const typeStr = String(val).toLowerCase();
@@ -156,7 +153,6 @@ export function ChartOfAccountsTable({
     {
       key: "category",
       header: "Category",
-      sortable: true,
       className: "w-[150px]",
       render: (val) => (
         <span className="text-muted-foreground capitalize text-xs">
@@ -167,7 +163,6 @@ export function ChartOfAccountsTable({
     {
       key: "balance",
       header: "Current Balance",
-      sortable: true,
       align: "right",
       className: "w-[150px]",
       render: (val) => (

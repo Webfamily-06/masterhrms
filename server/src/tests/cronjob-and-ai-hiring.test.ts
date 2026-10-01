@@ -37,6 +37,7 @@ async function runTestSuite() {
 
   let createdCronId = "";
   let alphaJobId = "";
+  let superAdminId = "";
 
   try {
     console.log("▶ [Setup] Provisioning isolated test tenants and fixtures in MySQL...");
@@ -104,6 +105,23 @@ async function runTestSuite() {
     });
 
     // Tokens
+    superAdminId = `user-super-${timestamp}`;
+    await prisma.user.create({
+      data: { id: superAdminId, email: `superadmin-${timestamp}@test.com`, passwordHash: "hash123" },
+    });
+    await prisma.profile.create({
+      data: { userId: superAdminId, fullName: "Platform Super Admin" },
+    });
+    await prisma.userRole.create({
+      data: { userId: superAdminId, role: "super_admin" },
+    });
+
+    const superAdminToken = generateToken({
+      userId: superAdminId,
+      email: `superadmin-${timestamp}@test.com`,
+      roles: ["super_admin"],
+    });
+
     const adminAlphaToken = generateToken({
       userId: adminAlphaId,
       email: `admin-alpha-${timestamp}@test.com`,
@@ -140,11 +158,28 @@ async function runTestSuite() {
     }
     console.log("  -> PASS: Non-admin blocked with 403 from creating cronjobs.");
 
-    // 1.2: Invalid cron expression rejected with 400
-    const invalidCronExpr = await fetch(`${baseUrl}/api/system/cronjobs`, {
+    // 1.2: Tenant Admin rejected from creating cronjob (Centralized Cron Policy)
+    const tenantAdminCreate = await fetch(`${baseUrl}/api/system/cronjobs`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${adminAlphaToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Tenant Admin Cron Attempt",
+        schedule: "15 minutes",
+      }),
+    });
+    if (tenantAdminCreate.status !== 403) {
+      throw new Error(`Expected 403 for Tenant Admin cron creation, got ${tenantAdminCreate.status}`);
+    }
+    console.log("  -> PASS: Tenant Admin strictly blocked with 403 from creating cronjobs.");
+
+    // 1.3: Invalid cron expression rejected with 400 for Super Admin
+    const invalidCronExpr = await fetch(`${baseUrl}/api/system/cronjobs`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${superAdminToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -158,11 +193,11 @@ async function runTestSuite() {
     }
     console.log("  -> PASS: Invalid cron expression syntax rejected with 400.");
 
-    // 1.3: Valid cron creation
+    // 1.4: Valid cron creation by Super Admin
     const validCreate = await fetch(`${baseUrl}/api/system/cronjobs`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${adminAlphaToken}`,
+        Authorization: `Bearer ${superAdminToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -177,24 +212,32 @@ async function runTestSuite() {
     }
     const createRes = await validCreate.json();
     createdCronId = createRes.job.id;
-    console.log(`  -> PASS: Cronjob created in database (ID: ${createdCronId}).`);
+    console.log(`  -> PASS: Cronjob created in database by Super Admin (ID: ${createdCronId}).`);
 
-    // 1.4: List cronjobs
-    const listRes = await fetch(`${baseUrl}/api/system/cronjobs`, {
+    // 1.5: List cronjobs as Super Admin & verify Tenant Admin cannot list
+    const tenantListRes = await fetch(`${baseUrl}/api/system/cronjobs`, {
       headers: { Authorization: `Bearer ${adminAlphaToken}` },
+    });
+    if (tenantListRes.status !== 403) {
+      throw new Error(`Expected 403 for Tenant Admin cron listing, got ${tenantListRes.status}`);
+    }
+    console.log("  -> PASS: Tenant Admin denied (403) from listing centralized cronjobs.");
+
+    const listRes = await fetch(`${baseUrl}/api/system/cronjobs`, {
+      headers: { Authorization: `Bearer ${superAdminToken}` },
     });
     const list = await listRes.json();
     const found = list.find((j: any) => j.id === createdCronId);
     if (!found) {
       throw new Error("Created cronjob not found in listing.");
     }
-    console.log(`  -> PASS: Cronjob listing returned ${list.length} jobs including newly created.`);
+    console.log(`  -> PASS: Super Admin cronjob listing returned ${list.length} jobs including newly created.`);
 
-    // 1.5: Pause / Update Cronjob
+    // 1.6: Pause / Update Cronjob as Super Admin
     const updateRes = await fetch(`${baseUrl}/api/system/cronjobs/${createdCronId}`, {
       method: "PUT",
       headers: {
-        Authorization: `Bearer ${adminAlphaToken}`,
+        Authorization: `Bearer ${superAdminToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -205,13 +248,13 @@ async function runTestSuite() {
     if (updateBody.job.status !== "paused") {
       throw new Error("Cronjob status failed to update to paused.");
     }
-    console.log("  -> PASS: Cronjob successfully paused via PUT endpoint.");
+    console.log("  -> PASS: Cronjob successfully paused by Super Admin via PUT endpoint.");
 
-    // 1.6: Immediate manual execution
+    // 1.7: Immediate manual execution as Super Admin
     const runRes = await fetch(`${baseUrl}/api/system/cronjobs/${createdCronId}/run`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${adminAlphaToken}`,
+        Authorization: `Bearer ${superAdminToken}`,
       },
     });
     if (runRes.status !== 200) {
@@ -223,15 +266,15 @@ async function runTestSuite() {
     }
     console.log(`  -> PASS: Manual execution executed successfully (${runBody.job.durationMs}ms duration recorded).`);
 
-    // 1.7: Delete Cronjob
+    // 1.8: Delete Cronjob as Super Admin
     const delRes = await fetch(`${baseUrl}/api/system/cronjobs/${createdCronId}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${adminAlphaToken}` },
+      headers: { Authorization: `Bearer ${superAdminToken}` },
     });
     if (delRes.status !== 200) {
       throw new Error("Failed to delete cronjob.");
     }
-    console.log("  -> PASS: Cronjob successfully deleted.");
+    console.log("  -> PASS: Cronjob successfully deleted by Super Admin.");
 
     // --------------------------------------------------------------------------
     // TEST 2: AI HIRING FORECAST
@@ -284,9 +327,9 @@ async function runTestSuite() {
     if (createdCronId) {
       await prisma.systemCronJob.deleteMany({ where: { id: createdCronId } }).catch(() => {});
     }
-    await prisma.userRole.deleteMany({ where: { userId: { in: [adminAlphaId, empAlphaId] } } }).catch(() => {});
-    await prisma.profile.deleteMany({ where: { userId: { in: [adminAlphaId, empAlphaId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [adminAlphaId, empAlphaId] } } }).catch(() => {});
+    await prisma.userRole.deleteMany({ where: { userId: { in: [adminAlphaId, empAlphaId, superAdminId] } } }).catch(() => {});
+    await prisma.profile.deleteMany({ where: { userId: { in: [adminAlphaId, empAlphaId, superAdminId] } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: { in: [adminAlphaId, empAlphaId, superAdminId] } } }).catch(() => {});
     await prisma.tenant.deleteMany({ where: { id: { in: [tenantAlphaId, tenantBetaId] } } }).catch(() => {});
     server.close();
   }

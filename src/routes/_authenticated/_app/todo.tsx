@@ -67,58 +67,33 @@ const TAG_MAP: Record<string, { label: string; color: string; bg: string }> = {
   research: { label: "Research & Design", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 border-emerald-500/20" },
 };
 
-const INITIAL_TODOS: TodoItem[] = [
-  {
-    id: "todo-1",
-    title: "Review monthly payroll tax deductions & register",
-    description: "Verify TDS brackets and employee statutory contributions before running bank batch.",
-    completed: false,
-    priority: "high",
-    tag: "internal",
-    dueDate: format(new Date(), "yyyy-MM-dd"),
-    createdAt: format(new Date(), "yyyy-MM-dd"),
-  },
-  {
-    id: "todo-2",
-    title: "Conduct candidate technical round for Senior Fullstack role",
-    description: "Evaluate system architecture concepts and live coding submission.",
-    completed: false,
-    priority: "high",
-    tag: "meetings",
-    dueDate: format(new Date(), "yyyy-MM-dd"),
-    createdAt: format(new Date(), "yyyy-MM-dd"),
-  },
-  {
-    id: "todo-3",
-    title: "Audit company hardware asset register for Q1 refresh",
-    description: "Verify all assigned laptops and monitor tags across departments.",
-    completed: true,
-    priority: "medium",
-    tag: "projects",
-    dueDate: format(new Date(), "yyyy-MM-dd"),
-    createdAt: format(new Date(), "yyyy-MM-dd"),
-  },
-  {
-    id: "todo-4",
-    title: "Draft updated Work From Home & Attendance regularization policy",
-    description: "Incorporate biometric grace period guidelines into company handbook.",
-    completed: false,
-    priority: "low",
-    tag: "research",
-    dueDate: format(new Date(), "yyyy-MM-dd"),
-    createdAt: format(new Date(), "yyyy-MM-dd"),
-  },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 export function TodoPage() {
   const { user } = useSession();
-  const { data: profile } = useCurrentProfile(user);
-  const tenantId = profile?.tenant_id || "default";
+  const queryClient = useQueryClient();
 
-  const [todos, setTodos] = useState<TodoItem[]>(() => {
-    const saved = localStorage.getItem(`hrms_todos_${tenantId}`);
-    return saved ? JSON.parse(saved) : INITIAL_TODOS;
+  const { data: todosData, isLoading } = useQuery({
+    queryKey: ["todos"],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: any[] }>("/todos");
+      return res.data || [];
+    },
   });
+
+  const todos: TodoItem[] = useMemo(() => {
+    return (todosData || []).map((t: any) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description || undefined,
+      completed: Boolean(t.completed),
+      priority: t.priority as TodoItem["priority"],
+      tag: (t.tag || "internal") as TodoItem["tag"],
+      dueDate: t.dueDate ? format(new Date(t.dueDate), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      createdAt: t.createdAt ? format(new Date(t.createdAt), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    }));
+  }, [todosData]);
 
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
@@ -137,14 +112,57 @@ export function TodoPage() {
     dueDate: format(new Date(), "yyyy-MM-dd"),
   });
 
-  function saveTodos(newTodos: TodoItem[]) {
-    setTodos(newTodos);
-    localStorage.setItem(`hrms_todos_${tenantId}`, JSON.stringify(newTodos));
-  }
+  const createMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.post("/todos", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+      toast.success("New task created.");
+      setIsModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to create task");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const res = await api.put(`/todos/${id}`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+      toast.success("Task updated.");
+      setIsModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to update task");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/todos/${id}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+      toast.success("Task deleted.");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to delete task");
+    },
+  });
 
   function handleToggleComplete(id: string) {
-    const updated = todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
-    saveTodos(updated);
+    const t = todos.find((item) => item.id === id);
+    if (!t) return;
+    updateMutation.mutate({
+      id,
+      data: { completed: !t.completed },
+    });
   }
 
   function handleOpenCreate() {
@@ -178,41 +196,30 @@ export function TodoPage() {
     }
 
     if (editingTodo) {
-      const updated = todos.map((t) =>
-        t.id === editingTodo.id
-          ? {
-              ...t,
-              title: form.title.trim(),
-              description: form.description.trim(),
-              priority: form.priority,
-              tag: form.tag,
-              dueDate: form.dueDate,
-            }
-          : t
-      );
-      saveTodos(updated);
-      toast.success("Task updated.");
+      updateMutation.mutate({
+        id: editingTodo.id,
+        data: {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          priority: form.priority,
+          tag: form.tag,
+          dueDate: form.dueDate,
+        },
+      });
     } else {
-      const newTodo: TodoItem = {
-        id: `todo-${Date.now()}`,
+      createMutation.mutate({
         title: form.title.trim(),
         description: form.description.trim(),
         completed: false,
         priority: form.priority,
         tag: form.tag,
         dueDate: form.dueDate,
-        createdAt: format(new Date(), "yyyy-MM-dd"),
-      };
-      saveTodos([newTodo, ...todos]);
-      toast.success("New task created.");
+      });
     }
-
-    setIsModalOpen(false);
   }
 
   function handleDeleteTodo(id: string) {
-    saveTodos(todos.filter((t) => t.id !== id));
-    toast.success("Task deleted.");
+    deleteMutation.mutate(id);
   }
 
   // Summary Metrics

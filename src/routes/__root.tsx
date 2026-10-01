@@ -21,8 +21,16 @@ function NotFoundComponent() {
   return <NotFoundView />;
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  return <ServerErrorView error={error} reset={reset} />;
+import type { ErrorComponentProps } from "@tanstack/react-router";
+
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
+  const { queryClient } = Route.useRouteContext();
+  console.error("Root route error caught:", error);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ServerErrorView error={error as Error} reset={reset} />
+    </QueryClientProvider>
+  );
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({

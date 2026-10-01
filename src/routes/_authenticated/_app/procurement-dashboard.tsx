@@ -1,8 +1,11 @@
 import { usePermissions } from "@/lib/permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { Loader2 } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { formatSystemAmount } from "@/lib/currency";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initProcurementCharts } from "@/lib/dashboard-charts";
 
@@ -12,6 +15,14 @@ export const Route = createFileRoute("/_authenticated/_app/procurement-dashboard
 
 export default function ProcurementDashboardPage() {
   const { canAccessModule, loading } = usePermissions();
+
+  const { data: procData } = useQuery({
+    queryKey: ["dashboard-procurement"],
+    queryFn: async () => {
+      const res = await api.get<any>("/dashboard/procurement");
+      return res;
+    },
+  });
 
   if (loading) {
     return (
@@ -84,7 +95,7 @@ export default function ProcurementDashboardPage() {
 									<i className="ph-duotone ph-user-circle text-white text-lg"></i>
 								</div>
 									<div className="min-w-0"><p className="text-xs text-default mb-1">Total Spend</p>
-										<div className="text-xl font-bold text-gray-900 mb-0">$2,145</div>
+										<div className="text-xl font-bold text-gray-900 mb-0">{formatSystemAmount(procData?.totalSpend ?? 0)}</div>
 									</div>
 								</div>
 							<div id="proc-spark-1" className="-mx-4 -mb-4"></div>
@@ -95,7 +106,7 @@ export default function ProcurementDashboardPage() {
 									<i className="ph-duotone ph-info text-white text-lg"></i>
 								</div>
 								<div className="min-w-0">
-									<p className="text-xs text-default mb-1">Purchase Orders</p><div className="text-xl font-bold text-gray-900 mb-0">128</div>
+									<p className="text-xs text-default mb-1">Purchase Orders</p><div className="text-xl font-bold text-gray-900 mb-0">{procData?.totalOrders ?? 0}</div>
 								</div>
 							</div>
 							<div id="proc-spark-2" className="-mx-4 -mb-4"></div>
@@ -105,8 +116,8 @@ export default function ProcurementDashboardPage() {
 								<div className="size-10 rounded-full bg-orange flex items-center justify-center shrink-0">
 									<i className="ph-duotone ph-clock text-white text-lg"></i>
 								</div>
-								<div className="min-w-0"><p className="text-xs text-default mb-1">On Time Delivery</p>
-									<div className="text-xl font-bold text-gray-900 mb-0">88%</div>
+								<div className="min-w-0"><p className="text-xs text-default mb-1">Active Suppliers</p>
+									<div className="text-xl font-bold text-gray-900 mb-0">{procData?.activeSuppliers ?? 0}</div>
 								</div>
 							</div>
 							<div id="proc-spark-3" className="-mx-4 -mb-4"></div>
@@ -117,7 +128,7 @@ export default function ProcurementDashboardPage() {
 									<i className="ph-duotone ph-credit-card text-white text-lg"></i>
 								</div>
 								<div className="min-w-0"><p className="text-xs text-default mb-1">Avg PO Value</p>
-									<div className="text-xl font-bold text-gray-900 mb-0">$600</div>
+									<div className="text-xl font-bold text-gray-900 mb-0">{formatSystemAmount(procData?.totalOrders ? Math.round(procData.totalSpend / procData.totalOrders) : 0)}</div>
 								</div>
 							</div>
 							<div id="proc-spark-4" className="-mx-4 -mb-4"></div>
@@ -184,7 +195,7 @@ export default function ProcurementDashboardPage() {
 						<div className="bg-white border border-border-color rounded-md p-4 lg:col-span-4">
 							<div className="flex items-center justify-between mb-3">
 								<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Payments</h2>
-								<a href="procurement-analytics.html" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i></a>
+								<Link to="/purchases" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i></Link>
 							</div>
 							<div className="space-y-3">
 								<div className="flex items-center justify-between gap-3">
@@ -260,8 +271,8 @@ export default function ProcurementDashboardPage() {
 						<div className="bg-white border border-border-color rounded-md p-4 lg:col-span-8">
 							<div className="flex items-center justify-between mb-3">
 								<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Top Orders</h2>
-								<a href="procurement-analytics.html" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i>
-								</a>
+								<Link to="/purchases" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i>
+								</Link>
 							</div>
 							<div className="overflow-x-auto">
 								<table className="w-full text-sm">
@@ -450,7 +461,7 @@ export default function ProcurementDashboardPage() {
 					<div className="bg-white border border-border-color rounded-md p-4">
 						<div className="flex items-center justify-between mb-3 flex-wrap gap-3">
 							<h2 className="text-lg max-lg:text-[17px] text-title mb-0">Recent Procurement Activity</h2>
-							<a href="procurement-analytics.html" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i></a></div>
+							<Link to="/purchases" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i></Link></div>
 						<div className="overflow-x-auto">
 							<table className="w-full text-sm">
 								<thead><tr className="text-xs text-default border-b border-border-color">

@@ -71,56 +71,40 @@ const TAGS: Record<string, { label: string; color: string; bg: string }> = {
   policy: { label: "Compliance & Legal", color: "text-rose-700 dark:text-rose-300", bg: "bg-rose-500/10 border-rose-500/20" },
 };
 
-const INITIAL_NOTES: Note[] = [
-  {
-    id: "note-1",
-    title: "HR Onboarding Protocol 2026",
-    content: "Verify identity documents, issue welcome kit, provision corporate laptop, and trigger induction training module.",
-    tag: "hr",
-    priority: "high",
-    isPinned: true,
-    isStarred: true,
-    isTrash: false,
-    updatedAt: format(new Date(), "yyyy-MM-dd HH:mm"),
-  },
-  {
-    id: "note-2",
-    title: "Monthly Payroll Run Checkpoints",
-    content: "1. Lock biometric attendance on 28th.\n2. Verify approved leave encashments.\n3. Run statutory PF / TDS computations.\n4. Export bank transfer NEFT sheet.",
-    tag: "finance",
-    priority: "high",
-    isPinned: true,
-    isStarred: false,
-    isTrash: false,
-    updatedAt: format(new Date(), "yyyy-MM-dd HH:mm"),
-  },
-  {
-    id: "note-3",
-    title: "Sprint Retrospective Notes",
-    content: "Team improved API response times by 35%. Action items: Refactor TanStack queries for caching and add realtime webhooks.",
-    tag: "meeting",
-    priority: "medium",
-    isPinned: false,
-    isStarred: true,
-    isTrash: false,
-    updatedAt: format(new Date(), "yyyy-MM-dd HH:mm"),
-  },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 export function NotesPage() {
   const { user } = useSession();
-  const { data: profile } = useCurrentProfile(user);
-  const tenantId = profile?.tenant_id || "default";
+  const queryClient = useQueryClient();
 
   const [activeFolder, setActiveFolder] = useState<"all" | "starred" | "trash">("all");
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [notes, setNotes] = useState<Note[]>(() => {
-    const saved = localStorage.getItem(`hrms_notes_${tenantId}`);
-    return saved ? JSON.parse(saved) : INITIAL_NOTES;
+  const { data: notesData, isLoading } = useQuery({
+    queryKey: ["notes"],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: any[] }>("/notes?isTrash=all");
+      return res.data || [];
+    },
   });
+
+  const notes: Note[] = useMemo(() => {
+    return (notesData || []).map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      content: n.content || "",
+      tag: (n.tag || "general") as Note["tag"],
+      priority: (n.priority || "medium") as Note["priority"],
+      isPinned: Boolean(n.isPinned),
+      isStarred: Boolean(n.isStarred),
+      isTrash: Boolean(n.isTrash),
+      updatedAt: n.updatedAt ? format(new Date(n.updatedAt), "yyyy-MM-dd HH:mm") : format(new Date(), "yyyy-MM-dd HH:mm"),
+      color: n.color || undefined,
+    }));
+  }, [notesData]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -134,10 +118,47 @@ export function NotesPage() {
     isStarred: false,
   });
 
-  function saveNotes(newNotes: Note[]) {
-    setNotes(newNotes);
-    localStorage.setItem(`hrms_notes_${tenantId}`, JSON.stringify(newNotes));
-  }
+  const createMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.post("/notes", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+      toast.success("Note created.");
+      setIsModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to create note");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const res = await api.put(`/notes/${id}`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to update note");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/notes/${id}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+      toast.success("Note permanently deleted.");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to delete note");
+    },
+  });
 
   function handleOpenCreate() {
     setEditingNote(null);
@@ -172,68 +193,91 @@ export function NotesPage() {
     }
 
     if (editingNote) {
-      const updated = notes.map((n) =>
-        n.id === editingNote.id
-          ? {
-              ...n,
-              title: form.title.trim(),
-              content: form.content.trim(),
-              tag: form.tag,
-              priority: form.priority,
-              isPinned: form.isPinned,
-              isStarred: form.isStarred,
-              updatedAt: format(new Date(), "yyyy-MM-dd HH:mm"),
-            }
-          : n
+      updateMutation.mutate(
+        {
+          id: editingNote.id,
+          data: {
+            title: form.title.trim(),
+            content: form.content.trim(),
+            tag: form.tag,
+            priority: form.priority,
+            isPinned: form.isPinned,
+            isStarred: form.isStarred,
+          },
+        },
+        {
+          onSuccess: () => {
+            toast.success("Note updated.");
+            setIsModalOpen(false);
+          },
+        }
       );
-      saveNotes(updated);
-      toast.success("Note updated.");
     } else {
-      const newNote: Note = {
-        id: `note-${Date.now()}`,
+      createMutation.mutate({
         title: form.title.trim(),
         content: form.content.trim(),
         tag: form.tag,
         priority: form.priority,
         isPinned: form.isPinned,
         isStarred: form.isStarred,
-        isTrash: false,
-        updatedAt: format(new Date(), "yyyy-MM-dd HH:mm"),
-      };
-      saveNotes([newNote, ...notes]);
-      toast.success("Note created.");
+      });
     }
-
-    setIsModalOpen(false);
   }
 
   function toggleStar(id: string) {
-    const updated = notes.map((n) => (n.id === id ? { ...n, isStarred: !n.isStarred } : n));
-    saveNotes(updated);
+    const n = notes.find((item) => item.id === id);
+    if (!n) return;
+    updateMutation.mutate(
+      {
+        id,
+        data: { isStarred: !n.isStarred },
+      },
+      {
+        onSuccess: () => toast.success(n.isStarred ? "Removed from starred" : "Added to starred"),
+      }
+    );
   }
 
   function togglePin(id: string) {
-    const updated = notes.map((n) => (n.id === id ? { ...n, isPinned: !n.isPinned } : n));
-    saveNotes(updated);
-    toast.success("Note pin status updated.");
+    const n = notes.find((item) => item.id === id);
+    if (!n) return;
+    updateMutation.mutate(
+      {
+        id,
+        data: { isPinned: !n.isPinned },
+      },
+      {
+        onSuccess: () => toast.success("Note pin status updated."),
+      }
+    );
   }
 
   function moveToTrash(id: string) {
-    const updated = notes.map((n) => (n.id === id ? { ...n, isTrash: true } : n));
-    saveNotes(updated);
-    toast.success("Moved note to trash.");
+    updateMutation.mutate(
+      {
+        id,
+        data: { isTrash: true },
+      },
+      {
+        onSuccess: () => toast.success("Moved note to trash."),
+      }
+    );
   }
 
   function restoreFromTrash(id: string) {
-    const updated = notes.map((n) => (n.id === id ? { ...n, isTrash: false } : n));
-    saveNotes(updated);
-    toast.success("Note restored.");
+    updateMutation.mutate(
+      {
+        id,
+        data: { isTrash: false },
+      },
+      {
+        onSuccess: () => toast.success("Note restored."),
+      }
+    );
   }
 
   function permanentlyDelete(id: string) {
-    const updated = notes.filter((n) => n.id !== id);
-    saveNotes(updated);
-    toast.success("Note permanently deleted.");
+    deleteMutation.mutate(id);
   }
 
   function exportNotesTxt() {

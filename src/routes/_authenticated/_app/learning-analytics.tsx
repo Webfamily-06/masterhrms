@@ -15,87 +15,8 @@ export const Route = createFileRoute("/_authenticated/_app/learning-analytics")(
   }),
 });
 
-interface TraineeRecord {
-  id: string;
-  name: string;
-  avatar: string;
-  designation: string;
-  course: string;
-  status: "Completed" | "In Progress" | "Not Started";
-  score: number | null;
-  completionDate: string | null;
-  feedback: string | null;
-  attempts: number;
-  certificateIssued: boolean;
-}
-
-const TRAINEES: TraineeRecord[] = [
-  {
-    id: "TRN-01",
-    name: "Anthony Lewis",
-    avatar: "/ui-assets/avatar-03.jpg",
-    designation: "Financial Accountant",
-    course: "Git & Version Control for Business",
-    status: "Completed",
-    score: 80,
-    completionDate: "14 Jun 2026",
-    feedback: "Good",
-    attempts: 1,
-    certificateIssued: true,
-  },
-  {
-    id: "TRN-02",
-    name: "Brian Villalobos",
-    avatar: "/ui-assets/avatar-04.jpg",
-    designation: "App Developer",
-    course: "Advanced HTML5 & Accessible UI Standards",
-    status: "In Progress",
-    score: null,
-    completionDate: null,
-    feedback: null,
-    attempts: 1,
-    certificateIssued: false,
-  },
-  {
-    id: "TRN-03",
-    name: "Harvey Smith",
-    avatar: "/ui-assets/avatar-05.jpg",
-    designation: "IT Support Specialist",
-    course: "React & Modern Enterprise Frontend Architecture",
-    status: "Not Started",
-    score: null,
-    completionDate: null,
-    feedback: null,
-    attempts: 0,
-    certificateIssued: false,
-  },
-  {
-    id: "TRN-04",
-    name: "Stephan Peralt",
-    avatar: "/ui-assets/avatar-06.jpg",
-    designation: "Full Stack Engineer",
-    course: "Node.js High Performance Backend Services",
-    status: "Completed",
-    score: 92,
-    completionDate: "28 Apr 2026",
-    feedback: "Excellent",
-    attempts: 2,
-    certificateIssued: true,
-  },
-  {
-    id: "TRN-05",
-    name: "Sophia Martinez",
-    avatar: "/ui-assets/avatar-07.jpg",
-    designation: "Operations Lead",
-    course: "Supply Chain & Warehouse Optimization",
-    status: "Completed",
-    score: 88,
-    completionDate: "10 May 2026",
-    feedback: "Very Good",
-    attempts: 1,
-    certificateIssued: true,
-  },
-];
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 export default function LearningAnalyticsPage() {
   const [isMounted, setIsMounted] = useState(false);
@@ -104,20 +25,39 @@ export default function LearningAnalyticsPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const { data: summaryData } = useQuery({
+    queryKey: ["training-summary"],
+    queryFn: async () => {
+      const res = await api.get<any>("/training/summary");
+      return res;
+    },
+  });
+
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ["training-enrollments"],
+    queryFn: async () => {
+      const res = await api.get<any[]>("/training/enrollments");
+      return res;
+    },
+  });
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   const filteredTrainees = useMemo(() => {
-    return TRAINEES.filter((t) => {
+    return (enrollments || []).filter((t: any) => {
+      const name = `${t.employee?.firstName || ""} ${t.employee?.lastName || ""}`.trim();
+      const course = t.course?.title || "";
+      const pos = t.employee?.position || "";
       const matchSearch =
-        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.designation.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchStatus = statusFilter === "All" || t.status === statusFilter;
+        name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        course.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        pos.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchStatus = statusFilter === "All" || t.status?.toLowerCase() === statusFilter.toLowerCase().replace(" ", "_");
       return matchSearch && matchStatus;
     });
-  }, [searchQuery, statusFilter]);
+  }, [enrollments, searchQuery, statusFilter]);
 
   // Combo Bar + Line Chart
   const learnEmployeeOptions: ApexCharts.ApexOptions = useMemo(
@@ -199,8 +139,8 @@ export default function LearningAnalyticsPage() {
               <i className="ph-duotone ph-student text-lg"></i>
             </div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">430</h2>
-          <span className="text-[11px] text-success font-medium">+18% this month</span>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">{summaryData?.totalEnrolled ?? 0}</h2>
+          <span className="text-[11px] text-success font-medium">Enrolled across tenant</span>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
@@ -210,8 +150,8 @@ export default function LearningAnalyticsPage() {
               <i className="ph-duotone ph-certificate text-lg"></i>
             </div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">225</h2>
-          <span className="text-[11px] text-success font-medium">+12% vs last month</span>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">{summaryData?.completedCount ?? 0}</h2>
+          <span className="text-[11px] text-success font-medium">Graduated &amp; verified</span>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
@@ -221,19 +161,19 @@ export default function LearningAnalyticsPage() {
               <i className="ph-duotone ph-chart-line-up text-lg"></i>
             </div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">78.4%</h2>
-          <span className="text-[11px] text-default font-medium">Above enterprise goal</span>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">{summaryData?.complianceRate ?? 0}%</h2>
+          <span className="text-[11px] text-default font-medium">Overall academy metric</span>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-default font-medium">Total Training Hours</span>
+            <span className="text-xs text-default font-medium">Active Courses</span>
             <div className="size-8 rounded-md bg-warning/10 text-warning flex items-center justify-center">
-              <i className="ph-duotone ph-clock text-lg"></i>
+              <i className="ph-duotone ph-book-open text-lg"></i>
             </div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">1,840h</h2>
-          <span className="text-[11px] text-default font-medium">Avg 4.2h / employee</span>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">{summaryData?.totalCourses ?? 0}</h2>
+          <span className="text-[11px] text-default font-medium">Curricula in catalog</span>
         </div>
       </div>
 
@@ -297,7 +237,7 @@ export default function LearningAnalyticsPage() {
           </div>
 
           <span className="text-xs text-muted-foreground">
-            Showing <strong>{filteredTrainees.length}</strong> of {TRAINEES.length} trainees
+            Showing <strong>{filteredTrainees.length}</strong> of {enrollments.length} enrollments
           </span>
         </div>
 
@@ -311,7 +251,7 @@ export default function LearningAnalyticsPage() {
                 <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Status</th>
                 <th className="text-center py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Score</th>
                 <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Completed On</th>
-                <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Feedback</th>
+                <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Certificate No</th>
                 <th className="text-center py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Certificate</th>
               </tr>
             </thead>
@@ -319,59 +259,60 @@ export default function LearningAnalyticsPage() {
               {filteredTrainees.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-default">
-                    No trainee records match your filter criteria.
+                    No trainee enrollment records match your filter criteria.
                   </td>
                 </tr>
               ) : (
-                filteredTrainees.map((t) => (
-                  <tr
-                    key={t.id}
-                    className="border-b border-border-color hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition-colors"
-                  >
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={t.avatar}
-                          alt={t.name}
-                          className="size-7 rounded-full object-cover shrink-0 border border-border-color"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/ui-assets/avatar-03.jpg";
-                          }}
-                        />
-                        <span className="font-semibold text-title">{t.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-default">{t.designation}</td>
-                    <td className="py-3 px-3 font-medium text-gray-900 dark:text-gray-100">{t.course}</td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-md inline-block ${
-                          t.status === "Completed"
-                            ? "bg-success-transparent text-success"
-                            : t.status === "In Progress"
-                            ? "bg-blue-500/10 text-blue-600"
-                            : "bg-slate-100 dark:bg-slate-800 text-default"
-                        }`}
-                      >
-                        {t.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-center font-mono font-semibold">
-                      {t.score ? `${t.score}%` : "—"}
-                    </td>
-                    <td className="py-3 px-3 text-default">{t.completionDate || "—"}</td>
-                    <td className="py-3 px-3 text-default">{t.feedback || "—"}</td>
-                    <td className="py-3 px-3 text-center">
-                      {t.certificateIssued ? (
-                        <span className="text-[10px] font-semibold text-success bg-success-transparent px-2 py-0.5 rounded flex items-center justify-center gap-1 w-max mx-auto">
-                          <i className="ph-bold ph-check text-xs"></i> Issued
+                filteredTrainees.map((t: any) => {
+                  const empName = `${t.employee?.firstName || ""} ${t.employee?.lastName || ""}`.trim() || "Staff Member";
+                  const isCompleted = t.status === "completed";
+                  return (
+                    <tr
+                      key={t.id}
+                      className="border-b border-border-color hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <div className="size-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs">
+                            {empName.charAt(0)}
+                          </div>
+                          <span className="font-semibold text-title">{empName}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-default">{t.employee?.position || "Employee"}</td>
+                      <td className="py-3 px-3 font-medium text-gray-900 dark:text-gray-100">{t.course?.title || "Course"}</td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-md inline-block capitalize ${
+                            isCompleted
+                              ? "bg-success-transparent text-success"
+                              : t.status === "in_progress"
+                              ? "bg-blue-500/10 text-blue-600"
+                              : "bg-slate-100 dark:bg-slate-800 text-default"
+                          }`}
+                        >
+                          {t.status ? t.status.replace("_", " ") : "Not Started"}
                         </span>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono font-semibold">
+                        {t.score ? `${t.score}%` : "—"}
+                      </td>
+                      <td className="py-3 px-3 text-default">
+                        {t.completedAt ? new Date(t.completedAt).toLocaleDateString() : "—"}
+                      </td>
+                      <td className="py-3 px-3 text-default font-mono text-[11px]">{t.certificateId || "—"}</td>
+                      <td className="py-3 px-3 text-center">
+                        {t.certificateId ? (
+                          <span className="text-[10px] font-semibold text-success bg-success-transparent px-2 py-0.5 rounded flex items-center justify-center gap-1 w-max mx-auto">
+                            <i className="ph-bold ph-check text-xs"></i> Issued
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

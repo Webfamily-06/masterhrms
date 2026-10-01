@@ -65,7 +65,7 @@ export function DreamsSidebar({
   );
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
-  const homeRoute = isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
+  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
 
   return (
     <aside
@@ -167,7 +167,79 @@ export function DreamsSidebar({
         }}
       >
         <div id="sidebar-menu" className="sidebar-menu">
-          {isClientOnly ? (
+          {isSuperAdmin && !profile?.tenant_id ? (
+            <ul>
+              <li className="menu-title">
+                <span>PLATFORM CONTROL PLANE</span>
+              </li>
+              <li>
+                <Link
+                  to="/super"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath.startsWith("/super") && "active", "text-purple-600 dark:text-purple-400 font-semibold")}
+                >
+                  <i className="ph-duotone ph-shield-check"></i>
+                  <span>Super Admin Console</span>
+                </Link>
+              </li>
+              <li className="menu-title">
+                <span>CENTRALIZED AUTOMATIONS</span>
+              </li>
+              <li>
+                <Link
+                  to="/cronjob"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/cronjob" && "active")}
+                >
+                  <i className="ph-duotone ph-clock"></i>
+                  <span>Centralized Cron Jobs</span>
+                </Link>
+              </li>
+              <li className="menu-title">
+                <span>SHARED PLATFORM WORKFLOWS</span>
+              </li>
+              <li>
+                <Link
+                  to="/clear-cache"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/clear-cache" && "active")}
+                >
+                  <i className="ph-duotone ph-arrows-clockwise"></i>
+                  <span>Clear Cache & Maintenance</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/ai-configuration"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/ai-configuration" && "active")}
+                >
+                  <i className="ph-duotone ph-sliders"></i>
+                  <span>AI Engine Configuration</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/ai-settings"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/ai-settings" && "active")}
+                >
+                  <i className="ph-duotone ph-gear"></i>
+                  <span>AI API Credentials</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/system-states"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/system-states" && "active")}
+                >
+                  <i className="ph-duotone ph-layers"></i>
+                  <span>System States Directory</span>
+                </Link>
+              </li>
+            </ul>
+          ) : isClientOnly ? (
             <ul>
               <li className="menu-title">
                 <span>CLIENT PORTAL</span>

@@ -11,6 +11,7 @@ export const GLOBAL_MODELS = new Set<string>([
   "CmsPage",
   "Permission",
   "TwoFactorOtp",
+  "SystemCronJob",
 ]);
 
 // Root Tenant Entity (Has 'id' as the tenant identifier, not 'tenantId')
@@ -26,6 +27,7 @@ export const CHILD_DEPENDENT_MODELS = new Map<string, ChildModelRelation>([
   ["SalaryStructureItem", { parentRelation: "structure", parentModel: "SalaryStructure" }],
   ["EmployeeSalaryItem", { parentRelation: "assignment", parentModel: "EmployeeSalaryAssignment" }],
   ["TaxDeclarationProof", { parentRelation: "declaration", parentModel: "EmployeeTaxDeclaration" }],
+  ["FbpDeclarationItem", { parentRelation: "declaration", parentModel: "FbpDeclaration" }],
   ["OkrKeyResult", { parentRelation: "objective", parentModel: "OkrObjective" }],
   ["OkrCheckin", { parentRelation: "employee", parentModel: "Employee" }],
   ["OkrReview", { parentRelation: "cycle", parentModel: "OkrCycle" }],
@@ -49,6 +51,7 @@ export const CHILD_DEPENDENT_MODELS = new Map<string, ChildModelRelation>([
   ["SalesReturnDetail", { parentRelation: "salesReturn", parentModel: "SalesReturn" }],
   ["PurchaseReturnDetail", { parentRelation: "purchaseReturn", parentModel: "PurchaseReturn" }],
   ["RolePermission", { parentRelation: "role", parentModel: "WorkspaceRole" }],
+  ["BankDisbursementItem", { parentRelation: "batch", parentModel: "BankDisbursementBatch" }],
 ]);
 
 // Models with a direct tenant_id column (Primary multi-tenant entities - 75 models)
@@ -98,6 +101,8 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "FormSubmission",
   "BiometricDevice",
   "BiometricPunchLog",
+  "BiometricEmployeeMapping",
+  "BiometricOfflineBuffer",
   "ChartOfAccount",
   "FiscalYear",
   "AccountingPeriod",
@@ -140,6 +145,13 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "Award",
   "WarningType",
   "DisciplinaryWarning",
+  "StoredDocument",
+  "FbpDeclaration",
+  "BankDisbursementBatch",
+  "StatutoryReturnFiling",
+  "WorkspaceTodo",
+  "WorkspaceNote",
+  "CalendarEvent",
 ]);
 
 export type ModelClassification = "GLOBAL" | "ROOT_TENANT" | "DIRECT_TENANT" | "CHILD_DEPENDENT" | "UNKNOWN";

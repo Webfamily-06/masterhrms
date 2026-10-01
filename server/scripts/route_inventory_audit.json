@@ -1,0 +1,2379 @@
+{
+  "appPages": [
+    {
+      "file": "accounting.tsx",
+      "relPath": "_authenticated/_app/accounting.tsx",
+      "route": "/accounting",
+      "apis": [
+        "GET /accounting/dashboard",
+        "GET /accounting/accounts",
+        "GET /accounting/fiscal-years",
+        "POST /accounting/periods/${id}/${action}",
+        "GET /accounting/journal-entries",
+        "GET /accounting/reports/financial-statements",
+        "GET /accounting/reports/aging",
+        "GET /accounting/reports/trial-balance",
+        "GET /accounting/reports/inventory-valuation",
+        "GET /accounting/reports/ledger/${selectedLedgerAccount}",
+        "POST /accounting/transfers",
+        "POST /accounting/accounts",
+        "POST /accounting/journal-entries"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "adjustments.tsx",
+      "relPath": "_authenticated/_app/adjustments.tsx",
+      "route": "/adjustments",
+      "apis": [
+        "POST /api/adjustments"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-attendance-insights.tsx",
+      "relPath": "_authenticated/_app/ai-attendance-insights.tsx",
+      "route": "/ai-attendance-insights",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-configuration.tsx",
+      "relPath": "_authenticated/_app/ai-configuration.tsx",
+      "route": "/ai-configuration",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-hiring-forecast.tsx",
+      "relPath": "_authenticated/_app/ai-hiring-forecast.tsx",
+      "route": "/ai-hiring-forecast",
+      "apis": [
+        "GET /ai/hiring-forecast"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-ocr.tsx",
+      "relPath": "_authenticated/_app/ai-ocr.tsx",
+      "route": "/ai-ocr",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /cms/pages/${SLUG}",
+        "PUT /cms/pages/${SLUG}",
+        "POST /ai/ocr/extract",
+        "POST /ai/ocr/save"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-payroll-forecast.tsx",
+      "relPath": "_authenticated/_app/ai-payroll-forecast.tsx",
+      "route": "/ai-payroll-forecast",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-settings.tsx",
+      "relPath": "_authenticated/_app/ai-settings.tsx",
+      "route": "/ai-settings",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-team-performance-insights.tsx",
+      "relPath": "_authenticated/_app/ai-team-performance-insights.tsx",
+      "route": "/ai-team-performance-insights",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai-writer.tsx",
+      "relPath": "_authenticated/_app/ai-writer.tsx",
+      "route": "/ai-writer",
+      "apis": [
+        "GET /ai/settings",
+        "POST /ai/settings",
+        "POST /ai/generate-content"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ai.tsx",
+      "relPath": "_authenticated/_app/ai.tsx",
+      "route": "/ai",
+      "apis": [
+        "GET /api/system/config"
+      ],
+      "perms": [],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "analytics.tsx",
+      "relPath": "_authenticated/_app/analytics.tsx",
+      "route": "/analytics",
+      "apis": [
+        "GET /api/employees",
+        "GET /api/attendance",
+        "GET /api/leaves",
+        "GET /api/payroll/history",
+        "GET /api/projects",
+        "GET /api/invoices",
+        "GET /api/expenses",
+        "GET /api/system/config"
+      ],
+      "perms": [
+        "analytics.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "announcements.tsx",
+      "relPath": "_authenticated/_app/announcements.tsx",
+      "route": "/announcements",
+      "apis": [
+        "GET /departments",
+        "GET /employees",
+        "GET /announcements/summary/stats",
+        "POST /announcements",
+        "PUT /announcements/${id}",
+        "DELETE /announcements/${id}",
+        "POST /announcements/${id}/acknowledge"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "asset-dashboard.tsx",
+      "relPath": "_authenticated/_app/asset-dashboard.tsx",
+      "route": "/asset-dashboard",
+      "apis": [
+        "GET /assets"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "assets.tsx",
+      "relPath": "_authenticated/_app/assets.tsx",
+      "route": "/assets",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /addons/assets/categories",
+        "GET /addons/assets?${params.toString()}",
+        "GET /addons/assets/requests",
+        "GET /addons/assets/disposals",
+        "GET /addons/assets/reports",
+        "GET /addons/assets/activity",
+        "GET /employees",
+        "GET /employees/departments",
+        "POST /addons/assets",
+        "POST /addons/assets/${selectedAsset?.id}/allocate",
+        "POST /addons/assets/assignments/${selectedAssignment?.id}/return",
+        "POST /addons/assets/categories",
+        "DELETE /addons/assets/categories/${id}",
+        "POST /addons/assets/requests",
+        "POST /addons/assets/requests/${id}/review",
+        "POST /addons/assets/disposals",
+        "POST /addons/assets/disposals/${batchId}/approve"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "attendance-employee.tsx",
+      "relPath": "_authenticated/_app/attendance-employee.tsx",
+      "route": "/attendance-employee",
+      "apis": [
+        "GET /attendance?${params.toString()}",
+        "POST /attendance/punch",
+        "POST /attendance/regularize"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "attendance-report.tsx",
+      "relPath": "_authenticated/_app/attendance-report.tsx",
+      "route": "/attendance-report",
+      "apis": [
+        "GET /employees/departments",
+        "GET /employees",
+        "GET /attendance?${params.toString()}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "attendance.tsx",
+      "relPath": "_authenticated/_app/attendance.tsx",
+      "route": "/attendance",
+      "apis": [
+        "GET /shifts",
+        "PUT /shifts/${activeShift.id}",
+        "POST /shifts",
+        "GET /employees",
+        "GET /attendance?date=${todayStr}",
+        "GET /attendance?date=${selectedDate}",
+        "GET /attendance?month=${matrixMonth}",
+        "GET /leaves/requests",
+        "GET /biometric/devices",
+        "POST /attendance/check-in",
+        "POST /attendance/check-out",
+        "POST /biometric/devices/${targetDevice.id}/apply-sync"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "awards.tsx",
+      "relPath": "_authenticated/_app/awards.tsx",
+      "route": "/awards",
+      "apis": [
+        "GET /api/awards?${params.toString()}",
+        "GET /api/awards/types",
+        "GET /api/employees?limit=200",
+        "POST /api/awards",
+        "POST /api/awards/types",
+        "DELETE /api/awards/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "ban-ip-address.tsx",
+      "relPath": "_authenticated/_app/ban-ip-address.tsx",
+      "route": "/ban-ip-address",
+      "apis": [
+        "GET /banned-ips?${p}",
+        "POST /banned-ips",
+        "PUT /banned-ips/${id}",
+        "DELETE /banned-ips/${id}"
+      ],
+      "perms": [
+        "system.firewall.manage"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "biometric-sync.tsx",
+      "relPath": "_authenticated/_app/biometric-sync.tsx",
+      "route": "/biometric-sync",
+      "apis": [
+        "GET /employees",
+        "GET /employees/departments",
+        "GET /biometric/devices",
+        "GET /biometric/logs?limit=100",
+        "POST /biometric/devices",
+        "DELETE /biometric/devices/${id}",
+        "PUT /biometric/devices/${id}",
+        "POST /attendance/check-in",
+        "POST /attendance/check-out",
+        "POST /employees",
+        "POST /biometric/devices/${quickRegModalPunch.deviceId}/map-employee",
+        "POST /biometric/simulate",
+        "POST /biometric/devices/${device.id}/ping",
+        "POST /biometric/devices/${device.id}/sync-now"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "biometric.tsx",
+      "relPath": "_authenticated/_app/biometric.tsx",
+      "route": "/biometric",
+      "apis": [
+        "GET /employees",
+        "GET /biometric/devices",
+        "GET /biometric/cloud-config",
+        "GET /biometric/summary/stats",
+        "GET /biometric/devices/${activePassportDevice.id}/passport?period=${passportPeriod}",
+        "GET /biometric/devices/${activePassportDevice.id}/hardware-users",
+        "GET /biometric/devices/${activePassportDevice.id}/mappings",
+        "GET /biometric/offline-buffer?status=all&limit=30",
+        "GET /biometric/devices/${studioDeviceId}/mappings",
+        "POST /biometric/devices",
+        "POST /biometric/probe",
+        "POST /biometric/devices/${id}/ping",
+        "POST /biometric/devices/${payload.deviceId}/apply-sync",
+        "POST /biometric/devices/${payload.deviceId}/map-employee",
+        "DELETE /biometric/devices/${id}",
+        "PUT /biometric/devices/${id}",
+        "POST /biometric/simulate",
+        "POST /biometric/devices/${payload.deviceId}/mappings",
+        "PUT /biometric/devices/${deviceId}/mappings/${mappingId}",
+        "DELETE /biometric/devices/${deviceId}/mappings/${mappingId}",
+        "POST /biometric/offline-buffer/replay"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "budgets.tsx",
+      "relPath": "_authenticated/_app/budgets.tsx",
+      "route": "/budgets",
+      "apis": [
+        "GET /api/budgets?${params.toString()}",
+        "GET /api/budgets/summary",
+        "GET /api/departments",
+        "POST /api/budgets",
+        "PUT /api/budgets/${id}",
+        "DELETE /api/budgets/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "calendar.tsx",
+      "relPath": "_authenticated/_app/calendar.tsx",
+      "route": "/calendar",
+      "apis": [
+        "POST /calendar/events",
+        "DELETE /calendar/events/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "call-history.tsx",
+      "relPath": "_authenticated/_app/call-history.tsx",
+      "route": "/call-history",
+      "apis": [
+        "GET /crm/calls?${p.toString()}",
+        "DELETE /crm/calls/${id}",
+        "POST /crm/calls/bulk-delete"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "campaigns.tsx",
+      "relPath": "_authenticated/_app/campaigns.tsx",
+      "route": "/campaigns",
+      "apis": [
+        "GET /campaigns?${params}",
+        "POST /campaigns",
+        "PUT /campaigns/${id}",
+        "PATCH /campaigns/${id}/status",
+        "DELETE /campaigns/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "campus-hiring.tsx",
+      "relPath": "_authenticated/_app/campus-hiring.tsx",
+      "route": "/campus-hiring",
+      "apis": [
+        "GET /api/recruitment/campus-candidates?${params.toString()}",
+        "GET /api/employees",
+        "POST /api/recruitment/campus-candidates",
+        "PUT /api/recruitment/campus-candidates/${id}",
+        "DELETE /api/recruitment/campus-candidates/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "certification-tracking.tsx",
+      "relPath": "_authenticated/_app/certification-tracking.tsx",
+      "route": "/certification-tracking",
+      "apis": [
+        "GET /api/training/certifications${q}",
+        "GET /api/training/courses",
+        "GET /api/employees",
+        "POST /api/training/certifications",
+        "DELETE /api/training/certifications/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "chat.tsx",
+      "relPath": "_authenticated/_app/chat.tsx",
+      "route": "/chat",
+      "apis": [
+        "GET /employees",
+        "GET /attendance?date=${new Date().toISOString().slice(0, 10)}",
+        "GET /chat/messages/${activeThreadId}",
+        "GET /cms/pages/team-chat-workspace-v3",
+        "POST /cms/pages"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "clear-cache.tsx",
+      "relPath": "_authenticated/_app/clear-cache.tsx",
+      "route": "/clear-cache",
+      "apis": [
+        "POST /system/clear-cache"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "client-dashboard.tsx",
+      "relPath": "_authenticated/_app/client-dashboard.tsx",
+      "route": "/client-dashboard",
+      "apis": [
+        "GET /client/my-projects",
+        "GET /client/my-invoices",
+        "GET /api/helpdesk/tickets",
+        "GET /api/system/config"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "clients.tsx",
+      "relPath": "_authenticated/_app/clients.tsx",
+      "route": "/clients",
+      "apis": [
+        "GET /api/customers",
+        "POST /api/customers",
+        "PUT /api/customers/${id}",
+        "DELETE /api/customers/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "companies.tsx",
+      "relPath": "_authenticated/_app/companies.tsx",
+      "route": "/companies",
+      "apis": [
+        "GET /api/crm/companies",
+        "POST /api/crm/companies",
+        "PUT /api/crm/companies/${id}",
+        "DELETE /api/crm/companies/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "contacts.tsx",
+      "relPath": "_authenticated/_app/contacts.tsx",
+      "route": "/contacts",
+      "apis": [
+        "GET /crm/contacts${qStr ? ",
+        "POST /crm/contacts",
+        "PUT /crm/contacts/${id}",
+        "DELETE /crm/contacts/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "crm-dashboard.tsx",
+      "relPath": "_authenticated/_app/crm-dashboard.tsx",
+      "route": "/crm-dashboard",
+      "apis": [],
+      "perms": [
+        "crm.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "crm.tsx",
+      "relPath": "_authenticated/_app/crm.tsx",
+      "route": "/crm",
+      "apis": [
+        "GET /crm/contacts",
+        "GET /crm/companies",
+        "GET /crm/leads",
+        "PUT /crm/leads/${editingLead.id}",
+        "POST /crm/leads",
+        "GET /cms/pages/system-platform-settings",
+        "DELETE /crm/leads/${id}",
+        "PUT /crm/leads/${lead.id}",
+        "POST /crm/contacts",
+        "POST /crm/companies",
+        "DELETE /crm/contacts/${id}",
+        "DELETE /crm/companies/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "cronjob.tsx",
+      "relPath": "_authenticated/_app/cronjob.tsx",
+      "route": "/cronjob",
+      "apis": [
+        "GET /system/cronjobs",
+        "POST /system/cronjobs",
+        "PUT /system/cronjobs/${id}",
+        "POST /system/cronjobs/${id}/run",
+        "DELETE /system/cronjobs/${id}"
+      ],
+      "perms": [
+        "system.cronjobs.manage"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "currencies.tsx",
+      "relPath": "_authenticated/_app/currencies.tsx",
+      "route": "/currencies",
+      "apis": [
+        "GET /api/cms/pages/system-currencies",
+        "PUT /api/cms/pages/system-currencies"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "custom-fields.tsx",
+      "relPath": "_authenticated/_app/custom-fields.tsx",
+      "route": "/custom-fields",
+      "apis": [
+        "GET /custom-fields?${params}",
+        "POST /custom-fields",
+        "PUT /custom-fields/${id}",
+        "DELETE /custom-fields/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "daily-report.tsx",
+      "relPath": "_authenticated/_app/daily-report.tsx",
+      "route": "/daily-report",
+      "apis": [
+        "GET /attendance/daily-report?${p.toString()}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "dashboard.tsx",
+      "relPath": "_authenticated/_app/dashboard.tsx",
+      "route": "/dashboard",
+      "apis": [
+        "GET /dashboard/hrm"
+      ],
+      "perms": [],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "deals-dashboard.tsx",
+      "relPath": "_authenticated/_app/deals-dashboard.tsx",
+      "route": "/deals-dashboard",
+      "apis": [
+        "GET /crm/deals"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "departments.tsx",
+      "relPath": "_authenticated/_app/departments.tsx",
+      "route": "/departments",
+      "apis": [
+        "GET /employees/departments",
+        "GET /employees",
+        "POST /employees/departments",
+        "PUT /employees/departments/${id}",
+        "DELETE /employees/departments/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "designations.tsx",
+      "relPath": "_authenticated/_app/designations.tsx",
+      "route": "/designations",
+      "apis": [
+        "GET /employees/departments",
+        "GET /employees",
+        "GET /workspace/designations",
+        "POST /workspace/designations",
+        "PUT /workspace/designations/${id}",
+        "DELETE /workspace/designations/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "documents.tsx",
+      "relPath": "_authenticated/_app/documents.tsx",
+      "route": "/documents",
+      "apis": [
+        "GET /employees",
+        "GET /documents/summary/stats",
+        "POST /documents",
+        "POST /documents/${id}/sign",
+        "PUT /documents/${id}/verify",
+        "DELETE /documents/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "employee-dashboard.tsx",
+      "relPath": "_authenticated/_app/employee-dashboard.tsx",
+      "route": "/employee-dashboard",
+      "apis": [
+        "GET /api/attendance",
+        "GET /api/leaves",
+        "POST /api/attendance/clock-in",
+        "POST /api/attendance/clock-out",
+        "POST /api/leaves"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "employee-details.tsx",
+      "relPath": "_authenticated/_app/employee-details.tsx",
+      "route": "/employee-details",
+      "apis": [
+        "GET /employees",
+        "GET /employees/${targetEmployeeId}",
+        "GET /employees/departments",
+        "PUT /employees/${employee.id}",
+        "POST /employees/${employee.id}/set-password",
+        "POST /employees/${employee.id}/reset-2fa"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "employee-report.tsx",
+      "relPath": "_authenticated/_app/employee-report.tsx",
+      "route": "/employee-report",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /employees/departments",
+        "GET /employees"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "employees.tsx",
+      "relPath": "_authenticated/_app/employees.tsx",
+      "route": "/employees",
+      "apis": [
+        "GET /employees",
+        "GET /employees/departments",
+        "GET /cms/pages/system-platform-settings",
+        "GET /cms/pages/tenant-${tenantId}-employee-passports",
+        "PUT /cms/pages/tenant-${tenantId}-employee-passports",
+        "GET /cms/pages/tenant-${tenantId}-performance-reviews",
+        "PUT /cms/pages/tenant-${tenantId}-performance-reviews",
+        "GET /cms/pages/tenant-${tenantId}-hardware-assets",
+        "PUT /cms/pages/tenant-${tenantId}-hardware-assets",
+        "POST /employees/${empId}/reset-2fa",
+        "GET /employees/${authModalEmployee.id}/login-account",
+        "POST /employees/${employeeId}/set-password",
+        "POST /employees",
+        "PUT /employees/${emp.id}",
+        "DELETE /employees/${id}",
+        "POST /employees/departments",
+        "DELETE /employees/departments/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "expenses-report.tsx",
+      "relPath": "_authenticated/_app/expenses-report.tsx",
+      "route": "/expenses-report",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /expenses/categories",
+        "GET /expenses/claims${qStr ? ",
+        "GET /expenses/summary"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "expenses.tsx",
+      "relPath": "_authenticated/_app/expenses.tsx",
+      "route": "/expenses",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /employees",
+        "GET /expenses/categories",
+        "GET /expenses/summary",
+        "POST /expenses/claims",
+        "PUT /expenses/claims/${id}/status",
+        "POST /expenses/claims/${id}/reimburse",
+        "POST /expenses/categories",
+        "PUT /expenses/categories/${id}",
+        "DELETE /expenses/categories/${id}",
+        "DELETE /expenses/claims/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "finance-dashboard.tsx",
+      "relPath": "_authenticated/_app/finance-dashboard.tsx",
+      "route": "/finance-dashboard",
+      "apis": [
+        "GET /dashboard/hrm"
+      ],
+      "perms": [
+        "finance.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "forms.tsx",
+      "relPath": "_authenticated/_app/forms.tsx",
+      "route": "/forms",
+      "apis": [
+        "GET /forms/statutory-catalog",
+        "GET /employees",
+        "GET /forms/statutory/immutable-records",
+        "GET /forms",
+        "GET /departments",
+        "POST /forms/statutory/prefill",
+        "POST /forms/statutory/save-immutable",
+        "POST /forms",
+        "POST /forms/${formId}/submit",
+        "GET /compliance/forms/eligibility${queryString ? "
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "google-workspace.tsx",
+      "relPath": "_authenticated/_app/google-workspace.tsx",
+      "route": "/google-workspace",
+      "apis": [
+        "GET /workspace/google/config",
+        "GET /workspace/google/drive-files",
+        "POST /workspace/google/config",
+        "POST /workspace/google/connect-account",
+        "DELETE /workspace/google/accounts/${id}",
+        "POST /workspace/google/sync-directory"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "help-desk-dashboard.tsx",
+      "relPath": "_authenticated/_app/help-desk-dashboard.tsx",
+      "route": "/help-desk-dashboard",
+      "apis": [
+        "GET /helpdesk/tickets"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "helpdesk.tsx",
+      "relPath": "_authenticated/_app/helpdesk.tsx",
+      "route": "/helpdesk",
+      "apis": [
+        "GET /employees",
+        "GET /helpdesk/summary/stats",
+        "POST /helpdesk/tickets",
+        "POST /helpdesk/tickets/${ticketId}/comments",
+        "PUT /helpdesk/tickets/${id}/status",
+        "DELETE /helpdesk/tickets/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "holidays.tsx",
+      "relPath": "_authenticated/_app/holidays.tsx",
+      "route": "/holidays",
+      "apis": [
+        "GET /workspace/holidays",
+        "POST /workspace/holidays",
+        "DELETE /workspace/holidays/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "hrm.tsx",
+      "relPath": "_authenticated/_app/hrm.tsx",
+      "route": "/hrm",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /dashboard/hrm-hub"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "integrations.tsx",
+      "relPath": "_authenticated/_app/integrations.tsx",
+      "route": "/integrations",
+      "apis": [
+        "POST /woocommerce/settings",
+        "DELETE /woocommerce/logs"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "inventory-dashboard.tsx",
+      "relPath": "_authenticated/_app/inventory-dashboard.tsx",
+      "route": "/inventory-dashboard",
+      "apis": [],
+      "perms": [
+        "inventory.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "invoice-report.tsx",
+      "relPath": "_authenticated/_app/invoice-report.tsx",
+      "route": "/invoice-report",
+      "apis": [
+        "GET /invoices"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "invoice.$id.print.tsx",
+      "relPath": "_authenticated/_app/invoice.$id.print.tsx",
+      "route": "/invoice.$id.print",
+      "apis": [
+        "GET /invoices/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "invoice.$id.tsx",
+      "relPath": "_authenticated/_app/invoice.$id.tsx",
+      "route": "/invoice.$id",
+      "apis": [
+        "POST /invoices/${id}/payments"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "invoice.create.tsx",
+      "relPath": "_authenticated/_app/invoice.create.tsx",
+      "route": "/invoice.create",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "invoices.tsx",
+      "relPath": "_authenticated/_app/invoices.tsx",
+      "route": "/invoices",
+      "apis": [
+        "POST /invoices/${payingInv.id}/payments",
+        "GET /cms/pages/system-platform-settings",
+        "GET /invoices",
+        "POST /invoices"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "it-admin-dashboard.tsx",
+      "relPath": "_authenticated/_app/it-admin-dashboard.tsx",
+      "route": "/it-admin-dashboard",
+      "apis": [],
+      "perms": [
+        "system.it_admin.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "leads-dashboard.tsx",
+      "relPath": "_authenticated/_app/leads-dashboard.tsx",
+      "route": "/leads-dashboard",
+      "apis": [
+        "GET /crm/leads"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "learning-analytics.tsx",
+      "relPath": "_authenticated/_app/learning-analytics.tsx",
+      "route": "/learning-analytics",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "leave-report.tsx",
+      "relPath": "_authenticated/_app/leave-report.tsx",
+      "route": "/leave-report",
+      "apis": [
+        "GET /leave/types",
+        "GET /leave/requests?${params.toString()}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "leave.tsx",
+      "relPath": "_authenticated/_app/leave.tsx",
+      "route": "/leave",
+      "apis": [
+        "GET /employees",
+        "GET /leave/types",
+        "GET /leave/requests",
+        "POST /leave/requests",
+        "PUT /leave/requests/${id}",
+        "PUT /leave/requests/${rejectTarget.id}",
+        "POST /leave/requests/${id}/cancel",
+        "PUT /leave/types/${editingType.id}",
+        "POST /leave/types",
+        "DELETE /leave/types/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "marketplace.tsx",
+      "relPath": "_authenticated/_app/marketplace.tsx",
+      "route": "/marketplace",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /cms/pages/system-addons-catalog",
+        "GET /cms/pages/${purchasedSlugKey}",
+        "PUT /cms/pages/${purchasedSlugKey}",
+        "GET /cms/pages/${invoicesSlug}",
+        "PUT /cms/pages/${invoicesSlug}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "media.tsx",
+      "relPath": "_authenticated/_app/media.tsx",
+      "route": "/media",
+      "apis": [
+        "GET /cms/pages/${slugKey}",
+        "PUT /cms/pages/${slugKey}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "notes.tsx",
+      "relPath": "_authenticated/_app/notes.tsx",
+      "route": "/notes",
+      "apis": [
+        "POST /notes",
+        "PUT /notes/${id}",
+        "DELETE /notes/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "notice-period-tracker.tsx",
+      "relPath": "_authenticated/_app/notice-period-tracker.tsx",
+      "route": "/notice-period-tracker",
+      "apis": [
+        "GET /offboarding?${params.toString()}",
+        "GET /employees?limit=100",
+        "POST /offboarding",
+        "POST /offboarding/${id}/clearance"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "offboarding.tsx",
+      "relPath": "_authenticated/_app/offboarding.tsx",
+      "route": "/offboarding",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /employees/departments",
+        "GET /employees",
+        "GET /offboarding/summary",
+        "POST /offboarding/exits",
+        "PUT /offboarding/exits/${id}/clearance",
+        "PUT /offboarding/exits/${exitId}/checklist/${itemId}",
+        "POST /offboarding/exits/${id}/settle-fnf",
+        "DELETE /offboarding/exits/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "okr.tsx",
+      "relPath": "_authenticated/_app/okr.tsx",
+      "route": "/okr",
+      "apis": [
+        "GET /addons/okr/cycles",
+        "GET /addons/okr/objectives?${params.toString()}",
+        "GET /addons/okr/checkins",
+        "GET /addons/okr/reviews",
+        "GET /employees",
+        "POST /addons/okr/objectives",
+        "POST /addons/okr/checkins",
+        "POST /addons/okr/reviews",
+        "POST /addons/okr/cycles"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "overtime.tsx",
+      "relPath": "_authenticated/_app/overtime.tsx",
+      "route": "/overtime",
+      "apis": [
+        "GET /overtime/stats",
+        "GET /overtime?${p}",
+        "GET /employees?limit=200",
+        "POST /overtime",
+        "PUT /overtime/${id}/review",
+        "DELETE /overtime/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "payment-report.tsx",
+      "relPath": "_authenticated/_app/payment-report.tsx",
+      "route": "/payment-report",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /payments${qStr ? ",
+        "GET /payments/razorpay/transactions"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "payroll-dashboard.tsx",
+      "relPath": "_authenticated/_app/payroll-dashboard.tsx",
+      "route": "/payroll-dashboard",
+      "apis": [
+        "GET /payroll"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "payroll.tsx",
+      "relPath": "_authenticated/_app/payroll.tsx",
+      "route": "/payroll",
+      "apis": [
+        "GET /payroll/runs",
+        "GET /payroll/payslips${qStr}",
+        "GET /payroll/employees",
+        "GET /payroll/salary-components",
+        "GET /payroll/salary-structures",
+        "GET /payroll/tax-declarations",
+        "POST /payroll/simulate-ctc",
+        "POST /payroll/generate",
+        "POST /payroll/batch/calculate",
+        "GET /payroll/runs/${runId}/traces",
+        "GET /payroll/preflight",
+        "PATCH /payroll/runs/${id}/status",
+        "PUT /payroll/salary-components/${editingComp.id}",
+        "POST /payroll/salary-components",
+        "PUT /payroll/salary-structures/${editingStruct.id}",
+        "POST /payroll/salary-structures",
+        "POST /payroll/salary-assignments",
+        "POST /payroll/tax-declarations",
+        "PATCH /payroll/tax-declarations/${id}/status",
+        "GET /payroll/statutory-forms/form16/${emp.id}?financialYear=2025-2026",
+        "GET /payroll/runs/${run.id}/snapshots"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "payslip-report.tsx",
+      "relPath": "_authenticated/_app/payslip-report.tsx",
+      "route": "/payslip-report",
+      "apis": [
+        "GET /employees/departments",
+        "GET /payroll/payslips${qStr ? "
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "performance-appraisal.tsx",
+      "relPath": "_authenticated/_app/performance-appraisal.tsx",
+      "route": "/performance-appraisal",
+      "apis": [
+        "GET /addons/okr/appraisals?${params.toString()}",
+        "GET /employees",
+        "GET /departments",
+        "POST /addons/okr/appraisals",
+        "PUT /addons/okr/appraisals/${id}",
+        "DELETE /addons/okr/appraisals/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "performance-indicator.tsx",
+      "relPath": "_authenticated/_app/performance-indicator.tsx",
+      "route": "/performance-indicator",
+      "apis": [
+        "GET /addons/okr/indicators?${params.toString()}",
+        "GET /employees",
+        "GET /departments",
+        "POST /addons/okr/indicators",
+        "PUT /addons/okr/indicators/${id}",
+        "DELETE /addons/okr/indicators/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "performance-review.tsx",
+      "relPath": "_authenticated/_app/performance-review.tsx",
+      "route": "/performance-review",
+      "apis": [
+        "GET /addons/okr/appraisals",
+        "GET /addons/okr/reviews/${selectedId}/scorecard"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "pipeline.tsx",
+      "relPath": "_authenticated/_app/pipeline.tsx",
+      "route": "/pipeline",
+      "apis": [
+        "GET /api/crm/leads"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "pos-dashboard.tsx",
+      "relPath": "_authenticated/_app/pos-dashboard.tsx",
+      "route": "/pos-dashboard",
+      "apis": [
+        "GET /dashboard/pos",
+        "GET /products"
+      ],
+      "perms": [
+        "pos.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "pos.tsx",
+      "relPath": "_authenticated/_app/pos.tsx",
+      "route": "/pos",
+      "apis": [
+        "GET /sales/register/current",
+        "POST /sales/register/open",
+        "POST /sales/register/close",
+        "POST /invoices/pos/sales",
+        "GET /cms/pages/system-platform-settings",
+        "GET /products/categories",
+        "GET /products",
+        "GET /cms/pages/${PRODUCTS_SLUG}",
+        "GET /invoices/pos/sales",
+        "GET /invoices/pos/held",
+        "POST /invoices/pos/held"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "probation.tsx",
+      "relPath": "_authenticated/_app/probation.tsx",
+      "route": "/probation",
+      "apis": [
+        "GET /probation?${p}",
+        "GET /employees?limit=200",
+        "POST /probation",
+        "PUT /probation/${id}",
+        "DELETE /probation/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "procurement-dashboard.tsx",
+      "relPath": "_authenticated/_app/procurement-dashboard.tsx",
+      "route": "/procurement-dashboard",
+      "apis": [],
+      "perms": [
+        "procurement.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "products.tsx",
+      "relPath": "_authenticated/_app/products.tsx",
+      "route": "/products",
+      "apis": [
+        "GET /products/brands",
+        "GET /cms/pages/system-platform-settings",
+        "GET /products/categories",
+        "GET /cms/pages/${categoriesSlug}",
+        "GET /products/taxes",
+        "GET /cms/pages/${taxesSlug}",
+        "GET /products/units",
+        "GET /cms/pages/${unitsSlug}",
+        "GET /products/warehouses",
+        "GET /cms/pages/${warehousesSlug}",
+        "GET /products",
+        "GET /cms/pages/${itemsSlug}",
+        "PUT /cms/pages/${itemsSlug}",
+        "PUT /cms/pages/${categoriesSlug}",
+        "PUT /cms/pages/${taxesSlug}",
+        "PUT /cms/pages/${unitsSlug}",
+        "POST /products",
+        "DELETE /products/${id}",
+        "POST /transfers",
+        "POST /products/stock/add",
+        "POST /products/categories",
+        "POST /products/taxes",
+        "POST /products/units",
+        "POST /products/brands"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "project-dashboard.tsx",
+      "relPath": "_authenticated/_app/project-dashboard.tsx",
+      "route": "/project-dashboard",
+      "apis": [],
+      "perms": [
+        "project.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "project-report.tsx",
+      "relPath": "_authenticated/_app/project-report.tsx",
+      "route": "/project-report",
+      "apis": [
+        "GET /projects"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "project.$id.tsx",
+      "relPath": "_authenticated/_app/project.$id.tsx",
+      "route": "/project.$id",
+      "apis": [
+        "PUT /projects/${id}",
+        "POST /projects/${id}/tasks",
+        "PUT /projects/tasks/${taskId}",
+        "DELETE /projects/tasks/${taskId}",
+        "POST /projects/${id}/generate-invoice",
+        "POST /projects/${id}/notes",
+        "POST /projects/${id}/files"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "projects.tsx",
+      "relPath": "_authenticated/_app/projects.tsx",
+      "route": "/projects",
+      "apis": [
+        "GET /projects",
+        "PUT /projects/tasks/${editingTask.id}",
+        "POST /projects/${activeProject.id}/tasks",
+        "DELETE /projects/tasks/${id}",
+        "PUT /projects/tasks/${task.id}",
+        "POST /projects",
+        "DELETE /projects/${projectId}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "promotions.tsx",
+      "relPath": "_authenticated/_app/promotions.tsx",
+      "route": "/promotions",
+      "apis": [
+        "GET /promotions?${p}",
+        "GET /employees?limit=200",
+        "POST /promotions",
+        "DELETE /promotions/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "proposals.tsx",
+      "relPath": "_authenticated/_app/proposals.tsx",
+      "route": "/proposals",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /crm/proposals",
+        "POST /crm/proposals",
+        "DELETE /crm/proposals/${id}",
+        "PATCH /crm/proposals/${id}",
+        "POST /crm/proposals/${p.id}/convert",
+        "POST /invoices"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "provident-fund.tsx",
+      "relPath": "_authenticated/_app/provident-fund.tsx",
+      "route": "/provident-fund",
+      "apis": [
+        "GET /provident-funds?${p}",
+        "GET /provident-funds/summary",
+        "GET /employees?limit=200",
+        "POST /provident-funds",
+        "PUT /provident-funds/${id}",
+        "DELETE /provident-funds/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "purchases.tsx",
+      "relPath": "_authenticated/_app/purchases.tsx",
+      "route": "/purchases",
+      "apis": [
+        "POST /api/purchases",
+        "PATCH /api/purchases/${id}/status",
+        "POST /api/purchases/${id}/payments"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "razorpay-gateway.tsx",
+      "relPath": "_authenticated/_app/razorpay-gateway.tsx",
+      "route": "/razorpay-gateway",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /payments/razorpay/config",
+        "GET /payments/razorpay/transactions",
+        "POST /payments/razorpay/config",
+        "POST /payments/razorpay/test-payment"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "recruitment-dashboard.tsx",
+      "relPath": "_authenticated/_app/recruitment-dashboard.tsx",
+      "route": "/recruitment-dashboard",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "recruitment.tsx",
+      "relPath": "_authenticated/_app/recruitment.tsx",
+      "route": "/recruitment",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /employees/departments",
+        "GET /employees",
+        "GET /recruitment/jobs",
+        "GET /recruitment/candidates",
+        "POST /recruitment/jobs",
+        "PUT /recruitment/jobs/${id}",
+        "DELETE /recruitment/jobs/${id}",
+        "PUT /recruitment/candidates/${id}/stage",
+        "PUT /recruitment/candidates/${id}/scorecard",
+        "POST /recruitment/candidates/${id}/convert-to-employee",
+        "POST /recruitment/candidates",
+        "POST /recruitment/candidates/${id}/interviews"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "recurring-invoices.tsx",
+      "relPath": "_authenticated/_app/recurring-invoices.tsx",
+      "route": "/recurring-invoices",
+      "apis": [
+        "GET /api/invoices/recurring?${params.toString()}",
+        "GET /api/invoices/recurring/${selectedRecord.id}",
+        "POST /api/invoices/recurring",
+        "PUT /api/invoices/recurring/${id}",
+        "PATCH /api/invoices/recurring/${id}/status",
+        "DELETE /api/invoices/recurring/${id}",
+        "POST /api/invoices/recurring/${id}/generate",
+        "POST /api/invoices/recurring/process-due"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "referrals.tsx",
+      "relPath": "_authenticated/_app/referrals.tsx",
+      "route": "/referrals",
+      "apis": [
+        "GET /api/recruitment/referrals?${params.toString()}",
+        "GET /api/employees",
+        "POST /api/recruitment/referrals",
+        "PUT /api/recruitment/referrals/${id}",
+        "DELETE /api/recruitment/referrals/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "resignation.tsx",
+      "relPath": "_authenticated/_app/resignation.tsx",
+      "route": "/resignation",
+      "apis": [
+        "GET /api/offboarding/exits?${params.toString()}",
+        "GET /api/employees",
+        "POST /api/offboarding/exits",
+        "PUT /api/offboarding/exits/${id}",
+        "DELETE /api/offboarding/exits/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "returns.tsx",
+      "relPath": "_authenticated/_app/returns.tsx",
+      "route": "/returns",
+      "apis": [
+        "GET /sales",
+        "GET /products",
+        "POST /returns/sales",
+        "GET /purchases",
+        "POST /returns/purchases",
+        "GET /returns/sales",
+        "GET /returns/purchases",
+        "GET /returns/credit-notes",
+        "GET /returns/debit-notes",
+        "PATCH /returns/sales/${id}/approve",
+        "PATCH /returns/purchases/${id}/approve",
+        "PATCH /returns/sales/${id}/complete",
+        "PATCH /returns/purchases/${id}/complete"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "route.tsx",
+      "relPath": "_authenticated/_app/route.tsx",
+      "route": "/route",
+      "apis": [
+        "POST /auth/logout",
+        "POST /super/leave-impersonation"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "sales-dashboard.tsx",
+      "relPath": "_authenticated/_app/sales-dashboard.tsx",
+      "route": "/sales-dashboard",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "settings.tsx",
+      "relPath": "_authenticated/_app/settings.tsx",
+      "route": "/settings",
+      "apis": [
+        "GET /cms/pages/tenant-${tenantId}-ai-keys",
+        "PUT /cms/pages/tenant-${tenantId}-ai-keys",
+        "POST /ai/settings",
+        "GET /auth/2fa/status",
+        "GET /shifts",
+        "PUT /shifts/${activeShift.id}",
+        "POST /shifts",
+        "PUT /auth/tenant",
+        "GET /employees/departments",
+        "GET /leave/types",
+        "POST /leave/types",
+        "PUT /leave/types/${id}",
+        "DELETE /leave/types/${id}",
+        "POST /employees/departments",
+        "PUT /employees/departments/${id}",
+        "DELETE /employees/departments/${id}",
+        "POST /auth/2fa/generate",
+        "POST /auth/2fa/enable",
+        "POST /auth/2fa/disable",
+        "POST /auth/2fa/backup-codes/regenerate"
+      ],
+      "perms": [],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "setup-notes.tsx",
+      "relPath": "_authenticated/_app/setup-notes.tsx",
+      "route": "/setup-notes",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "shift-swap-requests.tsx",
+      "relPath": "_authenticated/_app/shift-swap-requests.tsx",
+      "route": "/shift-swap-requests",
+      "apis": [
+        "GET /shifts/swaps?${params.toString()}",
+        "GET /employees?limit=100",
+        "POST /shifts/swaps",
+        "PUT /shifts/swaps/${id}/peer-action",
+        "PUT /shifts/swaps/${id}/manager-action"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "shifts.tsx",
+      "relPath": "_authenticated/_app/shifts.tsx",
+      "route": "/shifts",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /employees/departments",
+        "GET /shifts",
+        "GET /shifts/roster?startDate=${startDateStr}&endDate=${endDateStr}&departmentId=${selectedDepartment}",
+        "GET /shifts/swaps",
+        "POST /shifts/roster/assign",
+        "POST /shifts/roster/bulk-assign",
+        "POST /shifts",
+        "PUT /shifts/${id}",
+        "DELETE /shifts/${id}",
+        "POST /shifts/swaps",
+        "PUT /shifts/swaps/${id}/peer-action",
+        "PUT /shifts/swaps/${id}/manager-action"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "shopify.tsx",
+      "relPath": "_authenticated/_app/shopify.tsx",
+      "route": "/shopify",
+      "apis": [
+        "GET /shopify/dashboard",
+        "GET /shopify/stores",
+        "GET /shopify/logs",
+        "POST /shopify/test-connection",
+        "POST /shopify/stores",
+        "DELETE /shopify/stores/${id}",
+        "POST /shopify/logs/clear"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "subscription.tsx",
+      "relPath": "_authenticated/_app/subscription.tsx",
+      "route": "/subscription",
+      "apis": [
+        "GET /workspace/subscription",
+        "POST /support/platform/tickets",
+        "GET /super/plans",
+        "GET /cms/pages/system-monetization-plans",
+        "GET /cms/pages/system-addons-catalog",
+        "GET /cms/pages/${purchasedSlugKey}",
+        "GET /payments/razorpay/transactions",
+        "GET /cms/pages/system-platform-settings"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "suppliers.tsx",
+      "relPath": "_authenticated/_app/suppliers.tsx",
+      "route": "/suppliers",
+      "apis": [
+        "PUT /api/suppliers/${editingSupplier.id}",
+        "POST /api/suppliers",
+        "DELETE /api/suppliers/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "support-dashboard.tsx",
+      "relPath": "_authenticated/_app/support-dashboard.tsx",
+      "route": "/support-dashboard",
+      "apis": [],
+      "perms": [
+        "support.dashboard.view"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "support.tsx",
+      "relPath": "_authenticated/_app/support.tsx",
+      "route": "/support",
+      "apis": [
+        "GET /support/platform/summary/stats",
+        "POST /support/platform/tickets",
+        "POST /support/platform/tickets/${ticketId}/messages"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "system-states.tsx",
+      "relPath": "_authenticated/_app/system-states.tsx",
+      "route": "/system-states",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "tally-importer.tsx",
+      "relPath": "_authenticated/_app/tally-importer.tsx",
+      "route": "/tally-importer",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "GET /cms/pages/${SLUG}",
+        "PUT /cms/pages/${SLUG}",
+        "POST /accounting/tally/preview",
+        "POST /accounting/tally/import"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "task-board.tsx",
+      "relPath": "_authenticated/_app/task-board.tsx",
+      "route": "/task-board",
+      "apis": [
+        "GET /api/projects",
+        "GET /api/projects/tasks?${params.toString()}",
+        "POST /api/projects/tasks",
+        "PUT /api/projects/tasks/${taskId}",
+        "DELETE /api/projects/tasks/${taskId}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "tasks.tsx",
+      "relPath": "_authenticated/_app/tasks.tsx",
+      "route": "/tasks",
+      "apis": [
+        "GET /projects/tasks?${params.toString()}",
+        "GET /projects",
+        "PUT /projects/tasks/${taskId}",
+        "POST /projects/${projId}/tasks"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "taxes.tsx",
+      "relPath": "_authenticated/_app/taxes.tsx",
+      "route": "/taxes",
+      "apis": [
+        "GET /api/products/taxes",
+        "POST /api/products/taxes",
+        "PUT /api/products/taxes/${id}",
+        "DELETE /api/products/taxes/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "termination.tsx",
+      "relPath": "_authenticated/_app/termination.tsx",
+      "route": "/termination",
+      "apis": [
+        "GET /api/offboarding/exits",
+        "GET /api/employees",
+        "POST /api/offboarding/exits",
+        "PUT /api/offboarding/exits/${id}",
+        "DELETE /api/offboarding/exits/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "ticket-reports.tsx",
+      "relPath": "_authenticated/_app/ticket-reports.tsx",
+      "route": "/ticket-reports",
+      "apis": [
+        "GET /helpdesk/tickets",
+        "GET /helpdesk/summary/stats"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "timesheets.tsx",
+      "relPath": "_authenticated/_app/timesheets.tsx",
+      "route": "/timesheets",
+      "apis": [
+        "GET /employees",
+        "GET /projects",
+        "GET /workspace/timesheets",
+        "POST /workspace/timesheets",
+        "PUT /workspace/timesheets/${id}",
+        "DELETE /workspace/timesheets/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "todo.tsx",
+      "relPath": "_authenticated/_app/todo.tsx",
+      "route": "/todo",
+      "apis": [
+        "POST /todos",
+        "PUT /todos/${id}",
+        "DELETE /todos/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "training.tsx",
+      "relPath": "_authenticated/_app/training.tsx",
+      "route": "/training",
+      "apis": [
+        "GET /employees/departments",
+        "GET /employees",
+        "GET /training/enrollments",
+        "GET /training/summary",
+        "POST /training/courses",
+        "DELETE /training/courses/${id}",
+        "POST /training/enrollments",
+        "PUT /training/enrollments/${id}/progress"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "transfers.tsx",
+      "relPath": "_authenticated/_app/transfers.tsx",
+      "route": "/transfers",
+      "apis": [
+        "POST /api/transfers",
+        "PATCH /api/transfers/${id}/status"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "users.tsx",
+      "relPath": "_authenticated/_app/users.tsx",
+      "route": "/users",
+      "apis": [
+        "GET /workspace/users",
+        "GET /workspace/roles",
+        "PUT /workspace/users/"
+      ],
+      "perms": [
+        "workspace.users.manage"
+      ],
+      "hasAccessDenied": true,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "warnings.tsx",
+      "relPath": "_authenticated/_app/warnings.tsx",
+      "route": "/warnings",
+      "apis": [
+        "GET /api/warnings?${params.toString()}",
+        "GET /api/warnings/types",
+        "GET /api/employees?limit=200",
+        "POST /api/warnings",
+        "POST /api/warnings/types",
+        "POST /api/warnings/${id}/acknowledge",
+        "POST /api/warnings/${id}/resolve",
+        "DELETE /api/warnings/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "whatsapp-alerts.tsx",
+      "relPath": "_authenticated/_app/whatsapp-alerts.tsx",
+      "route": "/whatsapp-alerts",
+      "apis": [
+        "GET /cms/pages/${SLUG}",
+        "PUT /cms/pages/${SLUG}",
+        "POST /alerts/whatsapp/send",
+        "POST /alerts/whatsapp/simulate"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "work-from-home.tsx",
+      "relPath": "_authenticated/_app/work-from-home.tsx",
+      "route": "/work-from-home",
+      "apis": [
+        "GET /wfh?${p}",
+        "GET /employees?limit=200",
+        "POST /wfh",
+        "PUT /wfh/${id}/review",
+        "DELETE /wfh/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "workflows.tsx",
+      "relPath": "_authenticated/_app/workflows.tsx",
+      "route": "/workflows",
+      "apis": [
+        "GET /workflows/rules",
+        "GET /workflows/logs",
+        "POST /workflows/rules",
+        "PUT /workflows/rules/${id}",
+        "DELETE /workflows/rules/${id}",
+        "POST /workflows/rules/${rule.id}/trigger"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "workspace.tsx",
+      "relPath": "_authenticated/_app/workspace.tsx",
+      "route": "/workspace",
+      "apis": [],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    }
+  ],
+  "superPages": [
+    {
+      "file": "agents.tsx",
+      "relPath": "_authenticated/super/agents.tsx",
+      "route": "/super/agents",
+      "apis": [
+        "GET /api/super/support/agents",
+        "POST /api/super/support/agents",
+        "PUT /api/super/support/agents/${id}",
+        "DELETE /api/super/support/agents/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "analytics.tsx",
+      "relPath": "_authenticated/super/analytics.tsx",
+      "route": "/super/analytics",
+      "apis": [
+        "GET /api/super/analytics/telemetry",
+        "GET /super/tenants",
+        "PUT /cms/pages/system-analytics-config"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "api-docs.tsx",
+      "relPath": "_authenticated/super/api-docs.tsx",
+      "route": "/super/api-docs",
+      "apis": [
+        "GET /cms/pages/system-api-keys-matrix",
+        "PUT /cms/pages/system-api-keys-matrix"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "backup.tsx",
+      "relPath": "_authenticated/super/backup.tsx",
+      "route": "/super/backup",
+      "apis": [
+        "GET /super/backup/snapshots",
+        "POST /super/backup/generate",
+        "DELETE /super/backup/${filename}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "blogs.tsx",
+      "relPath": "_authenticated/super/blogs.tsx",
+      "route": "/super/blogs",
+      "apis": [
+        "GET /cms/pages/system-blog-categories",
+        "GET /cms/pages",
+        "PUT /cms/pages/system-blog-categories",
+        "PUT /cms/pages/${finalSlug}",
+        "POST /cms/pages",
+        "DELETE /cms/pages/${slug}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "case-studies.tsx",
+      "relPath": "_authenticated/super/case-studies.tsx",
+      "route": "/super/case-studies",
+      "apis": [
+        "GET /cms/pages/system-case-study-categories",
+        "GET /cms/pages",
+        "PUT /cms/pages/system-case-study-categories",
+        "PUT /cms/pages/${finalSlug}",
+        "POST /cms/pages",
+        "DELETE /cms/pages/${slug}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "cms.tsx",
+      "relPath": "_authenticated/super/cms.tsx",
+      "route": "/super/cms",
+      "apis": [
+        "GET /cms/pages",
+        "PUT /cms/pages/${slug}",
+        "POST /cms/pages",
+        "DELETE /cms/pages/${page.slug}",
+        "GET /cms/faqs",
+        "PUT /cms/faqs/${editingFaq.id}",
+        "POST /cms/faqs",
+        "DELETE /cms/faqs/${id}",
+        "PATCH /cms/faqs/reorder",
+        "GET /cms/testimonials",
+        "PUT /cms/testimonials/${editingItem.id}",
+        "POST /cms/testimonials",
+        "DELETE /cms/testimonials/${id}",
+        "PATCH /cms/testimonials/reorder"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "domains.tsx",
+      "relPath": "_authenticated/super/domains.tsx",
+      "route": "/super/domains",
+      "apis": [
+        "GET /api/super/domains",
+        "GET /api/super/tenants",
+        "PUT /api/super/domains/${id}/status",
+        "DELETE /api/super/domains/${id}",
+        "POST /api/super/domains"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "email-templates.tsx",
+      "relPath": "_authenticated/super/email-templates.tsx",
+      "route": "/super/email-templates",
+      "apis": [
+        "GET /cms/pages/system-email-templates",
+        "PUT /cms/pages/system-email-templates"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "escalation-rules.tsx",
+      "relPath": "_authenticated/super/escalation-rules.tsx",
+      "route": "/super/escalation-rules",
+      "apis": [
+        "GET /api/super/support/escalation-rules",
+        "POST /api/super/support/escalation-rules",
+        "PUT /api/super/support/escalation-rules/${id}",
+        "DELETE /api/super/support/escalation-rules/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "index.tsx",
+      "relPath": "_authenticated/super/index.tsx",
+      "route": "/super/index",
+      "apis": [
+        "GET /super/stats",
+        "GET /super/tenants",
+        "GET /super/transactions",
+        "POST /super/tenants",
+        "PUT /cms/pages/system-platform-broadcast"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "languages.tsx",
+      "relPath": "_authenticated/super/languages.tsx",
+      "route": "/super/languages",
+      "apis": [
+        "GET /super/languages",
+        "GET /super/languages/${selectedLangCode}",
+        "PUT /super/languages/${selectedLangCode}",
+        "POST /super/languages",
+        "DELETE /super/languages/${code}",
+        "PATCH /super/languages/${code}/toggle"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "marketplace.tsx",
+      "relPath": "_authenticated/super/marketplace.tsx",
+      "route": "/super/marketplace",
+      "apis": [
+        "GET /cms/pages/system-addons-catalog",
+        "PUT /cms/pages/system-addons-catalog"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "media.tsx",
+      "relPath": "_authenticated/super/media.tsx",
+      "route": "/super/media",
+      "apis": [
+        "GET /cms/pages/system-media-library",
+        "GET /cms/pages/system-client-logos",
+        "PUT /cms/pages/system-media-library",
+        "PUT /cms/pages/system-client-logos"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "notifications.tsx",
+      "relPath": "_authenticated/super/notifications.tsx",
+      "route": "/super/notifications",
+      "apis": [
+        "GET /cms/pages/system-notification-templates",
+        "PUT /cms/pages/system-notification-templates"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "plans.tsx",
+      "relPath": "_authenticated/super/plans.tsx",
+      "route": "/super/plans",
+      "apis": [
+        "GET /cms/pages/system-monetization-plans",
+        "GET /cms/pages/system-addons-catalog",
+        "GET /cms/pages/system-platform-settings",
+        "PUT /cms/pages/system-monetization-plans",
+        "GET /cms/pages/tenant-default-purchased-addons-v2",
+        "PUT /cms/pages/tenant-default-purchased-addons-v2"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "profile.tsx",
+      "relPath": "_authenticated/super/profile.tsx",
+      "route": "/super/profile",
+      "apis": [
+        "PUT /auth/profile",
+        "GET /cms/pages/system-media-library",
+        "PUT /cms/pages/system-media-library"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "roles.tsx",
+      "relPath": "_authenticated/super/roles.tsx",
+      "route": "/super/roles",
+      "apis": [
+        "POST /super/users/${userId}/reset-2fa",
+        "GET /cms/pages/system-role-definitions",
+        "PUT /cms/pages/system-role-definitions",
+        "GET /super/users",
+        "GET /super/tenants",
+        "PUT /super/users/${uid}/roles",
+        "POST /auth/register"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "route.tsx",
+      "relPath": "_authenticated/super/route.tsx",
+      "route": "/super/route",
+      "apis": [
+        "POST /auth/logout"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "settings.tsx",
+      "relPath": "_authenticated/super/settings.tsx",
+      "route": "/super/settings",
+      "apis": [
+        "GET /cms/pages/system-platform-settings",
+        "PUT /cms/pages/system-platform-settings",
+        "POST /super/smtp/test-otp-email"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "sla-policies.tsx",
+      "relPath": "_authenticated/super/sla-policies.tsx",
+      "route": "/super/sla-policies",
+      "apis": [
+        "GET /api/super/support/sla-policies",
+        "POST /api/super/support/sla-policies",
+        "PUT /api/super/support/sla-policies/${id}",
+        "DELETE /api/super/support/sla-policies/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": false
+    },
+    {
+      "file": "support.tsx",
+      "relPath": "_authenticated/super/support.tsx",
+      "route": "/super/support",
+      "apis": [
+        "GET /support/platform/summary/stats?isSuper=true",
+        "POST /support/platform/tickets/${id}/action",
+        "POST /support/platform/tickets/${ticketId}/messages",
+        "DELETE /support/platform/tickets/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "tenant-support-tickets.tsx",
+      "relPath": "_authenticated/super/tenant-support-tickets.tsx",
+      "route": "/super/tenant-support-tickets",
+      "apis": [
+        "GET /api/support/platform/tickets",
+        "GET /api/super/tenants",
+        "PUT /api/support/platform/tickets/${id}",
+        "POST /api/support/platform/tickets",
+        "DELETE /api/support/platform/tickets/${id}",
+        "POST /api/support/platform/tickets/${id}/messages"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "tenant-usage-metrics.tsx",
+      "relPath": "_authenticated/super/tenant-usage-metrics.tsx",
+      "route": "/super/tenant-usage-metrics",
+      "apis": [
+        "GET /api/super/tenant-usage-metrics",
+        "PUT /api/super/tenants/${id}/status"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "tenants.tsx",
+      "relPath": "_authenticated/super/tenants.tsx",
+      "route": "/super/tenants",
+      "apis": [
+        "GET /super/tenants",
+        "POST /super/impersonate/${tenant.id}",
+        "POST /super/tenants",
+        "PUT /super/tenants/${targetTenant.id}/policy",
+        "PUT /super/tenants/${tenant.id}/status",
+        "DELETE /super/tenants/${targetTenant.id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "transactions.tsx",
+      "relPath": "_authenticated/super/transactions.tsx",
+      "route": "/super/transactions",
+      "apis": [
+        "GET /super/transactions"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    },
+    {
+      "file": "users.tsx",
+      "relPath": "_authenticated/super/users.tsx",
+      "route": "/super/users",
+      "apis": [
+        "GET /super/tenants",
+        "GET /super/users${query}",
+        "POST /super/users",
+        "PUT /super/users/${payload.id}",
+        "PUT /super/users/${id}/reset-password",
+        "GET /super/users/${loginHistoryUserFilter.id}/login-history?${qs.toString()}",
+        "GET /super/users/login-history?${qs.toString()}",
+        "DELETE /super/users/login-history/${id}",
+        "DELETE /super/users/${id}"
+      ],
+      "perms": [],
+      "hasAccessDenied": false,
+      "hasSuperAdminMention": true
+    }
+  ]
+}

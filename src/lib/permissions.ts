@@ -9,7 +9,6 @@ export function isSuperAdminUser(profile: ProfileWithRoles | null | undefined): 
 
 export function isWorkspaceAdminUser(profile: ProfileWithRoles | null | undefined): boolean {
   if (!profile) return false;
-  if (isSuperAdminUser(profile)) return true;
   if (profile.roles?.includes("admin") || profile.roles?.includes("workspace_admin")) return true;
   return profile.workspaceRole?.name === "Workspace Admin" && profile.workspaceRole?.isActive === true;
 }
@@ -19,7 +18,6 @@ export function hasPermission(
   profile: ProfileWithRoles | null | undefined
 ): boolean {
   if (!profile) return false;
-  if (isSuperAdminUser(profile)) return true;
   if (isWorkspaceAdminUser(profile)) return true;
 
   // Check if parent module is disabled in workspace
@@ -38,7 +36,7 @@ export function hasAnyPermission(
   profile: ProfileWithRoles | null | undefined
 ): boolean {
   if (!profile) return false;
-  if (isSuperAdminUser(profile) || isWorkspaceAdminUser(profile)) return true;
+  if (isWorkspaceAdminUser(profile)) return true;
   return codes.some((code) => hasPermission(code, profile));
 }
 
@@ -47,7 +45,7 @@ export function hasAllPermissions(
   profile: ProfileWithRoles | null | undefined
 ): boolean {
   if (!profile) return false;
-  if (isSuperAdminUser(profile) || isWorkspaceAdminUser(profile)) return true;
+  if (isWorkspaceAdminUser(profile)) return true;
   return codes.every((code) => hasPermission(code, profile));
 }
 
@@ -56,7 +54,6 @@ export function isModuleAllowed(
   profile: ProfileWithRoles | null | undefined
 ): boolean {
   if (!profile) return false;
-  if (isSuperAdminUser(profile)) return true;
 
   const mod = ERP_MODULES.find((m) => m.key === moduleKey);
   if (!mod) return false;
@@ -69,6 +66,33 @@ export function isModuleAllowed(
   // Check role permission
   if (isWorkspaceAdminUser(profile)) return true;
   return (profile.permissions || []).includes(mod.permission);
+}
+
+/**
+ * Platform-only routes: Strictly restricted to Platform Super Admin
+ */
+export const PLATFORM_ONLY_ROUTES = ["/cronjob"];
+
+export function isPlatformOnlyRoute(pathname: string): boolean {
+  if (pathname.startsWith("/super")) return true;
+  return PLATFORM_ONLY_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
+}
+
+/**
+ * Explicitly approved shared routes: Normal routes authorized for Platform Super Admin
+ * as well as authorized tenant roles.
+ */
+export const EXPLICIT_SHARED_ROUTES = [
+  "/clear-cache",
+  "/system-states",
+  "/ai-configuration",
+  "/ai-settings",
+  "/ai-writer",
+  "/ai",
+];
+
+export function isSharedRoute(pathname: string): boolean {
+  return EXPLICIT_SHARED_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
 }
 
 /**

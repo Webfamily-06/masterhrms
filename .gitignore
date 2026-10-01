@@ -99,3 +99,7 @@ tenant_dashboard.png
 ui/
 ui-2/
 main-file/
+
+# Runtime storage & OCR models
+server/storage/
+*.traineddata

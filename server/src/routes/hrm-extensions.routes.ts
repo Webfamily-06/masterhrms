@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
-import { requireAuth, AuthRequest, requireRole } from "../middleware/auth";
+import { requireAuth, AuthRequest, requireRole, requireSuperAdmin } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
@@ -609,7 +609,7 @@ providentFundRouter.get("/summary", async (req: AuthRequest, res: Response) => {
 });
 
 // POST /api/provident-funds
-providentFundRouter.post("/", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+providentFundRouter.post("/", requireRole("admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -687,7 +687,7 @@ providentFundRouter.post("/", requireRole("admin", "super_admin", "tenant_admin"
 });
 
 // PUT /api/provident-funds/:id
-providentFundRouter.put("/:id", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+providentFundRouter.put("/:id", requireRole("admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -753,7 +753,7 @@ providentFundRouter.put("/:id", requireRole("admin", "super_admin", "tenant_admi
 });
 
 // DELETE /api/provident-funds/:id
-providentFundRouter.delete("/:id", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+providentFundRouter.delete("/:id", requireRole("admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -805,7 +805,7 @@ bannedIpRouter.get("/", async (req: AuthRequest, res: Response) => {
 });
 
 // POST /api/banned-ips
-bannedIpRouter.post("/", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+bannedIpRouter.post("/", requireRole("admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -835,7 +835,7 @@ bannedIpRouter.post("/", requireRole("admin", "super_admin", "tenant_admin", "hr
 });
 
 // PUT /api/banned-ips/:id
-bannedIpRouter.put("/:id", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+bannedIpRouter.put("/:id", requireRole("admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -869,7 +869,7 @@ bannedIpRouter.put("/:id", requireRole("admin", "super_admin", "tenant_admin", "
 });
 
 // DELETE /api/banned-ips/:id
-bannedIpRouter.delete("/:id", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+bannedIpRouter.delete("/:id", requireRole("admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -886,17 +886,17 @@ bannedIpRouter.delete("/:id", requireRole("admin", "super_admin", "tenant_admin"
 
 // ─── SYSTEM MAINTENANCE & CACHE ─────────────────────────────────────────────
 
-systemMaintenanceRouter.use(requireAuth, resolveTenantContext);
+systemMaintenanceRouter.use(requireAuth);
 
 systemMaintenanceRouter.post("/clear-cache", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = resolveTenantId(req, res);
-    if (!tenantId) return;
+    const isSuper = req.user?.roles?.includes("super_admin");
+    const tenantId = req.user?.tenantId;
     const { cacheType = "all" } = req.body;
 
     let evictedPool = false;
-    // Evict tenant connection pool cache
-    if (cacheType === "runtime" || cacheType === "all") {
+    // Evict tenant connection pool cache if tenant context is present
+    if (tenantId && (cacheType === "runtime" || cacheType === "all")) {
       evictedPool = await TenantConnectionManager.getInstance().evictTenant(tenantId);
     }
 
@@ -908,7 +908,10 @@ systemMaintenanceRouter.post("/clear-cache", requireRole("admin", "super_admin",
 
     res.json({
       success: true,
-      message: `System cache cleared for workspace context (${tenantId}).`,
+      scope: isSuper ? "platform" : "tenant",
+      message: isSuper
+        ? "Platform system cache and runtime memory cleared successfully."
+        : `System cache cleared for workspace context (${tenantId}).`,
       clearedAt: new Date().toISOString(),
       cacheType,
       evictedConnectionPool: evictedPool,
@@ -925,8 +928,10 @@ systemMaintenanceRouter.post("/clear-cache", requireRole("admin", "super_admin",
 
 // ─── CRON JOBS SCHEDULER & HEALTH ───────────────────────────────────────────
 
+// ─── CRON JOBS SCHEDULER & HEALTH (PLATFORM SUPER ADMIN ONLY) ───────────────────
+
 // GET /api/system/cronjobs
-systemMaintenanceRouter.get("/cronjobs", async (req: AuthRequest, res: Response) => {
+systemMaintenanceRouter.get("/cronjobs", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     let jobs = await prisma.systemCronJob.findMany({
       orderBy: { createdAt: "asc" },
@@ -1018,7 +1023,7 @@ function isValidCronExpression(expr: string): boolean {
 }
 
 // POST /api/system/cronjobs
-systemMaintenanceRouter.post("/cronjobs", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+systemMaintenanceRouter.post("/cronjobs", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { name, schedule, cronExpression = "*/5 * * * *" } = req.body;
     if (!name || !schedule) {
@@ -1051,7 +1056,7 @@ systemMaintenanceRouter.post("/cronjobs", requireRole("admin", "super_admin", "t
 });
 
 // PUT /api/system/cronjobs/:id
-systemMaintenanceRouter.put("/cronjobs/:id", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+systemMaintenanceRouter.put("/cronjobs/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, schedule, cronExpression, status } = req.body;
@@ -1077,7 +1082,7 @@ systemMaintenanceRouter.put("/cronjobs/:id", requireRole("admin", "super_admin",
 });
 
 // POST /api/system/cronjobs/:id/run
-systemMaintenanceRouter.post("/cronjobs/:id/run", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+systemMaintenanceRouter.post("/cronjobs/:id/run", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.systemCronJob.findUnique({ where: { id } });
@@ -1086,7 +1091,7 @@ systemMaintenanceRouter.post("/cronjobs/:id/run", requireRole("admin", "super_ad
     const startTime = Date.now();
     let executionError: string | null = null;
 
-    // Dispatch actual background job handler if recognized
+    // Dispatch background job handler with proper platform vs tenant isolation context
     if (existing.code.includes("biometric") || existing.code === "biometric_punch_sync") {
       try {
         await runBiometricAutoSync();
@@ -1130,7 +1135,7 @@ systemMaintenanceRouter.post("/cronjobs/:id/run", requireRole("admin", "super_ad
 });
 
 // DELETE /api/system/cronjobs/:id
-systemMaintenanceRouter.delete("/cronjobs/:id", requireRole("admin", "super_admin", "tenant_admin", "hr_admin"), async (req: AuthRequest, res: Response) => {
+systemMaintenanceRouter.delete("/cronjobs/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     await prisma.systemCronJob.delete({ where: { id } });

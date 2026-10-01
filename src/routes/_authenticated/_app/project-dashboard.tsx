@@ -1,8 +1,10 @@
 import { usePermissions } from "@/lib/permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { Loader2 } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initProjectCharts } from "@/lib/dashboard-charts";
 
@@ -12,6 +14,14 @@ export const Route = createFileRoute("/_authenticated/_app/project-dashboard")({
 
 export default function ProjectDashboardPage() {
   const { canAccessModule, loading } = usePermissions();
+
+  const { data: projectData } = useQuery({
+    queryKey: ["dashboard-projects"],
+    queryFn: async () => {
+      const res = await api.get<any>("/dashboard/projects");
+      return res;
+    },
+  });
 
   if (loading) {
     return (
@@ -86,9 +96,9 @@ export default function ProjectDashboardPage() {
 								<div className="min-w-0">
 									<p className="text-xs text-default mb-1">Total Projects</p>
 									<div className="flex items-center gap-2">
-										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">65</h2>
+										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">{projectData?.totalProjects ?? 0}</h2>
 										<span className="text-[11px] text-success font-medium inline-flex items-center">
-											<i className="ph ph-arrow-up text-[10px]"></i>5.62%
+											<i className="ph ph-arrow-up text-[10px]"></i>Live
 										</span>
 									</div>
 								</div>
@@ -105,9 +115,9 @@ export default function ProjectDashboardPage() {
 								<div className="min-w-0">
 									<p className="text-xs text-default mb-1">Active Projects</p>
 									<div className="flex items-center gap-2">
-										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">32</h2>
+										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">{projectData?.activeProjects ?? 0}</h2>
 										<span className="text-[11px] text-success font-medium inline-flex items-center">
-											<i className="ph ph-arrow-up text-[10px]"></i>6.64%
+											<i className="ph ph-arrow-up text-[10px]"></i>Live
 										</span>
 									</div>
 								</div>
@@ -122,11 +132,11 @@ export default function ProjectDashboardPage() {
 									<i className="ph-duotone ph-check-circle text-purple text-lg"></i>
 								</div>
 								<div className="min-w-0">
-									<p className="text-xs text-default mb-1">Finished Projects</p>
+									<p className="text-xs text-default mb-1">Finished Tasks</p>
 									<div className="flex items-center gap-2">
-										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">33</h2>
+										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">{projectData?.completedTasks ?? 0}</h2>
 										<span className="text-[11px] text-success font-medium inline-flex items-center">
-											<i className="ph ph-arrow-up text-[10px]"></i>4.84%
+											<i className="ph ph-arrow-up text-[10px]"></i>Live
 										</span>
 									</div>
 								</div>
@@ -141,11 +151,11 @@ export default function ProjectDashboardPage() {
 									<i className="ph-duotone ph-users text-success text-lg"></i>
 								</div>
 								<div className="min-w-0">
-									<p className="text-xs text-default mb-1">Active Users</p>
+									<p className="text-xs text-default mb-1">In-Progress Tasks</p>
 									<div className="flex items-center gap-2">
-										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">254</h2>
+										<h2 className="text-xl max-lg:text-lg font-bold text-gray-900 mb-0">{projectData?.inProgressTasks ?? 0}</h2>
 										<span className="text-[11px] text-success font-medium inline-flex items-center">
-											<i className="ph ph-arrow-up text-[10px]"></i>4.65%
+											<i className="ph ph-arrow-up text-[10px]"></i>Live
 										</span>
 									</div>
 								</div>
@@ -238,9 +248,9 @@ export default function ProjectDashboardPage() {
 						<div className="bg-white border border-border-color rounded-md p-4 pb-1.5">
 							<div className="flex items-center justify-between flex-wrap gap-2 mb-3">
 								<h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Tasks</h3>
-								<a href="tasks.html" className="btn-sm bg-white border border-border-color text-dark hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer">
+								<Link to="/tasks" className="btn-sm bg-white border border-border-color text-dark hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer">
 									View All<i className="icon-chevron-right"></i>
-								</a>
+								</Link>
 							</div>
 							<div className="overflow-x-auto">
 								<table className="w-full text-sm">
@@ -344,9 +354,9 @@ export default function ProjectDashboardPage() {
 						<div className="bg-white border border-border-color rounded-md p-4 pb-1.5">
 							<div className="flex items-center justify-between flex-wrap gap-2 mb-3">
 								<h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Milestones</h3>
-								<a href="milestones.html" className="btn-sm bg-white border border-border-color text-dark hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer">
+								<Link to="/projects" className="btn-sm bg-white border border-border-color text-dark hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer">
 									View All<i className="icon-chevron-right"></i>
-								</a>
+								</Link>
 							</div>
 							<div className="overflow-x-auto">
 								<table className="w-full text-sm">
@@ -529,9 +539,9 @@ export default function ProjectDashboardPage() {
 						<div className="bg-white border border-border-color rounded-md p-4 lg:col-span-6 xl:col-span-4">
 							<div className="flex items-center justify-between flex-wrap gap-2 mb-3">
 								<h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Teams</h3>
-								<a href="departments.html" className="btn-sm bg-white border border-border-color text-dark hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer">
+								<Link to="/departments" className="btn-sm bg-white border border-border-color text-dark hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer">
 									View All<i className="icon-chevron-right"></i>
-								</a>
+								</Link>
 							</div>
 							<div className="space-y-2">
 								<div className="flex items-center justify-between gap-3">

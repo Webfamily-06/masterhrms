@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { useCurrentProfile, useSession, hasRole } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -81,10 +81,14 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useState, useMemo } from "react";
-import { toast } from "sonner";
 import { generatePayslipPdf } from "@/lib/pdf-generator";
 import { generateOfficialStatutoryPdf } from "@/lib/statutory-pdf-generator";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { FbpWorkspace } from "@/components/payroll/fbp-workspace";
+import { TaxVerificationWorkspace } from "@/components/payroll/tax-verification-workspace";
+import { BankDisbursementWorkspace } from "@/components/payroll/bank-disbursement-workspace";
+import { StatutoryReturnsWorkspace } from "@/components/payroll/statutory-returns-workspace";
 
 export const Route = createFileRoute("/_authenticated/_app/payroll")({
   component: Payroll,
@@ -116,6 +120,7 @@ function Payroll() {
   const [filterMonth, setFilterMonth] = useState<string>(String(new Date().getMonth() + 1));
   const [filterYear, setFilterYear] = useState<string>(String(CURRENT_YEAR));
   const [searchEmployee, setSearchEmployee] = useState<string>("");
+  const selectedYear = Number(filterYear !== "all" ? filterYear : CURRENT_YEAR);
 
   // Modals & Drawers
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
@@ -125,6 +130,13 @@ function Payroll() {
 
   const [viewingSlip, setViewingSlip] = useState<any | null>(null);
   const [viewingSnapshot, setViewingSnapshot] = useState<any | null>(null);
+  const [viewingTraces, setViewingTraces] = useState<{ runId: string; traces: any[] } | null>(null);
+  const [preflightData, setPreflightData] = useState<any | null>(null);
+  const [isPreflightLoading, setIsPreflightLoading] = useState(false);
+  const [cutoffStartDay, setCutoffStartDay] = useState<number>(1);
+  const [cutoffEndDay, setCutoffEndDay] = useState<number>(0);
+  const [exportingExcelId, setExportingExcelId] = useState<string | null>(null);
+  const [exportingPdfId, setExportingPdfId] = useState<string | null>(null);
 
   // Component Modal State
   const [isCompModalOpen, setIsCompModalOpen] = useState(false);
@@ -352,6 +364,110 @@ function Payroll() {
       toast.error(err.message || "Failed to process payroll batch.");
     },
   });
+
+  // Batch Calculate via Formula DAG Mutation (Phase 1 Foundation Engine)
+  const batchCalculateMutation = useMutation({
+    mutationFn: async (payload: {
+      periodMonth: number;
+      periodYear: number;
+      cutoffStartDay?: number;
+      cutoffEndDay?: number;
+    }) => {
+      return await api.post("/payroll/batch/calculate", payload);
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["payroll-runs"] });
+      qc.invalidateQueries({ queryKey: ["all-payslips"] });
+      setIsRunModalOpen(false);
+      setPreflightData(null);
+      toast.success(
+        `Batch calculated via Safe Formula DAG for ${data.result?.processedCount || 0} employees! Total Net: ₹${Number(data.result?.totalNet || 0).toLocaleString("en-IN")}`
+      );
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Formula DAG batch calculation failed.");
+    },
+  });
+
+  const handleDownloadExcel = async (runId: string) => {
+    try {
+      setExportingExcelId(runId);
+      const token = localStorage.getItem("hrms_auth_token");
+      const res = await fetch(`${API_BASE}/payroll/runs/${runId}/export/excel`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to generate Excel export");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Paysheet_Export_${runId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Excel paysheet exported successfully (7-group IR)!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to download Excel paysheet.");
+    } finally {
+      setExportingExcelId(null);
+    }
+  };
+
+  const handleDownloadPdf = async (runId: string) => {
+    try {
+      setExportingPdfId(runId);
+      const token = localStorage.getItem("hrms_auth_token");
+      const res = await fetch(`${API_BASE}/payroll/runs/${runId}/export/pdf`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to generate PDF register");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Paysheet_Export_${runId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Landscape Vector PDF register exported successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to download PDF register.");
+    } finally {
+      setExportingPdfId(null);
+    }
+  };
+
+  const handleViewTraces = async (runId: string) => {
+    try {
+      const res: any = await api.get(`/payroll/runs/${runId}/traces`);
+      setViewingTraces({ runId, traces: res.traces || [] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load execution traces.");
+    }
+  };
+
+  const handleRunPreflight = async () => {
+    try {
+      setIsPreflightLoading(true);
+      const res: any = await api.get("/payroll/preflight");
+      setPreflightData(res);
+      if (res.passed) {
+        toast.success(`Pre-flight diagnostic passed for ${res.totalEmployees} employees!`);
+      } else {
+        toast.warning(`Pre-flight found ${res.errorCount} blocking errors.`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Pre-flight diagnostic failed.");
+    } finally {
+      setIsPreflightLoading(false);
+    }
+  };
 
   // Update Run Status Mutation
   const updateRunStatusMutation = useMutation({
@@ -618,9 +734,24 @@ function Payroll() {
                 <span>Tax & Form 12BB</span>
               </TabsTrigger>
 
+              <TabsTrigger value="fbp" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Layers className="size-3.5 text-cyan-600" />
+                <span>Flexible Benefits (FBP)</span>
+              </TabsTrigger>
+
               <TabsTrigger value="statutory_forms" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
                 <FileCode className="size-3.5 text-teal-600" />
                 <span>Form 16 & Form 138</span>
+              </TabsTrigger>
+
+              <TabsTrigger value="disbursement" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Landmark className="size-3.5 text-blue-600" />
+                <span>Bank Disbursement</span>
+              </TabsTrigger>
+
+              <TabsTrigger value="statutory_returns" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <ShieldCheck className="size-3.5 text-emerald-600" />
+                <span>EPF & ESIC Returns</span>
               </TabsTrigger>
             </>
           )}
@@ -787,6 +918,37 @@ function Payroll() {
                               <Shield className="size-3 mr-1" /> Frozen Snapshot ({run.snapshots_count})
                             </Button>
                           )}
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadExcel(run.id)}
+                            disabled={exportingExcelId === run.id}
+                            className="h-7 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-300"
+                          >
+                            <FileSpreadsheet className="size-3 mr-1" />
+                            {exportingExcelId === run.id ? "Exporting..." : "Excel"}
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadPdf(run.id)}
+                            disabled={exportingPdfId === run.id}
+                            className="h-7 text-[11px] font-bold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border-rose-300"
+                          >
+                            <Download className="size-3 mr-1" />
+                            {exportingPdfId === run.id ? "Exporting..." : "PDF"}
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleViewTraces(run.id)}
+                            className="h-7 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50"
+                          >
+                            <Brain className="size-3 mr-1" /> Traces
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1188,119 +1350,14 @@ function Payroll() {
           </Card>
         </TabsContent>
 
-        {/* ===================== TAB 6: TAX DECLARATIONS (FORM 12BB) ===================== */}
+        {/* ===================== TAB 6: TAX DECLARATIONS (FORM 12BB & SPLIT-PANE VERIFICATION) ===================== */}
         <TabsContent value="tax_declarations" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-foreground">Form 12BB Employee Tax Declarations</h3>
-              <p className="text-xs text-muted-foreground">
-                Employee claims under Section 192 (HRA, 80C, 80D, 24b) with proof verification.
-              </p>
-            </div>
-            {isHR && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setDeclaringEmp(payrollEmployees[0] || null);
-                  setDeclFinancialYear("2025-2026");
-                  setDeclTaxRegime("new");
-                  setDeclHouseRent(0);
-                  setDecl80C(0);
-                  setDecl80D(0);
-                  setDecl80G(0);
-                  setDeclHomeLoan(0);
-                  setDeclOtherIncome(0);
-                  setIsDeclarationModalOpen(true);
-                }}
-                className="h-8 text-xs font-bold bg-primary text-primary-foreground gap-1.5"
-              >
-                <Plus className="size-3.5" /> Submit Form 12BB
-              </Button>
-            )}
-          </div>
+          <TaxVerificationWorkspace isHR={isHR} financialYear={`${selectedYear}-${selectedYear + 1}`} />
+        </TabsContent>
 
-          <Card className="border shadow-2xs bg-card">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40 text-xs">
-                    <TableHead className="font-bold py-2.5">Staff</TableHead>
-                    <TableHead className="font-bold">Financial Year</TableHead>
-                    <TableHead className="font-bold">Tax Regime</TableHead>
-                    <TableHead className="font-bold">Total Claimed</TableHead>
-                    <TableHead className="font-bold">Total Approved</TableHead>
-                    <TableHead className="font-bold">Status</TableHead>
-                    <TableHead className="text-right font-bold pr-4">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {taxDeclarations.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-xs italic">
-                        No Form 12BB declarations submitted for this fiscal year.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    taxDeclarations.map((decl: any) => (
-                      <TableRow key={decl.id} className="text-xs hover:bg-muted/20 transition-colors">
-                        <TableCell>
-                          <div className="font-bold text-foreground">
-                            {decl.employee?.firstName} {decl.employee?.lastName}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground font-mono">
-                            {decl.employee?.employeeCode} &bull; PAN: {decl.employee?.pan || "N/A"}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono font-bold">{decl.financialYear}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                            {decl.taxRegime} Regime
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono font-bold text-foreground">
-                          {fmtCurrency(Number(decl.totalDeductionClaimed || 0))}
-                        </TableCell>
-                        <TableCell className="font-mono font-bold text-emerald-600">
-                          {fmtCurrency(Number(decl.totalDeductionApproved || 0))}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[10px] uppercase font-bold",
-                              decl.status === "verified"
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                                : "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                            )}
-                          >
-                            {decl.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right pr-4 space-x-1">
-                          {isHR && decl.status !== "verified" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                verifyDeclarationMutation.mutate({
-                                  id: decl.id,
-                                  status: "verified",
-                                  totalDeductionApproved: Number(decl.totalDeductionClaimed || 0),
-                                })
-                              }
-                              className="h-7 text-[11px] font-bold text-emerald-600"
-                            >
-                              <Check className="size-3 mr-1" /> Approve
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+        {/* ===================== TAB 7: FLEXIBLE BENEFIT PLAN (FBP) WORKSPACE ===================== */}
+        <TabsContent value="fbp" className="space-y-4">
+          <FbpWorkspace isHR={isHR} financialYear={`${selectedYear}-${selectedYear + 1}`} />
         </TabsContent>
 
         {/* ===================== TAB 7: STATUTORY FORMS ===================== */}
@@ -1500,6 +1557,16 @@ function Payroll() {
           </div>
         </TabsContent>
 
+        {/* ===================== TAB: BANK DISBURSEMENT (WAVE 2.4) ===================== */}
+        <TabsContent value="disbursement" className="space-y-4">
+          <BankDisbursementWorkspace runs={runs} />
+        </TabsContent>
+
+        {/* ===================== TAB: EPF & ESIC RETURNS (WAVE 2.4) ===================== */}
+        <TabsContent value="statutory_returns" className="space-y-4">
+          <StatutoryReturnsWorkspace runs={runs} />
+        </TabsContent>
+
         {/* ===================== TAB 8: AI FORECAST ===================== */}
         <TabsContent value="ai_forecast" className="space-y-4">
           <Card className="border shadow-2xs bg-gradient-to-br from-amber-500/5 via-background to-orange-500/5">
@@ -1600,6 +1667,85 @@ function Payroll() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-lg border bg-muted/20">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Cutoff Start Day</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={cutoffStartDay}
+                  onChange={(e) => setCutoffStartDay(Number(e.target.value) || 1)}
+                  className="h-8 text-xs font-mono"
+                  placeholder="1 (Default)"
+                />
+                <span className="text-[10px] text-muted-foreground">Day of month (e.g. 25)</span>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Cutoff End Day</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={31}
+                  value={cutoffEndDay}
+                  onChange={(e) => setCutoffEndDay(Number(e.target.value) || 0)}
+                  className="h-8 text-xs font-mono"
+                  placeholder="0 (End of month)"
+                />
+                <span className="text-[10px] text-muted-foreground">0 = End of month</span>
+              </div>
+            </div>
+
+            {/* Pre-flight Diagnostics Section */}
+            <div className="p-3 rounded-lg border bg-background space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-emerald-600" />
+                  <span className="text-xs font-bold">Pre-Flight Diagnostic Check</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRunPreflight}
+                  disabled={isPreflightLoading}
+                  className="h-7 text-[11px] font-bold"
+                >
+                  {isPreflightLoading ? "Checking..." : "Run Diagnostics"}
+                </Button>
+              </div>
+
+              {preflightData && (
+                <div className={cn(
+                  "p-2.5 rounded text-xs border font-sans",
+                  preflightData.passed
+                    ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                    : "bg-rose-500/10 text-rose-700 border-rose-500/20"
+                )}>
+                  <div className="font-bold flex items-center justify-between">
+                    <span>{preflightData.passed ? "Diagnostic Passed" : "Preflight Errors Found"}</span>
+                    <Badge variant={preflightData.passed ? "default" : "destructive"} className="text-[10px]">
+                      {preflightData.totalEmployees} Employees Checked
+                    </Badge>
+                  </div>
+                  {preflightData.errorCount > 0 && (
+                    <div className="text-[11px] mt-1 space-y-0.5">
+                      <p className="font-semibold">{preflightData.errorCount} blocking errors:</p>
+                      {preflightData.issues.slice(0, 3).map((iss: any, idx: number) => (
+                        <div key={idx} className="text-[10px] text-rose-600">
+                          • {iss.employeeName} ({iss.employeeCode}): {iss.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {preflightData.warningCount > 0 && (
+                    <div className="text-[10px] text-amber-600 mt-0.5">
+                      {preflightData.warningCount} compliance warnings (e.g. missing PAN/UAN).
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
               <div className="space-y-0.5">
                 <Label className="text-xs font-bold">Include Attendance & Leave Sync</Label>
@@ -1611,23 +1757,109 @@ function Payroll() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-between gap-2">
             <Button variant="outline" size="sm" onClick={() => setIsRunModalOpen(false)}>
               Cancel
             </Button>
-            <Button
-              size="sm"
-              disabled={generateMutation.isPending}
-              onClick={() =>
-                generateMutation.mutate({
-                  periodMonth: runMonth,
-                  periodYear: runYear,
-                  includeAttendance: runIncludeAttendance,
-                })
-              }
-              className="bg-primary font-bold text-xs"
-            >
-              {generateMutation.isPending ? "Calculating Batch..." : "Execute Calculation"}
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={generateMutation.isPending || batchCalculateMutation.isPending}
+                onClick={() =>
+                  generateMutation.mutate({
+                    periodMonth: runMonth,
+                    periodYear: runYear,
+                    includeAttendance: runIncludeAttendance,
+                  })
+                }
+                className="text-xs font-medium"
+              >
+                Standard
+              </Button>
+              <Button
+                size="sm"
+                disabled={generateMutation.isPending || batchCalculateMutation.isPending}
+                onClick={() =>
+                  batchCalculateMutation.mutate({
+                    periodMonth: runMonth,
+                    periodYear: runYear,
+                    cutoffStartDay,
+                    cutoffEndDay,
+                  })
+                }
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5 shadow-sm"
+              >
+                <Sparkles className="size-3.5" />
+                {batchCalculateMutation.isPending ? "Calculating..." : "Formula DAG Engine"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ============================================================= */}
+      {/* MODAL: CELL-LEVEL FORMULA EXECUTION TRACES AUDIT */}
+      {/* ============================================================= */}
+      <Dialog open={Boolean(viewingTraces)} onOpenChange={() => setViewingTraces(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Brain className="size-4 text-indigo-600" />
+              <span>Cell-Level Formula Execution Traces & Audit Trail</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Every payroll component explained mathematically with inputs, resolved expressions, and scope cascade resolution.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            {(!viewingTraces?.traces || viewingTraces.traces.length === 0) ? (
+              <div className="py-8 text-center text-xs text-muted-foreground italic">
+                No execution traces recorded for this payroll run.
+              </div>
+            ) : (
+              <div className="border rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/40 text-[11px]">
+                    <TableRow>
+                      <TableHead className="font-bold">Component</TableHead>
+                      <TableHead className="font-bold">Scope</TableHead>
+                      <TableHead className="font-bold">Expression & Operands</TableHead>
+                      <TableHead className="font-bold text-right">Result (Decimal)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="text-xs">
+                    {viewingTraces.traces.map((trace: any) => (
+                      <TableRow key={trace.id} className="hover:bg-muted/10 font-mono text-[11px]">
+                        <TableCell className="font-bold text-foreground">
+                          {trace.componentCode}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {trace.scopeWinner}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-[11px]">
+                          <div>{trace.resolvedExpression}</div>
+                          {trace.explanation && (
+                            <div className="text-[10px] text-muted-foreground italic font-sans">{trace.explanation}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-emerald-600 font-mono">
+                          ₹{Number(trace.resultValue).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setViewingTraces(null)}>
+              Close Audit Trail
             </Button>
           </DialogFooter>
         </DialogContent>

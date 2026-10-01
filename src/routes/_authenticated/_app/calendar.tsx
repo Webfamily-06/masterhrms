@@ -91,61 +91,38 @@ const CATEGORY_MAP: Record<string, { label: string; color: string; bg: string; b
   holiday: { label: "Official Holiday", color: "text-pink-700 dark:text-pink-300", bg: "bg-pink-500/15", border: "border-pink-500/30" },
 };
 
-const INITIAL_EVENTS: CalendarEvent[] = [
-  {
-    id: "evt-1",
-    title: "Quarterly Townhall & Review",
-    description: "Company-wide review and quarterly achievement awards presentation.",
-    category: "team",
-    date: format(addDays(new Date(), 2), "yyyy-MM-dd"),
-    startTime: "10:00",
-    endTime: "11:30",
-    location: "Main Auditorium & Zoom",
-  },
-  {
-    id: "evt-2",
-    title: "Client Sprint Retrospective",
-    description: "Review deliverables with enterprise client leadership.",
-    category: "external",
-    date: format(addDays(new Date(), 4), "yyyy-MM-dd"),
-    startTime: "14:00",
-    endTime: "15:00",
-    location: "Google Meet",
-  },
-  {
-    id: "evt-3",
-    title: "Design System UI Workshop",
-    description: "Hands-on session for design tokens and component standards.",
-    category: "design",
-    date: format(addDays(new Date(), 6), "yyyy-MM-dd"),
-    startTime: "16:00",
-    endTime: "17:30",
-    location: "Design Studio",
-  },
-  {
-    id: "evt-4",
-    title: "HRMS Cloud Release v4.2",
-    description: "Staging deployment and final sanity tests.",
-    category: "apps",
-    date: format(addDays(new Date(), 8), "yyyy-MM-dd"),
-    startTime: "18:00",
-    endTime: "20:00",
-    location: "DevOps Staging",
-  },
-];
-
 export function CalendarPage() {
   const { user } = useSession();
-  const { data: profile } = useCurrentProfile(user);
-  const tenantId = profile?.tenant_id || "default";
+  const queryClient = useQueryClient();
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [events, setEvents] = useState<CalendarEvent[]>(() => {
-    const saved = localStorage.getItem(`hrms_calendar_events_${tenantId}`);
-    return saved ? JSON.parse(saved) : INITIAL_EVENTS;
+
+  const { data: eventsData, isLoading } = useQuery({
+    queryKey: ["calendar-events"],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: any[] }>("/calendar/events");
+      return res.data || [];
+    },
   });
+
+  const events: CalendarEvent[] = useMemo(() => {
+    return (eventsData || []).map((e: any) => {
+      const sDate = e.startDate ? new Date(e.startDate) : new Date();
+      const eDate = e.endDate ? new Date(e.endDate) : sDate;
+      return {
+        id: e.id,
+        title: e.title,
+        description: e.description || undefined,
+        category: (e.category || "team") as CalendarEvent["category"],
+        date: format(sDate, "yyyy-MM-dd"),
+        startTime: format(sDate, "HH:mm"),
+        endTime: format(eDate, "HH:mm"),
+        location: e.location || undefined,
+      };
+    });
+  }, [eventsData]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -161,10 +138,44 @@ export function CalendarPage() {
     location: "",
   });
 
-  function saveEvents(newEvents: CalendarEvent[]) {
-    setEvents(newEvents);
-    localStorage.setItem(`hrms_calendar_events_${tenantId}`, JSON.stringify(newEvents));
-  }
+  const createEventMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.post("/calendar/events", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      toast.success("Calendar event scheduled successfully!");
+      setIsAddModalOpen(false);
+      setEventForm({
+        title: "",
+        description: "",
+        category: "team",
+        date: format(new Date(), "yyyy-MM-dd"),
+        startTime: "10:00",
+        endTime: "11:00",
+        location: "",
+      });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to create event");
+    },
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.delete(`/calendar/events/${id}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      toast.success("Event removed from calendar.");
+      setSelectedEvent(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to delete event");
+    },
+  });
 
   function handleCreateEvent() {
     if (!eventForm.title.trim()) {
@@ -172,35 +183,24 @@ export function CalendarPage() {
       return;
     }
 
-    const newEvt: CalendarEvent = {
-      id: `evt-${Date.now()}`,
+    const [startH, startM] = (eventForm.startTime || "10:00").split(":");
+    const [endH, endM] = (eventForm.endTime || "11:00").split(":");
+    const startDate = new Date(`${eventForm.date}T${startH || "10"}:${startM || "00"}:00`);
+    const endDate = new Date(`${eventForm.date}T${endH || "11"}:${endM || "00"}:00`);
+
+    createEventMutation.mutate({
       title: eventForm.title.trim(),
       description: eventForm.description.trim(),
       category: eventForm.category,
-      date: eventForm.date,
-      startTime: eventForm.startTime,
-      endTime: eventForm.endTime,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      allDay: false,
       location: eventForm.location.trim(),
-    };
-
-    saveEvents([...events, newEvt]);
-    setIsAddModalOpen(false);
-    setEventForm({
-      title: "",
-      description: "",
-      category: "team",
-      date: format(new Date(), "yyyy-MM-dd"),
-      startTime: "10:00",
-      endTime: "11:00",
-      location: "",
     });
-    toast.success("Calendar event scheduled successfully!");
   }
 
   function handleDeleteEvent(id: string) {
-    saveEvents(events.filter((e) => e.id !== id));
-    setSelectedEvent(null);
-    toast.success("Event removed from calendar.");
+    deleteEventMutation.mutate(id);
   }
 
   function exportCalendarCSV() {

@@ -1,0 +1,3369 @@
+[
+  {
+    "id": "PAGE-001",
+    "relPath": "403.tsx",
+    "routePath": "/403",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 10
+  },
+  {
+    "id": "PAGE-002",
+    "relPath": "404.tsx",
+    "routePath": "/404",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 10
+  },
+  {
+    "id": "PAGE-003",
+    "relPath": "500.tsx",
+    "routePath": "/500",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 15
+  },
+  {
+    "id": "PAGE-004",
+    "relPath": "a.$tag.tsx",
+    "routePath": "/a/$tag",
+    "componentName": "PublicQrAssetPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 248
+  },
+  {
+    "id": "PAGE-005",
+    "relPath": "about.tsx",
+    "routePath": "/about",
+    "componentName": "AboutPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 101
+  },
+  {
+    "id": "PAGE-006",
+    "relPath": "addons.$slug.tsx",
+    "routePath": "/addons/$slug",
+    "componentName": "AddonDetail",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-addons-catalog"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 234
+  },
+  {
+    "id": "PAGE-007",
+    "relPath": "addons.tsx",
+    "routePath": "/addons",
+    "componentName": "AddonsPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /cms/pages/system-addons-catalog"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 310
+  },
+  {
+    "id": "PAGE-008",
+    "relPath": "auth.tsx",
+    "routePath": "/auth",
+    "componentName": "AuthPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /auth/oauth/config",
+      "POST /auth/register",
+      "POST /auth/login",
+      "POST /auth/forgot-password",
+      "POST /auth/reset-password",
+      "POST /auth/verify-email",
+      "POST /auth/resend-verification",
+      "POST /auth/2fa/verify-login"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 914
+  },
+  {
+    "id": "PAGE-009",
+    "relPath": "careers.tsx",
+    "routePath": "/careers",
+    "componentName": "PublicCareersPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 447
+  },
+  {
+    "id": "PAGE-010",
+    "relPath": "contact.tsx",
+    "routePath": "/contact",
+    "componentName": "ContactPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/contact",
+      "GET /cms/pages/system-platform-settings"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 207
+  },
+  {
+    "id": "PAGE-011",
+    "relPath": "customer-display.tsx",
+    "routePath": "/customer-display",
+    "componentName": "CustomerDisplayPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 374
+  },
+  {
+    "id": "PAGE-012",
+    "relPath": "developer.tsx",
+    "routePath": "/developer",
+    "componentName": "DeveloperPanelPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1585
+  },
+  {
+    "id": "PAGE-013",
+    "relPath": "docs.tsx",
+    "routePath": "/docs",
+    "componentName": "DocsPortalPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2540
+  },
+  {
+    "id": "PAGE-014",
+    "relPath": "error-404.tsx",
+    "routePath": "/error-404",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 10
+  },
+  {
+    "id": "PAGE-015",
+    "relPath": "error-500.tsx",
+    "routePath": "/error-500",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 15
+  },
+  {
+    "id": "PAGE-016",
+    "relPath": "help-center.tsx",
+    "routePath": "/help-center",
+    "componentName": "HelpCenterPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 273
+  },
+  {
+    "id": "PAGE-017",
+    "relPath": "index.tsx",
+    "routePath": "/",
+    "componentName": "CorporateLanding",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 728
+  },
+  {
+    "id": "PAGE-018",
+    "relPath": "legal.$slug.tsx",
+    "routePath": "/legal/$slug",
+    "componentName": "LegalPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 59
+  },
+  {
+    "id": "PAGE-019",
+    "relPath": "lock-screen.tsx",
+    "routePath": "/lock-screen",
+    "componentName": "LockScreenComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "POST /auth/unlock"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 185
+  },
+  {
+    "id": "PAGE-020",
+    "relPath": "login.tsx",
+    "routePath": "/login",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": true,
+    "lines": 11
+  },
+  {
+    "id": "PAGE-021",
+    "relPath": "maintenance.tsx",
+    "routePath": "/maintenance",
+    "componentName": "UnderMaintenancePage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 112
+  },
+  {
+    "id": "PAGE-022",
+    "relPath": "offline.tsx",
+    "routePath": "/offline",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 10
+  },
+  {
+    "id": "PAGE-023",
+    "relPath": "og-preview.tsx",
+    "routePath": "/og-preview",
+    "componentName": "OgPreviewPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 471
+  },
+  {
+    "id": "PAGE-024",
+    "relPath": "p.$slug.tsx",
+    "routePath": "/p/$slug",
+    "componentName": "CmsPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 110
+  },
+  {
+    "id": "PAGE-025",
+    "relPath": "payment.failed.tsx",
+    "routePath": "/payment/failed",
+    "componentName": "PaymentFailedPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 136
+  },
+  {
+    "id": "PAGE-026",
+    "relPath": "payment.pending.tsx",
+    "routePath": "/payment/pending",
+    "componentName": "PaymentPendingPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 156
+  },
+  {
+    "id": "PAGE-027",
+    "relPath": "payment.success.tsx",
+    "routePath": "/payment/success",
+    "componentName": "PaymentSuccessPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 137
+  },
+  {
+    "id": "PAGE-028",
+    "relPath": "portal.invoices.$id.tsx",
+    "routePath": "/portal/invoices/$id",
+    "componentName": "ClientInvoicePortalPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 242
+  },
+  {
+    "id": "PAGE-029",
+    "relPath": "portal.proposals.$id.tsx",
+    "routePath": "/portal/proposals/$id",
+    "componentName": "ClientProposalPortalPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 491
+  },
+  {
+    "id": "PAGE-030",
+    "relPath": "portal.tsx",
+    "routePath": "/portal",
+    "componentName": "CustomerPortalStatementPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 403
+  },
+  {
+    "id": "PAGE-031",
+    "relPath": "pricing.tsx",
+    "routePath": "/pricing",
+    "componentName": "PricingPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 229
+  },
+  {
+    "id": "PAGE-032",
+    "relPath": "product.tsx",
+    "routePath": "/product",
+    "componentName": "ProductPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 217
+  },
+  {
+    "id": "PAGE-033",
+    "relPath": "resources.tsx",
+    "routePath": "/resources",
+    "componentName": "ResourcesPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 341
+  },
+  {
+    "id": "PAGE-034",
+    "relPath": "session-expired.tsx",
+    "routePath": "/session-expired",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 10
+  },
+  {
+    "id": "PAGE-035",
+    "relPath": "solutions.tsx",
+    "routePath": "/solutions",
+    "componentName": "SolutionsPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 163
+  },
+  {
+    "id": "PAGE-036",
+    "relPath": "store.tsx",
+    "routePath": "/store",
+    "componentName": "PublicStorefrontPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /products"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 411
+  },
+  {
+    "id": "PAGE-037",
+    "relPath": "super-login.tsx",
+    "routePath": "/super-login",
+    "componentName": "SuperLoginPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /auth/me",
+      "POST /auth/login",
+      "POST /auth/2fa/verify-login"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 512
+  },
+  {
+    "id": "PAGE-038",
+    "relPath": "verify-2fa.tsx",
+    "routePath": "/verify-2fa",
+    "componentName": "Verify2faPage",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "POST /auth/2fa/verify-login",
+      "POST /auth/2fa/resend"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 427
+  },
+  {
+    "id": "PAGE-039",
+    "relPath": "_authenticated/client/dashboard.tsx",
+    "routePath": "/_authenticated/client/dashboard",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Client Portal",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": true,
+    "lines": 9
+  },
+  {
+    "id": "PAGE-040",
+    "relPath": "_authenticated/client/index.tsx",
+    "routePath": "/_authenticated/client/",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Client Portal",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": true,
+    "lines": 9
+  },
+  {
+    "id": "PAGE-041",
+    "relPath": "_authenticated/employee/dashboard.tsx",
+    "routePath": "/_authenticated/employee/dashboard",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Employee Self-Service (Redirect)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": true,
+    "lines": 9
+  },
+  {
+    "id": "PAGE-042",
+    "relPath": "_authenticated/employee/index.tsx",
+    "routePath": "/_authenticated/employee/",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Employee Self-Service (Redirect)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": true,
+    "lines": 9
+  },
+  {
+    "id": "PAGE-043",
+    "relPath": "_authenticated/onboarding.tsx",
+    "routePath": "/_authenticated/onboarding",
+    "componentName": "Onboarding",
+    "currentPanel": "Authenticated Shell / Onboarding",
+    "apis": [
+      "GET /auth/me",
+      "POST /auth/bootstrap-tenant",
+      "POST /workspace/onboarding"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 436
+  },
+  {
+    "id": "PAGE-044",
+    "relPath": "_authenticated/route.tsx",
+    "routePath": "/_authenticated",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Authenticated Shell / Onboarding",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": true,
+    "lines": 15
+  },
+  {
+    "id": "PAGE-045",
+    "relPath": "_authenticated/super/agents.tsx",
+    "routePath": "/_authenticated/super/agents",
+    "componentName": "SuperAgentsPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /api/super/support/agents",
+      "POST /api/super/support/agents"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 652
+  },
+  {
+    "id": "PAGE-046",
+    "relPath": "_authenticated/super/analytics.tsx",
+    "routePath": "/_authenticated/super/analytics",
+    "componentName": "SuperAnalyticsPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /api/super/analytics/telemetry",
+      "GET /super/tenants",
+      "PUT /cms/pages/system-analytics-config"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 440
+  },
+  {
+    "id": "PAGE-047",
+    "relPath": "_authenticated/super/api-docs.tsx",
+    "routePath": "/_authenticated/super/api-docs",
+    "componentName": "ApiDocsAdminStudio",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-api-keys-matrix",
+      "PUT /cms/pages/system-api-keys-matrix"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 594
+  },
+  {
+    "id": "PAGE-048",
+    "relPath": "_authenticated/super/backup.tsx",
+    "routePath": "/_authenticated/super/backup",
+    "componentName": "BackupRestoreAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /super/backup/snapshots",
+      "POST /super/backup/generate"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 251
+  },
+  {
+    "id": "PAGE-049",
+    "relPath": "_authenticated/super/blogs.tsx",
+    "routePath": "/_authenticated/super/blogs",
+    "componentName": "DedicatedBlogsManager",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-blog-categories",
+      "GET /cms/pages",
+      "PUT /cms/pages/system-blog-categories",
+      "POST /cms/pages"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 714
+  },
+  {
+    "id": "PAGE-050",
+    "relPath": "_authenticated/super/case-studies.tsx",
+    "routePath": "/_authenticated/super/case-studies",
+    "componentName": "DedicatedCaseStudiesManager",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-case-study-categories",
+      "GET /cms/pages",
+      "PUT /cms/pages/system-case-study-categories",
+      "POST /cms/pages"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 719
+  },
+  {
+    "id": "PAGE-051",
+    "relPath": "_authenticated/super/cms.tsx",
+    "routePath": "/_authenticated/super/cms",
+    "componentName": "CmsStudio",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages",
+      "POST /cms/pages",
+      "GET /cms/faqs",
+      "POST /cms/faqs",
+      "PATCH /cms/faqs/reorder",
+      "GET /cms/testimonials",
+      "POST /cms/testimonials",
+      "PATCH /cms/testimonials/reorder"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2200
+  },
+  {
+    "id": "PAGE-052",
+    "relPath": "_authenticated/super/domains.tsx",
+    "routePath": "/_authenticated/super/domains",
+    "componentName": "SuperDomainsPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /api/super/domains",
+      "GET /api/super/tenants",
+      "POST /api/super/domains"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 774
+  },
+  {
+    "id": "PAGE-053",
+    "relPath": "_authenticated/super/email-templates.tsx",
+    "routePath": "/_authenticated/super/email-templates",
+    "componentName": "EmailTemplatesAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-email-templates",
+      "PUT /cms/pages/system-email-templates"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 260
+  },
+  {
+    "id": "PAGE-054",
+    "relPath": "_authenticated/super/escalation-rules.tsx",
+    "routePath": "/_authenticated/super/escalation-rules",
+    "componentName": "SuperEscalationRulesPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /api/super/support/escalation-rules",
+      "POST /api/super/support/escalation-rules"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 745
+  },
+  {
+    "id": "PAGE-055",
+    "relPath": "_authenticated/super/index.tsx",
+    "routePath": "/_authenticated/super/",
+    "componentName": "SuperDashboard",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /super/stats",
+      "GET /super/tenants",
+      "GET /super/transactions",
+      "POST /super/tenants",
+      "PUT /cms/pages/system-platform-broadcast"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1106
+  },
+  {
+    "id": "PAGE-056",
+    "relPath": "_authenticated/super/languages.tsx",
+    "routePath": "/_authenticated/super/languages",
+    "componentName": "LanguageEditorPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /super/languages",
+      "POST /super/languages"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 537
+  },
+  {
+    "id": "PAGE-057",
+    "relPath": "_authenticated/super/marketplace.tsx",
+    "routePath": "/_authenticated/super/marketplace",
+    "componentName": "MarketplaceAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-addons-catalog",
+      "PUT /cms/pages/system-addons-catalog"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1270
+  },
+  {
+    "id": "PAGE-058",
+    "relPath": "_authenticated/super/media.tsx",
+    "routePath": "/_authenticated/super/media",
+    "componentName": "MediaLibraryAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-media-library",
+      "GET /cms/pages/system-client-logos",
+      "PUT /cms/pages/system-media-library",
+      "PUT /cms/pages/system-client-logos"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 749
+  },
+  {
+    "id": "PAGE-059",
+    "relPath": "_authenticated/super/notifications.tsx",
+    "routePath": "/_authenticated/super/notifications",
+    "componentName": "NotificationTemplatesAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-notification-templates",
+      "PUT /cms/pages/system-notification-templates"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 190
+  },
+  {
+    "id": "PAGE-060",
+    "relPath": "_authenticated/super/plans.tsx",
+    "routePath": "/_authenticated/super/plans",
+    "componentName": "PlansMonetizationAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-monetization-plans",
+      "GET /cms/pages/system-addons-catalog",
+      "GET /cms/pages/system-platform-settings",
+      "PUT /cms/pages/system-monetization-plans",
+      "GET /cms/pages/tenant-default-purchased-addons-v2",
+      "PUT /cms/pages/tenant-default-purchased-addons-v2"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1387
+  },
+  {
+    "id": "PAGE-061",
+    "relPath": "_authenticated/super/profile.tsx",
+    "routePath": "/_authenticated/super/profile",
+    "componentName": "SuperProfileAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "PUT /auth/profile",
+      "GET /cms/pages/system-media-library",
+      "PUT /cms/pages/system-media-library"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 547
+  },
+  {
+    "id": "PAGE-062",
+    "relPath": "_authenticated/super/roles.tsx",
+    "routePath": "/_authenticated/super/roles",
+    "componentName": "RolesAdminStudio",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-role-definitions",
+      "PUT /cms/pages/system-role-definitions",
+      "GET /super/users",
+      "GET /super/tenants",
+      "POST /auth/register"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1119
+  },
+  {
+    "id": "PAGE-063",
+    "relPath": "_authenticated/super/route.tsx",
+    "routePath": "/_authenticated/super",
+    "componentName": "SuperShell",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "POST /auth/logout"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 673
+  },
+  {
+    "id": "PAGE-064",
+    "relPath": "_authenticated/super/settings.tsx",
+    "routePath": "/_authenticated/super/settings",
+    "componentName": "SuperSettingsAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "PUT /cms/pages/system-platform-settings",
+      "POST /super/smtp/test-otp-email"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2172
+  },
+  {
+    "id": "PAGE-065",
+    "relPath": "_authenticated/super/sla-policies.tsx",
+    "routePath": "/_authenticated/super/sla-policies",
+    "componentName": "SuperSlaPoliciesPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /api/super/support/sla-policies",
+      "POST /api/super/support/sla-policies"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 655
+  },
+  {
+    "id": "PAGE-066",
+    "relPath": "_authenticated/super/support.tsx",
+    "routePath": "/_authenticated/super/support",
+    "componentName": "SupportDeskAdmin",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /support/platform/summary/stats?isSuper=true"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 506
+  },
+  {
+    "id": "PAGE-067",
+    "relPath": "_authenticated/super/tenant-support-tickets.tsx",
+    "routePath": "/_authenticated/super/tenant-support-tickets",
+    "componentName": "TenantSupportTicketsPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /api/support/platform/tickets",
+      "GET /api/super/tenants",
+      "POST /api/support/platform/tickets"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 910
+  },
+  {
+    "id": "PAGE-068",
+    "relPath": "_authenticated/super/tenant-usage-metrics.tsx",
+    "routePath": "/_authenticated/super/tenant-usage-metrics",
+    "componentName": "TenantUsageMetricsPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /api/super/tenant-usage-metrics"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 656
+  },
+  {
+    "id": "PAGE-069",
+    "relPath": "_authenticated/super/tenants.tsx",
+    "routePath": "/_authenticated/super/tenants",
+    "componentName": "CompaniesManagementPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /super/tenants",
+      "POST /super/tenants"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 825
+  },
+  {
+    "id": "PAGE-070",
+    "relPath": "_authenticated/super/transactions.tsx",
+    "routePath": "/_authenticated/super/transactions",
+    "componentName": "SuperPurchaseTransactionsPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /super/transactions"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 635
+  },
+  {
+    "id": "PAGE-071",
+    "relPath": "_authenticated/super/users.tsx",
+    "routePath": "/_authenticated/super/users",
+    "componentName": "SuperUsersPage",
+    "currentPanel": "Super Admin Panel",
+    "apis": [
+      "GET /super/tenants",
+      "POST /super/users"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1131
+  },
+  {
+    "id": "PAGE-072",
+    "relPath": "_authenticated/tenant/index.tsx",
+    "routePath": "/_authenticated/tenant/",
+    "componentName": "AnonymousComponent",
+    "currentPanel": "Tenant Admin (Redirect)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": true,
+    "lines": 9
+  },
+  {
+    "id": "PAGE-073",
+    "relPath": "_authenticated/_app/accounting.tsx",
+    "routePath": "/_authenticated/_app/accounting",
+    "componentName": "AccountingAppSuite",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /accounting/dashboard",
+      "GET /accounting/accounts",
+      "GET /accounting/fiscal-years",
+      "GET /accounting/journal-entries",
+      "GET /accounting/reports/financial-statements",
+      "GET /accounting/reports/aging",
+      "GET /accounting/reports/trial-balance",
+      "GET /accounting/reports/inventory-valuation",
+      "POST /accounting/transfers",
+      "POST /accounting/accounts",
+      "POST /accounting/journal-entries"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1383
+  },
+  {
+    "id": "PAGE-074",
+    "relPath": "_authenticated/_app/adjustments.tsx",
+    "routePath": "/_authenticated/_app/adjustments",
+    "componentName": "AdjustmentsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/products/warehouses",
+      "GET /api/products",
+      "POST /api/adjustments"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 882
+  },
+  {
+    "id": "PAGE-075",
+    "relPath": "_authenticated/_app/ai-attendance-insights.tsx",
+    "routePath": "/_authenticated/_app/ai-attendance-insights",
+    "componentName": "AIAttendanceInsightsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 201
+  },
+  {
+    "id": "PAGE-076",
+    "relPath": "_authenticated/_app/ai-configuration.tsx",
+    "routePath": "/_authenticated/_app/ai-configuration",
+    "componentName": "AIConfigurationPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 386
+  },
+  {
+    "id": "PAGE-077",
+    "relPath": "_authenticated/_app/ai-hiring-forecast.tsx",
+    "routePath": "/_authenticated/_app/ai-hiring-forecast",
+    "componentName": "AiHiringForecastPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /ai/hiring-forecast"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 781
+  },
+  {
+    "id": "PAGE-078",
+    "relPath": "_authenticated/_app/ai-ocr.tsx",
+    "routePath": "/_authenticated/_app/ai-ocr",
+    "componentName": "AiOcrPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "POST /ai/ocr/extract",
+      "POST /ai/ocr/save"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 495
+  },
+  {
+    "id": "PAGE-079",
+    "relPath": "_authenticated/_app/ai-payroll-forecast.tsx",
+    "routePath": "/_authenticated/_app/ai-payroll-forecast",
+    "componentName": "AIPayrollForecastPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 225
+  },
+  {
+    "id": "PAGE-080",
+    "relPath": "_authenticated/_app/ai-settings.tsx",
+    "routePath": "/_authenticated/_app/ai-settings",
+    "componentName": "AISettingsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 157
+  },
+  {
+    "id": "PAGE-081",
+    "relPath": "_authenticated/_app/ai-team-performance-insights.tsx",
+    "routePath": "/_authenticated/_app/ai-team-performance-insights",
+    "componentName": "AITeamPerformanceInsightsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 207
+  },
+  {
+    "id": "PAGE-082",
+    "relPath": "_authenticated/_app/ai-writer.tsx",
+    "routePath": "/_authenticated/_app/ai-writer",
+    "componentName": "AIWriterPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /ai/settings",
+      "POST /ai/settings",
+      "POST /ai/generate-content"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 692
+  },
+  {
+    "id": "PAGE-083",
+    "relPath": "_authenticated/_app/ai.tsx",
+    "routePath": "/_authenticated/_app/ai",
+    "componentName": "AICenterPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/system/config"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 627
+  },
+  {
+    "id": "PAGE-084",
+    "relPath": "_authenticated/_app/analytics.tsx",
+    "routePath": "/_authenticated/_app/analytics",
+    "componentName": "EnterpriseAnalyticsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/employees",
+      "GET /api/attendance",
+      "GET /api/leaves",
+      "GET /api/payroll/history",
+      "GET /api/projects",
+      "GET /api/invoices",
+      "GET /api/expenses",
+      "GET /api/system/config"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1029
+  },
+  {
+    "id": "PAGE-085",
+    "relPath": "_authenticated/_app/announcements.tsx",
+    "routePath": "/_authenticated/_app/announcements",
+    "componentName": "AnnouncementsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /departments",
+      "GET /employees",
+      "GET /announcements/summary/stats",
+      "POST /announcements"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1050
+  },
+  {
+    "id": "PAGE-086",
+    "relPath": "_authenticated/_app/asset-dashboard.tsx",
+    "routePath": "/_authenticated/_app/asset-dashboard",
+    "componentName": "AssetDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /assets"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1118
+  },
+  {
+    "id": "PAGE-087",
+    "relPath": "_authenticated/_app/assets.tsx",
+    "routePath": "/_authenticated/_app/assets",
+    "componentName": "AssetManagementPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /addons/assets/categories",
+      "GET /addons/assets/requests",
+      "GET /addons/assets/disposals",
+      "GET /addons/assets/reports",
+      "GET /addons/assets/activity",
+      "GET /employees",
+      "GET /employees/departments",
+      "POST /addons/assets",
+      "POST /addons/assets/categories",
+      "POST /addons/assets/requests",
+      "POST /addons/assets/disposals"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1832
+  },
+  {
+    "id": "PAGE-088",
+    "relPath": "_authenticated/_app/attendance-employee.tsx",
+    "routePath": "/_authenticated/_app/attendance-employee",
+    "componentName": "EmployeeAttendancePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /attendance/punch",
+      "POST /attendance/regularize"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 495
+  },
+  {
+    "id": "PAGE-089",
+    "relPath": "_authenticated/_app/attendance-report.tsx",
+    "routePath": "/_authenticated/_app/attendance-report",
+    "componentName": "AttendanceReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees/departments",
+      "GET /employees"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 479
+  },
+  {
+    "id": "PAGE-090",
+    "relPath": "_authenticated/_app/attendance.tsx",
+    "routePath": "/_authenticated/_app/attendance",
+    "componentName": "AttendancePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /shifts",
+      "POST /shifts",
+      "GET /employees",
+      "GET /leaves/requests",
+      "GET /biometric/devices",
+      "POST /attendance/check-in",
+      "POST /attendance/check-out"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1576
+  },
+  {
+    "id": "PAGE-091",
+    "relPath": "_authenticated/_app/awards.tsx",
+    "routePath": "/_authenticated/_app/awards",
+    "componentName": "AwardsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/awards/types",
+      "GET /api/employees?limit=200",
+      "POST /api/awards",
+      "POST /api/awards/types"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 907
+  },
+  {
+    "id": "PAGE-092",
+    "relPath": "_authenticated/_app/ban-ip-address.tsx",
+    "routePath": "/_authenticated/_app/ban-ip-address",
+    "componentName": "BanIpAddressPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /banned-ips"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 488
+  },
+  {
+    "id": "PAGE-093",
+    "relPath": "_authenticated/_app/biometric-sync.tsx",
+    "routePath": "/_authenticated/_app/biometric-sync",
+    "componentName": "BiometricSyncPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /employees/departments",
+      "GET /biometric/devices",
+      "GET /biometric/logs?limit=100",
+      "POST /biometric/devices",
+      "POST /attendance/check-in",
+      "POST /attendance/check-out",
+      "POST /employees",
+      "POST /biometric/simulate"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1584
+  },
+  {
+    "id": "PAGE-094",
+    "relPath": "_authenticated/_app/biometric.tsx",
+    "routePath": "/_authenticated/_app/biometric",
+    "componentName": "BiometricPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /biometric/devices",
+      "GET /biometric/cloud-config",
+      "GET /biometric/summary/stats",
+      "GET /biometric/offline-buffer?status=all&limit=30",
+      "POST /biometric/devices",
+      "POST /biometric/probe",
+      "POST /biometric/simulate",
+      "POST /biometric/offline-buffer/replay"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2789
+  },
+  {
+    "id": "PAGE-095",
+    "relPath": "_authenticated/_app/budgets.tsx",
+    "routePath": "/_authenticated/_app/budgets",
+    "componentName": "BudgetsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/budgets/summary",
+      "GET /api/departments",
+      "POST /api/budgets"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 683
+  },
+  {
+    "id": "PAGE-096",
+    "relPath": "_authenticated/_app/calendar.tsx",
+    "routePath": "/_authenticated/_app/calendar",
+    "componentName": "CalendarPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /calendar/events",
+      "POST /calendar/events"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 685
+  },
+  {
+    "id": "PAGE-097",
+    "relPath": "_authenticated/_app/call-history.tsx",
+    "routePath": "/_authenticated/_app/call-history",
+    "componentName": "CallHistoryPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /crm/calls/bulk-delete"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 554
+  },
+  {
+    "id": "PAGE-098",
+    "relPath": "_authenticated/_app/campaigns.tsx",
+    "routePath": "/_authenticated/_app/campaigns",
+    "componentName": "MarketingCampaignsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /campaigns"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 822
+  },
+  {
+    "id": "PAGE-099",
+    "relPath": "_authenticated/_app/campus-hiring.tsx",
+    "routePath": "/_authenticated/_app/campus-hiring",
+    "componentName": "CampusHiringPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/employees",
+      "POST /api/recruitment/campus-candidates"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 897
+  },
+  {
+    "id": "PAGE-100",
+    "relPath": "_authenticated/_app/certification-tracking.tsx",
+    "routePath": "/_authenticated/_app/certification-tracking",
+    "componentName": "CertificationTrackingPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/training/courses",
+      "GET /api/employees",
+      "POST /api/training/certifications"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 835
+  },
+  {
+    "id": "PAGE-101",
+    "relPath": "_authenticated/_app/chat.tsx",
+    "routePath": "/_authenticated/_app/chat",
+    "componentName": "TeamWhatsAppChatAddon",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /cms/pages/team-chat-workspace-v3",
+      "POST /cms/pages"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 3505
+  },
+  {
+    "id": "PAGE-102",
+    "relPath": "_authenticated/_app/clear-cache.tsx",
+    "routePath": "/_authenticated/_app/clear-cache",
+    "componentName": "ClearCachePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /system/clear-cache"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 280
+  },
+  {
+    "id": "PAGE-103",
+    "relPath": "_authenticated/_app/client-dashboard.tsx",
+    "routePath": "/_authenticated/_app/client-dashboard",
+    "componentName": "ClientDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /client/my-projects",
+      "GET /client/my-invoices",
+      "GET /api/helpdesk/tickets",
+      "GET /api/system/config"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 619
+  },
+  {
+    "id": "PAGE-104",
+    "relPath": "_authenticated/_app/clients.tsx",
+    "routePath": "/_authenticated/_app/clients",
+    "componentName": "ClientsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/customers",
+      "POST /api/customers"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 776
+  },
+  {
+    "id": "PAGE-105",
+    "relPath": "_authenticated/_app/companies.tsx",
+    "routePath": "/_authenticated/_app/companies",
+    "componentName": "CompaniesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/crm/companies",
+      "POST /api/crm/companies"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 794
+  },
+  {
+    "id": "PAGE-106",
+    "relPath": "_authenticated/_app/contacts.tsx",
+    "routePath": "/_authenticated/_app/contacts",
+    "componentName": "ContactsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /crm/contacts"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1326
+  },
+  {
+    "id": "PAGE-107",
+    "relPath": "_authenticated/_app/crm-dashboard.tsx",
+    "routePath": "/_authenticated/_app/crm-dashboard",
+    "componentName": "CrmDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/sales-crm"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 710
+  },
+  {
+    "id": "PAGE-108",
+    "relPath": "_authenticated/_app/crm.tsx",
+    "routePath": "/_authenticated/_app/crm",
+    "componentName": "CrmPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /crm/contacts",
+      "GET /crm/companies",
+      "GET /crm/leads",
+      "POST /crm/leads",
+      "GET /cms/pages/system-platform-settings",
+      "POST /crm/contacts",
+      "POST /crm/companies"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1012
+  },
+  {
+    "id": "PAGE-109",
+    "relPath": "_authenticated/_app/cronjob.tsx",
+    "routePath": "/_authenticated/_app/cronjob",
+    "componentName": "CronjobPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /system/cronjobs",
+      "POST /system/cronjobs"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 808
+  },
+  {
+    "id": "PAGE-110",
+    "relPath": "_authenticated/_app/currencies.tsx",
+    "routePath": "/_authenticated/_app/currencies",
+    "componentName": "CurrenciesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/cms/pages/system-currencies",
+      "PUT /api/cms/pages/system-currencies"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 551
+  },
+  {
+    "id": "PAGE-111",
+    "relPath": "_authenticated/_app/custom-fields.tsx",
+    "routePath": "/_authenticated/_app/custom-fields",
+    "componentName": "CustomFieldsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /custom-fields"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 775
+  },
+  {
+    "id": "PAGE-112",
+    "relPath": "_authenticated/_app/daily-report.tsx",
+    "routePath": "/_authenticated/_app/daily-report",
+    "componentName": "DailyReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 460
+  },
+  {
+    "id": "PAGE-113",
+    "relPath": "_authenticated/_app/dashboard.tsx",
+    "routePath": "/_authenticated/_app/dashboard",
+    "componentName": "DashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/hrm"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 874
+  },
+  {
+    "id": "PAGE-114",
+    "relPath": "_authenticated/_app/deals-dashboard.tsx",
+    "routePath": "/_authenticated/_app/deals-dashboard",
+    "componentName": "DealsDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /crm/deals"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 818
+  },
+  {
+    "id": "PAGE-115",
+    "relPath": "_authenticated/_app/departments.tsx",
+    "routePath": "/_authenticated/_app/departments",
+    "componentName": "DepartmentsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees/departments",
+      "GET /employees",
+      "POST /employees/departments"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 732
+  },
+  {
+    "id": "PAGE-116",
+    "relPath": "_authenticated/_app/designations.tsx",
+    "routePath": "/_authenticated/_app/designations",
+    "componentName": "DesignationsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees/departments",
+      "GET /employees",
+      "GET /workspace/designations",
+      "POST /workspace/designations"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 837
+  },
+  {
+    "id": "PAGE-117",
+    "relPath": "_authenticated/_app/documents.tsx",
+    "routePath": "/_authenticated/_app/documents",
+    "componentName": "DocumentsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /documents/summary/stats",
+      "POST /documents"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 847
+  },
+  {
+    "id": "PAGE-118",
+    "relPath": "_authenticated/_app/employee-dashboard.tsx",
+    "routePath": "/_authenticated/_app/employee-dashboard",
+    "componentName": "EmployeeDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/attendance",
+      "GET /api/leaves",
+      "POST /api/attendance/clock-in",
+      "POST /api/attendance/clock-out",
+      "POST /api/leaves"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 878
+  },
+  {
+    "id": "PAGE-119",
+    "relPath": "_authenticated/_app/employee-details.tsx",
+    "routePath": "/_authenticated/_app/employee-details",
+    "componentName": "EmployeeDetailsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /employees/departments"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1261
+  },
+  {
+    "id": "PAGE-120",
+    "relPath": "_authenticated/_app/employee-report.tsx",
+    "routePath": "/_authenticated/_app/employee-report",
+    "componentName": "EmployeeReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /employees/departments",
+      "GET /employees"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 468
+  },
+  {
+    "id": "PAGE-121",
+    "relPath": "_authenticated/_app/employees.tsx",
+    "routePath": "/_authenticated/_app/employees",
+    "componentName": "Employees",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /employees/departments",
+      "GET /cms/pages/system-platform-settings",
+      "POST /employees",
+      "POST /employees/departments"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 3558
+  },
+  {
+    "id": "PAGE-122",
+    "relPath": "_authenticated/_app/expenses-report.tsx",
+    "routePath": "/_authenticated/_app/expenses-report",
+    "componentName": "ExpensesReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /expenses/categories",
+      "GET /expenses/summary"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 512
+  },
+  {
+    "id": "PAGE-123",
+    "relPath": "_authenticated/_app/expenses.tsx",
+    "routePath": "/_authenticated/_app/expenses",
+    "componentName": "ExpensesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /employees",
+      "GET /expenses/categories",
+      "GET /expenses/summary",
+      "POST /expenses/claims",
+      "POST /expenses/categories"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2265
+  },
+  {
+    "id": "PAGE-124",
+    "relPath": "_authenticated/_app/finance-dashboard.tsx",
+    "routePath": "/_authenticated/_app/finance-dashboard",
+    "componentName": "FinanceDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/hrm"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 596
+  },
+  {
+    "id": "PAGE-125",
+    "relPath": "_authenticated/_app/forms.tsx",
+    "routePath": "/_authenticated/_app/forms",
+    "componentName": "FormsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /forms/statutory-catalog",
+      "GET /employees",
+      "GET /forms/statutory/immutable-records",
+      "GET /forms",
+      "GET /departments",
+      "POST /forms/statutory/prefill",
+      "POST /forms/statutory/save-immutable",
+      "POST /forms"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1436
+  },
+  {
+    "id": "PAGE-126",
+    "relPath": "_authenticated/_app/google-workspace.tsx",
+    "routePath": "/_authenticated/_app/google-workspace",
+    "componentName": "GoogleWorkspacePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /workspace/google/config",
+      "GET /workspace/google/drive-files",
+      "POST /workspace/google/config",
+      "POST /workspace/google/connect-account",
+      "POST /workspace/google/sync-directory"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 500
+  },
+  {
+    "id": "PAGE-127",
+    "relPath": "_authenticated/_app/help-desk-dashboard.tsx",
+    "routePath": "/_authenticated/_app/help-desk-dashboard",
+    "componentName": "HelpDeskDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /helpdesk/tickets"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 676
+  },
+  {
+    "id": "PAGE-128",
+    "relPath": "_authenticated/_app/helpdesk.tsx",
+    "routePath": "/_authenticated/_app/helpdesk",
+    "componentName": "HelpdeskPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /helpdesk/summary/stats",
+      "POST /helpdesk/tickets"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1078
+  },
+  {
+    "id": "PAGE-129",
+    "relPath": "_authenticated/_app/holidays.tsx",
+    "routePath": "/_authenticated/_app/holidays",
+    "componentName": "HolidaysPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /workspace/holidays",
+      "POST /workspace/holidays"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 841
+  },
+  {
+    "id": "PAGE-130",
+    "relPath": "_authenticated/_app/hrm.tsx",
+    "routePath": "/_authenticated/_app/hrm",
+    "componentName": "HrmHubPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /dashboard/hrm-hub"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 739
+  },
+  {
+    "id": "PAGE-131",
+    "relPath": "_authenticated/_app/integrations.tsx",
+    "routePath": "/_authenticated/_app/integrations",
+    "componentName": "WooCommerceSettingsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /woocommerce/settings",
+      "GET /woocommerce/status",
+      "GET /products",
+      "GET /woocommerce/orders",
+      "GET /woocommerce/logs",
+      "GET /woocommerce/stock-metrics",
+      "POST /woocommerce/settings",
+      "POST /woocommerce/test-connection",
+      "POST /woocommerce/sync/products",
+      "POST /woocommerce/products/auto-link",
+      "POST /woocommerce/sync/stock",
+      "POST /woocommerce/sync/orders",
+      "DELETE /woocommerce/logs"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1267
+  },
+  {
+    "id": "PAGE-132",
+    "relPath": "_authenticated/_app/inventory-dashboard.tsx",
+    "routePath": "/_authenticated/_app/inventory-dashboard",
+    "componentName": "InventoryDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/dashboard/inventory",
+      "GET /api/products"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 410
+  },
+  {
+    "id": "PAGE-133",
+    "relPath": "_authenticated/_app/invoice-report.tsx",
+    "routePath": "/_authenticated/_app/invoice-report",
+    "componentName": "InvoiceReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /invoices"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 540
+  },
+  {
+    "id": "PAGE-134",
+    "relPath": "_authenticated/_app/invoice.$id.print.tsx",
+    "routePath": "/_authenticated/_app/invoice/$id/print",
+    "componentName": "InvoicePrintPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 472
+  },
+  {
+    "id": "PAGE-135",
+    "relPath": "_authenticated/_app/invoice.$id.tsx",
+    "routePath": "/_authenticated/_app/invoice/$id",
+    "componentName": "InvoiceDetailPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /settings/system"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 843
+  },
+  {
+    "id": "PAGE-136",
+    "relPath": "_authenticated/_app/invoice.create.tsx",
+    "routePath": "/_authenticated/_app/invoice/create",
+    "componentName": "CreateInvoicePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 16
+  },
+  {
+    "id": "PAGE-137",
+    "relPath": "_authenticated/_app/invoices.tsx",
+    "routePath": "/_authenticated/_app/invoices",
+    "componentName": "InvoicesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /invoices",
+      "POST /invoices"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 959
+  },
+  {
+    "id": "PAGE-138",
+    "relPath": "_authenticated/_app/it-admin-dashboard.tsx",
+    "routePath": "/_authenticated/_app/it-admin-dashboard",
+    "componentName": "ITAdminDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/it-admin"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 463
+  },
+  {
+    "id": "PAGE-139",
+    "relPath": "_authenticated/_app/leads-dashboard.tsx",
+    "routePath": "/_authenticated/_app/leads-dashboard",
+    "componentName": "LeadsDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /crm/leads"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 697
+  },
+  {
+    "id": "PAGE-140",
+    "relPath": "_authenticated/_app/learning-analytics.tsx",
+    "routePath": "/_authenticated/_app/learning-analytics",
+    "componentName": "LearningAnalyticsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /training/summary",
+      "GET /training/enrollments"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 324
+  },
+  {
+    "id": "PAGE-141",
+    "relPath": "_authenticated/_app/leave-report.tsx",
+    "routePath": "/_authenticated/_app/leave-report",
+    "componentName": "LeaveReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /leave/types"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 445
+  },
+  {
+    "id": "PAGE-142",
+    "relPath": "_authenticated/_app/leave.tsx",
+    "routePath": "/_authenticated/_app/leave",
+    "componentName": "Leave",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /leave/types",
+      "GET /leave/requests",
+      "POST /leave/requests",
+      "POST /leave/types"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1261
+  },
+  {
+    "id": "PAGE-143",
+    "relPath": "_authenticated/_app/marketplace.tsx",
+    "routePath": "/_authenticated/_app/marketplace",
+    "componentName": "MarketplacePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /cms/pages/system-addons-catalog"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 879
+  },
+  {
+    "id": "PAGE-144",
+    "relPath": "_authenticated/_app/media.tsx",
+    "routePath": "/_authenticated/_app/media",
+    "componentName": "TenantMediaPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 589
+  },
+  {
+    "id": "PAGE-145",
+    "relPath": "_authenticated/_app/notes.tsx",
+    "routePath": "/_authenticated/_app/notes",
+    "componentName": "NotesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /notes?isTrash=all",
+      "POST /notes"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 629
+  },
+  {
+    "id": "PAGE-146",
+    "relPath": "_authenticated/_app/notice-period-tracker.tsx",
+    "routePath": "/_authenticated/_app/notice-period-tracker",
+    "componentName": "NoticePeriodTrackerPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees?limit=100",
+      "POST /offboarding"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 681
+  },
+  {
+    "id": "PAGE-147",
+    "relPath": "_authenticated/_app/offboarding.tsx",
+    "routePath": "/_authenticated/_app/offboarding",
+    "componentName": "OffboardingPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /employees/departments",
+      "GET /employees",
+      "GET /offboarding/summary",
+      "POST /offboarding/exits"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1364
+  },
+  {
+    "id": "PAGE-148",
+    "relPath": "_authenticated/_app/okr.tsx",
+    "routePath": "/_authenticated/_app/okr",
+    "componentName": "OkrPerformancePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /addons/okr/cycles",
+      "GET /addons/okr/checkins",
+      "GET /addons/okr/reviews",
+      "GET /employees",
+      "POST /addons/okr/objectives",
+      "POST /addons/okr/checkins",
+      "POST /addons/okr/reviews",
+      "POST /addons/okr/cycles"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1476
+  },
+  {
+    "id": "PAGE-149",
+    "relPath": "_authenticated/_app/overtime.tsx",
+    "routePath": "/_authenticated/_app/overtime",
+    "componentName": "OvertimePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /overtime/stats",
+      "GET /employees?limit=200",
+      "POST /overtime"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 485
+  },
+  {
+    "id": "PAGE-150",
+    "relPath": "_authenticated/_app/payment-report.tsx",
+    "routePath": "/_authenticated/_app/payment-report",
+    "componentName": "PaymentReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /payments/razorpay/transactions"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 457
+  },
+  {
+    "id": "PAGE-151",
+    "relPath": "_authenticated/_app/payroll-dashboard.tsx",
+    "routePath": "/_authenticated/_app/payroll-dashboard",
+    "componentName": "PayrollDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /payroll"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 736
+  },
+  {
+    "id": "PAGE-152",
+    "relPath": "_authenticated/_app/payroll.tsx",
+    "routePath": "/_authenticated/_app/payroll",
+    "componentName": "Payroll",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /payroll/runs",
+      "GET /payroll/employees",
+      "GET /payroll/salary-components",
+      "GET /payroll/salary-structures",
+      "GET /payroll/tax-declarations",
+      "POST /payroll/simulate-ctc",
+      "POST /payroll/generate",
+      "POST /payroll/batch/calculate",
+      "GET /payroll/preflight",
+      "POST /payroll/salary-components",
+      "POST /payroll/salary-structures",
+      "POST /payroll/salary-assignments",
+      "POST /payroll/tax-declarations"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2204
+  },
+  {
+    "id": "PAGE-153",
+    "relPath": "_authenticated/_app/payslip-report.tsx",
+    "routePath": "/_authenticated/_app/payslip-report",
+    "componentName": "PayslipReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees/departments"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 710
+  },
+  {
+    "id": "PAGE-154",
+    "relPath": "_authenticated/_app/performance-appraisal.tsx",
+    "routePath": "/_authenticated/_app/performance-appraisal",
+    "componentName": "PerformanceAppraisalPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /departments",
+      "POST /addons/okr/appraisals"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1102
+  },
+  {
+    "id": "PAGE-155",
+    "relPath": "_authenticated/_app/performance-indicator.tsx",
+    "routePath": "/_authenticated/_app/performance-indicator",
+    "componentName": "PerformanceIndicatorPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /departments",
+      "POST /addons/okr/indicators"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1003
+  },
+  {
+    "id": "PAGE-156",
+    "relPath": "_authenticated/_app/performance-review.tsx",
+    "routePath": "/_authenticated/_app/performance-review",
+    "componentName": "PerformanceReviewPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /addons/okr/appraisals"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 589
+  },
+  {
+    "id": "PAGE-157",
+    "relPath": "_authenticated/_app/pipeline.tsx",
+    "routePath": "/_authenticated/_app/pipeline",
+    "componentName": "PipelinePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/crm/leads"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 495
+  },
+  {
+    "id": "PAGE-158",
+    "relPath": "_authenticated/_app/pos-dashboard.tsx",
+    "routePath": "/_authenticated/_app/pos-dashboard",
+    "componentName": "PosDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/pos",
+      "GET /products"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 466
+  },
+  {
+    "id": "PAGE-159",
+    "relPath": "_authenticated/_app/pos.tsx",
+    "routePath": "/_authenticated/_app/pos",
+    "componentName": "PosPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /sales/register/current",
+      "POST /sales/register/open",
+      "POST /sales/register/close",
+      "POST /invoices/pos/sales",
+      "GET /cms/pages/system-platform-settings",
+      "GET /products/categories",
+      "GET /products",
+      "GET /invoices/pos/sales",
+      "GET /invoices/pos/held",
+      "POST /invoices/pos/held"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2194
+  },
+  {
+    "id": "PAGE-160",
+    "relPath": "_authenticated/_app/probation.tsx",
+    "routePath": "/_authenticated/_app/probation",
+    "componentName": "ProbationPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees?limit=200",
+      "POST /probation"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 411
+  },
+  {
+    "id": "PAGE-161",
+    "relPath": "_authenticated/_app/procurement-dashboard.tsx",
+    "routePath": "/_authenticated/_app/procurement-dashboard",
+    "componentName": "ProcurementDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/procurement"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 568
+  },
+  {
+    "id": "PAGE-162",
+    "relPath": "_authenticated/_app/products.tsx",
+    "routePath": "/_authenticated/_app/products",
+    "componentName": "ProductsAndServicesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /products/brands",
+      "GET /cms/pages/system-platform-settings",
+      "GET /products/categories",
+      "GET /products/taxes",
+      "GET /products/units",
+      "GET /products/warehouses",
+      "GET /products",
+      "POST /products",
+      "POST /transfers",
+      "POST /products/stock/add",
+      "POST /products/categories",
+      "POST /products/taxes",
+      "POST /products/units",
+      "POST /products/brands"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2456
+  },
+  {
+    "id": "PAGE-163",
+    "relPath": "_authenticated/_app/project-dashboard.tsx",
+    "routePath": "/_authenticated/_app/project-dashboard",
+    "componentName": "ProjectDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/projects"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 941
+  },
+  {
+    "id": "PAGE-164",
+    "relPath": "_authenticated/_app/project-report.tsx",
+    "routePath": "/_authenticated/_app/project-report",
+    "componentName": "ProjectReportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /projects"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 459
+  },
+  {
+    "id": "PAGE-165",
+    "relPath": "_authenticated/_app/project.$id.tsx",
+    "routePath": "/_authenticated/_app/project/$id",
+    "componentName": "ProjectDetailPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /settings/system",
+      "GET /invoices"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2250
+  },
+  {
+    "id": "PAGE-166",
+    "relPath": "_authenticated/_app/projects.tsx",
+    "routePath": "/_authenticated/_app/projects",
+    "componentName": "ProjectsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /projects",
+      "POST /projects"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1366
+  },
+  {
+    "id": "PAGE-167",
+    "relPath": "_authenticated/_app/promotions.tsx",
+    "routePath": "/_authenticated/_app/promotions",
+    "componentName": "PromotionsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees?limit=200",
+      "POST /promotions"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 332
+  },
+  {
+    "id": "PAGE-168",
+    "relPath": "_authenticated/_app/proposals.tsx",
+    "routePath": "/_authenticated/_app/proposals",
+    "componentName": "ProposalsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /crm/proposals",
+      "POST /crm/proposals",
+      "POST /invoices"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 429
+  },
+  {
+    "id": "PAGE-169",
+    "relPath": "_authenticated/_app/provident-fund.tsx",
+    "routePath": "/_authenticated/_app/provident-fund",
+    "componentName": "ProvidentFundPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /provident-funds/summary",
+      "GET /employees?limit=200",
+      "POST /provident-funds"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 793
+  },
+  {
+    "id": "PAGE-170",
+    "relPath": "_authenticated/_app/purchases.tsx",
+    "routePath": "/_authenticated/_app/purchases",
+    "componentName": "PurchasesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/suppliers/ap-summary",
+      "GET /api/suppliers",
+      "GET /api/products/warehouses",
+      "GET /api/products",
+      "POST /api/purchases"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1062
+  },
+  {
+    "id": "PAGE-171",
+    "relPath": "_authenticated/_app/razorpay-gateway.tsx",
+    "routePath": "/_authenticated/_app/razorpay-gateway",
+    "componentName": "RazorpayGatewayPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /payments/razorpay/config",
+      "GET /payments/razorpay/transactions",
+      "POST /payments/razorpay/config",
+      "POST /payments/razorpay/test-payment"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 502
+  },
+  {
+    "id": "PAGE-172",
+    "relPath": "_authenticated/_app/recruitment-dashboard.tsx",
+    "routePath": "/_authenticated/_app/recruitment-dashboard",
+    "componentName": "RecruitmentDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/recruitment"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 397
+  },
+  {
+    "id": "PAGE-173",
+    "relPath": "_authenticated/_app/recruitment.tsx",
+    "routePath": "/_authenticated/_app/recruitment",
+    "componentName": "RecruitmentHub",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /employees/departments",
+      "GET /employees",
+      "GET /recruitment/jobs",
+      "GET /recruitment/candidates",
+      "POST /recruitment/jobs",
+      "POST /recruitment/candidates"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1682
+  },
+  {
+    "id": "PAGE-174",
+    "relPath": "_authenticated/_app/recurring-invoices.tsx",
+    "routePath": "/_authenticated/_app/recurring-invoices",
+    "componentName": "RecurringInvoicesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /api/invoices/recurring",
+      "POST /api/invoices/recurring/process-due"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1652
+  },
+  {
+    "id": "PAGE-175",
+    "relPath": "_authenticated/_app/referrals.tsx",
+    "routePath": "/_authenticated/_app/referrals",
+    "componentName": "ReferralsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/employees",
+      "POST /api/recruitment/referrals"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 841
+  },
+  {
+    "id": "PAGE-176",
+    "relPath": "_authenticated/_app/resignation.tsx",
+    "routePath": "/_authenticated/_app/resignation",
+    "componentName": "ResignationPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/employees",
+      "POST /api/offboarding/exits"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 630
+  },
+  {
+    "id": "PAGE-177",
+    "relPath": "_authenticated/_app/returns.tsx",
+    "routePath": "/_authenticated/_app/returns",
+    "componentName": "ReturnsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /sales",
+      "GET /products",
+      "POST /returns/sales",
+      "GET /purchases",
+      "POST /returns/purchases",
+      "GET /returns/sales",
+      "GET /returns/purchases",
+      "GET /returns/credit-notes",
+      "GET /returns/debit-notes"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 903
+  },
+  {
+    "id": "PAGE-178",
+    "relPath": "_authenticated/_app/route.tsx",
+    "routePath": "/_authenticated/_app",
+    "componentName": "AppShell",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /auth/logout",
+      "POST /super/leave-impersonation"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 756
+  },
+  {
+    "id": "PAGE-179",
+    "relPath": "_authenticated/_app/sales-dashboard.tsx",
+    "routePath": "/_authenticated/_app/sales-dashboard",
+    "componentName": "SalesDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/dashboard/sales-crm",
+      "GET /api/dashboard/pos"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 374
+  },
+  {
+    "id": "PAGE-180",
+    "relPath": "_authenticated/_app/settings.tsx",
+    "routePath": "/_authenticated/_app/settings",
+    "componentName": "Settings",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /ai/settings",
+      "GET /auth/2fa/status",
+      "GET /shifts",
+      "POST /shifts",
+      "PUT /auth/tenant",
+      "GET /employees/departments",
+      "GET /leave/types",
+      "POST /leave/types",
+      "POST /employees/departments",
+      "POST /auth/2fa/generate",
+      "POST /auth/2fa/enable",
+      "POST /auth/2fa/disable",
+      "POST /auth/2fa/backup-codes/regenerate"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 2468
+  },
+  {
+    "id": "PAGE-181",
+    "relPath": "_authenticated/_app/setup-notes.tsx",
+    "routePath": "/_authenticated/_app/setup-notes",
+    "componentName": "SetupNotesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 248
+  },
+  {
+    "id": "PAGE-182",
+    "relPath": "_authenticated/_app/shift-swap-requests.tsx",
+    "routePath": "/_authenticated/_app/shift-swap-requests",
+    "componentName": "ShiftSwapRequestsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees?limit=100",
+      "POST /shifts/swaps"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 541
+  },
+  {
+    "id": "PAGE-183",
+    "relPath": "_authenticated/_app/shifts.tsx",
+    "routePath": "/_authenticated/_app/shifts",
+    "componentName": "ShiftsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "GET /employees/departments",
+      "GET /shifts",
+      "GET /shifts/swaps",
+      "POST /shifts/roster/assign",
+      "POST /shifts/roster/bulk-assign",
+      "POST /shifts",
+      "POST /shifts/swaps"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1331
+  },
+  {
+    "id": "PAGE-184",
+    "relPath": "_authenticated/_app/shopify.tsx",
+    "routePath": "/_authenticated/_app/shopify",
+    "componentName": "ShopifyHubPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /shopify/dashboard",
+      "GET /shopify/stores",
+      "GET /shopify/logs",
+      "POST /shopify/test-connection",
+      "POST /shopify/stores",
+      "POST /shopify/logs/clear"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1209
+  },
+  {
+    "id": "PAGE-185",
+    "relPath": "_authenticated/_app/subscription.tsx",
+    "routePath": "/_authenticated/_app/subscription",
+    "componentName": "SubscriptionPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /workspace/subscription",
+      "POST /support/platform/tickets",
+      "GET /super/plans",
+      "GET /cms/pages/system-monetization-plans",
+      "GET /cms/pages/system-addons-catalog",
+      "GET /payments/razorpay/transactions",
+      "GET /cms/pages/system-platform-settings"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 821
+  },
+  {
+    "id": "PAGE-186",
+    "relPath": "_authenticated/_app/suppliers.tsx",
+    "routePath": "/_authenticated/_app/suppliers",
+    "componentName": "SuppliersPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /api/suppliers"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 572
+  },
+  {
+    "id": "PAGE-187",
+    "relPath": "_authenticated/_app/support-dashboard.tsx",
+    "routePath": "/_authenticated/_app/support-dashboard",
+    "componentName": "SupportDashboardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /dashboard/support"
+    ],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 664
+  },
+  {
+    "id": "PAGE-188",
+    "relPath": "_authenticated/_app/support.tsx",
+    "routePath": "/_authenticated/_app/support",
+    "componentName": "SupportPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /support/platform/summary/stats",
+      "POST /support/platform/tickets"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 574
+  },
+  {
+    "id": "PAGE-189",
+    "relPath": "_authenticated/_app/system-states.tsx",
+    "routePath": "/_authenticated/_app/system-states",
+    "componentName": "SystemStatesShowcase",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 447
+  },
+  {
+    "id": "PAGE-190",
+    "relPath": "_authenticated/_app/tally-importer.tsx",
+    "routePath": "/_authenticated/_app/tally-importer",
+    "componentName": "TallyImporterPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /cms/pages/system-platform-settings",
+      "POST /accounting/tally/preview",
+      "POST /accounting/tally/import"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 517
+  },
+  {
+    "id": "PAGE-191",
+    "relPath": "_authenticated/_app/task-board.tsx",
+    "routePath": "/_authenticated/_app/task-board",
+    "componentName": "TaskBoardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/projects",
+      "POST /api/projects/tasks"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1090
+  },
+  {
+    "id": "PAGE-192",
+    "relPath": "_authenticated/_app/tasks.tsx",
+    "routePath": "/_authenticated/_app/tasks",
+    "componentName": "PersonalTasksBoardPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /projects"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 469
+  },
+  {
+    "id": "PAGE-193",
+    "relPath": "_authenticated/_app/taxes.tsx",
+    "routePath": "/_authenticated/_app/taxes",
+    "componentName": "TaxesPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/products/taxes",
+      "POST /api/products/taxes"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 483
+  },
+  {
+    "id": "PAGE-194",
+    "relPath": "_authenticated/_app/termination.tsx",
+    "routePath": "/_authenticated/_app/termination",
+    "componentName": "TerminationPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/offboarding/exits",
+      "GET /api/employees",
+      "POST /api/offboarding/exits"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 667
+  },
+  {
+    "id": "PAGE-195",
+    "relPath": "_authenticated/_app/ticket-reports.tsx",
+    "routePath": "/_authenticated/_app/ticket-reports",
+    "componentName": "TicketReportsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /helpdesk/tickets",
+      "GET /helpdesk/summary/stats"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 449
+  },
+  {
+    "id": "PAGE-196",
+    "relPath": "_authenticated/_app/timesheets.tsx",
+    "routePath": "/_authenticated/_app/timesheets",
+    "componentName": "TimesheetsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees",
+      "GET /projects",
+      "GET /workspace/timesheets",
+      "POST /workspace/timesheets"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 818
+  },
+  {
+    "id": "PAGE-197",
+    "relPath": "_authenticated/_app/todo.tsx",
+    "routePath": "/_authenticated/_app/todo",
+    "componentName": "TodoPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /todos",
+      "POST /todos"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 573
+  },
+  {
+    "id": "PAGE-198",
+    "relPath": "_authenticated/_app/training.tsx",
+    "routePath": "/_authenticated/_app/training",
+    "componentName": "TrainingPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees/departments",
+      "GET /employees",
+      "GET /training/enrollments",
+      "GET /training/summary",
+      "POST /training/courses",
+      "POST /training/enrollments"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 1575
+  },
+  {
+    "id": "PAGE-199",
+    "relPath": "_authenticated/_app/transfers.tsx",
+    "routePath": "/_authenticated/_app/transfers",
+    "componentName": "TransfersPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/products/warehouses",
+      "GET /api/products",
+      "GET /api/transfers/warehouses/summary",
+      "POST /api/transfers"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 845
+  },
+  {
+    "id": "PAGE-200",
+    "relPath": "_authenticated/_app/users.tsx",
+    "routePath": "/_authenticated/_app/users",
+    "componentName": "UsersPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /workspace/users",
+      "GET /workspace/roles",
+      "PUT /workspace/users/"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 402
+  },
+  {
+    "id": "PAGE-201",
+    "relPath": "_authenticated/_app/warnings.tsx",
+    "routePath": "/_authenticated/_app/warnings",
+    "componentName": "WarningsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /api/warnings/types",
+      "GET /api/employees?limit=200",
+      "POST /api/warnings",
+      "POST /api/warnings/types"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 1045
+  },
+  {
+    "id": "PAGE-202",
+    "relPath": "_authenticated/_app/whatsapp-alerts.tsx",
+    "routePath": "/_authenticated/_app/whatsapp-alerts",
+    "componentName": "WhatsAppAlertsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "POST /alerts/whatsapp/send",
+      "POST /alerts/whatsapp/simulate"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 762
+  },
+  {
+    "id": "PAGE-203",
+    "relPath": "_authenticated/_app/work-from-home.tsx",
+    "routePath": "/_authenticated/_app/work-from-home",
+    "componentName": "WorkFromHomePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /employees?limit=200",
+      "POST /wfh"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": true,
+    "hasBeforeLoad": false,
+    "lines": 416
+  },
+  {
+    "id": "PAGE-204",
+    "relPath": "_authenticated/_app/workflows.tsx",
+    "routePath": "/_authenticated/_app/workflows",
+    "componentName": "WorkflowsPage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [
+      "GET /workflows/rules",
+      "GET /workflows/logs",
+      "POST /workflows/rules"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 416
+  },
+  {
+    "id": "PAGE-205",
+    "relPath": "_authenticated/_app/workspace.tsx",
+    "routePath": "/_authenticated/_app/workspace",
+    "componentName": "WorkspacePage",
+    "currentPanel": "Tenant ERP / HRM App (Shared Shell)",
+    "apis": [],
+    "hasUsePermissions": true,
+    "hasIsSuperAdmin": true,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 187
+  },
+  {
+    "id": "PAGE-206",
+    "relPath": "__root.tsx",
+    "routePath": "/__root",
+    "componentName": "RootComponent",
+    "currentPanel": "Public / Marketing",
+    "apis": [
+      "GET /cms/pages/system-platform-settings"
+    ],
+    "hasUsePermissions": false,
+    "hasIsSuperAdmin": false,
+    "hasRoleCheck": false,
+    "hasBeforeLoad": false,
+    "lines": 189
+  }
+]

@@ -67,6 +67,8 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: "/super/notifications", label: "Broadcast Alerts", iconClass: "ph-bell", group: "Communications" },
 
   // ── System Controls
+  { to: "/cronjob", label: "Centralized Cron & Automations", iconClass: "ph-clock", group: "System Controls", badge: "Centralized" },
+  { to: "/clear-cache", label: "Clear Cache & Maintenance", iconClass: "ph-arrows-clockwise", group: "System Controls" },
   { to: "/super/settings", label: "Platform Settings", iconClass: "ph-gear", group: "System Controls" },
   { to: "/super/analytics", label: "Platform Analytics", iconClass: "ph-chart-line-up", group: "System Controls" },
   { to: "/super/languages", label: "Localization (i18n)", iconClass: "ph-globe", group: "System Controls" },

@@ -24,8 +24,8 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     const account = await (rawPrisma || prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
     if (!account) return res.status(401).json({ error: "Account no longer exists." });
     const isSuper = account.roles.some((r) => r.role === "super_admin");
-    const explicitTenant = (req.headers["x-tenant-id"] as string) || (req.query?.tenant_id as string);
-    const tenantId = isSuper ? (explicitTenant || decoded.tenantId) : account.profile?.tenantId;
+    // Constitutional Security: Tenant context must NEVER be overridable through untrusted client headers or query parameters
+    const tenantId = account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
     const roles = account.roles.filter((r) => r.role === "super_admin" || r.tenantId === tenantId).map((r) => r.role);
     if (!isSuper && tenantId) {
       try { assertWorkspaceActive(await getWorkspacePolicy(tenantId)); }
@@ -82,14 +82,10 @@ export function requirePermission(permissionCode: string) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // 1. Super Admin bypasses all checks
-    if (req.user.roles?.includes("super_admin")) {
-      return next();
-    }
-
+    // 1. Strict Role Separation: Super Admin does not automatically bypass tenant checks on tenant-scoped endpoints
     const tenantId = req.user.tenantId;
     if (!tenantId) {
-      return res.status(403).json({ error: "Forbidden: Missing workspace context" });
+      return res.status(403).json({ error: "Forbidden: Valid workspace context is required for tenant-scoped operations" });
     }
 
     try {

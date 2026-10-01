@@ -2,6 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+
+import { AccessDenied } from "@/components/access-denied";
+import { usePermissions } from "@/lib/permissions";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
@@ -16,12 +21,26 @@ export const Route = createFileRoute("/_authenticated/_app/it-admin-dashboard")(
 });
 
 export default function ITAdminDashboardPage() {
+  const { isWorkspaceAdmin, isSuperAdmin, loading } = usePermissions();
   const [isMounted, setIsMounted] = useState(false);
   const [activeEnv, setActiveEnv] = useState<"production" | "staging" | "dev">("production");
   const [storageDay, setStorageDay] = useState("1Y");
   const [usageDay, setUsageDay] = useState("1W");
   const [userAccessDay, setUserAccessDay] = useState("Today");
   const [securityDay, setSecurityDay] = useState("Today");
+
+  const { data: itData } = useQuery({
+    queryKey: ["dashboard-it-admin"],
+    queryFn: async () => {
+      const res = await api.get<any>("/dashboard/it-admin");
+      return res;
+    },
+    enabled: isWorkspaceAdmin || isSuperAdmin,
+  });
+
+  if (!loading && !isWorkspaceAdmin && !isSuperAdmin) {
+    return <AccessDenied moduleName="IT Administration" requiredPermission="system.it_admin.view" />;
+  }
 
   useEffect(() => {
     setIsMounted(true);
@@ -197,56 +216,56 @@ export default function ITAdminDashboardPage() {
         </button>
       </div>
 
-      {/* ── Top 4 Metric Cards (Uptime, API, Tickets, Jobs) ── */}
+      {/* ── Top 4 Metric Cards (Assets, In Use, Maintenance, Available) ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-3.5 flex items-center justify-between">
           <div>
-            <span className="text-xs text-default block mb-0.5">HRMS Uptime</span>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">99.98%</h3>
-            <span className="text-[10px] text-success font-medium">Last 30 days</span>
+            <span className="text-xs text-default block mb-0.5">Total IT Assets</span>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">{itData?.totalAssets ?? 0}</h3>
+            <span className="text-[10px] text-primary font-medium">Tracked in registry</span>
           </div>
           {isMounted && (
             <Suspense fallback={null}>
-              <Chart options={uptimeOptions} series={[{ name: "Uptime", data: [99.8, 99.9, 100, 99.9, 100, 100] }]} type="area" width={75} height={40} />
+              <Chart options={uptimeOptions} series={[{ name: "Assets", data: [10, 15, 20, 25, 30, itData?.totalAssets ?? 35] }]} type="area" width={75} height={40} />
             </Suspense>
           )}
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-3.5 flex items-center justify-between">
           <div>
-            <span className="text-xs text-default block mb-0.5">API Gateway</span>
-            <h3 className="text-xl font-bold text-success mb-0.5">Healthy</h3>
-            <span className="text-[10px] text-default font-medium">28 endpoints active</span>
+            <span className="text-xs text-default block mb-0.5">In-Use Hardware</span>
+            <h3 className="text-xl font-bold text-success mb-0.5">{itData?.inUseAssets ?? 0}</h3>
+            <span className="text-[10px] text-default font-medium">Assigned to staff</span>
           </div>
           {isMounted && (
             <Suspense fallback={null}>
-              <Chart options={getSparkline([20, 24, 22, 28, 26, 25], "#03C95A")} series={[{ name: "API", data: [20, 24, 22, 28, 26, 25] }]} type="area" width={70} height={35} />
+              <Chart options={getSparkline([5, 8, 12, 14, 18, itData?.inUseAssets ?? 20], "#03C95A")} series={[{ name: "In Use", data: [5, 8, 12, 14, 18, itData?.inUseAssets ?? 20] }]} type="area" width={70} height={35} />
             </Suspense>
           )}
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-3.5 flex items-center justify-between">
           <div>
-            <span className="text-xs text-default block mb-0.5">Open IT Tickets</span>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">18</h3>
-            <span className="text-[10px] text-danger font-medium">3 high priority</span>
+            <span className="text-xs text-default block mb-0.5">Under Maintenance</span>
+            <h3 className="text-xl font-bold text-warning mb-0.5">{itData?.maintenanceAssets ?? 0}</h3>
+            <span className="text-[10px] text-danger font-medium">Servicing / repair</span>
           </div>
           {isMounted && (
             <Suspense fallback={null}>
-              <Chart options={getSparkline([12, 15, 18, 14, 20, 18], "#E70D0D")} series={[{ name: "Tickets", data: [12, 15, 18, 14, 20, 18] }]} type="area" width={70} height={35} />
+              <Chart options={getSparkline([2, 4, 3, 5, 2, itData?.maintenanceAssets ?? 1], "#FF9F43")} series={[{ name: "Maintenance", data: [2, 4, 3, 5, 2, itData?.maintenanceAssets ?? 1] }]} type="area" width={70} height={35} />
             </Suspense>
           )}
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-3.5 flex items-center justify-between">
           <div>
-            <span className="text-xs text-default block mb-0.5">Cron Workers</span>
-            <h3 className="text-xl font-bold text-primary mb-0.5">12 / 12</h3>
-            <span className="text-[10px] text-default font-medium">All queues running</span>
+            <span className="text-xs text-default block mb-0.5">Available In Stock</span>
+            <h3 className="text-xl font-bold text-primary mb-0.5">{itData?.availableAssets ?? 0}</h3>
+            <span className="text-[10px] text-default font-medium">Ready for deployment</span>
           </div>
           {isMounted && (
             <Suspense fallback={null}>
-              <Chart options={getSparkline([12, 12, 12, 12, 12, 12], "#FF6B00")} series={[{ name: "Workers", data: [12, 12, 12, 12, 12, 12] }]} type="area" width={70} height={35} />
+              <Chart options={getSparkline([10, 12, 14, 11, 15, itData?.availableAssets ?? 12], "#FF6B00")} series={[{ name: "Stock", data: [10, 12, 14, 11, 15, itData?.availableAssets ?? 12] }]} type="area" width={70} height={35} />
             </Suspense>
           )}
         </div>

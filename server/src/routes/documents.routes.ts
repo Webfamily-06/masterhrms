@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { storageService } from "../services/storage/local-encrypted-storage.service";
 
 export const documentsRouter = Router();
 
@@ -321,3 +322,64 @@ documentsRouter.get("/summary/stats", requireAuth, async (req: AuthRequest, res:
     return res.status(500).json({ error: err.message || "Failed to generate document metrics." });
   }
 });
+
+/**
+ * GET /api/documents/:id/stream
+ * Secure authenticated binary document streaming route with tenant isolation,
+ * ownership checks, on-the-fly decryption, and hardened security headers.
+ */
+documentsRouter.get("/:id/stream", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context is required." });
+    }
+
+    // 1. Fetch StoredDocument metadata
+    const doc = await prisma.storedDocument.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!doc) {
+      return res.status(404).json({ error: "Document not found or access denied." });
+    }
+
+    // 2. Ownership / RBAC check
+    const currentUserId = (req.user as any)?.userId || (req.user as any)?.id;
+    const userRole = (req.user as any)?.role;
+    if (
+      userRole === "employee" &&
+      doc.uploadedById &&
+      doc.uploadedById !== currentUserId
+    ) {
+      return res.status(403).json({
+        error: "Forbidden: You do not have permission to access this private document.",
+      });
+    }
+
+    // 3. Decrypt and stream from local encrypted repository
+    const { stream, metadata } = await storageService.getStream(tenantId, id);
+
+    // 4. Hardened Security Headers
+    res.setHeader("Content-Type", metadata.mimeType || "application/octet-stream");
+    res.setHeader("Content-Length", metadata.sizeBytes.toString());
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(metadata.originalName)}"`
+    );
+    res.setHeader("Content-Security-Policy", "default-src 'none'");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("X-Document-Sha256", metadata.sha256Hash);
+
+    // 5. Pipe decrypted binary stream to client
+    stream.pipe(res);
+  } catch (err: any) {
+    console.error(`[GET /api/documents/:id/stream ERROR]:`, err);
+    return res.status(500).json({ error: err.message || "Failed to stream document." });
+  }
+});
+

@@ -33,12 +33,15 @@ function fmtDate(d: string | null | undefined) {
   try { return format(new Date(d), "dd MMM yyyy, HH:mm"); } catch { return String(d); }
 }
 
+import { AccessDenied } from "@/components/access-denied";
+import { isWorkspaceAdminUser } from "@/lib/permissions";
+
 export function BanIpAddressPage() {
   const qc = useQueryClient();
-  const { data: profile } = useCurrentProfile();
+  const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
   const isAdmin = (profile?.roles ?? []).some((r: string) =>
     ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r)
-  );
+  ) || isWorkspaceAdminUser(profile);
 
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
@@ -60,8 +63,13 @@ export function BanIpAddressPage() {
       if (search) p.append("search", search);
       return api.get(`/banned-ips?${p}`);
     },
+    enabled: isAdmin,
   });
   const records: any[] = listData?.data ?? [];
+
+  if (!isProfileLoading && !isAdmin) {
+    return <AccessDenied moduleName="Security Firewall" requiredPermission="system.firewall.manage" />;
+  }
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 

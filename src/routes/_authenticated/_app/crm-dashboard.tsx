@@ -1,8 +1,11 @@
 import { usePermissions } from "@/lib/permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { Loader2 } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { formatSystemAmount } from "@/lib/currency";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initCrmCharts } from "@/lib/dashboard-charts";
 
@@ -12,6 +15,14 @@ export const Route = createFileRoute("/_authenticated/_app/crm-dashboard")({
 
 export default function CrmDashboardPage() {
   const { canAccessModule, loading } = usePermissions();
+
+  const { data: crmData } = useQuery({
+    queryKey: ["dashboard-sales-crm"],
+    queryFn: async () => {
+      const res = await api.get<any>("/dashboard/sales-crm");
+      return res;
+    },
+  });
 
   if (loading) {
     return (
@@ -91,16 +102,16 @@ export default function CrmDashboardPage() {
 							<div className="p-4 bg-success/5">
 								<div className="flex items-start justify-between mb-3">
 									<div>
-										<p className="text-xs text-default mb-1">Total Leads</p>
-										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">$125,000</h2>
+										<p className="text-xs text-default mb-1">Total Leads / Customers</p>
+										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">{crmData?.totalCustomers ?? 0}</h2>
 									</div>
 									<div className="size-10 rounded-full bg-success flex items-center justify-center shrink-0">
 										<i className="ph-duotone ph-user text-white text-lg"></i>
 									</div>
 								</div>
 								<div className="flex items-center gap-2 text-xs">
-									<span className="inline-flex items-center font-semibold text-success"><i className="ph ph-arrow-up text-[10px] me-0.5"></i>+12.4%</span>
-									<span className="text-default">from last week</span>
+									<span className="inline-flex items-center font-semibold text-success"><i className="ph ph-arrow-up text-[10px] me-0.5"></i>Live</span>
+									<span className="text-default">database records</span>
 								</div>
 							</div>
 						</div>
@@ -111,15 +122,15 @@ export default function CrmDashboardPage() {
 								<div className="flex items-start justify-between mb-3">
 									<div>
 										<p className="text-xs text-default mb-1">Total Deals Closed</p>
-										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">$154,000</h2>
+										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">{crmData?.wonDeals ?? 0}</h2>
 									</div>
 									<div className="size-10 rounded-full bg-purple flex items-center justify-center shrink-0">
 										<i className="ph-duotone ph-info text-white text-lg"></i>
 									</div>
 								</div>
 								<div className="flex items-center gap-2 text-xs">
-									<span className="inline-flex items-center font-semibold text-success"><i className="ph ph-arrow-up text-[10px] me-0.5"></i>+5.3%</span>
-									<span className="text-default">from last week</span>
+									<span className="inline-flex items-center font-semibold text-success"><i className="ph ph-arrow-up text-[10px] me-0.5"></i>Live</span>
+									<span className="text-default">database records</span>
 								</div>
 							</div>
 						</div>
@@ -130,15 +141,15 @@ export default function CrmDashboardPage() {
 								<div className="flex items-start justify-between mb-3">
 									<div>
 										<p className="text-xs text-default mb-1">Total Opportunities</p>
-										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">$185,000</h2>
+										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">{crmData?.totalDeals ?? 0}</h2>
 									</div>
 									<div className="size-10 rounded-full bg-warning flex items-center justify-center shrink-0">
 										<i className="ph-duotone ph-medal text-white text-lg"></i>
 									</div>
 								</div>
 								<div className="flex items-center gap-2 text-xs">
-									<span className="inline-flex items-center font-semibold text-danger"><i className="ph ph-arrow-down text-[10px] me-0.5"></i>-4.35%</span>
-									<span className="text-default">from last week</span>
+									<span className="inline-flex items-center font-semibold text-success"><i className="ph ph-arrow-up text-[10px] me-0.5"></i>Live</span>
+									<span className="text-default">database records</span>
 								</div>
 							</div>
 						</div>
@@ -149,15 +160,15 @@ export default function CrmDashboardPage() {
 								<div className="flex items-start justify-between mb-3">
 									<div>
 										<p className="text-xs text-default mb-1">Total Revenue</p>
-										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">$210,000</h2>
+										<h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 mb-0">{formatSystemAmount(crmData?.totalRevenue ?? 0)}</h2>
 									</div>
 									<div className="size-10 rounded-full bg-pink flex items-center justify-center shrink-0">
 										<i className="ph-duotone ph-credit-card text-white text-lg"></i>
 									</div>
 								</div>
 								<div className="flex items-center gap-2 text-xs">
-									<span className="inline-flex items-center font-semibold text-success"><i className="ph ph-arrow-up text-[10px] me-0.5"></i>+11.8%</span>
-									<span className="text-default">from last week</span>
+									<span className="inline-flex items-center font-semibold text-success"><i className="ph ph-arrow-up text-[10px] me-0.5"></i>Live</span>
+									<span className="text-default">database records</span>
 								</div>
 							</div>
 						</div>
@@ -170,7 +181,7 @@ export default function CrmDashboardPage() {
 						<div className="bg-white border border-border-color rounded-md p-4 pb-1.5 xl:col-span-4">
 							<div className="flex items-center justify-between flex-wrap gap-2 mb-3">
 								<h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recent Leads</h3>
-								<a href="leads.html" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="ph ph-caret-right text-[10px]"></i></a>
+								<Link to="/leads-dashboard" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="ph ph-caret-right text-[10px]"></i></Link>
 							</div>
 							<div className="overflow-x-auto">
 								<table className="w-full text-sm">
@@ -325,7 +336,7 @@ export default function CrmDashboardPage() {
 						<div className="bg-white border border-border-color rounded-md p-4 pb-1.5 xl:col-span-7">
 							<div className="flex items-center justify-between flex-wrap gap-2 mb-3">
 								<h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recent Deals</h3>
-								<a href="deals.html" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="ph ph-caret-right text-[10px]"></i></a>
+								<Link to="/deals-dashboard" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="ph ph-caret-right text-[10px]"></i></Link>
 							</div>
 							<div className="overflow-x-auto">
 								<table className="w-full text-sm">
@@ -586,7 +597,7 @@ export default function CrmDashboardPage() {
                                         </div>
                                     </div>
                                 </div>
-									<a href="contacts.html" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="ph ph-caret-right text-[10px]"></i></a>
+									<Link to="/contacts" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="ph ph-caret-right text-[10px]"></i></Link>
 								</div>
 							</div>
 							<div className="overflow-x-auto">
@@ -602,7 +613,7 @@ export default function CrmDashboardPage() {
 									<tbody>
 										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
 											<td className="py-2.5 px-2 text-xs text-default">
-												<a href="contact-details.html" className="hover:text-primary transition-colors font-medium">#CON0020</a>
+												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0020</Link>
 											</td>
 											<td className="py-2.5 px-2">
 												<div className="flex items-center gap-2">
@@ -622,7 +633,7 @@ export default function CrmDashboardPage() {
 										</tr>
 										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
 											<td className="py-2.5 px-2 text-xs text-default">
-												<a href="contact-details.html" className="hover:text-primary transition-colors font-medium">#CON0019</a>
+												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0019</Link>
 											</td>
 											<td className="py-2.5 px-2">
 												<div className="flex items-center gap-2">
@@ -642,7 +653,7 @@ export default function CrmDashboardPage() {
 										</tr>
 										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
 											<td className="py-2.5 px-2 text-xs text-default">
-												<a href="contact-details.html" className="hover:text-primary transition-colors font-medium">#CON0018</a>
+												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0018</Link>
 											</td>
 											<td className="py-2.5 px-2">
 												<div className="flex items-center gap-2">
@@ -662,7 +673,7 @@ export default function CrmDashboardPage() {
 										</tr>
 										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
 											<td className="py-2.5 px-2 text-xs text-default">
-												<a href="contact-details.html" className="hover:text-primary transition-colors font-medium">#CON0017</a>
+												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0017</Link>
 											</td>
 											<td className="py-2.5 px-2">
 												<div className="flex items-center gap-2">

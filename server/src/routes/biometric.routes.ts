@@ -1,12 +1,17 @@
 import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Request, Response } from "express";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { broadcastToTenant } from "../socket";
 import crypto from "crypto";
 import net from "net";
 import { pullAttendanceLogsFromZkDevice } from "../services/zk-protocol";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
+import {
+  normalizeCosecEvent,
+  normalizeCosecBatch,
+  type CosecPunchEvent,
+} from "../services/matrix-cosec.adapter";
 
 export const biometricRouter = Router();
 export const publicBiometricRouter = Router();
@@ -49,9 +54,14 @@ export async function processBiometricPunch({
   verificationMode?: string;
   rawPayload?: string;
 }) {
+  // Use rawPrisma throughout: this function is called from both authenticated
+  // routes and public device webhook endpoints. It already enforces multi-tenant
+  // isolation by filtering every query on tenantId.
+  const db = rawPrisma;
+
   // ── 1. Resolve Employee ───────────────────────────────────────────────────
   const strippedCode = employeeCode.replace(/^0+/, "") || employeeCode;
-  const employee = await prisma.employee.findFirst({
+  const employee = await db.employee.findFirst({
     where: {
       tenantId,
       OR: [
@@ -75,13 +85,13 @@ export async function processBiometricPunch({
   // ── 2. Resolve Device (with purpose field) ────────────────────────────────
   let deviceRecord: { id: string; deviceName: string; purpose: string } | null = null;
   if (deviceId) {
-    deviceRecord = await prisma.biometricDevice.findUnique({
+    deviceRecord = await db.biometricDevice.findUnique({
       where: { id: deviceId },
       select: { id: true, deviceName: true, purpose: true, location: true },
     }) as any;
   }
   if (!deviceRecord) {
-    deviceRecord = await prisma.biometricDevice.findFirst({
+    deviceRecord = await db.biometricDevice.findFirst({
       where: { tenantId },
       select: { id: true, deviceName: true, purpose: true, location: true },
     }) as any;
@@ -92,19 +102,19 @@ export async function processBiometricPunch({
   }
 
   // ── 3. Deduplicate — skip exact same timestamp already recorded ───────────
-  const existingLog = await prisma.biometricPunchLog.findFirst({
+  const existingLog = await db.biometricPunchLog.findFirst({
     where: { tenantId, employeeCode, punchTime },
   });
 
   if (existingLog) {
     // Backfill employeeId if it was previously unmatched
     if (employee && existingLog.syncStatus !== "processed") {
-      await prisma.biometricPunchLog.update({
+      await db.biometricPunchLog.update({
         where: { id: existingLog.id },
         data: { employeeId: employee.id, syncStatus: "processed" },
       });
     }
-    return existingLog;
+    return Object.assign(existingLog, { isDuplicate: true });
   }
 
   // ── 4. Apply device purpose → override punchType if device is dedicated ──
@@ -118,7 +128,7 @@ export async function processBiometricPunch({
   }
 
   // ── 5. Save Raw BiometricPunchLog ─────────────────────────────────────────
-  const punchLog = await prisma.biometricPunchLog.create({
+  const punchLog = await db.biometricPunchLog.create({
     data: {
       tenantId,
       deviceId: deviceRecord.id,
@@ -137,7 +147,7 @@ export async function processBiometricPunch({
   });
 
   // Update device heartbeat counter
-  await prisma.biometricDevice.update({
+  await db.biometricDevice.update({
     where: { id: deviceRecord.id },
     data: {
       totalPunchLogs: { increment: 1 },
@@ -155,7 +165,7 @@ export async function processBiometricPunch({
       punchTime.getDate(),
     ));
 
-    const existing = await prisma.attendance.findUnique({
+    const existing = await db.attendance.findUnique({
       where: {
         tenantId_employeeId_date: {
           tenantId,
@@ -169,7 +179,7 @@ export async function processBiometricPunch({
       // ── No record yet: this is the very first punch of the day ──────────
       // Always becomes checkIn regardless of punchType — you can't check out
       // before checking in on the same day.
-      await prisma.attendance.create({
+      await db.attendance.create({
         data: {
           tenantId,
           employeeId: employee.id,
@@ -255,7 +265,7 @@ export async function processBiometricPunch({
                           : resolvedPunchType === "check_out" ? "Out"
                           : (checkOutChanged ? "Out" : "In");
 
-        await prisma.attendance.update({
+        await db.attendance.update({
           where: { id: existing.id },
           data: {
             checkIn:  newCheckIn,
@@ -284,7 +294,7 @@ export async function processBiometricPunch({
     }
   }
 
-  return punchLog;
+  return Object.assign(punchLog, { isDuplicate: false });
 }
 /**
  * GET /api/biometric/devices
@@ -1467,21 +1477,51 @@ publicBiometricRouter.all("/adms", handleAdmsPush);
  */
 publicBiometricRouter.post("/push", async (req: Request, res: Response) => {
   try {
-    const apiKey = req.headers["x-biometric-key"] || req.query.apiKey || req.body.apiKey;
+    const apiKey = (req.headers["x-biometric-key"] || req.query.apiKey || req.body.apiKey || "").toString();
+    const explicitTenantHeader = (req.headers["x-tenant-id"] || req.query.tenantId || req.body.tenantId || "").toString();
+    const isProduction = process.env.NODE_ENV === "production";
 
-    let tenantId = req.headers["x-tenant-id"] || req.query.tenantId || req.body.tenantId;
-    let device = null;
+    let tenantId: string | null = null;
+    let device: any = null;
 
     if (apiKey) {
-      device = await prisma.biometricDevice.findUnique({
+      device = await rawPrisma.biometricDevice.findUnique({
         where: { apiKey: String(apiKey) },
       });
-      if (device) tenantId = device.tenantId;
-    }
+      if (!device) {
+        return res.status(401).json({ error: "Invalid biometric device API key." });
+      }
+      tenantId = device.tenantId;
 
-    if (!tenantId) {
-      const defaultTenant = await prisma.tenant.findFirst();
-      tenantId = defaultTenant?.id;
+      if (explicitTenantHeader && explicitTenantHeader !== tenantId) {
+        return res.status(403).json({
+          error: "Tenant impersonation forbidden: provided x-tenant-id does not match registered device tenant.",
+        });
+      }
+    } else {
+      if (isProduction) {
+        return res.status(401).json({
+          error: "Authentication required: x-biometric-key header is required in production.",
+        });
+      }
+
+      if (explicitTenantHeader) {
+        const tenantExists = await rawPrisma.tenant.findUnique({ where: { id: explicitTenantHeader } });
+        if (!tenantExists) {
+          return res.status(404).json({ error: "Specified x-tenant-id does not exist." });
+        }
+        tenantId = explicitTenantHeader;
+      } else {
+        const totalTenants = await rawPrisma.tenant.count();
+        if (totalTenants === 1 || process.env.SINGLE_TENANT_MODE === "true") {
+          const defaultTenant = await rawPrisma.tenant.findFirst();
+          tenantId = defaultTenant?.id || null;
+        } else {
+          return res.status(401).json({
+            error: "Authentication required: Multiple tenants exist. Provide x-biometric-key to identify tenant.",
+          });
+        }
+      }
     }
 
     if (!tenantId) {
@@ -1496,12 +1536,12 @@ publicBiometricRouter.post("/push", async (req: Request, res: Response) => {
 
     // Auto-discover device if serialNumber provided and not registered
     if (!device && serialNumber) {
-      device = await prisma.biometricDevice.findFirst({
+      device = await rawPrisma.biometricDevice.findFirst({
         where: { serialNumber: String(serialNumber) },
       });
 
       if (!device) {
-        device = await prisma.biometricDevice.create({
+        device = await rawPrisma.biometricDevice.create({
           data: {
             tenantId: String(tenantId),
             deviceName: req.body.deviceName || `Device [${serialNumber}]`,
@@ -1529,9 +1569,15 @@ publicBiometricRouter.post("/push", async (req: Request, res: Response) => {
       rawPayload: JSON.stringify(req.body),
     });
 
+    const isDuplicate = (punchLog as any)?.isDuplicate;
+
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Punch accepted and processed.",
+      accepted: isDuplicate ? 0 : 1,
+      duplicate: isDuplicate ? 1 : 0,
+      message: isDuplicate
+        ? "Duplicate punch recognized; existing record retained with zero duplicate impact."
+        : "Punch accepted and processed.",
       logId: punchLog.id,
     });
   } catch (err: any) {
@@ -1541,3 +1587,440 @@ publicBiometricRouter.post("/push", async (req: Request, res: Response) => {
 });
 
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 2.3 — Matrix COSEC Webhook Adapter
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/biometric/matrix/push
+ * Receives attendance events directly pushed by Matrix COSEC devices.
+ *
+ * Authentication: x-biometric-key header (device API key) OR x-tenant-id.
+ * Body: single CosecPunchEvent object OR array of CosecPunchEvent objects.
+ *
+ * The endpoint:
+ *   1. Resolves the tenant from the API key.
+ *   2. Looks up BiometricEmployeeMapping for the UserCode on this device
+ *      to get the canonical employeeCode.
+ *   3. Stores unresolvable punches in BiometricOfflineBuffer (status=pending)
+ *      for nightly reconciliation.
+ *   4. Deduplicates by (tenantId, employeeCode, punchTime) at the punch-log level.
+ */
+biometricRouter.post("/matrix/push", async (req: Request, res: Response) => {
+  try {
+    const apiKey = (req.headers["x-biometric-key"] || req.query.apiKey || "").toString();
+    const explicitTenantHeader = (req.headers["x-tenant-id"] || req.query.tenantId || "").toString();
+    const isProduction = process.env.NODE_ENV === "production";
+
+    let tenantId: string | null = null;
+    let device: any             = null;
+
+    // 1. Resolve tenant via device API key if provided
+    if (apiKey) {
+      device = await rawPrisma.biometricDevice.findUnique({ where: { apiKey } });
+      if (!device) {
+        return res.status(401).json({ error: "Invalid biometric device API key." });
+      }
+      tenantId = device.tenantId;
+
+      // Security check: Prevent tenant impersonation
+      if (explicitTenantHeader && explicitTenantHeader !== tenantId) {
+        return res.status(403).json({
+          error: "Tenant impersonation forbidden: provided x-tenant-id does not match registered device tenant.",
+        });
+      }
+    } else {
+      // In production, an API key is mandatory for hardware webhooks
+      if (isProduction) {
+        return res.status(401).json({
+          error: "Authentication required: x-biometric-key header is required in production.",
+        });
+      }
+
+      // Non-production fallback with strict safeguards:
+      if (explicitTenantHeader) {
+        const tenantExists = await rawPrisma.tenant.findUnique({ where: { id: explicitTenantHeader } });
+        if (!tenantExists) {
+          return res.status(404).json({ error: "Specified x-tenant-id does not exist." });
+        }
+        tenantId = explicitTenantHeader;
+      } else {
+        // Only allow first-tenant fallback if there is strictly 1 tenant in the entire system or explicit single-tenant mode
+        const totalTenants = await rawPrisma.tenant.count();
+        if (totalTenants === 1 || process.env.SINGLE_TENANT_MODE === "true") {
+          const first = await rawPrisma.tenant.findFirst({ select: { id: true } });
+          if (first) tenantId = first.id;
+        } else {
+          return res.status(401).json({
+            error: "Authentication required: Multiple tenants exist. Provide x-biometric-key to identify tenant.",
+          });
+        }
+      }
+    }
+
+    if (!tenantId) {
+      return res.status(401).json({ error: "Unable to resolve tenant. Provide valid x-biometric-key." });
+    }
+
+    // Normalise body: support both single-event and batch-event payloads
+    const rawBody = req.body;
+    const events: CosecPunchEvent[] = Array.isArray(rawBody) ? rawBody : [rawBody];
+
+    if (!events.length || !events[0]?.UserCode) {
+      return res.status(400).json({ error: "No valid COSEC events in payload. UserCode is required." });
+    }
+
+    const records = normalizeCosecBatch(events);
+    let accepted = 0;
+    let buffered = 0;
+    let duplicate = 0;
+
+    for (const record of records) {
+      // Resolve employee via PIN mapping table (device-scoped)
+      let resolvedEmployeeCode = record.employeeCode;
+      if (device) {
+        const mapping = await rawPrisma.biometricEmployeeMapping.findFirst({
+          where: { deviceId: device.id, devicePin: record.employeeCode, isActive: true },
+          include: { employee: { select: { employeeCode: true } } },
+        });
+        if (mapping?.employee?.employeeCode) {
+          resolvedEmployeeCode = mapping.employee.employeeCode;
+        }
+      }
+
+      try {
+        const punchResult = await processBiometricPunch({
+          tenantId,
+          deviceId:         device?.id,
+          employeeCode:     resolvedEmployeeCode,
+          punchTime:        record.punchTime,
+          punchType:        record.punchType,
+          verificationMode: record.verificationMode,
+          rawPayload:       record.rawPayload,
+        });
+
+        // Accurately distinguish duplicate punches from accepted new events
+        if ((punchResult as any)?.isDuplicate) {
+          duplicate++;
+          continue;
+        }
+
+        // Update device heartbeat
+        if (device) {
+          await rawPrisma.biometricDevice.update({
+            where: { id: device.id },
+            data:  { lastSyncAt: new Date(), status: "online" },
+          }).catch(() => {}); // non-fatal
+        }
+
+        accepted++;
+      } catch (punchErr: any) {
+        // Deduplicate punches (exact same timestamp already recorded)
+        if (punchErr?.code === "P2002" || String(punchErr?.message).toLowerCase().includes("duplicate")) {
+          duplicate++;
+          continue;
+        }
+
+        // Store in offline buffer for nightly reconciliation
+        await rawPrisma.biometricOfflineBuffer.create({
+          data: {
+            tenantId,
+            deviceId:         device?.id ?? null,
+            serialNumber:     events[0]?.DeviceCode ?? null,
+            vendorType:       "matrix_cosec",
+            rawPayload:       record.rawPayload,
+            employeeCode:     resolvedEmployeeCode,
+            punchTime:        record.punchTime,
+            punchType:        record.punchType,
+            verificationMode: record.verificationMode,
+            status:           "pending",
+            failureReason:    String(punchErr?.message || "").slice(0, 500),
+          },
+        }).catch((bufErr) => console.error("[MATRIX PUSH] Failed to buffer punch:", bufErr));
+
+        buffered++;
+      }
+    }
+
+    return res.status(200).json({
+      status:    "SUCCESS",
+      accepted,
+      buffered,
+      duplicate,
+      total:     records.length,
+      message:   `COSEC push processed: ${accepted} accepted, ${buffered} buffered, ${duplicate} duplicate.`,
+    });
+  } catch (err: any) {
+    console.error("[POST /api/biometric/matrix/push] error:", err);
+    return res.status(500).json({ error: err.message || "Matrix COSEC push failed." });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 2.3 — BiometricEmployeeMapping CRUD
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/biometric/devices/:id/mappings
+ * List all PIN → Employee mappings for a device
+ */
+biometricRouter.get("/devices/:id/mappings", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const device = await prisma.biometricDevice.findUnique({ where: { id } });
+    if (!device || device.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Biometric device not found." });
+    }
+
+    const mappings = await prisma.biometricEmployeeMapping.findMany({
+      where:   { deviceId: id, tenantId },
+      include: { employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return res.json(mappings);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch mappings." });
+  }
+});
+
+/**
+ * POST /api/biometric/devices/:id/mappings
+ * Create or upsert a PIN → Employee mapping for a device
+ */
+biometricRouter.post("/devices/:id/mappings", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const { employeeId, devicePin, vendorType, notes } = req.body;
+    if (!employeeId || !devicePin) {
+      return res.status(400).json({ error: "employeeId and devicePin are required." });
+    }
+
+    const device = await prisma.biometricDevice.findUnique({ where: { id } });
+    if (!device || device.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Biometric device not found." });
+    }
+
+    // Check if this PIN is already assigned to a different employee on this device
+    const trimmedPin = String(devicePin).trim();
+    const pinConflict = await prisma.biometricEmployeeMapping.findFirst({
+      where: { deviceId: id, devicePin: trimmedPin, employeeId: { not: employeeId } },
+    });
+    if (pinConflict) {
+      return res.status(409).json({ error: `PIN "${trimmedPin}" is already mapped to another employee on this terminal.` });
+    }
+
+    // Upsert: update if mapping for this device+employee already exists
+    const existing = await prisma.biometricEmployeeMapping.findFirst({
+      where: { deviceId: id, employeeId },
+    });
+
+    let mapping;
+    if (existing) {
+      mapping = await prisma.biometricEmployeeMapping.update({
+        where: { id: existing.id },
+        data:  { devicePin: trimmedPin, vendorType: vendorType || "matrix_cosec", notes: notes ?? undefined, isActive: true },
+      });
+    } else {
+      mapping = await prisma.biometricEmployeeMapping.create({
+        data: {
+          tenantId,
+          deviceId:   id,
+          employeeId,
+          devicePin:  trimmedPin,
+          vendorType: vendorType || "matrix_cosec",
+          notes:      notes ?? undefined,
+        },
+      });
+    }
+
+    // Retroactively link any unmatched punch logs for this PIN on this device
+    await prisma.biometricPunchLog.updateMany({
+      where: { tenantId, deviceId: id, employeeCode: trimmedPin, syncStatus: "unmatched_employee" },
+      data:  { employeeId, syncStatus: "processed" },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `PIN ${devicePin} mapped to employee successfully.`,
+      mapping,
+    });
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      return res.status(409).json({ error: "This PIN is already mapped to another employee on this device." });
+    }
+    return res.status(500).json({ error: err.message || "Failed to create mapping." });
+  }
+});
+
+/**
+ * PUT /api/biometric/devices/:id/mappings/:mappingId
+ * Update or activate/deactivate an existing PIN mapping
+ */
+biometricRouter.put("/devices/:id/mappings/:mappingId", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, mappingId } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const mapping = await prisma.biometricEmployeeMapping.findUnique({ where: { id: mappingId } });
+    if (!mapping || mapping.tenantId !== tenantId || mapping.deviceId !== id) {
+      return res.status(404).json({ error: "Mapping not found." });
+    }
+
+    const { devicePin, isActive, vendorType, notes } = req.body;
+    const data: any = {};
+    if (devicePin !== undefined) {
+      const trimmedPin = String(devicePin).trim();
+      const conflict = await prisma.biometricEmployeeMapping.findFirst({
+        where: { deviceId: id, devicePin: trimmedPin, id: { not: mappingId } },
+      });
+      if (conflict) {
+        return res.status(409).json({ error: `PIN "${trimmedPin}" is already mapped to another employee on this terminal.` });
+      }
+      data.devicePin = trimmedPin;
+    }
+    if (isActive !== undefined) data.isActive = Boolean(isActive);
+    if (vendorType !== undefined) data.vendorType = String(vendorType);
+    if (notes !== undefined) data.notes = notes;
+
+    const updated = await prisma.biometricEmployeeMapping.update({
+      where: { id: mappingId },
+      data,
+      include: { employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } } },
+    });
+
+    return res.json({ success: true, message: "PIN mapping updated successfully.", mapping: updated });
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      return res.status(409).json({ error: "This PIN is already mapped to another employee on this device." });
+    }
+    return res.status(500).json({ error: err.message || "Failed to update mapping." });
+  }
+});
+
+/**
+ * DELETE /api/biometric/devices/:id/mappings/:mappingId
+ * Remove (deactivate) a PIN → Employee mapping
+ */
+biometricRouter.delete("/devices/:id/mappings/:mappingId", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, mappingId } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const mapping = await prisma.biometricEmployeeMapping.findUnique({ where: { id: mappingId } });
+    if (!mapping || mapping.tenantId !== tenantId || mapping.deviceId !== id) {
+      return res.status(404).json({ error: "Mapping not found." });
+    }
+
+    await prisma.biometricEmployeeMapping.delete({ where: { id: mappingId } });
+    return res.json({ success: true, message: "PIN mapping removed." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to remove mapping." });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 2.3 — Offline Buffer Status & Manual Replay
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/biometric/offline-buffer
+ * List offline buffer entries for the tenant (filtered by status)
+ */
+biometricRouter.get("/offline-buffer", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const { status = "pending", limit = "50" } = req.query;
+    const where: any = { tenantId };
+    if (status !== "all") where.status = String(status);
+
+    const entries = await prisma.biometricOfflineBuffer.findMany({
+      where,
+      orderBy: { punchTime: "desc" },
+      take: Math.min(Number(limit) || 50, 200),
+    });
+
+    const stats = await prisma.biometricOfflineBuffer.groupBy({
+      by:    ["status"],
+      where: { tenantId },
+      _count: true,
+    });
+
+    return res.json({ entries, stats });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch offline buffer." });
+  }
+});
+
+/**
+ * POST /api/biometric/offline-buffer/replay
+ * Manually trigger a replay of pending offline buffer entries (HR Admin only).
+ * The nightly cron runs this automatically, but admins can trigger it on-demand.
+ */
+biometricRouter.post("/offline-buffer/replay", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const pending = await prisma.biometricOfflineBuffer.findMany({
+      where:   { tenantId, status: "pending" },
+      orderBy: { punchTime: "asc" },
+      take:    500,
+    });
+
+    let processed = 0;
+    let failed    = 0;
+    let duplicate = 0;
+
+    for (const entry of pending) {
+      try {
+        const punchResult = await processBiometricPunch({
+          tenantId:         entry.tenantId,
+          deviceId:         entry.deviceId ?? undefined,
+          employeeCode:     entry.employeeCode,
+          punchTime:        entry.punchTime,
+          punchType:        entry.punchType,
+          verificationMode: entry.verificationMode,
+          rawPayload:       entry.rawPayload,
+        });
+
+        const isDup = (punchResult as any)?.isDuplicate;
+        await prisma.biometricOfflineBuffer.update({
+          where: { id: entry.id },
+          data:  { status: isDup ? "duplicate" : "processed", processedAt: new Date() },
+        });
+        if (isDup) duplicate++; else processed++;
+      } catch (err: any) {
+        const isDup = err?.code === "P2002" || String(err?.message).toLowerCase().includes("duplicate");
+        await prisma.biometricOfflineBuffer.update({
+          where: { id: entry.id },
+          data:  { status: isDup ? "duplicate" : "failed", failureReason: String(err?.message || "").slice(0, 500), processedAt: new Date() },
+        });
+        if (isDup) duplicate++; else failed++;
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Replay complete: ${processed} processed, ${failed} failed, ${duplicate} duplicates.`,
+      processed,
+      failed,
+      duplicate,
+      total: pending.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Offline buffer replay failed." });
+  }
+});

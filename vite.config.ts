@@ -75,10 +75,9 @@ export default defineConfig({
     updateEnvMiddlewarePlugin(),
   ],
   resolve: {
-    tsconfigPaths: true,
-  },
-  optimizeDeps: {
-    force: true,
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
   build: {
     chunkSizeWarningLimit: 1000,
@@ -119,6 +118,12 @@ export default defineConfig({
   server: {
     headers: {
       "Cache-Control": "no-cache, no-store, must-revalidate",
+    },
+    proxy: {
+      "/api": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+      },
     },
   },
 });

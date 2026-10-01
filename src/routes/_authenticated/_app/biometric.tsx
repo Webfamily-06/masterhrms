@@ -71,6 +71,9 @@ import {
   UserPlus,
   ArrowRight,
   Sparkles,
+  Pencil,
+  X,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -97,9 +100,33 @@ export function BiometricPage() {
   const [isCloudConfigOpen, setIsCloudConfigOpen] = useState(false);
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [activePassportDevice, setActivePassportDevice] = useState<any>(null);
-  const [passportTab, setPassportTab] = useState<"logs" | "hardware_users">("logs");
+  const [passportTab, setPassportTab] = useState<"logs" | "pin_mappings" | "hardware_users">("logs");
   const [passportPeriod, setPassportPeriod] = useState<"daily" | "weekly" | "monthly" | "all">("daily");
   const [userSearchQuery, setUserSearchQuery] = useState("");
+
+  // Wave 2.3 PIN Mapping & Buffer State
+  const [pinMappingForm, setPinMappingForm] = useState({
+    employeeId: "",
+    devicePin: "",
+    vendorType: "matrix_cosec",
+    notes: "",
+  });
+  const [pinSearchQuery, setPinSearchQuery] = useState("");
+  const [isBufferOpen, setIsBufferOpen] = useState(false);
+
+  // Top-level Navigation & PIN Mapping Studio State
+  const [mainViewTab, setMainViewTab] = useState<"fleet" | "pin_studio">("fleet");
+  const [selectedStudioDeviceId, setSelectedStudioDeviceId] = useState<string>("");
+  const [editingMappingId, setEditingMappingId] = useState<string | null>(null);
+  const [studioError, setStudioError] = useState<string | null>(null);
+  const [studioPinSearch, setStudioPinSearch] = useState<string>("");
+  const [studioForm, setStudioForm] = useState({
+    employeeId: "",
+    devicePin: "",
+    vendorType: "matrix_cosec",
+    isActive: true,
+    notes: "",
+  });
 
   // Forms
   const [registerForm, setRegisterForm] = useState({
@@ -217,6 +244,49 @@ export function BiometricPage() {
     },
   });
 
+  // Wave 2.3: Device PIN Mappings Query
+  const { data: deviceMappings = [], isLoading: isMappingsLoading } = useQuery({
+    queryKey: ["device-mappings", activePassportDevice?.id],
+    enabled: !!activePassportDevice?.id && passportTab === "pin_mappings",
+    queryFn: async () => {
+      try {
+        const res = await api.get(`/biometric/devices/${activePassportDevice.id}/mappings`);
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // Wave 2.3: Offline Punch Buffer Query
+  const { data: offlineBufferData, isLoading: isBufferLoading } = useQuery({
+    queryKey: ["offline-buffer", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/biometric/offline-buffer?status=all&limit=30");
+        return res || { entries: [], stats: [] };
+      } catch {
+        return { entries: [], stats: [] };
+      }
+    },
+  });
+
+  // Wave 2.3: PIN Mapping Studio Query
+  const studioDeviceId = selectedStudioDeviceId || devices[0]?.id;
+  const selectedStudioDevice = devices.find((d: any) => d.id === studioDeviceId);
+  const { data: studioMappings = [], isLoading: isStudioMappingsLoading } = useQuery({
+    queryKey: ["device-mappings", studioDeviceId],
+    enabled: !!studioDeviceId,
+    queryFn: async () => {
+      try {
+        const res = await api.get(`/biometric/devices/${studioDeviceId}/mappings`);
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
   // Mutations
   const registerDeviceMut = useMutation({
     mutationFn: async (payload: any) => api.post("/biometric/devices", payload),
@@ -323,6 +393,70 @@ export function BiometricPage() {
       setIsSimulateOpen(false);
     },
     onError: (e: any) => toast.error(e.message || "Simulation failed"),
+  });
+
+  // Wave 2.3: PIN Mapping Mutations
+  const createPinMappingMut = useMutation({
+    mutationFn: async (payload: { deviceId: string; employeeId: string; devicePin: string; vendorType: string; notes?: string }) => {
+      return api.post(`/biometric/devices/${payload.deviceId}/mappings`, {
+        employeeId: payload.employeeId,
+        devicePin: payload.devicePin,
+        vendorType: payload.vendorType,
+        notes: payload.notes,
+      });
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.message || "PIN mapping saved successfully!");
+      qc.invalidateQueries({ queryKey: ["device-mappings"] });
+      setPinMappingForm({ employeeId: "", devicePin: "", vendorType: "matrix_cosec", notes: "" });
+      setStudioForm({ employeeId: "", devicePin: "", vendorType: "matrix_cosec", isActive: true, notes: "" });
+      setStudioError(null);
+    },
+    onError: (e: any) => {
+      setStudioError(e.message || "Failed to save PIN mapping");
+      toast.error(e.message || "Failed to save PIN mapping");
+    },
+  });
+
+  const updatePinMappingMut = useMutation({
+    mutationFn: async ({ deviceId, mappingId, payload }: { deviceId: string; mappingId: string; payload: any }) => {
+      return api.put(`/biometric/devices/${deviceId}/mappings/${mappingId}`, payload);
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.message || "PIN mapping updated successfully!");
+      qc.invalidateQueries({ queryKey: ["device-mappings"] });
+      setEditingMappingId(null);
+      setStudioError(null);
+      setStudioForm({ employeeId: "", devicePin: "", vendorType: "matrix_cosec", isActive: true, notes: "" });
+    },
+    onError: (e: any) => {
+      setStudioError(e.message || "Failed to update PIN mapping");
+      toast.error(e.message || "Failed to update PIN mapping");
+    },
+  });
+
+  const deletePinMappingMut = useMutation({
+    mutationFn: async ({ deviceId, mappingId }: { deviceId: string; mappingId: string }) => {
+      return api.delete(`/biometric/devices/${deviceId}/mappings/${mappingId}`);
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.message || "PIN mapping removed successfully!");
+      qc.invalidateQueries({ queryKey: ["device-mappings"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete PIN mapping"),
+  });
+
+  // Wave 2.3: Replay Offline Punch Buffer Mutation
+  const replayBufferMut = useMutation({
+    mutationFn: async () => api.post("/biometric/offline-buffer/replay", {}),
+    onSuccess: (res: any) => {
+      toast.success(res.message || "Offline buffer replayed successfully!");
+      qc.invalidateQueries({ queryKey: ["offline-buffer"] });
+      qc.invalidateQueries({ queryKey: ["biometric-logs"] });
+      qc.invalidateQueries({ queryKey: ["biometric-summary"] });
+      qc.invalidateQueries({ queryKey: ["attendance"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Replay failed"),
   });
 
   function resetRegisterForm() {
@@ -541,7 +675,41 @@ export function BiometricPage() {
         ))}
       </div>
 
-      {/* ─── HARDWARE TERMINALS FLEET ─── */}
+      {/* ─── TOP NAVIGATION TABS (Wave 2.3) ─── */}
+      <div className="flex items-center gap-2 border-b pb-3">
+        <Button
+          variant={mainViewTab === "fleet" ? "default" : "outline"}
+          size="sm"
+          onClick={() => {
+            setMainViewTab("fleet");
+            setStudioError(null);
+          }}
+          className={cn("gap-2 text-xs font-semibold", mainViewTab === "fleet" && "shadow-xs")}
+        >
+          <Cpu className="size-4" />
+          <span>Hardware Fleet & Punches Stream</span>
+        </Button>
+
+        <Button
+          variant={mainViewTab === "pin_studio" ? "default" : "outline"}
+          size="sm"
+          onClick={() => {
+            setMainViewTab("pin_studio");
+            setStudioError(null);
+          }}
+          className={cn("gap-2 text-xs font-semibold relative", mainViewTab === "pin_studio" && "shadow-xs")}
+        >
+          <Key className="size-4" />
+          <span>Employee PIN Mapping Studio</span>
+          <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-mono ml-1">
+            Wave 2.3
+          </Badge>
+        </Button>
+      </div>
+
+      {mainViewTab === "fleet" && (
+        <div className="space-y-6">
+          {/* ─── HARDWARE TERMINALS FLEET ─── */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold tracking-tight text-foreground uppercase tracking-wider flex items-center gap-2">
@@ -686,11 +854,24 @@ export function BiometricPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setActivePassportDevice(dev);
+                          setPassportTab("pin_mappings");
+                        }}
+                        className="h-6 text-[10px] font-bold gap-1 flex-1 bg-amber-500/10 text-amber-700 border-amber-500/30 hover:bg-amber-500 hover:text-white dark:text-amber-400"
+                      >
+                        <Key className="size-3" /> PIN Mappings
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActivePassportDevice(dev);
                           setPassportTab("hardware_users");
                         }}
                         className="h-6 text-[10px] font-bold gap-1 flex-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-white"
                       >
-                        <Users className="size-3" /> Machine Users & Sync
+                        <Users className="size-3" /> Users & Sync
                       </Button>
 
                       <Button
@@ -727,6 +908,148 @@ export function BiometricPage() {
           </div>
         )}
       </div>
+
+      {/* ─── WAVE 2.3: OFFLINE PUNCH BUFFER & NIGHTLY RECONCILIATION ─── */}
+      <Card className="border shadow-2xs bg-card p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold">Wave 2.3 Feature</Badge>
+              <h3 className="text-sm font-black text-foreground flex items-center gap-1.5">
+                <Database className="size-4 text-primary" /> Offline Punch Buffer & Overnight Reconciliation
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Punches received when employees are not yet enrolled or during offline device sync are buffered and automatically reconciled nightly at 02:00 AM IST.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsBufferOpen(!isBufferOpen)}
+              className="h-8 text-xs font-bold gap-1"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              <span>{isBufferOpen ? "Hide Buffer Details" : "View Buffer Details"}</span>
+            </Button>
+
+            <Button
+              size="sm"
+              disabled={replayBufferMut.isPending}
+              onClick={() => replayBufferMut.mutate()}
+              className="h-8 text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+            >
+              <RefreshCw className={cn("size-3.5", replayBufferMut.isPending && "animate-spin")} />
+              <span>{replayBufferMut.isPending ? "Replaying Buffer..." : "Replay Offline Buffer Now"}</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-2.5 rounded-lg border bg-amber-500/5 border-amber-500/20 space-y-0.5">
+            <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 block">Pending Replay</span>
+            <div className="text-lg font-black font-mono text-amber-700 dark:text-amber-400">
+              {offlineBufferData?.stats?.find((s: any) => s.status === "pending")?._count || 0} Punches
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-lg border bg-emerald-500/5 border-emerald-500/20 space-y-0.5">
+            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 block">Reconciled / Processed</span>
+            <div className="text-lg font-black font-mono text-emerald-700 dark:text-emerald-400">
+              {offlineBufferData?.stats?.find((s: any) => s.status === "processed")?._count || 0} Punches
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-lg border bg-blue-500/5 border-blue-500/20 space-y-0.5">
+            <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-400 block">Deduplicated</span>
+            <div className="text-lg font-black font-mono text-blue-700 dark:text-blue-400">
+              {offlineBufferData?.stats?.find((s: any) => s.status === "duplicate")?._count || 0} Punches
+            </div>
+          </div>
+
+          <div className="p-2.5 rounded-lg border bg-rose-500/5 border-rose-500/20 space-y-0.5">
+            <span className="text-[10px] font-semibold text-rose-700 dark:text-rose-400 block">Unmatched / Failed</span>
+            <div className="text-lg font-black font-mono text-rose-700 dark:text-rose-400">
+              {offlineBufferData?.stats?.find((s: any) => s.status === "failed")?._count || 0} Punches
+            </div>
+          </div>
+        </div>
+
+        {/* Collapsible Buffer Table */}
+        {isBufferOpen && (
+          <div className="pt-2">
+            <Card className="border shadow-2xs overflow-hidden">
+              <CardContent className="p-0 overflow-x-auto max-h-60">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 text-xs">
+                      <TableHead className="text-xs">Punch Time</TableHead>
+                      <TableHead className="text-xs">Vendor</TableHead>
+                      <TableHead className="text-xs">User / PIN</TableHead>
+                      <TableHead className="text-xs">Punch Type</TableHead>
+                      <TableHead className="text-xs">Status</TableHead>
+                      <TableHead className="text-xs">Notes / Error</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isBufferLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-6 text-xs">
+                          Loading buffer entries...
+                        </TableCell>
+                      </TableRow>
+                    ) : !offlineBufferData?.entries || offlineBufferData.entries.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-6 text-xs italic">
+                          Offline punch buffer is clean (no pending or failed punches).
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      offlineBufferData.entries.map((entry: any) => (
+                        <TableRow key={entry.id} className="text-xs hover:bg-muted/20">
+                          <TableCell className="font-mono text-[11px]">
+                            {new Date(entry.punchTime).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                              {entry.vendorType}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono font-bold text-primary">
+                            #{entry.employeeCode}
+                          </TableCell>
+                          <TableCell className="capitalize text-[11px]">
+                            {entry.punchType}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={cn(
+                                "text-[10px] font-bold capitalize",
+                                entry.status === "processed" && "bg-emerald-600 text-white",
+                                entry.status === "pending" && "bg-amber-500/10 text-amber-600 border border-amber-500/30",
+                                entry.status === "duplicate" && "bg-blue-500/10 text-blue-600 border border-blue-500/30",
+                                entry.status === "failed" && "bg-rose-500/10 text-rose-600 border border-rose-500/30",
+                              )}
+                            >
+                              {entry.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-[11px] truncate max-w-xs">
+                            {entry.failureReason || "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </Card>
 
       {/* ─── LIVE PUNCH LOGS STREAM ─── */}
       <div className="space-y-3 pt-2">
@@ -862,6 +1185,504 @@ export function BiometricPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  )}
+
+  {mainViewTab === "pin_studio" && (
+    <div className="space-y-6">
+      {/* Device Selector & Hardware Header */}
+      <Card className="border shadow-2xs">
+        <CardHeader className="p-4 sm:p-5 border-b bg-muted/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Key className="size-4 text-primary" />
+                <CardTitle className="text-base font-bold text-foreground">
+                  Device-Specific Employee PIN Mapping Studio
+                </CardTitle>
+                <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
+                  Wave 2.3
+                </Badge>
+              </div>
+              <CardDescription className="text-xs text-muted-foreground">
+                Link biometric machine user IDs / PINs directly to canonical HRMS employees. Ensures 100% accurate punch resolution for Matrix COSEC, ZKTeco & eSSL hardware.
+              </CardDescription>
+            </div>
+
+            {/* Device Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Target Terminal:</span>
+              <Select
+                value={studioDeviceId || ""}
+                onValueChange={(val) => {
+                  setSelectedStudioDeviceId(val);
+                  setEditingMappingId(null);
+                  setStudioError(null);
+                  setStudioForm({
+                    employeeId: "",
+                    devicePin: "",
+                    vendorType: "matrix_cosec",
+                    isActive: true,
+                    notes: "",
+                  });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs w-56 sm:w-64 bg-background">
+                  <SelectValue placeholder="Select Biometric Terminal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      <span className="font-semibold">{d.deviceName}</span>{" "}
+                      <span className="text-muted-foreground text-[10px]">({d.ipAddress || "Cloud Push"})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => qc.invalidateQueries({ queryKey: ["device-mappings", studioDeviceId] })}
+                className="size-8 shrink-0"
+                title="Refresh mappings"
+              >
+                <RefreshCw className={cn("size-3.5", isStudioMappingsLoading && "animate-spin")} />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        {/* Selected Device Metadata Ribbon */}
+        {selectedStudioDevice && (
+          <CardContent className="p-4 bg-muted/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-b">
+            <div>
+              <span className="text-[10px] text-muted-foreground block font-mono">DEVICE MODEL</span>
+              <span className="font-semibold text-foreground">{selectedStudioDevice.deviceModel || "Universal Biometric"}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block font-mono">SERIAL NUMBER</span>
+              <span className="font-mono text-foreground">{selectedStudioDevice.serialNumber || "—"}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block font-mono">CONNECTION STATUS</span>
+              <span className="inline-flex items-center gap-1.5 font-bold">
+                <span className={cn("size-2 rounded-full", selectedStudioDevice.status === "online" ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground")} />
+                <span className={selectedStudioDevice.status === "online" ? "text-emerald-600" : "text-muted-foreground"}>
+                  {selectedStudioDevice.status === "online" ? "Online" : "Offline"}
+                </span>
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block font-mono">ACTIVE MAPPINGS</span>
+              <span className="font-mono font-bold text-primary">
+                {studioMappings.filter((m: any) => m.isActive !== false).length} / {studioMappings.length} Active
+              </span>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Form and Table Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Form Card */}
+        <Card className="lg:col-span-5 border shadow-2xs">
+          <CardHeader className="p-4 pb-3 border-b">
+            <CardTitle className="text-sm font-bold flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                {editingMappingId ? <Pencil className="size-4 text-amber-600" /> : <Plus className="size-4 text-primary" />}
+                <span>{editingMappingId ? "Edit PIN Mapping" : "Create New PIN Mapping"}</span>
+              </span>
+              {editingMappingId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingMappingId(null);
+                    setStudioError(null);
+                    setStudioForm({
+                      employeeId: "",
+                      devicePin: "",
+                      vendorType: "matrix_cosec",
+                      isActive: true,
+                      notes: "",
+                    });
+                  }}
+                  className="h-6 text-[10px] text-muted-foreground"
+                >
+                  <X className="size-3 mr-1" /> Cancel Edit
+                </Button>
+              )}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {editingMappingId
+                ? "Update device PIN, vendor protocol or mapping activation status."
+                : "Assign a device-specific PIN/badge code to an employee on this terminal."}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="p-4 space-y-4">
+            {/* Error Banner */}
+            {studioError && (
+              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs flex items-start gap-2">
+                <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold">Mapping Error</p>
+                  <p className="text-[11px] mt-0.5">{studioError}</p>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setStudioError(null)}
+                  className="size-5 shrink-0 text-rose-600 hover:bg-rose-500/10"
+                >
+                  <X className="size-3" />
+                </Button>
+              </div>
+            )}
+
+            {/* Form Fields */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Select HRMS Employee <span className="text-rose-500">*</span></Label>
+              <Select
+                value={studioForm.employeeId}
+                disabled={!!editingMappingId}
+                onValueChange={(val) => {
+                  setStudioForm((f) => ({ ...f, employeeId: val }));
+                  setStudioError(null);
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="Choose employee..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {employees.map((emp: any) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      <span className="font-semibold">{emp.firstName} {emp.lastName}</span>{" "}
+                      <span className="text-muted-foreground text-[10px] font-mono">({emp.employeeCode})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {editingMappingId && (
+                <p className="text-[10px] text-muted-foreground italic">Employee cannot be changed during edit. Create a new mapping if reassigning.</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Device PIN / Machine User ID <span className="text-rose-500">*</span></Label>
+              <Input
+                placeholder="e.g. 19, 1001, PIN-7030"
+                value={studioForm.devicePin}
+                onChange={(e) => {
+                  setStudioForm((f) => ({ ...f, devicePin: e.target.value }));
+                  setStudioError(null);
+                }}
+                className="h-8 text-xs font-mono bg-background"
+              />
+              <p className="text-[10px] text-muted-foreground">The PIN, badge number or UserCode sent by the terminal in webhook payloads.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Terminal Vendor Protocol</Label>
+                <Select
+                  value={studioForm.vendorType}
+                  onValueChange={(val) => setStudioForm((f) => ({ ...f, vendorType: val }))}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="matrix_cosec">Matrix COSEC</SelectItem>
+                    <SelectItem value="zkteco">ZKTeco / eSSL</SelectItem>
+                    <SelectItem value="anviz">Anviz</SelectItem>
+                    <SelectItem value="suprema">Suprema</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Mapping Status</Label>
+                <div className="flex items-center justify-between p-1.5 px-2.5 rounded-lg border bg-background h-8">
+                  <span className="text-xs font-medium">{studioForm.isActive ? "Active" : "Inactive"}</span>
+                  <Switch
+                    checked={studioForm.isActive}
+                    onCheckedChange={(checked) => setStudioForm((f) => ({ ...f, isActive: checked }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Notes / Purpose (Optional)</Label>
+              <Input
+                placeholder="e.g. Reception biometric fingerprint enrollment"
+                value={studioForm.notes}
+                onChange={(e) => setStudioForm((f) => ({ ...f, notes: e.target.value }))}
+                className="h-8 text-xs bg-background"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              {editingMappingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingMappingId(null);
+                    setStudioError(null);
+                    setStudioForm({
+                      employeeId: "",
+                      devicePin: "",
+                      vendorType: "matrix_cosec",
+                      isActive: true,
+                      notes: "",
+                    });
+                  }}
+                  className="h-8 text-xs"
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                disabled={
+                  createPinMappingMut.isPending ||
+                  updatePinMappingMut.isPending ||
+                  !studioForm.devicePin.trim() ||
+                  !studioForm.employeeId ||
+                  !studioDeviceId
+                }
+                onClick={() => {
+                  if (!studioDeviceId) {
+                    toast.error("Please select a biometric terminal first.");
+                    return;
+                  }
+                  if (!studioForm.employeeId) {
+                    setStudioError("Please select an HRMS employee.");
+                    return;
+                  }
+                  if (!studioForm.devicePin.trim()) {
+                    setStudioError("Please enter a device PIN / UserCode.");
+                    return;
+                  }
+
+                  if (editingMappingId) {
+                    updatePinMappingMut.mutate({
+                      deviceId: studioDeviceId,
+                      mappingId: editingMappingId,
+                      payload: {
+                        devicePin: studioForm.devicePin.trim(),
+                        vendorType: studioForm.vendorType,
+                        isActive: studioForm.isActive,
+                        notes: studioForm.notes || undefined,
+                      },
+                    });
+                  } else {
+                    createPinMappingMut.mutate({
+                      deviceId: studioDeviceId,
+                      employeeId: studioForm.employeeId,
+                      devicePin: studioForm.devicePin.trim(),
+                      vendorType: studioForm.vendorType,
+                      notes: studioForm.notes || undefined,
+                    });
+                  }
+                }}
+                className="h-8 text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-sm"
+              >
+                <Check className="size-3.5" />
+                <span>
+                  {editingMappingId
+                    ? updatePinMappingMut.isPending
+                      ? "Updating Mapping..."
+                      : "Update Mapping"
+                    : createPinMappingMut.isPending
+                    ? "Saving Mapping..."
+                    : "Save PIN Mapping"}
+                </span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Right Column: Existing Mappings List & Table */}
+        <Card className="lg:col-span-7 border shadow-2xs">
+          <CardHeader className="p-4 pb-3 border-b">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <span>Configured PIN Mappings</span>
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    {studioMappings.length} Total
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Active mappings dynamically redirect incoming webhook punches to the associated employee profile.
+                </CardDescription>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search PIN, name or code..."
+                  value={studioPinSearch}
+                  onChange={(e) => setStudioPinSearch(e.target.value)}
+                  className="h-7 text-xs pl-8 w-48 sm:w-56 bg-background"
+                />
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-0 overflow-x-auto max-h-[500px]">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 text-xs">
+                  <TableHead className="text-xs">Device PIN</TableHead>
+                  <TableHead className="text-xs">Vendor</TableHead>
+                  <TableHead className="text-xs">Mapped Employee</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isStudioMappingsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-12 text-xs">
+                      <RefreshCw className="size-5 animate-spin mx-auto mb-2 text-primary" />
+                      Loading PIN mappings for terminal...
+                    </TableCell>
+                  </TableRow>
+                ) : studioMappings.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-12 text-xs">
+                      <Key className="size-8 mx-auto text-muted-foreground/40 mb-2" />
+                      <p className="font-semibold text-foreground">No PIN mappings configured yet</p>
+                      <p className="text-[11px] text-muted-foreground mt-1 max-w-sm mx-auto">
+                        Incoming biometric events will match directly on employee code. Use the form on the left to map device PINs.
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  studioMappings
+                    .filter((m: any) => {
+                      if (!studioPinSearch) return true;
+                      const q = studioPinSearch.toLowerCase();
+                      return (
+                        m.devicePin?.toLowerCase().includes(q) ||
+                        m.employee?.firstName?.toLowerCase().includes(q) ||
+                        m.employee?.lastName?.toLowerCase().includes(q) ||
+                        m.employee?.employeeCode?.toLowerCase().includes(q) ||
+                        m.notes?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((mapping: any) => {
+                      const isAct = mapping.isActive !== false;
+                      const isEditingThis = editingMappingId === mapping.id;
+                      return (
+                        <TableRow
+                          key={mapping.id}
+                          className={cn("text-xs hover:bg-muted/20", isEditingThis && "bg-amber-500/10")}
+                        >
+                          <TableCell className="font-mono font-bold text-xs text-primary">
+                            <span className="px-2 py-0.5 rounded bg-primary/10 border border-primary/20">
+                              #{mapping.devicePin}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] capitalize font-mono">
+                              {mapping.vendorType || "matrix_cosec"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {mapping.employee ? (
+                              <div>
+                                <span className="font-bold text-foreground block">
+                                  {mapping.employee.firstName} {mapping.employee.lastName}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  HRMS ID: {mapping.employee.employeeCode}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-rose-600 font-bold">Unassigned</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={isAct}
+                                onCheckedChange={(checked) => {
+                                  updatePinMappingMut.mutate({
+                                    deviceId: studioDeviceId,
+                                    mappingId: mapping.id,
+                                    payload: { isActive: checked },
+                                  });
+                                }}
+                              />
+                              <Badge
+                                className={cn(
+                                  "text-[10px] font-bold",
+                                  isAct ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
+                                )}
+                              >
+                                {isAct ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingMappingId(mapping.id);
+                                  setStudioError(null);
+                                  setStudioForm({
+                                    employeeId: mapping.employeeId,
+                                    devicePin: mapping.devicePin,
+                                    vendorType: mapping.vendorType || "matrix_cosec",
+                                    isActive: mapping.isActive !== false,
+                                    notes: mapping.notes || "",
+                                  });
+                                }}
+                                className="size-7 text-muted-foreground hover:text-foreground"
+                                title="Edit PIN mapping"
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (confirm(`Remove PIN mapping #${mapping.devicePin} for ${mapping.employee?.firstName || "employee"}?`)) {
+                                    deletePinMappingMut.mutate({
+                                      deviceId: studioDeviceId,
+                                      mappingId: mapping.id,
+                                    });
+                                  }
+                                }}
+                                disabled={deletePinMappingMut.isPending}
+                                className="size-7 text-rose-600 hover:bg-rose-50"
+                                title="Delete PIN mapping"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )}
 
       {/* ─── DRAWER / MODAL: MACHINE PASSPORT & ENROLLED USERS STUDIO ─── */}
       {activePassportDevice && (
@@ -929,6 +1750,24 @@ export function BiometricPage() {
                 >
                   <Clock className="size-3.5" />
                   <span>Attendance Punch Stream</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPassportTab("pin_mappings")}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                    passportTab === "pin_mappings"
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Key className="size-3.5" />
+                  <span>Device PIN Mappings (Wave 2.3)</span>
+                  {deviceMappings?.length > 0 && (
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-1 bg-background/30 text-current font-mono">
+                      {deviceMappings.length}
+                    </Badge>
+                  )}
                 </button>
 
                 <button
@@ -1241,6 +2080,230 @@ export function BiometricPage() {
                       </Table>
                     </CardContent>
                   </Card>
+                </div>
+              )}
+
+              {/* TAB 3: DEVICE PIN MAPPING (WAVE 2.3) */}
+              {passportTab === "pin_mappings" && (
+                <div className="space-y-4">
+                  {/* Context Banner */}
+                  <div className="p-3.5 rounded-xl border bg-amber-500/5 border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-amber-600 text-white text-[10px] font-bold">Wave 2.3 Feature</Badge>
+                        <span className="font-bold text-foreground">Device-Scoped Employee PIN & User Code Mapping</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Terminals like Matrix COSEC, ZKTeco, or Hikvision often use numeric user codes (e.g. PIN <code>101</code> or <code>EMP001</code>) that differ from HRMS employee codes. Map them here so webhook punches resolve to the canonical staff member automatically.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Add / Update Mapping Form */}
+                  <Card className="border p-4 bg-muted/20 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                        <Plus className="size-3.5 text-primary" /> Register New PIN &rarr; Staff Mapping
+                      </h4>
+                      <span className="text-[10px] font-mono text-muted-foreground">Device: {activePassportDevice.deviceName}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Select HRMS Employee</Label>
+                        <Select
+                          value={pinMappingForm.employeeId}
+                          onValueChange={(val) => setPinMappingForm((prev) => ({ ...prev, employeeId: val }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue placeholder="Choose employee..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {employees.map((emp: any) => (
+                              <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                                {emp.first_name || emp.firstName} {emp.last_name || emp.lastName} ({emp.employee_code || emp.employeeCode})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Terminal PIN / UserCode</Label>
+                        <Input
+                          placeholder="e.g. 101 or EMP001"
+                          value={pinMappingForm.devicePin}
+                          onChange={(e) => setPinMappingForm((prev) => ({ ...prev, devicePin: e.target.value }))}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Device Vendor Type</Label>
+                        <Select
+                          value={pinMappingForm.vendorType}
+                          onValueChange={(val) => setPinMappingForm((prev) => ({ ...prev, vendorType: val }))}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-background">
+                            <SelectValue placeholder="Vendor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="matrix_cosec">Matrix COSEC</SelectItem>
+                            <SelectItem value="zkteco">ZKTeco / eSSL</SelectItem>
+                            <SelectItem value="hikvision">Hikvision MinMoe</SelectItem>
+                            <SelectItem value="realtime">Realtime Biometrics</SelectItem>
+                            <SelectItem value="universal">Universal / Standard</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Notes / Purpose (Optional)</Label>
+                        <Input
+                          placeholder="e.g. Shift 1 gate"
+                          value={pinMappingForm.notes}
+                          onChange={(e) => setPinMappingForm((prev) => ({ ...prev, notes: e.target.value }))}
+                          className="h-8 text-xs bg-background"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        size="sm"
+                        disabled={!pinMappingForm.employeeId || !pinMappingForm.devicePin || createPinMappingMut.isPending}
+                        onClick={() =>
+                          createPinMappingMut.mutate({
+                            deviceId: activePassportDevice.id,
+                            employeeId: pinMappingForm.employeeId,
+                            devicePin: pinMappingForm.devicePin,
+                            vendorType: pinMappingForm.vendorType,
+                            notes: pinMappingForm.notes || undefined,
+                          })
+                        }
+                        className="h-8 text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
+                      >
+                        <Check className="size-3.5" />
+                        <span>{createPinMappingMut.isPending ? "Saving..." : "Save PIN Mapping"}</span>
+                      </Button>
+                    </div>
+                  </Card>
+
+                  {/* Existing Mappings Table */}
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Filter by PIN or employee..."
+                            value={pinSearchQuery}
+                            onChange={(e) => setPinSearchQuery(e.target.value)}
+                            className="h-7 text-xs pl-8 w-56 bg-background"
+                          />
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-mono">
+                          {deviceMappings.length} Configured
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <Card className="border shadow-2xs overflow-hidden">
+                      <CardContent className="p-0 overflow-x-auto max-h-72">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/40 text-xs">
+                              <TableHead className="text-xs">Device PIN</TableHead>
+                              <TableHead className="text-xs">Vendor</TableHead>
+                              <TableHead className="text-xs">Mapped Employee</TableHead>
+                              <TableHead className="text-xs">Notes</TableHead>
+                              <TableHead className="text-xs">Status</TableHead>
+                              <TableHead className="text-xs text-right">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {isMappingsLoading ? (
+                              <TableRow>
+                                <TableCell colSpan={6} className="text-center text-muted-foreground py-8 text-xs">
+                                  Loading PIN mappings...
+                                </TableCell>
+                              </TableRow>
+                            ) : deviceMappings.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={6} className="text-center text-muted-foreground py-8 text-xs italic">
+                                  No PIN mappings configured for this device yet. Pushes without explicit mappings will match directly on employee code.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              deviceMappings
+                                .filter((m: any) => {
+                                  if (!pinSearchQuery) return true;
+                                  const q = pinSearchQuery.toLowerCase();
+                                  return (
+                                    m.devicePin?.toLowerCase().includes(q) ||
+                                    m.employee?.firstName?.toLowerCase().includes(q) ||
+                                    m.employee?.lastName?.toLowerCase().includes(q) ||
+                                    m.employee?.employeeCode?.toLowerCase().includes(q)
+                                  );
+                                })
+                                .map((mapping: any) => (
+                                  <TableRow key={mapping.id} className="text-xs hover:bg-muted/20">
+                                    <TableCell className="font-mono font-bold text-xs text-primary">
+                                      #{mapping.devicePin}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant="outline" className="text-[10px] capitalize font-mono">
+                                        {mapping.vendorType || "matrix_cosec"}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      {mapping.employee ? (
+                                        <div>
+                                          <span className="font-bold text-foreground block">
+                                            {mapping.employee.firstName} {mapping.employee.lastName}
+                                          </span>
+                                          <span className="text-[10px] text-muted-foreground font-mono">
+                                            HRMS ID: {mapping.employee.employeeCode}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-rose-600 font-bold">Unassigned</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground text-[11px]">
+                                      {mapping.notes || "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge className="bg-emerald-600 text-white text-[10px] font-bold">
+                                        Active
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          if (confirm(`Remove mapping for PIN #${mapping.devicePin}?`)) {
+                                            deletePinMappingMut.mutate({
+                                              deviceId: activePassportDevice.id,
+                                              mappingId: mapping.id,
+                                            });
+                                          }
+                                        }}
+                                        disabled={deletePinMappingMut.isPending}
+                                        className="size-6 text-rose-600 hover:bg-rose-50"
+                                      >
+                                        <Trash2 className="size-3" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
               )}
             </div>

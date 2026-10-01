@@ -34,9 +34,11 @@ import {
 } from "lucide-react";
 import { api, clearToken, setToken } from "@/lib/api";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
 import { useTenantBranding } from "@/lib/useTenantBranding";
+import { AccessDenied } from "@/components/access-denied";
+import { isSuperAdminUser, isSharedRoute, isPlatformOnlyRoute } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/_app")({
   component: AppShell,
@@ -154,9 +156,11 @@ function AppShell() {
   const isAdminOrSuper = userRoles.some((r) =>
     ["admin", "super_admin", "tenant_admin", "hr_admin", "manager"].includes(r)
   );
+  const isSuperAdmin = isSuperAdminUser(profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
-  const homeRoute = isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
+  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
+  const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
   
 
@@ -167,13 +171,15 @@ function AppShell() {
       return;
     }
     if (!loading && !isLoading && profile && !profile.tenant_id) {
-      if (profile.roles?.includes("super_admin")) {
-        navigate({ to: "/super" });
+      if (isSuperAdmin) {
+        if (!isPlatformOrShared && (path === "/dashboard" || path === "/")) {
+          navigate({ to: "/super" });
+        }
       } else {
         navigate({ to: "/onboarding" });
       }
     }
-  }, [loading, isLoading, profile, navigate]);
+  }, [loading, isLoading, profile, isSuperAdmin, isPlatformOrShared, path, navigate]);
 
   // Sidebar collapse state with localStorage persistence
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -706,7 +712,14 @@ function AppShell() {
       {/* Main Page Wrapper */}
       <div className="page-wrapper">
         <main className="content min-w-0">
-          <Outlet />
+          {isSuperAdmin && !profile?.tenant_id && !isPlatformOrShared ? (
+            <AccessDenied
+              moduleName="Tenant Workspace"
+              message="Platform Super Administrators are restricted from accessing tenant-only workspaces. Please switch to the Platform Super Admin Console or sign in with authorized tenant credentials."
+            />
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
 

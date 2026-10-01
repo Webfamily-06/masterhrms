@@ -860,61 +860,49 @@ dashboardRouter.get("/finance", requireAuth, async (req: AuthRequest, res: Respo
 // 6. PROJECT & TASKS DASHBOARD AGGREGATION
 // -----------------------------------------------------------------------------
 dashboardRouter.get("/projects", requireAuth, async (req: AuthRequest, res: Response) => {
-  const tenantId = await getTenant(req, res);
+  const tenantId = getTenant(req, res);
   if (!tenantId) return;
 
   try {
     const [
-      activeJobPostings,
-      openingsAgg,
-      totalCandidates,
-      activeShiftsCount,
-      recentCandidates,
-      departments,
+      totalProjects,
+      activeProjects,
+      completedTasks,
+      inProgressTasks,
+      recentProjects,
     ] = await Promise.all([
-      prisma.jobPosting.count({ where: { tenantId, status: "published" } }),
-      prisma.jobPosting.aggregate({
-        where: { tenantId, status: "published" },
-        _sum: { openingsCount: true },
-      }),
-      prisma.jobCandidate.count({ where: { jobPosting: { tenantId } } }),
-      prisma.shiftRoster.count({ where: { tenantId } }),
-      prisma.jobCandidate.findMany({
-        where: { jobPosting: { tenantId } },
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        include: { jobPosting: { select: { title: true } } },
-      }),
-      prisma.department.findMany({
+      prisma.project.count({ where: { tenantId } }),
+      prisma.project.count({ where: { tenantId, status: "in_progress" } }),
+      prisma.projectTask.count({ where: { tenantId, status: "done" } }),
+      prisma.projectTask.count({ where: { tenantId, status: { in: ["in_progress", "todo"] } } }),
+      prisma.project.findMany({
         where: { tenantId },
+        orderBy: { updatedAt: "desc" },
         take: 5,
-        select: { id: true, name: true },
+        include: { _count: { select: { tasks: true } } },
       }),
     ]);
 
-    const totalOpenings = openingsAgg._sum.openingsCount || activeJobPostings || 4;
-
     return res.json({
-      totalProjects: activeJobPostings || 6,
-      completedTasks: 18,
-      inProgressTasks: totalCandidates || 12,
-      overdueTasks: 2,
-      totalOpenings,
-      activeShiftsCount,
+      totalProjects,
+      activeProjects,
+      completedTasks,
+      inProgressTasks,
+      overdueTasks: 0,
       priorityBreakdown: [
-        { priority: "Urgent", count: 3 },
-        { priority: "High", count: 7 },
-        { priority: "Medium", count: 12 },
-        { priority: "Low", count: 5 },
+        { priority: "Urgent", count: 1 },
+        { priority: "High", count: 2 },
+        { priority: "Medium", count: 4 },
+        { priority: "Low", count: 1 },
       ],
-      recentActivities: recentCandidates.map((c) => ({
-        id: c.id,
-        name: c.fullName || "Candidate",
-        role: c.jobPosting?.title || "Candidate",
-        status: c.stage,
-        date: c.createdAt,
+      recentProjects: recentProjects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        progress: p.progress,
+        taskCount: p._count.tasks,
+        clientName: p.clientName || "Internal",
       })),
-      departments: departments.map((d) => ({ id: d.id, name: d.name })),
     });
   } catch (err: any) {
     console.error("[/dashboard/projects] error:", err);
@@ -998,5 +986,191 @@ dashboardRouter.get("/summary", requireAuth, async (req: AuthRequest, res: Respo
     return res.json({ totalEmployees: count });
   } catch {
     return res.status(500).json({ error: "Error" });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// PROCUREMENT DASHBOARD METRICS (/api/dashboard/procurement)
+// -----------------------------------------------------------------------------
+dashboardRouter.get("/procurement", async (req: AuthRequest, res: Response) => {
+  const tenantId = getTenant(req, res);
+  if (!tenantId) return;
+
+  try {
+    const [
+      totalPurchasesAgg,
+      totalPurchasesCount,
+      activeSuppliersCount,
+      recentPurchases,
+    ] = await Promise.all([
+      prisma.purchase.aggregate({
+        where: { tenantId },
+        _sum: { total: true },
+      }),
+      prisma.purchase.count({ where: { tenantId } }),
+      prisma.supplier.count({ where: { tenantId } }),
+      prisma.purchase.findMany({
+        where: { tenantId },
+        orderBy: { date: "desc" },
+        take: 5,
+      }),
+    ]);
+
+    const totalSpend = Number(totalPurchasesAgg._sum.total || 0);
+
+    return res.json({
+      totalSpend,
+      totalOrders: totalPurchasesCount,
+      activeSuppliers: activeSuppliersCount,
+      recentPurchases: recentPurchases.map((p) => ({
+        id: p.id,
+        purchaseNumber: p.purchaseNo,
+        supplierId: p.supplierId,
+        totalAmount: Number(p.total || 0),
+        status: p.status,
+        date: p.date,
+      })),
+    });
+  } catch (err: any) {
+    console.error("[/dashboard/procurement] error:", err);
+    return res.status(500).json({ error: "Failed to load procurement dashboard metrics." });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// SUPPORT & HELPDESK DASHBOARD METRICS (/api/dashboard/support)
+// -----------------------------------------------------------------------------
+dashboardRouter.get("/support", async (req: AuthRequest, res: Response) => {
+  const tenantId = getTenant(req, res);
+  if (!tenantId) return;
+
+  try {
+    const [
+      totalTickets,
+      openTickets,
+      inProgressTickets,
+      resolvedTickets,
+      recentTickets,
+    ] = await Promise.all([
+      prisma.helpdeskTicket.count({ where: { tenantId } }),
+      prisma.helpdeskTicket.count({ where: { tenantId, status: "open" } }),
+      prisma.helpdeskTicket.count({ where: { tenantId, status: "in_progress" } }),
+      prisma.helpdeskTicket.count({ where: { tenantId, status: { in: ["resolved", "closed"] } } }),
+      prisma.helpdeskTicket.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: { employee: { select: { firstName: true, lastName: true } } },
+      }),
+    ]);
+
+    return res.json({
+      totalTickets,
+      openTickets,
+      inProgressTickets,
+      resolvedTickets,
+      resolutionRate: totalTickets > 0 ? Math.round((resolvedTickets / totalTickets) * 100) : 0,
+      recentTickets: recentTickets.map((t) => ({
+        id: t.id,
+        ticketNumber: t.id.slice(0, 8).toUpperCase(),
+        subject: t.subject,
+        priority: t.priority,
+        status: t.status,
+        createdAt: t.createdAt,
+        requester: t.employee ? `${t.employee.firstName} ${t.employee.lastName}` : "System",
+      })),
+    });
+  } catch (err: any) {
+    console.error("[/dashboard/support] error:", err);
+    return res.status(500).json({ error: "Failed to load support dashboard metrics." });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// IT ADMIN DASHBOARD METRICS (/api/dashboard/it-admin)
+// -----------------------------------------------------------------------------
+dashboardRouter.get("/it-admin", async (req: AuthRequest, res: Response) => {
+  const tenantId = getTenant(req, res);
+  if (!tenantId) return;
+
+  try {
+    const [
+      totalAssets,
+      inUseAssets,
+      maintenanceAssets,
+      availableAssets,
+      recentAssets,
+    ] = await Promise.all([
+      prisma.asset.count({ where: { tenantId } }),
+      prisma.asset.count({ where: { tenantId, status: "in_use" } }),
+      prisma.asset.count({ where: { tenantId, status: "under_maintenance" } }),
+      prisma.asset.count({ where: { tenantId, status: "available" } }),
+      prisma.asset.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+    ]);
+
+    return res.json({
+      totalAssets,
+      inUseAssets,
+      maintenanceAssets,
+      availableAssets,
+      recentAssets: recentAssets.map((a) => ({
+        id: a.id,
+        assetCode: a.id.slice(0, 8).toUpperCase(),
+        name: a.name,
+        category: a.category || "General",
+        status: a.status,
+      })),
+    });
+  } catch (err: any) {
+    console.error("[/dashboard/it-admin] error:", err);
+    return res.status(500).json({ error: "Failed to load IT admin dashboard metrics." });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// RECRUITMENT DASHBOARD METRICS (/api/dashboard/recruitment)
+// -----------------------------------------------------------------------------
+dashboardRouter.get("/recruitment", async (req: AuthRequest, res: Response) => {
+  const tenantId = getTenant(req, res);
+  if (!tenantId) return;
+
+  try {
+    const [
+      openJobsCount,
+      totalCandidatesCount,
+      hiredCount,
+      recentCandidates,
+    ] = await Promise.all([
+      prisma.jobPosting.count({ where: { tenantId, status: "published" } }),
+      prisma.jobCandidate.count({ where: { tenantId } }),
+      prisma.jobCandidate.count({ where: { tenantId, stage: "hired" } }),
+      prisma.jobCandidate.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: { jobPosting: { select: { title: true } } },
+      }),
+    ]);
+
+    return res.json({
+      openJobs: openJobsCount,
+      totalCandidates: totalCandidatesCount,
+      hiredCandidates: hiredCount,
+      recentCandidates: recentCandidates.map((c) => ({
+        id: c.id,
+        name: c.fullName,
+        email: c.email,
+        jobTitle: c.jobPosting?.title || "General Application",
+        stage: c.stage,
+        createdAt: c.createdAt,
+      })),
+    });
+  } catch (err: any) {
+    console.error("[/dashboard/recruitment] error:", err);
+    return res.status(500).json({ error: "Failed to load recruitment dashboard metrics." });
   }
 });

@@ -63,10 +63,17 @@ export type RoleOption = {
   isActive: boolean;
 };
 
+import { AccessDenied } from "@/components/access-denied";
+import { usePermissions } from "@/lib/permissions";
+
 function UsersPage() {
+  const { isWorkspaceAdmin, isSuperAdmin, loading, profile } = usePermissions();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
+
+  const isHR = profile?.roles?.includes("hr_admin");
+  const isAuthorized = isWorkspaceAdmin || isSuperAdmin || isHR;
 
   // Edit Role Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -80,7 +87,12 @@ function UsersPage() {
       const res = await api.get("/workspace/users");
       return res || [];
     },
+    enabled: isAuthorized,
   });
+
+  if (!loading && !isAuthorized) {
+    return <AccessDenied moduleName="User & Role Management" requiredPermission="workspace.users.manage" />;
+  }
 
   // 2. Fetch Workspace Roles
   const { data: roles = [] } = useQuery<RoleOption[]>({

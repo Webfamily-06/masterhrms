@@ -1,8 +1,10 @@
 import { usePermissions } from "@/lib/permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { Loader2 } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initSupportCharts } from "@/lib/dashboard-charts";
 
@@ -12,6 +14,14 @@ export const Route = createFileRoute("/_authenticated/_app/support-dashboard")({
 
 export default function SupportDashboardPage() {
   const { canAccessModule, loading } = usePermissions();
+
+  const { data: supData } = useQuery({
+    queryKey: ["dashboard-support"],
+    queryFn: async () => {
+      const res = await api.get<any>("/dashboard/support");
+      return res;
+    },
+  });
 
   if (loading) {
     return (
@@ -140,8 +150,8 @@ export default function SupportDashboardPage() {
 									<div>
 										<p className="text-xs text-default mb-1">Open Tickets</p>
 										<div className="flex items-baseline gap-2">
-											<h3 className="text-xl font-bold text-gray-900 mb-0">128</h3>
-											<span className="text-[11px] text-success font-medium inline-flex items-center"><i className="ph ph-arrow-up text-[10px]"></i>5.52%</span>
+											<h3 className="text-xl font-bold text-gray-900 mb-0">{supData?.openTickets ?? 0}</h3>
+											<span className="text-[11px] text-success font-medium inline-flex items-center"><i className="ph ph-arrow-up text-[10px]"></i>Live</span>
 										</div>
 									</div>
 									<div className="size-9 rounded-md bg-orange-transparent flex items-center justify-center shrink-0">
@@ -154,10 +164,10 @@ export default function SupportDashboardPage() {
 							<div className="bg-white border border-border-color rounded-md p-4 overflow-hidden">
 								<div className="flex items-center justify-between mb-2">
 									<div>
-										<p className="text-xs text-default mb-1">Avg Response</p>
+										<p className="text-xs text-default mb-1">Total Tickets</p>
 										<div className="flex items-baseline gap-2">
-											<h3 className="text-xl font-bold text-gray-900 mb-0">2.4 hrs</h3>
-											<span className="text-[11px] text-success font-medium inline-flex items-center"><i className="ph ph-arrow-up text-[10px]"></i>7.32%</span>
+											<h3 className="text-xl font-bold text-gray-900 mb-0">{supData?.totalTickets ?? 0}</h3>
+											<span className="text-[11px] text-success font-medium inline-flex items-center"><i className="ph ph-arrow-up text-[10px]"></i>Live</span>
 										</div>
 									</div>
 									<div className="size-9 rounded-md bg-danger-transparent flex items-center justify-center shrink-0">
@@ -170,10 +180,10 @@ export default function SupportDashboardPage() {
 							<div className="bg-white border border-border-color rounded-md p-4 overflow-hidden">
 								<div className="flex items-center justify-between mb-2">
 									<div>
-										<p className="text-xs text-default mb-1">SLA Compliance</p>
+										<p className="text-xs text-default mb-1">Resolution Rate</p>
 										<div className="flex items-baseline gap-2">
-											<h3 className="text-xl font-bold text-gray-900 mb-0">94%</h3>
-											<span className="text-[11px] text-success font-medium inline-flex items-center"><i className="ph ph-arrow-up text-[10px]"></i>9.42%</span>
+											<h3 className="text-xl font-bold text-gray-900 mb-0">{supData?.resolutionRate ?? 100}%</h3>
+											<span className="text-[11px] text-success font-medium inline-flex items-center"><i className="ph ph-arrow-up text-[10px]"></i>Live</span>
 										</div>
 									</div>
 									<div className="size-9 rounded-md bg-success-transparent flex items-center justify-center shrink-0">
@@ -530,7 +540,7 @@ export default function SupportDashboardPage() {
 					<div className="bg-white border border-border-color rounded-md p-4 pb-1.5">
 						<div className="flex items-center justify-between mb-3">
 							<h2 className="text-lg max-lg:text-[17px] text-title mb-0">All Tickets</h2>
-							<a href="tickets.html" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i></a>
+							<Link to="/helpdesk" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i className="icon-chevron-right"></i></Link>
 						</div>
 						<div className="overflow-x-auto">
 							<table className="w-full text-sm">

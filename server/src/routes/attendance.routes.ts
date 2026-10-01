@@ -22,7 +22,17 @@ attendanceRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =
     const { date, employeeId, month, year, status } = req.query;
     const where: any = { tenantId };
 
-    if (employeeId && employeeId !== "all") {
+    const isEmployeeRoleOnly = req.user?.roles?.includes("employee") && !req.user?.roles?.some((r: string) => ["super_admin", "admin", "hr_admin", "manager", "Workspace Admin"].includes(r));
+    if (isEmployeeRoleOnly) {
+      const selfEmp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+      });
+      if (selfEmp) {
+        where.employeeId = selfEmp.id;
+      } else {
+        return res.json(pagination.isPaginated ? formatPaginatedResponse([], 0, pagination) : []);
+      }
+    } else if (employeeId && employeeId !== "all") {
       where.employeeId = String(employeeId);
     }
 
@@ -179,14 +189,28 @@ attendanceRouter.post("/punch", requireAuth, async (req: AuthRequest, res: Respo
     const { employeeId, type = "check_in", latitude, longitude, notes, deviceId } = req.body;
     let targetEmployeeId = employeeId;
 
-    if (!targetEmployeeId) {
-      const emp = await prisma.employee.findFirst({
-        where: { tenantId, userId: req.user!.userId },
-      });
-      if (!emp) {
+    const userRoles = req.user?.roles || [];
+    const isPrivileged = userRoles.some((r: string) =>
+      ["super_admin", "admin", "hr_admin", "Workspace Admin"].includes(r)
+    );
+
+    const selfEmp = await prisma.employee.findFirst({
+      where: { tenantId, userId: req.user!.userId },
+    });
+
+    if (!isPrivileged) {
+      if (!selfEmp) {
         return res.status(400).json({ error: "Employee record not found for current user." });
       }
-      targetEmployeeId = emp.id;
+      if (employeeId && employeeId !== selfEmp.id) {
+        return res.status(403).json({ error: "Forbidden: You can only punch attendance for yourself." });
+      }
+      targetEmployeeId = selfEmp.id;
+    } else if (!targetEmployeeId) {
+      if (!selfEmp) {
+        return res.status(400).json({ error: "Employee record not found for current user." });
+      }
+      targetEmployeeId = selfEmp.id;
     }
 
     const now = new Date();
