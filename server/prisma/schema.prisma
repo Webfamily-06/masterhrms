@@ -210,6 +210,8 @@ model Tenant {
   tenantDomains          TenantDomain[]
   timesheets             Timesheet[]
   projectMilestones      ProjectMilestone[]
+  workspaceSlugHistory   WorkspaceSlugHistory[]
+  workspaceSlugRedirects WorkspaceSlugRedirect[]
   @@map("tenants")
 }
 
@@ -2983,22 +2985,71 @@ model CrmDeal {
 }
 
 model TenantDomain {
-  id          String   @id @default(uuid()) @db.VarChar(36)
-  tenantId    String   @map("tenant_id") @db.VarChar(36)
-  domain      String   @unique @db.VarChar(191)
-  subdomain   String?  @db.VarChar(191)
-  targetCname String   @default("cname.mastererp.cloud") @map("target_cname") @db.VarChar(191)
-  isPrimary   Boolean  @default(false) @map("is_primary")
-  status      String   @default("pending") @db.VarChar(30) // approved | pending | rejected
-  sslStatus   String   @default("provisioning") @map("ssl_status") @db.VarChar(30) // active | provisioning | failed
-  dnsStatus   String   @default("pending") @map("dns_status") @db.VarChar(30) // verified | pending | failed
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid()) @db.VarChar(36)
+  tenantId           String    @map("tenant_id") @db.VarChar(36)
+  domain             String    @unique @db.VarChar(191)
+  subdomain          String?   @db.VarChar(191)
+  targetCname        String    @default("") @map("target_cname") @db.VarChar(191)
+  isPrimary          Boolean   @default(false) @map("is_primary")
+  status             String    @default("pending") @db.VarChar(30) // pending | approved | rejected | active | inactive
+  sslStatus          String    @default("provisioning") @map("ssl_status") @db.VarChar(30) // active | provisioning | failed
+  dnsStatus          String    @default("pending") @map("dns_status") @db.VarChar(30) // verified | pending | failed
+  verificationToken  String?   @map("verification_token") @db.VarChar(191)
+  verificationMethod String    @default("cname") @map("verification_method") @db.VarChar(30) // cname | txt
+  verifiedAt         DateTime? @map("verified_at")
+  approvedAt         DateTime? @map("approved_at")
+  approvedBy         String?   @map("approved_by") @db.VarChar(255)
+  rejectedReason     String?   @map("rejected_reason") @db.Text
+  sslIssuedAt        DateTime? @map("ssl_issued_at")
+  lastCheckedAt      DateTime? @map("last_checked_at")
+  lastDnsError       String?   @map("last_dns_error") @db.Text
+  requestedBy        String?   @map("requested_by") @db.VarChar(255)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
+  @@index([status])
+  @@index([domain, status])
   @@map("tenant_domains")
+}
+
+// ==========================================
+// WORKSPACE SLUG HISTORY (Flow 1 — Rename)
+// ==========================================
+
+/// Records every workspace slug rename for audit and redirect purposes.
+model WorkspaceSlugHistory {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  tenantId   String   @map("tenant_id") @db.VarChar(36)
+  oldSlug    String   @map("old_slug") @db.VarChar(100)
+  newSlug    String   @map("new_slug") @db.VarChar(100)
+  changedAt  DateTime @default(now()) @map("changed_at")
+  releaseAt  DateTime @map("release_at")              // old slug is reserved until this date (30 days)
+  changedBy  String   @map("changed_by") @db.VarChar(36) // userId of the admin who renamed
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([oldSlug])
+  @@map("workspace_slug_history")
+}
+
+/// Holds old slugs that should redirect to the current tenant for 30 days after rename.
+model WorkspaceSlugRedirect {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  oldSlug       String   @unique @map("old_slug") @db.VarChar(100)
+  newSlug       String   @map("new_slug") @db.VarChar(100)
+  tenantId      String   @map("tenant_id") @db.VarChar(36)
+  redirectUntil DateTime @map("redirect_until")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([redirectUntil])
+  @@map("workspace_slug_redirects")
 }
 
 // ==========================================

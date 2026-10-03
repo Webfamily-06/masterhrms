@@ -9,9 +9,18 @@ import QRCode from "qrcode";
 import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
-import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 import { recordLoginHistory } from "../services/login-history.service";
 import { provisionTenantWithTrial } from "../lib/tenant-provisioning";
+import {
+  resolveHostContext,
+  validateWorkspaceSlug,
+  suggestWorkspaceSlug,
+  getWorkspaceUrl,
+  getCustomDomainUrl,
+  getBaseDomain,
+  getEffectiveRequestHost,
+} from "../lib/workspace-host";
+import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 
 export const authRouter = Router();
 
@@ -30,6 +39,7 @@ const registerSchema = z.object({
   password: z.string().min(6),
   fullName: z.string().optional(),
   companyName: z.string().optional(),
+  workspaceSlug: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -55,28 +65,23 @@ const verifyEmailSchema = z.object({
 // GET /api/auth/public/tenant/resolve
 authRouter.get("/public/tenant/resolve", async (req, res) => {
   try {
-    const host = req.headers.host || "";
+    const rawHost = getEffectiveRequestHost(req.headers);
+    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
     const requestedSlug = (req.query.slug as string) || (req.headers["x-tenant-slug"] as string) || (req.headers["x-tenant-id"] as string);
     
     let tenant: any = null;
-    if (requestedSlug) {
+    if (hostContext.type === "tenant") {
+      tenant = (req as any).resolvedTenant || await prisma.tenant.findUnique({
+        where: { slug: hostContext.slug.toLowerCase() },
+        include: { subscription: { include: { plan: true } } }
+      });
+    } else if (requestedSlug) {
       tenant = await prisma.tenant.findFirst({
         where: {
-          OR: [{ slug: requestedSlug }, { id: requestedSlug }]
+          OR: [{ slug: requestedSlug.toLowerCase() }, { id: requestedSlug }]
         },
         include: { subscription: { include: { plan: true } } }
       });
-    } else if (host && !host.startsWith("localhost") && !host.startsWith("127.0.0.1")) {
-      const parts = host.split(".");
-      if (parts.length > 2) {
-        const subdomain = parts[0];
-        if (!["admin", "app", "www", "api"].includes(subdomain.toLowerCase())) {
-          tenant = await prisma.tenant.findUnique({
-            where: { slug: subdomain },
-            include: { subscription: { include: { plan: true } } }
-          });
-        }
-      }
     }
 
     if (!tenant) {
@@ -120,11 +125,49 @@ authRouter.get("/public/tenant-branding", async (req, res) => {
 // POST /api/auth/register
 authRouter.post("/register", async (req, res) => {
   try {
-    const { email, password, fullName, companyName } = registerSchema.parse(req.body);
+    const { email, password, fullName, companyName, workspaceSlug } = registerSchema.parse(req.body);
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return res.status(400).json({ error: "User with this email already exists." });
+    }
+
+    // Determine and validate workspace slug (Flow 1: 3-30 chars, lowercase, RFC)
+    let finalSlug = "";
+    if (workspaceSlug) {
+      const trimmedSlug = workspaceSlug.trim().toLowerCase();
+      const validation = validateWorkspaceSlug(trimmedSlug);
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: `Invalid workspace name: ${validation.reason}`,
+          code: "INVALID_SLUG",
+          reason: validation.reason,
+        });
+      }
+      finalSlug = trimmedSlug;
+
+      // Check if slug taken
+      const existingTenant = await prisma.tenant.findUnique({ where: { slug: finalSlug } });
+      const activeRedirect = await (prisma as any).workspaceSlugRedirect.findFirst({
+        where: { oldSlug: finalSlug, redirectUntil: { gte: new Date() } },
+      });
+      if (existingTenant || activeRedirect) {
+        return res.status(409).json({
+          error: "This workspace address is already taken. Please choose another.",
+          code: "SLUG_TAKEN",
+        });
+      }
+    } else {
+      finalSlug = suggestWorkspaceSlug(companyName || fullName || email.split("@")[0]);
+      let candidate = finalSlug;
+      let counter = 2;
+      while (
+        (await prisma.tenant.findUnique({ where: { slug: candidate } })) ||
+        (await (prisma as any).workspaceSlugRedirect.findFirst({ where: { oldSlug: candidate, redirectUntil: { gte: new Date() } } }))
+      ) {
+        candidate = `${finalSlug.substring(0, 26)}-${counter++}`;
+      }
+      finalSlug = candidate;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -142,6 +185,7 @@ authRouter.post("/register", async (req, res) => {
       adminEmail: email,
       adminFullName: fullName,
       userId: user.id,
+      slug: finalSlug,
     });
 
     const updatedUser = await prisma.user.findUnique({
@@ -172,6 +216,7 @@ authRouter.post("/register", async (req, res) => {
         name: provisionResult.tenant.name,
         slug: provisionResult.tenant.slug,
       },
+      workspaceUrl: getWorkspaceUrl(provisionResult.tenant.slug),
       subscription: {
         status: provisionResult.subscription.status,
         trialEndsAt: provisionResult.trialEndsAt,
@@ -281,6 +326,73 @@ authRouter.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
+    // ── Host-Scoped Authentication Enforcement ────────────────
+    const rawHost = getEffectiveRequestHost(req.headers);
+    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
+
+    // 1. Super Admin Host/Portal isolation:
+    // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
+    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+      const hasSuperPortalSignal =
+        req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+      if (hasSuperPortalSignal) {
+        return res.status(404).json({
+          error: "Not Found",
+          code: "NOT_FOUND",
+        });
+      }
+    }
+
+    const isSuperPortal =
+      hostContext.type === "super" ||
+      req.headers["x-auth-portal"] === "super" ||
+      req.body.portal === "super";
+
+    if (isSuperPortal) {
+      const isSuper = user.roles.some((r: any) => r.role === "super_admin");
+      if (!isSuper) {
+        return res.status(403).json({
+          error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
+          code: "SUPER_ADMIN_ONLY",
+        });
+      }
+    }
+
+    // 2. Tenant Workspace Host / Custom Domain isolation: user MUST belong to this specific workspace
+    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+      let resolvedTenant = (req as any).resolvedTenant;
+      if (!resolvedTenant && hostContext.type === "tenant") {
+        const found = await prisma.tenant.findUnique({
+          where: { slug: hostContext.slug.toLowerCase() },
+          select: { id: true, name: true, slug: true },
+        });
+        if (found) resolvedTenant = found;
+      } else if (!resolvedTenant && hostContext.type === "custom_domain") {
+        const foundDomain = await prisma.tenantDomain.findUnique({
+          where: { domain: hostContext.domain },
+          include: { tenant: { select: { id: true, name: true, slug: true } } },
+        });
+        if (foundDomain && foundDomain.status === "approved" && foundDomain.dnsStatus === "verified") {
+          resolvedTenant = foundDomain.tenant;
+        }
+      }
+
+      if (!resolvedTenant) {
+        return res.status(404).json({
+          error: "Workspace not found.",
+          code: "WORKSPACE_NOT_FOUND",
+        });
+      }
+
+      const userTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId === resolvedTenant.id)?.tenantId;
+      if (userTenantId !== resolvedTenant.id) {
+        return res.status(403).json({
+          error: "This account does not belong to this workspace.",
+          code: "TENANT_MISMATCH",
+        });
+      }
+    }
+
     // Optional: Allow disabling mandatory 2FA via environment variable (e.g. for staging or when SMTP is in maintenance)
     const is2faDisabled = process.env.ENABLE_2FA === "false" || process.env.MANDATORY_2FA === "false";
     if (is2faDisabled) {
@@ -293,6 +405,40 @@ authRouter.post("/login", async (req, res) => {
       });
       await recordLoginHistory(req, user.id, user.id);
 
+      // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
+      let workspaceUrl: string | undefined;
+      let tenantSlug: string | undefined;
+      const effectiveTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId;
+      if (effectiveTenantId) {
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: effectiveTenantId },
+          select: { id: true, slug: true, name: true },
+        });
+        if (tenant?.slug) {
+          tenantSlug = tenant.slug;
+          // If login occurred on an active custom domain host, retain custom domain URL
+          if (hostContext?.type === "custom_domain" && (hostContext as any).domain) {
+            workspaceUrl = getCustomDomainUrl((hostContext as any).domain);
+          } else {
+            // Check if tenant has an active primary custom domain
+            const primaryCustomDomain = await prisma.tenantDomain.findFirst({
+              where: {
+                tenantId: effectiveTenantId,
+                status: "approved",
+                dnsStatus: "verified",
+                isPrimary: true,
+              },
+              select: { domain: true },
+            });
+            if (primaryCustomDomain?.domain) {
+              workspaceUrl = getCustomDomainUrl(primaryCustomDomain.domain);
+            } else {
+              workspaceUrl = getWorkspaceUrl(tenant.slug);
+            }
+          }
+        }
+      }
+
       return res.json({
         token,
         user: {
@@ -302,6 +448,8 @@ authRouter.post("/login", async (req, res) => {
           roles,
         },
         roles,
+        tenantSlug,
+        workspaceUrl,
         message: "Signed in successfully!",
       });
     }
@@ -540,6 +688,70 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
       return res.status(400).json({ error: verification.error || "Invalid verification code." });
     }
 
+    // ── Host-Scoped Authentication Enforcement for 2FA Completion ──
+    const rawHost = getEffectiveRequestHost(req.headers);
+    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
+
+    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+      const hasSuperPortalSignal =
+        req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+      if (hasSuperPortalSignal) {
+        return res.status(404).json({
+          error: "Not Found",
+          code: "NOT_FOUND",
+        });
+      }
+    }
+
+    const isSuperPortal =
+      hostContext.type === "super" ||
+      req.headers["x-auth-portal"] === "super" ||
+      req.body.portal === "super";
+
+    if (isSuperPortal) {
+      const isSuper = user.roles.some((r: any) => r.role === "super_admin");
+      if (!isSuper) {
+        return res.status(403).json({
+          error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
+          code: "SUPER_ADMIN_ONLY",
+        });
+      }
+    }
+
+    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+      let resolvedTenant = (req as any).resolvedTenant;
+      if (!resolvedTenant && hostContext.type === "tenant") {
+        const found = await prisma.tenant.findUnique({
+          where: { slug: hostContext.slug.toLowerCase() },
+          select: { id: true, name: true, slug: true },
+        });
+        if (found) resolvedTenant = found;
+      } else if (!resolvedTenant && hostContext.type === "custom_domain") {
+        const foundDomain = await prisma.tenantDomain.findUnique({
+          where: { domain: hostContext.domain },
+          include: { tenant: { select: { id: true, name: true, slug: true } } },
+        });
+        if (foundDomain && foundDomain.status === "approved" && foundDomain.dnsStatus === "verified") {
+          resolvedTenant = foundDomain.tenant;
+        }
+      }
+
+      if (!resolvedTenant) {
+        return res.status(404).json({
+          error: "Workspace not found.",
+          code: "WORKSPACE_NOT_FOUND",
+        });
+      }
+
+      const userTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId === resolvedTenant.id)?.tenantId;
+      if (userTenantId !== resolvedTenant.id) {
+        return res.status(403).json({
+          error: "This account does not belong to this workspace.",
+          code: "TENANT_MISMATCH",
+        });
+      }
+    }
+
     // If first-time 2FA setup, mark enabled and record confirmation timestamp
     const wasSetup = !user.twoFactorEnabled;
     if (wasSetup) {
@@ -562,6 +774,38 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
     });
     await recordLoginHistory(req, user.id, user.id);
 
+    // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
+    let workspaceUrl: string | undefined;
+    let tenantSlug: string | undefined;
+    const effectiveTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId;
+    if (effectiveTenantId) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: effectiveTenantId },
+        select: { id: true, slug: true, name: true },
+      });
+      if (tenant?.slug) {
+        tenantSlug = tenant.slug;
+        if (hostContext.type === "custom_domain" && (hostContext as any).domain) {
+          workspaceUrl = getCustomDomainUrl((hostContext as any).domain);
+        } else {
+          const primaryCustomDomain = await prisma.tenantDomain.findFirst({
+            where: {
+              tenantId: effectiveTenantId,
+              status: "approved",
+              dnsStatus: "verified",
+              isPrimary: true,
+            },
+            select: { domain: true },
+          });
+          if (primaryCustomDomain?.domain) {
+            workspaceUrl = getCustomDomainUrl(primaryCustomDomain.domain);
+          } else {
+            workspaceUrl = getWorkspaceUrl(tenant.slug);
+          }
+        }
+      }
+    }
+
     return res.json({
       success: true,
       user: {
@@ -573,6 +817,8 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
       },
       roles,
       token,
+      tenantSlug,
+      workspaceUrl,
       message: wasSetup
         ? "Two-Factor Authentication setup complete. Welcome to your workspace!"
         : "Verification successful. Welcome back!",

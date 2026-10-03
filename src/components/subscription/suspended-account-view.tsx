@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, LogOut, Mail, RefreshCw, PhoneCall, HelpCircle } from "lucide-react";
+import { getPlatformBaseDomain } from "@/lib/platform-domain";
 
 export interface SuspendedAccountViewProps {
   companyName: string;
@@ -21,7 +22,7 @@ export function SuspendedAccountView({
   planName = "Enterprise Plan",
   suspensionDate,
   suspensionReason,
-  supportEmail = "support@masterhrms.com",
+  supportEmail = `support@${getPlatformBaseDomain()}`,
   onSignOut,
   onRefresh,
 }: SuspendedAccountViewProps) {

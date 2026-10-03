@@ -23,6 +23,25 @@ export interface DurationDetails {
   label: string;
 }
 
+/**
+ * Single Source of Truth: Active customer-facing billing durations under the current pricing model.
+ * 3 Months and 6 Months are deprecated/legacy and must NOT be offered for new subscriptions/coupons.
+ */
+export const ACTIVE_BILLING_DURATIONS: { key: "1_month" | "1_year"; label: string; monthsCount: number }[] = [
+  { key: "1_month", label: "1 Month", monthsCount: 1 },
+  { key: "1_year", label: "1 Year", monthsCount: 12 },
+];
+
+/**
+ * Full historical list preserved for legacy billing subscriptions and historical coupons.
+ */
+export const HISTORICAL_BILLING_DURATIONS: { key: BillingDuration; label: string; monthsCount: number; isLegacy?: boolean }[] = [
+  { key: "1_month", label: "1 Month", monthsCount: 1 },
+  { key: "3_months", label: "3 Months", monthsCount: 3, isLegacy: true },
+  { key: "6_months", label: "6 Months", monthsCount: 6, isLegacy: true },
+  { key: "1_year", label: "1 Year", monthsCount: 12 },
+];
+
 export const DURATION_MAP: Record<string, DurationDetails> = {
   "1_month": { durationKey: "1_month", monthsCount: 1, label: "1 Month" },
   "monthly": { durationKey: "1_month", monthsCount: 1, label: "1 Month" },
@@ -35,6 +54,56 @@ export const DURATION_MAP: Record<string, DurationDetails> = {
   "annual": { durationKey: "1_year", monthsCount: 12, label: "1 Year" },
   "yearly": { durationKey: "1_year", monthsCount: 12, label: "1 Year" },
 };
+
+/**
+ * Normalizes an expiry date to the end of that day in Asia/Kolkata (23:59:59.999 IST = 18:29:59.999 UTC)
+ * so that a coupon with date 2026-10-03 remains valid through the entire business date in India.
+ */
+export function normalizeExpiryDateKolkata(dateInput?: string | Date | null): Date | null {
+  if (!dateInput) return null;
+
+  if (typeof dateInput === "string") {
+    const trimmed = dateInput.trim();
+    if (!trimmed) return null;
+    // Format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [year, month, day] = trimmed.split("-").map(Number);
+      // 23:59:59.999 in IST (+05:30) is 18:29:59.999 UTC
+      return new Date(Date.UTC(year, month - 1, day, 18, 29, 59, 999));
+    }
+  }
+
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(d.getTime())) return null;
+
+  // If time is exactly midnight UTC (common when YYYY-MM-DD is parsed as UTC Date)
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 18, 29, 59, 999));
+  }
+
+  return d;
+}
+
+/**
+ * Normalizes a start date to the start of that day in Asia/Kolkata (00:00:00.000 IST = 18:30:00.000 UTC prev day).
+ */
+export function normalizeStartDateKolkata(dateInput?: string | Date | null): Date | null {
+  if (!dateInput) return null;
+
+  if (typeof dateInput === "string") {
+    const trimmed = dateInput.trim();
+    if (!trimmed) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [year, month, day] = trimmed.split("-").map(Number);
+      return new Date(Date.UTC(year, month - 1, day - 1, 18, 30, 0, 0));
+    }
+  }
+
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(d.getTime())) return null;
+
+  return d;
+}
 
 /**
  * Normalizes duration string to standard key: "1_month" | "3_months" | "6_months" | "1_year"

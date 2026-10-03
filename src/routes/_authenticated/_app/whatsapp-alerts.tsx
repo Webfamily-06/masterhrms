@@ -97,7 +97,7 @@ const DEFAULT_BOT_RULES: BotRule[] = [
   {
     id: "bot-1",
     keyword: "PAYSLIP",
-    replyText: "Here is your latest Payslip for this month! Link: https://masterhrms.com/payslip",
+    replyText: "Here is your latest Payslip for this month! Check your employee portal under Payslips.",
     action: "send_payslip",
     enabled: true,
   },
@@ -322,7 +322,7 @@ function WhatsAppAlertsPage() {
     }
   }
 
-  const webhookUrl = `https://masterhrms.com/api/v1/whatsapp/webhook/${tenantId}`;
+  const webhookUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/api/v1/whatsapp/webhook/${tenantId}`;
 
   return (
     <PlanGuard moduleName="WhatsApp Alerts & Reminders" requiredPlan="starter">

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -21,9 +21,30 @@ import {
   Loader2,
   ShieldCheck,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw,
+  Copy,
+  Star,
+  Server,
+  Layers,
+  Info,
+  ChevronRight,
+  ShieldAlert,
+  Shield,
+  Lock,
+  SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/super/domains")({
   component: SuperDomainsPage,
@@ -36,14 +57,24 @@ export type CustomDomainRecord = {
   tenantName: string;
   subdomain: string;
   targetCname: string;
+  isPrimary?: boolean;
   planName?: string;
   planType?: string;
   price?: string;
   status: "approved" | "pending" | "rejected";
   sslStatus?: "active" | "provisioning" | "failed";
   dnsStatus?: "verified" | "pending" | "failed";
+  verificationToken?: string;
+  verificationMethod?: string;
+  verifiedAt?: string | null;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  rejectedReason?: string | null;
+  sslIssuedAt?: string | null;
+  lastCheckedAt?: string | null;
+  lastDnsError?: string | null;
   createdAt: string;
-  expiryDate?: string;
+  customDomainUrl?: string;
 };
 
 const COMPANY_AVATARS = [
@@ -60,69 +91,124 @@ const COMPANY_AVATARS = [
 ];
 
 export default function SuperDomainsPage() {
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  if (pathname.includes("/documentation")) {
+    return <Outlet />;
+  }
+
   const queryClient = useQueryClient();
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [planFilter, setPlanFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dnsFilter, setDnsFilter] = useState("all");
+  const [sslFilter, setSslFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Modals
+  // Modals / Drawers
   const [detailDomain, setDetailDomain] = useState<CustomDomainRecord | null>(null);
   const [deleteDomain, setDeleteDomain] = useState<CustomDomainRecord | null>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [targetRejectDomain, setTargetRejectDomain] = useState<CustomDomainRecord | null>(null);
 
-  // New domain form
-  const [newDomain, setNewDomain] = useState({
-    tenantId: "",
-    domain: "",
-    subdomain: "",
-    planName: "Advanced",
-    planType: "Monthly",
-    price: "200",
-  });
-
-  // Data queries
+  // 1. Fetch live domains from existing Flow 2 API
   const { data: domains = [], isLoading, refetch } = useQuery<CustomDomainRecord[]>({
     queryKey: ["super-custom-domains"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/api/super/domains");
-        return Array.isArray(res) ? res : res?.data || [];
-      } catch (err) {
-        console.error("Failed to fetch domains", err);
-        return [];
-      }
+      const res = await api.get("/api/super/domains");
+      const list = Array.isArray(res) ? res : res?.data || [];
+      return list.map((d: any) => ({
+        id: String(d.id),
+        domain: d.domain,
+        tenantId: d.tenantId,
+        tenantName: d.tenantName || d.tenant?.name || "Workspace",
+        subdomain: d.subdomain || "tenant.masterhrms.com",
+        targetCname: d.targetCname || "cname.masterhrms.com",
+        isPrimary: Boolean(d.isPrimary),
+        planName: d.planName || "Advanced",
+        planType: d.planType || "Monthly",
+        price: d.price || "200",
+        status: d.status || "pending",
+        sslStatus: d.sslStatus || "provisioning",
+        dnsStatus: d.dnsStatus || "pending",
+        verificationToken: d.verificationToken || "",
+        verificationMethod: d.verificationMethod || "TXT",
+        verifiedAt: d.verifiedAt || null,
+        approvedAt: d.approvedAt || null,
+        approvedBy: d.approvedBy || null,
+        rejectedReason: d.rejectedReason || null,
+        sslIssuedAt: d.sslIssuedAt || null,
+        lastCheckedAt: d.lastCheckedAt || null,
+        lastDnsError: d.lastDnsError || null,
+        createdAt: d.createdAt || new Date().toISOString().split("T")[0],
+        customDomainUrl: d.customDomainUrl || `https://${d.domain}`,
+      }));
     },
   });
 
-  const { data: tenants = [] } = useQuery<any[]>({
-    queryKey: ["super-tenants-list"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/api/super/tenants");
-        return Array.isArray(res) ? res : res?.data || [];
-      } catch {
-        return [];
-      }
-    },
-  });
+  // Dynamic Summary Metrics
+  const summaryMetrics = useMemo(() => {
+    const total = domains.length;
+    const pendingApproval = domains.filter((d) => d.status === "pending" && d.dnsStatus === "verified").length;
+    const awaitingDns = domains.filter((d) => d.dnsStatus === "pending" && d.status === "pending").length;
+    const active = domains.filter((d) => d.status === "approved").length;
+    const sslProvisioning = domains.filter((d) => d.sslStatus === "provisioning").length;
+    const rejected = domains.filter((d) => d.status === "rejected").length;
+    return { total, pendingApproval, awaitingDns, active, sslProvisioning, rejected };
+  }, [domains]);
 
-  // Mutations
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "approved" | "rejected" | "pending" }) => {
-      return api.put(`/api/super/domains/${id}/status`, { status });
+  // 2. Mutations using real existing backend APIs
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return api.put(`/api/super/domains/${id}/approve`, {});
     },
-    onSuccess: (_, vars) => {
-      toast.success(`Domain marked as ${vars.status}`);
+    onSuccess: (data: any) => {
+      toast.success(data?.message || "Custom domain approved successfully. SSL provisioning initiated.");
       queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
-      if (detailDomain && detailDomain.id === vars.id) {
-        setDetailDomain({ ...detailDomain, status: vars.status });
+      if (detailDomain) {
+        setDetailDomain((prev) => (prev ? { ...prev, status: "approved", approvedAt: new Date().toISOString() } : null));
       }
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to update domain status");
+      toast.error(err?.message || "Failed to approve custom domain");
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      return api.put(`/api/super/domains/${id}/reject`, { reason });
+    },
+    onSuccess: (data: any) => {
+      toast.success(data?.message || "Custom domain rejected");
+      queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
+      setIsRejectModalOpen(false);
+      setRejectReason("");
+      setTargetRejectDomain(null);
+      if (detailDomain) {
+        setDetailDomain((prev) => (prev ? { ...prev, status: "rejected", rejectedReason: rejectReason } : null));
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to reject domain");
+    },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return api.post(`/api/super/domains/${id}/verify`, {});
+    },
+    onSuccess: (data: any) => {
+      if (data?.verified) {
+        toast.success(data?.message || "DNS verification verified successfully!");
+      } else {
+        toast.warning(data?.message || "DNS check incomplete: DNS records not yet detected.");
+      }
+      queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "DNS verification check failed");
     },
   });
 
@@ -130,65 +216,58 @@ export default function SuperDomainsPage() {
     mutationFn: async (id: string) => {
       return api.delete(`/api/super/domains/${id}`);
     },
-    onSuccess: () => {
-      toast.success("Domain removed successfully");
-      queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
+    onSuccess: (data: any) => {
+      toast.success(data?.message || "Custom domain removed successfully.");
       setDeleteDomain(null);
-      if (detailDomain && deleteDomain && detailDomain.id === deleteDomain.id) {
+      if (detailDomain?.id === deleteDomain?.id) {
         setDetailDomain(null);
       }
-    },
-    onError: (err: any) => {
-      toast.error(err.message || "Failed to delete domain");
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (payload: typeof newDomain) => {
-      return api.post("/api/super/domains", payload);
-    },
-    onSuccess: () => {
-      toast.success("New custom domain request created");
       queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
-      setIsAddModalOpen(false);
-      setNewDomain({
-        tenantId: "",
-        domain: "",
-        subdomain: "",
-        planName: "Advanced",
-        planType: "Monthly",
-        price: "200",
-      });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to register domain");
+      toast.error(err?.message || "Failed to remove custom domain");
     },
   });
 
-  // Filtered & sorted
+  // Copy helper
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success("Copied to clipboard!");
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  // Filtered & Sorted domains
   const filteredDomains = useMemo(() => {
-    return domains.filter((d) => {
-      const matchSearch =
-        d.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.tenantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (d.subdomain && d.subdomain.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      const matchPlan =
-        planFilter === "all"
-          ? true
-          : (d.planName?.toLowerCase().includes(planFilter.toLowerCase()) ||
-             d.planType?.toLowerCase().includes(planFilter.toLowerCase()));
+    return domains
+      .filter((d) => {
+        const matchesSearch =
+          searchTerm.trim() === "" ||
+          d.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.tenantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          d.subdomain.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchStatus =
-        statusFilter === "all" ? true : d.status.toLowerCase() === statusFilter.toLowerCase();
+        const matchesStatus =
+          statusFilter === "all"
+            ? true
+            : statusFilter === "pending_approval"
+            ? d.status === "pending" && d.dnsStatus === "verified"
+            : statusFilter === "awaiting_dns"
+            ? d.status === "pending" && d.dnsStatus === "pending"
+            : d.status === statusFilter;
 
-      return matchSearch && matchPlan && matchStatus;
-    }).sort((a, b) => {
-      if (sortBy === "asc") return a.tenantName.localeCompare(b.tenantName);
-      if (sortBy === "desc") return b.tenantName.localeCompare(a.tenantName);
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [domains, searchTerm, planFilter, statusFilter, sortBy]);
+        const matchesDns = dnsFilter === "all" ? true : d.dnsStatus === dnsFilter;
+        const matchesSsl = sslFilter === "all" ? true : d.sslStatus === sslFilter;
+
+        return matchesSearch && matchesStatus && matchesDns && matchesSsl;
+      })
+      .sort((a, b) => {
+        if (sortBy === "domain_asc") return a.domain.localeCompare(b.domain);
+        if (sortBy === "tenant_asc") return a.tenantName.localeCompare(b.tenantName);
+        if (sortBy === "oldest") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+  }, [domains, searchTerm, statusFilter, dnsFilter, sslFilter, sortBy]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredDomains.length) {
@@ -199,162 +278,320 @@ export default function SuperDomainsPage() {
   };
 
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
-
-  const getCompanyAvatar = (idx: number) => {
-    return COMPANY_AVATARS[idx % COMPANY_AVATARS.length];
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
 
   // Export CSV
   const exportCSV = () => {
-    const headers = ["Company", "Domain URL", "Plan", "Price", "Created Date", "Status"];
+    const headers = [
+      "Domain",
+      "Tenant Name",
+      "Status",
+      "DNS Status",
+      "SSL Status",
+      "Is Primary",
+      "Requested At",
+      "Approved At",
+      "Target CNAME",
+    ];
     const rows = filteredDomains.map((d) => [
-      `"${d.tenantName}"`,
       `"${d.domain}"`,
-      `"${d.planName || "Advanced"} (${d.planType || "Monthly"})"`,
-      `"$${d.price || "200"}"`,
-      `"${d.createdAt}"`,
+      `"${d.tenantName}"`,
       `"${d.status}"`,
+      `"${d.dnsStatus}"`,
+      `"${d.sslStatus}"`,
+      `"${d.isPrimary ? "Yes" : "No"}"`,
+      `"${d.createdAt}"`,
+      `"${d.approvedAt || "—"}"`,
+      `"${d.targetCname}"`,
     ]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `domain_list_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `custom_domains_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Domain list exported to CSV");
+    toast.success("Domain catalog exported to CSV");
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Breadcrumb Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Domain
-          </h2>
-          <nav className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
-            <span className="hover:text-primary cursor-pointer">Super Admin</span>
-            <span>/</span>
-            <span className="font-medium text-slate-700 dark:text-slate-300">Domain List</span>
-          </nav>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+            <Link to="/super" className="hover:text-foreground transition-colors">
+              Super Admin
+            </Link>
+            <ChevronRight className="size-3" />
+            <span>Extensions &amp; Add-ons</span>
+            <ChevronRight className="size-3" />
+            <span className="text-foreground font-medium">Custom Domains</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+            <Globe className="size-6 text-primary" />
+            Custom Domains
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Review, verify DNS, audit SSL issuance, and govern Flow 2 Primary Custom Domains across all tenant workspaces.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Export Dropdown */}
-          <div className="relative group">
-            <button
-              onClick={exportCSV}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors shadow-sm text-slate-700 dark:text-slate-200"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Export</span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
-            </button>
-          </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link to="/super/domains/documentation">
+            <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5 shadow-2xs">
+              <FileText className="size-3.5 text-indigo-500" />
+              <span>Documentation</span>
+            </Button>
+          </Link>
 
-          {/* Add Domain Button */}
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors shadow-sm shadow-primary/20"
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refetch()}
+            disabled={isLoading}
+            className="text-xs h-8 gap-1.5 shadow-2xs"
+            title="Refetch domain catalog records from database"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Domain</span>
-          </button>
+            <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            <span>Refresh Data</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportCSV}
+            disabled={filteredDomains.length === 0}
+            className="text-xs h-8 gap-1.5 shadow-2xs"
+          >
+            <FileSpreadsheet className="size-3.5 text-emerald-600" />
+            <span>Export CSV</span>
+          </Button>
         </div>
       </div>
 
-      {/* Main Table Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
-        {/* Card Header & Filter Bar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-base text-slate-800 dark:text-slate-100">Domain List</h3>
-            <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">
-              {filteredDomains.length} records
-            </span>
+      {/* Architecture Context Banner */}
+      <div className="rounded-xl p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/40 text-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+            <Layers className="size-5" />
           </div>
+          <div className="space-y-0.5">
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+              Dual-Host Multi-Tenant Isolation
+            </h4>
+            <p className="text-muted-foreground text-[11px] leading-relaxed">
+              Flow 1 (<code>{`{slug}.masterhrms.com`}</code>) remains the permanent fail-safe address. Flow 2 (<code>{`acme.com`}</code>) provides a customer-branded vanity entry point with identical database, users, and RBAC matrix.
+            </p>
+          </div>
+        </div>
+        <Link to="/super/domains/documentation" className="shrink-0">
+          <Button size="sm" variant="ghost" className="text-xs h-7 gap-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/50">
+            Architecture Specs <ChevronRight className="size-3" />
+          </Button>
+        </Link>
+      </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      {/* Dynamic Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+            Total Domains
+          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-black text-foreground">{summaryMetrics.total}</span>
+            <Globe className="size-4 text-slate-400" />
+          </div>
+          <p className="text-[10px] text-muted-foreground">All registered records</p>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1 border-blue-200/60 dark:border-blue-900/40 bg-blue-50/20">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 block">
+            Pending Approval
+          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-black text-blue-600 dark:text-blue-400">{summaryMetrics.pendingApproval}</span>
+            <ShieldCheck className="size-4 text-blue-500" />
+          </div>
+          <p className="text-[10px] text-blue-600/80 dark:text-blue-400/80">DNS verified, awaiting review</p>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 block">
+            Awaiting DNS
+          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-black text-amber-600 dark:text-amber-400">{summaryMetrics.awaitingDns}</span>
+            <Clock className="size-4 text-amber-500" />
+          </div>
+          <p className="text-[10px] text-muted-foreground">Pending registrar setup</p>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1 border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/20">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
+            Active Domains
+          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">{summaryMetrics.active}</span>
+            <CheckCircle2 className="size-4 text-emerald-500" />
+          </div>
+          <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">Approved &amp; serving</p>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 block">
+            SSL Provisioning
+          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-black text-purple-600 dark:text-purple-400">{summaryMetrics.sslProvisioning}</span>
+            <Server className="size-4 text-purple-500" />
+          </div>
+          <p className="text-[10px] text-muted-foreground">ACME cert challenges</p>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 block">
+            Rejected
+          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-black text-rose-600 dark:text-rose-400">{summaryMetrics.rejected}</span>
+            <XCircle className="size-4 text-rose-500" />
+          </div>
+          <p className="text-[10px] text-muted-foreground">Declined by admin</p>
+        </Card>
+      </div>
+
+      {/* Main Table Card */}
+      <Card className="border shadow-xs overflow-hidden">
+        {/* Filter Controls Bar */}
+        <div className="p-4 border-b bg-muted/15 space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Search Input */}
-            <div className="relative min-w-[200px]">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="relative flex-1 max-w-sm">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search domain or company..."
+                placeholder="Search domain, tenant, or slug..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-slate-800 dark:text-slate-100 placeholder-slate-400"
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
-            {/* Date Range dummy / styling matching UI */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-lg text-slate-600 dark:text-slate-300">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>All Dates</span>
+            {/* Filter Dropdowns */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Status Filter */}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[135px] bg-background border rounded-lg shadow-2xs gap-2">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Shield className="size-3.5 text-muted-foreground shrink-0" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent align="end" className="text-xs">
+                  <SelectItem value="all">Status: All</SelectItem>
+                  <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                  <SelectItem value="awaiting_dns">Awaiting DNS</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* DNS Filter */}
+              <Select value={dnsFilter} onValueChange={setDnsFilter}>
+                <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[125px] bg-background border rounded-lg shadow-2xs gap-2">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <CheckCircle2 className="size-3.5 text-muted-foreground shrink-0" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent align="end" className="text-xs">
+                  <SelectItem value="all">DNS: All</SelectItem>
+                  <SelectItem value="verified">DNS Verified</SelectItem>
+                  <SelectItem value="pending">DNS Pending</SelectItem>
+                  <SelectItem value="failed">DNS Failed</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* SSL Filter */}
+              <Select value={sslFilter} onValueChange={setSslFilter}>
+                <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[120px] bg-background border rounded-lg shadow-2xs gap-2">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Lock className="size-3.5 text-muted-foreground shrink-0" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent align="end" className="text-xs">
+                  <SelectItem value="all">SSL: All</SelectItem>
+                  <SelectItem value="active">SSL Active</SelectItem>
+                  <SelectItem value="provisioning">SSL Provisioning</SelectItem>
+                  <SelectItem value="failed">SSL Failed</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Sort By */}
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[135px] bg-background border rounded-lg shadow-2xs gap-2">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <SlidersHorizontal className="size-3.5 text-muted-foreground shrink-0" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent align="end" className="text-xs">
+                  <SelectItem value="recent">Newest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="domain_asc">Domain A-Z</SelectItem>
+                  <SelectItem value="tenant_asc">Tenant A-Z</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-
-            {/* Select Plan */}
-            <select
-              value={planFilter}
-              onChange={(e) => setPlanFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="all">Select Plan</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-              <option value="basic">Basic</option>
-              <option value="advanced">Advanced</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-
-            {/* Select Status */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="all">Select Status</option>
-              <option value="approved">Approved</option>
-              <option value="pending">Pending</option>
-              <option value="rejected">Rejected</option>
-            </select>
-
-            {/* Sort by */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="recent">Sort By: Last 7 Days</option>
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
           </div>
         </div>
 
-        {/* Table Content */}
-        <div className="overflow-x-auto">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center p-12 text-slate-500">
-              <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
-              <p className="text-xs">Loading domains from platform database...</p>
+        {/* Loading State */}
+        {isLoading && (
+          <div className="py-16 text-center text-xs text-muted-foreground space-y-2">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+            <p>Loading custom domains catalog from database...</p>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && filteredDomains.length === 0 && (
+          <div className="text-center py-16 px-4 space-y-3">
+            <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+              <Globe className="w-7 h-7" />
             </div>
-          ) : filteredDomains.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">
-              <Globe className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No domains found</p>
-              <p className="text-xs text-slate-400">Try adjusting your search criteria or register a new domain.</p>
+            <div className="space-y-1 max-w-md mx-auto">
+              <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                {searchTerm || statusFilter !== "all" || dnsFilter !== "all" || sslFilter !== "all"
+                  ? "No matching custom domains found"
+                  : "No primary custom domains have been requested yet"}
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {searchTerm || statusFilter !== "all" || dnsFilter !== "all" || sslFilter !== "all"
+                  ? "Try resetting your search query or filters to see all domain requests."
+                  : "Tenants can request a primary custom domain (Flow 2) directly from their workspace settings. Once requested, domains will appear here for DNS verification audit, Super Admin approval, and automated SSL provisioning."}
+              </p>
             </div>
-          ) : (
-            <table className="w-full text-left border-collapse">
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Link to="/super/domains/documentation">
+                <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5 shadow-2xs">
+                  <FileText className="size-3.5" /> View Custom Domain Documentation
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Real Domains Table */}
+        {!isLoading && filteredDomains.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-50/75 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <tr className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   <th className="py-3 px-4 w-10">
                     <input
                       type="checkbox"
@@ -363,22 +600,25 @@ export default function SuperDomainsPage() {
                       className="rounded border-slate-300 text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
                     />
                   </th>
-                  <th className="py-3 px-4">Name</th>
-                  <th className="py-3 px-4">Domain URL</th>
-                  <th className="py-3 px-4">Plan</th>
-                  <th className="py-3 px-4">Created Date</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Primary Domain</th>
+                  <th className="py-3 px-4">Tenant / Company</th>
+                  <th className="py-3 px-4">Approval Status</th>
+                  <th className="py-3 px-4">DNS Verification</th>
+                  <th className="py-3 px-4">SSL / TLS</th>
+                  <th className="py-3 px-4">Requested</th>
+                  <th className="py-3 px-4">Verified / Approved</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+              <tbody className="divide-y divide-border-color">
                 {filteredDomains.map((d, idx) => {
-                  const avatarSrc = getCompanyAvatar(idx);
+                  const avatarSrc = COMPANY_AVATARS[idx % COMPANY_AVATARS.length];
+                  const isApproved = d.status === "approved";
+                  const isPending = d.status === "pending";
+                  const isRejected = d.status === "rejected";
+
                   return (
-                    <tr
-                      key={d.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                    >
+                    <tr key={d.id} className="hover:bg-muted/30 transition-colors">
                       <td className="py-3 px-4">
                         <input
                           type="checkbox"
@@ -388,89 +628,150 @@ export default function SuperDomainsPage() {
                         />
                       </td>
 
-                      {/* Name with Avatar */}
+                      {/* Domain URL & Primary Badge */}
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-800 flex items-center justify-center shrink-0">
-                            <img
-                              src={avatarSrc}
-                              alt={d.tenantName}
-                              className="w-full h-full object-contain rounded-full"
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = "none";
-                              }}
-                            />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => setDetailDomain(d)}
+                            className="font-mono font-bold text-foreground hover:text-primary transition-colors text-left"
+                          >
+                            {d.domain}
+                          </button>
+                          {d.isPrimary && (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] gap-0.5">
+                              <Star className="size-2.5 fill-amber-500 text-amber-500" /> Primary
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-mono block">
+                          CNAME → {d.targetCname}
+                        </span>
+                      </td>
+
+                      {/* Tenant with Avatar */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="size-7 rounded-full border p-0.5 bg-background flex items-center justify-center shrink-0">
+                            <img src={avatarSrc} alt={d.tenantName} className="size-full object-contain rounded-full" />
                           </div>
                           <div>
-                            <span className="font-medium text-slate-800 dark:text-slate-100 hover:text-primary cursor-pointer">
-                              {d.tenantName}
-                            </span>
-                            {d.subdomain && (
-                              <p className="text-[10px] text-slate-400 font-mono">{d.subdomain}</p>
-                            )}
+                            <span className="font-semibold text-foreground block">{d.tenantName}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">{d.subdomain}</span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Domain URL */}
-                      <td className="py-3 px-4 font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                        <a
-                          href={`https://${d.domain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 hover:text-primary hover:underline"
-                        >
-                          {d.domain}
-                          <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                        </a>
-                      </td>
-
-                      {/* Plan */}
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                        {d.planName || "Advanced"} ({d.planType || "Monthly"})
-                      </td>
-
-                      {/* Created Date */}
-                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {d.createdAt}
-                      </td>
-
-                      {/* Status */}
+                      {/* Approval Status */}
                       <td className="py-3 px-4">
-                        {d.status === "approved" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                            <Check className="w-3 h-3" />
-                            Approved
+                        {isApproved ? (
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] gap-1">
+                            <Check className="size-3 text-emerald-600" /> Approved
+                          </Badge>
+                        ) : isPending ? (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] gap-1">
+                            <Clock className="size-3 text-amber-600" /> Pending Review
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 text-[10px] gap-1">
+                            <X className="size-3 text-rose-600" /> Rejected
+                          </Badge>
+                        )}
+                      </td>
+
+                      {/* DNS Verification */}
+                      <td className="py-3 px-4">
+                        {d.dnsStatus === "verified" ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="size-3.5" /> Verified
                           </span>
-                        ) : d.status === "pending" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800/40">
-                            <Clock className="w-3 h-3" />
-                            Pending
+                        ) : d.dnsStatus === "failed" ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400">
+                            <XCircle className="size-3.5" /> Failed
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40">
-                            <X className="w-3 h-3" />
-                            Rejected
+                          <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                            <Clock className="size-3.5" /> Pending Check
                           </span>
                         )}
                       </td>
 
+                      {/* SSL Status */}
+                      <td className="py-3 px-4">
+                        {d.sslStatus === "active" ? (
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 text-[10px]">
+                            Active (TLS 1.3)
+                          </Badge>
+                        ) : d.sslStatus === "failed" ? (
+                          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 text-[10px]">
+                            Failed
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 text-[10px]">
+                            Provisioning
+                          </Badge>
+                        )}
+                      </td>
+
+                      {/* Requested At */}
+                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
+                        {d.createdAt}
+                      </td>
+
+                      {/* Verified / Approved At */}
+                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
+                        {d.approvedAt ? new Date(d.approvedAt).toLocaleDateString() : d.verifiedAt ? new Date(d.verifiedAt).toLocaleDateString() : "—"}
+                      </td>
+
                       {/* Actions */}
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-2">
+                        <div className="inline-flex items-center gap-1 justify-end">
                           <button
-                            title="View Domain Details"
-                            onClick={() => setDetailDomain(d)}
-                            className="p-1 text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                            title="Verify DNS in Real-Time"
+                            onClick={() => verifyMutation.mutate(d.id)}
+                            disabled={verifyMutation.isPending}
+                            className="p-1.5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-md transition-colors"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <RefreshCw className={`size-3.5 ${verifyMutation.isPending && (verifyMutation.variables as string) === d.id ? "animate-spin text-blue-600" : ""}`} />
                           </button>
+
+                          <button
+                            title="View DNS & Details"
+                            onClick={() => setDetailDomain(d)}
+                            className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-md transition-colors"
+                          >
+                            <Eye className="size-3.5" />
+                          </button>
+
+                          {isPending && (
+                            <>
+                              <button
+                                title="Approve Domain"
+                                onClick={() => approveMutation.mutate(d.id)}
+                                disabled={approveMutation.isPending}
+                                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-md transition-colors"
+                              >
+                                <Check className="size-3.5" />
+                              </button>
+
+                              <button
+                                title="Reject Domain"
+                                onClick={() => {
+                                  setTargetRejectDomain(d);
+                                  setIsRejectModalOpen(true);
+                                }}
+                                className="p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md transition-colors"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            </>
+                          )}
+
                           <button
                             title="Delete Domain"
                             onClick={() => setDeleteDomain(d)}
-                            className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded transition-colors"
+                            className="p-1.5 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md transition-colors"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="size-3.5" />
                           </button>
                         </div>
                       </td>
@@ -479,292 +780,310 @@ export default function SuperDomainsPage() {
                 })}
               </tbody>
             </table>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </Card>
 
-      {/* Domain Details Modal (matches ui-2/domain.html) */}
+      {/* DETAIL MODAL / DRAWER */}
       {detailDomain && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-lg w-full overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-xl w-full overflow-hidden max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border-color">
               <div className="flex items-center gap-2">
-                <h4 className="font-semibold text-base text-slate-900 dark:text-white">Domain Detail</h4>
-                {detailDomain.status === "approved" ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Approved
+                <Globe className="size-5 text-primary" />
+                <div>
+                  <h4 className="font-semibold text-sm text-foreground">Custom Domain Details</h4>
+                  <p className="text-[11px] text-muted-foreground font-mono">{detailDomain.domain}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailDomain(null)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-5 space-y-4 overflow-y-auto text-xs">
+              {/* Status and Tenant Header Banner */}
+              <div className="p-3.5 rounded-xl bg-muted/40 border border-border-color flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Tenant Workspace</span>
+                  <span className="font-bold text-foreground text-sm">{detailDomain.tenantName}</span>
+                  <span className="text-muted-foreground font-mono block text-[11px]">{detailDomain.subdomain}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Governance</span>
+                  {detailDomain.status === "approved" ? (
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 text-[10px] gap-1">
+                      <Check className="size-3" /> Approved
+                    </Badge>
+                  ) : detailDomain.status === "pending" ? (
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 text-[10px] gap-1">
+                      <Clock className="size-3" /> Pending Review
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 text-[10px] gap-1">
+                      <X className="size-3" /> Rejected
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Rejection alert if applicable */}
+              {detailDomain.status === "rejected" && (
+                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <ShieldAlert className="size-4 text-rose-600" />
+                    <span>Domain Request Rejected</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Reason: {detailDomain.rejectedReason || "No specific reason provided."}
+                  </p>
+                </div>
+              )}
+
+              {/* Status Matrix */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg border bg-card space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">DNS Status</span>
+                  <span className={`font-semibold ${detailDomain.dnsStatus === "verified" ? "text-emerald-600" : "text-amber-600"}`}>
+                    {detailDomain.dnsStatus === "verified" ? "✓ Verified" : "⏳ Pending Verification"}
                   </span>
-                ) : detailDomain.status === "pending" ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span> Pending
+                </div>
+                <div className="p-3 rounded-lg border bg-card space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">SSL Status</span>
+                  <span className={`font-semibold ${detailDomain.sslStatus === "active" ? "text-emerald-600" : "text-amber-600"}`}>
+                    {detailDomain.sslStatus === "active" ? "✓ Active (TLS 1.3)" : detailDomain.sslStatus || "Provisioning"}
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Rejected
+                </div>
+              </div>
+
+              {/* DNS Instructions Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground uppercase tracking-wider text-[10px]">
+                    Required DNS Configuration
                   </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-[10px] h-6 gap-1"
+                    onClick={() => verifyMutation.mutate(detailDomain.id)}
+                    disabled={verifyMutation.isPending}
+                  >
+                    <RefreshCw className={`size-3 ${verifyMutation.isPending ? "animate-spin" : ""}`} /> Verify Now
+                  </Button>
+                </div>
+
+                <div className="border rounded-xl divide-y text-[11px] font-mono bg-muted/20">
+                  {/* CNAME */}
+                  <div className="p-2.5 flex items-center justify-between gap-2">
+                    <div>
+                      <Badge className="bg-blue-600 text-white text-[9px] mr-1.5 font-sans">CNAME</Badge>
+                      <span className="text-muted-foreground">Host: @ → Target: </span>
+                      <span className="font-bold text-foreground">{detailDomain.targetCname}</span>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => handleCopy(detailDomain.targetCname, "cname")}
+                    >
+                      {copiedKey === "cname" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    </Button>
+                  </div>
+
+                  {/* TXT Challenge */}
+                  {detailDomain.verificationToken && (
+                    <div className="p-2.5 flex items-center justify-between gap-2">
+                      <div className="truncate">
+                        <Badge className="bg-purple-600 text-white text-[9px] mr-1.5 font-sans">TXT</Badge>
+                        <span className="text-muted-foreground">Challenge: </span>
+                        <span className="font-bold text-purple-600 dark:text-purple-400">{detailDomain.verificationToken}</span>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6 text-muted-foreground hover:text-foreground shrink-0"
+                        onClick={() => handleCopy(detailDomain.verificationToken || "", "txt")}
+                      >
+                        {copiedKey === "txt" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Audit Timeline */}
+              <div className="space-y-2 pt-2 border-t">
+                <span className="font-bold text-foreground uppercase tracking-wider text-[10px] flex items-center gap-1">
+                  <Clock className="size-3 text-primary" /> Lifecycle Audit Trail
+                </span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                    <span className="text-muted-foreground">1. Requested At:</span>
+                    <span className="font-semibold text-foreground">{detailDomain.createdAt}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                    <span className="text-muted-foreground">2. DNS Verified At:</span>
+                    <span className="font-semibold text-foreground">
+                      {detailDomain.verifiedAt ? new Date(detailDomain.verifiedAt).toLocaleString() : "Pending"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                    <span className="text-muted-foreground">3. Super Admin Review:</span>
+                    <span className="font-semibold text-foreground">
+                      {detailDomain.approvedAt ? `Approved at ${new Date(detailDomain.approvedAt).toLocaleString()}` : detailDomain.status === "rejected" ? "Rejected" : "In Queue"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                    <span className="text-muted-foreground">4. SSL Certificate:</span>
+                    <span className="font-semibold text-foreground">
+                      {detailDomain.sslIssuedAt ? `Issued at ${new Date(detailDomain.sslIssuedAt).toLocaleString()}` : detailDomain.sslStatus}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="p-4 border-t border-border-color flex items-center justify-between gap-2 bg-muted/10">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                onClick={() => {
+                  setDeleteDomain(detailDomain);
+                }}
+              >
+                <Trash2 className="size-3.5 mr-1" /> Delete
+              </Button>
+
+              <div className="flex items-center gap-2">
+                {detailDomain.status === "pending" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-8 text-rose-600 hover:bg-rose-50"
+                      onClick={() => {
+                        setTargetRejectDomain(detailDomain);
+                        setIsRejectModalOpen(true);
+                      }}
+                    >
+                      <X className="size-3.5 mr-1" /> Reject Request
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      disabled={approveMutation.isPending}
+                      onClick={() => approveMutation.mutate(detailDomain.id)}
+                    >
+                      {approveMutation.isPending ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Check className="size-3.5 mr-1" />}
+                      Approve &amp; Activate
+                    </Button>
+                  </>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8"
+                  onClick={() => setDetailDomain(null)}
+                >
+                  Close
+                </Button>
               </div>
-              <button
-                onClick={() => setDetailDomain(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4">
-              {/* Tenant Banner */}
-              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 flex items-center justify-center">
-                    <img
-                      src="/ui-assets/company/company-01.svg"
-                      alt={detailDomain.tenantName}
-                      className="w-full h-full object-contain rounded-full"
-                    />
-                  </div>
-                  <div>
-                    <h5 className="font-semibold text-sm text-slate-800 dark:text-slate-100">
-                      {detailDomain.tenantName}
-                    </h5>
-                    <p className="text-xs text-slate-400 font-mono">{detailDomain.domain}</p>
-                  </div>
-                </div>
-
-                {/* Quick Approve / Reject action buttons if pending or toggling */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => updateStatusMutation.mutate({ id: detailDomain.id, status: "approved" })}
-                    disabled={updateStatusMutation.isPending || detailDomain.status === "approved"}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md border border-emerald-200 transition-colors disabled:opacity-40"
-                  >
-                    <Check className="w-3 h-3" />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => updateStatusMutation.mutate({ id: detailDomain.id, status: "rejected" })}
-                    disabled={updateStatusMutation.isPending || detailDomain.status === "rejected"}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md border border-rose-200 transition-colors disabled:opacity-40"
-                  >
-                    <X className="w-3 h-3" />
-                    Reject
-                  </button>
-                </div>
-              </div>
-
-              {/* Detail Grid */}
-              <div className="grid grid-cols-3 gap-4 pt-2">
-                <div>
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Plan Name</span>
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mt-0.5">
-                    {detailDomain.planName || "Advanced"}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Plan Type</span>
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mt-0.5">
-                    {detailDomain.planType || "Monthly"}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Account URL</span>
-                  <p className="text-xs font-mono text-slate-700 dark:text-slate-300 mt-0.5 truncate">
-                    {detailDomain.domain}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Price</span>
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mt-0.5">
-                    ${detailDomain.price || "200"}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Register Date</span>
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">
-                    {detailDomain.createdAt}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Expiring On</span>
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">
-                    {detailDomain.expiryDate || "11 Oct 2026"}
-                  </p>
-                </div>
-              </div>
-
-              {/* DNS target help */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
-                <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                  <span>Target CNAME:</span>
-                  <span className="font-mono text-slate-800 dark:text-slate-200 font-semibold">{detailDomain.targetCname}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                  <span>SSL Certificate:</span>
-                  <span className="capitalize font-medium text-emerald-600">{detailDomain.sslStatus || "active"}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setDetailDomain(null)}
-                className="px-4 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteDomain && (
+      {/* REJECT MODAL */}
+      {isRejectModalOpen && targetRejectDomain && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 text-center">
-            <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto mb-3">
-              <AlertTriangle className="w-6 h-6" />
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center gap-2.5 text-rose-600">
+              <AlertTriangle className="size-5" />
+              <h4 className="font-bold text-base text-foreground">Reject Custom Domain Request</h4>
             </div>
-            <h4 className="font-semibold text-base text-slate-900 dark:text-white">Delete Custom Domain?</h4>
-            <p className="text-xs text-slate-500 mt-1">
-              Are you sure you want to remove <strong className="text-slate-700 dark:text-slate-200">{deleteDomain.domain}</strong>? This will detach the custom domain from {deleteDomain.tenantName}.
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Please state the reason for rejecting <strong className="text-foreground">{targetRejectDomain.domain}</strong>. The tenant admin will see this reason in their workspace settings.
             </p>
-            <div className="flex items-center justify-center gap-2 mt-5">
-              <button
-                onClick={() => setDeleteDomain(null)}
-                className="px-4 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            <textarea
+              placeholder="e.g. Hostname does not match corporate registration, CNAME proxying misconfigured, or offensive wording..."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              className="w-full p-2.5 text-xs bg-muted/30 border rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-500"
+              autoFocus
+            />
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8"
+                onClick={() => {
+                  setIsRejectModalOpen(false);
+                  setRejectReason("");
+                  setTargetRejectDomain(null);
+                }}
               >
                 Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate(deleteDomain.id)}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-rose-600/20"
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="text-xs h-8 bg-rose-600 hover:bg-rose-700"
+                disabled={rejectMutation.isPending || !rejectReason.trim()}
+                onClick={() =>
+                  rejectMutation.mutate({
+                    id: targetRejectDomain.id,
+                    reason: rejectReason.trim(),
+                  })
+                }
               >
-                {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                Confirm Delete
-              </button>
+                {rejectMutation.isPending && <Loader2 className="size-3 animate-spin mr-1" />}
+                Confirm Rejection
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Add Domain Modal */}
-      {isAddModalOpen && (
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteDomain && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="font-semibold text-base text-slate-900 dark:text-white">Add Custom Domain</h4>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="size-6" />
             </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newDomain.tenantId || !newDomain.domain) {
-                  toast.error("Please select a tenant and enter a domain");
-                  return;
-                }
-                createMutation.mutate(newDomain);
-              }}
-              className="p-5 space-y-4 text-xs"
-            >
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Tenant Organization *
-                </label>
-                <select
-                  value={newDomain.tenantId}
-                  onChange={(e) => {
-                    const t = tenants.find((item) => item.id === e.target.value);
-                    setNewDomain({
-                      ...newDomain,
-                      tenantId: e.target.value,
-                      subdomain: t ? `${t.slug}.mastererp.cloud` : "",
-                    });
-                  }}
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">Select Tenant Organization</option>
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.slug})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Custom Domain URL *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. portal.clientcorp.com"
-                  value={newDomain.domain}
-                  onChange={(e) => setNewDomain({ ...newDomain, domain: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Plan
-                  </label>
-                  <select
-                    value={newDomain.planName}
-                    onChange={(e) => setNewDomain({ ...newDomain, planName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                  >
-                    <option value="Basic">Basic</option>
-                    <option value="Advanced">Advanced</option>
-                    <option value="Enterprise">Enterprise</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Plan Billing
-                  </label>
-                  <select
-                    value={newDomain.planType}
-                    onChange={(e) => setNewDomain({ ...newDomain, planType: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                  >
-                    <option value="Monthly">Monthly</option>
-                    <option value="Yearly">Yearly</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="px-4 py-2 text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-primary/20"
-                >
-                  {createMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Register Domain
-                </button>
-              </div>
-            </form>
+            <h4 className="font-semibold text-base text-foreground">Remove Custom Domain?</h4>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure you want to remove <strong className="text-foreground">{deleteDomain.domain}</strong>? The vanity routing will be detached. The tenant&apos;s default Flow 1 workspace will remain completely active.
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteDomain(null)}
+                className="text-xs h-8"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate(deleteDomain.id)}
+                className="text-xs h-8 bg-rose-600 hover:bg-rose-700"
+              >
+                {deleteMutation.isPending && <Loader2 className="size-3 animate-spin mr-1" />}
+                Confirm Removal
+              </Button>
+            </div>
           </div>
         </div>
       )}

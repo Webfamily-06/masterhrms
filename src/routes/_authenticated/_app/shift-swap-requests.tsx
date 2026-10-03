@@ -179,7 +179,7 @@ export function ShiftSwapRequestsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/dashboard" className="hover:text-foreground">Home</Link>
+            <Link to="/hrm-dashboard" className="hover:text-foreground">Home</Link>
             <span>/</span>
             <Link to="/attendance" className="hover:text-foreground">Attendance</Link>
             <span>/</span>

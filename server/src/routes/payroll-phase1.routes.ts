@@ -729,7 +729,7 @@ payrollPhase1Router.post('/rules/:id/verify', async (req: AuthRequest, res: Resp
       where: { id },
       data: {
         isVerified: true,
-        verifiedBy: req.user?.email || 'admin@masterhrms.com',
+        verifiedBy: req.user?.email || 'system',
         signoffDate: new Date(),
         status: 'active',
         isActive: true,

@@ -86,7 +86,7 @@ export function AccessDenied({
           asChild
           className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg shadow-orange-500/20"
         >
-          <Link to="/dashboard">
+          <Link to="/hrm-dashboard">
             <LayoutGrid className="w-4 h-4" />
             <span>Back to Dashboard</span>
           </Link>

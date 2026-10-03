@@ -261,6 +261,19 @@ function AuthPage() {
           setToken(res.token);
           qc.invalidateQueries({ queryKey: ["current-session-user"] });
           toast.success("Signed in successfully!");
+
+          // If logging in on root domain, redirect to tenant workspace
+          if (res.workspaceUrl && typeof window !== "undefined") {
+            try {
+              const currentOrigin = window.location.origin.toLowerCase();
+              const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
+              if (currentOrigin !== targetOrigin) {
+                window.location.href = `${res.workspaceUrl}/auth?token=${res.token}${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ""}`;
+                return;
+              }
+            } catch {}
+          }
+
           const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
           const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
           navigate({ to: resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }) });
@@ -378,6 +391,19 @@ function AuthPage() {
         setToken(res.token);
         qc.invalidateQueries({ queryKey: ["current-session-user"] });
         toast.success("Identity verified! Signed in successfully.");
+
+        // If logging in on root domain, redirect to tenant workspace
+        if (res.workspaceUrl && typeof window !== "undefined") {
+          try {
+            const currentOrigin = window.location.origin.toLowerCase();
+            const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
+            if (currentOrigin !== targetOrigin) {
+              window.location.href = `${res.workspaceUrl}/auth?token=${res.token}${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ""}`;
+              return;
+            }
+          } catch {}
+        }
+
         const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
         const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
         navigate({ to: resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }) });

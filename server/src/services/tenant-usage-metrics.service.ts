@@ -1,4 +1,5 @@
 import { rawPrisma as prisma } from "../prisma";
+import { getBaseDomain } from "../lib/workspace-host";
 
 export interface TenantUsageFilterOptions {
   search?: string;
@@ -243,7 +244,7 @@ export class TenantUsageMetricsService {
         id: tenant.id,
         name: tenant.name,
         slug: tenant.slug,
-        domainUrl: `${tenant.slug}.masterhrms.com`,
+        domainUrl: `${tenant.slug}.${getBaseDomain()}`,
         logoUrl: tenant.logoUrl || null,
         plan: planName,
         billingCycle,
@@ -504,7 +505,7 @@ export class TenantUsageMetricsService {
         id: tenant.id,
         name: tenant.name,
         slug: tenant.slug,
-        domainUrl: `${tenant.slug}.masterhrms.com`,
+        domainUrl: `${tenant.slug}.${getBaseDomain()}`,
         logoUrl: tenant.logoUrl || null,
         plan: planName,
         billingCycle: sub?.billingCycle || "monthly",

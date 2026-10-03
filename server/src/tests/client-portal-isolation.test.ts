@@ -30,7 +30,7 @@ function resolveDefaultRoute(
   }
 
   if (options?.isImpersonating) {
-    return "/dashboard";
+    return "/hrm-dashboard";
   }
 
   if (roles.includes("super_admin")) {
@@ -45,7 +45,7 @@ function resolveDefaultRoute(
     return "/employee-dashboard";
   }
 
-  return "/dashboard";
+  return "/hrm-dashboard";
 }
 
 async function runClientPortalIsolationTests() {
@@ -138,11 +138,11 @@ async function runClientPortalIsolationTests() {
     
     // Admin / HR Admin
     const adminRoute = resolveDefaultRoute(["admin"]);
-    if (adminRoute !== "/dashboard") throw new Error(`Expected admin to land on /dashboard, got: ${adminRoute}`);
+    if (adminRoute !== "/hrm-dashboard") throw new Error(`Expected admin to land on /hrm-dashboard, got: ${adminRoute}`);
     
     // Impersonation preservation
     const impersonatedRoute = resolveDefaultRoute(["super_admin", "admin"], null, { isImpersonating: true });
-    if (impersonatedRoute !== "/dashboard") throw new Error(`Expected impersonating admin to land on /dashboard, got: ${impersonatedRoute}`);
+    if (impersonatedRoute !== "/hrm-dashboard") throw new Error(`Expected impersonating admin to land on /hrm-dashboard, got: ${impersonatedRoute}`);
 
     console.log("  -> PASS: All four roles and impersonation route with 100% precision.\n");
 

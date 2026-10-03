@@ -33,7 +33,7 @@ interface DashboardHeaderProps {
 export function DashboardHeader({
   title,
   badge,
-  breadcrumbs = [{ label: "Home", href: "/" }, { label: "Dashboard", href: "/dashboard" }],
+  breadcrumbs = [{ label: "Home", href: "/" }, { label: "Dashboard", href: "/hrm-dashboard" }],
   onRefresh,
   onDateChange,
   exportFilename = "Dashboard_Export",

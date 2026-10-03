@@ -9,6 +9,8 @@ import { TenantConnectionManager } from "../services/tenant-connection-manager.s
 import { runBiometricAutoSync } from "../cron/biometric-sync";
 import { processDueRecurringInvoices } from "../services/recurring-invoice.service";
 import { runSubscriptionExpiryRemindersCron } from "../cron/subscription-reminder.cron";
+import { getPlatformMaintenanceConfig, evaluateMaintenanceStatus } from "../middleware/maintenance";
+import { getBaseDomain } from "../lib/workspace-host";
 
 export const overtimeRouter = Router();
 export const wfhRouter = Router();
@@ -886,6 +888,36 @@ bannedIpRouter.delete("/:id", requireRole("admin", "tenant_admin", "hr_admin"), 
 });
 
 // ─── SYSTEM MAINTENANCE & CACHE ─────────────────────────────────────────────
+// Public Maintenance Status Endpoint (accessible without authentication)
+systemMaintenanceRouter.get("/maintenance-status", async (_req, res: Response) => {
+  try {
+    const config = await getPlatformMaintenanceConfig();
+    const evaluation = evaluateMaintenanceStatus(config);
+    return res.json({
+      active: evaluation.isActive,
+      scheduled: evaluation.isScheduled,
+      status: evaluation.status,
+      startTime: config.maintenanceStartTime || null,
+      endTime: config.maintenanceEndTime || null,
+      message: config.maintenanceNoticeMessage || null,
+      timezone: config.defaultTimezone || "Asia/Kolkata",
+      supportEmail: config.supportEmail || `support@${getBaseDomain()}`,
+      retryAfterSeconds: evaluation.retryAfterSeconds,
+    });
+  } catch (err: any) {
+    return res.json({
+      active: false,
+      scheduled: false,
+      status: "operational",
+      startTime: null,
+      endTime: null,
+      message: null,
+      timezone: "Asia/Kolkata",
+      supportEmail: `support@${getBaseDomain()}`,
+      retryAfterSeconds: null,
+    });
+  }
+});
 
 systemMaintenanceRouter.use(requireAuth);
 

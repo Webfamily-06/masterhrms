@@ -185,7 +185,7 @@ export function EmployeeReportPage() {
             <Users className="size-6 text-primary" /> Employee Workforce Report
           </h1>
           <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Link to="/dashboard" className="hover:text-foreground transition-colors">
+            <Link to="/hrm-dashboard" className="hover:text-foreground transition-colors">
               Dashboard
             </Link>
             <ChevronRight className="size-3 text-muted-foreground/60" />

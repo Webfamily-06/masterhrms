@@ -28,6 +28,18 @@ export async function resolveTenantContext(
       return res.status(403).json({ error: "Forbidden: Missing tenant context." });
     }
 
+    // ── Host-Resolved Tenant Isolation Enforcement (Flow 1 & Flow 2) ───
+    const hostContext = (req as any).hostContext;
+    const resolvedTenant = (req as any).resolvedTenant;
+    if ((hostContext?.type === "tenant" || hostContext?.type === "custom_domain") && resolvedTenant) {
+      if (user.tenantId !== resolvedTenant.id) {
+        return res.status(403).json({
+          error: "Cross-workspace access denied. Your session does not match this workspace host.",
+          code: "HOST_TENANT_MISMATCH",
+        });
+      }
+    }
+
     // Resolve tenant client and tenancy strategy via Connection Manager
     const connectionManager = TenantConnectionManager.getInstance();
     const { client, strategy, status } = await connectionManager.getClientForTenant(tenantId);

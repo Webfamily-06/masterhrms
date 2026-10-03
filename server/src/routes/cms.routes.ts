@@ -200,7 +200,32 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
       return res.json({ ...page, content: { plans: (page.content as any)?.plans || [] } });
     }
     if (!isSuper && slug === "system-platform-settings") {
-      const safeKeys = ["companyName", "siteName", "logoUrl", "faviconUrl", "defaultCurrency", "currencySymbol", "decimalPlaces", "symbolPosition", "decimalSeparator", "thousandsSeparator", "showDecimals", "addSpaceBetweenSymbol", "maintenanceMode", "allowRegistration", "supportEmail"];
+      const safeKeys = [
+        "companyName",
+        "siteName",
+        "appName",
+        "logoUrl",
+        "logoLightUrl",
+        "logoDarkUrl",
+        "faviconUrl",
+        "defaultCurrency",
+        "currencySymbol",
+        "decimalPlaces",
+        "symbolPosition",
+        "decimalSeparator",
+        "thousandsSeparator",
+        "showDecimals",
+        "addSpaceBetweenSymbol",
+        "defaultTimezone",
+        "primaryThemeColor",
+        "maintenanceMode",
+        "maintenanceScheduled",
+        "maintenanceNoticeMessage",
+        "maintenanceStartTime",
+        "maintenanceEndTime",
+        "allowRegistration",
+        "supportEmail",
+      ];
       const content = Object.fromEntries(Object.entries((page.content as any) || {}).filter(([key]) => safeKeys.includes(key)));
       return res.json({ ...page, content });
     }

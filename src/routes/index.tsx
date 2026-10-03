@@ -42,6 +42,7 @@ import {
   Compass,
 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
+import { getPlatformBaseDomain } from "@/lib/platform-domain";
 
 export const Route = createFileRoute("/")({
   component: CorporateLanding,
@@ -276,7 +277,7 @@ function CorporateLanding() {
                   <div className="size-3 rounded-full bg-emerald-500/80" />
                 </div>
                 <span className="text-muted-foreground font-mono text-[11px] ml-2 hidden sm:inline">
-                  https://app.masterhrms.com/dashboard
+                  {`${getPlatformBaseDomain() === "localhost" ? "acme.localhost" : "acme." + getPlatformBaseDomain()}/dashboard`}
                 </span>
               </div>
 

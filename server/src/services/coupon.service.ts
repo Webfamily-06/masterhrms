@@ -1,4 +1,5 @@
 import { prisma, rawPrisma } from "../prisma";
+import { normalizeExpiryDateKolkata, normalizeStartDateKolkata } from "./billing-duration.service";
 
 export interface ValidateCouponParams {
   code: string;
@@ -85,12 +86,18 @@ export async function validateCoupon(
 
   const now = new Date();
 
-  if (coupon.startsAt && new Date(coupon.startsAt) > now) {
-    return fail("This coupon is not yet active.");
+  if (coupon.startsAt) {
+    const startDate = normalizeStartDateKolkata(coupon.startsAt);
+    if (startDate && startDate > now) {
+      return fail("This coupon is not yet active.");
+    }
   }
 
-  if (coupon.expiresAt && new Date(coupon.expiresAt) < now) {
-    return fail("This coupon has expired.");
+  if (coupon.expiresAt) {
+    const expiryDate = normalizeExpiryDateKolkata(coupon.expiresAt);
+    if (expiryDate && expiryDate < now) {
+      return fail("This coupon has expired.");
+    }
   }
 
   if (coupon.maxRedemptions !== null && coupon.redemptionCount >= coupon.maxRedemptions) {
@@ -132,10 +139,10 @@ export async function validateCoupon(
   // Calculate discount
   let discountAmount = 0;
   if (coupon.discountType === "percentage") {
-    const percentage = Number(coupon.discountValue);
+    const percentage = Math.min(100, Math.max(0, Number(coupon.discountValue)));
     discountAmount = Math.round(((purchaseAmount * percentage) / 100) * 100) / 100;
   } else {
-    discountAmount = Number(coupon.discountValue);
+    discountAmount = Math.max(0, Number(coupon.discountValue));
   }
 
   // Cap discount so finalAmount never falls below zero

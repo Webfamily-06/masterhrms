@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Mail, Phone, MapPin, Loader2, Clock, HeadphonesIcon, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { getPlatformBaseDomain } from "@/lib/platform-domain";
 
 export const Route = createFileRoute("/contact")({
   component: ContactPage,
@@ -22,9 +23,9 @@ export const Route = createFileRoute("/contact")({
 });
 
 const DEFAULT_CONTACT = {
-  email: "sales@masterhrms.com",
+  email: `sales@${getPlatformBaseDomain()}`,
   phone: "+1 (555) 010-2026",
-  support_email: "support@masterhrms.com",
+  support_email: `support@${getPlatformBaseDomain()}`,
   address: "Global Cloud HQ — Bengaluru, India",
   response_time: "Sub-4 hours",
   hero_title: "Let's architect your enterprise cloud",

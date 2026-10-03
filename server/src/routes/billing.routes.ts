@@ -12,10 +12,24 @@ import {
   calculateTrialEndDate,
   calculatePlanPricing,
   validateBillableUserCount,
+  ACTIVE_BILLING_DURATIONS,
+  HISTORICAL_BILLING_DURATIONS,
 } from "../services/billing-duration.service";
 import { validateCoupon, recordCouponRedemption } from "../services/coupon.service";
+import { getBaseDomain } from "../lib/workspace-host";
 
 export const billingRouter = Router();
+
+// ---------------------------------------------------------------------------
+// 0.0 GET /api/billing/durations - Authoritative billing durations source of truth
+// ---------------------------------------------------------------------------
+billingRouter.get("/durations", (_req, res: Response) => {
+  return res.json({
+    activeDurations: ACTIVE_BILLING_DURATIONS,
+    historicalDurations: HISTORICAL_BILLING_DURATIONS,
+    defaultDuration: "1_month",
+  });
+});
 
 // ---------------------------------------------------------------------------
 // 0. GET /api/billing/public-plans - Public dynamic plans for /pricing CMS
@@ -32,7 +46,7 @@ billingRouter.get("/public-plans", async (_req, res: Response) => {
 
     const companyDetails = {
       companyName: settingsContent.platformName || settingsContent.companyName || "Master ERP & HRMS",
-      supportEmail: settingsContent.supportEmail || settingsContent.contactEmail || "support@masterhrms.com",
+      supportEmail: settingsContent.supportEmail || settingsContent.contactEmail || `support@${getBaseDomain()}`,
       contactNumber: settingsContent.contactNumber || settingsContent.contactPhone || "+91 98765 43210",
       companyAddress: settingsContent.companyAddress || settingsContent.address || "DLF Cyber City, Gurugram, India",
       taxGstNumber: settingsContent.taxGstNumber || settingsContent.gstNumber || null,

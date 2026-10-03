@@ -6,8 +6,10 @@ import { ERP_MODULES } from "@/lib/erp-modules";
 import {
   Shield, ShieldCheck, Plus, Search, Edit2, Copy, Trash2,
   Users, Check, X, CheckCircle2, AlertCircle, Loader2,
-  Sparkles, Layers, Sliders, ToggleLeft, ToggleRight, Building, Lock
+  Sparkles, Layers, Sliders, ToggleLeft, ToggleRight, Building, Lock,
+  Globe, Globe2, ExternalLink, ArrowRight, History
 } from "lucide-react";
+import { CustomDomainSettings } from "./custom-domain-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +26,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useTenantBranding } from "@/lib/useTenantBranding";
 
 interface RoleItem {
   id: string;
@@ -54,6 +57,7 @@ interface WorkspaceUserItem {
 export function WorkspaceAdminSettings() {
   const queryClient = useQueryClient();
   const { isWorkspaceAdmin, isSuperAdmin, profile } = usePermissions();
+  const { branding } = useTenantBranding();
 
   const [activeSubTab, setActiveSubTab] = useState("roles");
   const [searchQuery, setSearchQuery] = useState("");
@@ -70,6 +74,90 @@ export function WorkspaceAdminSettings() {
   const [isUserRoleModalOpen, setIsUserRoleModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<WorkspaceUserItem | null>(null);
   const [targetRoleId, setTargetRoleId] = useState("");
+
+  // Rename Workspace Modal State (Flow 1: 3-30 chars)
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [newSlug, setNewSlug] = useState("");
+  const [hasAcknowledgedRedirect, setHasAcknowledgedRedirect] = useState(false);
+  const [slugCheck, setSlugCheck] = useState<{
+    checking: boolean;
+    available?: boolean;
+    reason?: string;
+  }>({ checking: false });
+  const [renamedSuccessResult, setRenamedSuccessResult] = useState<{
+    oldSlug: string;
+    newSlug: string;
+    newWorkspaceUrl: string;
+    redirectUntil: string;
+  } | null>(null);
+
+  // Debounced check-slug query for rename
+  React.useEffect(() => {
+    if (!isRenameModalOpen || !newSlug) {
+      setSlugCheck({ checking: false });
+      return;
+    }
+    if (newSlug.length < 3) {
+      setSlugCheck({ checking: false, available: false, reason: "too_short" });
+      return;
+    }
+    if (newSlug.length > 30) {
+      setSlugCheck({ checking: false, available: false, reason: "too_long" });
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSlugCheck({ checking: true });
+      try {
+        const res = await api.get(`/workspace/check-slug?slug=${encodeURIComponent(newSlug)}`);
+        setSlugCheck({
+          checking: false,
+          available: res?.available,
+          reason: res?.reason,
+        });
+      } catch {
+        setSlugCheck({ checking: false, available: false, reason: "error" });
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [newSlug, isRenameModalOpen]);
+
+  // Query: Slug Rename History
+  const { data: slugHistory = [] } = useQuery<Array<{
+    id: string;
+    oldSlug: string;
+    newSlug: string;
+    changedAt: string;
+    releaseAt: string;
+  }>>({
+    queryKey: ["workspace-slug-history"],
+    queryFn: async () => {
+      const res = await api.get("/workspace/slug-history");
+      return res?.history || [];
+    },
+  });
+
+  // Mutation: Rename Workspace
+  const renameWorkspaceMutation = useMutation({
+    mutationFn: async () => {
+      return await api.post("/workspace/rename", { newSlug });
+    },
+    onSuccess: (res: any) => {
+      toast.success(res.message || "Workspace renamed successfully!");
+      setRenamedSuccessResult({
+        oldSlug: res.oldSlug,
+        newSlug: res.newSlug,
+        newWorkspaceUrl: res.newWorkspaceUrl,
+        redirectUntil: res.redirectUntil,
+      });
+      queryClient.invalidateQueries({ queryKey: ["tenant-branding"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-slug-history"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to rename workspace");
+    },
+  });
 
   // 1. Query: Roles
   const { data: roles = [], isLoading: rolesLoading } = useQuery<RoleItem[]>({
@@ -321,6 +409,16 @@ export function WorkspaceAdminSettings() {
             <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1.5">
               {workspaceUsers.length}
             </Badge>
+          </TabsTrigger>
+
+          <TabsTrigger value="workspace-address" className="text-xs font-semibold gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-blue-500" />
+            <span>Workspace Address</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="custom-domain" className="text-xs font-semibold gap-1.5">
+            <Globe2 className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Custom Domain</span>
           </TabsTrigger>
 
           <TabsTrigger value="general" className="text-xs font-semibold gap-1.5">
@@ -601,7 +699,177 @@ export function WorkspaceAdminSettings() {
         </TabsContent>
 
         {/* ======================================================== */}
-        {/* TAB 4: GENERAL WORKSPACE INFO */}
+        {/* TAB 4: WORKSPACE ADDRESS (FLOW 1) */}
+        {/* ======================================================== */}
+        <TabsContent value="workspace-address" className="space-y-5 mt-4">
+          {/* Card 1: Active Workspace Address */}
+          <Card className="border border-slate-200 dark:border-slate-800 p-6 space-y-4 max-w-3xl shadow-sm">
+            <div className="flex items-center justify-between pb-2 border-b">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Globe className="size-4 text-primary" /> Active Workspace Address
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Your team accesses all HRMS and ERP modules at this unique subdomain address.
+                </p>
+              </div>
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 font-mono text-xs">
+                Active & Live
+              </Badge>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-border-color space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Workspace Subdomain</span>
+                  <div className="font-mono text-base font-bold text-foreground">
+                    {branding.slug}.{branding.baseDomain || "localhost"}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 gap-1.5 cursor-pointer"
+                    onClick={() => {
+                      const url = branding.workspaceUrl || `http://${branding.slug}.${branding.baseDomain || "localhost"}`;
+                      navigator.clipboard.writeText(url);
+                      toast.success("Workspace address copied to clipboard!");
+                    }}
+                  >
+                    <Copy className="size-3.5" /> Copy Address
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 gap-1.5 cursor-pointer"
+                    onClick={() => {
+                      const url = branding.workspaceUrl || `http://${branding.slug}.${branding.baseDomain || "localhost"}`;
+                      window.open(url, "_blank");
+                    }}
+                  >
+                    <ExternalLink className="size-3.5" /> Visit
+                  </Button>
+
+                  {(isWorkspaceAdmin || isSuperAdmin) && (
+                    <Button
+                      size="sm"
+                      className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white cursor-pointer"
+                      onClick={() => {
+                        setNewSlug(branding.slug);
+                        setHasAcknowledgedRedirect(false);
+                        setRenamedSuccessResult(null);
+                        setIsRenameModalOpen(true);
+                      }}
+                    >
+                      <Edit2 className="size-3.5" /> Change Address
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 30-Day Transition Notice Box */}
+            <div className="rounded-xl p-4 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-300">
+                <ShieldCheck className="size-4 text-blue-600 dark:text-blue-400" />
+                <span>Zero-Downtime 30-Day Address Transition</span>
+              </div>
+              <p className="text-xs text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
+                When you rename your workspace, an automatic HTTP 301 permanent redirect is created. Any bookmarked links, employee invitations, or shared reports pointing to your previous address will seamlessly redirect to your new address for 30 days.
+              </p>
+              <div className="text-[11px] text-blue-700/80 dark:text-blue-400/80 font-medium">
+                • 30-Day Throttle: For security and DNS stability, workspaces can only be renamed once every 30 days.
+              </div>
+            </div>
+          </Card>
+
+          {/* Card 2: Address Change History */}
+          <Card className="border border-slate-200 dark:border-slate-800 p-6 space-y-4 max-w-3xl shadow-sm">
+            <div className="flex items-center justify-between pb-2 border-b">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <History className="size-4 text-slate-500" /> Address Change History & Active Redirects
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Audit log of previous workspace addresses and active 30-day redirect windows.
+                </p>
+              </div>
+              <Badge variant="secondary" className="text-xs font-mono">
+                {slugHistory.length} Record{slugHistory.length === 1 ? "" : "s"}
+              </Badge>
+            </div>
+
+            {slugHistory.length === 0 ? (
+              <div className="p-8 text-center text-xs text-muted-foreground bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-dashed">
+                <Globe className="size-8 mx-auto mb-2 text-slate-400" />
+                No address changes recorded. This workspace is currently on its original address.
+              </div>
+            ) : (
+              <div className="divide-y border rounded-xl overflow-hidden text-xs">
+                {slugHistory.map((item) => (
+                  <div key={item.id} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 font-mono font-semibold text-foreground">
+                        <span className="line-through text-muted-foreground">{item.oldSlug}</span>
+                        <ArrowRight className="size-3 text-muted-foreground" />
+                        <span className="text-primary font-bold">{item.newSlug}</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Changed on {new Date(item.changedAt).toLocaleDateString()} at {new Date(item.changedAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      {new Date(item.releaseAt) > new Date() ? (
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px]">
+                          Redirect Active until {new Date(item.releaseAt).toLocaleDateString()}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px] text-muted-foreground">
+                          Redirect Expired
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Cross-link to Custom Domain Tab */}
+          <Card className="border border-indigo-100 dark:border-indigo-950/60 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 max-w-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                <Globe2 className="size-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">Want to use your own branded company domain?</h4>
+                <p className="text-[11px] text-muted-foreground">You can connect a custom domain (e.g. <span className="font-mono font-medium">app.yourcompany.com</span>) alongside your default address.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setActiveSubTab("custom-domain")}
+              className="text-xs h-8 gap-1.5 cursor-pointer border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 self-start sm:self-auto"
+            >
+              Custom Domain Settings <ArrowRight className="size-3" />
+            </Button>
+          </Card>
+        </TabsContent>
+
+        {/* ======================================================== */}
+        {/* TAB: CUSTOM DOMAIN (FLOW 2) */}
+        {/* ======================================================== */}
+        <TabsContent value="custom-domain" className="space-y-5 mt-4">
+          <CustomDomainSettings />
+        </TabsContent>
+
+        {/* ======================================================== */}
+        {/* TAB 5: GENERAL WORKSPACE INFO */}
         {/* ======================================================== */}
         <TabsContent value="general" className="space-y-4 mt-4">
           <Card className="border border-slate-200 dark:border-slate-800 p-6 space-y-4 max-w-2xl">
@@ -878,6 +1146,163 @@ export function WorkspaceAdminSettings() {
               Save Assignment
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ======================================================== */}
+      {/* DIALOG: CHANGE WORKSPACE ADDRESS (3-30 CHARS, 30-DAY THROTTLE) */}
+      {/* ======================================================== */}
+      <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Globe className="size-5 text-primary" /> Change Workspace Address
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Update your organization's subdomain address. 3–30 lowercase letters, numbers, and hyphens.
+            </DialogDescription>
+          </DialogHeader>
+
+          {renamedSuccessResult ? (
+            <div className="space-y-4 py-3">
+              <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-center space-y-2">
+                <CheckCircle2 className="size-8 text-emerald-600 dark:text-emerald-400 mx-auto" />
+                <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                  Workspace Address Changed!
+                </h4>
+                <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
+                  Your workspace is now live at:
+                </p>
+                <div className="font-mono text-sm font-bold text-emerald-900 dark:text-emerald-100 p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded border border-emerald-300 dark:border-emerald-700">
+                  {renamedSuccessResult.newWorkspaceUrl}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Your previous address (<span className="font-mono">{renamedSuccessResult.oldSlug}</span>) will redirect to the new address for 30 days.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  className="w-full text-xs h-9 bg-primary text-white hover:bg-primary/90"
+                  onClick={() => {
+                    window.location.href = `${renamedSuccessResult.newWorkspaceUrl}/settings`;
+                  }}
+                >
+                  Go to New Workspace Address
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-xs h-9"
+                  onClick={() => {
+                    setIsRenameModalOpen(false);
+                    setRenamedSuccessResult(null);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-title">Current Address</Label>
+                <div className="font-mono text-xs px-3 py-2 rounded border bg-muted/40 text-muted-foreground">
+                  {branding.slug}.{branding.baseDomain || "localhost"}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-title">New Address (3–30 chars)</Label>
+                  {newSlug && newSlug !== branding.slug && (
+                    <span className="text-[11px] font-medium flex items-center gap-1">
+                      {slugCheck.checking ? (
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Loader2 className="size-3 animate-spin" /> Checking...
+                        </span>
+                      ) : slugCheck.available ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
+                          <CheckCircle2 className="size-3" /> Available
+                        </span>
+                      ) : (
+                        <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1 font-semibold">
+                          <AlertCircle className="size-3" /> {slugCheck.reason === "too_short" ? "Min 3 chars" : slugCheck.reason === "too_long" ? "Max 30 chars" : slugCheck.reason === "reserved" ? "Reserved word" : slugCheck.reason === "consecutive_hyphens" ? "No consecutive hyphens" : "Not available"}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center rounded-md border border-border-color bg-white dark:bg-slate-800 px-3 py-1.5 focus-within:ring-1 focus-within:ring-primary">
+                  <input
+                    type="text"
+                    placeholder="new-workspace-name"
+                    value={newSlug}
+                    maxLength={30}
+                    onChange={(e) => setNewSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                    className="w-full bg-transparent text-xs text-title focus:outline-none font-mono"
+                  />
+                  <span className="text-xs font-mono text-muted-foreground whitespace-nowrap pl-1">
+                    .{branding.baseDomain || "localhost"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="size-3.5 text-amber-600" /> 30-Day Cooldown Notice
+                </div>
+                <p className="text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                  You can only change this address once every 30 days. Your old address will automatically 301-redirect to this new address for 30 days.
+                </p>
+              </div>
+
+              <div className="flex items-start gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="acknowledge-redirect"
+                  checked={hasAcknowledgedRedirect}
+                  onChange={(e) => setHasAcknowledgedRedirect(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                />
+                <label htmlFor="acknowledge-redirect" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  I understand this address will change immediately and can only be changed again after 30 days.
+                </label>
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsRenameModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={
+                    !newSlug ||
+                    newSlug === branding.slug ||
+                    newSlug.length < 3 ||
+                    newSlug.length > 30 ||
+                    slugCheck.available !== true ||
+                    !hasAcknowledgedRedirect ||
+                    renameWorkspaceMutation.isPending
+                  }
+                  onClick={() => renameWorkspaceMutation.mutate()}
+                  className="bg-primary hover:bg-primary/90 text-white"
+                >
+                  {renameWorkspaceMutation.isPending ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                      Renaming...
+                    </>
+                  ) : (
+                    "Confirm Address Change"
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

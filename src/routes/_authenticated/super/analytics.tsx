@@ -47,6 +47,7 @@ export type TenantTelemetry = {
   id: string;
   name: string;
   slug: string;
+  domainUrl?: string;
   plan: string;
   storageUsedGb: number;
   storageLimitGb: number;
@@ -306,7 +307,7 @@ export default function SuperAnalyticsPage() {
                       <TableRow key={item.id} className="hover:bg-muted/30">
                         <TableCell className="py-2.5">
                           <p className="text-xs font-semibold text-foreground leading-none">{item.name}</p>
-                          <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{item.slug}.mastererp.cloud</p>
+                          <p className="text-[11px] font-mono text-muted-foreground mt-0.5">{item.domainUrl || `${item.slug}`}</p>
                         </TableCell>
                         <TableCell className="text-xs font-medium">{item.plan}</TableCell>
                         <TableCell className="w-36">

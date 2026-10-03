@@ -155,7 +155,7 @@ export function OfflineView({ onReconnected }: OfflineViewProps) {
             size="lg"
             className="w-full sm:w-auto gap-2 text-muted-foreground hover:text-foreground"
             onClick={() => {
-              window.location.href = "/dashboard";
+              window.location.href = "/hrm-dashboard";
             }}
           >
             <Home className="size-4" /> Dashboard

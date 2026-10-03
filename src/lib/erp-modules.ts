@@ -16,7 +16,7 @@ export const ERP_MODULES: ErpModuleDef[] = [
   {
     key: "hrm",
     name: "HRM",
-    route: "/dashboard",
+    route: "/hrm-dashboard",
     permission: "hrm.dashboard.view",
     description: "Human Resource Management, Employees, Attendance, Leaves & Payroll",
     iconName: "Users",

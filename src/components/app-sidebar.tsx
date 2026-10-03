@@ -129,12 +129,12 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
   const isOkrUnlocked = isAddonUnlocked("okr-performance") || isAddonUnlocked("okr");
   const isAssetsUnlocked = isAddonUnlocked("asset-management") || isAddonUnlocked("assets");
 
-  type NavItem = { title: string; url: string; icon: any; badge?: string };
+  type NavItem = { title: string; url: string; icon: any };
   type NavGroup = { category: string; items: NavItem[] };
 
   const paidAddonItems: NavItem[] = [];
-  if (isOkrUnlocked) paidAddonItems.push({ title: "OKR & Performance", url: "/okr", icon: Target, badge: "PRO" });
-  if (isAssetsUnlocked) paidAddonItems.push({ title: "Asset Management", url: "/assets", icon: HardDrive, badge: "PRO" });
+  if (isOkrUnlocked) paidAddonItems.push({ title: "OKR & Performance", url: "/okr", icon: Target });
+  if (isAssetsUnlocked) paidAddonItems.push({ title: "Asset Management", url: "/assets", icon: HardDrive });
 
   const HRM_NAV_GROUPS: NavGroup[] = [
     { category: "Overview", items: [{ title: "HRM Hub", url: "/hrm", icon: Users }] },
@@ -214,7 +214,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
     >
       {/* ─── Logo Header ─── */}
       <SidebarHeader className="border-b border-sidebar-border/60 p-0">
-        <Link to="/dashboard" className="flex items-center justify-center py-3 px-4 hover:opacity-80 transition-opacity">
+        <Link to="/hrm-dashboard" className="flex items-center justify-center py-3 px-4 hover:opacity-80 transition-opacity">
           {collapsed ? (
             <img
               src={platformSettings?.faviconUrl || "/favicon.webp"}
@@ -242,13 +242,13 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={path === "/dashboard"}
+                  isActive={path === "/hrm-dashboard" || path === "/dashboard"}
                   className={cn(
                     "h-9 px-3 rounded-md text-[11px] font-medium transition-all",
-                    path === "/dashboard" ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                    (path === "/hrm-dashboard" || path === "/dashboard") ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <Link to="/dashboard" className="flex items-center gap-2.5">
+                  <Link to="/hrm-dashboard" className="flex items-center gap-2.5">
                     <LayoutDashboard className="size-4 shrink-0" />
                     {!collapsed && <span>Dashboard</span>}
                   </Link>
@@ -279,7 +279,6 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
                       </span>
                       {!collapsed && (
                         <span className="flex items-center gap-1 shrink-0">
-                          <span className="text-[8px] font-bold px-1.5 rounded bg-primary/10 text-primary leading-4">PRO</span>
                           {hrmOpen
                             ? <ChevronDown className="size-3 opacity-50" />
                             : <ChevronRight className="size-3 opacity-50" />
@@ -303,7 +302,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
                                   key={sub.url}
                                   to={sub.url}
                                   className={cn(
-                                    "flex items-center justify-between px-2.5 py-1.5 text-[11px] rounded-md transition-all",
+                                    "flex items-center px-2.5 py-1.5 text-[11px] rounded-md transition-all",
                                     active
                                       ? "bg-primary text-primary-foreground font-semibold"
                                       : "text-muted-foreground hover:text-foreground hover:bg-accent font-medium"
@@ -313,11 +312,6 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
                                     <sub.icon className="size-3.5 shrink-0 opacity-80" />
                                     <span className="truncate">{sub.title}</span>
                                   </span>
-                                  {sub.badge && !active && (
-                                    <span className="text-[8px] font-bold px-1 rounded bg-primary/10 text-primary leading-4">
-                                      {sub.badge}
-                                    </span>
-                                  )}
                                 </Link>
                               );
                             })}
@@ -365,12 +359,9 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
                   className={cn("h-9 px-3 rounded-md text-[11px] font-medium transition-all",
                     path === "/marketplace" ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent")}
                 >
-                  <Link to="/marketplace" className="flex items-center justify-between">
-                    <span className="flex items-center gap-2.5">
-                      <Store className="size-4 shrink-0 opacity-80" />
-                      {!collapsed && <span>Marketplace</span>}
-                    </span>
-                    {!collapsed && <span className="text-[8px] font-bold px-1.5 rounded bg-purple-500/10 text-purple-600 leading-4">500+</span>}
+                  <Link to="/marketplace" className="flex items-center gap-2.5">
+                    <Store className="size-4 shrink-0 opacity-80" />
+                    {!collapsed && <span>Marketplace</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

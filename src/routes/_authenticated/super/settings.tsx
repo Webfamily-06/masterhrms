@@ -66,6 +66,7 @@ import {
 } from "lucide-react";
 import { MaintenanceMarqueeBanner } from "@/components/maintenance-marquee-banner";
 import { formatSystemAmount } from "@/lib/currency";
+import { getPlatformBaseDomain } from "@/lib/platform-domain";
 
 export const Route = createFileRoute("/_authenticated/super/settings")({
   component: SuperSettingsAdmin,
@@ -185,7 +186,7 @@ export type SuperSettings = {
 
 const DEFAULT_SETTINGS: SuperSettings = {
   appName: "Master HRMS & ERP",
-  supportEmail: "hello@masterhrms.com",
+  supportEmail: `hello@${getPlatformBaseDomain()}`,
   logoLightUrl: "/logo.webp",
   logoDarkUrl: "/logo.webp",
   faviconUrl: "/favicon.webp",
@@ -223,11 +224,11 @@ const DEFAULT_SETTINGS: SuperSettings = {
 
   smtpHost: (import.meta.env.VITE_SMTP_HOST as string) || "smtp.mailgun.org",
   smtpPort: (import.meta.env.VITE_SMTP_PORT as string) || "587",
-  smtpUser: (import.meta.env.VITE_SMTP_USER as string) || "postmaster@mg.masterhrms.com",
+  smtpUser: (import.meta.env.VITE_SMTP_USER as string) || `postmaster@${getPlatformBaseDomain()}`,
   smtpPass: (import.meta.env.VITE_SMTP_PASS as string) || "••••••••••••",
   smtpEncryption: ((import.meta.env.VITE_SMTP_ENCRYPTION as string) || "tls") as any,
   smtpFromName: (import.meta.env.VITE_SMTP_FROM_NAME as string) || "Master HRMS System",
-  smtpFromEmail: (import.meta.env.VITE_SMTP_FROM_EMAIL as string) || "no-reply@masterhrms.com",
+  smtpFromEmail: (import.meta.env.VITE_SMTP_FROM_EMAIL as string) || `no-reply@${getPlatformBaseDomain()}`,
   otpEmailSubject: "{{appName}} — Your Login Verification Code",
   otpEmailTemplate: "",
 
@@ -1181,10 +1182,10 @@ function SuperSettingsAdmin() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Sender Email Address (From)</Label>
                 <Input
-                  value={form.smtpFromEmail || "no-reply@masterhrms.com"}
+                  value={form.smtpFromEmail || `no-reply@${getPlatformBaseDomain()}`}
                   onChange={(e) => setForm({ ...form, smtpFromEmail: e.target.value })}
                   className="text-xs font-mono"
-                  placeholder="no-reply@masterhrms.com"
+                  placeholder={`no-reply@${getPlatformBaseDomain()}`}
                 />
               </div>
             </div>
@@ -1371,7 +1372,7 @@ function SuperSettingsAdmin() {
                   <div className="flex-1 rounded-xl border border-border/80 bg-slate-100 dark:bg-slate-900/50 p-2 overflow-hidden flex flex-col min-h-[320px]">
                     <div className="text-[10px] font-mono text-muted-foreground px-2 py-1 border-b border-border/40 flex items-center justify-between">
                       <span className="truncate max-w-[200px]">Subject: {(form.otpEmailSubject || "{{appName}} — Your Login Verification Code").replace("{{appName}}", form.appName || "Master HRMS")}</span>
-                      <span>From: {form.smtpFromName || "Master HRMS"} &lt;{form.smtpFromEmail || "no-reply@masterhrms.com"}&gt;</span>
+                      <span>From: {form.smtpFromName || "Master HRMS"} &lt;{form.smtpFromEmail || `no-reply@${getPlatformBaseDomain()}`}&gt;</span>
                     </div>
 
                     <iframe
@@ -2099,12 +2100,39 @@ function SuperSettingsAdmin() {
             <div className="flex items-center justify-between border-b pb-4">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
-                  <AlertTriangle className="size-5 text-destructive" /> Platform Maintenance
-                  Controls
+                  <AlertTriangle className="size-5 text-destructive" /> Platform Maintenance Controls
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Toggling maintenance mode broadcasts a live red marquee warning across all CMS
-                  pages and restricts tenant access.
+                  Manage active maintenance lockdown, scheduled windows, and public downtime notices.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSave}
+                className="gap-1.5 text-xs font-semibold"
+              >
+                <Save className="size-3.5" /> Save Changes
+              </Button>
+            </div>
+
+            {/* Instant Emergency Lockdown Switch */}
+            <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/30">
+              <div className="space-y-0.5">
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <span>Emergency Maintenance Mode</span>
+                  {form.maintenanceMode ? (
+                    <Badge variant="destructive" className="text-[10px] uppercase font-mono">
+                      Active Lockdown
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">
+                      Normal Mode
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Immediately restricts tenant dashboards and non-super API access, redirecting users to /maintenance.
                 </p>
               </div>
               <Switch
@@ -2113,14 +2141,69 @@ function SuperSettingsAdmin() {
               />
             </div>
 
+            {/* Advance Scheduled Notice Switch */}
+            <div className="flex items-center justify-between p-4 rounded-xl border bg-muted/30">
+              <div className="space-y-0.5">
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <span>Advance Scheduled Maintenance</span>
+                  {form.maintenanceScheduled && (
+                    <Badge variant="outline" className="text-[10px] text-blue-600 border-blue-500/30">
+                      Scheduled Window
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Enables scheduled downtime window. Displays countdown when estimated end time is specified.
+                </p>
+              </div>
+              <Switch
+                checked={form.maintenanceScheduled}
+                onCheckedChange={(checked) => setForm({ ...form, maintenanceScheduled: checked })}
+              />
+            </div>
+
+            {/* Start and End Timestamps */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Scheduled Start Time</Label>
+                <Input
+                  value={form.maintenanceStartTime}
+                  onChange={(e) => setForm({ ...form, maintenanceStartTime: e.target.value })}
+                  placeholder="e.g. 2026-10-15 02:00:00 UTC or Today at 02:00 AM UTC"
+                  className="text-xs font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  When maintenance window begins. Leave empty if uncommitted.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Estimated Completion / End Time</Label>
+                <Input
+                  value={form.maintenanceEndTime}
+                  onChange={(e) => setForm({ ...form, maintenanceEndTime: e.target.value })}
+                  placeholder="e.g. 2026-10-15 04:00:00 UTC or Today at 04:00 AM UTC"
+                  className="text-xs font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Required for countdown timer and Retry-After header. Leave blank if unknown.
+                </p>
+              </div>
+            </div>
+
+            {/* Custom Notice Message */}
             <div className="space-y-2">
-              <Label className="text-xs font-semibold">Red Marquee Notice Message</Label>
+              <Label className="text-xs font-semibold">Public Downtime Notice Message</Label>
               <Textarea
                 value={form.maintenanceNoticeMessage}
                 onChange={(e) => setForm({ ...form, maintenanceNoticeMessage: e.target.value })}
-                rows={2}
+                rows={3}
+                placeholder="Enter informative message explaining the reason and scope of the maintenance..."
                 className="text-xs font-mono"
               />
+              <p className="text-[10px] text-muted-foreground">
+                Displayed in the center of the /maintenance page and in the top marquee banner across public pages.
+              </p>
             </div>
           </Card>
         </TabsContent>

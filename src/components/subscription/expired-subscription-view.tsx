@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, CreditCard, LogOut, Mail, RefreshCw, AlertTriangle, ArrowRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { getPlatformBaseDomain } from "@/lib/platform-domain";
 
 export interface ExpiredSubscriptionViewProps {
   companyName: string;
@@ -22,7 +23,7 @@ export function ExpiredSubscriptionView({
   tenantId,
   planName = "Enterprise Plan",
   expiryDate,
-  supportEmail = "support@masterhrms.com",
+  supportEmail = `support@${getPlatformBaseDomain()}`,
   renewalUrl = "/subscription",
   onSignOut,
   onRefresh,

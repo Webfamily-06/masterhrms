@@ -11,6 +11,8 @@ const SAFE_PREFIXES = [
   "/api/public",
   "/api/super",
   "/api/workspace/subscription",
+  "/api/workspace/check-slug",
+  "/api/workspace/public",
 ];
 
 export async function requireActiveSubscription(req: AuthRequest, res: Response, next: NextFunction) {

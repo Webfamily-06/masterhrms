@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, setToken } from "@/lib/api";
@@ -27,9 +27,17 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { getPlatformBaseDomain, isTenantWorkspaceHost } from "@/lib/platform-domain";
+import { NotFoundView } from "@/components/error-pages/not-found-view";
 
 export const Route = createFileRoute("/super-login")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined" && isTenantWorkspaceHost()) {
+      throw notFound();
+    }
+  },
   component: SuperLoginPage,
+  notFoundComponent: () => <NotFoundView />,
   head: () => ({
     meta: [
       { title: "Super Admin Console Sign In — Master Platform & Enterprise ERP" },
@@ -42,7 +50,11 @@ export const Route = createFileRoute("/super-login")({
   }),
 });
 
-function SuperLoginPage() {
+export function SuperLoginPage() {
+  if (typeof window !== "undefined" && isTenantWorkspaceHost()) {
+    return <NotFoundView />;
+  }
+
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
@@ -105,6 +117,7 @@ function SuperLoginPage() {
       const res = await api.post("/auth/login", {
         email: cleanEmail,
         password,
+        portal: "super",
       });
 
       // Check if user requires Two-Factor Authentication
@@ -149,6 +162,7 @@ function SuperLoginPage() {
       const res = await api.post("/auth/2fa/verify-login", {
         mfaToken,
         code: cleanCode,
+        portal: "super",
       });
 
       const roles: string[] = res.roles || res.user?.roles || [];
@@ -405,7 +419,7 @@ function SuperLoginPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setEmail("admin@masterhrms.com");
+                      setEmail(`admin@${getPlatformBaseDomain()}`);
                       setPassword("admin123");
                     }}
                     className="text-[11px] font-bold text-primary underline hover:text-primary/80 cursor-pointer"
@@ -414,7 +428,7 @@ function SuperLoginPage() {
                   </button>
                 </div>
                 <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground pt-0.5">
-                  <span>admin@masterhrms.com</span>
+                  <span>{`admin@${getPlatformBaseDomain()}`}</span>
                   <span>admin123</span>
                 </div>
               </div>

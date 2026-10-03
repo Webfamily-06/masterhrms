@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../prisma";
+import { getBaseDomain, getRootUrl } from "./workspace-host";
 
 export interface SmtpConfig {
   smtpHost: string;
@@ -29,7 +30,7 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
       const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
       let logoUrl = c.logoLightUrl || c.logoDarkUrl || "";
       if (logoUrl && !logoUrl.startsWith("http://") && !logoUrl.startsWith("https://")) {
-        const baseUrl = (c.frontendBaseUrl || "https://masterhrms.com").replace(/\/$/, "");
+        const baseUrl = (c.frontendBaseUrl || process.env.APP_URL || getRootUrl()).replace(/\/$/, "");
         logoUrl = `${baseUrl}${logoUrl.startsWith("/") ? "" : "/"}${logoUrl}`;
       }
 
@@ -61,7 +62,7 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
   const pass = process.env.SMTP_PASS || process.env.VITE_SMTP_PASS || "";
   const encryption = (process.env.SMTP_ENCRYPTION || process.env.VITE_SMTP_ENCRYPTION || "ssl") as any;
   const fromName = process.env.SMTP_FROM_NAME || process.env.VITE_SMTP_FROM_NAME || "Master HRMS System";
-  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.VITE_SMTP_FROM_EMAIL || user || "support@masterhrms.com";
+  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.VITE_SMTP_FROM_EMAIL || user || `support@${getBaseDomain()}`;
   const ignoreTls = process.env.SMTP_IGNORE_TLS === "true" || process.env.VITE_SMTP_IGNORE_TLS === "true";
 
   if (host && user && pass) {
@@ -80,7 +81,7 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
     smtpFromEmail: fromEmail,
     ignoreTls,
     appName: "Master HRMS & ERP",
-    logoUrl: "https://masterhrms.com/logo.webp",
+    logoUrl: `${process.env.APP_URL || getRootUrl()}/logo.webp`,
   };
 }
 

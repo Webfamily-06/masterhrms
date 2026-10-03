@@ -20,8 +20,8 @@ export function SessionExpiredView({ redirectPath }: SessionExpiredViewProps) {
   const targetRedirect =
     redirectPath ||
     (typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("redirect") || "/dashboard"
-      : "/dashboard");
+      ? new URLSearchParams(window.location.search).get("redirect") || "/hrm-dashboard"
+      : "/hrm-dashboard");
 
   async function handleFastReauth(e: React.FormEvent) {
     e.preventDefault();
@@ -170,7 +170,7 @@ export function SessionExpiredView({ redirectPath }: SessionExpiredViewProps) {
           </div>
         </div>
 
-        {targetRedirect && targetRedirect !== "/dashboard" && (
+        {targetRedirect && targetRedirect !== "/hrm-dashboard" && (
           <p className="mt-4 text-[11px] text-muted-foreground text-center font-mono">
             Returning to: <span className="text-foreground font-semibold">{targetRedirect}</span>
           </p>

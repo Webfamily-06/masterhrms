@@ -65,7 +65,7 @@ export function DreamsSidebar({
   );
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
-  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
+  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/hrm-dashboard";
 
   return (
     <aside
@@ -530,6 +530,7 @@ export function DreamsSidebar({
                   "cursor-pointer",
                   openMenus.dashboards && "subdrop",
                   [
+                    "/hrm-dashboard",
                     "/dashboard",
                     "/products",
                     "/pos",
@@ -547,9 +548,9 @@ export function DreamsSidebar({
               <ul style={{ display: !isMini && openMenus.dashboards ? "block" : "none" }}>
                 {isModuleAllowed("hrm", profile) && (<li>
                   <Link
-                    to="/dashboard"
+                    to="/hrm-dashboard"
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/dashboard" && "active")}
+                    className={cn((currentPath === "/hrm-dashboard" || currentPath === "/dashboard") && "active")}
                   >
                     HRM Admin Dashboard
                   </Link>
@@ -936,12 +937,11 @@ export function DreamsSidebar({
                 to="/pos"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/pos" && "active")}
+                title="POS Billing Terminal"
+                aria-label="POS Billing Terminal"
               >
-                <i className="ph-duotone ph-shopping-cart"></i>
-                <span>POS Billing Terminal</span>
-                <span className="badge badge-xs bg-orange-500 text-white ml-auto font-bold px-1.5 py-0.5 rounded text-[10px]">
-                  POS
-                </span>
+                <i className="ph-duotone ph-shopping-cart" aria-hidden="true"></i>
+                <span>POS Terminal</span>
               </Link>
             </li>
             <li>
@@ -949,9 +949,11 @@ export function DreamsSidebar({
                 to="/products"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/products" && "active")}
+                title="Products & Warehouse Stock"
+                aria-label="Products and Warehouse Stock"
               >
-                <i className="ph-duotone ph-cube"></i>
-                <span>Products & Warehouse Stock</span>
+                <i className="ph-duotone ph-cube" aria-hidden="true"></i>
+                <span>Products & Stock</span>
               </Link>
             </li>
             <li>
@@ -959,9 +961,11 @@ export function DreamsSidebar({
                 to="/transfers"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/transfers" && "active")}
+                title="Stock Transfers & In-Transit"
+                aria-label="Stock Transfers and In-Transit"
               >
-                <i className="ph-duotone ph-arrows-left-right"></i>
-                <span>Stock Transfers & In-Transit</span>
+                <i className="ph-duotone ph-arrows-left-right" aria-hidden="true"></i>
+                <span>Stock Transfers</span>
               </Link>
             </li>
             <li>
@@ -969,9 +973,11 @@ export function DreamsSidebar({
                 to="/adjustments"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/adjustments" && "active")}
+                title="Stock Adjustments & Audit"
+                aria-label="Stock Adjustments and Audit"
               >
-                <i className="ph-duotone ph-sliders-horizontal"></i>
-                <span>Stock Adjustments & Audit</span>
+                <i className="ph-duotone ph-sliders-horizontal" aria-hidden="true"></i>
+                <span>Stock Adjustments</span>
               </Link>
             </li>
             <li>
@@ -979,30 +985,28 @@ export function DreamsSidebar({
                 to="/store"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/store" && "active")}
+                title="Online Storefront Catalog"
+                aria-label="Online Storefront Catalog"
               >
-                <i className="ph-duotone ph-storefront"></i>
-                <span>Online Storefront Catalog</span>
-                <span className="badge badge-xs bg-emerald-500 text-white ml-auto font-bold px-1.5 py-0.5 rounded text-[10px]">
-                  Shop
-                </span>
+                <i className="ph-duotone ph-storefront" aria-hidden="true"></i>
+                <span>Storefront Catalog</span>
               </Link>
             </li>
 
             {/* ===================== PURCHASES & PROCUREMENT ===================== */}
             <li className="menu-title">
-              <span>PURCHASES & PROCUREMENT</span>
+              <span>PROCUREMENT</span>
             </li>
             <li>
               <Link
                 to="/purchases"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/purchases" && "active")}
+                title="Purchase Orders & Inward"
+                aria-label="Purchase Orders and Inward"
               >
-                <i className="ph-duotone ph-truck"></i>
-                <span>Purchase Orders & Inward</span>
-                <span className="badge badge-xs bg-indigo-500 text-white ml-auto font-bold px-1.5 py-0.5 rounded text-[10px]">
-                  PO
-                </span>
+                <i className="ph-duotone ph-truck" aria-hidden="true"></i>
+                <span>Purchase Orders</span>
               </Link>
             </li>
             <li>
@@ -1028,9 +1032,6 @@ export function DreamsSidebar({
               >
                 <i className="ph-duotone ph-identification-badge"></i>
                 <span>Contacts CRM</span>
-                <span className="badge badge-xs bg-emerald-500 text-white ml-auto font-bold px-1.5 py-0.5 rounded text-[10px]">
-                  CRM
-                </span>
               </Link>
             </li>
             <li>
@@ -1108,12 +1109,11 @@ export function DreamsSidebar({
                 to={"/portal/invoices/INV-2026-001" as any}
                 onClick={onCloseMobile}
                 className={cn(currentPath.startsWith("/portal/invoices") && "active")}
+                title="Client Invoice Portal (B2B)"
+                aria-label="Client Invoice Portal B2B"
               >
-                <i className="ph-duotone ph-arrow-square-out"></i>
-                <span>Client Invoice Portal (B2B)</span>
-                <span className="badge badge-xs bg-indigo-500 text-white ml-auto font-bold px-1.5 py-0.5 rounded text-[10px]">
-                  Portal
-                </span>
+                <i className="ph-duotone ph-arrow-square-out" aria-hidden="true"></i>
+                <span>Client Portal (B2B)</span>
               </Link>
             </li>
             <li>
@@ -1638,10 +1638,7 @@ export function DreamsSidebar({
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/integrations" && "active")}
                   >
-                    <span>WooCommerce Sync</span>
-                    <span className="badge badge-xs bg-[#7f54b3] text-white font-semibold ml-1.5 px-1.5 py-0.5 rounded text-[9px]">
-                      WooCommerce
-                    </span>
+                    WooCommerce Sync
                   </Link>
                 </li>
                 <li>
@@ -1650,10 +1647,7 @@ export function DreamsSidebar({
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/shopify" && "active")}
                   >
-                    <span>Shopify Sync</span>
-                    <span className="badge badge-xs bg-[#008060] text-white font-semibold ml-1.5 px-1.5 py-0.5 rounded text-[9px]">
-                      Shopify
-                    </span>
+                    Shopify Sync
                   </Link>
                 </li>
                 <li>
@@ -1711,6 +1705,16 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
+                to="/settings/custom-domain"
+                onClick={onCloseMobile}
+                className={cn(currentPath.startsWith("/settings/custom-domain") && "active")}
+              >
+                <i className="ph-duotone ph-globe"></i>
+                <span>Custom Domain</span>
+              </Link>
+            </li>
+            <li>
+              <Link
                 to={"/custom-fields" as any}
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/custom-fields" && "active")}
@@ -1754,9 +1758,11 @@ export function DreamsSidebar({
                 to="/clear-cache"
                 onClick={onCloseMobile}
                 className={cn(currentPath === "/clear-cache" && "active")}
+                title="Clear Cache & Maintenance"
+                aria-label="Clear Cache and Maintenance"
               >
-                <i className="ph-duotone ph-broom"></i>
-                <span>Clear Cache & Maintenance</span>
+                <i className="ph-duotone ph-broom" aria-hidden="true"></i>
+                <span>System Cache</span>
               </Link>
             </li>
             <li>

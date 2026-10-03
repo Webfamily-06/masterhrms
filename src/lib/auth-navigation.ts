@@ -44,13 +44,13 @@ export function resolveDefaultRoute(
     return redirect;
   }
 
-  // If super admin is impersonating a tenant, preserve tenant landing (/dashboard)
+  // If super admin is impersonating a tenant, preserve tenant landing (/hrm-dashboard)
   const isImpersonating =
     options?.isImpersonating ??
     (typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true");
 
   if (isImpersonating) {
-    return "/dashboard";
+    return "/hrm-dashboard";
   }
 
   // Super Admin Portal
@@ -69,5 +69,5 @@ export function resolveDefaultRoute(
   }
 
   // Tenant / Vendor Admin (Default ERP Command Center)
-  return "/dashboard";
+  return "/hrm-dashboard";
 }

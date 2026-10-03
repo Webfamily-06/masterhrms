@@ -107,6 +107,7 @@ import { Route as AuthenticatedAppHelpDeskDashboardRouteImport } from './routes/
 import { Route as AuthenticatedAppHelpdeskRouteImport } from './routes/_authenticated/_app/helpdesk'
 import { Route as AuthenticatedAppHolidaysRouteImport } from './routes/_authenticated/_app/holidays'
 import { Route as AuthenticatedAppHrmRouteImport } from './routes/_authenticated/_app/hrm'
+import { Route as AuthenticatedAppHrmDashboardRouteImport } from './routes/_authenticated/_app/hrm-dashboard'
 import { Route as AuthenticatedAppIntegrationsRouteImport } from './routes/_authenticated/_app/integrations'
 import { Route as AuthenticatedAppInventoryDashboardRouteImport } from './routes/_authenticated/_app/inventory-dashboard'
 import { Route as AuthenticatedAppInvoiceReportRouteImport } from './routes/_authenticated/_app/invoice-report'
@@ -214,6 +215,8 @@ import { Route as PortalProposalsIdRouteImport } from './routes/portal.proposals
 import { Route as AuthenticatedAppInvoiceIdRouteImport } from './routes/_authenticated/_app/invoice.$id'
 import { Route as AuthenticatedAppInvoiceCreateRouteImport } from './routes/_authenticated/_app/invoice.create'
 import { Route as AuthenticatedAppProjectIdRouteImport } from './routes/_authenticated/_app/project.$id'
+import { Route as AuthenticatedAppSettingsCustomDomainRouteImport } from './routes/_authenticated/_app/settings.custom-domain'
+import { Route as AuthenticatedSuperDomainsDocumentationRouteImport } from './routes/_authenticated/super/domains.documentation'
 import { Route as AuthenticatedAppInvoiceIdPrintRouteImport } from './routes/_authenticated/_app/invoice.$id.print'
 
 const IndexRoute = IndexRouteImport.update({
@@ -751,6 +754,12 @@ const AuthenticatedAppHrmRoute = AuthenticatedAppHrmRouteImport.update({
   path: '/hrm',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppHrmDashboardRoute =
+  AuthenticatedAppHrmDashboardRouteImport.update({
+    id: '/hrm-dashboard',
+    path: '/hrm-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppIntegrationsRoute =
   AuthenticatedAppIntegrationsRouteImport.update({
     id: '/integrations',
@@ -1370,6 +1379,18 @@ const AuthenticatedAppProjectIdRoute =
     path: '/project/$id',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppSettingsCustomDomainRoute =
+  AuthenticatedAppSettingsCustomDomainRouteImport.update({
+    id: '/custom-domain',
+    path: '/custom-domain',
+    getParentRoute: () => AuthenticatedAppSettingsRoute,
+  } as any)
+const AuthenticatedSuperDomainsDocumentationRoute =
+  AuthenticatedSuperDomainsDocumentationRouteImport.update({
+    id: '/documentation',
+    path: '/documentation',
+    getParentRoute: () => AuthenticatedSuperDomainsRoute,
+  } as any)
 const AuthenticatedAppInvoiceIdPrintRoute =
   AuthenticatedAppInvoiceIdPrintRouteImport.update({
     id: '/print',
@@ -1474,6 +1495,7 @@ export interface FileRoutesByFullPath {
   '/helpdesk': typeof AuthenticatedAppHelpdeskRoute
   '/holidays': typeof AuthenticatedAppHolidaysRoute
   '/hrm': typeof AuthenticatedAppHrmRoute
+  '/hrm-dashboard': typeof AuthenticatedAppHrmDashboardRoute
   '/integrations': typeof AuthenticatedAppIntegrationsRoute
   '/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
   '/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
@@ -1518,7 +1540,7 @@ export interface FileRoutesByFullPath {
   '/resignation': typeof AuthenticatedAppResignationRoute
   '/returns': typeof AuthenticatedAppReturnsRoute
   '/sales-dashboard': typeof AuthenticatedAppSalesDashboardRoute
-  '/settings': typeof AuthenticatedAppSettingsRoute
+  '/settings': typeof AuthenticatedAppSettingsRouteWithChildren
   '/setup-notes': typeof AuthenticatedAppSetupNotesRoute
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
@@ -1554,7 +1576,7 @@ export interface FileRoutesByFullPath {
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/coupons': typeof AuthenticatedSuperCouponsRoute
-  '/super/domains': typeof AuthenticatedSuperDomainsRoute
+  '/super/domains': typeof AuthenticatedSuperDomainsRouteWithChildren
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
@@ -1581,6 +1603,8 @@ export interface FileRoutesByFullPath {
   '/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
+  '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
 }
 export interface FileRoutesByTo {
@@ -1679,6 +1703,7 @@ export interface FileRoutesByTo {
   '/helpdesk': typeof AuthenticatedAppHelpdeskRoute
   '/holidays': typeof AuthenticatedAppHolidaysRoute
   '/hrm': typeof AuthenticatedAppHrmRoute
+  '/hrm-dashboard': typeof AuthenticatedAppHrmDashboardRoute
   '/integrations': typeof AuthenticatedAppIntegrationsRoute
   '/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
   '/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
@@ -1723,7 +1748,7 @@ export interface FileRoutesByTo {
   '/resignation': typeof AuthenticatedAppResignationRoute
   '/returns': typeof AuthenticatedAppReturnsRoute
   '/sales-dashboard': typeof AuthenticatedAppSalesDashboardRoute
-  '/settings': typeof AuthenticatedAppSettingsRoute
+  '/settings': typeof AuthenticatedAppSettingsRouteWithChildren
   '/setup-notes': typeof AuthenticatedAppSetupNotesRoute
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
@@ -1759,7 +1784,7 @@ export interface FileRoutesByTo {
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/coupons': typeof AuthenticatedSuperCouponsRoute
-  '/super/domains': typeof AuthenticatedSuperDomainsRoute
+  '/super/domains': typeof AuthenticatedSuperDomainsRouteWithChildren
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
   '/super/languages': typeof AuthenticatedSuperLanguagesRoute
@@ -1786,6 +1811,8 @@ export interface FileRoutesByTo {
   '/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
+  '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
 }
 export interface FileRoutesById {
@@ -1888,6 +1915,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/helpdesk': typeof AuthenticatedAppHelpdeskRoute
   '/_authenticated/_app/holidays': typeof AuthenticatedAppHolidaysRoute
   '/_authenticated/_app/hrm': typeof AuthenticatedAppHrmRoute
+  '/_authenticated/_app/hrm-dashboard': typeof AuthenticatedAppHrmDashboardRoute
   '/_authenticated/_app/integrations': typeof AuthenticatedAppIntegrationsRoute
   '/_authenticated/_app/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
   '/_authenticated/_app/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
@@ -1932,7 +1960,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/resignation': typeof AuthenticatedAppResignationRoute
   '/_authenticated/_app/returns': typeof AuthenticatedAppReturnsRoute
   '/_authenticated/_app/sales-dashboard': typeof AuthenticatedAppSalesDashboardRoute
-  '/_authenticated/_app/settings': typeof AuthenticatedAppSettingsRoute
+  '/_authenticated/_app/settings': typeof AuthenticatedAppSettingsRouteWithChildren
   '/_authenticated/_app/setup-notes': typeof AuthenticatedAppSetupNotesRoute
   '/_authenticated/_app/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/_authenticated/_app/shifts': typeof AuthenticatedAppShiftsRoute
@@ -1968,7 +1996,7 @@ export interface FileRoutesById {
   '/_authenticated/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/_authenticated/super/cms': typeof AuthenticatedSuperCmsRoute
   '/_authenticated/super/coupons': typeof AuthenticatedSuperCouponsRoute
-  '/_authenticated/super/domains': typeof AuthenticatedSuperDomainsRoute
+  '/_authenticated/super/domains': typeof AuthenticatedSuperDomainsRouteWithChildren
   '/_authenticated/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/_authenticated/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
   '/_authenticated/super/languages': typeof AuthenticatedSuperLanguagesRoute
@@ -1995,6 +2023,8 @@ export interface FileRoutesById {
   '/_authenticated/_app/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
   '/_authenticated/_app/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/_authenticated/_app/project/$id': typeof AuthenticatedAppProjectIdRoute
+  '/_authenticated/_app/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/_authenticated/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
   '/_authenticated/_app/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
 }
 export interface FileRouteTypes {
@@ -2096,6 +2126,7 @@ export interface FileRouteTypes {
     | '/helpdesk'
     | '/holidays'
     | '/hrm'
+    | '/hrm-dashboard'
     | '/integrations'
     | '/inventory-dashboard'
     | '/invoice-report'
@@ -2203,6 +2234,8 @@ export interface FileRouteTypes {
     | '/invoice/$id'
     | '/invoice/create'
     | '/project/$id'
+    | '/settings/custom-domain'
+    | '/super/domains/documentation'
     | '/invoice/$id/print'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -2301,6 +2334,7 @@ export interface FileRouteTypes {
     | '/helpdesk'
     | '/holidays'
     | '/hrm'
+    | '/hrm-dashboard'
     | '/integrations'
     | '/inventory-dashboard'
     | '/invoice-report'
@@ -2408,6 +2442,8 @@ export interface FileRouteTypes {
     | '/invoice/$id'
     | '/invoice/create'
     | '/project/$id'
+    | '/settings/custom-domain'
+    | '/super/domains/documentation'
     | '/invoice/$id/print'
   id:
     | '__root__'
@@ -2509,6 +2545,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/helpdesk'
     | '/_authenticated/_app/holidays'
     | '/_authenticated/_app/hrm'
+    | '/_authenticated/_app/hrm-dashboard'
     | '/_authenticated/_app/integrations'
     | '/_authenticated/_app/inventory-dashboard'
     | '/_authenticated/_app/invoice-report'
@@ -2616,6 +2653,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/invoice/$id'
     | '/_authenticated/_app/invoice/create'
     | '/_authenticated/_app/project/$id'
+    | '/_authenticated/_app/settings/custom-domain'
+    | '/_authenticated/super/domains/documentation'
     | '/_authenticated/_app/invoice/$id/print'
   fileRoutesById: FileRoutesById
 }
@@ -3344,6 +3383,13 @@ declare module '@tanstack/react-router' {
       path: '/hrm'
       fullPath: '/hrm'
       preLoaderRoute: typeof AuthenticatedAppHrmRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/hrm-dashboard': {
+      id: '/_authenticated/_app/hrm-dashboard'
+      path: '/hrm-dashboard'
+      fullPath: '/hrm-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppHrmDashboardRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/integrations': {
@@ -4095,6 +4141,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProjectIdRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/settings/custom-domain': {
+      id: '/_authenticated/_app/settings/custom-domain'
+      path: '/custom-domain'
+      fullPath: '/settings/custom-domain'
+      preLoaderRoute: typeof AuthenticatedAppSettingsCustomDomainRouteImport
+      parentRoute: typeof AuthenticatedAppSettingsRoute
+    }
+    '/_authenticated/super/domains/documentation': {
+      id: '/_authenticated/super/domains/documentation'
+      path: '/documentation'
+      fullPath: '/super/domains/documentation'
+      preLoaderRoute: typeof AuthenticatedSuperDomainsDocumentationRouteImport
+      parentRoute: typeof AuthenticatedSuperDomainsRoute
+    }
     '/_authenticated/_app/invoice/$id/print': {
       id: '/_authenticated/_app/invoice/$id/print'
       path: '/print'
@@ -4104,6 +4164,21 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthenticatedAppSettingsRouteChildren {
+  AuthenticatedAppSettingsCustomDomainRoute: typeof AuthenticatedAppSettingsCustomDomainRoute
+}
+
+const AuthenticatedAppSettingsRouteChildren: AuthenticatedAppSettingsRouteChildren =
+  {
+    AuthenticatedAppSettingsCustomDomainRoute:
+      AuthenticatedAppSettingsCustomDomainRoute,
+  }
+
+const AuthenticatedAppSettingsRouteWithChildren =
+  AuthenticatedAppSettingsRoute._addFileChildren(
+    AuthenticatedAppSettingsRouteChildren,
+  )
 
 interface AuthenticatedAppInvoiceIdRouteChildren {
   AuthenticatedAppInvoiceIdPrintRoute: typeof AuthenticatedAppInvoiceIdPrintRoute
@@ -4178,6 +4253,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppHelpdeskRoute: typeof AuthenticatedAppHelpdeskRoute
   AuthenticatedAppHolidaysRoute: typeof AuthenticatedAppHolidaysRoute
   AuthenticatedAppHrmRoute: typeof AuthenticatedAppHrmRoute
+  AuthenticatedAppHrmDashboardRoute: typeof AuthenticatedAppHrmDashboardRoute
   AuthenticatedAppIntegrationsRoute: typeof AuthenticatedAppIntegrationsRoute
   AuthenticatedAppInventoryDashboardRoute: typeof AuthenticatedAppInventoryDashboardRoute
   AuthenticatedAppInvoiceReportRoute: typeof AuthenticatedAppInvoiceReportRoute
@@ -4222,7 +4298,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppResignationRoute: typeof AuthenticatedAppResignationRoute
   AuthenticatedAppReturnsRoute: typeof AuthenticatedAppReturnsRoute
   AuthenticatedAppSalesDashboardRoute: typeof AuthenticatedAppSalesDashboardRoute
-  AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+  AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRouteWithChildren
   AuthenticatedAppSetupNotesRoute: typeof AuthenticatedAppSetupNotesRoute
   AuthenticatedAppShiftSwapRequestsRoute: typeof AuthenticatedAppShiftSwapRequestsRoute
   AuthenticatedAppShiftsRoute: typeof AuthenticatedAppShiftsRoute
@@ -4319,6 +4395,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppHelpdeskRoute: AuthenticatedAppHelpdeskRoute,
   AuthenticatedAppHolidaysRoute: AuthenticatedAppHolidaysRoute,
   AuthenticatedAppHrmRoute: AuthenticatedAppHrmRoute,
+  AuthenticatedAppHrmDashboardRoute: AuthenticatedAppHrmDashboardRoute,
   AuthenticatedAppIntegrationsRoute: AuthenticatedAppIntegrationsRoute,
   AuthenticatedAppInventoryDashboardRoute:
     AuthenticatedAppInventoryDashboardRoute,
@@ -4372,7 +4449,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppResignationRoute: AuthenticatedAppResignationRoute,
   AuthenticatedAppReturnsRoute: AuthenticatedAppReturnsRoute,
   AuthenticatedAppSalesDashboardRoute: AuthenticatedAppSalesDashboardRoute,
-  AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+  AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRouteWithChildren,
   AuthenticatedAppSetupNotesRoute: AuthenticatedAppSetupNotesRoute,
   AuthenticatedAppShiftSwapRequestsRoute:
     AuthenticatedAppShiftSwapRequestsRoute,
@@ -4409,6 +4486,21 @@ const AuthenticatedAppRouteRouteWithChildren =
     AuthenticatedAppRouteRouteChildren,
   )
 
+interface AuthenticatedSuperDomainsRouteChildren {
+  AuthenticatedSuperDomainsDocumentationRoute: typeof AuthenticatedSuperDomainsDocumentationRoute
+}
+
+const AuthenticatedSuperDomainsRouteChildren: AuthenticatedSuperDomainsRouteChildren =
+  {
+    AuthenticatedSuperDomainsDocumentationRoute:
+      AuthenticatedSuperDomainsDocumentationRoute,
+  }
+
+const AuthenticatedSuperDomainsRouteWithChildren =
+  AuthenticatedSuperDomainsRoute._addFileChildren(
+    AuthenticatedSuperDomainsRouteChildren,
+  )
+
 interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperAgentsRoute: typeof AuthenticatedSuperAgentsRoute
   AuthenticatedSuperAnalyticsRoute: typeof AuthenticatedSuperAnalyticsRoute
@@ -4418,7 +4510,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperCaseStudiesRoute: typeof AuthenticatedSuperCaseStudiesRoute
   AuthenticatedSuperCmsRoute: typeof AuthenticatedSuperCmsRoute
   AuthenticatedSuperCouponsRoute: typeof AuthenticatedSuperCouponsRoute
-  AuthenticatedSuperDomainsRoute: typeof AuthenticatedSuperDomainsRoute
+  AuthenticatedSuperDomainsRoute: typeof AuthenticatedSuperDomainsRouteWithChildren
   AuthenticatedSuperEmailTemplatesRoute: typeof AuthenticatedSuperEmailTemplatesRoute
   AuthenticatedSuperEscalationRulesRoute: typeof AuthenticatedSuperEscalationRulesRoute
   AuthenticatedSuperLanguagesRoute: typeof AuthenticatedSuperLanguagesRoute
@@ -4449,7 +4541,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperCaseStudiesRoute: AuthenticatedSuperCaseStudiesRoute,
     AuthenticatedSuperCmsRoute: AuthenticatedSuperCmsRoute,
     AuthenticatedSuperCouponsRoute: AuthenticatedSuperCouponsRoute,
-    AuthenticatedSuperDomainsRoute: AuthenticatedSuperDomainsRoute,
+    AuthenticatedSuperDomainsRoute: AuthenticatedSuperDomainsRouteWithChildren,
     AuthenticatedSuperEmailTemplatesRoute:
       AuthenticatedSuperEmailTemplatesRoute,
     AuthenticatedSuperEscalationRulesRoute:

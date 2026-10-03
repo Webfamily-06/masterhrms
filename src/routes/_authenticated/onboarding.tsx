@@ -106,10 +106,10 @@ function Onboarding() {
       qc.clear();
       qc.invalidateQueries({ queryKey: ["current-profile"] });
       toast.success("Workspace setup completed! Welcome aboard.");
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/hrm-dashboard" });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to finalize workspace setup");
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/hrm-dashboard" });
     } finally {
       setLoading(false);
     }

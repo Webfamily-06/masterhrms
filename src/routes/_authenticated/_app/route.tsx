@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useNavigate, Link, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DreamsSidebar } from "@/components/dreams-sidebar";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { RealtimeNotificationDrawer } from "@/components/realtime-notification-drawer";
@@ -25,7 +25,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Loader2, Home, User, ShieldCheck, Settings, CreditCard, LogOut,
+  Loader2, Home, User, ShieldCheck, Settings, CreditCard, LogOut, Globe,
   Sparkles, Users, Clock, CalendarCheck, Wallet, Briefcase, GraduationCap, HelpCircle,
   Receipt, FileText, FolderLock, Layers, FileSpreadsheet, Workflow, BarChart3,
   ShoppingCart, Landmark, Kanban, MessageSquare, Package, Store, Compass,
@@ -50,7 +50,7 @@ export const Route = createFileRoute("/_authenticated/_app")({
 });
 
 const ALL_SEARCH_ITEMS = [
-  { title: "HRM Dashboard", url: "/dashboard", group: "ERP Core", icon: Home },
+  { title: "HRM Dashboard", url: "/hrm-dashboard", group: "ERP Core", icon: Home },
   { title: "Deals Dashboard", url: "/deals-dashboard", group: "ERP Core", icon: Compass },
   { title: "Leads Dashboard", url: "/leads-dashboard", group: "ERP Core", icon: Users },
   { title: "Payroll Dashboard", url: "/payroll-dashboard", group: "ERP Core", icon: Wallet },
@@ -140,6 +140,7 @@ const ALL_SEARCH_ITEMS = [
   { title: "WhatsApp Alerts", url: "/whatsapp-alerts", group: "Extensions", icon: MessageSquare },
   { title: "Razorpay Gateway", url: "/razorpay-gateway", group: "Extensions", icon: CreditCard },
   { title: "Workspace Settings", url: "/settings", group: "Platform", icon: Settings },
+  { title: "Primary Custom Domain", url: "/settings/custom-domain", group: "Platform", icon: Globe },
   { title: "Custom Fields", url: "/custom-fields", group: "Platform", icon: SlidersHorizontal },
   { title: "Marketing Campaigns", url: "/campaigns", group: "CRM & Growth", icon: Megaphone },
   { title: "Users & Roles", url: "/users", group: "Platform", icon: Users },
@@ -164,7 +165,7 @@ function AppShell() {
   const isSuperAdmin = isSuperAdminUser(profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
-  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
+  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/hrm-dashboard";
   const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
   const { data: subscription, isLoading: isSubLoading, refetch: reloadSubscription } = useQuery({
@@ -185,6 +186,17 @@ function AppShell() {
 
   
 
+
+  const { data: maintenanceStatus } = useQuery({
+    queryKey: ["platform-maintenance-guard"],
+    queryFn: () => api.get("/system/maintenance-status"),
+    staleTime: 10000,
+    refetchInterval: 15000,
+  });
+
+  const isMaintenanceActive =
+    !isSuperAdmin &&
+    (maintenanceStatus?.active === true || maintenanceStatus?.status === "active");
 
   const EMPLOYEE_ALLOWED_PREFIXES = [
     "/employee-dashboard",
@@ -226,7 +238,7 @@ function AppShell() {
     }
     if (!loading && !isLoading && profile && !profile.tenant_id) {
       if (isSuperAdmin) {
-        if (!isPlatformOrShared && (path === "/dashboard" || path === "/")) {
+        if (!isPlatformOrShared && (path === "/hrm-dashboard" || path === "/dashboard" || path === "/")) {
           navigate({ to: "/super" });
         }
       } else {
@@ -358,6 +370,33 @@ function AppShell() {
     setMobileOpen(false);
   }, [path]);
 
+  const impersonationBannerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
+    if (!isImpersonating || !impersonationBannerRef.current) {
+      document.documentElement.style.removeProperty("--impersonation-banner-height");
+      return;
+    }
+
+    const updateHeight = () => {
+      if (impersonationBannerRef.current) {
+        const height = impersonationBannerRef.current.offsetHeight;
+        document.documentElement.style.setProperty("--impersonation-banner-height", `${height}px`);
+      }
+    };
+
+    updateHeight();
+
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(impersonationBannerRef.current);
+
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--impersonation-banner-height");
+    };
+  }, []);
+
   async function handleSignOut() {
     try { await api.post("/auth/logout"); } catch {}
     clearToken();
@@ -410,6 +449,12 @@ function AppShell() {
     );
   }
 
+  // 0. Maintenance Mode Guard: Restrict tenant application access during active maintenance
+  if (isMaintenanceActive) {
+    navigate({ to: "/maintenance" });
+    return null;
+  }
+
   // 1. Suspension Guard: Lock full workspace if tenant account is suspended
   if (isSuspended) {
     return (
@@ -449,7 +494,11 @@ function AppShell() {
   const roleLabel = (profile.roles?.[0] || "member").replace(/_/g, " ");
 
   const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
-  const impersonatedTenantName = typeof window !== "undefined" ? localStorage.getItem("hrms_impersonated_tenant_name") : null;
+  const impersonatedTenantName =
+    (typeof window !== "undefined" ? localStorage.getItem("hrms_impersonated_tenant_name") : null) ||
+    profile?.tenant?.name ||
+    "Workspace";
+
 
   async function handleLeaveImpersonation() {
     setLeavingImpersonation(true);
@@ -488,23 +537,27 @@ function AppShell() {
         "main-wrapper min-h-screen w-full relative",
         mobileOpen && "slide-nav",
         !fullView && collapsed && "mini-sidebar",
-        fullView && "full-view full-width"
+        fullView && "full-view full-width",
+        isImpersonating && "has-impersonation-banner"
       )}
     >
       {/* Impersonation Banner */}
       {isImpersonating && (
-        <div className="bg-amber-600 dark:bg-amber-700 text-white px-4 py-2 flex items-center justify-between text-xs font-semibold shadow-md z-50 sticky top-0">
-          <div className="flex items-center gap-2">
+        <div
+          ref={impersonationBannerRef}
+          className="impersonation-top-banner bg-amber-600 dark:bg-amber-700 text-white px-3 sm:px-4 py-2 flex items-center justify-between gap-3 text-xs font-semibold shadow-md"
+        >
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="size-2 rounded-full bg-white animate-ping shrink-0" />
-            <span>
+            <span className="leading-snug">
               SUPER ADMIN IMPERSONATION: Acting as administrator for{" "}
-              <strong className="underline underline-offset-2">{impersonatedTenantName || "Workspace"}</strong>. Actions affect this tenant's live database.
+              <strong className="underline underline-offset-2">{impersonatedTenantName}</strong>. Actions affect this tenant&apos;s live database.
             </span>
           </div>
           <Button
             size="sm"
             variant="outline"
-            className="h-6 text-[11px] font-bold px-2.5 py-0 bg-white text-amber-700 hover:bg-slate-100 border-none shadow-xs shrink-0"
+            className="h-6 text-[11px] font-bold px-2.5 py-0 bg-white text-amber-700 hover:bg-slate-100 border-none shadow-xs shrink-0 cursor-pointer"
             onClick={handleLeaveImpersonation}
             disabled={leavingImpersonation}
           >

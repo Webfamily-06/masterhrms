@@ -107,7 +107,7 @@ export function PaymentSuccessPage() {
 
             <div className="space-y-2 pt-2">
               <Button asChild className="w-full font-bold h-10 gap-2">
-                <Link to="/dashboard">
+                <Link to="/hrm-dashboard">
                   Return to Dashboard <ArrowRight className="size-4" />
                 </Link>
               </Button>

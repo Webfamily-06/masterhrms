@@ -9,6 +9,12 @@ import cors from "cors";
 import compression from "compression";
 import { authRouter } from "./routes/auth.routes";
 import { workspaceRouter } from "./routes/workspace.routes";
+import { workspaceRoutingRouter } from "./routes/workspace-routing.routes";
+import { tenantDomainRouter } from "./routes/tenant-domain.routes";
+import { workspaceHostMiddleware } from "./middleware/workspace-host.middleware";
+import { getBaseDomain, getCachedCustomDomain, setCachedCustomDomain } from "./lib/workspace-host";
+import { rawPrisma, prisma as proxiedPrisma } from "./prisma";
+const prisma = rawPrisma || proxiedPrisma;
 import { cmsRouter } from "./routes/cms.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
 import { employeesRouter } from "./routes/employees.routes";
@@ -68,6 +74,7 @@ import { todosRouter } from "./routes/todos.routes";
 import { notesRouter } from "./routes/notes.routes";
 import { calendarRouter } from "./routes/calendar.routes";
 import { requireActiveSubscription } from "./middleware/subscription";
+import { maintenanceMiddleware } from "./middleware/maintenance";
 import { billingRouter, handleRazorpayWebhook } from "./routes/billing.routes";
 import { timesheetsRouter } from "./routes/timesheets.routes";
 
@@ -95,6 +102,29 @@ app.use(
       if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === "development") {
         return callback(null, true);
       }
+
+      try {
+        const url = new URL(origin);
+        const host = url.hostname.toLowerCase();
+        const baseDomain = getBaseDomain().toLowerCase();
+
+        // Allow localhost and *.localhost
+        if (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1") {
+          return callback(null, true);
+        }
+
+        // Allow configured BASE_DOMAIN and *.{BASE_DOMAIN}
+        if (host === baseDomain || host.endsWith(`.${baseDomain}`)) {
+          return callback(null, true);
+        }
+
+        // Allow active verified & approved custom domains (Flow 2)
+        const cachedCustom = getCachedCustomDomain(host);
+        if (cachedCustom && cachedCustom.status === "approved" && cachedCustom.dnsStatus === "verified") {
+          return callback(null, true);
+        }
+      } catch {}
+
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -105,6 +135,8 @@ app.post("/api/payments/razorpay/webhook", express.raw({ type: "application/json
 app.use(express.json());
 app.use(express.text({ type: ["text/*", "application/octet-stream", "*/*"] }));
 app.use(compression()); // Gzip all responses — 60-80% smaller payloads
+app.use(workspaceHostMiddleware); // Host resolution early in the pipeline
+app.use(maintenanceMiddleware);
 app.use("/api", requireActiveSubscription);
 
 // Health Check
@@ -121,6 +153,9 @@ app.get("/api/health", (req, res) => {
 app.use("/api/billing", billingRouter);
 app.post("/api/webhooks/razorpay", handleRazorpayWebhook);
 app.use("/api/auth", authRouter);
+app.use("/api/workspace/custom-domain", tenantDomainRouter);
+app.use("/api/workspace", workspaceRoutingRouter);
+app.use("/api", workspaceRoutingRouter);
 app.use("/api/workspace", workspaceRouter);
 app.use("/api/cms", cmsRouter);
 app.use("/api/dashboard", dashboardRouter); // Aggregation endpoint — replaces N individual calls

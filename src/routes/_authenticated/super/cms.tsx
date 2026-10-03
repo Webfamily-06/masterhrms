@@ -694,7 +694,7 @@ function PageEditorForm({
                   <div className="size-2.5 rounded-full bg-emerald-400" />
                 </div>
                 <div className="flex-1 bg-background px-3 py-1 rounded text-center font-mono text-[11px] truncate mx-4 border">
-                  https://masterhrms.com{publicUrl}
+                  {typeof window !== "undefined" ? window.location.origin : ""}{publicUrl}
                 </div>
               </div>
 

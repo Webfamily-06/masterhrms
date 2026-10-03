@@ -1,6 +1,7 @@
 import { prisma, rawPrisma } from "../prisma";
 import { broadcastToTenant } from "../socket";
 import { sendSubscriptionLifecycleEmail, getDynamicEmailConfig } from "../lib/email";
+import { getBaseDomain, getWorkspaceUrl, getRootUrl } from "../lib/workspace-host";
 
 export interface ReminderProcessResult {
   totalChecked: number;
@@ -95,8 +96,8 @@ export async function runSubscriptionExpiryRemindersCron(): Promise<ReminderProc
               plan_name: sub.plan?.name || "Active Plan",
               expiry_date: formatDateDisplay(sub.expiresAt),
               days_remaining: "0",
-              support_email: config.smtpFromEmail || "support@masterhrms.com",
-              renewal_url: `${process.env.APP_BASE_URL || "https://masterhrms.com"}/subscription`,
+              support_email: config.smtpFromEmail || `support@${getBaseDomain()}`,
+              renewal_url: `${sub.tenant?.slug ? getWorkspaceUrl(sub.tenant.slug) : getRootUrl()}/subscription`,
               admin_name: "Workspace Administrator",
             },
           });
@@ -185,8 +186,8 @@ export async function runSubscriptionExpiryRemindersCron(): Promise<ReminderProc
         plan_name: sub.plan?.name || "Pro Plan",
         expiry_date: formatDateDisplay(sub.expiresAt),
         days_remaining: String(diffDays),
-        support_email: config.smtpFromEmail || "support@masterhrms.com",
-        renewal_url: `${process.env.APP_BASE_URL || "https://masterhrms.com"}/subscription`,
+        support_email: config.smtpFromEmail || `support@${getBaseDomain()}`,
+        renewal_url: `${sub.tenant?.slug ? getWorkspaceUrl(sub.tenant.slug) : getRootUrl()}/subscription`,
         admin_name: "Workspace Administrator",
       },
     });

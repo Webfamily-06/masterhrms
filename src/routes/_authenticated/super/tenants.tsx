@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPlatformBaseDomain } from "@/lib/platform-domain";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,6 +86,7 @@ type TenantItem = {
   timezone?: string;
   policy?: any;
 };
+
 
 type TenantDetails = TenantItem & {
   custom_domain?: string | null;
@@ -401,7 +403,7 @@ function CompaniesManagementPage() {
         setToken(res.token);
         qc.clear();
         toast.success(`Logged into ${tenant.name} workspace!`);
-        navigate({ to: "/dashboard" });
+        navigate({ to: "/hrm-dashboard" });
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to enter tenant workspace");
@@ -589,15 +591,15 @@ function CompaniesManagementPage() {
 
       const rows = exportList.map((t) => [
         `"${(t.name || "").replace(/"/g, '""')}"`,
-        `"${(t.email || `${t.slug}@mastererp.cloud`).replace(/"/g, '""')}"`,
+        `"${(t.email || `${t.slug}@${getPlatformBaseDomain()}`).replace(/"/g, '""')}"`,
         `"${t.slug}"`,
-        `"${t.account_url || `${t.slug}.mastererp.cloud`}"`,
+        `"${t.account_url || `${t.slug}.${getPlatformBaseDomain()}`}"`,
         `"${t.plan_name || "Unassigned"}"`,
         `"${t.employee_count ?? 0}"`,
         `"${t.user_count ?? 0}"`,
         `"${formatExpiryDate(t.expires_at, "N/A")}"`,
         `"${formatDate(t.created_at)}"`,
-        `"${t.status === "suspended" ? "Suspended" : t.status === "expired" ? "Expired" : "Active"}"`,
+        `"${t.status === "suspended" ? "Inactive" : t.status === "expired" ? "Expired" : "Active"}"`,
       ]);
 
       const csvContent =
@@ -891,15 +893,28 @@ function CompaniesManagementPage() {
               onClick={() => handleStatusChange("Inactive")}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
                 selectedStatus === "Inactive"
-                  ? "bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-xs border border-slate-200 dark:border-slate-600"
-                  : "text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400"
+                  ? "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 shadow-xs border border-slate-200 dark:border-slate-600"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-600 dark:hover:text-slate-400"
               }`}
             >
-              <i className="ti ti-point-filled text-xs text-rose-500"></i>
+              <i className="ti ti-point-filled text-xs text-slate-500"></i>
               Inactive
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold border border-rose-300/40 dark:border-rose-700/40">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border border-slate-300/40 dark:border-slate-700/40">
                 {statsData?.inactive ?? 0}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleStatusChange("Expired")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                selectedStatus === "Expired"
+                  ? "bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs border border-slate-200 dark:border-slate-600"
+                  : "text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400"
+              }`}
+            >
+              <i className="ti ti-point-filled text-xs text-amber-500"></i>
+              Expired
             </button>
           </div>
 
@@ -1136,7 +1151,7 @@ function CompaniesManagementPage() {
                     const isExpired = tenant.status === "expired";
                     const isInactive = isSuspended || isExpired;
                     const planDisplayName = tenant.plan_name || "Unassigned";
-                    const companyEmail = tenant.email || `${tenant.slug}@mastererp.cloud`;
+                    const companyEmail = tenant.email || `${tenant.slug}@${getPlatformBaseDomain()}`;
 
                     return (
                       <tr
@@ -1172,11 +1187,28 @@ function CompaniesManagementPage() {
                           </div>
                         </td>
 
-                        {/* Account URL / Custom Domain */}
+                        {/* Account URL / Workspace Address */}
                         <td className="py-3 px-4">
-                          <span className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2 py-0.5 rounded border border-slate-300/70 dark:border-slate-700/70 select-all inline-block truncate max-w-[180px]">
-                            {tenant.account_url || `${tenant.slug}.mastererp.cloud`}
-                          </span>
+                          {(() => {
+                            const displayUrl = tenant.account_url || `${tenant.slug}.${getPlatformBaseDomain()}`;
+                            const isLocal = typeof window !== "undefined" && (window.location.hostname.endsWith(".localhost") || window.location.hostname === "localhost");
+                            const href = displayUrl.startsWith("http")
+                              ? displayUrl
+                              : `${isLocal ? "http" : "https"}://${displayUrl}${isLocal && window.location.port ? `:${window.location.port}` : ""}`;
+
+                            return (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono text-[11px] bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 hover:underline px-2 py-0.5 rounded border border-slate-300/70 dark:border-slate-700/70 select-all inline-flex items-center gap-1 max-w-[180px] truncate"
+                                title={`Open Workspace Address: ${displayUrl}`}
+                              >
+                                <span className="truncate">{displayUrl}</span>
+                                <ExternalLink className="size-2.5 shrink-0 opacity-70" />
+                              </a>
+                            );
+                          })()}
                         </td>
 
                         {/* Plan Tier */}
@@ -1223,7 +1255,7 @@ function CompaniesManagementPage() {
                           <span
                             className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                               isSuspended
-                                ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                                ? "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                                 : isExpired
                                   ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
                                   : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
@@ -1232,13 +1264,13 @@ function CompaniesManagementPage() {
                             <span
                               className={`size-1.5 rounded-full ${
                                 isSuspended
-                                  ? "bg-rose-600 dark:bg-rose-400"
+                                  ? "bg-slate-500 dark:bg-slate-400"
                                   : isExpired
                                     ? "bg-amber-600 dark:bg-amber-400"
                                     : "bg-emerald-600 dark:bg-emerald-400"
                               }`}
                             />
-                            {isSuspended ? "Suspended" : isExpired ? "Expired" : "Active"}
+                            {isSuspended ? "Inactive" : isExpired ? "Expired" : "Active"}
                           </span>
                         </td>
 
@@ -1426,7 +1458,7 @@ function CompaniesManagementPage() {
                   const isSuspended = tenant.status === "suspended";
                   const isExpired = tenant.status === "expired";
                   const planDisplayName = tenant.plan_name || "Unassigned";
-                  const companyEmail = tenant.email || `${tenant.slug}@mastererp.cloud`;
+                  const companyEmail = tenant.email || `${tenant.slug}@${getPlatformBaseDomain()}`;
 
                   return (
                     <div
@@ -1447,7 +1479,7 @@ function CompaniesManagementPage() {
                                 {tenant.name}
                               </h5>
                               <p className="font-mono text-[11px] text-slate-500 truncate mt-0.5">
-                                {tenant.account_url || `${tenant.slug}.mastererp.cloud`}
+                                {tenant.account_url || `${tenant.slug}.${getPlatformBaseDomain()}`}
                               </p>
                             </div>
                           </div>
@@ -1543,7 +1575,7 @@ function CompaniesManagementPage() {
                           <span
                             className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                               isSuspended
-                                ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                                ? "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                                 : isExpired
                                   ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
                                   : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
@@ -1552,13 +1584,13 @@ function CompaniesManagementPage() {
                             <span
                               className={`size-1.5 rounded-full ${
                                 isSuspended
-                                  ? "bg-rose-600 dark:bg-rose-400"
+                                  ? "bg-slate-500 dark:bg-slate-400"
                                   : isExpired
                                     ? "bg-amber-600 dark:bg-amber-400"
                                     : "bg-emerald-600 dark:bg-emerald-400"
                               }`}
                             />
-                            {isSuspended ? "Suspended" : isExpired ? "Expired" : "Active"}
+                            {isSuspended ? "Inactive" : isExpired ? "Expired" : "Active"}
                           </span>
 
                           <span
@@ -1728,7 +1760,7 @@ function CompaniesManagementPage() {
                   {detailTenant?.name || "Company Details"}
                 </SheetTitle>
                 <SheetDescription className="text-xs text-slate-500 font-mono truncate">
-                  {detailTenant?.account_url || `${detailTenant?.slug}.mastererp.cloud`}
+                  {detailTenant?.account_url || `${detailTenant?.slug}.${getPlatformBaseDomain()}`}
                 </SheetDescription>
               </div>
             </div>
@@ -1808,7 +1840,7 @@ function CompaniesManagementPage() {
                     <span
                       className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${
                         detailTenant.status === "suspended"
-                          ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                          ? "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                           : detailTenant.status === "expired"
                             ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
                             : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
@@ -1817,14 +1849,14 @@ function CompaniesManagementPage() {
                       <span
                         className={`size-1.5 rounded-full ${
                           detailTenant.status === "suspended"
-                            ? "bg-rose-600 dark:bg-rose-400"
+                            ? "bg-slate-500 dark:bg-slate-400"
                             : detailTenant.status === "expired"
                               ? "bg-amber-600 dark:bg-amber-400"
                               : "bg-emerald-600 dark:bg-emerald-400"
                         }`}
                       />
                       {detailTenant.status === "suspended"
-                        ? "Suspended"
+                        ? "Inactive"
                         : detailTenant.status === "expired"
                           ? "Expired"
                           : "Active"}
@@ -2038,7 +2070,7 @@ function CompaniesManagementPage() {
               <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700 text-xs space-y-1">
                 <span className="text-slate-500 font-medium">Target Account Email:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-100 block select-all">
-                  {resetTenant?.email || `${resetTenant?.slug}.admin@mastererp.cloud`}
+                  {resetTenant?.email || `${resetTenant?.slug}.admin@${getPlatformBaseDomain()}`}
                 </span>
               </div>
 
@@ -2148,7 +2180,7 @@ function CompaniesManagementPage() {
                   required
                 />
                 <span className="px-2.5 py-2 text-xs bg-slate-100 dark:bg-slate-800 border border-l-0 border-slate-300 dark:border-slate-700 rounded-r-md text-muted-foreground whitespace-nowrap">
-                  .mastererp.cloud
+                  .{getPlatformBaseDomain()}
                 </span>
               </div>
             </div>

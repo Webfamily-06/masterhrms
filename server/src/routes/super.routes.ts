@@ -12,8 +12,20 @@ import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, 
 import { generateDatabaseBackup, listBackupSnapshots, getBackupFilePath, deleteBackupSnapshot } from "../services/backup.service";
 import { getLanguagesList, getLanguagePhrases, saveLanguagePhrases, createLanguagePack, deleteLanguagePack, toggleLanguagePackStatus } from "../services/language.service";
 import { handleTenantSuspension, handleTenantReactivation } from "../services/subscription-lifecycle.service";
+import {
+  validateBillableUserCount,
+  calculatePlanPricing,
+  ACTIVE_BILLING_DURATIONS,
+  HISTORICAL_BILLING_DURATIONS,
+  normalizeExpiryDateKolkata,
+  normalizeStartDateKolkata,
+} from "../services/billing-duration.service";
+
 import { TenantUsageMetricsService } from "../services/tenant-usage-metrics.service";
-import { validateBillableUserCount, calculatePlanPricing } from "../services/billing-duration.service";
+import { invalidateMaintenanceCache } from "../middleware/maintenance";
+import { getBaseDomain, getWorkspaceUrl, getSuperAdminUrl, getRootUrl, invalidateCustomDomainCache, getCustomDomainUrl } from "../lib/workspace-host";
+import { validateCustomDomain } from "../lib/domain-normalization";
+import { getRequiredDnsRecords, verifyDomainDns, getPlatformCnameTarget } from "../services/domain-dns.service";
 
 export const superRouter = Router();
 
@@ -175,9 +187,25 @@ superRouter.post("/impersonate/:tenantId", requireAuth, requireSuperAdmin, async
       },
       roles,
       isImpersonating: true,
+      workspaceUrl: getWorkspaceUrl(tenant.slug),
+      redirectUrl: `${getWorkspaceUrl(tenant.slug)}/impersonate?token=${token}`,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// GET /api/super/tenants/:tenantId/slug-history (Audit Log of Workspace Renames)
+superRouter.get("/tenants/:tenantId/slug-history", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { tenantId } = req.params;
+    const history = await (prisma as any).workspaceSlugHistory.findMany({
+      where: { tenantId },
+      orderBy: { changedAt: "desc" },
+    });
+    return res.json({ success: true, history });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch slug history" });
   }
 });
 
@@ -302,8 +330,8 @@ superRouter.post("/email-templates/test", requireAuth, requireSuperAdmin, async 
       days_remaining: "15",
       suspension_date: "Oct 3, 2026, 02:00 UTC",
       suspension_reason: "Test email dispatch from Super Admin Console",
-      support_email: "support@masterhrms.com",
-      renewal_url: `${process.env.APP_BASE_URL || "https://masterhrms.com"}/subscription`,
+      support_email: `support@${getBaseDomain()}`,
+      renewal_url: `${getRootUrl()}/subscription`,
       admin_name: req.user?.email?.split("@")[0] || "Administrator",
     };
 
@@ -539,13 +567,17 @@ superRouter.get("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequ
           },
         ];
       } else if (statusLower === "inactive" || statusLower === "suspended") {
-        // Inactive = suspended OR expired OR expiresAt in the past
+        // Inactive = manually suspended (but not expired)
+        where.subscription = {
+          status: "suspended",
+        };
+      } else if (statusLower === "expired") {
+        // Expired = subscription status is expired OR expiresAt is in the past
         const now = new Date();
         where.subscription = {
           OR: [
-            { status: "suspended" },
             { status: "expired" },
-            { expiresAt: { lt: now } },
+            { AND: [{ status: { not: "suspended" } }, { expiresAt: { lt: now } }] },
           ],
         };
       }
@@ -628,7 +660,7 @@ superRouter.get("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequ
     const formattedTenants = tenants.map((tenant) => {
       const policy = policyMap[tenant.id] || resolveWorkspacePolicy(tenant.subscription || {}, tenant.subscription?.plan ? [tenant.subscription.plan] : []);
       const primaryDomain = tenant.tenantDomains?.[0]?.domain;
-      const accountUrl = primaryDomain || `${tenant.slug}.mastererp.cloud`;
+      const accountUrl = primaryDomain || `${tenant.slug}.${getBaseDomain()}`;
       const planName = tenant.subscription?.plan?.name || policy.planName || "Unassigned";
 
       // Derive authoritative company email
@@ -636,7 +668,7 @@ superRouter.get("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequ
         tenant.profiles?.find((p: any) => p.email)?.email ||
         tenant.profiles?.[0]?.user?.email ||
         tenant.warehouses?.[0]?.email ||
-        `${tenant.slug}@mastererp.cloud`;
+        `${tenant.slug}@${getBaseDomain()}`;
 
       // Authoritative subscription expiry date
       const rawExpiresAt =
@@ -752,7 +784,7 @@ superRouter.get("/tenants/:id", requireAuth, requireSuperAdmin, async (req: Auth
       tenant.profiles?.find((p) => p.email)?.email ||
       tenant.profiles?.[0]?.user?.email ||
       tenant.warehouses?.[0]?.email ||
-      `${tenant.slug}@mastererp.cloud`;
+      `${tenant.slug}@${getBaseDomain()}`;
 
     const rawExpiresAt =
       tenant.subscription?.expiresAt ||
@@ -772,7 +804,7 @@ superRouter.get("/tenants/:id", requireAuth, requireSuperAdmin, async (req: Auth
       timezone: tenant.timezone,
       created_at: tenant.createdAt.toISOString(),
       expires_at: formattedExpiresAt,
-      account_url: primaryDomain || `${tenant.slug}.mastererp.cloud`,
+      account_url: primaryDomain || `${tenant.slug}.${getBaseDomain()}`,
       custom_domain: primaryDomain || null,
       plan_name: tenant.subscription?.plan?.name || policy.planName || "Unassigned",
       status: tenant.subscription?.status || policy.status || "active",
@@ -831,7 +863,7 @@ superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthReq
       resolvedPlan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
     }
 
-    const ownerEmail = (email || contactEmail || "").trim() || `${finalSlug}.admin@mastererp.cloud`;
+    const ownerEmail = (email || contactEmail || "").trim() || `${finalSlug}.admin@${getBaseDomain()}`;
 
     const tenant = await prisma.$transaction(async (tx: any) => {
       const createdTenant = await tx.tenant.create({
@@ -1028,7 +1060,7 @@ superRouter.post("/tenants/:id/reset-password", requireAuth, requireSuperAdmin, 
       });
     } else {
       // If tenant has no user yet, create the owner user
-      const ownerEmail = `${tenant.slug}.admin@mastererp.cloud`;
+      const ownerEmail = `${tenant.slug}.admin@${getBaseDomain()}`;
       targetUser = await prisma.$transaction(async (tx: any) => {
         const createdUser = await tx.user.create({
           data: {
@@ -1578,6 +1610,26 @@ superRouter.post("/coupons", requireAuth, requireSuperAdmin, async (req: AuthReq
       return res.status(400).json({ error: "A positive discount value is required." });
     }
 
+    const resolvedDiscountType = discountType === "fixed" ? "fixed" : "percentage";
+    const numDiscountValue = Number(discountValue);
+
+    if (resolvedDiscountType === "percentage" && numDiscountValue > 100) {
+      return res.status(400).json({ error: "Percentage discount cannot exceed 100%." });
+    }
+
+    // Validate applicableDurations for new coupons:
+    // Only current supported customer-facing durations (1_month, 1_year) are allowed.
+    if (Array.isArray(applicableDurations) && applicableDurations.length > 0) {
+      const activeKeys = new Set(ACTIVE_BILLING_DURATIONS.map((d) => d.key));
+      for (const dur of applicableDurations) {
+        if (!activeKeys.has(dur)) {
+          return res.status(400).json({
+            error: `Applicable billing duration '${dur}' is obsolete under the current pricing model. Supported billing durations are: ${ACTIVE_BILLING_DURATIONS.map((d) => d.key).join(", ")}.`,
+          });
+        }
+      }
+    }
+
     const cleanCode = code.trim().toUpperCase();
 
     const existing = await prisma.coupon.findUnique({
@@ -1588,20 +1640,23 @@ superRouter.post("/coupons", requireAuth, requireSuperAdmin, async (req: AuthReq
       return res.status(409).json({ error: `Coupon code '${cleanCode}' already exists.` });
     }
 
+    const normalizedStartsAt = startsAt ? normalizeStartDateKolkata(startsAt) : null;
+    const normalizedExpiresAt = expiresAt ? normalizeExpiryDateKolkata(expiresAt) : null;
+
     const coupon = await prisma.coupon.create({
       data: {
         code: cleanCode,
         name: name ? String(name).trim() : null,
         description: description ? String(description).trim() : null,
-        discountType: discountType === "fixed" ? "fixed" : "percentage",
-        discountValue: Number(discountValue),
+        discountType: resolvedDiscountType,
+        discountValue: numDiscountValue,
         applicablePlanIds: Array.isArray(applicablePlanIds) && applicablePlanIds.length > 0 ? applicablePlanIds : null,
         applicableDurations: Array.isArray(applicableDurations) && applicableDurations.length > 0 ? applicableDurations : null,
-        minPurchaseAmount: minPurchaseAmount !== null && minPurchaseAmount !== undefined ? Number(minPurchaseAmount) : null,
-        maxRedemptions: maxRedemptions ? Number(maxRedemptions) : null,
-        perTenantLimit: perTenantLimit ? Number(perTenantLimit) : 1,
-        startsAt: startsAt ? new Date(startsAt) : null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        minPurchaseAmount: minPurchaseAmount !== null && minPurchaseAmount !== undefined && minPurchaseAmount !== "" ? Math.max(0, Number(minPurchaseAmount)) : null,
+        maxRedemptions: maxRedemptions ? Math.max(1, Math.floor(Number(maxRedemptions))) : null,
+        perTenantLimit: perTenantLimit ? Math.max(1, Math.floor(Number(perTenantLimit))) : 1,
+        startsAt: normalizedStartsAt,
+        expiresAt: normalizedExpiresAt,
         status: status === "inactive" ? "inactive" : "active",
       },
     });
@@ -1631,21 +1686,72 @@ superRouter.put("/coupons/:id", requireAuth, requireSuperAdmin, async (req: Auth
       status,
     } = req.body;
 
+    const existing = await prisma.coupon.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Coupon not found." });
+    }
+
+    const resolvedDiscountType = discountType !== undefined ? (discountType === "fixed" ? "fixed" : "percentage") : existing.discountType;
+    if (discountValue !== undefined) {
+      const numVal = Number(discountValue);
+      if (isNaN(numVal) || numVal <= 0) {
+        return res.status(400).json({ error: "A positive discount value is required." });
+      }
+      if (resolvedDiscountType === "percentage" && numVal > 100) {
+        return res.status(400).json({ error: "Percentage discount cannot exceed 100%." });
+      }
+    }
+
+    // If updating applicableDurations:
+    // Allow existing historical durations already saved on the coupon (e.g. FESTIVE500 with 3_months/6_months),
+    // but reject adding newly introduced obsolete durations.
+    if (applicableDurations !== undefined && Array.isArray(applicableDurations)) {
+      const existingDurations = new Set(
+        Array.isArray(existing.applicableDurations) ? (existing.applicableDurations as string[]) : []
+      );
+      const activeKeys = new Set(ACTIVE_BILLING_DURATIONS.map((d) => d.key));
+      for (const dur of applicableDurations) {
+        if (!existingDurations.has(dur) && !activeKeys.has(dur)) {
+          return res.status(400).json({
+            error: `Applicable billing duration '${dur}' is obsolete under the current pricing model. Only active billing durations (${ACTIVE_BILLING_DURATIONS.map((d) => d.key).join(", ")}) can be added.`,
+          });
+        }
+      }
+    }
+
+    const normalizedStartsAt = startsAt !== undefined
+      ? (startsAt ? normalizeStartDateKolkata(startsAt) : null)
+      : undefined;
+
+    const normalizedExpiresAt = expiresAt !== undefined
+      ? (expiresAt ? normalizeExpiryDateKolkata(expiresAt) : null)
+      : undefined;
+
     const updated = await prisma.coupon.update({
       where: { id },
       data: {
         ...(name !== undefined && { name: name ? String(name).trim() : null }),
         ...(description !== undefined && { description: description ? String(description).trim() : null }),
-        ...(discountType && { discountType: discountType === "fixed" ? "fixed" : "percentage" }),
+        ...(discountType !== undefined && { discountType: resolvedDiscountType }),
         ...(discountValue !== undefined && { discountValue: Number(discountValue) }),
-        ...(applicablePlanIds !== undefined && { applicablePlanIds }),
-        ...(applicableDurations !== undefined && { applicableDurations }),
-        ...(minPurchaseAmount !== undefined && { minPurchaseAmount: minPurchaseAmount !== null ? Number(minPurchaseAmount) : null }),
-        ...(maxRedemptions !== undefined && { maxRedemptions: maxRedemptions !== null ? Number(maxRedemptions) : null }),
-        ...(perTenantLimit !== undefined && { perTenantLimit: Number(perTenantLimit) }),
-        ...(startsAt !== undefined && { startsAt: startsAt ? new Date(startsAt) : null }),
-        ...(expiresAt !== undefined && { expiresAt: expiresAt ? new Date(expiresAt) : null }),
-        ...(status && { status }),
+        ...(applicablePlanIds !== undefined && {
+          applicablePlanIds: Array.isArray(applicablePlanIds) && applicablePlanIds.length > 0 ? applicablePlanIds : null,
+        }),
+        ...(applicableDurations !== undefined && {
+          applicableDurations: Array.isArray(applicableDurations) && applicableDurations.length > 0 ? applicableDurations : null,
+        }),
+        ...(minPurchaseAmount !== undefined && {
+          minPurchaseAmount: minPurchaseAmount !== null && minPurchaseAmount !== "" ? Math.max(0, Number(minPurchaseAmount)) : null,
+        }),
+        ...(maxRedemptions !== undefined && {
+          maxRedemptions: maxRedemptions !== null && maxRedemptions !== "" ? Math.max(1, Math.floor(Number(maxRedemptions))) : null,
+        }),
+        ...(perTenantLimit !== undefined && {
+          perTenantLimit: perTenantLimit ? Math.max(1, Math.floor(Number(perTenantLimit))) : 1,
+        }),
+        ...(normalizedStartsAt !== undefined && { startsAt: normalizedStartsAt }),
+        ...(normalizedExpiresAt !== undefined && { expiresAt: normalizedExpiresAt }),
+        ...(status !== undefined && { status }),
       },
     });
 
@@ -1857,6 +1963,8 @@ superRouter.put("/settings", requireAuth, requireSuperAdmin, async (req: AuthReq
       },
     });
 
+    invalidateMaintenanceCache();
+
     return res.json({ success: true, message: "Platform settings saved successfully", settings: page.content });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to save platform settings" });
@@ -1947,7 +2055,7 @@ superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: Aut
 });
 
 // ==========================================
-// 5. CUSTOM DOMAINS (RELATIONAL DB BACKED)
+// 5. CUSTOM DOMAINS (RELATIONAL DB BACKED - FLOW 2)
 // ==========================================
 superRouter.get("/domains", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
   try {
@@ -1969,8 +2077,8 @@ superRouter.get("/domains", requireAuth, requireSuperAdmin, async (_req: AuthReq
       domain: d.domain,
       tenantId: d.tenantId,
       tenantName: d.tenant?.name || "Workspace",
-      subdomain: d.subdomain || `${d.tenant?.slug || "tenant"}.mastererp.cloud`,
-      targetCname: d.targetCname,
+      subdomain: d.subdomain || `${d.tenant?.slug || "tenant"}.${getBaseDomain()}`,
+      targetCname: d.targetCname || getPlatformCnameTarget(),
       isPrimary: d.isPrimary,
       planName: d.tenant?.subscription?.plan?.name || "Standard Plan",
       planType: d.tenant?.subscription?.billingCycle || "Monthly",
@@ -1978,7 +2086,17 @@ superRouter.get("/domains", requireAuth, requireSuperAdmin, async (_req: AuthReq
       status: d.status,
       sslStatus: d.sslStatus,
       dnsStatus: d.dnsStatus,
+      verificationToken: d.verificationToken,
+      verificationMethod: d.verificationMethod,
+      verifiedAt: d.verifiedAt ? new Date(d.verifiedAt).toISOString() : null,
+      approvedAt: d.approvedAt ? new Date(d.approvedAt).toISOString() : null,
+      approvedBy: d.approvedBy,
+      rejectedReason: d.rejectedReason,
+      sslIssuedAt: d.sslIssuedAt ? new Date(d.sslIssuedAt).toISOString() : null,
+      lastCheckedAt: d.lastCheckedAt ? new Date(d.lastCheckedAt).toISOString() : null,
+      lastDnsError: d.lastDnsError,
       createdAt: d.createdAt ? new Date(d.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      customDomainUrl: getCustomDomainUrl(d.domain),
     }));
 
     return res.json(formatted);
@@ -1990,25 +2108,48 @@ superRouter.get("/domains", requireAuth, requireSuperAdmin, async (_req: AuthReq
 
 superRouter.post("/domains", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { domain, tenantId, subdomain, isPrimary } = req.body;
-    if (!domain || !tenantId) {
+    const { domain: rawDomain, tenantId, subdomain, isPrimary } = req.body;
+    if (!rawDomain || !tenantId) {
       return res.status(400).json({ error: "domain and tenantId are required" });
     }
+
+    const validation = validateCustomDomain(rawDomain);
+    if (!validation.valid || !validation.normalized) {
+      return res.status(400).json({
+        error: validation.message || "Invalid domain name syntax.",
+        code: "INVALID_DOMAIN",
+      });
+    }
+
+    const normalizedDomain = validation.normalized;
 
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       return res.status(404).json({ error: "Tenant workspace not found" });
     }
 
+    const existing = await prisma.tenantDomain.findUnique({ where: { domain: normalizedDomain } });
+    if (existing) {
+      return res.status(409).json({ error: "Domain is already registered or requested by a tenant" });
+    }
+
+    const crypto = await import("crypto");
+    const verificationToken = `mhrms_verify_${crypto.randomBytes(16).toString("hex")}`;
+    const targetCname = getPlatformCnameTarget();
+
     const created = await prisma.tenantDomain.create({
       data: {
         tenantId,
-        domain: domain.trim().toLowerCase(),
-        subdomain: subdomain || `${tenant.slug}.mastererp.cloud`,
+        domain: normalizedDomain,
+        subdomain: subdomain || `${tenant.slug}.${getBaseDomain()}`,
+        targetCname,
         isPrimary: Boolean(isPrimary),
         status: "pending",
         sslStatus: "provisioning",
         dnsStatus: "pending",
+        verificationToken,
+        verificationMethod: "cname",
+        requestedBy: req.user?.email || "super_admin",
       },
       include: {
         tenant: {
@@ -2018,6 +2159,8 @@ superRouter.post("/domains", requireAuth, requireSuperAdmin, async (req: AuthReq
         },
       },
     });
+
+    invalidateCustomDomainCache(normalizedDomain);
 
     return res.status(201).json({
       id: created.id,
@@ -2041,10 +2184,69 @@ superRouter.post("/domains", requireAuth, requireSuperAdmin, async (req: AuthReq
   }
 });
 
+superRouter.put("/domains/:id/approve", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const existing = await prisma.tenantDomain.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Domain record not found" });
+    }
+
+    const updated = await prisma.tenantDomain.update({
+      where: { id },
+      data: {
+        status: "approved",
+        sslStatus: "active",
+        dnsStatus: "verified",
+        approvedAt: new Date(),
+        approvedBy: req.user?.email || "super_admin",
+        sslIssuedAt: new Date(),
+        rejectedReason: null,
+      },
+    });
+
+    invalidateCustomDomainCache(existing.domain);
+
+    return res.json({ success: true, message: "Custom domain approved and activated.", domain: updated });
+  } catch (err: any) {
+    console.error("Super Admin domains approve error:", err);
+    return res.status(500).json({ error: err.message || "Failed to approve domain" });
+  }
+});
+
+superRouter.put("/domains/:id/reject", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const existing = await prisma.tenantDomain.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Domain record not found" });
+    }
+
+    const updated = await prisma.tenantDomain.update({
+      where: { id },
+      data: {
+        status: "rejected",
+        sslStatus: "failed",
+        rejectedReason: reason || "Domain request was rejected by platform administrator.",
+      },
+    });
+
+    invalidateCustomDomainCache(existing.domain);
+
+    return res.json({ success: true, message: "Custom domain request rejected.", domain: updated });
+  } catch (err: any) {
+    console.error("Super Admin domains reject error:", err);
+    return res.status(500).json({ error: err.message || "Failed to reject domain" });
+  }
+});
+
 superRouter.put("/domains/:id/status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
 
     const existing = await prisma.tenantDomain.findUnique({ where: { id } });
     if (!existing) {
@@ -2056,8 +2258,18 @@ superRouter.put("/domains/:id/status", requireAuth, requireSuperAdmin, async (re
 
     const updated = await prisma.tenantDomain.update({
       where: { id },
-      data: { status, sslStatus, dnsStatus },
+      data: {
+        status,
+        sslStatus,
+        dnsStatus,
+        approvedAt: status === "approved" ? new Date() : existing.approvedAt,
+        approvedBy: status === "approved" ? (req.user?.email || "super_admin") : existing.approvedBy,
+        sslIssuedAt: status === "approved" ? new Date() : existing.sslIssuedAt,
+        rejectedReason: status === "rejected" ? (reason || "Status changed to rejected") : null,
+      },
     });
+
+    invalidateCustomDomainCache(existing.domain);
 
     return res.json({ success: true, domain: updated });
   } catch (err: any) {
@@ -2075,16 +2287,34 @@ superRouter.post("/domains/:id/verify", requireAuth, requireSuperAdmin, async (r
       return res.status(404).json({ error: "Domain record not found" });
     }
 
+    // Attempt real or mock DNS check
+    const mockSuccess =
+      req.headers["x-test-mock-dns"] === "true" ||
+      process.env.MOCK_DNS_VERIFY === "true";
+    const dnsResult = await verifyDomainDns(
+      existing.domain,
+      existing.verificationToken || "",
+      { mockSuccess }
+    );
+
     const updated = await prisma.tenantDomain.update({
       where: { id },
       data: {
-        status: "approved",
-        sslStatus: "active",
-        dnsStatus: "verified",
+        dnsStatus: dnsResult.status,
+        status: dnsResult.verified ? "approved" : existing.status,
+        sslStatus: dnsResult.verified ? "active" : existing.sslStatus,
+        verifiedAt: dnsResult.verified ? new Date() : existing.verifiedAt,
+        approvedAt: dnsResult.verified ? new Date() : existing.approvedAt,
+        approvedBy: dnsResult.verified ? (req.user?.email || "super_admin") : existing.approvedBy,
+        sslIssuedAt: dnsResult.verified ? new Date() : existing.sslIssuedAt,
+        lastCheckedAt: dnsResult.checkedAt,
+        lastDnsError: dnsResult.errorMessage || null,
       },
     });
 
-    return res.json({ success: true, domain: updated });
+    invalidateCustomDomainCache(existing.domain);
+
+    return res.json({ success: true, verified: dnsResult.verified, domain: updated });
   } catch (err: any) {
     console.error("Super Admin domains POST verify error:", err);
     return res.status(500).json({ error: err.message || "Failed to verify domain" });
@@ -2101,6 +2331,8 @@ superRouter.delete("/domains/:id", requireAuth, requireSuperAdmin, async (req: A
     }
 
     await prisma.tenantDomain.delete({ where: { id } });
+
+    invalidateCustomDomainCache(existing.domain);
 
     return res.json({ success: true, message: "Custom domain removed successfully" });
   } catch (err: any) {

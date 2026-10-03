@@ -424,9 +424,6 @@ export function SuperAdminPlansPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Subscription Plans</h1>
-            <Badge variant="outline" className="text-xs font-semibold uppercase tracking-wider bg-primary/10 text-primary border-primary/20">
-              Live Database
-            </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             Configure Standard and Custom SaaS pricing, per-user billing models, 3-day trials, and feature entitlements.

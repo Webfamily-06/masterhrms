@@ -1,6 +1,7 @@
 import { prisma, rawPrisma } from "../prisma";
 import { getIO, broadcastToTenant } from "../socket";
 import { sendSubscriptionLifecycleEmail, getDynamicEmailConfig } from "../lib/email";
+import { getBaseDomain, getSuperAdminUrl, getWorkspaceUrl } from "../lib/workspace-host";
 
 export interface SuspendTenantOptions {
   tenantId: string;
@@ -73,7 +74,7 @@ export async function handleTenantSuspension(options: SuspendTenantOptions): Pro
 
   // 4. Resolve email recipients and config
   const config = await getDynamicEmailConfig();
-  const superAdminEmail = actorEmail || config.smtpFromEmail || "superadmin@masterhrms.com";
+  const superAdminEmail = actorEmail || config.smtpFromEmail || `superadmin@${getBaseDomain()}`;
   const now = new Date();
   const suspensionDateStr = now.toLocaleDateString("en-US", {
     month: "short",
@@ -145,8 +146,8 @@ export async function handleTenantSuspension(options: SuspendTenantOptions): Pro
           days_remaining: "0",
           suspension_date: suspensionDateStr,
           suspension_reason: suspensionReason,
-          support_email: config.smtpFromEmail || "support@masterhrms.com",
-          renewal_url: `${process.env.APP_BASE_URL || "https://masterhrms.com"}/subscription`,
+          support_email: config.smtpFromEmail || `support@${getBaseDomain()}`,
+          renewal_url: `${getWorkspaceUrl(tenant.slug)}/subscription`,
           admin_name: adminName,
         },
       });
@@ -209,8 +210,8 @@ export async function handleTenantSuspension(options: SuspendTenantOptions): Pro
           days_remaining: "0",
           suspension_date: suspensionDateStr,
           suspension_reason: suspensionReason,
-          support_email: config.smtpFromEmail || "support@masterhrms.com",
-          renewal_url: `${process.env.APP_BASE_URL || "https://masterhrms.com"}/super/tenants`,
+          support_email: config.smtpFromEmail || `support@${getBaseDomain()}`,
+          renewal_url: `${getSuperAdminUrl()}/super/tenants`,
           admin_name: "Platform Super Administrator",
         },
       });
@@ -322,8 +323,8 @@ export async function handleTenantReactivation(options: ReactivateTenantOptions)
         plan_name: sub.plan?.name || "Active Plan",
         expiry_date: sub.expiresAt ? new Date(sub.expiresAt).toLocaleDateString() : "Active",
         days_remaining: "Active",
-        support_email: config.smtpFromEmail || "support@masterhrms.com",
-        renewal_url: `${process.env.APP_BASE_URL || "https://masterhrms.com"}/dashboard`,
+        support_email: config.smtpFromEmail || `support@${getBaseDomain()}`,
+        renewal_url: `${getWorkspaceUrl(tenant.slug)}/dashboard`,
         admin_name: adminUserRole?.user?.profile?.fullName || "Administrator",
       },
     });

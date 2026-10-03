@@ -71,7 +71,7 @@ export default function AIAttendanceInsightsPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">AI Attendance Insights</h1>
           <div className="flex items-center gap-1.5 text-xs text-default">
-            <Link to="/dashboard" className="hover:text-primary">Dashboard</Link>
+            <Link to="/hrm-dashboard" className="hover:text-primary">Dashboard</Link>
             <i className="ph ph-caret-right text-[10px]"></i>
             <span className="text-gray-900 dark:text-gray-100 font-medium">Anomaly &amp; Punctuality Telemetry</span>
           </div>

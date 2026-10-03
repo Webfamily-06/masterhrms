@@ -105,7 +105,7 @@ export function ForbiddenView({
             size="lg"
             className="w-full sm:w-auto gap-2 font-semibold shadow-md bg-primary hover:bg-primary/90 text-white"
             onClick={() => {
-              window.location.href = "/dashboard";
+              window.location.href = "/hrm-dashboard";
             }}
           >
             <Home className="size-4" /> Return to Dashboard
@@ -119,7 +119,7 @@ export function ForbiddenView({
               if (window.history.length > 1) {
                 window.history.back();
               } else {
-                window.location.href = "/dashboard";
+                window.location.href = "/hrm-dashboard";
               }
             }}
           >

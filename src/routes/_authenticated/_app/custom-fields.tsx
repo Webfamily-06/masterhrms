@@ -208,7 +208,7 @@ export function CustomFieldsPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Settings</h2>
           <nav className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-            <Link to="/dashboard" className="hover:text-primary flex items-center gap-1">
+            <Link to="/hrm-dashboard" className="hover:text-primary flex items-center gap-1">
               <span>Home</span>
             </Link>
             <ChevronRight className="size-3 text-slate-400" />

@@ -9,7 +9,10 @@ import {
   HeadContent,
   Scripts,
   useRouter,
+  redirect,
+  notFound,
 } from "@tanstack/react-router";
+import { isTenantWorkspaceHost } from "@/lib/platform-domain";
 import type { QueryClient } from "@tanstack/react-query";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -67,6 +70,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: "/ui-assets/css/style.css" },
     ],
   }),
+  beforeLoad: ({ location }) => {
+    const p = location.pathname;
+    const isTenant = typeof window !== "undefined" && isTenantWorkspaceHost();
+
+    // TENANT HOST + /Super MUST NEVER OPEN SUPER ADMIN -> immediately 404
+    if (isTenant && (p.toLowerCase() === "/super" || p.toLowerCase().startsWith("/super/"))) {
+      throw notFound();
+    }
+
+    if (p === "/Super") {
+      throw redirect({ to: "/super" });
+    }
+    if (p === "/Auth") {
+      throw redirect({ to: "/auth" });
+    }
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

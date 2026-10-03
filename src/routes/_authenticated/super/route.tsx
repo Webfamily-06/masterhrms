@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState, notFound } from "@tanstack/react-router";
 import { useEffect, useState, Fragment } from "react";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { api, clearToken } from "@/lib/api";
@@ -25,9 +25,18 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resolveDefaultRoute } from "@/lib/auth-navigation";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
+import { NotFoundView } from "@/components/error-pages/not-found-view";
+import { isTenantWorkspaceHost } from "@/lib/platform-domain";
+import { SuperLoginPage } from "@/routes/super-login";
 
 export const Route = createFileRoute("/_authenticated/super")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined" && isTenantWorkspaceHost()) {
+      throw notFound();
+    }
+  },
   component: SuperShell,
+  notFoundComponent: () => <NotFoundView />,
 });
 
 type SuperNavItem = {
@@ -35,26 +44,26 @@ type SuperNavItem = {
   label: string;
   iconClass: string;
   group: string;
-  badge?: string;
   children?: Array<{ to: string; label: string; iconClass?: string }>;
 };
 
 const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   // ── Core Orchestration
   { to: "/super", label: "Dashboard", iconClass: "ph-gauge", group: "Core Orchestration" },
-  { to: "/super/tenants", label: "Tenant Workspaces", iconClass: "ph-buildings", group: "Core Orchestration", badge: "Multi-Tenant" },
+  { to: "/super/tenants", label: "Tenant Workspaces", iconClass: "ph-buildings", group: "Core Orchestration" },
   { to: "/super/tenant-usage-metrics", label: "Tenant Usage Metrics", iconClass: "ph-chart-bar", group: "Core Orchestration" },
   { to: "/super/plans", label: "Subscription Plans", iconClass: "ph-credit-card", group: "Core Orchestration" },
   { to: "/super/coupons", label: "Discount Coupons", iconClass: "ph-tag", group: "Core Orchestration" },
-  { to: "/super/domains", label: "Custom Domains", iconClass: "ph-globe-hemisphere-west", group: "Core Orchestration" },
   { to: "/super/transactions", label: "Purchase Transactions", iconClass: "ph-receipt", group: "Core Orchestration" },
   { to: "/super/roles", label: "Roles & RBAC Matrix", iconClass: "ph-shield-check", group: "Core Orchestration" },
 
-  // ── Ecosystem & Marketplace
-  { to: "/super/marketplace", label: "Addons Marketplace", iconClass: "ph-storefront", group: "Ecosystem & Apps", badge: "500+" },
+  // ── Extensions & Add-ons
+  { to: "/super/marketplace", label: "Addons Marketplace", iconClass: "ph-storefront", group: "Extensions & Add-ons" },
+  { to: "/super/domains", label: "Custom Domains", iconClass: "ph-globe-hemisphere-west", group: "Extensions & Add-ons" },
+  { to: "/super/domains/documentation", label: "Custom Domain Documentation", iconClass: "ph-book-bookmark", group: "Extensions & Add-ons" },
 
   // ── Marketing & CMS
-  { to: "/super/cms", label: "Visual CMS Studio", iconClass: "ph-article", group: "Marketing & CMS", badge: "Studio 2.0" },
+  { to: "/super/cms", label: "Visual CMS Studio", iconClass: "ph-article", group: "Marketing & CMS" },
   { to: "/super/blogs", label: "Blog Insights", iconClass: "ph-book-open", group: "Marketing & CMS" },
   { to: "/super/case-studies", label: "Case Studies", iconClass: "ph-briefcase", group: "Marketing & CMS" },
   { to: "/super/media", label: "Media Library", iconClass: "ph-image", group: "Marketing & CMS" },
@@ -69,7 +78,7 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: "/super/notifications", label: "Broadcast Alerts", iconClass: "ph-bell", group: "Communications" },
 
   // ── System Controls
-  { to: "/cronjob", label: "Centralized Cron & Automations", iconClass: "ph-clock", group: "System Controls", badge: "Centralized" },
+  { to: "/cronjob", label: "Centralized Cron & Automations", iconClass: "ph-clock", group: "System Controls" },
   { to: "/clear-cache", label: "Clear Cache & Maintenance", iconClass: "ph-arrows-clockwise", group: "System Controls" },
   { to: "/super/settings", label: "Platform Settings", iconClass: "ph-gear", group: "System Controls" },
   { to: "/super/analytics", label: "Platform Analytics", iconClass: "ph-chart-line-up", group: "System Controls" },
@@ -113,7 +122,7 @@ function SuperSidebar({
 
   const groups = [
     { title: "Core Orchestration", items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === "Core Orchestration") },
-    { title: "Ecosystem & Apps", items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === "Ecosystem & Apps") },
+    { title: "Extensions & Add-ons", items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === "Extensions & Add-ons") },
     { title: "Marketing & CMS", items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === "Marketing & CMS") },
     { title: "Communications", items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === "Communications") },
     { title: "System Controls", items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === "System Controls") },
@@ -283,18 +292,6 @@ function SuperSidebar({
                       >
                         <i className={cn("ph-duotone", item.iconClass)}></i>
                         <span>{item.label}</span>
-                        {item.badge && (
-                          <span
-                            className={cn(
-                              "text-[9px] px-1.5 py-0 h-4 font-mono font-bold shrink-0 ml-auto rounded border inline-flex items-center",
-                              isActive
-                                ? "border-white/30 text-white bg-white/10"
-                                : "border-purple-500/30 text-purple-600 bg-purple-50 dark:bg-purple-950/50"
-                            )}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
                       </Link>
                     </li>
                   );
@@ -308,7 +305,7 @@ function SuperSidebar({
             </li>
             <li>
               <Link
-                to="/dashboard"
+                to="/hrm-dashboard"
                 onClick={onCloseMobile}
                 className="text-primary hover:text-primary font-semibold"
                 title="Switch to Tenant App"
@@ -442,12 +439,16 @@ function SuperShell() {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  useEffect(() => {
-    if (!isLoading && !localStorage.getItem("hrms_auth_token")) navigate({ to: "/super-login" });
-    if (!isLoading && profile && !profile.roles?.includes("super_admin")) {
-      navigate({ to: resolveDefaultRoute(profile.roles) });
-    }
-  }, [profile, isLoading, navigate]);
+  if (typeof window !== "undefined" && isTenantWorkspaceHost()) {
+    return <NotFoundView />;
+  }
+
+  const hasToken = typeof window !== "undefined" && !!localStorage.getItem("hrms_auth_token");
+  const isSuperAdmin = profile?.roles?.includes("super_admin");
+
+  if (!hasToken || (!isLoading && profile && !isSuperAdmin)) {
+    return <SuperLoginPage />;
+  }
 
   async function handleSignOut() {
     try { await api.post("/auth/logout"); } catch {}
@@ -455,7 +456,7 @@ function SuperShell() {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("hrms_auth_token");
     sessionStorage.removeItem("auth_token");
-    navigate({ to: "/super-login" });
+    navigate({ to: "/super" });
   }
 
   if (profileError) {
@@ -663,7 +664,7 @@ function SuperShell() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/dashboard" className="flex items-center gap-2.5 cursor-pointer py-2 text-xs text-primary font-semibold">
+                    <Link to="/hrm-dashboard" className="flex items-center gap-2.5 cursor-pointer py-2 text-xs text-primary font-semibold">
                       <i className="ph-duotone ph-arrow-left text-base"></i>
                       <span>Switch to Tenant App</span>
                     </Link>
@@ -698,7 +699,7 @@ function SuperShell() {
         <CommandInput placeholder="Search Super Admin console..." />
         <CommandList className="max-h-[380px]">
           <CommandEmpty>No matching tools found.</CommandEmpty>
-          {["Core Orchestration", "Ecosystem & Apps", "Marketing & CMS", "Communications", "System Controls"].map((group) => {
+          {["Core Orchestration", "Extensions & Add-ons", "Marketing & CMS", "Communications", "System Controls"].map((group) => {
             const items = ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === group);
             if (!items.length) return null;
             return (

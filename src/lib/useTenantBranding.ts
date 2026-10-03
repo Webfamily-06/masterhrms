@@ -4,6 +4,9 @@ import { api } from "./api";
 
 export interface TenantBranding {
   resolved: boolean;
+  notFound?: boolean;
+  isRoot?: boolean;
+  isSuper?: boolean;
   id?: string;
   name: string;
   slug: string;
@@ -15,6 +18,10 @@ export interface TenantBranding {
   currency?: string;
   currencySymbol?: string;
   isWhiteLabeled: boolean;
+  baseDomain?: string;
+  workspaceUrl?: string;
+  rootUrl?: string;
+  superAdminUrl?: string;
   subscription?: {
     planName: string;
     status: string;
@@ -23,7 +30,7 @@ export interface TenantBranding {
 
 export const DEFAULT_BRANDING: TenantBranding = {
   resolved: false,
-  name: "Master ERP & HRMS",
+  name: "Master HRMS",
   slug: "default",
   logoUrl: "/logo.webp",
   logoDark: "/logo.webp",
@@ -42,8 +49,54 @@ export function useTenantBranding() {
     queryKey: ["tenant-branding", hasAuthToken],
     queryFn: async () => {
       try {
+        // First check current host resolution via GET /api/public/workspace
+        try {
+          const hostRes = await api.get("/public/workspace");
+          if (hostRes) {
+            if (hostRes.resolved) {
+              return {
+                ...DEFAULT_BRANDING,
+                resolved: true,
+                id: hostRes.id,
+                name: hostRes.name || DEFAULT_BRANDING.name,
+                slug: hostRes.slug,
+                logoUrl: hostRes.logoUrl || DEFAULT_BRANDING.logoUrl,
+                logoDark: hostRes.logoUrl || DEFAULT_BRANDING.logoDark,
+                timezone: hostRes.timezone || "Asia/Kolkata",
+                baseDomain: hostRes.baseDomain,
+                workspaceUrl: hostRes.workspaceUrl,
+                isWhiteLabeled: true,
+              };
+            }
+            if (hostRes.isRoot) {
+              return {
+                ...DEFAULT_BRANDING,
+                isRoot: true,
+                baseDomain: hostRes.baseDomain,
+                rootUrl: hostRes.rootUrl,
+              };
+            }
+            if (hostRes.isSuper) {
+              return {
+                ...DEFAULT_BRANDING,
+                isSuper: true,
+                baseDomain: hostRes.baseDomain,
+                superAdminUrl: hostRes.superAdminUrl,
+              };
+            }
+          }
+        } catch (err: any) {
+          if (err.status === 404 || err.code === "WORKSPACE_NOT_FOUND" || err.message?.includes("Workspace not found")) {
+            return {
+              ...DEFAULT_BRANDING,
+              notFound: true,
+              slug: err.slug || window.location.hostname.split(".")[0],
+            };
+          }
+        }
+
+        // Fallback for authenticated settings
         if (hasAuthToken) {
-          // Authenticated: fetch tenant-isolated settings
           const res = await api.get("/workspace/settings");
           if (res && (res.tenant || res.brand)) {
             const tenant = res.tenant || {};
@@ -64,33 +117,28 @@ export function useTenantBranding() {
             };
           }
         }
-        // Public / Unauthenticated
-        const publicRes = await api.get("/auth/public/tenant/resolve");
-        if (publicRes && publicRes.resolved) {
-          return {
-            ...DEFAULT_BRANDING,
-            ...publicRes,
-            logoUrl: publicRes.logoUrl || DEFAULT_BRANDING.logoUrl,
-            logoDark: publicRes.logoUrl || DEFAULT_BRANDING.logoDark,
-            faviconUrl: publicRes.faviconUrl || DEFAULT_BRANDING.faviconUrl,
-          };
-        }
-        return publicRes || DEFAULT_BRANDING;
+
+        return DEFAULT_BRANDING;
       } catch {
         return DEFAULT_BRANDING;
       }
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
   });
 
   // Dynamically apply Favicon and Brand Colors
   useEffect(() => {
     if (typeof document === "undefined") return;
 
+    if (branding.notFound) {
+      document.title = "Workspace Not Found — Master HRMS";
+      return;
+    }
+
     if (branding.name) {
       document.title = branding.isWhiteLabeled
         ? `${branding.name} — Workspace Portal`
-        : "Master ERP & HRMS Platform";
+        : "Master HRMS Platform";
     }
 
     if (branding.faviconUrl) {

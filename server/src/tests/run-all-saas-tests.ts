@@ -1,12 +1,13 @@
 import { execSync } from "child_process";
 
 const testFiles = [
-  "src/tests/saas-foundation.test.ts",
-  "src/tests/saas-billing.test.ts",
-  "src/tests/saas-crm-relational.test.ts",
-  "src/tests/saas-super-admin-real.test.ts",
-  "src/tests/saas-portals.test.ts",
-  "src/tests/saas-hr-workflows.test.ts",
+  "server/src/tests/saas-foundation.test.ts",
+  "server/src/tests/saas-billing.test.ts",
+  "server/src/tests/saas-crm-relational.test.ts",
+  "server/src/tests/saas-super-admin-real.test.ts",
+  "server/src/tests/saas-portals.test.ts",
+  "server/src/tests/saas-hr-workflows.test.ts",
+  "server/src/tests/maintenance-mode-workflow.test.ts",
 ];
 
 console.log("=================================================");

@@ -462,7 +462,7 @@ export function DocsPortalPage() {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Link to="/dashboard" className="hover:text-foreground flex items-center gap-1">
+              <Link to="/hrm-dashboard" className="hover:text-foreground flex items-center gap-1">
                 <Home className="h-3 w-3" /> Dashboard
               </Link>
               <span>/</span>
@@ -482,7 +482,7 @@ export function DocsPortalPage() {
             <span className="text-emerald-600 dark:text-emerald-400 font-medium">{system.functionCompletionPct}% Ready</span>
           </div>
 
-          <Link to="/dashboard">
+          <Link to="/hrm-dashboard">
             <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5">
               <Home className="h-3.5 w-3.5 text-primary" /> ERP Dashboard
             </Button>

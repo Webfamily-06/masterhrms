@@ -121,7 +121,7 @@ export function PaymentFailedPage() {
 
             <div className="pt-2 text-center">
               <Link
-                to="/dashboard"
+                to="/hrm-dashboard"
                 className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
               >
                 <ArrowLeft className="size-3" /> Return to ERP Dashboard

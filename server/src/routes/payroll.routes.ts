@@ -15,6 +15,7 @@ import {
 } from "../services/payroll-engine.service";
 import { getStatutoryFormData } from "../services/statutory-form-data.service";
 import { TdsCalculatorService } from "../services/tds-calculator.service";
+import { getBaseDomain } from "../lib/workspace-host";
 
 export const payrollRouter = Router();
 
@@ -801,7 +802,7 @@ payrollRouter.post("/simulate-ctc", requireAuth, async (req: AuthRequest, res: R
       employeeCode: "SIM",
       firstName: "Simulated",
       lastName: "Employee",
-      email: "sim@masterhrms.com",
+      email: `sim@${getBaseDomain()}`,
       baseMonthlyCtc: monthly,
       taxRegime: regime,
       state: state || "MH",

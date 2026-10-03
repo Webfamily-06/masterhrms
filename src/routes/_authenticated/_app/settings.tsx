@@ -1,7 +1,7 @@
 import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
 import { AccessDenied } from "@/components/access-denied";
 import { isWorkspaceAdminUser } from "@/lib/permissions";
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -88,6 +88,11 @@ export const Route = createFileRoute("/_authenticated/_app/settings")({
 });
 
 function Settings() {
+  const pathname = useRouterState({ select: (r) => r.location.pathname });
+  if (pathname.includes("/custom-domain")) {
+    return <Outlet />;
+  }
+
   const { user } = useSession();
   const { data: profile, isLoading: isProfileLoading } = useCurrentProfile(user);
   const searchParams = useSearch({ from: "/_authenticated/_app/settings" });
