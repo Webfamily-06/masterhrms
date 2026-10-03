@@ -6,6 +6,7 @@ import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { InventoryMovementService } from "../services/inventory-movement.service";
 import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
+import { requireWithinLimit } from "../middleware/limits";
 
 export const productsRouter = Router();
 
@@ -602,7 +603,7 @@ productsRouter.delete("/units/:id", requireAuth, async (req: AuthRequest, res: R
 });
 
 // POST /api/products/warehouses - Create warehouse
-productsRouter.post("/warehouses", requireAuth, async (req: AuthRequest, res: Response) => {
+productsRouter.post("/warehouses", requireAuth, requireWithinLimit("warehouses"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;

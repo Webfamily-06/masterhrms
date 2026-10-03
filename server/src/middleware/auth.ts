@@ -27,9 +27,22 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     // Constitutional Security: Tenant context must NEVER be overridable through untrusted client headers or query parameters
     const tenantId = account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
     const roles = account.roles.filter((r) => r.role === "super_admin" || r.tenantId === tenantId).map((r) => r.role);
-    if (!isSuper && tenantId) {
-      try { assertWorkspaceActive(await getWorkspacePolicy(tenantId)); }
-      catch (error: any) { return res.status(error.status || 503).json({ error: error.message }); }
+    const isSafeRoute =
+      req.originalUrl?.startsWith("/api/billing") ||
+      req.originalUrl?.startsWith("/api/auth") ||
+      req.originalUrl?.startsWith("/api/webhooks") ||
+      req.originalUrl?.startsWith("/api/workspace/subscription");
+    const isPreflight = req.method === "HEAD" || req.method === "OPTIONS";
+    if (!isSuper && tenantId && !isSafeRoute && !isPreflight) {
+      try {
+        assertWorkspaceActive(await getWorkspacePolicy(tenantId));
+      } catch (error: any) {
+        const isExp = error.message?.includes("expired");
+        return res.status(402).json({
+          error: error.message || "Subscription is not active. Please renew to continue.",
+          code: isExp ? "SUBSCRIPTION_EXPIRED" : "SUBSCRIPTION_SUSPENDED",
+        });
+      }
     }
     if (!isSuper && !tenantId && !req.originalUrl.startsWith("/api/auth/")) {
       return res.status(403).json({ error: "Complete workspace onboarding first." });

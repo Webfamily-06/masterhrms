@@ -14,6 +14,7 @@ export type RazorpayOptions = {
   userEmail?: string;
   tenantId?: string;
   keyId?: string;
+  orderId?: string;
 };
 
 function loadRazorpayScript(): Promise<boolean> {
@@ -38,6 +39,7 @@ export async function openRazorpayCheckout({
   userEmail = "customer@workspace.com",
   tenantId,
   keyId,
+  orderId,
 }: RazorpayOptions): Promise<RazorpayPaymentResponse> {
   const isLoaded = await loadRazorpayScript();
   if (!isLoaded) {
@@ -72,6 +74,7 @@ export async function openRazorpayCheckout({
       currency: "INR",
       name: "Master HRMS",
       description: `${name} — ${description}`,
+      order_id: orderId || undefined,
       prefill: {
         name: userName,
         email: userEmail,

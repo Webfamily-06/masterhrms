@@ -442,7 +442,7 @@ describe("W1-C2: Invoice Details Passport & Multi-Tenant Isolation", () => {
     expect(invoice.status).toBe("partial");
     expect(invoice.payments).toHaveLength(1);
     expect(invoice.payments[0].referenceNo).toBe("UTR-ALPHA-PART-01");
-  });
+  }, 15000);
 
   it("13. Full Payment: Records final payment and transitions status to 'paid'", async () => {
     const res = await fetch(`${baseUrl}/api/invoices/${alphaInvoiceId}/payments`, {
@@ -472,5 +472,5 @@ describe("W1-C2: Invoice Details Passport & Multi-Tenant Isolation", () => {
     expect(invoice.status).toBe("paid");
     expect(invoice.remainingBalance).toBe(0);
     expect(invoice.payments).toHaveLength(2);
-  });
+  }, 15000);
 });

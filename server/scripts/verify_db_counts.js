@@ -10,8 +10,8 @@ async function main() {
   const storedDocs = await prisma.storedDocument.count();
 
   console.log('================================================================');
-  console.log('LIVE MYSQL DATABASE RECORD INTEGRITY AUDIT');
-  console.log('Database: master_hrms | Host: localhost:3306');
+  console.log('LIVE SUPABASE POSTGRESQL DATABASE RECORD INTEGRITY AUDIT');
+  console.log('Engine: PostgreSQL 15+ (Supabase) | Pooler: Transaction & Direct');
   console.log('================================================================');
   console.log('Tenants:           ', tenants);
   console.log('Employees:         ', employees);

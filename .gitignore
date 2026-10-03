@@ -27,6 +27,7 @@ server/dist/
 server/.env
 server/.env.production
 .dev.vars
+env.txt
 
 # Temporary & Cache
 *.local

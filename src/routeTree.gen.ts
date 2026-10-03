@@ -189,6 +189,7 @@ import { Route as AuthenticatedSuperBackupRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSuperBlogsRouteImport } from './routes/_authenticated/super/blogs'
 import { Route as AuthenticatedSuperCaseStudiesRouteImport } from './routes/_authenticated/super/case-studies'
 import { Route as AuthenticatedSuperCmsRouteImport } from './routes/_authenticated/super/cms'
+import { Route as AuthenticatedSuperCouponsRouteImport } from './routes/_authenticated/super/coupons'
 import { Route as AuthenticatedSuperDomainsRouteImport } from './routes/_authenticated/super/domains'
 import { Route as AuthenticatedSuperEmailTemplatesRouteImport } from './routes/_authenticated/super/email-templates'
 import { Route as AuthenticatedSuperEscalationRulesRouteImport } from './routes/_authenticated/super/escalation-rules'
@@ -1225,6 +1226,12 @@ const AuthenticatedSuperCmsRoute = AuthenticatedSuperCmsRouteImport.update({
   path: '/cms',
   getParentRoute: () => AuthenticatedSuperRouteRoute,
 } as any)
+const AuthenticatedSuperCouponsRoute =
+  AuthenticatedSuperCouponsRouteImport.update({
+    id: '/coupons',
+    path: '/coupons',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const AuthenticatedSuperDomainsRoute =
   AuthenticatedSuperDomainsRouteImport.update({
     id: '/domains',
@@ -1546,6 +1553,7 @@ export interface FileRoutesByFullPath {
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/super/coupons': typeof AuthenticatedSuperCouponsRoute
   '/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
@@ -1750,6 +1758,7 @@ export interface FileRoutesByTo {
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/super/coupons': typeof AuthenticatedSuperCouponsRoute
   '/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
@@ -1958,6 +1967,7 @@ export interface FileRoutesById {
   '/_authenticated/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/_authenticated/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/_authenticated/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/_authenticated/super/coupons': typeof AuthenticatedSuperCouponsRoute
   '/_authenticated/super/domains': typeof AuthenticatedSuperDomainsRoute
   '/_authenticated/super/email-templates': typeof AuthenticatedSuperEmailTemplatesRoute
   '/_authenticated/super/escalation-rules': typeof AuthenticatedSuperEscalationRulesRoute
@@ -2165,6 +2175,7 @@ export interface FileRouteTypes {
     | '/super/blogs'
     | '/super/case-studies'
     | '/super/cms'
+    | '/super/coupons'
     | '/super/domains'
     | '/super/email-templates'
     | '/super/escalation-rules'
@@ -2369,6 +2380,7 @@ export interface FileRouteTypes {
     | '/super/blogs'
     | '/super/case-studies'
     | '/super/cms'
+    | '/super/coupons'
     | '/super/domains'
     | '/super/email-templates'
     | '/super/escalation-rules'
@@ -2576,6 +2588,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/blogs'
     | '/_authenticated/super/case-studies'
     | '/_authenticated/super/cms'
+    | '/_authenticated/super/coupons'
     | '/_authenticated/super/domains'
     | '/_authenticated/super/email-templates'
     | '/_authenticated/super/escalation-rules'
@@ -3907,6 +3920,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperCmsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/coupons': {
+      id: '/_authenticated/super/coupons'
+      path: '/coupons'
+      fullPath: '/super/coupons'
+      preLoaderRoute: typeof AuthenticatedSuperCouponsRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/_authenticated/super/domains': {
       id: '/_authenticated/super/domains'
       path: '/domains'
@@ -4397,6 +4417,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperBlogsRoute: typeof AuthenticatedSuperBlogsRoute
   AuthenticatedSuperCaseStudiesRoute: typeof AuthenticatedSuperCaseStudiesRoute
   AuthenticatedSuperCmsRoute: typeof AuthenticatedSuperCmsRoute
+  AuthenticatedSuperCouponsRoute: typeof AuthenticatedSuperCouponsRoute
   AuthenticatedSuperDomainsRoute: typeof AuthenticatedSuperDomainsRoute
   AuthenticatedSuperEmailTemplatesRoute: typeof AuthenticatedSuperEmailTemplatesRoute
   AuthenticatedSuperEscalationRulesRoute: typeof AuthenticatedSuperEscalationRulesRoute
@@ -4427,6 +4448,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperBlogsRoute: AuthenticatedSuperBlogsRoute,
     AuthenticatedSuperCaseStudiesRoute: AuthenticatedSuperCaseStudiesRoute,
     AuthenticatedSuperCmsRoute: AuthenticatedSuperCmsRoute,
+    AuthenticatedSuperCouponsRoute: AuthenticatedSuperCouponsRoute,
     AuthenticatedSuperDomainsRoute: AuthenticatedSuperDomainsRoute,
     AuthenticatedSuperEmailTemplatesRoute:
       AuthenticatedSuperEmailTemplatesRoute,

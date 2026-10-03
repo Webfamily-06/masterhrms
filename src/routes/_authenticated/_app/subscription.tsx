@@ -12,6 +12,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -44,6 +45,9 @@ import {
   AlertTriangle,
   XCircle,
   ArrowDownRight,
+  Minus,
+  Plus,
+  Calculator,
 } from "lucide-react";
 import {
   Select,
@@ -161,27 +165,21 @@ export function SubscriptionPage() {
   const [viewingInvoice, setViewingInvoice] = useState<TenantInvoice | null>(null);
   const printAreaRef = useRef<HTMLDivElement>(null);
 
-  // 1. Fetch Subscription Plans from DB (real plans configured by super admin)
-  const { data: plansData = [] } = useQuery({
-    queryKey: ["public-plans-list"],
+  // 1. Fetch Subscription Plans & Status from relational Billing API
+  const { data: billingData } = useQuery({
+    queryKey: ["billing-plans", tenantId],
     queryFn: async () => {
       try {
-        // Try real DB-backed plans first
-        const res = await api.get("/super/plans");
-        if (Array.isArray(res) && res.length > 0) {
-          return res as SubscriptionPlan[];
-        }
-        // Fallback: try CMS-stored monetization plans
-        const page = await api.get("/cms/pages/system-monetization-plans");
-        if (page?.content && typeof page.content === "object" && "plans" in page.content) {
-          return (page.content as any).plans as SubscriptionPlan[];
-        }
-        return [];
+        const res = await api.get("/billing/plans");
+        return res;
       } catch {
-        return [];
+        return null;
       }
     },
   });
+
+  const plansData = (billingData?.plans || []) as SubscriptionPlan[];
+  const liveSubscription = billingData?.subscription || subscription;
 
   // 2. Fetch Super-Admin Available Addons
   const { data: availableAddons = [] } = useQuery({
@@ -213,22 +211,23 @@ export function SubscriptionPage() {
     },
   });
 
-  // 4. Fetch Tenant Invoices & Payment Ledger
-  const { data: invoices = [] } = useQuery<TenantInvoice[]>({
+  // 4. Fetch Tenant Invoices & Payment Ledger from relational Billing API
+  const { data: invoices = [], refetch: refetchInvoices } = useQuery<TenantInvoice[]>({
     queryKey: ["realtime-tenant-invoices", tenantId],
     queryFn: async () => {
       try {
-        const result = await api.get("/payments/razorpay/transactions");
-        return (Array.isArray(result?.transactions) ? result.transactions : []).map((transaction: any): TenantInvoice => ({
-          id: transaction.id,
-          invoiceNumber: transaction.invoiceRef || transaction.orderId,
-          itemName: "Razorpay payment",
+        const result = await api.get("/billing/invoices");
+        const items = result?.items || [];
+        return items.map((inv: any): TenantInvoice => ({
+          id: inv.id,
+          invoiceNumber: inv.invoiceNo || inv.id.slice(0, 8),
+          itemName: `Plan: ${inv.planId || "Subscription"} (${inv.billingCycle || "monthly"})`,
           itemType: "plan",
-          amount: Number(transaction.amount || 0),
-          paymentMethod: transaction.method || "Razorpay",
-          paymentId: transaction.paymentId || transaction.orderId,
-          date: transaction.timestamp || new Date().toISOString(),
-          status: transaction.status === "captured" ? "paid" : "pending",
+          amount: Number(inv.amount || 0),
+          paymentMethod: inv.gatewayPaymentId ? "Razorpay" : "Online Gateway",
+          paymentId: inv.gatewayPaymentId || inv.gatewayOrderId || "Pending",
+          date: inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "",
+          status: inv.status || "open",
         }));
       } catch {
         return [];
@@ -249,8 +248,101 @@ export function SubscriptionPage() {
     },
   });
 
-  function handlePlanSelect(plan: SubscriptionPlan) {
-    if (plan.id !== currentPlanId) requestPlan.mutate(plan);
+  const [selectedDuration, setSelectedDuration] = useState<"1_month" | "1_year">("1_month");
+  const [userCounts, setUserCounts] = useState<Record<string, number>>({});
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [pendingCheckout, setPendingCheckout] = useState<{
+    invoiceId: string;
+    orderId?: string;
+    amount: number;
+    planName: string;
+    planId: string;
+  } | null>(null);
+
+  const handleUserCountChange = (planId: string, val: number) => {
+    const sanitized = Math.min(99999, Math.max(1, Math.floor(val) || 1));
+    setUserCounts((prev) => ({ ...prev, [planId]: sanitized }));
+  };
+
+  async function handlePlanSelect(plan: SubscriptionPlan) {
+    if (plan.id === currentPlanId) return;
+    try {
+      const isPerUser = plan.pricingModel === "per_user";
+      const count = userCounts[plan.id] ?? plan.billableUsers ?? 25;
+
+      const res = await api.post("/billing/change-plan", {
+        planId: plan.id,
+        billingCycle: selectedDuration === "1_year" ? "annual" : "monthly",
+        userCount: isPerUser ? count : undefined,
+        paymentMethod: "razorpay",
+      });
+
+      if (!res?.requiresPayment || res?.amount === 0) {
+        toast.success(`Plan changed to ${plan.name} successfully!`);
+        qc.invalidateQueries({ queryKey: ["billing-plans"] });
+        qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
+        qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+        return;
+      }
+
+      // Needs payment -> trigger checkout
+      const checkoutRes = await api.post("/billing/checkout", {
+        invoiceId: res.invoice.id,
+      });
+
+      setPendingCheckout({
+        invoiceId: res.invoice.id,
+        orderId: checkoutRes.orderId,
+        amount: Number(checkoutRes.amount),
+        planName: plan.name,
+        planId: plan.id,
+      });
+      setCheckoutModalOpen(true);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process plan change.");
+    }
+  }
+
+  async function handleCheckoutSuccess(paymentDetails: {
+    method: string;
+    paymentId?: string;
+    orderId?: string;
+    signature?: string;
+  }) {
+    try {
+      if (pendingCheckout?.invoiceId) {
+        if (paymentDetails.method === "Razorpay") {
+          // Authoritatively verify signature on backend
+          await api.post("/billing/verify", {
+            razorpay_order_id: paymentDetails.orderId || pendingCheckout.orderId,
+            razorpay_payment_id: paymentDetails.paymentId,
+            razorpay_signature: paymentDetails.signature,
+            invoiceId: pendingCheckout.invoiceId,
+          });
+        } else {
+          await api.post("/billing/webhook", {
+            event: "payment.captured",
+            id: `evt_${Date.now()}`,
+            payload: {
+              payment: {
+                entity: {
+                  id: paymentDetails.paymentId || `pay_${Date.now()}`,
+                  order_id: pendingCheckout.orderId,
+                },
+              },
+            },
+          });
+        }
+      }
+      toast.success("Payment confirmed! Your subscription is now active.");
+      setCheckoutModalOpen(false);
+      setPendingCheckout(null);
+      qc.invalidateQueries({ queryKey: ["billing-plans"] });
+      qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
+      qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+    } catch (err: any) {
+      toast.error("Failed to confirm activation: " + err.message);
+    }
   }
 
   function handlePrintInvoice() {
@@ -258,10 +350,51 @@ export function SubscriptionPage() {
   }
 
   const activePlan =
-    plansData.find((p) => p.id === currentPlanId) || { name: subscription?.planName || "Unassigned", price_monthly: 0, max_employees: subscription?.maxEmployees };
+    plansData.find((p) => p.id === currentPlanId) || { name: liveSubscription?.planName || "Unassigned", price_monthly: 0, max_employees: liveSubscription?.maxEmployees };
 
   return (
     <div className="space-y-8 max-w-full pb-12">
+      {/* SaaS Status Banners */}
+      {liveSubscription?.status === "suspended" && (
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 p-4 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="size-5 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Workspace Subscription Suspended</p>
+              <p className="text-xs">Database write access is currently restricted. Please select a plan below and renew to restore full privileges.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {liveSubscription?.status === "trialing" && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 p-4 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Sparkles className="size-5 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">14-Day Free Trial Active</p>
+              <p className="text-xs">
+                {liveSubscription.trialDaysRemaining != null
+                  ? `You have ${liveSubscription.trialDaysRemaining} days remaining in your free trial period.`
+                  : "Enjoy full access to all features during your trial."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {liveSubscription?.status === "past_due" && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 p-4 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="size-5 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Subscription Payment Past Due</p>
+              <p className="text-xs">Your grace period is currently running. Please renew your plan below to avoid workspace suspension.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {subscriptionError && <p role="alert" className="text-destructive">Unable to load your subscription: {subscriptionError.message}</p>}
       {subscription && <Card className="p-4 text-sm space-y-2"><p className="font-semibold">Workspace limits controlled by Super Admin</p><p>Employees: {subscription.usage.employees} / {subscription.maxEmployees ?? "Unlimited"} · Users: {subscription.usage.users} / {subscription.maxUsers ?? "Unlimited"}</p><p>Access: {subscription.status}{subscription.expiresAt ? " · Expires " + new Date(subscription.expiresAt).toLocaleDateString() : ""}</p></Card>}
       {/* Top Header */}
@@ -527,35 +660,197 @@ export function SubscriptionPage() {
       </div>
 
       {/* SECTION 3: AVAILABLE PLANS GRID */}
-      <div id="available-subscription-tiers" className="space-y-4 pt-4 border-t">
-        <h3 className="font-extrabold text-lg flex items-center gap-2">
-          <Sparkles className="size-5 text-amber-500" /> Available Workspace Plans
-        </h3>
+      <div id="available-subscription-tiers" className="space-y-6 pt-6 border-t">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-extrabold text-lg flex items-center gap-2">
+              <Sparkles className="size-5 text-amber-500" /> Available Workspace Plans
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Upgrade or switch your subscription tier. Monthly and annual billing options available.
+            </p>
+          </div>
+
+          {/* Duration Selector: 1 Month vs 1 Year */}
+          <div className="inline-flex items-center gap-1.5 p-1 rounded-xl border bg-muted/40 max-w-fit">
+            <button
+              type="button"
+              onClick={() => setSelectedDuration("1_month")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                selectedDuration === "1_month"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDuration("1_year")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedDuration === "1_year"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span>Annual (1 Year)</span>
+              <span className="text-[10px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                Save ~20%
+              </span>
+            </button>
+          </div>
+        </div>
 
         <div className="grid md:grid-cols-3 gap-6">
           {plansData.map((plan) => {
             const isCurrent = plan.id === currentPlanId;
-            const price = plan.price_monthly || 0;
+            const isCustom = plan.planType === "custom";
+            const isPerUser = plan.pricingModel === "per_user";
+            const userCount = userCounts[plan.id] ?? plan.billableUsers ?? 25;
+            const maxSeatLimit = plan.maxUsersLimit || plan.maxUsers || 99999;
+
+            let sellingTotal = 0;
+            let originalTotal: number | null = null;
+            let hasDiscount = false;
+            let discountPercent = 0;
+
+            if (isPerUser) {
+              const unitSelling = Number(plan.pricePerUser || 0);
+              const unitOriginal = plan.pricePerUserOriginal ? Number(plan.pricePerUserOriginal) : null;
+              const months = selectedDuration === "1_year" ? 12 : 1;
+              const annualFactor = selectedDuration === "1_year" ? 0.8 : 1.0;
+
+              sellingTotal = Math.round(unitSelling * userCount * months * annualFactor);
+              originalTotal = unitOriginal ? Math.round(unitOriginal * userCount * months) : sellingTotal;
+              hasDiscount = Boolean(originalTotal && originalTotal > sellingTotal);
+              discountPercent = hasDiscount && originalTotal ? Math.round(((originalTotal - sellingTotal) / originalTotal) * 100) : 0;
+            } else {
+              const durKey = selectedDuration === "1_year" ? "priceAnnual" : "priceMonthly";
+              const durOrigKey = selectedDuration === "1_year" ? "priceAnnualOriginal" : "priceMonthlyOriginal";
+              sellingTotal = Number(plan[durKey] ?? plan.price_monthly ?? 0);
+              originalTotal = plan[durOrigKey] ? Number(plan[durOrigKey]) : null;
+              hasDiscount = Boolean(originalTotal && originalTotal > sellingTotal);
+              discountPercent = hasDiscount && originalTotal ? Math.round(((originalTotal - sellingTotal) / originalTotal) * 100) : 0;
+            }
 
             return (
               <Card
                 key={plan.id}
                 className={`flex flex-col justify-between p-6 relative transition-all ${
-                  isCurrent ? "border-2 border-primary shadow-lg" : "hover:border-primary/50"
+                  isCurrent
+                    ? "border-2 border-primary shadow-lg ring-1 ring-primary/20"
+                    : isCustom
+                    ? "border-2 border-purple-500/50 shadow-md bg-purple-500/5 hover:border-purple-500"
+                    : "hover:border-primary/50"
                 }`}
               >
-                {plan.popular && (
+                {isCustom ? (
+                  <Badge className="absolute -top-3 right-6 bg-purple-600 text-white font-bold text-[10px]">
+                    CUSTOM PLAN
+                  </Badge>
+                ) : plan.popular ? (
                   <Badge className="absolute -top-3 right-6 bg-amber-500 text-white font-bold text-[10px]">
                     MOST POPULAR
                   </Badge>
-                )}
+                ) : null}
 
                 <div className="space-y-4">
                   <div>
-                    <h4 className="font-extrabold text-xl">{plan.name}</h4>
-                    <div className="text-2xl font-black font-mono mt-2 text-primary">
-                      {formatSystemAmount(price, sysConfig)}
-                      <span className="text-xs text-muted-foreground font-normal"> / month</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
+                        {isCustom ? "Custom Enterprise" : "Standard Cloud"}
+                      </span>
+                      {isPerUser && (
+                        <Badge variant="outline" className="text-[9px] bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30">
+                          Per-User
+                        </Badge>
+                      )}
+                    </div>
+                    <h4 className="font-extrabold text-xl mt-1">{plan.name}</h4>
+
+                    {/* Per-User User Quantity Stepper */}
+                    {isPerUser ? (
+                      <div className="mt-3 p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1">
+                            <Calculator className="size-3.5 text-purple-600" /> Billable Seats:
+                          </span>
+                          <span className="font-mono font-bold text-foreground">{userCount} Users</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={userCount <= 1}
+                            onClick={() => handleUserCountChange(plan.id, Math.max(1, userCount - 1))}
+                            className="h-8 w-8 p-0 rounded-lg shrink-0 border-purple-500/30"
+                          >
+                            <Minus className="size-3.5" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min="1"
+                            max={maxSeatLimit}
+                            value={userCount}
+                            onChange={(e) => handleUserCountChange(plan.id, Number(e.target.value))}
+                            className="h-8 text-center text-xs font-mono font-bold border-purple-500/30 bg-card"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={userCount >= maxSeatLimit}
+                            onClick={() => handleUserCountChange(plan.id, Math.min(maxSeatLimit, userCount + 1))}
+                            className="h-8 w-8 p-0 rounded-lg shrink-0 border-purple-500/30"
+                          >
+                            <Plus className="size-3.5" />
+                          </Button>
+                        </div>
+                        <div className="flex gap-1 flex-wrap pt-0.5">
+                          {[10, 25, 50, 100].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => handleUserCountChange(plan.id, preset)}
+                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                                userCount === preset
+                                  ? "bg-purple-600 text-white"
+                                  : "bg-card text-muted-foreground border border-purple-500/20"
+                              }`}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Pricing */}
+                    <div className="mt-3">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        {hasDiscount && originalTotal && (
+                          <del className="text-sm font-semibold text-muted-foreground line-through font-mono">
+                            {formatSystemAmount(originalTotal, sysConfig)}
+                          </del>
+                        )}
+                        <span className="text-2xl font-black font-mono text-primary">
+                          {formatSystemAmount(sellingTotal, sysConfig)}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-normal">
+                          / {selectedDuration === "1_year" ? "year" : "month"}
+                        </span>
+                        {hasDiscount && (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 text-[10px] font-bold border-emerald-500/20 py-0">
+                            Save {discountPercent}%
+                          </Badge>
+                        )}
+                      </div>
+                      {isPerUser && (
+                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                          @ {formatSystemAmount(plan.pricePerUser || 0, sysConfig)}/user/mo × {userCount} seats
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -583,7 +878,9 @@ export function SubscriptionPage() {
                       disabled={requestPlan.isPending}
                       className="w-full font-bold text-xs gap-2"
                       style={{
-                        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                        background: isCustom
+                          ? "linear-gradient(135deg, #8b5cf6, #6366f1)"
+                          : "linear-gradient(135deg, #6366f1, #8b5cf6)",
                         color: "#fff",
                       }}
                     >
@@ -814,6 +1111,24 @@ export function SubscriptionPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* RAZORPAY / GATEWAY CHECKOUT MODAL */}
+      {pendingCheckout && (
+        <PaymentCheckoutModal
+          open={checkoutModalOpen}
+          onOpenChange={(open) => {
+            setCheckoutModalOpen(open);
+            if (!open) setPendingCheckout(null);
+          }}
+          title={`Upgrade to ${pendingCheckout.planName}`}
+          itemType="plan"
+          itemId={pendingCheckout.planId}
+          itemName={pendingCheckout.planName}
+          amount={pendingCheckout.amount}
+          description={`Subscription plan checkout (${pendingCheckout.planName})`}
+          onSuccess={handleCheckoutSuccess}
+        />
+      )}
     </div>
   );
 }

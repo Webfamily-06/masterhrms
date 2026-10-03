@@ -36,6 +36,7 @@ type SuperNavItem = {
   iconClass: string;
   group: string;
   badge?: string;
+  children?: Array<{ to: string; label: string; iconClass?: string }>;
 };
 
 const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
@@ -44,6 +45,7 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: "/super/tenants", label: "Tenant Workspaces", iconClass: "ph-buildings", group: "Core Orchestration", badge: "Multi-Tenant" },
   { to: "/super/tenant-usage-metrics", label: "Tenant Usage Metrics", iconClass: "ph-chart-bar", group: "Core Orchestration" },
   { to: "/super/plans", label: "Subscription Plans", iconClass: "ph-credit-card", group: "Core Orchestration" },
+  { to: "/super/coupons", label: "Discount Coupons", iconClass: "ph-tag", group: "Core Orchestration" },
   { to: "/super/domains", label: "Custom Domains", iconClass: "ph-globe-hemisphere-west", group: "Core Orchestration" },
   { to: "/super/transactions", label: "Purchase Transactions", iconClass: "ph-receipt", group: "Core Orchestration" },
   { to: "/super/roles", label: "Roles & RBAC Matrix", iconClass: "ph-shield-check", group: "Core Orchestration" },
@@ -216,7 +218,61 @@ function SuperSidebar({
                   <span>{group.title.toUpperCase()}</span>
                 </li>
                 {group.items.map((item) => {
-                  const isActive = item.to === "/super" ? path === "/super" : path.startsWith(item.to);
+                  const hasChildren = Boolean(item.children && item.children.length > 0);
+                  const isAnyChildActive = hasChildren
+                    ? item.children!.some((c) => path === c.to || (c.to !== "/super/plans" && path.startsWith(c.to)))
+                    : false;
+                  const isActive = hasChildren
+                    ? isAnyChildActive
+                    : item.to === "/super"
+                      ? path === "/super"
+                      : path.startsWith(item.to);
+
+                  if (hasChildren) {
+                    return (
+                      <li key={item.to} className={cn("submenu-parent", isAnyChildActive && "active")}>
+                        <div
+                          className={cn(
+                            "flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-md transition-colors select-none",
+                            isAnyChildActive
+                              ? "bg-purple-600/10 text-purple-600 font-bold dark:bg-purple-950/40"
+                              : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                          )}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <i className={cn("ph-duotone text-base", item.iconClass)}></i>
+                            <span className="truncate">{item.label}</span>
+                          </div>
+                          <i className="ph-bold ph-caret-down text-[10px] opacity-70"></i>
+                        </div>
+                        <ul className="pl-6 pt-1 pb-1 space-y-0.5">
+                          {item.children!.map((child) => {
+                            const isChildActive = child.to === "/super/plans"
+                              ? path === "/super/plans"
+                              : path.startsWith(child.to);
+                            return (
+                              <li key={child.to}>
+                                <Link
+                                  to={child.to}
+                                  onClick={onCloseMobile}
+                                  className={cn(
+                                    "flex items-center gap-2 px-2.5 py-1 text-xs rounded transition-colors",
+                                    isChildActive
+                                      ? "text-primary font-bold bg-primary/10 dark:bg-primary/20"
+                                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40"
+                                  )}
+                                >
+                                  {child.iconClass && <i className={cn("ph-duotone text-xs", child.iconClass)}></i>}
+                                  <span>{child.label}</span>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </li>
+                    );
+                  }
+
                   return (
                     <li key={item.to}>
                       <Link

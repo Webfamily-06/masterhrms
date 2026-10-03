@@ -9,7 +9,12 @@ export function isSuperAdminUser(profile: ProfileWithRoles | null | undefined): 
 
 export function isWorkspaceAdminUser(profile: ProfileWithRoles | null | undefined): boolean {
   if (!profile) return false;
-  if (profile.roles?.includes("admin") || profile.roles?.includes("workspace_admin")) return true;
+  if (
+    profile.roles?.includes("admin") ||
+    profile.roles?.includes("workspace_admin") ||
+    profile.roles?.includes("tenant_admin") ||
+    profile.roles?.includes("hr_admin")
+  ) return true;
   return profile.workspaceRole?.name === "Workspace Admin" && profile.workspaceRole?.isActive === true;
 }
 

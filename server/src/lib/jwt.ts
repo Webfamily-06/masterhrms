@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import path from "path";
 
-const JWT_SECRET = process.env.JWT_SECRET || "master-hrms-secret-key-replace-in-prod";
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config();
+
+const getJwtSecret = () => process.env.JWT_SECRET || "master-hrms-jwt-super-secret-key-change-this-in-production";
+const getJwtExpiresIn = () => process.env.JWT_EXPIRES_IN || "7d";
 
 export interface JwtPayload {
   userId: string;
@@ -21,17 +26,17 @@ export interface MfaPendingPayload {
 }
 
 export function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: getJwtExpiresIn() as any });
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, getJwtSecret()) as JwtPayload;
 }
 
 export function generateMfaToken(payload: { userId: string; email: string }): string {
-  return jwt.sign({ ...payload, mfaPending: true }, JWT_SECRET, { expiresIn: "5m" });
+  return jwt.sign({ ...payload, mfaPending: true }, getJwtSecret(), { expiresIn: "5m" });
 }
 
 export function verifyMfaToken(token: string): MfaPendingPayload {
-  return jwt.verify(token, JWT_SECRET) as MfaPendingPayload;
+  return jwt.verify(token, getJwtSecret()) as MfaPendingPayload;
 }

@@ -192,3 +192,196 @@ clientRouter.get("/my-projects", async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: "Failed to retrieve client projects." });
   }
 });
+
+/**
+ * POST /api/client/invoices/:id/pay
+ * Generates/initiates payment checkout for a client invoice
+ */
+clientRouter.post("/invoices/:id/pay", async (req: AuthRequest, res: Response) => {
+  try {
+    const customer = await resolveAuthenticatedCustomer(req, res);
+    if (!customer) return;
+
+    const tenantId = req.user!.tenantId!;
+    const { id } = req.params;
+
+    const sale = await prisma.sale.findFirst({
+      where: { id, tenantId, customerId: customer.id },
+    });
+
+    if (!sale) {
+      return res.status(404).json({ error: "Invoice not found or not assigned to your account." });
+    }
+
+    if (sale.paymentStatus === "paid") {
+      return res.status(400).json({ error: "This invoice has already been fully paid." });
+    }
+
+    const orderId = `pay_order_${Date.now()}`;
+    return res.json({
+      success: true,
+      invoiceId: sale.id,
+      invoiceNumber: sale.invoiceNo,
+      amount: Number(sale.total),
+      currency: "INR",
+      orderId,
+      keyId: process.env.RAZORPAY_KEY_ID || "rzp_test_sample",
+    });
+  } catch (error: any) {
+    console.error("[client/invoices/pay] Error:", error);
+    return res.status(500).json({ error: "Failed to initiate invoice payment." });
+  }
+});
+
+/**
+ * POST /api/client/invoices/:id/confirm-payment
+ * Confirms payment for a client invoice, marks Sale as paid, records audit
+ */
+clientRouter.post("/invoices/:id/confirm-payment", async (req: AuthRequest, res: Response) => {
+  try {
+    const customer = await resolveAuthenticatedCustomer(req, res);
+    if (!customer) return;
+
+    const tenantId = req.user!.tenantId!;
+    const { id } = req.params;
+    const { paymentMethod = "online", transactionReference } = req.body;
+
+    const sale = await prisma.sale.findFirst({
+      where: { id, tenantId, customerId: customer.id },
+    });
+
+    if (!sale) {
+      return res.status(404).json({ error: "Invoice not found or not assigned to your account." });
+    }
+
+    const updated = await prisma.sale.update({
+      where: { id },
+      data: {
+        paymentStatus: "paid",
+        paidAmount: sale.total,
+        paymentMethod: String(paymentMethod),
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: `Invoice ${sale.invoiceNo} marked as paid successfully.`,
+      invoice: {
+        id: updated.id,
+        invoiceNo: updated.invoiceNo,
+        status: "PAID",
+        paidAmount: Number(updated.paidAmount),
+      },
+    });
+  } catch (error: any) {
+    console.error("[client/invoices/confirm-payment] Error:", error);
+    return res.status(500).json({ error: "Failed to confirm invoice payment." });
+  }
+});
+
+/**
+ * GET /api/client/my-projects/:id/milestones
+ * Returns project milestones contracted to the client
+ */
+clientRouter.get("/my-projects/:id/milestones", async (req: AuthRequest, res: Response) => {
+  try {
+    const customer = await resolveAuthenticatedCustomer(req, res);
+    if (!customer) return;
+
+    const tenantId = req.user!.tenantId!;
+    const { id } = req.params;
+
+    const clientMatches = [customer.name];
+    if (customer.email) clientMatches.push(customer.email);
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id,
+        tenantId,
+        clientName: { in: clientMatches },
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: "Project not found or not contracted to your account." });
+    }
+
+    const milestones = await prisma.projectMilestone.findMany({
+      where: { projectId: id, tenantId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return res.json(
+      milestones.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        cost: Number(m.cost),
+        status: m.status,
+        dueDate: m.dueDate ? m.dueDate.toISOString().split("T")[0] : null,
+        completedAt: m.completedAt ? m.completedAt.toISOString() : null,
+      }))
+    );
+  } catch (error: any) {
+    console.error("[client/my-projects/milestones] Error:", error);
+    return res.status(500).json({ error: "Failed to fetch project milestones." });
+  }
+});
+
+/**
+ * POST /api/client/my-projects/:id/milestones/:mid/sign-off
+ * Client signs off on delivered milestone
+ */
+clientRouter.post("/my-projects/:id/milestones/:mid/sign-off", async (req: AuthRequest, res: Response) => {
+  try {
+    const customer = await resolveAuthenticatedCustomer(req, res);
+    if (!customer) return;
+
+    const tenantId = req.user!.tenantId!;
+    const { id, mid } = req.params;
+    const { comments } = req.body;
+
+    const clientMatches = [customer.name];
+    if (customer.email) clientMatches.push(customer.email);
+
+    const project = await prisma.project.findFirst({
+      where: {
+        id,
+        tenantId,
+        clientName: { in: clientMatches },
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: "Project not found." });
+    }
+
+    const milestone = await prisma.projectMilestone.findFirst({
+      where: { id: mid, projectId: id, tenantId },
+    });
+
+    if (!milestone) {
+      return res.status(404).json({ error: "Milestone not found." });
+    }
+
+    const updated = await prisma.projectMilestone.update({
+      where: { id: mid },
+      data: {
+        status: "completed",
+        completedAt: new Date(),
+        description: comments
+          ? `${milestone.description || ""}\n[Signed off by ${customer.name}: ${comments}]`.trim()
+          : milestone.description,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: `Milestone "${milestone.title}" signed off successfully.`,
+      milestone: updated,
+    });
+  } catch (error: any) {
+    console.error("[client/milestones/sign-off] Error:", error);
+    return res.status(500).json({ error: "Failed to sign off on milestone." });
+  }
+});

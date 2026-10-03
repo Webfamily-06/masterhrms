@@ -10,10 +10,15 @@ export function resolveWorkspacePolicy(subscription: any = {}, plans: any[] = []
     typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
   const planLimit = (camelCase: string, snakeCase: string) => plan?.[camelCase] ?? plan?.[snakeCase];
   const planPrice = (camelCase: string, snakeCase: string) => Number(plan?.[camelCase] ?? plan?.[snakeCase]) || 0;
+  const isExpired = Boolean(
+    subscription.status === "expired" ||
+    (subscription.expiresAt && new Date(subscription.expiresAt).getTime() <= Date.now())
+  );
   return {
     planId: plan?.id ?? null,
     planName: plan?.name ?? "Unassigned",
-    status: subscription.status === "suspended" ? "suspended" : "active",
+    status: subscription.status === "suspended" ? "suspended" : (isExpired ? "expired" : (subscription.status || "active")),
+    isExpired,
     expiresAt: subscription.expiresAt || null,
     maxEmployees: limit(subscription.maxEmployees !== undefined ? subscription.maxEmployees : planLimit("maxEmployees", "max_employees")),
     maxUsers: limit(subscription.maxUsers !== undefined ? subscription.maxUsers : planLimit("maxUsers", "max_users")),

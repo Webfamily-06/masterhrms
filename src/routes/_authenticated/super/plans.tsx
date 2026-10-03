@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -16,1368 +15,1217 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  CreditCard,
-  Tag,
-  ShoppingBag,
-  Building,
   Plus,
-  CheckCircle2,
-  XCircle,
   Pencil,
   Trash2,
-  DollarSign,
   Search,
   Check,
-  Calendar,
-  Percent,
   RefreshCw,
   Loader2,
-  FileText,
-  Printer,
-  Download,
-  Store,
-  Zap,
-  Boxes,
-  Code,
-  Eye,
-  CheckSquare,
+  Users,
+  Sparkles,
+  Flame,
+  Clock,
+  Building2,
+  Shield,
+  Layers,
+  Calculator,
+  AlertCircle,
+  Tag,
 } from "lucide-react";
+import { formatSystemAmount } from "@/lib/currency";
 
 export const Route = createFileRoute("/_authenticated/super/plans")({
-  component: PlansMonetizationAdmin,
+  component: SuperAdminPlansPage,
 });
 
-export type SubscriptionPlan = {
+export type BillingDurationKey = "1_month" | "1_year";
+
+export interface PlanSubscriber {
+  id: string;
+  tenantId: string;
+  status: string;
+  expiresAt: string | null;
+  tenant?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+}
+
+export interface SubscriptionPlanRecord {
   id: string;
   name: string;
+  description: string | null;
+  status: string;
+  planType?: "standard" | "custom" | string;
+  pricingModel?: "fixed" | "per_user" | string;
+  currency?: string;
+  priceMonthly: number;
+  priceMonthlyOriginal?: number | null;
+  priceQuarterly: number | null;
+  priceSemiAnnual: number | null;
+  priceAnnual: number;
+  priceAnnualOriginal?: number | null;
+  pricePerUser?: number | null;
+  pricePerUserOriginal?: number | null;
+  billableUsers?: number | null;
+  minUsers?: number | null;
+  maxUsersLimit?: number | null;
+  durationPrices: Record<string, number> | null;
+  isTrial: boolean;
+  trialDays: number;
+  maxEmployees: number | null;
+  maxUsers: number | null;
+  storageLimitGb: number | null;
+  features: string[];
+  includedAddonIds: string[];
+  isPopular: boolean;
+  sortOrder: number;
+  isPublic: boolean;
+  _count?: {
+    subscriptions: number;
+  };
+  subscriptions?: PlanSubscriber[];
+}
+
+export type SubscriptionPlan = SubscriptionPlanRecord & {
   price_monthly: number;
   price_annual: number;
-  max_employees: number;
+  max_employees?: number;
   max_users?: number | null;
-  features: string[];
   included_addon_ids?: string[];
   popular?: boolean;
 };
 
-export type PromoCoupon = {
-  id: string;
-  code: string;
-  discount_percent: number;
-  max_uses: number;
-  used_count: number;
-  active: boolean;
-};
+export function SuperAdminPlansPage() {
+  const queryClient = useQueryClient();
+  const [selectedDuration, setSelectedDuration] = useState<BillingDurationKey>("1_month");
+  const [searchTerm, setSearchTerm] = useState("");
 
-export type CustomerOrder = {
-  id: string;
-  order_number: string;
-  tenant_name: string;
-  tenant_email?: string;
-  plan_name: string;
-  plan_description?: string;
-  amount: number;
-  payment_method: "Razorpay" | "PayPal" | "Bank Transfer";
-  razorpay_payment_id?: string;
-  status: "paid" | "pending" | "failed";
-  date: string;
-};
-
-export type BankTransferRequest = {
-  id: string;
-  tenant_name: string;
-  amount: number;
-  reference_no: string;
-  receipt_url: string;
-  status: "pending" | "approved" | "rejected";
-  date: string;
-  item_type?: "addon" | "plan";
-  item_id?: string;
-  item_name?: string;
-};
-
-export type InvoiceTemplate = {
-  id: string;
-  name: string;
-  description: string;
-  html: string;
-};
-
-// 6 DISTINCT HIGH-QUALITY HTML INVOICE TEMPLATES
-const DEFAULT_INVOICE_TEMPLATES: InvoiceTemplate[] = [
-  {
-    id: "tpl-classic",
-    name: "Classic Executive Corporate",
-    description: "Formal Navy Header with structured itemized billing and Razorpay payment stamp.",
-    html: `<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 40px; background: #fff; color: #1e293b;">
-  <!-- Header Bar -->
-  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #1e40af; padding-bottom: 20px;">
-    <div>
-      <h1 style="color: #1e40af; margin: 0; font-size: 26px; font-weight: 800;">{{COMPANY_NAME}}</h1>
-      <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">{{COMPANY_ADDRESS}} | Contact: {{CONTACT_NUMBER}}</p>
-      <p style="margin: 2px 0 0 0; color: #64748b; font-size: 13px;">Email: {{SUPPORT_EMAIL}}</p>
-    </div>
-    <div style="text-align: right;">
-      <span style="background: #1e40af; color: #fff; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 14px; font-family: monospace;">TAX INVOICE</span>
-      <p style="margin: 8px 0 0 0; font-family: monospace; font-size: 13px;">No: <strong>{{INVOICE_NUMBER}}</strong></p>
-      <p style="margin: 2px 0 0 0; color: #64748b; font-size: 12px;">Date: {{INVOICE_DATE}}</p>
-    </div>
-  </div>
-
-  <!-- Client & Payment Meta -->
-  <div style="display: flex; justify-content: space-between; margin-top: 30px; background: #f8fafc; padding: 18px; border-radius: 8px;">
-    <div>
-      <strong style="color: #475569; text-transform: uppercase; font-size: 11px;">Billed To:</strong>
-      <h3 style="margin: 4px 0 0 0; color: #0f172a; font-size: 16px;">{{TENANT_NAME}}</h3>
-      <p style="margin: 2px 0 0 0; color: #64748b; font-size: 13px;">Email: {{TENANT_EMAIL}}</p>
-    </div>
-    <div style="text-align: right;">
-      <strong style="color: #475569; text-transform: uppercase; font-size: 11px;">Razorpay Payment Verification:</strong>
-      <p style="margin: 4px 0 0 0; font-size: 13px;">Gateway: <strong>{{PAYMENT_METHOD}}</strong></p>
-      <p style="margin: 2px 0 0 0; font-family: monospace; color: #059669; font-weight: bold; font-size: 13px;">Payment ID: {{RAZORPAY_PAYMENT_ID}}</p>
-      <p style="margin: 2px 0 0 0; color: #16a34a; font-weight: bold; font-size: 12px;">Status: {{PAYMENT_STATUS}}</p>
-    </div>
-  </div>
-
-  <!-- Line Items Table -->
-  <table style="width: 100%; border-collapse: collapse; margin-top: 30px; text-align: left;">
-    <thead>
-      <tr style="background: #1e40af; color: #fff; font-size: 13px;">
-        <th style="padding: 12px;">Subscription Plan & Description</th>
-        <th style="padding: 12px; text-align: right;">Billing Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr style="border-bottom: 1px solid #e2e8f0;">
-        <td style="padding: 16px;">
-          <strong style="font-size: 15px; color: #0f172a;">{{PLAN_NAME}}</strong>
-          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">{{PLAN_DESCRIPTION}}</p>
-        </td>
-        <td style="padding: 16px; text-align: right; font-family: monospace; font-size: 16px; font-weight: bold;">{{SUBTOTAL}}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- Total Summary -->
-  <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
-    <div style="width: 280px; background: #f1f5f9; padding: 16px; border-radius: 8px; font-size: 14px;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-        <span>Subtotal:</span>
-        <strong style="font-family: monospace;">{{SUBTOTAL}}</strong>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #64748b;">
-        <span>GST (18% Included):</span>
-        <strong style="font-family: monospace;">{{TAX_AMOUNT}}</strong>
-      </div>
-      <div style="display: flex; justify-content: space-between; border-top: 2px solid #cbd5e1; padding-top: 8px; color: #1e40af; font-size: 18px; font-weight: 800;">
-        <span>Total Paid:</span>
-        <strong style="font-family: monospace;">{{TOTAL_AMOUNT}}</strong>
-      </div>
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div style="margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px; text-align: center; color: #94a3b8; font-size: 12px;">
-    <p>Thank you for choosing {{COMPANY_NAME}}! For billing queries call {{CONTACT_NUMBER}} or email {{SUPPORT_EMAIL}}.</p>
-  </div>
-</div>`,
-  },
-  {
-    id: "tpl-modern-gradient",
-    name: "Modern Glassmorphism Gradient",
-    description: "Vibrant Gradient Header overlay with pill badges and modern typography.",
-    html: `<div style="font-family: 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; border: 1px solid #e0e7ff; padding: 36px; background: #ffffff; color: #1e1b4b; border-radius: 16px; box-shadow: 0 10px 25px rgba(99,102,241,0.05);">
-  <!-- Vibrant Gradient Header -->
-  <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 24px; border-radius: 12px; color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
-    <div>
-      <h1 style="margin: 0; font-size: 28px; font-weight: 900; tracking-tight: -0.02em;">{{COMPANY_NAME}}</h1>
-      <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 13px;">Tel: {{CONTACT_NUMBER}} | Support: {{SUPPORT_EMAIL}}</p>
-    </div>
-    <div style="text-align: right;">
-      <div style="background: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: bold; font-family: monospace; backdrop-filter: blur(4px);">OFFICIAL INVOICE</div>
-      <p style="margin: 8px 0 0 0; font-size: 13px; font-family: monospace;">Ref: {{INVOICE_NUMBER}}</p>
-    </div>
-  </div>
-
-  <!-- Invoice Meta Details -->
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 28px;">
-    <div style="background: #f5f3ff; p-4: 16px; padding: 16px; border-radius: 10px; border: 1px solid #ddd6fe;">
-      <span style="font-size: 10px; text-transform: uppercase; font-weight: 800; color: #6d28d9;">Customer Details</span>
-      <h3 style="margin: 4px 0 0 0; color: #1e1b4b; font-size: 16px;">{{TENANT_NAME}}</h3>
-      <p style="margin: 2px 0 0 0; color: #5b21b6; font-size: 12px;">{{TENANT_EMAIL}}</p>
-    </div>
-
-    <div style="background: #f0fdf4; padding: 16px; border-radius: 10px; border: 1px solid #bbf7d0; text-align: right;">
-      <span style="font-size: 10px; text-transform: uppercase; font-weight: 800; color: #15803d;">Razorpay Instant Payment</span>
-      <p style="margin: 4px 0 0 0; font-size: 13px; font-weight: bold; color: #166534;">Gateway: {{PAYMENT_METHOD}}</p>
-      <p style="margin: 2px 0 0 0; font-family: monospace; font-size: 13px; color: #047857; font-weight: bold;">Txn ID: {{RAZORPAY_PAYMENT_ID}}</p>
-    </div>
-  </div>
-
-  <!-- Plan Item -->
-  <div style="margin-top: 24px; border: 1px solid #e0e7ff; border-radius: 12px; overflow: hidden;">
-    <div style="background: #eef2ff; padding: 12px 20px; font-weight: bold; font-size: 13px; color: #3730a3; display: flex; justify-content: space-between;">
-      <span>Subscription Details</span>
-      <span>Amount</span>
-    </div>
-    <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center;">
-      <div>
-        <h4 style="margin: 0; font-size: 16px; color: #1e1b4b;">{{PLAN_NAME}}</h4>
-        <p style="margin: 6px 0 0 0; color: #6b7280; font-size: 13px;">{{PLAN_DESCRIPTION}}</p>
-      </div>
-      <div style="font-size: 20px; font-weight: 900; font-family: monospace; color: #4338ca;">{{TOTAL_AMOUNT}}</div>
-    </div>
-  </div>
-
-  <!-- Footer Footer -->
-  <div style="margin-top: 36px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px dashed #e5e7eb; padding-top: 16px;">
-    <p>Razorpay Verified Transaction · Generated by {{COMPANY_NAME}} · Contact: {{CONTACT_NUMBER}}</p>
-  </div>
-</div>`,
-  },
-  {
-    id: "tpl-monochrome",
-    name: "Minimalist Clean Monochrome",
-    description: "High-contrast minimalist layout with crisp typography and clean lines.",
-    html: `<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; background: #ffffff; color: #000000; border: 2px solid #000000;">
-  <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 20px;">
-    <div>
-      <h1 style="margin: 0; font-size: 24px; letter-spacing: -0.03em;">{{COMPANY_NAME}}</h1>
-      <p style="margin: 4px 0 0 0; font-size: 12px; color: #444;">{{COMPANY_ADDRESS}} | Tel: {{CONTACT_NUMBER}}</p>
-    </div>
-    <div style="text-align: right;">
-      <h2 style="margin: 0; font-size: 20px; font-family: monospace;">INVOICE</h2>
-      <p style="margin: 4px 0 0 0; font-size: 12px; font-family: monospace;">#{{INVOICE_NUMBER}}</p>
-      <p style="margin: 2px 0 0 0; font-size: 12px;">Date: {{INVOICE_DATE}}</p>
-    </div>
-  </div>
-
-  <div style="display: flex; justify-content: space-between; margin-top: 24px; padding-bottom: 20px; border-bottom: 1px solid #ccc;">
-    <div>
-      <p style="margin: 0; font-size: 11px; text-transform: uppercase; font-weight: bold;">Billed To</p>
-      <p style="margin: 4px 0 0 0; font-size: 15px; font-weight: bold;">{{TENANT_NAME}}</p>
-      <p style="margin: 2px 0 0 0; font-size: 12px; color: #555;">{{TENANT_EMAIL}}</p>
-    </div>
-    <div style="text-align: right;">
-      <p style="margin: 0; font-size: 11px; text-transform: uppercase; font-weight: bold;">Razorpay Payment Details</p>
-      <p style="margin: 4px 0 0 0; font-size: 12px;">Method: <strong>{{PAYMENT_METHOD}}</strong></p>
-      <p style="margin: 2px 0 0 0; font-size: 12px; font-family: monospace; font-weight: bold;">ID: {{RAZORPAY_PAYMENT_ID}}</p>
-    </div>
-  </div>
-
-  <table style="width: 100%; border-collapse: collapse; margin-top: 24px;">
-    <thead>
-      <tr style="border-bottom: 2px solid #000; text-align: left; font-size: 12px;">
-        <th style="padding: 8px 0;">Item Description</th>
-        <th style="padding: 8px 0; text-align: right;">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style="padding: 16px 0;">
-          <strong>{{PLAN_NAME}}</strong>
-          <p style="margin: 4px 0 0 0; font-size: 12px; color: #444;">{{PLAN_DESCRIPTION}}</p>
-        </td>
-        <td style="padding: 16px 0; text-align: right; font-family: monospace; font-weight: bold; font-size: 16px;">{{TOTAL_AMOUNT}}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div style="margin-top: 30px; text-align: right; border-top: 2px solid #000; padding-top: 16px;">
-    <span style="font-size: 14px; font-weight: bold; margin-right: 20px;">Total Paid Amount:</span>
-    <span style="font-size: 22px; font-weight: bold; font-family: monospace;">{{TOTAL_AMOUNT}}</span>
-  </div>
-</div>`,
-  },
-  {
-    id: "tpl-indigo-pro",
-    name: "Enterprise Indigo Professional",
-    description: "Indigo accent banners, tax breakdown grid, and verified payment stamp.",
-    html: `<div style="font-family: sans-serif; max-width: 800px; margin: 0 auto; border: 1px solid #c7d2fe; padding: 36px; background: #fff;">
-  <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4338ca; padding-bottom: 20px;">
-    <div>
-      <h1 style="color: #3730a3; margin: 0; font-size: 26px;">{{COMPANY_NAME}}</h1>
-      <p style="margin: 4px 0 0 0; color: #4b5563; font-size: 12px;">{{COMPANY_ADDRESS}} | Support: {{CONTACT_NUMBER}}</p>
-    </div>
-    <div style="text-align: right;">
-      <span style="background: #3730a3; color: #fff; padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 4px;">RAZORPAY VERIFIED</span>
-      <p style="margin: 8px 0 0 0; font-family: monospace; font-size: 13px;">Invoice #{{INVOICE_NUMBER}}</p>
-    </div>
-  </div>
-
-  <div style="margin-top: 24px; background: #e0e7ff; padding: 16px; border-radius: 8px; display: flex; justify-content: space-between;">
-    <div>
-      <span style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: #3730a3;">Customer</span>
-      <h3 style="margin: 4px 0 0 0; font-size: 16px; color: #1e1b4b;">{{TENANT_NAME}}</h3>
-    </div>
-    <div style="text-align: right;">
-      <span style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: #3730a3;">Razorpay ID</span>
-      <p style="margin: 4px 0 0 0; font-family: monospace; font-size: 13px; font-weight: bold; color: #4338ca;">{{RAZORPAY_PAYMENT_ID}}</p>
-    </div>
-  </div>
-
-  <div style="margin-top: 24px; border: 1px solid #c7d2fe; border-radius: 8px; p: 16px; padding: 20px;">
-    <h4 style="margin: 0; color: #3730a3; font-size: 16px;">{{PLAN_NAME}}</h4>
-    <p style="margin: 6px 0 0 0; color: #4b5563; font-size: 13px;">{{PLAN_DESCRIPTION}}</p>
-    <div style="margin-top: 16px; text-align: right; font-size: 20px; font-weight: bold; font-family: monospace; color: #3730a3;">
-      Total: {{TOTAL_AMOUNT}}
-    </div>
-  </div>
-</div>`,
-  },
-  {
-    id: "tpl-compact-gst",
-    name: "Compact GST SaaS Billing",
-    description: "Formal Indian GSTIN tax breakdown layout with company contact footer.",
-    html: `<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; border: 1px solid #cbd5e1; padding: 32px; background: #fff; font-size: 13px;">
-  <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 16px;">
-    <div>
-      <h2 style="margin: 0; color: #0f172a;">{{COMPANY_NAME}}</h2>
-      <p style="margin: 4px 0 0 0; color: #64748b;">GSTIN: 27AAAAA0000A1Z5 | Contact: {{CONTACT_NUMBER}}</p>
-      <p style="margin: 2px 0 0 0; color: #64748b;">Email: {{SUPPORT_EMAIL}}</p>
-    </div>
-    <div style="text-align: right;">
-      <h3 style="margin: 0; color: #0f172a;">GST TAX INVOICE</h3>
-      <p style="margin: 4px 0 0 0; font-family: monospace;">Invoice: {{INVOICE_NUMBER}}</p>
-      <p style="margin: 2px 0 0 0;">Date: {{INVOICE_DATE}}</p>
-    </div>
-  </div>
-
-  <div style="margin-top: 20px; display: flex; justify-content: space-between; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px;">
-    <div>
-      <strong>Buyer (Billed To):</strong> {{TENANT_NAME}} ({{TENANT_EMAIL}})
-    </div>
-    <div style="text-align: right;">
-      <strong>Payment Gateway:</strong> Razorpay (ID: <span style="font-family: monospace;">{{RAZORPAY_PAYMENT_ID}}</span>)
-    </div>
-  </div>
-
-  <table style="width: 100%; border-collapse: collapse; margin-top: 20px; border: 1px solid #e2e8f0;">
-    <thead style="background: #f1f5f9;">
-      <tr>
-        <th style="padding: 10px; border: 1px solid #e2e8f0;">Item / Service</th>
-        <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: right;">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style="padding: 12px; border: 1px solid #e2e8f0;">
-          <strong>{{PLAN_NAME}}</strong>
-          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">{{PLAN_DESCRIPTION}}</div>
-        </td>
-        <td style="padding: 12px; border: 1px solid #e2e8f0; text-align: right; font-family: monospace; font-weight: bold;">{{TOTAL_AMOUNT}}</td>
-      </tr>
-    </tbody>
-  </table>
-</div>`,
-  },
-  {
-    id: "tpl-dark-premium",
-    name: "Tech Dark Mode Premium",
-    description: "Sleek dark theme invoice with glowing emerald and gold payment stamps.",
-    html: `<div style="font-family: 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; background: #0f172a; color: #f8fafc; border-radius: 16px; border: 1px solid #334155;">
-  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3b82f6; padding-bottom: 20px;">
-    <div>
-      <h1 style="margin: 0; color: #38bdf8; font-size: 26px;">{{COMPANY_NAME}}</h1>
-      <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 13px;">{{COMPANY_ADDRESS}} | Contact: {{CONTACT_NUMBER}}</p>
-    </div>
-    <div style="text-align: right;">
-      <span style="background: #10b981; color: #022c22; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 12px; font-family: monospace;">PAID · RAZORPAY</span>
-      <p style="margin: 8px 0 0 0; font-family: monospace; font-size: 13px; color: #cbd5e1;">#{{INVOICE_NUMBER}}</p>
-    </div>
-  </div>
-
-  <div style="margin-top: 28px; background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; display: flex; justify-content: space-between;">
-    <div>
-      <span style="font-size: 10px; text-transform: uppercase; color: #38bdf8; font-weight: bold;">Customer</span>
-      <h3 style="margin: 4px 0 0 0; color: #f8fafc; font-size: 16px;">{{TENANT_NAME}}</h3>
-      <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 12px;">{{TENANT_EMAIL}}</p>
-    </div>
-    <div style="text-align: right;">
-      <span style="font-size: 10px; text-transform: uppercase; color: #34d399; font-weight: bold;">Razorpay Payment Verification</span>
-      <p style="margin: 4px 0 0 0; font-size: 13px;">Gateway: {{PAYMENT_METHOD}}</p>
-      <p style="margin: 2px 0 0 0; font-family: monospace; color: #34d399; font-weight: bold; font-size: 13px;">ID: {{RAZORPAY_PAYMENT_ID}}</p>
-    </div>
-  </div>
-
-  <div style="margin-top: 24px; background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
-    <div>
-      <h4 style="margin: 0; color: #38bdf8; font-size: 16px;">{{PLAN_NAME}}</h4>
-      <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 12px;">{{PLAN_DESCRIPTION}}</p>
-    </div>
-    <div style="font-size: 22px; font-weight: 900; font-family: monospace; color: #34d399;">
-      {{TOTAL_AMOUNT}}
-    </div>
-  </div>
-</div>`,
-  },
-];
-
-
-function PlansMonetizationAdmin() {
-  const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<
-    "plans" | "coupons" | "orders" | "bank_transfers" | "templates"
-  >("plans");
-
-  // New Coupon Dialog
-  const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
-  const [newCode, setNewCode] = useState("");
-  const [newDiscount, setNewDiscount] = useState(20);
-
-  // New Plan Dialog State
+  // Modal states
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<Partial<SubscriptionPlan> | null>(null);
+  const [editingPlan, setEditingPlan] = useState<Partial<SubscriptionPlanRecord> | null>(null);
+  const [selectedSubscribersPlan, setSelectedSubscribersPlan] = useState<SubscriptionPlanRecord | null>(null);
 
-  // Invoice Dialog & Selected Template
-  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<CustomerOrder | null>(null);
-  const [activeInvoiceTemplateId, setActiveInvoiceTemplateId] = useState<string>("tpl-classic");
+  // Form states for Create/Edit
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    status: "active",
+    planType: "standard" as "standard" | "custom",
+    pricingModel: "fixed" as "fixed" | "per_user",
+    currency: "INR",
+    priceMonthly: 199,
+    priceMonthlyOriginal: 249 as number | null,
+    priceQuarterly: 549,
+    priceSemiAnnual: 999,
+    priceAnnual: 1899,
+    priceAnnualOriginal: 2399 as number | null,
+    pricePerUser: 100 as number | null,
+    pricePerUserOriginal: 125 as number | null,
+    billableUsers: 25,
+    isTrial: false,
+    trialDays: 3,
+    combinedUserLimit: 50,
+    storageLimitGb: 10,
+    featuresText: "",
+    isPopular: false,
+    sortOrder: 0,
+    isPublic: true,
+  });
 
-  // Invoice Template Editor State
-  const [selectedEditTemplateId, setSelectedEditTemplateId] = useState<string>("tpl-classic");
-  const [editingTemplateHtml, setEditingTemplateHtml] = useState<string>("");
-
-  // 1. REALTIME QUERY: Fetch plans, orders & invoice templates from MySQL API
+  // Query: Fetch plans from live database via GET /api/super/plans
   const {
-    data: monetizationData,
-    error: monetizationError,
+    data: plans = [],
     isLoading,
+    isFetching,
     refetch,
-  } = useQuery({
-    queryKey: ["realtime-plans-monetization"],
+  } = useQuery<SubscriptionPlanRecord[]>({
+    queryKey: ["super-admin-subscription-plans"],
     queryFn: async () => {
-      try {
-        const page = await api.get("/cms/pages/system-monetization-plans");
-        if (page?.content) {
-          const parsed = page.content;
-          return {
-            plans: (parsed.plans ?? []) as SubscriptionPlan[],
-            coupons: (parsed.coupons ?? []) as PromoCoupon[],
-            orders: (parsed.orders ?? []) as CustomerOrder[],
-            bankTransfers: (parsed.bankTransfers ?? []) as BankTransferRequest[],
-            templates: (parsed.templates ?? DEFAULT_INVOICE_TEMPLATES) as InvoiceTemplate[],
-          };
-        }
-        return {
-          plans: [] as SubscriptionPlan[],
-          coupons: [],
-          orders: [] as CustomerOrder[],
-          bankTransfers: [],
-          templates: DEFAULT_INVOICE_TEMPLATES,
-        };
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 404) throw error;
-        return {
-          plans: [] as SubscriptionPlan[],
-          coupons: [],
-          orders: [] as CustomerOrder[],
-          bankTransfers: [],
-          templates: DEFAULT_INVOICE_TEMPLATES,
-        };
-      }
+      const res = await api.get("/super/plans");
+      return Array.isArray(res) ? res : res?.plans || [];
     },
   });
 
-  // 2. REALTIME QUERY: Fetch available Super-Admin Addons
-  const { data: availableAddons = [] } = useQuery({
-    queryKey: ["realtime-super-addons-list"],
-    queryFn: async () => {
-      try {
-        const page = await api.get("/cms/pages/system-addons-catalog");
-        if (Array.isArray(page?.content) && page.content.length > 0) return page.content;
-        return [];
-      } catch {
-        return [];
+  // Mutation: Create or Update Plan
+  const savePlanMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (editingPlan?.id) {
+        return await api.put(`/super/plans/${editingPlan.id}`, payload);
       }
-    },
-  });
-
-  // 3. REALTIME QUERY: Fetch Platform Settings for company name & logo
-  const { data: platformSettings } = useQuery({
-    queryKey: ["realtime-platform-settings"],
-    queryFn: async () => {
-      try {
-        const page = await api.get("/cms/pages/system-platform-settings");
-        return page?.content || null;
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  const plans = monetizationData?.plans ?? [];
-  const coupons = monetizationData?.coupons ?? [];
-  const orders = monetizationData?.orders ?? [];
-  const bankTransfers = monetizationData?.bankTransfers ?? [];
-  const templates = monetizationData?.templates ?? DEFAULT_INVOICE_TEMPLATES;
-
-  const currentEditTemplate =
-    templates.find((t) => t.id === selectedEditTemplateId) ||
-    templates[0] ||
-    DEFAULT_INVOICE_TEMPLATES[0];
-
-  // 4. SAVE MONETIZATION STATE MUTATION
-  const saveMonetizationMutation = useMutation({
-    mutationFn: async (updatedData: {
-      plans?: SubscriptionPlan[];
-      coupons?: PromoCoupon[];
-      orders?: CustomerOrder[];
-      bankTransfers?: BankTransferRequest[];
-      templates?: InvoiceTemplate[];
-    }) => {
-      const payload = {
-        plans: updatedData.plans ?? plans,
-        coupons: updatedData.coupons ?? coupons,
-        orders: updatedData.orders ?? orders,
-        bankTransfers: updatedData.bankTransfers ?? bankTransfers,
-        templates: updatedData.templates ?? templates,
-      };
-      await api.put("/cms/pages/system-monetization-plans", {
-        title: "System Monetization & Subscriptions",
-        meta_description:
-          "Realtime subscription plans, coupons, orders, and editable invoice templates",
-        content: payload,
-        published: true,
-      });
+      return await api.post("/super/plans", payload);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["realtime-plans-monetization"] });
+      toast.success(editingPlan?.id ? "Plan updated successfully" : "New plan created successfully");
+      setIsPlanModalOpen(false);
+      setEditingPlan(null);
+      queryClient.invalidateQueries({ queryKey: ["super-admin-subscription-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["public-billing-plans"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to save subscription plan");
+    },
   });
 
-  function handleCreateCoupon() {
-    if (!newCode) return;
-    const newCoupon: PromoCoupon = {
-      id: `c-${Date.now()}`,
-      code: newCode.toUpperCase(),
-      discount_percent: newDiscount,
-      max_uses: 100,
-      used_count: 0,
-      active: true,
-    };
-    saveMonetizationMutation.mutate({ coupons: [...coupons, newCoupon] });
-    setNewCode("");
-    setIsCouponModalOpen(false);
-    toast.success("Coupon code created in real-time");
-  }
+  // Mutation: Delete Plan
+  const deletePlanMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      return await api.delete(`/super/plans/${planId}`);
+    },
+    onSuccess: () => {
+      toast.success("Plan deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["super-admin-subscription-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["public-billing-plans"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to delete plan");
+    },
+  });
 
-  function handleSavePlan() {
-    if ([editingPlan?.price_monthly, editingPlan?.price_annual, editingPlan?.max_employees, editingPlan?.max_users].some((value) => value != null && (!Number.isFinite(value) || value < 0))) return toast.error("Prices and limits cannot be negative");
-    if (!editingPlan?.name) return toast.error("Plan name is required");
-    let updatedPlans: SubscriptionPlan[];
-    if (editingPlan.id) {
-      updatedPlans = plans.map((p) =>
-        p.id === editingPlan.id ? ({ ...p, ...editingPlan } as SubscriptionPlan) : p,
-      );
-    } else {
-      const newP: SubscriptionPlan = {
-        id: `p-${Date.now()}`,
-        name: editingPlan.name,
-        price_monthly: editingPlan.price_monthly ?? 0,
-        price_annual: editingPlan.price_annual ?? 0,
-        max_employees: editingPlan.max_employees ?? 0,
-        max_users: editingPlan.max_users ?? null,
-        features: editingPlan.features || ["Core HR", "Attendance"],
-        included_addon_ids: editingPlan.included_addon_ids || [],
-      };
-      updatedPlans = [...plans, newP];
+  const openCreateModal = () => {
+    setEditingPlan(null);
+    setFormData({
+      name: "",
+      description: "",
+      status: "active",
+      planType: "standard",
+      pricingModel: "fixed",
+      currency: "INR",
+      priceMonthly: 199,
+      priceMonthlyOriginal: 249,
+      priceQuarterly: 549,
+      priceSemiAnnual: 999,
+      priceAnnual: 1899,
+      priceAnnualOriginal: 2399,
+      pricePerUser: 100,
+      pricePerUserOriginal: 125,
+      billableUsers: 25,
+      isTrial: false,
+      trialDays: 3,
+      combinedUserLimit: 50,
+      storageLimitGb: 10,
+      featuresText: "Core HR & Employee Directory\nBiometric Attendance & Leave\nEmployee Self-Service Portal\nStandard Email Support",
+      isPopular: false,
+      sortOrder: (plans.length || 0) + 1,
+      isPublic: true,
+    });
+    setIsPlanModalOpen(true);
+  };
+
+  const openEditModal = (plan: SubscriptionPlanRecord) => {
+    setEditingPlan(plan);
+    const durationPrices = plan.durationPrices || {};
+    const userLimit = plan.maxUsers ?? plan.maxEmployees ?? 50;
+
+    setFormData({
+      name: plan.name || "",
+      description: plan.description || "",
+      status: plan.status || "active",
+      planType: (plan.planType === "custom" ? "custom" : "standard") as "standard" | "custom",
+      pricingModel: (plan.pricingModel === "per_user" ? "per_user" : "fixed") as "fixed" | "per_user",
+      currency: plan.currency || "INR",
+      priceMonthly: Number(durationPrices["1_month"] ?? plan.priceMonthly ?? 0),
+      priceMonthlyOriginal: plan.priceMonthlyOriginal !== null && plan.priceMonthlyOriginal !== undefined ? Number(plan.priceMonthlyOriginal) : null,
+      priceQuarterly: Number(durationPrices["3_months"] ?? plan.priceQuarterly ?? 0),
+      priceSemiAnnual: Number(durationPrices["6_months"] ?? plan.priceSemiAnnual ?? 0),
+      priceAnnual: Number(durationPrices["1_year"] ?? plan.priceAnnual ?? 0),
+      priceAnnualOriginal: plan.priceAnnualOriginal !== null && plan.priceAnnualOriginal !== undefined ? Number(plan.priceAnnualOriginal) : null,
+      pricePerUser: plan.pricePerUser !== null && plan.pricePerUser !== undefined ? Number(plan.pricePerUser) : null,
+      pricePerUserOriginal: plan.pricePerUserOriginal !== null && plan.pricePerUserOriginal !== undefined ? Number(plan.pricePerUserOriginal) : null,
+      billableUsers: plan.billableUsers ? Number(plan.billableUsers) : 25,
+      isTrial: Boolean(plan.isTrial),
+      trialDays: 3,
+      combinedUserLimit: userLimit,
+      storageLimitGb: plan.storageLimitGb ?? 10,
+      featuresText: Array.isArray(plan.features) ? plan.features.join("\n") : "",
+      isPopular: Boolean(plan.isPopular),
+      sortOrder: plan.sortOrder ?? 0,
+      isPublic: plan.isPublic !== false,
+    });
+    setIsPlanModalOpen(true);
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      toast.error("Plan name is required");
+      return;
     }
-    saveMonetizationMutation.mutate({ plans: updatedPlans }, { onSuccess: () => {
-      setIsPlanModalOpen(false); setEditingPlan(null);
-      qc.invalidateQueries({ queryKey: ["workspace-policy-plans"] });
-      qc.invalidateQueries({ queryKey: ["public-plans-list"] });
-      toast.success("Subscription plan saved");
-    } });
-  }
 
-  function handleSaveHtmlTemplate() {
-    if (!editingTemplateHtml) return;
-    const updated = templates.map((t) =>
-      t.id === selectedEditTemplateId ? { ...t, html: editingTemplateHtml } : t,
-    );
-    saveMonetizationMutation.mutate({ templates: updated });
-    toast.success(`HTML Invoice Template "${currentEditTemplate.name}" saved!`);
-  }
-
-  function toggleAddonInPlan(addonId: string) {
-    const currentList = editingPlan?.included_addon_ids || [];
-    const exists = currentList.includes(addonId);
-    const updatedList = exists
-      ? currentList.filter((id) => id !== addonId)
-      : [...currentList, addonId];
-    setEditingPlan({ ...editingPlan, included_addon_ids: updatedList });
-  }
-
-  // Render HTML Invoice with Dynamic Order Variables & Razorpay Data
-  function renderInvoiceHtml(order: CustomerOrder, tplHtml: string) {
-    const companyName = platformSettings?.appName || "Master HRMS Inc.";
-    const contactNumber = platformSettings?.supportPhone || "+91 98765 43210";
-    const supportEmail = platformSettings?.smtpFrom || "billing@masterhrms.com";
-    const address = "100 Tech Park, Suite 400, Silicon Valley, CA";
-    const razorpayId =
-      order.razorpay_payment_id || `pay_${Math.random().toString(36).substring(2, 14)}`;
-
-    const subtotalNum = order.amount;
-    const taxNum = Math.round(subtotalNum * 0.18);
-    const totalNum = subtotalNum;
-
-    return tplHtml
-      .replace(/{{COMPANY_NAME}}/g, companyName)
-      .replace(/{{COMPANY_ADDRESS}}/g, address)
-      .replace(/{{CONTACT_NUMBER}}/g, contactNumber)
-      .replace(/{{SUPPORT_EMAIL}}/g, supportEmail)
-      .replace(/{{INVOICE_NUMBER}}/g, order.order_number)
-      .replace(/{{INVOICE_DATE}}/g, order.date)
-      .replace(/{{TENANT_NAME}}/g, order.tenant_name)
-      .replace(
-        /{{TENANT_EMAIL}}/g,
-        order.tenant_email || `billing@${order.tenant_name.toLowerCase().replace(/\s+/g, "")}.com`,
-      )
-      .replace(/{{PLAN_NAME}}/g, order.plan_name)
-      .replace(
-        /{{PLAN_DESCRIPTION}}/g,
-        order.plan_description ||
-          "Includes full module access, database isolation & priority support.",
-      )
-      .replace(/{{SUBTOTAL}}/g, `$${subtotalNum}.00`)
-      .replace(/{{TAX_AMOUNT}}/g, `$${taxNum}.00`)
-      .replace(/{{TOTAL_AMOUNT}}/g, `$${totalNum}.00 USD`)
-      .replace(/{{PAYMENT_METHOD}}/g, order.payment_method || "Razorpay")
-      .replace(/{{RAZORPAY_PAYMENT_ID}}/g, razorpayId)
-      .replace(/{{PAYMENT_STATUS}}/g, "PAID · Razorpay Verified");
-  }
-
-  async function handleApproveTransfer(id: string) {
-    const target = bankTransfers.find((b) => b.id === id);
-    if (!target) return;
-
-    const updatedTransfers = bankTransfers.map((b) =>
-      b.id === id ? { ...b, status: "approved" as const } : b,
-    );
-
-    // Create verified paid customer order
-    const newOrder: CustomerOrder = {
-      id: `o-${Date.now()}`,
-      order_number: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-      tenant_name: target.tenant_name,
-      tenant_email: `billing@${target.tenant_name.toLowerCase().replace(/\s+/g, "")}.com`,
-      plan_name: target.item_name || "Workspace Subscription Plan",
-      plan_description: `Bank Transfer Verified (Ref: ${target.reference_no})`,
-      amount: target.amount,
-      payment_method: "Bank Transfer",
-      razorpay_payment_id: `BT-${target.reference_no}`,
-      status: "paid",
-      date: new Date().toISOString().split("T")[0],
-    };
-
-    const updatedOrders = [newOrder, ...orders];
-
-    // If requested item is an Addon, auto-activate for all tenants
-    if (target.item_id || target.item_name) {
-      try {
-        const addonSlug = target.item_id || target.item_name;
-        // Upsert addon activation in global cms_pages
-        let currentList: any[] = [];
-        try {
-          const existingAddonsData = await api.get("/cms/pages/tenant-default-purchased-addons-v2");
-          currentList = Array.isArray(existingAddonsData?.content) ? existingAddonsData.content : [];
-        } catch {}
-
-        const newItem = {
-          addonId: addonSlug,
-          addonSlug: addonSlug,
-          addonName: target.item_name || addonSlug,
-          priceMonthly: target.amount,
-          purchasedAt: new Date().toISOString(),
-          status: "active",
-        };
-
-        await api.put("/cms/pages/tenant-default-purchased-addons-v2", {
-          title: `Addons Verified`,
-          content: [newItem, ...currentList],
-          published: true,
-        });
-      } catch (err: any) {
-        console.warn("Auto addon activation warning:", err.message);
+    // Validation for Per-User plan
+    if (formData.planType === "custom" && formData.pricingModel === "per_user") {
+      const userCount = Number(formData.billableUsers);
+      if (!Number.isInteger(userCount) || userCount < 1 || userCount > 99999) {
+        toast.error("Billable user count must be an integer between 1 and 99,999.");
+        return;
+      }
+      if (formData.pricePerUser === null || formData.pricePerUser === undefined || formData.pricePerUser < 0) {
+        toast.error("Price per user must be a non-negative number.");
+        return;
+      }
+      if (formData.pricePerUserOriginal !== null && formData.pricePerUserOriginal < (formData.pricePerUser || 0)) {
+        toast.error("Selling price per user cannot exceed original price per user.");
+        return;
+      }
+    } else {
+      // Fixed price plan validation
+      if (formData.priceMonthly < 0 || formData.priceAnnual < 0) {
+        toast.error("Plan prices must be non-negative.");
+        return;
+      }
+      if (formData.priceMonthlyOriginal !== null && formData.priceMonthlyOriginal < formData.priceMonthly) {
+        toast.error("Monthly selling price cannot exceed original price.");
+        return;
+      }
+      if (formData.priceAnnualOriginal !== null && formData.priceAnnualOriginal < formData.priceAnnual) {
+        toast.error("Annual selling price cannot exceed original price.");
+        return;
       }
     }
 
-    saveMonetizationMutation.mutate({ bankTransfers: updatedTransfers, orders: updatedOrders });
-    toast.success(
-      `Bank transfer approved! "${target.item_name || "Plan"}" activated for ${target.tenant_name}.`,
-    );
-  }
+    const durationPrices: Record<string, number> = {
+      "1_month": Number(formData.priceMonthly) || 0,
+      "3_months": Number(formData.priceQuarterly) || 0,
+      "6_months": Number(formData.priceSemiAnnual) || 0,
+      "1_year": Number(formData.priceAnnual) || 0,
+    };
 
-  function handleRejectTransfer(id: string) {
-    const target = bankTransfers.find((b) => b.id === id);
-    if (!target) return;
+    const features = formData.featuresText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
-    const updatedTransfers = bankTransfers.map((b) =>
-      b.id === id ? { ...b, status: "rejected" as const } : b,
+    const userLimit = formData.combinedUserLimit ? Number(formData.combinedUserLimit) : null;
+
+    const payload = {
+      name: formData.name.trim(),
+      description: formData.description.trim() || null,
+      status: formData.status,
+      planType: formData.planType,
+      pricingModel: formData.planType === "custom" ? formData.pricingModel : "fixed",
+      currency: formData.currency,
+      priceMonthly: Number(formData.priceMonthly) || 0,
+      priceMonthlyOriginal: formData.priceMonthlyOriginal !== null ? Number(formData.priceMonthlyOriginal) : null,
+      priceQuarterly: Number(formData.priceQuarterly) || null,
+      priceSemiAnnual: Number(formData.priceSemiAnnual) || null,
+      priceAnnual: Number(formData.priceAnnual) || 0,
+      priceAnnualOriginal: formData.priceAnnualOriginal !== null ? Number(formData.priceAnnualOriginal) : null,
+      pricePerUser: formData.pricePerUser !== null ? Number(formData.pricePerUser) : null,
+      pricePerUserOriginal: formData.pricePerUserOriginal !== null ? Number(formData.pricePerUserOriginal) : null,
+      billableUsers: Number(formData.billableUsers) || 1,
+      durationPrices,
+      isTrial: formData.isTrial,
+      trialDays: 3, // Exactly 3 days per requirement
+      maxUsers: userLimit,
+      maxEmployees: userLimit,
+      storageLimitGb: formData.storageLimitGb ? Number(formData.storageLimitGb) : null,
+      features,
+      isPopular: formData.isPopular,
+      sortOrder: Number(formData.sortOrder) || 0,
+      isPublic: formData.isPublic,
+    };
+
+    savePlanMutation.mutate(payload);
+  };
+
+  const handleDeletePlan = (plan: SubscriptionPlanRecord) => {
+    if ((plan._count?.subscriptions || 0) > 0) {
+      toast.error(`Cannot delete "${plan.name}": It has ${plan._count?.subscriptions} active subscriber(s). Please reassign them first.`);
+      return;
+    }
+    if (confirm(`Are you sure you want to permanently delete plan "${plan.name}"?`)) {
+      deletePlanMutation.mutate(plan.id);
+    }
+  };
+
+  // Helper to calculate plan display pricing
+  const getPlanPricingDetails = (plan: SubscriptionPlanRecord, duration: BillingDurationKey) => {
+    const isPerUser = plan.pricingModel === "per_user";
+    if (isPerUser) {
+      const userCount = plan.billableUsers || 1;
+      const unitSelling = Number(plan.pricePerUser || 0);
+      const unitOriginal = plan.pricePerUserOriginal !== null && plan.pricePerUserOriginal !== undefined
+        ? Number(plan.pricePerUserOriginal)
+        : null;
+
+      const multiplier = duration === "1_year" ? 12 : 1;
+      const annualDiscount = duration === "1_year" ? 0.8 : 1.0;
+      const totalSelling = Math.round(unitSelling * userCount * multiplier * annualDiscount);
+      const totalOriginal = unitOriginal !== null ? Math.round(unitOriginal * userCount * multiplier) : totalSelling;
+      const hasDiscount = totalOriginal > totalSelling;
+      const discountPercent = hasDiscount && totalOriginal > 0 ? Math.round(((totalOriginal - totalSelling) / totalOriginal) * 100) : 0;
+
+      return {
+        isPerUser: true,
+        userCount,
+        unitSelling,
+        unitOriginal,
+        totalSelling,
+        totalOriginal,
+        hasDiscount,
+        discountPercent,
+      };
+    }
+
+    let selling = 0;
+    let original: number | null = null;
+
+    if (duration === "1_year") {
+      selling = Number(plan.durationPrices?.["1_year"] ?? plan.priceAnnual ?? (plan.priceMonthly ? plan.priceMonthly * 12 : 0));
+      original = plan.priceAnnualOriginal !== null && plan.priceAnnualOriginal !== undefined
+        ? Number(plan.priceAnnualOriginal)
+        : (plan.priceMonthlyOriginal ? Number(plan.priceMonthlyOriginal) * 12 : null);
+    } else {
+      selling = Number(plan.durationPrices?.["1_month"] ?? plan.priceMonthly ?? 0);
+      original = plan.priceMonthlyOriginal !== null && plan.priceMonthlyOriginal !== undefined
+        ? Number(plan.priceMonthlyOriginal)
+        : null;
+    }
+
+    const hasDiscount = original !== null && original > selling;
+    const discountPercent = hasDiscount && original ? Math.round(((original - selling) / original) * 100) : 0;
+
+    return {
+      isPerUser: false,
+      userCount: plan.maxUsers ?? plan.maxEmployees,
+      unitSelling: selling,
+      unitOriginal: original,
+      totalSelling: selling,
+      totalOriginal: original ?? selling,
+      hasDiscount,
+      discountPercent,
+    };
+  };
+
+  const getDurationLabel = (duration: BillingDurationKey): string => {
+    return duration === "1_year" ? "1 Year" : "1 Month";
+  };
+
+  const filteredPlans = plans.filter((p) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      p.name?.toLowerCase().includes(term) ||
+      p.description?.toLowerCase().includes(term) ||
+      p.features?.some((f) => f.toLowerCase().includes(term))
     );
-    saveMonetizationMutation.mutate({ bankTransfers: updatedTransfers, orders: orders });
-    toast.error(`Bank transfer (Ref: ${target.reference_no}) rejected.`);
-  }
+  });
 
   return (
     <div className="space-y-6">
-      {monetizationError && <p role="alert" className="p-4 text-destructive">Unable to load plans: {monetizationError.message}. <Button variant="outline" onClick={() => refetch()}>Retry</Button></p>}
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
+      {/* Top Header & Context Actions */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">Plans & Monetization Console</h1>
-            <Badge variant="secondary" className="gap-1 text-xs font-mono">
-              <CreditCard className="size-3 text-primary" /> Realtime Billing & HTML Templates
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Subscription Plans</h1>
+            <Badge variant="outline" className="text-xs font-semibold uppercase tracking-wider bg-primary/10 text-primary border-primary/20">
+              Live Database
             </Badge>
           </div>
-          <p className="text-muted-foreground text-sm mt-1">
-            Configure subscription plan tiers, bundle default activated addons, and edit 6 variation
-            HTML invoice templates.
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure Standard and Custom SaaS pricing, per-user billing models, 3-day trials, and feature entitlements.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
-            <RefreshCw className="size-4" /> Refresh
-          </Button>
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
+            variant="outline"
             size="sm"
-            onClick={() => {
-              setEditingPlan({
-                name: "",
-                price_monthly: 99,
-                price_annual: 950,
-                max_employees: 50,
-                features: ["Core HR", "Attendance"],
-                included_addon_ids: [],
-              });
-              setIsPlanModalOpen(true);
-            }}
-            className="gap-2 bg-primary font-bold"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="gap-2"
           >
-            <Plus className="size-4" /> Add Plan Tier
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+
+          <Button
+            onClick={openCreateModal}
+            size="sm"
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Create Plan
           </Button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="grid grid-cols-5 w-[760px]">
-          <TabsTrigger value="plans" className="gap-1.5 text-xs">
-            <CreditCard className="size-3.5" /> Subscription Plans ({plans.length})
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1.5 text-xs">
-            <Code className="size-3.5" /> HTML Invoice Templates ({templates.length})
-          </TabsTrigger>
-          <TabsTrigger value="coupons" className="gap-1.5 text-xs">
-            <Tag className="size-3.5" /> Coupons ({coupons.length})
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-1.5 text-xs">
-            <ShoppingBag className="size-3.5" /> Orders & Invoices ({orders.length})
-          </TabsTrigger>
-          <TabsTrigger value="bank_transfers" className="gap-1.5 text-xs">
-            <Building className="size-3.5" /> Bank Transfers (
-            {bankTransfers.filter((b) => b.status === "pending").length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Duration Selector & Search Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-3 rounded-xl border shadow-xs">
+        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg w-full sm:w-auto">
+          {(["1_month", "1_year"] as BillingDurationKey[]).map((dur) => (
+            <button
+              key={dur}
+              onClick={() => setSelectedDuration(dur)}
+              className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-medium rounded-md transition-all ${
+                selectedDuration === dur
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {getDurationLabel(dur)}
+              {dur === "1_year" && (
+                <span className="ml-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                  Annual (1 Year)
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
 
-        {/* TAB 1: SUBSCRIPTION PLANS */}
-        <TabsContent value="plans" className="space-y-4 pt-4">
-          {isLoading ? (
-            <div className="py-20 grid place-items-center">
-              <Loader2 className="size-8 animate-spin text-primary" />
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search plans or features..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8 text-xs h-9"
+          />
+        </div>
+      </div>
+
+      {/* Plans Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-12">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-96 rounded-2xl bg-muted/40 animate-pulse border" />
+          ))}
+        </div>
+      ) : filteredPlans.length === 0 ? (
+        <Card className="py-16 text-center border-dashed">
+          <CardContent className="space-y-3">
+            <div className="h-12 w-12 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center">
+              <Sparkles className="h-6 w-6" />
             </div>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-3">
-              {plans.map((p) => {
-                const bundledAddonIds = p.included_addon_ids || [];
-                const bundledAddonNames = availableAddons
-                  .filter((a: any) => bundledAddonIds.includes(a.id))
-                  .map((a: any) => a.name);
+            <h3 className="font-semibold text-lg">No subscription plans found</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              {searchTerm ? "No plans match your current search query." : "Get started by creating your first subscription plan."}
+            </p>
+            <Button onClick={openCreateModal} size="sm" className="mt-2">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Create First Plan
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredPlans.map((plan) => {
+            const pricing = getPlanPricingDetails(plan, selectedDuration);
+            const activeSubs = plan._count?.subscriptions || plan.subscriptions?.length || 0;
+            const userQuota = plan.maxUsers ?? plan.maxEmployees;
 
-                return (
-                  <Card
-                    key={p.id}
-                    className={`p-6 flex flex-col justify-between relative ${p.popular ? "border-primary shadow-md" : "border"}`}
-                  >
-                    {p.popular && (
-                      <Badge className="absolute -top-3 right-4 bg-primary text-primary-foreground font-mono text-[10px]">
-                        Popular Tier
-                      </Badge>
-                    )}
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="font-bold text-xl">{p.name}</h3>
-                        <div className="mt-2 text-3xl font-extrabold font-mono">
-                          ${p.price_monthly}
-                          <span className="text-xs font-normal text-muted-foreground">/mo</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 font-mono">
-                          Up to {p.max_employees} employee seats
-                        </p>
-                      </div>
+            return (
+              <Card
+                key={plan.id}
+                className={`relative flex flex-col transition-all duration-300 motion-safe:animate-in motion-safe:fade-in-50 motion-safe:zoom-in-95 hover:shadow-md ${
+                  plan.isPopular ? "border-primary shadow-sm ring-1 ring-primary/20" : "border-border"
+                } ${plan.status !== "active" ? "opacity-75 bg-muted/20" : ""}`}
+              >
+                {/* Popular or Trial Ribbon */}
+                <div className="absolute -top-3 left-4 right-4 flex justify-between items-center pointer-events-none">
+                  {plan.isPopular ? (
+                    <Badge className="bg-primary text-primary-foreground font-semibold text-[11px] gap-1 shadow-xs pointer-events-auto">
+                      <Flame className="h-3 w-3 fill-current" />
+                      Most Popular
+                    </Badge>
+                  ) : <div />}
 
-                      {/* Standard Features */}
-                      <div className="space-y-1.5 border-t pt-3 text-xs">
-                        <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">
-                          Standard Perks
-                        </div>
-                        {p.features.map((f, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <Check className="size-3.5 text-primary shrink-0" /> {f}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Default Activated Addons */}
-                      <div className="space-y-1.5 border-t pt-3 text-xs">
-                        <div className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider flex items-center gap-1">
-                          <Boxes className="size-3" /> Default Activated Addons (
-                          {bundledAddonIds.length})
-                        </div>
-                        {bundledAddonNames.length === 0 ? (
-                          <p className="text-[11px] text-muted-foreground italic">
-                            No default addons bundled yet.
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {bundledAddonNames.map((name: string, i: number) => (
-                              <Badge
-                                key={i}
-                                variant="outline"
-                                className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                              >
-                                {name}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditingPlan(p);
-                        setIsPlanModalOpen(true);
-                      }}
-                      className="w-full text-xs font-bold gap-2 mt-6"
-                    >
-                      <Pencil className="size-3.5" /> Edit Plan & Bundled Addons
-                    </Button>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* TAB 2: EDITABLE 6 HTML INVOICE TEMPLATES SUITE */}
-        <TabsContent value="templates" className="space-y-4 pt-4">
-          <Card className="p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-              <div>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <Code className="size-5 text-primary" /> Editable HTML Invoice Templates Studio
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Choose from 6 HTML invoice templates, edit HTML markup directly, and preview with
-                  dynamic Razorpay payment IDs.
-                </CardDescription>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Select
-                  value={selectedEditTemplateId}
-                  onValueChange={(id) => {
-                    setSelectedEditTemplateId(id);
-                    const t = templates.find((x) => x.id === id);
-                    if (t) setEditingTemplateHtml(t.html);
-                  }}
-                >
-                  <SelectTrigger className="h-9 text-xs w-[260px] font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className="text-xs font-semibold">
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  onClick={handleSaveHtmlTemplate}
-                  className="gap-2 bg-primary font-bold text-xs"
-                >
-                  <CheckCircle2 className="size-4" /> Save HTML Template
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6 items-start">
-              {/* HTML Code Editor Textarea */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <Code className="size-4 text-primary" /> HTML Source Code (
-                    {currentEditTemplate.name})
-                  </span>
-                  <span className="text-[10px] font-mono text-muted-foreground">
-                    Supports &#123;&#123;COMPANY_NAME&#125;&#125;,
-                    &#123;&#123;RAZORPAY_PAYMENT_ID&#125;&#125;, etc.
-                  </span>
+                  {plan.isTrial && (
+                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[11px] gap-1 pointer-events-auto">
+                      <Clock className="h-3 w-3" />
+                      3-Day Free Trial
+                    </Badge>
+                  )}
                 </div>
 
-                <Textarea
-                  rows={22}
-                  value={editingTemplateHtml || currentEditTemplate.html}
-                  onChange={(e) => setEditingTemplateHtml(e.target.value)}
-                  className="font-mono text-xs leading-relaxed bg-slate-950 text-emerald-400 p-4 rounded-xl border"
+                <CardHeader className="pt-6 pb-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <CardTitle className="text-xl font-bold tracking-tight">{plan.name}</CardTitle>
+                        {plan.planType === "custom" && (
+                          <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20">
+                            Custom Plan
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="text-xs line-clamp-2 mt-1">
+                        {plan.description || "Comprehensive enterprise HRM & ERP capabilities."}
+                      </CardDescription>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge
+                        variant={plan.status === "active" ? "default" : "secondary"}
+                        className={`text-[10px] uppercase font-semibold ${
+                          plan.status === "active"
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {plan.status}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Price display with strikethrough original price if discounted */}
+                  <div className="pt-4 border-t mt-3">
+                    {pricing.isPerUser ? (
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          {pricing.hasDiscount && pricing.unitOriginal && (
+                            <del className="text-sm font-semibold text-muted-foreground line-through font-mono">
+                              {formatSystemAmount(pricing.unitOriginal, { showDecimals: false })}
+                            </del>
+                          )}
+                          <span className="text-3xl font-extrabold tracking-tight text-foreground font-mono">
+                            {formatSystemAmount(pricing.unitSelling, { showDecimals: false })}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            / user / mo
+                          </span>
+                          {pricing.hasDiscount && (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] border-emerald-500/20 ml-1">
+                              Save {pricing.discountPercent}%
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            Total: <strong className="text-foreground">{formatSystemAmount(pricing.totalSelling, { showDecimals: false })}</strong>
+                          </span>
+                          <span className="text-[11px]">
+                            ({pricing.userCount} users &bull; {getDurationLabel(selectedDuration)})
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          {pricing.hasDiscount && pricing.unitOriginal && (
+                            <del className="text-base font-semibold text-muted-foreground line-through font-mono">
+                              {formatSystemAmount(pricing.unitOriginal, { showDecimals: false })}
+                            </del>
+                          )}
+                          <span className="text-3xl font-extrabold tracking-tight text-foreground font-mono">
+                            {formatSystemAmount(pricing.totalSelling, { showDecimals: false })}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            / {getDurationLabel(selectedDuration)}
+                          </span>
+                          {pricing.hasDiscount && (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] border-emerald-500/20 ml-1">
+                              Save {pricing.discountPercent}%
+                            </Badge>
+                          )}
+                        </div>
+
+                        {selectedDuration === "1_year" && (
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                            Effective {formatSystemAmount(pricing.totalSelling / 12, { showDecimals: false })} / month
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+
+                <CardContent className="flex-1 space-y-4 pb-4">
+                  {/* Combined User Limit or Per-User Quota */}
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border border-border/40 text-xs">
+                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-primary" />
+                      {pricing.isPerUser ? "Billable User Basis" : "Combined User Limit"}
+                    </span>
+                    <span className="font-bold text-foreground">
+                      {pricing.isPerUser
+                        ? `${pricing.userCount} Configured Users (Up to 99,999)`
+                        : userQuota
+                        ? `Up to ${userQuota} Users`
+                        : "Unlimited Users"}
+                    </span>
+                  </div>
+
+                  {/* Feature Checklist */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Features & Entitlements</p>
+                    <ul className="space-y-1.5 text-xs">
+                      {(plan.features || []).slice(0, 6).map((feat, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <Check className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                          <span className="text-foreground/90">{feat}</span>
+                        </li>
+                      ))}
+                      {(plan.features || []).length > 6 && (
+                        <li className="text-[11px] text-muted-foreground pl-5.5 font-medium">
+                          +{(plan.features || []).length - 6} more capabilities
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+
+                  {/* Active Subscribers Pill */}
+                  <div className="pt-2 border-t">
+                    <button
+                      onClick={() => setSelectedSubscribersPlan(plan)}
+                      className="w-full flex items-center justify-between text-xs p-2 rounded-md hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground group"
+                    >
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <Users className="h-3.5 w-3.5 text-primary" />
+                        {activeSubs} {activeSubs === 1 ? "Subscriber" : "Subscribers"}
+                      </span>
+                      <span className="text-[11px] text-primary group-hover:underline">View tenants &rarr;</span>
+                    </button>
+                  </div>
+                </CardContent>
+
+                <CardFooter className="pt-3 border-t bg-muted/10 flex items-center justify-between gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditModal(plan)}
+                    className="flex-1 gap-1.5 text-xs h-8"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit Plan
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeletePlan(plan)}
+                    className="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    title="Delete Plan"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* CREATE / EDIT PLAN DIALOG */}
+      <Dialog open={isPlanModalOpen} onOpenChange={setIsPlanModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingPlan?.id ? "Edit Subscription Plan" : "Create New Subscription Plan"}</DialogTitle>
+            <DialogDescription>
+              Configure duration-specific pricing, original vs selling prices, custom per-user models, and 3-day trial settings.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
+            {/* PLAN TYPE SELECTOR */}
+            <div className="p-3.5 rounded-lg border bg-muted/20 space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-foreground">Plan Type</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, planType: "standard", pricingModel: "fixed" })}
+                  className={`p-3 rounded-lg border text-left flex flex-col gap-1 transition-all ${
+                    formData.planType === "standard"
+                      ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  <span className="font-semibold text-xs flex items-center gap-1.5 text-foreground">
+                    <Layers className="h-3.5 w-3.5 text-primary" />
+                    Standard Plan
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">Fixed pricing tiers for standard organizations</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, planType: "custom" })}
+                  className={`p-3 rounded-lg border text-left flex flex-col gap-1 transition-all ${
+                    formData.planType === "custom"
+                      ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  <span className="font-semibold text-xs flex items-center gap-1.5 text-foreground">
+                    <Calculator className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    Custom Plan
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">Flexible fixed or per-user dynamic pricing model</span>
+                </button>
+              </div>
+
+              {/* PRICING MODEL SELECTOR (When Custom Plan is selected) */}
+              {formData.planType === "custom" && (
+                <div className="pt-2 border-t mt-2 space-y-1.5">
+                  <Label className="text-xs font-semibold">Custom Pricing Model</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer ${
+                      formData.pricingModel === "fixed" ? "bg-primary/5 border-primary font-semibold" : "bg-card"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="pricingModel"
+                        value="fixed"
+                        checked={formData.pricingModel === "fixed"}
+                        onChange={() => setFormData({ ...formData, pricingModel: "fixed" })}
+                        className="text-primary"
+                      />
+                      Fixed Price
+                    </label>
+
+                    <label className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer ${
+                      formData.pricingModel === "per_user" ? "bg-primary/5 border-primary font-semibold" : "bg-card"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="pricingModel"
+                        value="per_user"
+                        checked={formData.pricingModel === "per_user"}
+                        onChange={() => setFormData({ ...formData, pricingModel: "per_user" })}
+                        className="text-primary"
+                      />
+                      Per-User Price
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="plan-name">Plan Name *</Label>
+                <Input
+                  id="plan-name"
+                  required
+                  placeholder="e.g. Enterprise Sovereign"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
 
-              {/* Live Rendered HTML Preview */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <Eye className="size-4 text-emerald-600" /> Live HTML Invoice Render Preview
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                  >
-                    ● Live Razorpay Sample Render
+              <div className="space-y-1.5">
+                <Label htmlFor="plan-status">Status</Label>
+                <select
+                  id="plan-status"
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="plan-desc">Short Description</Label>
+              <Input
+                id="plan-desc"
+                placeholder="High-level target audience or value proposition..."
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+
+            {/* CONDITIONAL PRICING CONFIGURATION: PER-USER VS FIXED */}
+            {formData.planType === "custom" && formData.pricingModel === "per_user" ? (
+              <div className="p-3.5 rounded-lg border bg-purple-500/5 border-purple-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-300">
+                      Per-User Pricing Model (INR ₹)
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">Charge based on the number of configured billable seats.</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] font-mono border-purple-500/30 text-purple-700 dark:text-purple-300">
+                    Per-User Engine
                   </Badge>
                 </div>
 
-                <div className="border rounded-xl p-4 bg-secondary/20 min-h-[440px] max-h-[520px] overflow-y-auto shadow-inner">
-                  <div
-                    dangerouslySetInnerHTML={{
-                      __html: renderInvoiceHtml(
-                        orders[0] || { id: "", order_number: "PREVIEW-001", tenant_name: "Sample Tenant", tenant_email: "tenant@example.com", plan_name: "Sample Plan", plan_description: "Preview of invoice template", amount: 0, payment_method: "", razorpay_payment_id: "", status: "paid", date: new Date().toISOString().split("T")[0] },
-                        editingTemplateHtml || currentEditTemplate.html,
-                      ),
-                    }}
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Price Per User (Selling) *</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      required
+                      placeholder="100"
+                      value={formData.pricePerUser ?? ""}
+                      onChange={(e) => setFormData({ ...formData, pricePerUser: Number(e.target.value) || 0 })}
+                      className="h-9 text-sm font-mono font-semibold"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Charged to customer</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Original Price Per User</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="125"
+                      value={formData.pricePerUserOriginal ?? ""}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        pricePerUserOriginal: e.target.value === "" ? null : Number(e.target.value),
+                      })}
+                      className="h-9 text-sm font-mono"
+                    />
+                    <p className="text-[10px] text-muted-foreground">List price for strikethrough</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Number of Users *</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="99999"
+                      step="1"
+                      required
+                      value={formData.billableUsers}
+                      onChange={(e) => setFormData({ ...formData, billableUsers: Number(e.target.value) })}
+                      className="h-9 text-sm font-mono font-semibold"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Range: 1 to 99,999</p>
+                  </div>
                 </div>
+
+                {/* Validation Warnings for Per-User */}
+                {(formData.billableUsers < 1 || formData.billableUsers > 99999 || !Number.isInteger(Number(formData.billableUsers))) && (
+                  <div className="flex items-center gap-2 p-2 rounded bg-destructive/10 text-destructive text-xs font-medium">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    User count must be a whole integer between 1 and 99,999.
+                  </div>
+                )}
+
+                {formData.pricePerUserOriginal !== null && (formData.pricePerUserOriginal || 0) < (formData.pricePerUser || 0) && (
+                  <div className="flex items-center gap-2 p-2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    Selling price per user cannot be greater than original price per user.
+                  </div>
+                )}
+
+                {/* Live Calculated Dynamic Preview */}
+                <div className="p-2.5 rounded-md bg-background border flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Calculator className="h-3.5 w-3.5 text-purple-600" />
+                    Calculated Monthly Total:
+                  </span>
+                  <div className="text-right">
+                    <span className="font-extrabold text-foreground font-mono text-sm">
+                      {formatSystemAmount((formData.pricePerUser || 0) * (formData.billableUsers || 1))}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground ml-1.5">
+                      ({formatSystemAmount(formData.pricePerUser || 0)} &times; {formData.billableUsers || 1} users)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* STANDARD & FIXED PRICING SECTION: 1 Month & 1 Year (Selling & Original) */
+              <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Duration Pricing (INR ₹)</h4>
+                    <p className="text-[11px] text-muted-foreground">Original vs Selling prices for 1 Month and 1 Year billing cycles.</p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] font-mono">Currency: INR (₹)</Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* 1 Month Pricing */}
+                  <div className="p-2.5 rounded-md bg-background border space-y-2">
+                    <span className="text-xs font-bold text-primary flex items-center gap-1">
+                      <Tag className="h-3 w-3" />
+                      1 Month Billing
+                    </span>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Selling Price (₹) *</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        value={formData.priceMonthly}
+                        onChange={(e) => setFormData({ ...formData, priceMonthly: Number(e.target.value) })}
+                        className="h-8 text-xs font-mono font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Original Price (₹)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="Leave blank if no discount"
+                        value={formData.priceMonthlyOriginal ?? ""}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          priceMonthlyOriginal: e.target.value === "" ? null : Number(e.target.value),
+                        })}
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    {formData.priceMonthlyOriginal !== null && formData.priceMonthlyOriginal > formData.priceMonthly && (
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        Discount: {formatSystemAmount(formData.priceMonthlyOriginal - formData.priceMonthly)} (
+                        {Math.round(((formData.priceMonthlyOriginal - formData.priceMonthly) / formData.priceMonthlyOriginal) * 100)}% off)
+                      </p>
+                    )}
+                    {formData.priceMonthlyOriginal !== null && formData.priceMonthlyOriginal < formData.priceMonthly && (
+                      <p className="text-[10px] text-destructive font-medium">
+                        Selling price cannot exceed original price.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 1 Year Pricing */}
+                  <div className="p-2.5 rounded-md bg-background border space-y-2">
+                    <span className="text-xs font-bold text-primary flex items-center gap-1">
+                      <Tag className="h-3 w-3" />
+                      1 Year Billing
+                    </span>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Selling Price (₹) *</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        value={formData.priceAnnual}
+                        onChange={(e) => setFormData({ ...formData, priceAnnual: Number(e.target.value) })}
+                        className="h-8 text-xs font-mono font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Original Price (₹)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="Leave blank if no discount"
+                        value={formData.priceAnnualOriginal ?? ""}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          priceAnnualOriginal: e.target.value === "" ? null : Number(e.target.value),
+                        })}
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    {formData.priceAnnualOriginal !== null && formData.priceAnnualOriginal > formData.priceAnnual && (
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        Discount: {formatSystemAmount(formData.priceAnnualOriginal - formData.priceAnnual)} (
+                        {Math.round(((formData.priceAnnualOriginal - formData.priceAnnual) / formData.priceAnnualOriginal) * 100)}% off)
+                      </p>
+                    )}
+                    {formData.priceAnnualOriginal !== null && formData.priceAnnualOriginal < formData.priceAnnual && (
+                      <p className="text-[10px] text-destructive font-medium">
+                        Selling price cannot exceed original price.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* COMBINED USER LIMIT */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="combined-users" className="text-xs font-semibold">Combined User Limit (Admins + Employees)</Label>
+                <span className="text-[11px] text-muted-foreground">Leave empty or 0 for unlimited</span>
+              </div>
+              <Input
+                id="combined-users"
+                type="number"
+                placeholder="e.g. 50"
+                value={formData.combinedUserLimit || ""}
+                onChange={(e) => setFormData({ ...formData, combinedUserLimit: Number(e.target.value) || 0 })}
+                className="h-9 text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Authoritative combined quota enforced across tenant admins, HR managers, and employees.
+              </p>
+            </div>
+
+            {/* INTERNAL ENTITLEMENT QUOTAS (Hidden from public card) */}
+            <div className="p-3 rounded-lg border border-border/60 bg-muted/10 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <Shield className="h-3.5 w-3.5" />
+                Internal Entitlement Quota (Hidden from Public Cards)
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="storage-limit" className="text-xs">Storage Quota (GB)</Label>
+                <Input
+                  id="storage-limit"
+                  type="number"
+                  placeholder="e.g. 10"
+                  value={formData.storageLimitGb || ""}
+                  onChange={(e) => setFormData({ ...formData, storageLimitGb: Number(e.target.value) || 0 })}
+                  className="h-8 text-xs max-w-xs"
+                />
               </div>
             </div>
-          </Card>
-        </TabsContent>
 
-        {/* TAB 3: COUPONS */}
-        <TabsContent value="coupons" className="space-y-4 pt-4">
-          <div className="flex justify-between items-center">
-            <h3 className="font-bold text-sm">Active Promo Coupons ({coupons.length})</h3>
-            <Button
-              size="sm"
-              onClick={() => setIsCouponModalOpen(true)}
-              className="gap-1.5 text-xs"
-            >
-              <Plus className="size-3.5" /> Create Coupon
-            </Button>
-          </div>
-
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {coupons.map((c) => (
-              <Card key={c.id} className="p-4 border space-y-2">
-                <div className="flex justify-between items-center">
-                  <Badge className="font-mono text-sm">{c.code}</Badge>
-                  <span className="font-bold text-emerald-600 text-sm">
-                    {c.discount_percent}% OFF
-                  </span>
+            {/* 3-DAY FREE TRIAL CONFIGURATION */}
+            <div className="p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-semibold text-emerald-800 dark:text-emerald-400">3-Day Free Trial Eligibility</Label>
+                  <p className="text-[11px] text-muted-foreground">Allow new tenants to activate an exact 3-day evaluation on this plan</p>
                 </div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  Uses: {c.used_count} / {c.max_uses}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* TAB 4: ORDERS & INVOICES */}
-        <TabsContent value="orders" className="space-y-4 pt-4">
-          <Card className="overflow-hidden">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-secondary/40 font-semibold border-b">
-                <tr>
-                  <th className="p-3">Order #</th>
-                  <th className="p-3">Tenant Name</th>
-                  <th className="p-3">Plan Name</th>
-                  <th className="p-3">Razorpay Payment ID</th>
-                  <th className="p-3">Amount</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {orders.map((o) => (
-                  <tr key={o.id} className="hover:bg-secondary/20">
-                    <td className="p-3 font-mono font-bold">{o.order_number}</td>
-                    <td className="p-3 font-bold">{o.tenant_name}</td>
-                    <td className="p-3">{o.plan_name}</td>
-                    <td className="p-3 font-mono text-emerald-600 font-bold">
-                      {o.razorpay_payment_id || "pay_Rz98K4mN2Pq7L1"}
-                    </td>
-                    <td className="p-3 font-mono font-bold">${o.amount}</td>
-                    <td className="p-3">
-                      <Badge variant="default">{o.status}</Badge>
-                    </td>
-                    <td className="p-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px] font-bold gap-1"
-                        onClick={() => setSelectedInvoiceOrder(o)}
-                      >
-                        <FileText className="size-3" /> View HTML Invoice
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 5: BANK TRANSFERS */}
-        <TabsContent value="bank_transfers" className="space-y-4 pt-4">
-          <Card className="overflow-hidden">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-secondary/40 font-semibold border-b">
-                <tr>
-                  <th className="p-3">Tenant / Customer</th>
-                  <th className="p-3">Requested Item</th>
-                  <th className="p-3">Amount</th>
-                  <th className="p-3">Ref / UTR #</th>
-                  <th className="p-3">Receipt Screenshot</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {bankTransfers.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground italic">
-                      No bank transfer requests pending review.
-                    </td>
-                  </tr>
-                ) : (
-                  bankTransfers.map((b) => (
-                    <tr key={b.id} className="hover:bg-secondary/20 transition-colors">
-                      <td className="p-3 font-bold text-foreground">
-                        <div>{b.tenant_name}</div>
-                        <div className="text-[10px] text-muted-foreground">{b.date}</div>
-                      </td>
-                      <td className="p-3">
-                        <Badge variant="outline" className="font-semibold text-[10px]">
-                          {b.item_name || "Subscription Upgrade"}
-                        </Badge>
-                      </td>
-                      <td className="p-3 font-mono font-extrabold text-primary">
-                        ₹{b.amount.toLocaleString()}
-                      </td>
-                      <td className="p-3 font-mono font-bold text-foreground">{b.reference_no}</td>
-                      <td className="p-3">
-                        {b.receipt_url ? (
-                          <a
-                            href={b.receipt_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-primary hover:underline font-semibold"
-                          >
-                            <img
-                              src={b.receipt_url}
-                              alt="Receipt"
-                              className="size-8 object-cover rounded-md border shrink-0"
-                             loading="lazy"/>
-                            <span className="text-[10px]">View Screenshot</span>
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground italic">No image</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <Badge
-                          className={
-                            b.status === "approved"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-bold"
-                              : b.status === "rejected"
-                                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold"
-                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-bold"
-                          }
-                        >
-                          {b.status.toUpperCase()}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-right">
-                        {b.status === "pending" && (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              onClick={() => handleApproveTransfer(b.id)}
-                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1"
-                            >
-                              <CheckCircle2 className="size-3" /> Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRejectTransfer(b.id)}
-                              className="h-7 text-xs text-destructive hover:bg-destructive/10 font-bold gap-1"
-                            >
-                              <XCircle className="size-3" /> Reject
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* MODAL 1: VIEW & PRINT HTML INVOICE WITH TEMPLATE SWITCHER & RAZORPAY PAYMENT ID */}
-      {selectedInvoiceOrder && (
-        <Dialog open={!!selectedInvoiceOrder} onOpenChange={() => setSelectedInvoiceOrder(null)}>
-          <DialogContent className="sm:max-w-[850px] max-h-[92vh] overflow-y-auto">
-            <DialogHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-6">
-                <div>
-                  <DialogTitle className="flex items-center gap-2">
-                    <FileText className="size-5 text-primary" /> Tax Invoice —{" "}
-                    {selectedInvoiceOrder.order_number}
-                  </DialogTitle>
-                  <DialogDescription className="text-xs">
-                    Render invoice using 6 variation HTML templates with Razorpay payment details.
-                  </DialogDescription>
-                </div>
-
-                {/* Template Picker */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-muted-foreground shrink-0">
-                    Template:
-                  </span>
-                  <Select
-                    value={activeInvoiceTemplateId}
-                    onValueChange={setActiveInvoiceTemplateId}
-                  >
-                    <SelectTrigger className="h-8 text-xs w-[220px] font-bold">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {templates.map((t) => (
-                        <SelectItem key={t.id} value={t.id} className="text-xs font-semibold">
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Switch
+                  checked={formData.isTrial}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isTrial: checked })}
+                />
               </div>
-            </DialogHeader>
 
-            {/* Rendered HTML Container */}
-            <div className="py-2 border-y my-2 overflow-x-auto">
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: renderInvoiceHtml(
-                    selectedInvoiceOrder,
-                    (templates.find((t) => t.id === activeInvoiceTemplateId) || templates[0]).html,
-                  ),
-                }}
+              {formData.isTrial && (
+                <div className="pt-2 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>Fixed trial duration: <strong>3 Days</strong> from tenant activation timestamp.</span>
+                </div>
+              )}
+            </div>
+
+            {/* FEATURES LIST */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="plan-features">Features & Entitlements (One per line)</Label>
+                <span className="text-[11px] text-muted-foreground">Rendered as feature entitlements</span>
+              </div>
+              <Textarea
+                id="plan-features"
+                rows={4}
+                placeholder="Core HR & Employee Directory&#10;Biometric Attendance & Leave&#10;Employee Self-Service Portal"
+                value={formData.featuresText}
+                onChange={(e) => setFormData({ ...formData, featuresText: e.target.value })}
+                className="text-xs font-mono"
               />
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                variant="outline"
-                onClick={() => window.print()}
-                className="gap-1.5 text-xs font-bold"
-              >
-                <Printer className="size-3.5" /> Print / Save as PDF
-              </Button>
-              <Button onClick={() => setSelectedInvoiceOrder(null)} className="font-bold">
-                Close Invoice
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* MODAL 2: EDIT PLAN TIER & BUNDLED ADDONS */}
-      {editingPlan && (
-        <Dialog open={isPlanModalOpen} onOpenChange={setIsPlanModalOpen}>
-          <DialogContent className="sm:max-w-[580px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <CreditCard className="size-5 text-primary" />
-                {editingPlan.id
-                  ? "Edit Plan Tier & Default Activated Addons"
-                  : "Add New Subscription Plan Tier"}
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Select real-time Super-Admin marketplace addons that will be{" "}
-                <strong>automatically activated by default</strong> when a tenant chooses this plan.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-2 text-xs">
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Plan Name *</Label>
-                  <Input
-                    placeholder="Growth Plan"
-                    value={editingPlan.name ?? ""}
-                    onChange={(e) => setEditingPlan({ ...editingPlan, name: e.target.value })}
-                  />
+            {/* TOGGLES: Popular, Public, Sort Order */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t">
+              <div className="flex items-center justify-between p-2 rounded-md border">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium">Most Popular</p>
+                  <p className="text-[10px] text-muted-foreground">Highlight with badge</p>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Max Employee Seats</Label>
-                  <Input
-                    type="number"
-                    value={editingPlan.max_employees ?? 0}
-                    onChange={(e) =>
-                      setEditingPlan({
-                        ...editingPlan,
-                        max_employees: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2"><Label>User capacity (blank = unlimited)</Label><Input type="number" min="0" step="1" value={editingPlan.max_users ?? ""} onChange={(e) => setEditingPlan({ ...editingPlan, max_users: e.target.value === "" ? null : Number(e.target.value) })} /></div>
+                <Switch
+                  checked={formData.isPopular}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isPopular: checked })}
+                />
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Monthly Price ($)</Label>
-                  <Input
-                    type="number"
-                    value={editingPlan.price_monthly ?? 0}
-                    onChange={(e) =>
-                      setEditingPlan({
-                        ...editingPlan,
-                        price_monthly: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
+              <div className="flex items-center justify-between p-2 rounded-md border">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium">Public in CMS</p>
+                  <p className="text-[10px] text-muted-foreground">Show on /pricing</p>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Annual Price ($)</Label>
-                  <Input
-                    type="number"
-                    value={editingPlan.price_annual ?? 0}
-                    onChange={(e) =>
-                      setEditingPlan({
-                        ...editingPlan,
-                        price_annual: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
+                <Switch
+                  checked={formData.isPublic}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isPublic: checked })}
+                />
               </div>
 
-              {/* REAL-TIME MARKETPLACE ADDONS SELECTOR */}
-              <div className="space-y-2 pt-2 border-t">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
-                    <Store className="size-4" /> Default Activated Addons
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {(editingPlan.included_addon_ids || []).length} selected
-                  </span>
+              <div className="flex items-center justify-between p-2 rounded-md border">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium">Sort Order</p>
+                  <p className="text-[10px] text-muted-foreground">Display sequence</p>
                 </div>
-
-                <div className="grid sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border rounded-xl bg-secondary/20">
-                  {availableAddons.map((addon: any) => {
-                    const isChecked = (editingPlan.included_addon_ids || []).includes(addon.id);
-                    return (
-                      <div
-                        key={addon.id}
-                        onClick={() => toggleAddonInPlan(addon.id)}
-                        className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
-                          isChecked
-                            ? "bg-emerald-500/10 border-emerald-500/50 text-foreground font-semibold"
-                            : "bg-card hover:bg-secondary/50 text-muted-foreground"
-                        }`}
-                      >
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={() => toggleAddonInPlan(addon.id)}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-bold text-xs truncate">{addon.name}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono">
-                            {addon.price_monthly === 0 ? "Free" : `$${addon.price_monthly}/mo`} ·{" "}
-                            {addon.category || "Module"}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  value={formData.sortOrder}
+                  onChange={(e) => setFormData({ ...formData, sortOrder: Number(e.target.value) || 0 })}
+                  className="h-8 w-16 text-xs text-right"
+                />
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => setIsPlanModalOpen(false)}>
+            <DialogFooter className="pt-3 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsPlanModalOpen(false)}
+                disabled={savePlanMutation.isPending}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleSavePlan} className="bg-primary font-bold">
-                Save Plan Tier
+              <Button
+                type="submit"
+                disabled={savePlanMutation.isPending}
+                className="gap-2"
+              >
+                {savePlanMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editingPlan?.id ? "Update Plan" : "Create Plan"}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      {/* MODAL 3: CREATE COUPON */}
-      <Dialog open={isCouponModalOpen} onOpenChange={setIsCouponModalOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+      {/* SUBSCRIBERS INSPECTOR DIALOG */}
+      <Dialog
+        open={Boolean(selectedSubscribersPlan)}
+        onOpenChange={(open) => !open && setSelectedSubscribersPlan(null)}
+      >
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Create Discount Coupon</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              Subscribers: {selectedSubscribersPlan?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Active and past tenant workspaces subscribed to this plan.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Coupon Code</Label>
-              <Input
-                placeholder="e.g. SUMMER20"
-                value={newCode}
-                onChange={(e) => setNewCode(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Discount Percentage (%)</Label>
-              <Input
-                type="number"
-                value={newDiscount}
-                onChange={(e) => setNewDiscount(parseInt(e.target.value) || 0)}
-              />
-            </div>
+
+          <div className="space-y-3 pt-2">
+            {!selectedSubscribersPlan?.subscriptions || selectedSubscribersPlan.subscriptions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                No active tenant subscriptions found for this plan.
+              </div>
+            ) : (
+              <div className="border rounded-md divide-y max-h-72 overflow-y-auto">
+                {selectedSubscribersPlan.subscriptions.map((sub) => (
+                  <div key={sub.id} className="p-3 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-semibold text-foreground">{sub.tenant?.name || "Workspace"}</p>
+                      <p className="text-[11px] text-muted-foreground">Slug: {sub.tenant?.slug || sub.tenantId}</p>
+                    </div>
+                    <div className="text-right space-y-0.5">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          sub.status === "active"
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {sub.status}
+                      </Badge>
+                      <p className="text-[10px] text-muted-foreground">
+                        {sub.expiresAt ? `Expires: ${new Date(sub.expiresAt).toLocaleDateString()}` : "Ongoing"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCouponModalOpen(false)}>
-              Cancel
+            <Button variant="outline" onClick={() => setSelectedSubscribersPlan(null)}>
+              Close
             </Button>
-            <Button onClick={handleCreateCoupon}>Create Code</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

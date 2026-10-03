@@ -355,23 +355,25 @@ export async function seedDynamicDatabase() {
     { name: "Christmas Day", date: new Date("2026-12-25"), type: "public", description: "Christmas celebration" },
   ];
 
-  for (const h of holidays) {
-    const existing = await prisma.holiday.findFirst({
-      where: { tenantId: defaultTenantId, name: h.name },
-    });
-    if (!existing) {
-      await prisma.holiday.create({
-        data: {
-          tenantId: defaultTenantId,
-          name: h.name,
-          date: h.date,
-          type: h.type,
-          description: h.description,
-        },
+  if (prisma.holiday) {
+    for (const h of holidays) {
+      const existing = await prisma.holiday.findFirst({
+        where: { tenantId: defaultTenantId, name: h.name },
       });
+      if (!existing) {
+        await prisma.holiday.create({
+          data: {
+            tenantId: defaultTenantId,
+            name: h.name,
+            date: h.date,
+            type: h.type,
+            description: h.description,
+          },
+        });
+      }
     }
+    console.log(`✅ Holidays seeded (${holidays.length} holidays)`);
   }
-  console.log(`✅ Holidays seeded (${holidays.length} holidays)`);
 
   // 5. Seed Designations for Tenant
   const designations = [
@@ -388,23 +390,26 @@ export async function seedDynamicDatabase() {
   ];
 
   for (const d of designations) {
-    await prisma.designation.upsert({
-      where: { tenantId_name: { tenantId: defaultTenantId, name: d } },
-      create: {
-        tenantId: defaultTenantId,
-        name: d,
-        description: `Corporate role: ${d}`,
-      },
-      update: {},
+    const existing = await prisma.designation.findFirst({
+      where: { tenantId: defaultTenantId, name: d },
     });
+    if (!existing) {
+      await prisma.designation.create({
+        data: {
+          tenantId: defaultTenantId,
+          name: d,
+          description: `Corporate role: ${d}`,
+        },
+      });
+    }
   }
   console.log(`✅ Designations seeded (${designations.length} roles)`);
 
   // 6. Seed CRM Contacts & Companies for Tenant
   const companies = [
-    { name: "Apex Technologies", industry: "Information Technology", website: "https://apextech.io", phone: "+91 80 4123 4567", email: "contact@apextech.io", city: "Bengaluru", country: "India" },
-    { name: "Vanguard Logistics", industry: "Supply Chain", website: "https://vanguardlogistics.com", phone: "+91 22 2845 9900", email: "ops@vanguardlogistics.com", city: "Mumbai", country: "India" },
-    { name: "Horizon Health Labs", industry: "Healthcare", website: "https://horizonlabs.org", phone: "+91 44 2390 1122", email: "info@horizonlabs.org", city: "Chennai", country: "India" },
+    { name: "Apex Technologies", industry: "Information Technology", website: "https://apextech.io", location: "Bengaluru, India", employeesCount: "250-500", notes: "Enterprise IT Client" },
+    { name: "Vanguard Logistics", industry: "Supply Chain", website: "https://vanguardlogistics.com", location: "Mumbai, India", employeesCount: "500-1000", notes: "National Logistics Provider" },
+    { name: "Horizon Health Labs", industry: "Healthcare", website: "https://horizonlabs.org", location: "Chennai, India", employeesCount: "100-250", notes: "Diagnostics and Research Partner" },
   ];
 
   for (const c of companies) {
@@ -450,23 +455,25 @@ export async function seedDynamicDatabase() {
     { title: "Reconcile double-entry general ledger", completed: false, priority: "medium", dueDate: new Date("2026-10-10") },
   ];
 
-  for (const t of todos) {
-    const existing = await prisma.todoItem.findFirst({
-      where: { tenantId: defaultTenantId, title: t.title },
-    });
-    if (!existing) {
-      await prisma.todoItem.create({
-        data: {
-          tenantId: defaultTenantId,
-          title: t.title,
-          completed: t.completed,
-          priority: t.priority,
-          dueDate: t.dueDate,
-        },
+  if (prisma.todoItem) {
+    for (const t of todos) {
+      const existing = await prisma.todoItem.findFirst({
+        where: { tenantId: defaultTenantId, title: t.title },
       });
+      if (!existing) {
+        await prisma.todoItem.create({
+          data: {
+            tenantId: defaultTenantId,
+            title: t.title,
+            completed: t.completed,
+            priority: t.priority,
+            dueDate: t.dueDate,
+          },
+        });
+      }
     }
+    console.log(`✅ Workspace Todo Items seeded`);
   }
-  console.log(`✅ Workspace Todo Items seeded`);
 
   // 8. Seed Automation Workflows & WhatsApp Rules
   const workflows = [
@@ -493,62 +500,45 @@ export async function seedDynamicDatabase() {
     },
   ];
 
-  for (const w of workflows) {
-    const existing = await prisma.automationWorkflow.findFirst({
-      where: { tenantId: defaultTenantId, name: w.name },
-    });
-    if (!existing) {
-      await prisma.automationWorkflow.create({
-        data: {
-          tenantId: defaultTenantId,
-          name: w.name,
-          trigger: w.trigger,
-          conditions: w.conditions,
-          actions: w.actions,
-          isActive: w.isActive,
-        },
+  if (prisma.automationWorkflow) {
+    for (const w of workflows) {
+      const existing = await prisma.automationWorkflow.findFirst({
+        where: { tenantId: defaultTenantId, name: w.name },
       });
+      if (!existing) {
+        await prisma.automationWorkflow.create({
+          data: {
+            tenantId: defaultTenantId,
+            name: w.name,
+            trigger: w.trigger,
+            conditions: w.conditions,
+            actions: w.actions,
+            isActive: w.isActive,
+          },
+        });
+      }
     }
   }
 
-  const whatsappRules = [
-    {
-      triggerEvent: "payslip_generated",
-      template: "Dear {{name}}, your payslip for {{month}} is ready with net salary {{net_amount}}. Download at {{portal_url}}",
-      recipientType: "employee",
-      isActive: true,
-    },
-    {
-      triggerEvent: "leave_approved",
-      template: "Hello {{name}}, your {{leave_type}} leave from {{start_date}} to {{end_date}} has been approved by your manager.",
-      recipientType: "employee",
-      isActive: true,
-    },
-    {
-      triggerEvent: "shift_roster_assigned",
-      template: "Notice: You have been scheduled for shift {{shift_name}} on {{date}} at {{start_time}}.",
-      recipientType: "employee",
-      isActive: true,
-    },
-  ];
-
-  for (const r of whatsappRules) {
-    const existing = await prisma.whatsappRule.findFirst({
-      where: { tenantId: defaultTenantId, triggerEvent: r.triggerEvent },
-    });
-    if (!existing) {
-      await prisma.whatsappRule.create({
-        data: {
-          tenantId: defaultTenantId,
-          triggerEvent: r.triggerEvent,
-          template: r.template,
-          recipientType: r.recipientType,
-          isActive: r.isActive,
-        },
+  if (prisma.whatsappRule) {
+    for (const r of whatsappRules) {
+      const existing = await prisma.whatsappRule.findFirst({
+        where: { tenantId: defaultTenantId, triggerEvent: r.triggerEvent },
       });
+      if (!existing) {
+        await prisma.whatsappRule.create({
+          data: {
+            tenantId: defaultTenantId,
+            triggerEvent: r.triggerEvent,
+            template: r.template,
+            recipientType: r.recipientType,
+            isActive: r.isActive,
+          },
+        });
+      }
     }
+    console.log(`✅ Workflows & WhatsApp Alert Rules seeded`);
   }
-  console.log(`✅ Workflows & WhatsApp Alert Rules seeded`);
 
   // 9. Seed Custom Domains for Tenant
   const domains = [
@@ -556,20 +546,22 @@ export async function seedDynamicDatabase() {
     { domain: "hrms.tsvsolutions.com", sslStatus: "active", dnsVerified: true, status: "active" },
   ];
 
-  for (const d of domains) {
-    await prisma.customDomain.upsert({
-      where: { domain: d.domain },
-      create: {
-        tenantId: defaultTenantId,
-        domain: d.domain,
-        sslStatus: d.sslStatus,
-        dnsVerified: d.dnsVerified,
-        status: d.status,
-      },
-      update: {},
-    });
+  if (prisma.customDomain) {
+    for (const d of domains) {
+      await prisma.customDomain.upsert({
+        where: { domain: d.domain },
+        create: {
+          tenantId: defaultTenantId,
+          domain: d.domain,
+          sslStatus: d.sslStatus,
+          dnsVerified: d.dnsVerified,
+          status: d.status,
+        },
+        update: {},
+      });
+    }
+    console.log(`✅ Custom Domains seeded`);
   }
-  console.log(`✅ Custom Domains seeded`);
 
   console.log("🎉 Complete Dynamic Database Seeding finished successfully!");
 }

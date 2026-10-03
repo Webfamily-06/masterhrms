@@ -762,6 +762,27 @@ body {
     display: flex !important;
   }
 
+  /* ------------------------------------------------------------
+     COMPANY INFORMATION DRAWER (Docked Flush Below Topbar)
+     Prevents overlapping or hiding underneath sticky top navigation.
+     ------------------------------------------------------------ */
+  .company-info-drawer {
+    top: var(--topbar-height, 56px) !important;
+    height: calc(100vh - var(--topbar-height, 56px)) !important;
+    max-height: calc(100vh - var(--topbar-height, 56px)) !important;
+    z-index: 850 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+    box-shadow: -4px 0 24px -2px rgba(0, 0, 0, 0.12) !important;
+  }
+
+  .company-info-drawer-overlay {
+    top: var(--topbar-height, 56px) !important;
+    height: calc(100vh - var(--topbar-height, 56px)) !important;
+    z-index: 840 !important;
+  }
+
   /* Main Page Wrapper (Docked flush beside sidebar, 0 extra space) */
   .page-wrapper {
     margin-left: var(--sidebar-width) !important;

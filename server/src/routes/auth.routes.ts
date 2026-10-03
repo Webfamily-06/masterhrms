@@ -11,6 +11,7 @@ const prisma = rawPrisma || proxiedPrisma;
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 import { recordLoginHistory } from "../services/login-history.service";
+import { provisionTenantWithTrial } from "../lib/tenant-provisioning";
 
 export const authRouter = Router();
 
@@ -28,6 +29,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   fullName: z.string().optional(),
+  companyName: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -118,7 +120,7 @@ authRouter.get("/public/tenant-branding", async (req, res) => {
 // POST /api/auth/register
 authRouter.post("/register", async (req, res) => {
   try {
-    const { email, password, fullName } = registerSchema.parse(req.body);
+    const { email, password, fullName, companyName } = registerSchema.parse(req.body);
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -131,25 +133,30 @@ authRouter.post("/register", async (req, res) => {
       data: {
         email,
         passwordHash,
-        profile: {
-          create: {
-            id: crypto.randomUUID(),
-            email,
-            fullName: fullName || email.split("@")[0],
-          },
-        },
       },
+    });
+
+    // SaaS Lifecycle Flow 1.1: Provision Tenant, admin User, TenantSubscription(status=trialing, trialEndsAt), seeds 17 accounts
+    const provisionResult = await provisionTenantWithTrial({
+      name: companyName?.trim() || (fullName ? `${fullName}'s Organization` : `${email.split("@")[0]}'s Org`),
+      adminEmail: email,
+      adminFullName: fullName,
+      userId: user.id,
+    });
+
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: user.id },
       include: {
         profile: true,
         roles: true,
       },
     });
 
-    const roles = user.roles.map((r) => r.role);
+    const roles = updatedUser?.roles.map((r) => r.role) || ["admin"];
     const token = generateToken({
       userId: user.id,
       email: user.email,
-      tenantId: user.profile?.tenantId,
+      tenantId: provisionResult.tenant.id,
       roles,
     });
 
@@ -157,8 +164,17 @@ authRouter.post("/register", async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        profile: user.profile,
+        profile: updatedUser?.profile,
         roles,
+      },
+      tenant: {
+        id: provisionResult.tenant.id,
+        name: provisionResult.tenant.name,
+        slug: provisionResult.tenant.slug,
+      },
+      subscription: {
+        status: provisionResult.subscription.status,
+        trialEndsAt: provisionResult.trialEndsAt,
       },
       token,
     });

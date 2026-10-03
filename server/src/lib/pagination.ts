@@ -64,3 +64,51 @@ export function formatPaginatedResponse<T>(data: T[], total: number, params: Pag
     hasMore: params.page * params.limit < total,
   };
 }
+
+/**
+ * SaaS Contract Pagination Parser
+ * - Cap limit strictly at 100
+ * - Whitelist sortField against allowedSort array (prevent arbitrary injections)
+ * - Do not manually inject tenantId (Prisma proxy/where handles tenant scoping)
+ */
+export function parsePagination(
+  q: any,
+  allowedSort: string[],
+  defaultSort = "createdAt"
+) {
+  const page = Math.max(1, parseInt(q?.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(q?.limit, 10) || 25));
+  const sortField = Array.isArray(allowedSort) && allowedSort.includes(q?.sort) ? q.sort : defaultSort;
+  const order = q?.order === "asc" ? ("asc" as const) : ("desc" as const);
+  return {
+    page,
+    limit,
+    skip: (page - 1) * limit,
+    take: limit,
+    orderBy: { [sortField]: order },
+    search: typeof q?.search === "string" ? q.search.trim() : "",
+  };
+}
+
+/**
+ * SaaS Contract Generic Paginator
+ * Returns standardized contract { items, total, page, limit }
+ */
+export async function paginate<T>(
+  delegate: { findMany: Function; count: Function },
+  options: { where?: any; include?: any; select?: any } = {},
+  p: ReturnType<typeof parsePagination>
+) {
+  const [items, total] = await Promise.all([
+    delegate.findMany({
+      where: options.where,
+      include: options.include,
+      select: options.select,
+      skip: p.skip,
+      take: p.take,
+      orderBy: p.orderBy,
+    }),
+    delegate.count({ where: options.where }),
+  ]);
+  return { items: items as T[], total, page: p.page, limit: p.limit };
+}

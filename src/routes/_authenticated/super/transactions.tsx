@@ -161,23 +161,22 @@ function SuperPurchaseTransactionsPage() {
       },
     ];
 
-    if (rawTxns.length > 0) {
-      const liveList = rawTxns.map((tx: any, idx: number) => ({
+    if (rawTxns && rawTxns.length > 0) {
+      return rawTxns.map((tx: any, idx: number) => ({
         id: tx.id,
         invoiceId: tx.transactionNo || `INV${String(idx + 1).padStart(3, "0")}`,
         customerName: tx.tenantName || "Enterprise Tenant",
-        customerEmail: `billing@${tx.tenantSlug || "tenant"}.com`,
+        customerEmail: tx.customerEmail || `billing@${tx.tenantSlug || "tenant"}.com`,
         companyLogo: `/ui-assets/company/company-0${(idx % 5) + 1}.svg`,
-        createdAt: tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "14 Jan 2025",
-        amount: Number(tx.amount) || 250,
-        paymentMethod: tx.gateway === "stripe" ? "Credit Card" : tx.gateway === "razorpay" ? "Paypal" : "Debit Card",
-        status: (tx.status === "success" || tx.status === "verified" ? "Paid" : "Unpaid") as "Paid" | "Unpaid",
+        createdAt: tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Recent",
+        amount: Number(tx.amount) || 0,
+        paymentMethod: tx.gateway === "stripe" ? "Credit Card" : tx.gateway === "razorpay" ? "Razorpay" : "Online Payment",
+        status: (tx.status === "success" || tx.status === "verified" || tx.status === "paid" ? "Paid" : "Unpaid") as "Paid" | "Unpaid",
         planName: tx.itemName || "Enterprise Plan",
       }));
-      return [...liveList, ...list];
     }
 
-    return list;
+    return [];
   }, [rawTxns]);
 
   // Filtered & Sorted transactions

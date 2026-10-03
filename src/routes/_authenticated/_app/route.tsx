@@ -39,6 +39,11 @@ import { useTenantBranding } from "@/lib/useTenantBranding";
 import { AccessDenied } from "@/components/access-denied";
 import { isSuperAdminUser, isSharedRoute, isPlatformOnlyRoute } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { SuspendedAccountView } from "@/components/subscription/suspended-account-view";
+import { ExpiredSubscriptionView } from "@/components/subscription/expired-subscription-view";
+import { SubscriptionWarningPopup } from "@/components/subscription/subscription-warning-popup";
+import { SubscriptionFooterBar } from "@/components/subscription/subscription-footer-bar";
 
 export const Route = createFileRoute("/_authenticated/_app")({
   component: AppShell,
@@ -162,8 +167,57 @@ function AppShell() {
   const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/dashboard";
   const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
+  const { data: subscription, isLoading: isSubLoading, refetch: reloadSubscription } = useQuery({
+    queryKey: ["workspace-subscription-shell", profile?.tenant_id],
+    queryFn: () => api.get("/workspace/subscription"),
+    enabled: !!profile?.tenant_id && !isSuperAdmin,
+    staleTime: 5000,
+    refetchOnMount: true,
+  });
+
+  const isSuspended = !isSuperAdmin && !!profile?.tenant_id && subscription?.status === "suspended";
+  const isExpired =
+    !isSuperAdmin &&
+    !!profile?.tenant_id &&
+    (subscription?.status === "expired" ||
+      subscription?.isExpired === true ||
+      (!!subscription?.expiresAt && new Date(subscription.expiresAt).getTime() < Date.now()));
+
   
 
+
+  const EMPLOYEE_ALLOWED_PREFIXES = [
+    "/employee-dashboard",
+    "/attendance",
+    "/attendance-employee",
+    "/leave",
+    "/shifts",
+    "/shift-swap-requests",
+    "/overtime",
+    "/work-from-home",
+    "/tasks",
+    "/helpdesk",
+    "/chat",
+    "/documents",
+    "/resignation",
+    "/profile",
+    "/daily-report",
+    "/clear-cache",
+    "/offline",
+  ];
+
+  const CLIENT_ALLOWED_PREFIXES = [
+    "/client-dashboard",
+    "/invoices",
+    "/projects",
+    "/task-board",
+    "/helpdesk",
+    "/chat",
+    "/portal",
+    "/profile",
+    "/clear-cache",
+    "/offline",
+  ];
 
   useEffect(() => {
     if (!loading && !isLoading && !localStorage.getItem("hrms_auth_token")) {
@@ -178,8 +232,31 @@ function AppShell() {
       } else {
         navigate({ to: "/onboarding" });
       }
+      return;
     }
-  }, [loading, isLoading, profile, isSuperAdmin, isPlatformOrShared, path, navigate]);
+
+    // Role-based Deep Link Enforcement
+    if (!loading && !isLoading && profile) {
+      if (isEmployeeOnly) {
+        const isAllowed = EMPLOYEE_ALLOWED_PREFIXES.some(
+          (p) => path === p || path.startsWith(p + "/")
+        );
+        if (!isAllowed) {
+          navigate({ to: "/employee-dashboard" });
+          return;
+        }
+      }
+      if (isClientOnly) {
+        const isAllowed = CLIENT_ALLOWED_PREFIXES.some(
+          (p) => path === p || path.startsWith(p + "/")
+        );
+        if (!isAllowed) {
+          navigate({ to: "/client-dashboard" });
+          return;
+        }
+      }
+    }
+  }, [loading, isLoading, profile, isSuperAdmin, isPlatformOrShared, isEmployeeOnly, isClientOnly, path, navigate]);
 
   // Sidebar collapse state with localStorage persistence
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -301,7 +378,7 @@ function AppShell() {
     );
   }
 
-  if (loading || isLoading || !profile) {
+  if (loading || isLoading || (isSubLoading && !isSuperAdmin) || !profile) {
     return (
       <div className="min-h-screen grid place-items-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -330,6 +407,35 @@ function AppShell() {
           </Button>
         </div>
       </div>
+    );
+  }
+
+  // 1. Suspension Guard: Lock full workspace if tenant account is suspended
+  if (isSuspended) {
+    return (
+      <SuspendedAccountView
+        companyName={profile.tenant?.name || branding.name || "Workspace"}
+        tenantId={profile.tenant_id ?? undefined}
+        planName={subscription?.planName}
+        suspensionReason={subscription?.suspensionReason}
+        onSignOut={handleSignOut}
+        onRefresh={() => reloadSubscription()}
+      />
+    );
+  }
+
+  // 2. Expiration Guard: Lock full workspace if subscription has expired (except /subscription renewal page)
+  if (isExpired && path !== "/subscription") {
+    return (
+      <ExpiredSubscriptionView
+        companyName={profile.tenant?.name || branding.name || "Workspace"}
+        tenantId={profile.tenant_id ?? undefined}
+        planName={subscription?.planName}
+        expiryDate={subscription?.expiresAt}
+        renewalUrl="/subscription"
+        onSignOut={handleSignOut}
+        onRefresh={() => reloadSubscription()}
+      />
     );
   }
 
@@ -761,8 +867,28 @@ function AppShell() {
         </CommandList>
       </CommandDialog>
 
+      {/* Expiry Warning Popup (Dismissible with threshold persistence) */}
+      {!isSuperAdmin && profile?.tenant_id && subscription?.expiresAt && !isExpired && !isSuspended && (
+        <SubscriptionWarningPopup
+          tenantId={profile.tenant_id}
+          planName={subscription.planName}
+          expiresAt={subscription.expiresAt}
+          renewalUrl="/subscription"
+        />
+      )}
+
+      {/* Persistent Footer-side Warning Bar */}
+      {!isSuperAdmin && profile?.tenant_id && subscription?.expiresAt && !isExpired && !isSuspended && (
+        <SubscriptionFooterBar
+          planName={subscription.planName}
+          expiresAt={subscription.expiresAt}
+          renewalUrl="/subscription"
+        />
+      )}
+
       {/* AI Copilot Widget */}
       <AICopilotWidget />
     </div>
   );
 }
+

@@ -43,7 +43,12 @@ export type PaymentCheckoutModalProps = {
   itemName: string;
   amount: number;
   description: string;
-  onSuccess: (paymentDetails: { method: string; paymentId?: string }) => Promise<void>;
+  onSuccess: (paymentDetails: {
+    method: string;
+    paymentId?: string;
+    orderId?: string;
+    signature?: string;
+  }) => Promise<void>;
 };
 
 const BANK_DETAILS = {
@@ -125,7 +130,12 @@ export function PaymentCheckoutModal({
           throw new Error("Payment response is null or incomplete. Payment was not verified.");
         }
 
-        await onSuccess({ method: "Razorpay", paymentId: razorpayResp.razorpay_payment_id });
+        await onSuccess({
+          method: "Razorpay",
+          paymentId: razorpayResp.razorpay_payment_id,
+          orderId: razorpayResp.razorpay_order_id,
+          signature: razorpayResp.razorpay_signature,
+        });
         onOpenChange(false);
         return;
       }

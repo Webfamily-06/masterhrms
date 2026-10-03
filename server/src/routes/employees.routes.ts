@@ -5,6 +5,7 @@ import { prisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
+import { requireWithinLimit } from "../middleware/limits";
 
 export const employeesRouter = Router();
 
@@ -188,7 +189,7 @@ employeesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
 });
 
 // POST /api/employees
-employeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create"), async (req: AuthRequest, res: Response) => {
+employeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create"), requireWithinLimit("seats"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = await getTenantId(req);
 

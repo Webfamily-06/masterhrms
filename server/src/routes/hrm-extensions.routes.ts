@@ -8,6 +8,7 @@ import { isValidIpOrCidr } from "../lib/ip-firewall";
 import { TenantConnectionManager } from "../services/tenant-connection-manager.service";
 import { runBiometricAutoSync } from "../cron/biometric-sync";
 import { processDueRecurringInvoices } from "../services/recurring-invoice.service";
+import { runSubscriptionExpiryRemindersCron } from "../cron/subscription-reminder.cron";
 
 export const overtimeRouter = Router();
 export const wfhRouter = Router();
@@ -1002,6 +1003,17 @@ systemMaintenanceRouter.get("/cronjobs", requireAuth, requireSuperAdmin, async (
             lastStatus: "success",
             durationMs: 650,
           },
+          {
+            name: "Subscription Expiry Reminders Scheduler",
+            code: "subscription_expiry_reminders_cron",
+            schedule: "Daily at 08:00 AM UTC",
+            cronExpression: "0 8 * * *",
+            nextRun: inMidnight,
+            lastRun: now,
+            status: "running",
+            lastStatus: "success",
+            durationMs: 380,
+          },
         ],
       });
 
@@ -1105,6 +1117,13 @@ systemMaintenanceRouter.post("/cronjobs/:id/run", requireAuth, requireSuperAdmin
       } catch (e: any) {
         executionError = e.message || "Execution failed";
       }
+    } else if (existing.code.includes("subscription") || existing.code === "subscription_expiry_reminders_cron") {
+      try {
+        const remResult = await runSubscriptionExpiryRemindersCron();
+        console.log(`[CRON] Processed subscription expiry reminders:`, remResult);
+      } catch (e: any) {
+        executionError = e.message || "Execution failed";
+      }
     }
 
     const duration = Math.max(15, Date.now() - startTime + Math.floor(100 + Math.random() * 200));
@@ -1129,6 +1148,16 @@ systemMaintenanceRouter.post("/cronjobs/:id/run", requireAuth, requireSuperAdmin
         : `Cron job '${existing.name}' executed successfully in ${duration}ms.`,
       job: updated,
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system/cronjobs/run-subscription-reminders (Direct Super Admin invocation)
+systemMaintenanceRouter.post("/cronjobs/run-subscription-reminders", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await runSubscriptionExpiryRemindersCron();
+    res.json({ success: true, ...result });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

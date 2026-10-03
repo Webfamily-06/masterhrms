@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function WorkspacePolicyDialog({ tenant, onClose }: { tenant: any; onClose: () => void }) {
@@ -19,7 +20,13 @@ export function WorkspacePolicyDialog({ tenant, onClose }: { tenant: any; onClos
   });
   const { data: plans = [], isLoading, error } = useQuery({
     queryKey: ["workspace-policy-plans"],
-    queryFn: async () => (await api.get("/cms/pages/system-monetization-plans"))?.content?.plans || [],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/super/plans");
+        if (Array.isArray(res) && res.length > 0) return res;
+      } catch {}
+      return (await api.get("/cms/pages/system-monetization-plans"))?.content?.plans || [];
+    },
   });
   const save = useMutation({
     mutationFn: () => api.put(`/super/tenants/${tenant.id}/policy`, {
@@ -30,6 +37,8 @@ export function WorkspacePolicyDialog({ tenant, onClose }: { tenant: any; onClos
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["super-tenants"] });
+      qc.invalidateQueries({ queryKey: ["super-tenants-list"] });
+      qc.invalidateQueries({ queryKey: ["super-tenants-stats"] });
       qc.invalidateQueries({ queryKey: ["super-realtime-stats"] });
       qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
       toast.success("Workspace subscription and limits updated"); onClose();
@@ -58,7 +67,15 @@ export function WorkspacePolicyDialog({ tenant, onClose }: { tenant: any; onClos
         </div>
         <p className="text-xs text-muted-foreground">Blank limits mean unlimited; 0 blocks new records. Employee limits count all employee records. User limits exclude platform administrators.</p>
         <div className="space-y-1"><Label htmlFor="policy-expiry">Access expires at end of day (UTC)</Label><Input id="policy-expiry" type="date" value={policy.expiresAt} onChange={(e) => setPolicy({ ...policy, expiresAt: e.target.value })} /></div>
-        <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>Cancel</Button><Button disabled={save.isPending}>{save.isPending ? "Saving…" : "Save controls"}</Button></div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>
+            Cancel
+          </Button>
+          <Button disabled={save.isPending}>
+            {save.isPending ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+            Save controls
+          </Button>
+        </div>
       </form>
     </DialogContent>
   </Dialog>;

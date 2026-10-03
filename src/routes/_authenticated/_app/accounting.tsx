@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
+import { extractRolesFromToken } from "@/lib/auth-navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,21 @@ import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/_app/accounting")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("hrms_auth_token");
+      const { roles } = extractRolesFromToken(token);
+      const isAdminOrElevated = roles.some((r) =>
+        ["admin", "super_admin", "tenant_admin", "hr_admin", "manager", "accountant"].includes(r)
+      );
+      if (roles.includes("employee") && !isAdminOrElevated) {
+        throw redirect({ to: "/employee-dashboard" });
+      }
+      if (roles.includes("client") && !isAdminOrElevated) {
+        throw redirect({ to: "/client-dashboard" });
+      }
+    }
+  },
   component: AccountingAppSuite,
   head: () => ({ meta: [{ title: "Accountant & General Ledger — Master ERP" }] }),
 });

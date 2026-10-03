@@ -4,6 +4,7 @@ import { useCurrentProfile } from "@/lib/session";
 import { api, setToken, clearToken } from "@/lib/api";
 import { resolveDefaultRoute } from "@/lib/auth-navigation";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/lock-screen")({
   component: LockScreenComponent,
@@ -147,14 +148,20 @@ function LockScreenComponent() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary pr-9"
+                className="w-full px-3 py-2.5 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-default hover:text-gray-900 dark:hover:text-gray-100 cursor-pointer"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground dark:text-gray-400 dark:hover:text-gray-100 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded cursor-pointer"
               >
-                <i className={`ph-bold ${showPassword ? "ph-eye-slash" : "ph-eye"} text-sm`}></i>
+                {showPassword ? (
+                  <EyeOff className="size-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="size-4" aria-hidden="true" />
+                )}
               </button>
             </div>
           </div>

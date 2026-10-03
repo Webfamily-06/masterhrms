@@ -329,3 +329,372 @@ ${appName} Security Team`;
     };
   }
 }
+
+export interface LifecycleEmailOptions {
+  toEmail: string;
+  templateId: string;
+  templateFallback?: {
+    subject: string;
+    htmlBody: string;
+  };
+  variables: Record<string, string>;
+}
+
+export const LIFECYCLE_EMAIL_TEMPLATES: Record<string, { subject: string; htmlBody: string }> = {
+  "subscription-reminder-15d": {
+    subject: "Reminder: {{company_name}} subscription expires in 15 days",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 28px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.5px;">Master HRMS & ERP</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Subscription Expiry Reminder</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Hello {{admin_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          This is an automated courtesy reminder that your subscription for company <strong>{{company_name}}</strong> (Plan: <strong>{{plan_name}}</strong>) is scheduled to expire in <strong>15 days</strong> on <strong>{{expiry_date}}</strong>.
+        </p>
+        <div style="background: #f1f5f9; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 6px; margin-bottom: 24px;">
+          <table width="100%" style="font-size: 13px; color: #334155;">
+            <tr><td style="padding: 3px 0; font-weight: 600;">Workspace:</td><td>{{company_name}} ({{tenant_id}})</td></tr>
+            <tr><td style="padding: 3px 0; font-weight: 600;">Current Tier:</td><td>{{plan_name}}</td></tr>
+            <tr><td style="padding: 3px 0; font-weight: 600;">Expiry Date:</td><td>{{expiry_date}}</td></tr>
+            <tr><td style="padding: 3px 0; font-weight: 600;">Days Remaining:</td><td>15 Days</td></tr>
+          </table>
+        </div>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          To prevent any interruption to your HR, payroll, attendance, and business workflows, please renew your subscription before the expiration date.
+        </p>
+        <div style="text-align: center; margin-bottom: 28px;">
+          <a href="{{renewal_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Renew Subscription Now →</a>
+        </div>
+        <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0;">
+          If you have questions or need assistance, contact our platform support team at <a href="mailto:{{support_email}}" style="color: #2563eb;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 16px 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+        <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS SaaS Platform. All rights reserved.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  },
+
+  "subscription-reminder-10d": {
+    subject: "Reminder: {{company_name}} subscription expires in 10 days",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #0f172a; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">10-Day Expiry Notice</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Notice for {{admin_name}},</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Your workspace <strong>{{company_name}}</strong> has <strong>10 days remaining</strong> on its current <strong>{{plan_name}}</strong> subscription. It will expire on <strong>{{expiry_date}}</strong>.
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Renew Subscription →</a></div>
+      <p style="color: #64748b; font-size: 12px; margin: 0;">Need help? Contact <a href="mailto:{{support_email}}" style="color: #2563eb;">{{support_email}}</a>.</p>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "subscription-reminder-5d": {
+    subject: "Important: Only 5 days remaining for {{company_name}} subscription",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #fed7aa; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #ea580c; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #ffedd5; margin: 4px 0 0 0; font-size: 13px;">5 Days Remaining Notice</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Action Recommended, {{admin_name}}</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Your subscription for <strong>{{company_name}}</strong> will expire in <strong>5 days</strong> on <strong>{{expiry_date}}</strong>.
+      </p>
+      <div style="background: #fff7ed; border-left: 4px solid #ea580c; padding: 14px; margin-bottom: 20px; font-size: 13px; color: #9a3412;">
+        When your subscription reaches expiration, workspace access for all company administrators and employees will be locked.
+      </div>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #ea580c; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Renew Plan Now →</a></div>
+      <p style="color: #64748b; font-size: 12px; margin: 0;">Support inquiries: <a href="mailto:{{support_email}}" style="color: #ea580c;">{{support_email}}</a>.</p>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "subscription-reminder-3d": {
+    subject: "Urgent: Only 3 days left for {{company_name}} subscription",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #fca5a5; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #dc2626; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #fee2e2; margin: 4px 0 0 0; font-size: 13px;">Critical 3-Day Expiry Notice</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Critical: 3 Days Remaining</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Hello {{admin_name}}, your workspace <strong>{{company_name}}</strong> will expire on <strong>{{expiry_date}}</strong> (3 days remaining).
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #dc2626; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Renew Plan Immediately →</a></div>
+      <p style="color: #64748b; font-size: 12px; margin: 0;">Support: <a href="mailto:{{support_email}}" style="color: #dc2626;">{{support_email}}</a>.</p>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "subscription-reminder-2d": {
+    subject: "Urgent: 2 days left before {{company_name}} subscription expires",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #fca5a5; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #b91c1c; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #fee2e2; margin: 4px 0 0 0; font-size: 13px;">Final Notice: 2 Days Left</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">2 Days Remaining, {{admin_name}}</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Your workspace <strong>{{company_name}}</strong> has 2 days remaining before expiration on <strong>{{expiry_date}}</strong>.
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #b91c1c; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Renew Plan Now →</a></div>
+      <p style="color: #64748b; font-size: 12px; margin: 0;">Support: <a href="mailto:{{support_email}}" style="color: #b91c1c;">{{support_email}}</a>.</p>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "subscription-reminder-1d": {
+    subject: "Final Notice: {{company_name}} subscription expires tomorrow",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 2px solid #991b1b; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #991b1b; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #fee2e2; margin: 4px 0 0 0; font-size: 13px;">Final Expiry Reminder — 24 Hours Remaining</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Action Required Today, {{admin_name}}</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Your workspace <strong>{{company_name}}</strong> subscription expires <strong>tomorrow ({{expiry_date}})</strong>. Once expired, access to your HRMS dashboard and employee features will be locked.
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #991b1b; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block;">Renew Immediately to Prevent Lockout →</a></div>
+      <p style="color: #64748b; font-size: 12px; margin: 0;">Support: <a href="mailto:{{support_email}}" style="color: #991b1b;">{{support_email}}</a>.</p>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "subscription-expired": {
+    subject: "Workspace Locked: {{company_name}} subscription has expired",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 2px solid #ef4444; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #7f1d1d; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #fee2e2; margin: 4px 0 0 0; font-size: 13px;">Subscription Expired — Workspace Locked</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Subscription Expired</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        The subscription for <strong>{{company_name}}</strong> has expired on <strong>{{expiry_date}}</strong>. Workspace access has been locked for all team members.
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #dc2626; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block;">Renew Subscription to Restore Access →</a></div>
+      <p style="color: #64748b; font-size: 12px; margin: 0;">Need assistance? Contact our team at <a href="mailto:{{support_email}}" style="color: #dc2626;">{{support_email}}</a>.</p>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "tenant-account-suspended": {
+    subject: "Workspace Suspended: {{company_name}} ({{tenant_id}})",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 2px solid #475569; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #1e293b; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Account Suspension Notice</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Workspace Suspended</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Workspace <strong>{{company_name}}</strong> has been suspended on <strong>{{suspension_date}}</strong>.
+      </p>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; color: #334155;">
+        <div><strong>Tenant ID:</strong> {{tenant_id}}</div>
+        <div><strong>Current Plan:</strong> {{plan_name}}</div>
+        <div><strong>Suspension Reason:</strong> {{suspension_reason}}</div>
+      </div>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+        Access has been temporarily restricted. Please contact platform administration to resolve this matter and restore access.
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="mailto:{{support_email}}" style="background: #0f172a; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Contact Platform Support →</a></div>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "tenant-account-reactivated": {
+    subject: "Workspace Reactivated: Welcome back to {{company_name}}",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #86efac; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #166534; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #dcfce7; margin: 4px 0 0 0; font-size: 13px;">Workspace Reactivated</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Access Restored, {{admin_name}}!</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Your workspace <strong>{{company_name}}</strong> has been reactivated. All team members can now sign in and resume standard operations.
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #16a34a; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Open Workspace →</a></div>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+
+  "subscription-renewed": {
+    subject: "Confirmed: {{company_name}} subscription has been renewed",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #86efac; overflow: hidden;">
+    <tr><td style="padding: 28px 32px; background: #0f766e; text-align: center;"><h1 style="color: #ffffff; margin: 0; font-size: 20px;">Master HRMS & ERP</h1><p style="color: #ccfbf1; margin: 4px 0 0 0; font-size: 13px;">Subscription Renewal Confirmation</p></td></tr>
+    <tr><td style="padding: 32px;">
+      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Subscription Renewed Successfully</h2>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+        Hello {{admin_name}}, thank you for renewing your subscription for <strong>{{company_name}}</strong>. Your workspace is active through <strong>{{expiry_date}}</strong>.
+      </p>
+      <div style="text-align: center; margin: 24px 0;"><a href="{{renewal_url}}" style="background: #0f766e; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Go to Workspace Dashboard →</a></div>
+    </td></tr>
+    <tr><td style="padding: 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;"><p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS.</p></td></tr>
+  </table>
+</body></html>`,
+  },
+};
+
+function substituteTemplateVariables(text: string, vars: Record<string, string>): string {
+  let output = text;
+  for (const [key, val] of Object.entries(vars)) {
+    const pattern = new RegExp(`{{${key}}}`, "g");
+    output = output.replace(pattern, String(val ?? ""));
+  }
+  return output;
+}
+
+/**
+ * Dispatch Subscription Lifecycle Email with dynamic CMS template resolution & variable substitution
+ */
+export async function sendSubscriptionLifecycleEmail(options: LifecycleEmailOptions): Promise<{
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}> {
+  const { toEmail, templateId, templateFallback, variables } = options;
+  const config = await getDynamicEmailConfig();
+
+  // 1. Try to find customized template from CMS
+  let subject = "";
+  let htmlBody = "";
+
+  try {
+    const page = await prisma.cmsPage.findFirst({
+      where: { slug: "system-email-templates" },
+    });
+    if (page?.content) {
+      const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
+      if (Array.isArray(c.templates)) {
+        const found = c.templates.find((t: any) => t.id === templateId || t.name?.toLowerCase().includes(templateId));
+        if (found) {
+          subject = found.subject;
+          htmlBody = found.html_body;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[email.ts] CMS template lookup error: ${err.message}`);
+  }
+
+  // 2. Fallback to predefined template
+  if (!subject || !htmlBody) {
+    const fallback = LIFECYCLE_EMAIL_TEMPLATES[templateId] || templateFallback;
+    if (fallback) {
+      subject = fallback.subject;
+      htmlBody = fallback.htmlBody;
+    } else {
+      subject = `Master HRMS Notification: ${variables.company_name || "Workspace"}`;
+      htmlBody = `<p>Hello {{admin_name}}, this is a notice regarding workspace {{company_name}}.</p>`;
+    }
+  }
+
+  // 3. Perform variable substitution
+  const renderedSubject = substituteTemplateVariables(subject, variables);
+  const renderedHtml = substituteTemplateVariables(htmlBody, variables);
+  const plainText = renderedHtml.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+
+  // 4. Send via Nodemailer if SMTP configured
+  const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+  const fromHeader = `"${config.smtpFromName}" <${config.smtpFromEmail}>`;
+
+  if (hasSmtp) {
+    try {
+      const isSSL = config.smtpPort === 465 || config.smtpEncryption === "ssl";
+      const isSTARTTLS = config.smtpPort === 587 || config.smtpEncryption === "tls";
+
+      const transportOptions: any = {
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: isSSL,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPass,
+        },
+        tls: {
+          rejectUnauthorized: false,
+          minVersion: "TLSv1.2",
+        },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
+      };
+
+      if (isSTARTTLS) {
+        if (config.ignoreTls) {
+          transportOptions.ignoreTLS = true;
+        } else {
+          transportOptions.requireTLS = false;
+        }
+      }
+
+      const transporter: any = nodemailer.createTransport(transportOptions);
+      const info = await transporter.sendMail({
+        from: fromHeader,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject: renderedSubject,
+        text: plainText,
+        html: renderedHtml,
+        headers: {
+          "X-Priority": "1",
+          "X-MSMail-Priority": "High",
+          "Importance": "high",
+          "X-Mailer": "Master HRMS Subscription Lifecycle Dispatcher",
+        },
+      });
+
+      console.log(`📨 [Lifecycle Email] Successfully delivered [${templateId}] to ${toEmail} (ID: ${info.messageId})`);
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.error(`❌ [Lifecycle Email] Delivery failure to ${toEmail}: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    // Development fallback without SMTP
+    console.log("==================================================================");
+    console.log(`📨 [DEV SUBSCRIPTION LIFECYCLE EMAIL (No SMTP configured)]`);
+    console.log(`   Template: [${templateId}]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Subject: ${renderedSubject}`);
+    console.log(`   Expires At: ${variables.expiry_date || "N/A"} | Days Left: ${variables.days_remaining || "N/A"}`);
+    console.log("==================================================================");
+    return {
+      success: true,
+      messageId: `dev-mock-${Date.now()}`,
+    };
+  }
+}
+

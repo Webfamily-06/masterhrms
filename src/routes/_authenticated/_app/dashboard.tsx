@@ -201,7 +201,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!canAccessModule("dashboard")) {
+  if (!canAccessModule("hrm") && !canAccessModule("dashboard")) {
     return <AccessDenied moduleName="HRM Dashboard" />;
   }
 

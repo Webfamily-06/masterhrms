@@ -1,6 +1,7 @@
 datasource db {
-  provider = "mysql"
-  url= env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -96,7 +97,9 @@ model Tenant {
   payslips      Payslip[]
   tenantAddons  TenantAddon[]
   subscription  TenantSubscription?
+  billingInvoices BillingInvoice[]
   subscriptionPolicyAudits SubscriptionPolicyAudit[]
+  couponRedemptions        CouponRedemption[]
   gatewayTransactions PaymentGatewayTransaction[]
   paymentWebhookEvents PaymentWebhookEvent[]
   okrCycles            OkrCycle[]
@@ -154,6 +157,7 @@ model Tenant {
   stockAdjustments       StockAdjustment[]
   chatMessages           ChatMessage[]
   crmLeads               CrmLead[]
+  crmDeals               CrmDeal[]
   crmProposals           CrmProposal[]
   crmContacts            CrmContact[]
   crmCompanies           CrmCompany[]
@@ -203,6 +207,9 @@ model Tenant {
   workspaceTodos         WorkspaceTodo[]
   workspaceNotes         WorkspaceNote[]
   calendarEvents         CalendarEvent[]
+  tenantDomains          TenantDomain[]
+  timesheets             Timesheet[]
+  projectMilestones      ProjectMilestone[]
   @@map("tenants")
 }
 
@@ -346,6 +353,7 @@ model Employee {
   referralsGiven              EmployeeReferral[]            @relation("EmployeeReferralsGiven")
   employeeContracts           EmployeeContract[]
   bankDisbursementItems       BankDisbursementItem[]
+  timesheets                  Timesheet[]
 
   @@index([tenantId, status])  // Perf: list active employees by tenant
   @@index([tenantId, departmentId]) // Perf: filter by department
@@ -755,19 +763,37 @@ model CmsPage {
 // records remain readable during the staged migration so existing workspaces
 // are never silently assigned or disabled.
 model SubscriptionPlan {
-  id               String   @id @default(uuid()) @db.VarChar(100)
-  name             String   @db.VarChar(255)
-  description      String?  @db.Text
-  status           String   @default("active") @db.VarChar(30)
-  priceMonthly     Decimal  @default(0) @map("price_monthly") @db.Decimal(16, 3)
-  priceAnnual      Decimal  @default(0) @map("price_annual") @db.Decimal(16, 3)
-  maxEmployees     Int?     @map("max_employees")
-  maxUsers         Int?     @map("max_users")
-  features         Json?
-  includedAddonIds Json?    @map("included_addon_ids")
-  isPopular        Boolean  @default(false) @map("is_popular")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid()) @db.VarChar(100)
+  name                 String   @db.VarChar(255)
+  description          String?  @db.Text
+  status               String   @default("active") @db.VarChar(30)
+  planType             String   @default("standard") @map("plan_type") @db.VarChar(30) // standard | custom
+  pricingModel         String   @default("fixed") @map("pricing_model") @db.VarChar(30) // fixed | per_user
+  currency             String   @default("INR") @map("currency") @db.VarChar(10)
+  priceMonthly         Decimal  @default(0) @map("price_monthly") @db.Decimal(16, 3) // Selling price monthly
+  priceMonthlyOriginal Decimal? @map("price_monthly_original") @db.Decimal(16, 3) // List / original price monthly
+  priceQuarterly       Decimal? @map("price_quarterly") @db.Decimal(16, 3)
+  priceSemiAnnual      Decimal? @map("price_semi_annual") @db.Decimal(16, 3)
+  priceAnnual          Decimal  @default(0) @map("price_annual") @db.Decimal(16, 3) // Selling price annual
+  priceAnnualOriginal  Decimal? @map("price_annual_original") @db.Decimal(16, 3) // List / original price annual
+  pricePerUser         Decimal? @map("price_per_user") @db.Decimal(16, 3) // Selling price per user
+  pricePerUserOriginal Decimal? @map("price_per_user_original") @db.Decimal(16, 3) // Original price per user
+  billableUsers        Int?     @default(1) @map("billable_users") // Default billable user count (1 - 99999)
+  minUsers             Int?     @default(1) @map("min_users")
+  maxUsersLimit        Int?     @default(99999) @map("max_users_limit")
+  durationPrices       Json?    @map("duration_prices")
+  isTrial              Boolean  @default(false) @map("is_trial")
+  trialDays            Int?     @default(3) @map("trial_days")
+  maxEmployees         Int?     @map("max_employees")
+  maxUsers             Int?     @map("max_users")
+  storageLimitGb       Int?     @map("storage_limit_gb")
+  features             Json?
+  includedAddonIds     Json?    @map("included_addon_ids")
+  isPopular            Boolean  @default(false) @map("is_popular")
+  sortOrder            Int      @default(0) @map("sort_order")
+  isPublic             Boolean  @default(true) @map("is_public")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   subscriptions TenantSubscription[]
 
@@ -775,23 +801,115 @@ model SubscriptionPlan {
 }
 
 model TenantSubscription {
-  id           String   @id @default(uuid()) @db.VarChar(36)
-  tenantId     String   @unique @map("tenant_id") @db.VarChar(36)
-  planId       String?  @map("plan_id") @db.VarChar(100)
-  status       String   @default("active") @db.VarChar(30)
-  billingCycle String   @default("monthly") @map("billing_cycle") @db.VarChar(20)
-  maxEmployees Int?     @map("max_employees")
-  maxUsers     Int?     @map("max_users")
-  expiresAt    DateTime? @map("expires_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                  String    @id @default(uuid()) @db.VarChar(36)
+  tenantId            String    @unique @map("tenant_id") @db.VarChar(36)
+  planId              String?   @map("plan_id") @db.VarChar(100)
+  status              String    @default("active") @db.VarChar(30)
+  planType            String?   @map("plan_type") @db.VarChar(30)
+  pricingModel        String?   @map("pricing_model") @db.VarChar(30)
+  pricePerUser        Decimal?  @map("price_per_user") @db.Decimal(16, 3)
+  billableUsers       Int?      @map("billable_users")
+  calculatedTotal     Decimal?  @map("calculated_total") @db.Decimal(16, 3)
+  billingCycle        String    @default("monthly") @map("billing_cycle") @db.VarChar(20)
+  billingStartedAt    DateTime? @map("billing_started_at")
+  currentPeriodStart  DateTime? @map("current_period_start")
+  currentPeriodEnd    DateTime? @map("current_period_end")
+  renewedAt           DateTime? @map("renewed_at")
+  cancelledAt         DateTime? @map("cancelled_at")
+  trialStartedAt      DateTime? @map("trial_started_at")
+  billingInterval     String?   @map("billing_interval") @db.VarChar(20)
+  billingIntervalCount Int?     @default(1) @map("billing_interval_count")
+  maxEmployees        Int?      @map("max_employees")
+  maxUsers            Int?      @map("max_users")
+  storageLimitGb      Int?      @map("storage_limit_gb")
+  trialEndsAt         DateTime? @map("trial_ends_at")
+  expiresAt           DateTime? @map("expires_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan         SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
-  policyAudits SubscriptionPolicyAudit[]
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan               SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  policyAudits       SubscriptionPolicyAudit[]
+  billingInvoices    BillingInvoice[]
+  notificationEvents SubscriptionNotificationEvent[]
 
   @@index([planId, status])
   @@map("tenant_subscriptions")
+}
+
+model BillingInvoice {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  tenantId         String    @map("tenant_id") @db.VarChar(36)
+  subscriptionId   String    @map("subscription_id") @db.VarChar(36)
+  invoiceNo        String?   @map("invoice_no") @db.VarChar(50)
+  amount           Decimal   @db.Decimal(12, 2)
+  currency         String    @default("INR") @db.VarChar(10)
+  pricingModel     String?   @map("pricing_model") @db.VarChar(30)
+  pricePerUser     Decimal?  @map("price_per_user") @db.Decimal(16, 3)
+  billableUsers    Int?      @map("billable_users")
+  status           String    @default("draft") @db.VarChar(30) // draft | open | paid | failed | void
+  planId           String?   @map("plan_id") @db.VarChar(100)
+  billingCycle     String    @default("monthly") @map("billing_cycle") @db.VarChar(20)
+  paymentMethod    String?   @default("razorpay") @map("payment_method") @db.VarChar(50) // razorpay | bank_transfer | stripe | manual
+  bankTransferRef  String?   @map("bank_transfer_ref") @db.VarChar(100)
+  couponCode       String?   @map("coupon_code") @db.VarChar(50)
+  discountAmount   Decimal?  @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  subtotalAmount   Decimal?  @map("subtotal_amount") @db.Decimal(12, 2)
+  taxAmount        Decimal?  @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  gatewayOrderId   String?   @map("gateway_order_id") @db.VarChar(100)
+  gatewayPaymentId String?   @map("gateway_payment_id") @db.VarChar(100)
+  gatewayEventId   String?   @unique @map("gateway_event_id") @db.VarChar(150)
+  periodStart      DateTime  @map("period_start")
+  periodEnd        DateTime  @map("period_end")
+  paidAt           DateTime? @map("paid_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription     TenantSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@map("billing_invoices")
+}
+
+model Coupon {
+  id                  String             @id @default(uuid()) @db.VarChar(36)
+  code                String             @unique @db.VarChar(50)
+  name                String?            @db.VarChar(100)
+  description         String?            @db.Text
+  discountType        String             @default("percentage") @map("discount_type") @db.VarChar(20) // percentage | fixed
+  discountValue       Decimal            @map("discount_value") @db.Decimal(12, 2)
+  applicablePlanIds   Json?              @map("applicable_plan_ids") // null or array of plan IDs
+  applicableDurations Json?              @map("applicable_durations") // null or array: ["1_month", "3_months", "6_months", "1_year"]
+  minPurchaseAmount   Decimal?           @map("min_purchase_amount") @db.Decimal(12, 2)
+  maxRedemptions      Int?               @map("max_redemptions")
+  redemptionCount     Int                @default(0) @map("redemption_count")
+  perTenantLimit      Int                @default(1) @map("per_tenant_limit")
+  startsAt            DateTime?          @map("starts_at")
+  expiresAt           DateTime?          @map("expires_at")
+  status              String             @default("active") @db.VarChar(20) // active | inactive
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  redemptions         CouponRedemption[]
+
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  couponId        String   @map("coupon_id") @db.VarChar(36)
+  tenantId        String   @map("tenant_id") @db.VarChar(36)
+  orderId         String?  @map("order_id") @db.VarChar(100)
+  invoiceId       String?  @map("invoice_id") @db.VarChar(36)
+  discountApplied Decimal  @map("discount_applied") @db.Decimal(12, 2)
+  redeemedAt      DateTime @default(now()) @map("redeemed_at")
+
+  coupon          Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([couponId, tenantId])
+  @@map("coupon_redemptions")
 }
 
 model SubscriptionPolicyAudit {
@@ -816,7 +934,7 @@ model Addon {
   slug            String   @unique @db.VarChar(100)
   tagline         String?  @db.VarChar(300)
   description     String?  @db.Text
-  longDescription String?  @map("long_description") @db.LongText
+  longDescription String?  @map("long_description") @db.Text
   category        String   @db.VarChar(100)
   status          String   @default("active") @db.VarChar(50)
   priceMonthly    Decimal  @default(0.00) @map("price_monthly") @db.Decimal(10, 2)
@@ -1579,7 +1697,7 @@ model CompanyDocument {
   fileType          String    @default("application/pdf") @map("file_type") @db.VarChar(50)
   status            String    @default("pending_signature") @db.VarChar(50) // pending_signature, signed, verified, expired
   requiresSignature Boolean   @default(true) @map("requires_signature")
-  signatureDataUrl  String?   @map("signature_data_url") @db.LongText
+  signatureDataUrl  String?   @map("signature_data_url") @db.Text
   signerName        String?   @map("signer_name") @db.VarChar(150)
   signedAt          DateTime? @map("signed_at")
   signerIp          String?   @map("signer_ip") @db.VarChar(100)
@@ -2076,7 +2194,7 @@ model Contract {
   endDate          DateTime? @map("end_date") @db.Date
   status           String    @default("draft") @db.VarChar(50) // draft, sent, signed, active, expired, terminated
   termsContent     String    @map("terms_content") @db.Text
-  signatureData    String?   @map("signature_data") @db.LongText // Base64 signature image
+  signatureData    String?   @map("signature_data") @db.Text // Base64 signature image
   signedByName     String?   @map("signed_by_name") @db.VarChar(150)
   signedAt         DateTime? @map("signed_at")
   signatureIp      String?   @map("signature_ip") @db.VarChar(50)
@@ -2839,6 +2957,50 @@ model CrmContact {
   @@map("crm_contacts")
 }
 
+model CrmDeal {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  tenantId    String    @map("tenant_id") @db.VarChar(36)
+  name        String    @db.VarChar(200)
+  customer    String    @db.VarChar(150)
+  stage       String    @default("Proposal") @db.VarChar(50) // In Discussion | Proposal | Contract Signed | Won | Lost
+  value       Decimal   @default(0.00) @db.Decimal(15, 2)
+  closeDate   DateTime? @map("close_date")
+  probability Int       @default(50)
+  owner       String?   @db.VarChar(100)
+  ownerAvatar String?   @map("owner_avatar") @db.VarChar(500)
+  status      String    @default("Open") @db.VarChar(30) // Open | Won | Lost
+  notes       String?   @db.Text
+  pipelineId  String?   @map("pipeline_id") @db.VarChar(50)
+  leadId      String?   @map("lead_id") @db.VarChar(36)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, stage])
+  @@index([tenantId, status])
+  @@map("crm_deals")
+}
+
+model TenantDomain {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  domain      String   @unique @db.VarChar(191)
+  subdomain   String?  @db.VarChar(191)
+  targetCname String   @default("cname.mastererp.cloud") @map("target_cname") @db.VarChar(191)
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  status      String   @default("pending") @db.VarChar(30) // approved | pending | rejected
+  sslStatus   String   @default("provisioning") @map("ssl_status") @db.VarChar(30) // active | provisioning | failed
+  dnsStatus   String   @default("pending") @map("dns_status") @db.VarChar(30) // verified | pending | failed
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("tenant_domains")
+}
+
 // ==========================================
 // PROJECTS & TASK BOARDS
 // ==========================================
@@ -2860,8 +3022,10 @@ model Project {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  tasks  ProjectTask[]
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tasks      ProjectTask[]
+  milestones ProjectMilestone[]
+  timesheets Timesheet[]
 
   @@index([tenantId, status])
   @@map("projects")
@@ -2886,6 +3050,52 @@ model ProjectTask {
   @@index([tenantId, projectId])
   @@index([tenantId, status])
   @@map("project_tasks")
+}
+
+model ProjectMilestone {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  tenantId    String    @map("tenant_id") @db.VarChar(36)
+  projectId   String    @map("project_id") @db.VarChar(36)
+  title       String    @db.VarChar(200)
+  description String?   @db.Text
+  cost        Decimal   @default(0.00) @db.Decimal(15, 2)
+  status      String    @default("pending") @db.VarChar(30) // pending | in_progress | completed | cancelled
+  dueDate     DateTime? @map("due_date")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId])
+  @@map("project_milestones")
+}
+
+model Timesheet {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  tenantId    String    @map("tenant_id") @db.VarChar(36)
+  employeeId  String    @map("employee_id") @db.VarChar(36)
+  projectId   String?   @map("project_id") @db.VarChar(36)
+  taskId      String?   @map("task_id") @db.VarChar(36)
+  date        DateTime  @db.Date
+  hours       Decimal   @default(8.0) @db.Decimal(5, 2)
+  description String?   @db.Text
+  status      String    @default("pending") @db.VarChar(30) // pending | approved | rejected
+  reviewedBy  String?   @map("reviewed_by") @db.VarChar(36)
+  reviewedAt  DateTime? @map("reviewed_at")
+  reviewNotes String?   @map("review_notes") @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, projectId])
+  @@index([tenantId, status])
+  @@map("timesheets")
 }
 
 // ==========================================
@@ -3948,6 +4158,28 @@ model CalendarEvent {
   @@index([userId])
   @@index([startDate, endDate])
   @@map("calendar_events")
+}
+
+model SubscriptionNotificationEvent {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  tenantId       String    @map("tenant_id") @db.VarChar(36)
+  subscriptionId String    @map("subscription_id") @db.VarChar(36)
+  cycleKey       String    @map("cycle_key") @db.VarChar(50)
+  eventType      String    @map("event_type") @db.VarChar(50)
+  recipientEmail String    @map("recipient_email") @db.VarChar(255)
+  status         String    @default("sent") @db.VarChar(30)
+  attemptCount   Int       @default(1) @map("attempt_count")
+  lastAttemptAt  DateTime  @default(now()) @map("last_attempt_at")
+  sentAt         DateTime? @map("sent_at")
+  errorMessage   String?   @map("error_message") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  subscription   TenantSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, cycleKey, eventType])
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@map("subscription_notification_events")
 }
 
 

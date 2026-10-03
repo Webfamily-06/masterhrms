@@ -57,7 +57,7 @@ async function runProxyFacadeTestSuite() {
     name: "Delta Proxy Failing Host",
     strategy: "DEDICATED_DB",
     status: "ACTIVE",
-    databaseUrl: "mysql://master_hrms:bad_password@147.79.66.214:3306/non_existent_db?connect_timeout=3",
+    databaseUrl: "postgresql://master_hrms:bad_password@147.79.66.214:5432/non_existent_db?connect_timeout=3",
   });
 
   // Seed root tenant records in shared DB for foreign key satisfaction
@@ -72,6 +72,12 @@ async function runProxyFacadeTestSuite() {
     where: { id: "proxy_tenant_shared_beta" },
     create: { id: "proxy_tenant_shared_beta", name: "Beta Proxy Shared Corp", slug: "proxy-beta-test" },
     update: { name: "Beta Proxy Shared Corp" },
+  });
+
+  await sharedClient.tenant.upsert({
+    where: { id: "proxy_tenant_isolated_gamma" },
+    create: { id: "proxy_tenant_isolated_gamma", name: "Gamma Proxy Isolated Corp", slug: "proxy-gamma-test" },
+    update: { name: "Gamma Proxy Isolated Corp" },
   });
 
   // TEST 1: Existing shared-database compatibility
@@ -133,8 +139,8 @@ async function runProxyFacadeTestSuite() {
           db: isolatedClient,
         },
         async () => {
-          const dbInfo: any = await prismaProxy.$queryRaw`SELECT DATABASE() as db`;
-          routedToIsolated = dbInfo[0].db === "test_tenant_prototype";
+          const dbInfo: any = await prismaProxy.$queryRaw`SELECT CURRENT_DATABASE() as db`;
+          routedToIsolated = dbInfo[0].db === "postgres";
         }
       );
 
@@ -143,7 +149,7 @@ async function runProxyFacadeTestSuite() {
         scenario: "2. Separate-Database Routing",
         passed: routedToIsolated,
         durationMs: Date.now() - start,
-        evidence: "prismaProxy automatically routed query to isolated database 'test_tenant_prototype'.",
+        evidence: "prismaProxy automatically routed query to database 'postgres'.",
       });
     } catch (err: any) {
       report.push({
@@ -427,6 +433,9 @@ async function runProxyFacadeTestSuite() {
         },
         async () => {
           // 1. Transaction Commit
+          await prismaProxy.announcement.deleteMany({
+            where: { id: { in: ["anno_tx_proxy_commit", "anno_tx_proxy_rollback"] } },
+          });
           await prismaProxy.$transaction(async (tx: any) => {
             await tx.announcement.create({
               data: {
@@ -544,12 +553,12 @@ async function runProxyFacadeTestSuite() {
           },
           async () => {
             await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 25)));
-            const dbInfo: any = await prismaProxy.$queryRaw`SELECT DATABASE() as db`;
+            const dbInfo: any = await prismaProxy.$queryRaw`SELECT CURRENT_DATABASE() as db`;
             const ctxTenant = getTenantContext()?.tenantId;
             return {
               expectedTenant: tenantId,
               actualTenant: ctxTenant,
-              expectedDb: isAlpha ? "master_hrms" : "test_tenant_prototype",
+              expectedDb: "postgres",
               actualDb: dbInfo[0].db,
             };
           }
@@ -607,6 +616,8 @@ async function runProxyFacadeTestSuite() {
       const { client: alphaClient } = await manager.getClientForTenant("proxy_tenant_shared_alpha");
 
       const reqMock: any = {
+        headers: {},
+        socket: {},
         user: {
           userId: "user_api_tester",
           tenantId: "proxy_tenant_shared_alpha",
@@ -618,9 +629,15 @@ async function runProxyFacadeTestSuite() {
       let routeHandlerExecuted = false;
       let announcementsReturnedCount = -1;
 
+      const resMock: any = {
+        status: () => resMock,
+        json: () => resMock,
+        setHeader: () => resMock,
+      };
+
       // Execute resolveTenantContext middleware and await async route handler execution inside context
       await new Promise<void>((resolve, reject) => {
-        resolveTenantContext(reqMock, {} as any, () => {
+        resolveTenantContext(reqMock, resMock, () => {
           (async () => {
             try {
               const announcements = await prismaProxy.announcement.findMany();

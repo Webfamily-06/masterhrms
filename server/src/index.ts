@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
 dotenv.config({ path: path.resolve(__dirname, "../../.env") }); // project root .env
-dotenv.config({ path: path.resolve(__dirname, "../.env") }); // server/.env (override)
+dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
 dotenv.config(); // cwd fallback
 
 import express from "express";
@@ -67,11 +67,15 @@ import { campaignsRouter } from "./routes/campaigns.routes";
 import { todosRouter } from "./routes/todos.routes";
 import { notesRouter } from "./routes/notes.routes";
 import { calendarRouter } from "./routes/calendar.routes";
+import { requireActiveSubscription } from "./middleware/subscription";
+import { billingRouter, handleRazorpayWebhook } from "./routes/billing.routes";
+import { timesheetsRouter } from "./routes/timesheets.routes";
 
 import http from "http";
 import { initSocket } from "./socket";
 import { runBiometricAutoSync } from "./cron/biometric-sync";
 import { runBiometricReconciliation } from "./cron/biometric-reconcile.cron";
+import { runSubscriptionExpiryRemindersCron } from "./cron/subscription-reminder.cron";
 
 dotenv.config();
 
@@ -101,6 +105,7 @@ app.post("/api/payments/razorpay/webhook", express.raw({ type: "application/json
 app.use(express.json());
 app.use(express.text({ type: ["text/*", "application/octet-stream", "*/*"] }));
 app.use(compression()); // Gzip all responses — 60-80% smaller payloads
+app.use("/api", requireActiveSubscription);
 
 // Health Check
 app.get("/api/health", (req, res) => {
@@ -113,6 +118,8 @@ app.get("/api/health", (req, res) => {
 });
 
 // Mount Routes
+app.use("/api/billing", billingRouter);
+app.post("/api/webhooks/razorpay", handleRazorpayWebhook);
 app.use("/api/auth", authRouter);
 app.use("/api/workspace", workspaceRouter);
 app.use("/api/cms", cmsRouter);
@@ -170,6 +177,7 @@ app.use("/api/payments", paymentsRouter);
 app.use("/api/docs", docsRouter);
 app.use("/api/returns", returnsRouter);
 app.use("/api/client", clientRouter);
+app.use("/api/timesheets", timesheetsRouter);
 app.use("/api/workflows", workflowsRouter);
 app.use("/api/overtime", overtimeRouter);
 app.use("/api/wfh", wfhRouter);
@@ -225,8 +233,35 @@ function scheduleNightlyReconciliation() {
 }
 scheduleNightlyReconciliation();
 
+// Centralized Subscription Expiry Reminders Cron (08:00 UTC daily)
+function scheduleDailySubscriptionReminders() {
+  const now = new Date();
+  const next8AM = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    8, 0, 0, 0
+  ));
+  let msUntilNext = next8AM.getTime() - now.getTime();
+  if (msUntilNext <= 0) msUntilNext += 24 * 60 * 60 * 1000;
+
+  setTimeout(async () => {
+    try {
+      console.log("⏰ [CRON] Executing scheduled daily subscription expiry reminders...");
+      const result = await runSubscriptionExpiryRemindersCron();
+      console.log("✅ [CRON] Daily subscription reminders finished:", result);
+    } catch (err: any) {
+      console.error("❌ [CRON] Daily subscription reminders failed:", err.message);
+    }
+    scheduleDailySubscriptionReminders();
+  }, msUntilNext);
+
+  console.log(`⏰ Daily Subscription Expiry Reminders scheduled in ${Math.round(msUntilNext / 60000)} min (target: 08:00 UTC)`);
+}
+scheduleDailySubscriptionReminders();
+
 server.listen(PORT, () => {
   console.log(`🚀 Master HRMS Backend Server running on http://localhost:${PORT}`);
-  console.log(`🔌 Database Provider: MySQL (Prisma ORM connected)`);
+  console.log(`🔌 Database Provider: Supabase PostgreSQL (Prisma ORM connected)`);
   console.log(`⚡ WebSocket Server: Ready on ws://localhost:${PORT}`);
 });

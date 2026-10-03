@@ -139,30 +139,31 @@ export default function DealsDashboardPage() {
   });
 
   const queryClient = useQueryClient();
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  // Load Deals from API or fallback
-  const { data: deals = INITIAL_DEALS } = useQuery({
+  // Load Deals from API with real tenant scoping
+  const { data: deals = [], isLoading } = useQuery({
     queryKey: ["deals-dashboard-data"],
     queryFn: async () => {
       try {
-        const res = await api.get("/crm/deals");
-        if (Array.isArray(res) && res.length > 0) {
-          return res.map((d: any, idx: number) => ({
-            id: d.id || `DEL-${100 + idx}`,
-            name: d.title || d.name || "Enterprise Deal",
-            customer: d.customer?.name || d.company || "Client Company",
-            stage: d.stage || "Proposal",
-            value: Number(d.value || d.amount || 25000),
-            closeDate: d.expectedCloseDate ? new Date(d.expectedCloseDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "30 Jun 2026",
-            probability: Number(d.probability || 60),
-            owner: d.owner?.name || "Deal Specialist",
-            ownerAvatar: `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
-            status: d.stage === "Won" ? "Won" : d.stage === "Lost" ? "Lost" : "Open",
-          }));
-        }
-        return INITIAL_DEALS;
-      } catch {
-        return INITIAL_DEALS;
+        const res = await api.get<{ items: any[]; total: number } | any[]>("/crm/deals");
+        const list = Array.isArray(res) ? res : res?.items || [];
+        return list.map((d: any, idx: number) => ({
+          id: d.id || `DEL-${100 + idx}`,
+          name: d.name || d.title || "Enterprise Deal",
+          customer: d.customer?.name || d.customer || d.company || "Client Company",
+          stage: d.stage || "Proposal",
+          value: Number(d.value || d.amount || 0),
+          closeDate: d.closeDate || (d.expectedCloseDate ? new Date(d.expectedCloseDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "TBD"),
+          probability: Number(d.probability ?? 50),
+          owner: d.owner?.name || d.owner || "Deal Specialist",
+          ownerAvatar: d.ownerAvatar || `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
+          status: d.status || (d.stage === "Won" ? "Won" : d.stage === "Lost" ? "Lost" : "Open"),
+        }));
+      } catch (err) {
+        console.error("Failed to load deals:", err);
+        return [];
       }
     },
   });
@@ -217,22 +218,64 @@ export default function DealsDashboardPage() {
     }
   };
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDeal.name.trim() || !newDeal.customer.trim()) {
       toast.error("Please fill in Deal Name and Customer.");
       return;
     }
-    toast.success(`Deal "${newDeal.name}" added to pipeline.`);
-    setCreateModalOpen(false);
-    setNewDeal({
-      name: "",
-      customer: "",
-      stage: "Proposal",
-      value: 25000,
-      closeDate: "",
-      probability: 50,
-    });
+    setSubmitting(true);
+    try {
+      await api.post("/crm/deals", {
+        name: newDeal.name.trim(),
+        customer: newDeal.customer.trim(),
+        stage: newDeal.stage,
+        value: Number(newDeal.value || 0),
+        closeDate: newDeal.closeDate || null,
+        probability: Number(newDeal.probability || 50),
+      });
+      toast.success(`Deal "${newDeal.name}" added to pipeline.`);
+      setCreateModalOpen(false);
+      setNewDeal({
+        name: "",
+        customer: "",
+        stage: "Proposal",
+        value: 25000,
+        closeDate: "",
+        probability: 50,
+      });
+      queryClient.invalidateQueries({ queryKey: ["deals-dashboard-data"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create deal");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteDeal = async () => {
+    if (!selectedDeal) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/crm/deals/${selectedDeal.id}`);
+      toast.success(`Deal "${selectedDeal.name}" removed.`);
+      setDeleteModalOpen(false);
+      setSelectedDeal(null);
+      queryClient.invalidateQueries({ queryKey: ["deals-dashboard-data"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete deal");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleStageChange = async (dealId: string, stage: string) => {
+    try {
+      await api.patch(`/crm/deals/${dealId}/stage`, { stage });
+      toast.success(`Deal moved to ${stage}`);
+      queryClient.invalidateQueries({ queryKey: ["deals-dashboard-data"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update deal stage");
+    }
   };
 
   // Funnel & Pipeline Charts (matching ui/crm-dashboard.html)
@@ -772,9 +815,10 @@ export default function DealsDashboardPage() {
               </button>
               <button
                 type="submit"
-                className="btn-sm bg-dark text-white border border-dark hover:bg-primary-hover cursor-pointer"
+                disabled={submitting}
+                className="btn-sm bg-dark text-white border border-dark hover:bg-primary-hover cursor-pointer disabled:opacity-50"
               >
-                Create Deal
+                {submitting ? "Creating..." : "Create Deal"}
               </button>
             </DialogFooter>
           </form>
@@ -794,6 +838,7 @@ export default function DealsDashboardPage() {
           <div className="flex items-center justify-center gap-2">
             <button
               type="button"
+              disabled={deleting}
               onClick={() => setDeleteModalOpen(false)}
               className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 hover:bg-light cursor-pointer"
             >
@@ -801,13 +846,11 @@ export default function DealsDashboardPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                toast.success(`Deal ${selectedDeal?.name} removed.`);
-                setDeleteModalOpen(false);
-              }}
-              className="btn-sm bg-danger text-white border border-danger hover:bg-danger/90 cursor-pointer"
+              disabled={deleting}
+              onClick={handleDeleteDeal}
+              className="btn-sm bg-danger text-white border border-danger hover:bg-danger/90 cursor-pointer disabled:opacity-50"
             >
-              Delete
+              {deleting ? "Deleting..." : "Delete"}
             </button>
           </div>
         </DialogContent>

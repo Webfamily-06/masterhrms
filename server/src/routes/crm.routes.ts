@@ -3,7 +3,7 @@ import { prisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { broadcastToTenant } from "../socket";
-import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { parsePaginationParams, formatPaginatedResponse, parsePagination, paginate } from "../lib/pagination";
 
 export const crmRouter = Router();
 
@@ -26,96 +26,29 @@ crmRouter.get("/leads", requireAuth, resolveTenantContext, requirePermission("cr
       }),
     ]);
 
-    if (dbLeads.length > 0) {
-      const formatted = dbLeads.map((l) => ({
-        id: l.id,
-        name: l.contactName || l.title,
-        title: l.title,
-        contactName: l.contactName,
-        company: l.company || "",
-        email: l.email || "",
-        phone: l.phone || "",
-        value: Number(l.value),
-        stage: l.stage,
-        priority: l.priority,
-        source: l.source || "Direct",
-        notes: l.notes || "",
-        assignedTo: l.assignedTo || "",
-        createdAt: l.createdAt.toISOString(),
-      }));
-
-      if (pagination.isPaginated) {
-        return res.json(formatPaginatedResponse(formatted, total, pagination));
-      }
-
-      res.setHeader("X-Total-Count", String(total));
-      return res.json(formatted);
-    }
-
-    // Auto-migrate from legacy CMS page if exists
-    const slug = `system-crm-leads-${tenantId}`;
-    const page = await prisma.cmsPage.findUnique({ where: { slug } });
-    const legacyList = page?.content && Array.isArray(page.content) ? page.content : [];
-
-    if (legacyList.length > 0) {
-      for (const rawItem of legacyList) {
-        const item = rawItem as any;
-        if (!item || typeof item !== "object") continue;
-        try {
-          await prisma.crmLead.create({
-            data: {
-              tenantId,
-              title: item.title || item.name || "Lead",
-              contactName: item.name || item.contactName || "Contact",
-              company: item.company || null,
-              email: item.email || null,
-              phone: item.phone || null,
-              stage: item.stage || "new",
-              value: Number(item.value || 0),
-              priority: item.priority || "medium",
-              source: item.source || "Direct",
-              notes: item.notes || null,
-            },
-          });
-        } catch {}
-      }
-      const [migratedTotal, migrated] = await Promise.all([
-        prisma.crmLead.count({ where: { tenantId } }),
-        prisma.crmLead.findMany({
-          where: { tenantId },
-          orderBy: { createdAt: "desc" },
-          ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
-        }),
-      ]);
-      const formatted = migrated.map((l) => ({
-        id: l.id,
-        name: l.contactName || l.title,
-        title: l.title,
-        company: l.company || "",
-        email: l.email || "",
-        phone: l.phone || "",
-        value: Number(l.value),
-        stage: l.stage,
-        priority: l.priority,
-        source: l.source || "Direct",
-        notes: l.notes || "",
-        createdAt: l.createdAt.toISOString(),
-      }));
-
-      if (pagination.isPaginated) {
-        return res.json(formatPaginatedResponse(formatted, migratedTotal, pagination));
-      }
-
-      res.setHeader("X-Total-Count", String(migratedTotal));
-      return res.json(formatted);
-    }
+    const formatted = dbLeads.map((l) => ({
+      id: l.id,
+      name: l.contactName || l.title,
+      title: l.title,
+      contactName: l.contactName,
+      company: l.company || "",
+      email: l.email || "",
+      phone: l.phone || "",
+      value: Number(l.value),
+      stage: l.stage,
+      priority: l.priority,
+      source: l.source || "Direct",
+      notes: l.notes || "",
+      assignedTo: l.assignedTo || "",
+      createdAt: l.createdAt.toISOString(),
+    }));
 
     if (pagination.isPaginated) {
-      return res.json(formatPaginatedResponse([], 0, pagination));
+      return res.json(formatPaginatedResponse(formatted, total, pagination));
     }
 
-    res.setHeader("X-Total-Count", "0");
-    return res.json([]);
+    res.setHeader("X-Total-Count", String(total));
+    return res.json(formatted);
   } catch (err: any) {
     console.error("CRM Leads GET error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch CRM leads" });
@@ -219,6 +152,282 @@ crmRouter.delete("/leads/:id", requireAuth, resolveTenantContext, requirePermiss
 });
 
 // ==========================================
+// CRM DEALS (Relational DB backed)
+// ==========================================
+
+// GET /api/crm/deals - List deals with pagination, stage/status filter, search
+crmRouter.get("/deals", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const pagination = parsePagination(req.query, ["createdAt", "value", "stage", "name", "closeDate"]);
+    const { stage, status } = req.query;
+    const search = pagination.search;
+
+    const where: any = { tenantId };
+    if (stage && stage !== "all") where.stage = String(stage);
+    if (status && status !== "all") where.status = String(status);
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { customer: { contains: search, mode: "insensitive" } },
+        { owner: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [total, deals] = await Promise.all([
+      prisma.crmDeal.count({ where }),
+      prisma.crmDeal.findMany({
+        where,
+        orderBy: pagination.orderBy,
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+    ]);
+
+    const items = deals.map((d) => ({
+      id: d.id,
+      name: d.name,
+      customer: d.customer,
+      stage: d.stage,
+      value: Number(d.value),
+      closeDate: d.closeDate ? d.closeDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "",
+      closeDateRaw: d.closeDate ? d.closeDate.toISOString() : null,
+      probability: d.probability,
+      owner: d.owner || "Deal Specialist",
+      ownerAvatar: d.ownerAvatar || "/ui-assets/avatar-01.jpg",
+      status: d.status,
+      notes: d.notes || "",
+      pipelineId: d.pipelineId || null,
+      leadId: d.leadId || null,
+      createdAt: d.createdAt.toISOString(),
+    }));
+
+    res.setHeader("X-Total-Count", String(total));
+    return res.json({
+      items,
+      total,
+      page: pagination.page,
+      limit: pagination.limit,
+    });
+  } catch (err: any) {
+    console.error("CRM Deals GET error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch CRM deals" });
+  }
+});
+
+// GET /api/crm/deals/:id - Single deal
+crmRouter.get("/deals/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const deal = await prisma.crmDeal.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!deal) {
+      return res.status(404).json({ error: "Deal not found" });
+    }
+
+    return res.json({
+      id: deal.id,
+      name: deal.name,
+      customer: deal.customer,
+      stage: deal.stage,
+      value: Number(deal.value),
+      closeDate: deal.closeDate ? deal.closeDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "",
+      closeDateRaw: deal.closeDate ? deal.closeDate.toISOString() : null,
+      probability: deal.probability,
+      owner: deal.owner || "Deal Specialist",
+      ownerAvatar: deal.ownerAvatar || "/ui-assets/avatar-01.jpg",
+      status: deal.status,
+      notes: deal.notes || "",
+      pipelineId: deal.pipelineId || null,
+      leadId: deal.leadId || null,
+      createdAt: deal.createdAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Deal GET :id error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch CRM deal" });
+  }
+});
+
+// POST /api/crm/deals - Create deal
+crmRouter.post("/deals", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const body = req.body;
+
+    if (!body.name || !body.customer) {
+      return res.status(400).json({ error: "Deal name and customer are required" });
+    }
+
+    const stage = body.stage || "Proposal";
+    const status = stage === "Won" ? "Won" : stage === "Lost" ? "Lost" : (body.status || "Open");
+    const closeDate = body.closeDate ? new Date(body.closeDate) : null;
+
+    const deal = await prisma.crmDeal.create({
+      data: {
+        tenantId,
+        name: body.name,
+        customer: body.customer,
+        stage,
+        value: Number(body.value || 0),
+        closeDate: isNaN(closeDate?.getTime() || NaN) ? null : closeDate,
+        probability: Number(body.probability || 50),
+        owner: body.owner || "Deal Specialist",
+        ownerAvatar: body.ownerAvatar || "/ui-assets/avatar-01.jpg",
+        status,
+        notes: body.notes || null,
+        pipelineId: body.pipelineId || null,
+        leadId: body.leadId || null,
+      },
+    });
+
+    broadcastToTenant(tenantId, "crm:deal:created", {
+      id: deal.id,
+      name: deal.name,
+      customer: deal.customer,
+      stage: deal.stage,
+      value: Number(deal.value),
+      status: deal.status,
+    });
+
+    return res.status(201).json({
+      id: deal.id,
+      name: deal.name,
+      customer: deal.customer,
+      stage: deal.stage,
+      value: Number(deal.value),
+      closeDate: deal.closeDate ? deal.closeDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "",
+      probability: deal.probability,
+      owner: deal.owner,
+      status: deal.status,
+      createdAt: deal.createdAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Deals POST error:", err);
+    return res.status(500).json({ error: err.message || "Failed to create CRM deal" });
+  }
+});
+
+// PUT /api/crm/deals/:id - Update deal
+crmRouter.put("/deals/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const body = req.body;
+
+    const existing = await prisma.crmDeal.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Deal not found" });
+    }
+
+    const dataToUpdate: any = {};
+    if (body.name !== undefined) dataToUpdate.name = body.name;
+    if (body.customer !== undefined) dataToUpdate.customer = body.customer;
+    if (body.stage !== undefined) {
+      dataToUpdate.stage = body.stage;
+      if (body.stage === "Won") dataToUpdate.status = "Won";
+      else if (body.stage === "Lost") dataToUpdate.status = "Lost";
+      else if (!body.status) dataToUpdate.status = "Open";
+    }
+    if (body.status !== undefined) dataToUpdate.status = body.status;
+    if (body.value !== undefined) dataToUpdate.value = Number(body.value);
+    if (body.probability !== undefined) dataToUpdate.probability = Number(body.probability);
+    if (body.owner !== undefined) dataToUpdate.owner = body.owner;
+    if (body.notes !== undefined) dataToUpdate.notes = body.notes;
+    if (body.closeDate !== undefined) {
+      const parsed = new Date(body.closeDate);
+      dataToUpdate.closeDate = isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    const updated = await prisma.crmDeal.update({
+      where: { id },
+      data: dataToUpdate,
+    });
+
+    broadcastToTenant(tenantId, "crm:deal:updated", {
+      id: updated.id,
+      name: updated.name,
+      stage: updated.stage,
+      value: Number(updated.value),
+      status: updated.status,
+    });
+
+    return res.json({ success: true, deal: updated });
+  } catch (err: any) {
+    console.error("CRM Deals PUT error:", err);
+    return res.status(500).json({ error: err.message || "Failed to update CRM deal" });
+  }
+});
+
+// PATCH /api/crm/deals/:id/stage - Update stage
+crmRouter.patch("/deals/:id/stage", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const { stage } = req.body;
+
+    if (!stage) {
+      return res.status(400).json({ error: "Stage is required" });
+    }
+
+    const existing = await prisma.crmDeal.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Deal not found" });
+    }
+
+    const status = stage === "Won" ? "Won" : stage === "Lost" ? "Lost" : "Open";
+    const updated = await prisma.crmDeal.update({
+      where: { id },
+      data: { stage, status },
+    });
+
+    broadcastToTenant(tenantId, "crm:deal:stageChanged", {
+      id: updated.id,
+      stage: updated.stage,
+      status: updated.status,
+    });
+
+    return res.json({ success: true, stage: updated.stage, status: updated.status });
+  } catch (err: any) {
+    console.error("CRM Deals PATCH stage error:", err);
+    return res.status(500).json({ error: err.message || "Failed to update deal stage" });
+  }
+});
+
+// DELETE /api/crm/deals/:id - Delete deal
+crmRouter.delete("/deals/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const existing = await prisma.crmDeal.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Deal not found" });
+    }
+
+    await prisma.crmDeal.delete({
+      where: { id },
+    });
+
+    broadcastToTenant(tenantId, "crm:deal:deleted", { id });
+
+    return res.json({ success: true, message: "Deal deleted" });
+  } catch (err: any) {
+    console.error("CRM Deals DELETE error:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete CRM deal" });
+  }
+});
+
+// ==========================================
 // CRM PROPOSALS & QUOTATIONS
 // ==========================================
 
@@ -237,43 +446,29 @@ crmRouter.get("/proposals", requireAuth, resolveTenantContext, async (req: AuthR
       }),
     ]);
 
-    if (proposals.length > 0) {
-      const formatted = proposals.map((p) => ({
-        id: p.id,
-        proposalNo: p.proposalNo,
-        title: p.title,
-        client: p.clientName,
-        clientName: p.clientName,
-        clientEmail: p.clientEmail || "",
-        clientGstin: p.clientGstin || "",
-        amount: Number(p.amount),
-        status: p.status,
-        date: p.validUntil ? p.validUntil.toISOString() : p.createdAt.toISOString(),
-        created_at: p.createdAt.toISOString(),
-        items: p.items || [],
-        terms: p.terms || "",
-        notes: p.notes || "",
-      }));
-
-      if (pagination.isPaginated) {
-        return res.json(formatPaginatedResponse(formatted, total, pagination));
-      }
-
-      res.setHeader("X-Total-Count", String(total));
-      return res.json(formatted);
-    }
-
-    // Fallback to legacy CMS page
-    const slug = `system-proposals-${tenantId}`;
-    const page = await prisma.cmsPage.findUnique({ where: { slug } });
-    const list = page?.content && Array.isArray(page.content) ? page.content : [];
+    const formatted = proposals.map((p) => ({
+      id: p.id,
+      proposalNo: p.proposalNo,
+      title: p.title,
+      client: p.clientName,
+      clientName: p.clientName,
+      clientEmail: p.clientEmail || "",
+      clientGstin: p.clientGstin || "",
+      amount: Number(p.amount),
+      status: p.status,
+      date: p.validUntil ? p.validUntil.toISOString() : p.createdAt.toISOString(),
+      created_at: p.createdAt.toISOString(),
+      items: p.items || [],
+      terms: p.terms || "",
+      notes: p.notes || "",
+    }));
 
     if (pagination.isPaginated) {
-      return res.json(formatPaginatedResponse(list, list.length, pagination));
+      return res.json(formatPaginatedResponse(formatted, total, pagination));
     }
 
-    res.setHeader("X-Total-Count", String(list.length));
-    return res.json(list);
+    res.setHeader("X-Total-Count", String(total));
+    return res.json(formatted);
   } catch (err: any) {
     console.error("Proposals GET error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch proposals" });

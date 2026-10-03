@@ -99,65 +99,119 @@ export async function generateDatabaseBackup(): Promise<BackupSnapshotItem> {
   const password = decodeURIComponent(parsed.password || "");
   const database = parsed.pathname.replace(/^\//, "");
 
-  // Attempt 1: Try mysqldump using secure credentials file
+  const isPostgres = dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://");
+
+  // Attempt 1: Try native pg_dump (for PostgreSQL/Supabase) or mysqldump
   let generated = false;
-  const tempCnfPath = path.join(BACKUP_DIR, `.my.cnf.${Date.now()}`);
 
-  try {
-    const cnfContent = `[client]\nhost=${host}\nport=${port}\nuser=${user}\npassword="${password.replace(/"/g, '\\"')}"\n`;
-    fs.writeFileSync(tempCnfPath, cnfContent, { mode: 0o600 });
+  if (isPostgres) {
+    try {
+      const pgDumpBin = fs.existsSync("/opt/homebrew/bin/pg_dump")
+        ? "/opt/homebrew/bin/pg_dump"
+        : "pg_dump";
 
-    const mysqldumpBin = fs.existsSync("/opt/homebrew/bin/mysqldump")
-      ? "/opt/homebrew/bin/mysqldump"
-      : "mysqldump";
+      await new Promise<void>((resolve, reject) => {
+        // Use directUrl for dumps if available, otherwise dbUrl
+        const dumpUrl = process.env.DIRECT_URL || dbUrl;
+        const dumpProc = spawn(
+          pgDumpBin,
+          [
+            `--dbname=${dumpUrl}`,
+            "--no-owner",
+            "--no-acl",
+            "--clean",
+            "--if-exists",
+          ],
+          { stdio: ["ignore", "pipe", "pipe"] }
+        );
 
-    await new Promise<void>((resolve, reject) => {
-      const dumpProc = spawn(
-        mysqldumpBin,
-        [
-          `--defaults-extra-file=${tempCnfPath}`,
-          "--single-transaction",
-          "--quick",
-          "--skip-lock-tables",
-          database,
-        ],
-        { stdio: ["ignore", "pipe", "pipe"] }
-      );
+        const gzip = zlib.createGzip();
+        const output = fs.createWriteStream(targetPath);
 
-      const gzip = zlib.createGzip();
-      const output = fs.createWriteStream(targetPath);
+        dumpProc.stdout.pipe(gzip).pipe(output);
 
-      dumpProc.stdout.pipe(gzip).pipe(output);
+        let stderr = "";
+        dumpProc.stderr.on("data", (chunk) => {
+          stderr += chunk.toString();
+        });
 
-      let stderr = "";
-      dumpProc.stderr.on("data", (chunk) => {
-        stderr += chunk.toString();
+        dumpProc.on("error", (err) => reject(err));
+        output.on("finish", () => {
+          if (fs.existsSync(targetPath) && fs.statSync(targetPath).size > 100) {
+            generated = true;
+            resolve();
+          } else {
+            reject(new Error(`pg_dump produced empty file: ${stderr}`));
+          }
+        });
+        dumpProc.on("close", (code) => {
+          if (code !== 0 && !generated) {
+            reject(new Error(`pg_dump exited with code ${code}: ${stderr}`));
+          }
+        });
       });
+    } catch (err) {
+      console.warn("Native pg_dump failed or not available, falling back to Prisma table exporter:", err);
+    }
+  } else {
+    const tempCnfPath = path.join(BACKUP_DIR, `.my.cnf.${Date.now()}`);
 
-      dumpProc.on("error", (err) => reject(err));
-      output.on("finish", () => {
-        if (fs.existsSync(targetPath) && fs.statSync(targetPath).size > 100) {
-          generated = true;
-          resolve();
-        } else {
-          reject(new Error(`mysqldump produced empty file: ${stderr}`));
-        }
+    try {
+      const cnfContent = `[client]\nhost=${host}\nport=${port}\nuser=${user}\npassword="${password.replace(/"/g, '\\"')}"\n`;
+      fs.writeFileSync(tempCnfPath, cnfContent, { mode: 0o600 });
+
+      const mysqldumpBin = fs.existsSync("/opt/homebrew/bin/mysqldump")
+        ? "/opt/homebrew/bin/mysqldump"
+        : "mysqldump";
+
+      await new Promise<void>((resolve, reject) => {
+        const dumpProc = spawn(
+          mysqldumpBin,
+          [
+            `--defaults-extra-file=${tempCnfPath}`,
+            "--single-transaction",
+            "--quick",
+            "--skip-lock-tables",
+            database,
+          ],
+          { stdio: ["ignore", "pipe", "pipe"] }
+        );
+
+        const gzip = zlib.createGzip();
+        const output = fs.createWriteStream(targetPath);
+
+        dumpProc.stdout.pipe(gzip).pipe(output);
+
+        let stderr = "";
+        dumpProc.stderr.on("data", (chunk) => {
+          stderr += chunk.toString();
+        });
+
+        dumpProc.on("error", (err) => reject(err));
+        output.on("finish", () => {
+          if (fs.existsSync(targetPath) && fs.statSync(targetPath).size > 100) {
+            generated = true;
+            resolve();
+          } else {
+            reject(new Error(`mysqldump produced empty file: ${stderr}`));
+          }
+        });
+        dumpProc.on("close", (code) => {
+          if (code !== 0 && !generated) {
+            reject(new Error(`mysqldump exited with code ${code}: ${stderr}`));
+          }
+        });
       });
-      dumpProc.on("close", (code) => {
-        if (code !== 0 && !generated) {
-          reject(new Error(`mysqldump exited with code ${code}: ${stderr}`));
-        }
-      });
-    });
-  } catch (err) {
-    console.warn("Native mysqldump failed or not available, falling back to Prisma table exporter:", err);
-  } finally {
-    if (fs.existsSync(tempCnfPath)) {
-      try { fs.unlinkSync(tempCnfPath); } catch {}
+    } catch (err) {
+      console.warn("Native mysqldump failed or not available, falling back to Prisma table exporter:", err);
+    } finally {
+      if (fs.existsSync(tempCnfPath)) {
+        try { fs.unlinkSync(tempCnfPath); } catch {}
+      }
     }
   }
 
-  // Attempt 2: Fallback to structured Prisma SQL data dump if mysqldump failed
+  // Attempt 2: Fallback to structured Prisma SQL data dump if native dump failed
   if (!generated) {
     try {
       const gzip = zlib.createGzip();

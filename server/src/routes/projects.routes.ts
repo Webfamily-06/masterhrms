@@ -1007,3 +1007,159 @@ projectsRouter.post("/:id/generate-invoice", requireAuth, async (req: AuthReques
   }
 });
 
+// -------------------------------------------------------------
+// PROJECT MILESTONES (RELATIONAL DB BACKED)
+// -------------------------------------------------------------
+
+// GET /api/projects/:id/milestones
+projectsRouter.get("/:id/milestones", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const milestones = await prisma.projectMilestone.findMany({
+      where: { projectId: id, tenantId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return res.json(
+      milestones.map((m) => ({
+        id: m.id,
+        projectId: m.projectId,
+        title: m.title,
+        description: m.description || "",
+        cost: Number(m.cost),
+        status: m.status,
+        dueDate: m.dueDate ? m.dueDate.toISOString().split("T")[0] : null,
+        completedAt: m.completedAt ? m.completedAt.toISOString() : null,
+        createdAt: m.createdAt.toISOString(),
+      }))
+    );
+  } catch (err: any) {
+    console.error("Milestones GET error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch milestones" });
+  }
+});
+
+// POST /api/projects/:id/milestones
+projectsRouter.post("/:id/milestones", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const { title, description, cost, dueDate, status } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: "Milestone title is required" });
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id, tenantId },
+    });
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const milestone = await prisma.projectMilestone.create({
+      data: {
+        tenantId,
+        projectId: id,
+        title: title.trim(),
+        description: description || null,
+        cost: Number(cost || 0),
+        dueDate: dueDate ? new Date(dueDate) : null,
+        status: status || "pending",
+        completedAt: status === "completed" ? new Date() : null,
+      },
+    });
+
+    return res.status(201).json({
+      id: milestone.id,
+      projectId: milestone.projectId,
+      title: milestone.title,
+      description: milestone.description,
+      cost: Number(milestone.cost),
+      status: milestone.status,
+      dueDate: milestone.dueDate ? milestone.dueDate.toISOString().split("T")[0] : null,
+      createdAt: milestone.createdAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("Milestone POST error:", err);
+    return res.status(500).json({ error: err.message || "Failed to create milestone" });
+  }
+});
+
+// PATCH /api/projects/:id/milestones/:mid
+projectsRouter.patch("/:id/milestones/:mid", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id, mid } = req.params;
+    const { status, title, description, cost, dueDate } = req.body;
+
+    const existing = await prisma.projectMilestone.findFirst({
+      where: { id: mid, projectId: id, tenantId },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Milestone not found" });
+    }
+
+    const dataToUpdate: any = {};
+    if (status !== undefined) {
+      dataToUpdate.status = status;
+      if (status === "completed") {
+        dataToUpdate.completedAt = new Date();
+      } else {
+        dataToUpdate.completedAt = null;
+      }
+    }
+    if (title !== undefined) dataToUpdate.title = title;
+    if (description !== undefined) dataToUpdate.description = description;
+    if (cost !== undefined) dataToUpdate.cost = Number(cost);
+    if (dueDate !== undefined) dataToUpdate.dueDate = dueDate ? new Date(dueDate) : null;
+
+    const updated = await prisma.projectMilestone.update({
+      where: { id: mid },
+      data: dataToUpdate,
+    });
+
+    // Update project progress percentage based on completed milestones
+    const allMilestones = await prisma.projectMilestone.findMany({
+      where: { projectId: id, tenantId },
+    });
+    if (allMilestones.length > 0) {
+      const completed = allMilestones.filter((m) => m.status === "completed").length;
+      const progress = Math.round((completed / allMilestones.length) * 100);
+      await prisma.project.update({
+        where: { id },
+        data: { progress },
+      });
+    }
+
+    return res.json({ success: true, milestone: updated });
+  } catch (err: any) {
+    console.error("Milestone PATCH error:", err);
+    return res.status(500).json({ error: err.message || "Failed to update milestone" });
+  }
+});
+
+// DELETE /api/projects/:id/milestones/:mid
+projectsRouter.delete("/:id/milestones/:mid", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id, mid } = req.params;
+
+    const existing = await prisma.projectMilestone.findFirst({
+      where: { id: mid, projectId: id, tenantId },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Milestone not found" });
+    }
+
+    await prisma.projectMilestone.delete({ where: { id: mid } });
+
+    return res.json({ success: true, message: "Milestone deleted" });
+  } catch (err: any) {
+    console.error("Milestone DELETE error:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete milestone" });
+  }
+});
+

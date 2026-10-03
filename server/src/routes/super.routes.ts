@@ -1,4 +1,4 @@
-import { sendTwoFactorOtpEmail } from "../lib/email";
+import { sendTwoFactorOtpEmail, sendSubscriptionLifecycleEmail } from "../lib/email";
 import { Router, Response } from "express";
 import { rawPrisma as prisma } from "../prisma";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
@@ -11,6 +11,9 @@ import { getIO } from "../socket";
 import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, syncSubscriptionPlans } from "../services/workspace-policy.service";
 import { generateDatabaseBackup, listBackupSnapshots, getBackupFilePath, deleteBackupSnapshot } from "../services/backup.service";
 import { getLanguagesList, getLanguagePhrases, saveLanguagePhrases, createLanguagePack, deleteLanguagePack, toggleLanguagePackStatus } from "../services/language.service";
+import { handleTenantSuspension, handleTenantReactivation } from "../services/subscription-lifecycle.service";
+import { TenantUsageMetricsService } from "../services/tenant-usage-metrics.service";
+import { validateBillableUserCount, calculatePlanPricing } from "../services/billing-duration.service";
 
 export const superRouter = Router();
 
@@ -227,27 +230,101 @@ superRouter.post("/leave-impersonation", requireAuth, requireSuperAdmin, async (
 superRouter.patch("/tenants/:id/status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
     if (!["active", "suspended"].includes(status)) {
       return res.status(400).json({ error: "Status must be either 'active' or 'suspended'." });
     }
 
-    const tenant = await prisma.tenant.findUnique({ where: { id } });
-    if (!tenant) return res.status(404).json({ error: "Tenant workspace not found." });
-
-    await prisma.tenantSubscription.upsert({
-      where: { tenantId: id },
-      create: { tenantId: id, status },
-      update: { status },
-    });
-
     if (status === "suspended") {
-      getIO()?.in(`tenant:${id}`).disconnectSockets(true);
+      const result = await handleTenantSuspension({
+        tenantId: id,
+        reason,
+        actorEmail: req.user?.email,
+      });
+      return res.json({ success: true, message: result.message, status: "suspended", emailsSent: result.emailsSent });
+    } else {
+      const result = await handleTenantReactivation({
+        tenantId: id,
+        actorEmail: req.user?.email,
+      });
+      return res.json({ success: true, message: result.message, status: "active" });
     }
-
-    return res.json({ success: true, message: `Tenant status updated to ${status}.`, status });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to update tenant status." });
+  }
+});
+
+// POST /api/super/tenants/:id/suspend
+superRouter.post("/tenants/:id/suspend", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const result = await handleTenantSuspension({
+      tenantId: id,
+      reason,
+      actorEmail: req.user?.email,
+    });
+    return res.json({ success: true, message: result.message, status: "suspended", emailsSent: result.emailsSent });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to suspend tenant." });
+  }
+});
+
+// POST /api/super/tenants/:id/reactivate
+superRouter.post("/tenants/:id/reactivate", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await handleTenantReactivation({
+      tenantId: id,
+      actorEmail: req.user?.email,
+    });
+    return res.json({ success: true, message: result.message, status: "active" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to reactivate tenant." });
+  }
+});
+
+// POST /api/super/email-templates/test (Send preview test email)
+superRouter.post("/email-templates/test", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { templateId, toEmail, subject, htmlBody } = req.body;
+    const recipient = toEmail || req.user?.email;
+    if (!recipient) {
+      return res.status(400).json({ error: "Recipient email is required." });
+    }
+
+    const testVars = {
+      company_name: "Acme Global Solutions",
+      tenant_name: "Acme Global Solutions",
+      tenant_id: "ten_test_demo",
+      plan_name: "Enterprise Tier",
+      expiry_date: "Oct 18, 2026",
+      days_remaining: "15",
+      suspension_date: "Oct 3, 2026, 02:00 UTC",
+      suspension_reason: "Test email dispatch from Super Admin Console",
+      support_email: "support@masterhrms.com",
+      renewal_url: `${process.env.APP_BASE_URL || "https://masterhrms.com"}/subscription`,
+      admin_name: req.user?.email?.split("@")[0] || "Administrator",
+    };
+
+    const result = await sendSubscriptionLifecycleEmail({
+      toEmail: recipient,
+      templateId: templateId || "subscription-reminder-15d",
+      templateFallback: subject && htmlBody ? { subject, htmlBody } : undefined,
+      variables: testVars,
+    });
+
+    if (!result.success && result.error && !result.error.includes("not configured")) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    return res.json({
+      success: true,
+      message: `Test email dispatched to ${recipient}.`,
+      messageId: result.messageId || "mock-test-id",
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to dispatch test email." });
   }
 });
 
@@ -286,53 +363,530 @@ superRouter.get("/stats", requireAuth, requireSuperAdmin, async (req: AuthReques
   }
 });
 
+// Helper function to calculate real company statistics from Supabase PostgreSQL
+// Authoritative status rule:
+//   inactive = TenantSubscription.status === "suspended" OR status === "expired" OR expiresAt is in the past
+//   active   = everything else (no subscription row, status "active", status "trialing", valid future expiry)
+async function getCompanyMetricsData() {
+  const [totalTenants, tenants, subscriptions, totalWarehouses, totalBranches] = await Promise.all([
+    prisma.tenant.count(),
+    prisma.tenant.findMany({
+      select: {
+        id: true,
+        createdAt: true,
+        _count: {
+          select: {
+            branches: true,
+            warehouses: true,
+            establishments: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    // Fetch all TenantSubscription rows in one query for consistency
+    prisma.tenantSubscription.findMany({
+      select: { tenantId: true, status: true, expiresAt: true },
+    }),
+    prisma.warehouse.count(),
+    prisma.branch.count({ where: { status: "active" } }),
+  ]);
+
+  const subMap = new Map(subscriptions.map((s: any) => [s.tenantId, s]));
+  const now = new Date();
+
+  // Determine effective status per tenant using the authoritative rule
+  const isTenantInactive = (tenantId: string): boolean => {
+    const sub = subMap.get(tenantId) as any;
+    if (!sub) return false; // no subscription = default active
+    if (sub.status === "suspended" || sub.status === "expired") return true;
+    if (sub.expiresAt && new Date(sub.expiresAt) < now) return true;
+    return false;
+  };
+
+  const activeTenants = tenants.filter((t) => !isTenantInactive(t.id)).length;
+  const inactiveTenants = Math.max(0, totalTenants - activeTenants);
+
+  // Real count of companies with configured location data
+  const companiesWithLocation = tenants.filter(
+    (t) => (t._count?.branches || 0) > 0 || (t._count?.warehouses || 0) > 0 || (t._count?.establishments || 0) > 0
+  ).length;
+
+  // Real 7-point trend data for sparklines
+  const sparklineDays = 7;
+  const totalTrend: number[] = [];
+  const activeTrend: number[] = [];
+  const inactiveTrend: number[] = [];
+  const locationTrend: number[] = [];
+
+  for (let i = sparklineDays - 1; i >= 0; i--) {
+    const cutoff = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const tenantsUpToCutoff = tenants.filter((t) => new Date(t.createdAt) <= cutoff);
+    const countAtCutoff = tenantsUpToCutoff.length;
+    totalTrend.push(countAtCutoff);
+
+    const activeAtCutoff = tenantsUpToCutoff.filter((t) => !isTenantInactive(t.id)).length;
+    activeTrend.push(activeAtCutoff);
+    inactiveTrend.push(Math.max(0, countAtCutoff - activeAtCutoff));
+
+    const locAtCutoff = tenantsUpToCutoff.filter(
+      (t) => (t._count?.branches || 0) > 0 || (t._count?.warehouses || 0) > 0 || (t._count?.establishments || 0) > 0
+    ).length;
+    locationTrend.push(locAtCutoff);
+  }
+
+  return {
+    total: totalTenants,
+    active: activeTenants,
+    inactive: inactiveTenants,
+    locations: companiesWithLocation,
+    totalPhysicalLocations: totalWarehouses + totalBranches,
+    sparklines: {
+      total: totalTrend,
+      active: activeTrend,
+      inactive: inactiveTrend,
+      locations: locationTrend,
+    },
+  };
+}
+
+// GET /api/super/tenants/stats
+superRouter.get("/tenants/stats", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const stats = await getCompanyMetricsData();
+    return res.json(stats);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to retrieve company statistics" });
+  }
+});
+
 // GET /api/super/tenants
 superRouter.get("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
+    const { search, plan, status, page, limit, paginated, dateFrom, dateTo, dateRange } = req.query as {
+      search?: string;
+      plan?: string;
+      status?: string;
+      page?: string;
+      limit?: string;
+      paginated?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      dateRange?: string;
+    };
+
+    const isPaginatedRequest = Boolean(
+      page || limit || paginated === "true" || search !== undefined || plan !== undefined || status !== undefined || dateFrom || dateTo || dateRange
+    );
+
+    const pageNum = Math.max(1, parseInt(page || "1", 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit || "10", 10) || 10));
+
+    // Construct Prisma WHERE conditions
+    const where: any = {};
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { slug: { contains: q, mode: "insensitive" } },
+        { tenantDomains: { some: { domain: { contains: q, mode: "insensitive" } } } },
+        { profiles: { some: { OR: [{ email: { contains: q, mode: "insensitive" } }, { user: { email: { contains: q, mode: "insensitive" } } }] } } },
+      ];
+    }
+
+    if (plan && plan !== "All Plans" && plan !== "all") {
+      const planLower = plan.toLowerCase();
+      if (planLower === "unassigned") {
+        where.OR = [
+          { subscription: { is: null } },
+          { subscription: { planId: null } },
+        ];
+      } else {
+        where.subscription = {
+          plan: {
+            OR: [
+              { id: { equals: plan, mode: "insensitive" } },
+              { name: { contains: plan, mode: "insensitive" } },
+            ],
+          },
+        };
+      }
+    }
+
+    if (status && status !== "All Status" && status !== "all") {
+      const statusLower = status.toLowerCase();
+      if (statusLower === "active") {
+        // Active = no subscription row OR subscription exists and is NOT suspended/expired
+        const now = new Date();
+        where.OR = [
+          // Tenants with no TenantSubscription record (default active)
+          { subscription: { is: null } },
+          // Tenants with a subscription that is not suspended, not expired, and not past expiresAt
+          {
+            subscription: {
+              AND: [
+                { status: { not: "suspended" } },
+                { status: { not: "expired" } },
+                {
+                  OR: [
+                    { expiresAt: null },
+                    { expiresAt: { gt: now } },
+                  ],
+                },
+              ],
+            },
+          },
+        ];
+      } else if (statusLower === "inactive" || statusLower === "suspended") {
+        // Inactive = suspended OR expired OR expiresAt in the past
+        const now = new Date();
+        where.subscription = {
+          OR: [
+            { status: "suspended" },
+            { status: "expired" },
+            { expiresAt: { lt: now } },
+          ],
+        };
+      }
+    }
+
+    // Date range filtering
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const toD = new Date(dateTo);
+        toD.setHours(23, 59, 59, 999);
+        where.createdAt.lte = toD;
+      }
+    } else if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      if (dateRange === "today") {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        where.createdAt = { gte: start };
+      } else if (dateRange === "week") {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        where.createdAt = { gte: weekAgo };
+      } else if (dateRange === "month") {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        where.createdAt = { gte: monthAgo };
+      } else if (dateRange === "year") {
+        const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        where.createdAt = { gte: yearAgo };
+      }
+    }
+
+    const totalFiltered = await prisma.tenant.count({ where });
+
     const tenants = await prisma.tenant.findMany({
+      where,
       include: {
+        subscription: {
+          include: {
+            plan: true,
+          },
+        },
+        tenantDomains: {
+          where: { status: "approved" },
+          orderBy: { isPrimary: "desc" },
+        },
+        profiles: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                roles: true,
+              },
+            },
+          },
+          take: 5,
+        },
+        warehouses: {
+          select: {
+            email: true,
+          },
+          take: 1,
+        },
         _count: {
           select: {
             employees: true,
             departments: true,
             profiles: true,
+            branches: true,
+            warehouses: true,
           },
         },
       },
       orderBy: { createdAt: "desc" },
+      ...(isPaginatedRequest ? { skip: (pageNum - 1) * limitNum, take: limitNum } : {}),
     });
 
     const policyMap = await getWorkspacePoliciesBatch(tenants.map((t) => t.id));
-    return res.json(tenants.map((tenant) => ({ ...tenant, policy: policyMap[tenant.id] || resolveWorkspacePolicy() })));
+
+    const formattedTenants = tenants.map((tenant) => {
+      const policy = policyMap[tenant.id] || resolveWorkspacePolicy(tenant.subscription || {}, tenant.subscription?.plan ? [tenant.subscription.plan] : []);
+      const primaryDomain = tenant.tenantDomains?.[0]?.domain;
+      const accountUrl = primaryDomain || `${tenant.slug}.mastererp.cloud`;
+      const planName = tenant.subscription?.plan?.name || policy.planName || "Unassigned";
+
+      // Derive authoritative company email
+      const companyEmail =
+        tenant.profiles?.find((p: any) => p.email)?.email ||
+        tenant.profiles?.[0]?.user?.email ||
+        tenant.warehouses?.[0]?.email ||
+        `${tenant.slug}@mastererp.cloud`;
+
+      // Authoritative subscription expiry date
+      const rawExpiresAt =
+        tenant.subscription?.expiresAt ||
+        policy?.expiresAt ||
+        tenant.subscription?.trialEndsAt ||
+        null;
+      const formattedExpiresAt = rawExpiresAt
+        ? (rawExpiresAt instanceof Date ? rawExpiresAt.toISOString() : new Date(rawExpiresAt).toISOString())
+        : null;
+
+      // Authoritative company status for display:
+      // suspended → "suspended", expired or past expiresAt → "expired", everything else → "active"
+      const rawSubStatus = tenant.subscription?.status;
+      const rawExpiresAtDate = tenant.subscription?.expiresAt || null;
+      const isSubExpired = Boolean(
+        rawSubStatus === "expired" ||
+        (rawExpiresAtDate && new Date(rawExpiresAtDate) < new Date())
+      );
+      const displayStatus: string =
+        rawSubStatus === "suspended"
+          ? "suspended"
+          : isSubExpired
+            ? "expired"
+            : "active";
+
+      return {
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        email: companyEmail,
+        logo_url: tenant.logoUrl || null,
+        created_at: tenant.createdAt ? tenant.createdAt.toISOString() : new Date().toISOString(),
+        expires_at: formattedExpiresAt,
+        employee_count: tenant._count?.employees || 0,
+        user_count: tenant._count?.profiles || 0,
+        account_url: accountUrl,
+        plan_name: planName,
+        status: displayStatus,
+        subscription_status: rawSubStatus || null,
+        timezone: tenant.timezone || "Asia/Kolkata",
+        policy,
+      };
+    });
+
+    if (isPaginatedRequest) {
+      const stats = await getCompanyMetricsData();
+      return res.json({
+        data: formattedTenants,
+        tenants: formattedTenants,
+        pagination: {
+          total: totalFiltered,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: Math.ceil(totalFiltered / limitNum) || 1,
+        },
+        stats,
+      });
+    }
+
+    // Default unpaginated response for callers expecting a flat array
+    return res.json(formattedTenants);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// GET /api/super/tenants/:id (Company Full Details)
+superRouter.get("/tenants/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenant = await prisma.tenant.findUnique({
+      where: { id },
+      include: {
+        subscription: {
+          include: {
+            plan: true,
+          },
+        },
+        tenantDomains: true,
+        profiles: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                roles: true,
+              },
+            },
+          },
+        },
+        warehouses: true,
+        branches: true,
+        _count: {
+          select: {
+            employees: true,
+            departments: true,
+            profiles: true,
+            warehouses: true,
+            branches: true,
+          },
+        },
+      },
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ error: "Company not found" });
+    }
+
+    const policy = await getWorkspacePolicy(tenant.id);
+    const primaryDomain = tenant.tenantDomains?.find((d) => d.isPrimary && d.status === "approved")?.domain;
+    const companyEmail =
+      tenant.profiles?.find((p) => p.email)?.email ||
+      tenant.profiles?.[0]?.user?.email ||
+      tenant.warehouses?.[0]?.email ||
+      `${tenant.slug}@mastererp.cloud`;
+
+    const rawExpiresAt =
+      tenant.subscription?.expiresAt ||
+      policy?.expiresAt ||
+      tenant.subscription?.trialEndsAt ||
+      null;
+    const formattedExpiresAt = rawExpiresAt
+      ? (rawExpiresAt instanceof Date ? rawExpiresAt.toISOString() : new Date(rawExpiresAt).toISOString())
+      : null;
+
+    return res.json({
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      email: companyEmail,
+      logo_url: tenant.logoUrl || null,
+      timezone: tenant.timezone,
+      created_at: tenant.createdAt.toISOString(),
+      expires_at: formattedExpiresAt,
+      account_url: primaryDomain || `${tenant.slug}.mastererp.cloud`,
+      custom_domain: primaryDomain || null,
+      plan_name: tenant.subscription?.plan?.name || policy.planName || "Unassigned",
+      status: tenant.subscription?.status || policy.status || "active",
+      employee_count: tenant._count?.employees || 0,
+      user_count: tenant._count?.profiles || 0,
+      department_count: tenant._count?.departments || 0,
+      location_count: (tenant._count?.branches || 0) + (tenant._count?.warehouses || 0),
+      subscription: tenant.subscription,
+      policy,
+      domains: tenant.tenantDomains,
+      warehouses: tenant.warehouses,
+      branches: tenant.branches,
+      adminUser: tenant.profiles[0]?.user || null,
+      profiles: tenant.profiles.map((p) => ({
+        id: p.id,
+        fullName: p.fullName,
+        email: p.email || p.user?.email,
+        phone: p.phone,
+        userId: p.userId,
+        roles: p.user?.roles.map((r: any) => r.role) || [],
+      })),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to retrieve company details" });
   }
 });
 
 // POST /api/super/tenants
 superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, slug, logoUrl } = req.body;
-    const finalSlug =
-      slug ||
-      name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") +
-        "-" +
-        Math.random().toString(36).slice(2, 6);
+    const { name, slug, logoUrl, logo_url, planId, email, contactEmail } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Company name is required." });
+    }
 
-    const tenant = await prisma.tenant.create({
-      data: {
-        name,
-        slug: finalSlug,
-        logoUrl: logoUrl || null,
-      },
+    const rawSlug = slug || name;
+    const finalSlug = rawSlug
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    if (!finalSlug) {
+      return res.status(400).json({ error: "A valid subdomain slug is required." });
+    }
+
+    const existing = await prisma.tenant.findUnique({
+      where: { slug: finalSlug },
+    });
+    if (existing) {
+      return res.status(409).json({ error: `A company with subdomain '${finalSlug}' already exists.` });
+    }
+
+    let resolvedPlan: any = null;
+    if (planId) {
+      resolvedPlan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
+    }
+
+    const ownerEmail = (email || contactEmail || "").trim() || `${finalSlug}.admin@mastererp.cloud`;
+
+    const tenant = await prisma.$transaction(async (tx: any) => {
+      const createdTenant = await tx.tenant.create({
+        data: {
+          name: name.trim(),
+          slug: finalSlug,
+          logoUrl: logoUrl?.trim() || logo_url?.trim() || null,
+        },
+      });
+
+      await tx.tenantSubscription.create({
+        data: {
+          tenantId: createdTenant.id,
+          planId: resolvedPlan ? resolvedPlan.id : null,
+          status: "active",
+          billingCycle: "monthly",
+          maxEmployees: resolvedPlan ? resolvedPlan.maxEmployees : 50,
+          maxUsers: resolvedPlan ? resolvedPlan.maxUsers : 10,
+        },
+      });
+
+      // Create initial workspace owner account if not already created
+      const existingUser = await tx.user.findUnique({ where: { email: ownerEmail } });
+      if (!existingUser) {
+        const tempPassword = `Admin#${Math.random().toString(36).slice(2, 8)}!`;
+        const passwordHash = await bcrypt.hash(tempPassword, 10);
+        const ownerUser = await tx.user.create({
+          data: {
+            email: ownerEmail,
+            passwordHash,
+          },
+        });
+        await tx.profile.create({
+          data: {
+            userId: ownerUser.id,
+            email: ownerEmail,
+            fullName: `${name.trim()} Administrator`,
+            tenantId: createdTenant.id,
+          },
+        });
+        await tx.userRole.create({
+          data: {
+            userId: ownerUser.id,
+            tenantId: createdTenant.id,
+            role: "hr_admin",
+          },
+        });
+      }
+
+      return createdTenant;
     });
 
     return res.status(201).json(tenant);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message || "Failed to create company" });
   }
 });
 
@@ -340,20 +894,181 @@ superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthReq
 superRouter.put("/tenants/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, slug, logoUrl, logo_url } = req.body;
+    const { name, slug, logoUrl, logo_url, email, timezone } = req.body;
 
-    const updated = await prisma.tenant.update({
+    const existing = await prisma.tenant.findUnique({
       where: { id },
-      data: {
-        ...(name && { name }),
-        ...(slug && { slug }),
-        logoUrl: logoUrl !== undefined ? logoUrl : logo_url,
+      include: {
+        profiles: {
+          include: { user: true },
+        },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Company not found" });
+    }
+
+    let finalSlug = undefined;
+    if (slug && slug.trim() !== existing.slug) {
+      finalSlug = slug.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      const duplicate = await prisma.tenant.findFirst({
+        where: { slug: finalSlug, id: { not: id } },
+      });
+      if (duplicate) {
+        return res.status(409).json({ error: `Subdomain '${finalSlug}' is already in use by another company.` });
+      }
+    }
+
+    const resolvedLogo =
+      logoUrl !== undefined ? (logoUrl?.trim() || null) : (logo_url !== undefined ? (logo_url?.trim() || null) : undefined);
+
+    await prisma.$transaction(async (tx: any) => {
+      await tx.tenant.update({
+        where: { id },
+        data: {
+          ...(name && { name: name.trim() }),
+          ...(finalSlug && { slug: finalSlug }),
+          ...(resolvedLogo !== undefined && { logoUrl: resolvedLogo }),
+          ...(timezone && { timezone: timezone.trim() }),
+        },
+      });
+
+      // If email provided, synchronize with primary admin profile and user
+      if (email && email.trim()) {
+        const cleanEmail = email.trim().toLowerCase();
+        const adminProfile = existing.profiles.find((p) => p.user) || existing.profiles[0];
+        if (adminProfile) {
+          await tx.profile.update({
+            where: { id: adminProfile.id },
+            data: { email: cleanEmail },
+          });
+          if (adminProfile.userId) {
+            // Check if user email is not already taken by another user
+            const collision = await tx.user.findFirst({
+              where: { email: cleanEmail, id: { not: adminProfile.userId } },
+            });
+            if (!collision) {
+              await tx.user.update({
+                where: { id: adminProfile.userId },
+                data: { email: cleanEmail },
+              });
+            }
+          }
+        }
+      }
+    });
+
+    const updated = await prisma.tenant.findUnique({
+      where: { id },
+      include: {
+        profiles: true,
       },
     });
 
     return res.json(updated);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message || "Failed to update company" });
+  }
+});
+
+// POST /api/super/tenants/:id/reset-password
+const resetTenantPasswordSchema = z.object({
+  userId: z.string().optional(),
+  password: z.string().min(8, "Password must be at least 8 characters long").optional(),
+  password_confirmation: z.string().optional(),
+});
+
+superRouter.post("/tenants/:id/reset-password", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenant = await prisma.tenant.findUnique({
+      where: { id },
+      include: {
+        profiles: {
+          include: {
+            user: {
+              include: { roles: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ error: "Company not found" });
+    }
+
+    const body = resetTenantPasswordSchema.parse(req.body);
+    if (body.password && body.password_confirmation && body.password !== body.password_confirmation) {
+      return res.status(400).json({ error: "Password confirmation does not match." });
+    }
+
+    // Identify target account: specific userId or primary admin user for this workspace
+    let targetUser: any = null;
+    if (body.userId) {
+      targetUser = await prisma.user.findUnique({ where: { id: body.userId } });
+    } else {
+      const adminProfile = tenant.profiles.find((p) =>
+        p.user?.roles.some((r: any) => r.role === "hr_admin" || r.role === "admin")
+      ) || tenant.profiles[0];
+
+      if (adminProfile?.user) {
+        targetUser = adminProfile.user;
+      }
+    }
+
+    const newPassword = body.password || `TempPass#${Math.random().toString(36).slice(2, 8)}!`;
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    if (targetUser) {
+      await prisma.user.update({
+        where: { id: targetUser.id },
+        data: { passwordHash },
+      });
+    } else {
+      // If tenant has no user yet, create the owner user
+      const ownerEmail = `${tenant.slug}.admin@mastererp.cloud`;
+      targetUser = await prisma.$transaction(async (tx: any) => {
+        const createdUser = await tx.user.create({
+          data: {
+            email: ownerEmail,
+            passwordHash,
+          },
+        });
+        await tx.profile.create({
+          data: {
+            userId: createdUser.id,
+            email: ownerEmail,
+            fullName: `${tenant.name} Administrator`,
+            tenantId: tenant.id,
+          },
+        });
+        await tx.userRole.create({
+          data: {
+            userId: createdUser.id,
+            tenantId: tenant.id,
+            role: "hr_admin",
+          },
+        });
+        return createdUser;
+      });
+    }
+
+    // Disconnect active sockets for the tenant for security
+    getIO()?.in(`tenant:${id}`).disconnectSockets(true);
+
+    return res.json({
+      success: true,
+      message: `Password reset successfully for ${targetUser.email}.`,
+      accountEmail: targetUser.email,
+      temporaryPassword: body.password ? undefined : newPassword,
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0]?.message || "Validation failed" });
+    }
+    return res.status(500).json({ error: err.message || "Failed to reset password" });
   }
 });
 
@@ -361,10 +1076,29 @@ superRouter.put("/tenants/:id", requireAuth, requireSuperAdmin, async (req: Auth
 superRouter.delete("/tenants/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    await prisma.tenant.delete({ where: { id } });
-    return res.json({ success: true, message: "Tenant deleted" });
+    const existing = await prisma.tenant.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Company not found" });
+    }
+
+    await prisma.$transaction(async (tx: any) => {
+      // Disconnect user profiles referencing this tenant
+      await tx.profile.updateMany({
+        where: { tenantId: id },
+        data: { tenantId: null },
+      });
+      // Delete user roles referencing this tenant
+      await tx.userRole.deleteMany({
+        where: { tenantId: id },
+      });
+      // Delete tenant (cascades to all tenant children: subscription, domains, employees, departments, etc.)
+      await tx.tenant.delete({ where: { id } });
+    });
+
+    getIO()?.in(`tenant:${id}`).disconnectSockets(true);
+    return res.json({ success: true, message: `Company '${existing.name}' deleted successfully.` });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message || "Failed to delete company" });
   }
 });
 
@@ -498,8 +1232,19 @@ superRouter.get("/plans", requireAuth, requireSuperAdmin, async (_req: AuthReque
         _count: {
           select: { subscriptions: true },
         },
+        subscriptions: {
+          select: {
+            id: true,
+            tenantId: true,
+            status: true,
+            expiresAt: true,
+            tenant: {
+              select: { id: true, name: true, slug: true },
+            },
+          },
+        },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
     return res.json(plans);
   } catch (err: any) {
@@ -514,31 +1259,106 @@ superRouter.post("/plans", requireAuth, requireSuperAdmin, async (req: AuthReque
       name,
       description,
       status = "active",
+      planType = "standard",
+      pricingModel = "fixed",
+      currency = "INR",
       priceMonthly = 0,
+      priceMonthlyOriginal = null,
+      priceQuarterly = null,
+      priceSemiAnnual = null,
       priceAnnual = 0,
+      priceAnnualOriginal = null,
+      pricePerUser = null,
+      pricePerUserOriginal = null,
+      billableUsers = 1,
+      durationPrices = null,
+      isTrial = false,
+      trialDays = 3,
       maxEmployees = null,
       maxUsers = null,
+      storageLimitGb = null,
       features = [],
       includedAddonIds = [],
       isPopular = false,
+      sortOrder = 0,
+      isPublic = true,
     } = req.body;
 
     if (!name || typeof name !== "string") {
       return res.status(400).json({ error: "Plan name is required." });
     }
 
+    const resolvedPlanType = planType === "custom" ? "custom" : "standard";
+    const resolvedPricingModel = pricingModel === "per_user" ? "per_user" : "fixed";
+
+    // Validate pricing model specific rules
+    if (resolvedPricingModel === "per_user") {
+      const userCountValidation = validateBillableUserCount(billableUsers);
+      if (!userCountValidation.valid) {
+        return res.status(400).json({ error: userCountValidation.error });
+      }
+
+      if (pricePerUser === null || pricePerUser === undefined || isNaN(Number(pricePerUser)) || Number(pricePerUser) < 0) {
+        return res.status(400).json({ error: "Price per user must be a non-negative number." });
+      }
+
+      if (pricePerUserOriginal !== null && pricePerUserOriginal !== undefined && pricePerUserOriginal !== "") {
+        if (Number(pricePerUserOriginal) < Number(pricePerUser)) {
+          return res.status(400).json({ error: "Selling price per user cannot exceed original price per user." });
+        }
+      }
+    } else {
+      // Fixed price model
+      if (priceMonthly === null || priceMonthly === undefined || isNaN(Number(priceMonthly)) || Number(priceMonthly) < 0) {
+        return res.status(400).json({ error: "Monthly price must be a non-negative number." });
+      }
+      if (priceAnnual === null || priceAnnual === undefined || isNaN(Number(priceAnnual)) || Number(priceAnnual) < 0) {
+        return res.status(400).json({ error: "Annual price must be a non-negative number." });
+      }
+
+      if (priceMonthlyOriginal !== null && priceMonthlyOriginal !== undefined && priceMonthlyOriginal !== "") {
+        if (Number(priceMonthlyOriginal) < Number(priceMonthly)) {
+          return res.status(400).json({ error: "Monthly selling price cannot be greater than original price." });
+        }
+      }
+      if (priceAnnualOriginal !== null && priceAnnualOriginal !== undefined && priceAnnualOriginal !== "") {
+        if (Number(priceAnnualOriginal) < Number(priceAnnual)) {
+          return res.status(400).json({ error: "Annual selling price cannot be greater than original price." });
+        }
+      }
+    }
+
+    // Trial duration: exactly 3 days if trial enabled
+    const resolvedTrialDays = Boolean(isTrial) ? 3 : (trialDays ? Number(trialDays) : 3);
+
     const plan = await prisma.subscriptionPlan.create({
       data: {
         name,
         description,
         status,
-        priceMonthly,
-        priceAnnual,
+        planType: resolvedPlanType,
+        pricingModel: resolvedPricingModel,
+        currency: currency || "INR",
+        priceMonthly: Number(priceMonthly) || 0,
+        priceMonthlyOriginal: priceMonthlyOriginal !== null && priceMonthlyOriginal !== undefined && priceMonthlyOriginal !== "" ? Number(priceMonthlyOriginal) : null,
+        priceQuarterly: priceQuarterly !== null && priceQuarterly !== undefined ? Number(priceQuarterly) : null,
+        priceSemiAnnual: priceSemiAnnual !== null && priceSemiAnnual !== undefined ? Number(priceSemiAnnual) : null,
+        priceAnnual: Number(priceAnnual) || 0,
+        priceAnnualOriginal: priceAnnualOriginal !== null && priceAnnualOriginal !== undefined && priceAnnualOriginal !== "" ? Number(priceAnnualOriginal) : null,
+        pricePerUser: pricePerUser !== null && pricePerUser !== undefined && pricePerUser !== "" ? Number(pricePerUser) : null,
+        pricePerUserOriginal: pricePerUserOriginal !== null && pricePerUserOriginal !== undefined && pricePerUserOriginal !== "" ? Number(pricePerUserOriginal) : null,
+        billableUsers: billableUsers ? Number(billableUsers) : 1,
+        durationPrices,
+        isTrial: Boolean(isTrial),
+        trialDays: resolvedTrialDays,
         maxEmployees: maxEmployees ? Number(maxEmployees) : null,
         maxUsers: maxUsers ? Number(maxUsers) : null,
+        storageLimitGb: storageLimitGb ? Number(storageLimitGb) : null,
         features,
         includedAddonIds,
         isPopular: Boolean(isPopular),
+        sortOrder: Number(sortOrder) || 0,
+        isPublic: Boolean(isPublic),
       },
     });
 
@@ -556,14 +1376,74 @@ superRouter.put("/plans/:id", requireAuth, requireSuperAdmin, async (req: AuthRe
       name,
       description,
       status,
+      planType,
+      pricingModel,
+      currency,
       priceMonthly,
+      priceMonthlyOriginal,
+      priceQuarterly,
+      priceSemiAnnual,
       priceAnnual,
+      priceAnnualOriginal,
+      pricePerUser,
+      pricePerUserOriginal,
+      billableUsers,
+      durationPrices,
+      isTrial,
+      trialDays,
       maxEmployees,
       maxUsers,
+      storageLimitGb,
       features,
       includedAddonIds,
       isPopular,
+      sortOrder,
+      isPublic,
     } = req.body;
+
+    const existing = await prisma.subscriptionPlan.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Subscription plan not found." });
+    }
+
+    const resolvedPricingModel = pricingModel !== undefined ? pricingModel : existing.pricingModel;
+
+    // Validate per-user rules if per_user
+    if (resolvedPricingModel === "per_user") {
+      const userCountToCheck = billableUsers !== undefined ? billableUsers : existing.billableUsers;
+      const countValidation = validateBillableUserCount(userCountToCheck);
+      if (!countValidation.valid) {
+        return res.status(400).json({ error: countValidation.error });
+      }
+
+      const activePricePerUser = pricePerUser !== undefined ? Number(pricePerUser) : Number(existing.pricePerUser || 0);
+      const activeOriginalPerUser = pricePerUserOriginal !== undefined
+        ? (pricePerUserOriginal !== null && pricePerUserOriginal !== "" ? Number(pricePerUserOriginal) : null)
+        : (existing.pricePerUserOriginal ? Number(existing.pricePerUserOriginal) : null);
+
+      if (activeOriginalPerUser !== null && activeOriginalPerUser < activePricePerUser) {
+        return res.status(400).json({ error: "Selling price per user cannot exceed original price per user." });
+      }
+    } else {
+      // Validate fixed price rules
+      const activeMonthly = priceMonthly !== undefined ? Number(priceMonthly) : Number(existing.priceMonthly);
+      const activeMonthlyOriginal = priceMonthlyOriginal !== undefined
+        ? (priceMonthlyOriginal !== null && priceMonthlyOriginal !== "" ? Number(priceMonthlyOriginal) : null)
+        : (existing.priceMonthlyOriginal ? Number(existing.priceMonthlyOriginal) : null);
+
+      if (activeMonthlyOriginal !== null && activeMonthlyOriginal < activeMonthly) {
+        return res.status(400).json({ error: "Monthly selling price cannot be greater than original price." });
+      }
+
+      const activeAnnual = priceAnnual !== undefined ? Number(priceAnnual) : Number(existing.priceAnnual);
+      const activeAnnualOriginal = priceAnnualOriginal !== undefined
+        ? (priceAnnualOriginal !== null && priceAnnualOriginal !== "" ? Number(priceAnnualOriginal) : null)
+        : (existing.priceAnnualOriginal ? Number(existing.priceAnnualOriginal) : null);
+
+      if (activeAnnualOriginal !== null && activeAnnualOriginal < activeAnnual) {
+        return res.status(400).json({ error: "Annual selling price cannot be greater than original price." });
+      }
+    }
 
     const updated = await prisma.subscriptionPlan.update({
       where: { id },
@@ -571,19 +1451,59 @@ superRouter.put("/plans/:id", requireAuth, requireSuperAdmin, async (req: AuthRe
         ...(name && { name }),
         ...(description !== undefined && { description }),
         ...(status && { status }),
-        ...(priceMonthly !== undefined && { priceMonthly }),
-        ...(priceAnnual !== undefined && { priceAnnual }),
+        ...(planType && { planType }),
+        ...(pricingModel && { pricingModel }),
+        ...(currency && { currency }),
+        ...(priceMonthly !== undefined && { priceMonthly: Number(priceMonthly) }),
+        ...(priceMonthlyOriginal !== undefined && {
+          priceMonthlyOriginal: priceMonthlyOriginal !== null && priceMonthlyOriginal !== "" ? Number(priceMonthlyOriginal) : null,
+        }),
+        ...(priceQuarterly !== undefined && { priceQuarterly: priceQuarterly !== null ? Number(priceQuarterly) : null }),
+        ...(priceSemiAnnual !== undefined && { priceSemiAnnual: priceSemiAnnual !== null ? Number(priceSemiAnnual) : null }),
+        ...(priceAnnual !== undefined && { priceAnnual: Number(priceAnnual) }),
+        ...(priceAnnualOriginal !== undefined && {
+          priceAnnualOriginal: priceAnnualOriginal !== null && priceAnnualOriginal !== "" ? Number(priceAnnualOriginal) : null,
+        }),
+        ...(pricePerUser !== undefined && {
+          pricePerUser: pricePerUser !== null && pricePerUser !== "" ? Number(pricePerUser) : null,
+        }),
+        ...(pricePerUserOriginal !== undefined && {
+          pricePerUserOriginal: pricePerUserOriginal !== null && pricePerUserOriginal !== "" ? Number(pricePerUserOriginal) : null,
+        }),
+        ...(billableUsers !== undefined && { billableUsers: Number(billableUsers) }),
+        ...(durationPrices !== undefined && { durationPrices }),
+        ...(isTrial !== undefined && { isTrial: Boolean(isTrial) }),
+        ...(trialDays !== undefined && { trialDays: Boolean(isTrial ?? existing.isTrial) ? 3 : Number(trialDays) }),
         ...(maxEmployees !== undefined && { maxEmployees: maxEmployees ? Number(maxEmployees) : null }),
         ...(maxUsers !== undefined && { maxUsers: maxUsers ? Number(maxUsers) : null }),
+        ...(storageLimitGb !== undefined && { storageLimitGb: storageLimitGb ? Number(storageLimitGb) : null }),
         ...(features !== undefined && { features }),
         ...(includedAddonIds !== undefined && { includedAddonIds }),
         ...(isPopular !== undefined && { isPopular: Boolean(isPopular) }),
+        ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
+        ...(isPublic !== undefined && { isPublic: Boolean(isPublic) }),
       },
     });
 
     return res.json(updated);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to update subscription plan" });
+  }
+});
+
+// POST /api/super/plans/calculate - Server-side authoritative calculation
+superRouter.post("/plans/calculate", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { planId, duration = "1_month", userCount } = req.body;
+    if (!planId) return res.status(400).json({ error: "planId is required." });
+
+    const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
+    if (!plan) return res.status(404).json({ error: "Subscription plan not found." });
+
+    const calculation = calculatePlanPricing(plan, duration, userCount);
+    return res.json(calculation);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to calculate plan pricing" });
   }
 });
 
@@ -607,6 +1527,142 @@ superRouter.delete("/plans/:id", requireAuth, requireSuperAdmin, async (req: Aut
     return res.json({ success: true, message: "Subscription plan deleted successfully" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete subscription plan" });
+  }
+});
+
+// ==========================================
+// 1.1 COUPONS MANAGEMENT (SUPER ADMIN)
+// ==========================================
+
+// GET /api/super/coupons
+superRouter.get("/coupons", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const coupons = await prisma.coupon.findMany({
+      include: {
+        _count: {
+          select: { redemptions: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json(coupons);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch coupons" });
+  }
+});
+
+// POST /api/super/coupons
+superRouter.post("/coupons", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      code,
+      name,
+      description,
+      discountType = "percentage",
+      discountValue,
+      applicablePlanIds = [],
+      applicableDurations = [],
+      minPurchaseAmount = null,
+      maxRedemptions = null,
+      perTenantLimit = 1,
+      startsAt = null,
+      expiresAt = null,
+      status = "active",
+    } = req.body;
+
+    if (!code || typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({ error: "Coupon code is required." });
+    }
+
+    if (discountValue === undefined || discountValue === null || Number(discountValue) <= 0) {
+      return res.status(400).json({ error: "A positive discount value is required." });
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+
+    const existing = await prisma.coupon.findUnique({
+      where: { code: cleanCode },
+    });
+
+    if (existing) {
+      return res.status(409).json({ error: `Coupon code '${cleanCode}' already exists.` });
+    }
+
+    const coupon = await prisma.coupon.create({
+      data: {
+        code: cleanCode,
+        name: name ? String(name).trim() : null,
+        description: description ? String(description).trim() : null,
+        discountType: discountType === "fixed" ? "fixed" : "percentage",
+        discountValue: Number(discountValue),
+        applicablePlanIds: Array.isArray(applicablePlanIds) && applicablePlanIds.length > 0 ? applicablePlanIds : null,
+        applicableDurations: Array.isArray(applicableDurations) && applicableDurations.length > 0 ? applicableDurations : null,
+        minPurchaseAmount: minPurchaseAmount !== null && minPurchaseAmount !== undefined ? Number(minPurchaseAmount) : null,
+        maxRedemptions: maxRedemptions ? Number(maxRedemptions) : null,
+        perTenantLimit: perTenantLimit ? Number(perTenantLimit) : 1,
+        startsAt: startsAt ? new Date(startsAt) : null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        status: status === "inactive" ? "inactive" : "active",
+      },
+    });
+
+    return res.status(201).json(coupon);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to create coupon" });
+  }
+});
+
+// PUT /api/super/coupons/:id
+superRouter.put("/coupons/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      description,
+      discountType,
+      discountValue,
+      applicablePlanIds,
+      applicableDurations,
+      minPurchaseAmount,
+      maxRedemptions,
+      perTenantLimit,
+      startsAt,
+      expiresAt,
+      status,
+    } = req.body;
+
+    const updated = await prisma.coupon.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name: name ? String(name).trim() : null }),
+        ...(description !== undefined && { description: description ? String(description).trim() : null }),
+        ...(discountType && { discountType: discountType === "fixed" ? "fixed" : "percentage" }),
+        ...(discountValue !== undefined && { discountValue: Number(discountValue) }),
+        ...(applicablePlanIds !== undefined && { applicablePlanIds }),
+        ...(applicableDurations !== undefined && { applicableDurations }),
+        ...(minPurchaseAmount !== undefined && { minPurchaseAmount: minPurchaseAmount !== null ? Number(minPurchaseAmount) : null }),
+        ...(maxRedemptions !== undefined && { maxRedemptions: maxRedemptions !== null ? Number(maxRedemptions) : null }),
+        ...(perTenantLimit !== undefined && { perTenantLimit: Number(perTenantLimit) }),
+        ...(startsAt !== undefined && { startsAt: startsAt ? new Date(startsAt) : null }),
+        ...(expiresAt !== undefined && { expiresAt: expiresAt ? new Date(expiresAt) : null }),
+        ...(status && { status }),
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update coupon" });
+  }
+});
+
+// DELETE /api/super/coupons/:id
+superRouter.delete("/coupons/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.coupon.delete({ where: { id } });
+    return res.json({ success: true, message: "Coupon deleted successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete coupon" });
   }
 });
 
@@ -808,156 +1864,133 @@ superRouter.put("/settings", requireAuth, requireSuperAdmin, async (req: AuthReq
 });
 
 // ==========================================
+// ==========================================
 // 4. PLATFORM TRANSACTIONS (LIVE DB)
 // ==========================================
-superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    let rawTxns = await prisma.paymentGatewayTransaction.findMany({
-      include: {
-        tenant: {
-          select: { id: true, name: true, slug: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+    const { status, search } = req.query;
 
-    if (rawTxns.length === 0) {
-      const tenants = await prisma.tenant.findMany({ take: 8 });
-      for (const [idx, t] of tenants.entries()) {
-        const providers = ["stripe", "paypal", "razorpay"];
-        const provider = providers[idx % providers.length];
-        const amounts = [199, 499, 999, 1200, 2400];
-        const amount = amounts[idx % amounts.length];
-        const status = idx === 3 ? "failed" : idx === 4 ? "pending" : "verified";
-        await prisma.paymentGatewayTransaction.create({
-          data: {
-            tenantId: t.id,
-            provider,
-            providerOrderId: `INV-2024-00${idx + 1}`,
-            providerPaymentId: `PAY-${Date.now()}-${idx}`,
-            amount,
-            currency: "USD",
-            status,
-          },
-        });
-      }
-
-      rawTxns = await prisma.paymentGatewayTransaction.findMany({
-        include: {
-          tenant: {
-            select: { id: true, name: true, slug: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      });
+    const whereInvoice: any = {};
+    if (status && status !== "Select Status") {
+      whereInvoice.status = String(status).toLowerCase() === "paid" ? "paid" : "open";
     }
 
-    const transactions = rawTxns.map((tx: any) => ({
+    const [invoices, rawTxns] = await Promise.all([
+      prisma.billingInvoice.findMany({
+        where: whereInvoice,
+        include: {
+          tenant: { select: { id: true, name: true, slug: true } },
+          subscription: { include: { plan: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.paymentGatewayTransaction.findMany({
+        include: {
+          tenant: { select: { id: true, name: true, slug: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    const invoiceTransactions = invoices.map((inv: any) => ({
+      id: inv.id,
+      transactionNo: inv.invoiceNo || `INV-${inv.id.slice(0, 8).toUpperCase()}`,
+      tenantName: inv.tenant?.name || "Global Enterprise",
+      tenantSlug: inv.tenant?.slug || "tenant",
+      customerEmail: `billing@${inv.tenant?.slug || "tenant"}.com`,
+      itemName: inv.subscription?.plan?.name || "Enterprise SaaS Plan",
+      itemType: "plan",
+      amount: Number(inv.amount) || 0,
+      gateway: "razorpay" as const,
+      gatewayPaymentId: inv.gatewayOrderId || inv.gatewayEventId || `pay_${inv.id.slice(0, 10)}`,
+      status: (inv.status === "paid" ? "success" : inv.status === "failed" ? "failed" : "pending") as any,
+      createdAt: inv.createdAt ? new Date(inv.createdAt).toISOString() : new Date().toISOString(),
+    }));
+
+    const gatewayTransactions = rawTxns.map((tx: any) => ({
       id: tx.id,
       transactionNo: tx.providerOrderId || `TXN-${tx.id.slice(0, 8).toUpperCase()}`,
       tenantName: tx.tenant?.name || "Global Enterprise",
       tenantSlug: tx.tenant?.slug || "tenant",
-      itemName:
-        tx.provider === "stripe"
-          ? "Stripe Direct Checkout"
-          : tx.provider === "razorpay"
-          ? "Razorpay Gateway Settlement"
-          : "Enterprise SaaS Subscription",
+      customerEmail: `billing@${tx.tenant?.slug || "tenant"}.com`,
+      itemName: tx.provider === "stripe" ? "Stripe Direct Checkout" : "Razorpay Settlement",
       itemType: "plan",
       amount: Number(tx.amount) || 0,
-      gateway: (tx.provider?.toLowerCase() === "stripe" ? "stripe" : tx.provider?.toLowerCase() === "bank_wire" ? "bank_wire" : "razorpay") as any,
+      gateway: (tx.provider?.toLowerCase() === "stripe" ? "stripe" : "razorpay") as any,
       gatewayPaymentId: tx.providerPaymentId || `pay_${tx.id.slice(0, 10)}`,
-      status: (tx.status?.toLowerCase() === "verified" || tx.status?.toLowerCase() === "success"
-        ? "success"
-        : tx.status?.toLowerCase() === "failed"
-        ? "failed"
-        : "pending") as any,
-      createdAt: tx.createdAt ? new Date(tx.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : new Date().toLocaleString(),
+      status: (tx.status?.toLowerCase() === "verified" || tx.status?.toLowerCase() === "success" ? "success" : "failed") as any,
+      createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : new Date().toISOString(),
     }));
 
-    return res.json(transactions);
+    let all = [...invoiceTransactions, ...gatewayTransactions].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    if (search) {
+      const q = String(search).toLowerCase();
+      all = all.filter(
+        (t) =>
+          t.transactionNo.toLowerCase().includes(q) ||
+          t.tenantName.toLowerCase().includes(q) ||
+          t.tenantSlug.toLowerCase().includes(q)
+      );
+    }
+
+    return res.json(all);
   } catch (err: any) {
+    console.error("Super Admin transactions error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch platform transactions" });
   }
 });
 
 // ==========================================
-// 5. CUSTOM DOMAINS (LIVE DB & PERSISTENCE)
+// 5. CUSTOM DOMAINS (RELATIONAL DB BACKED)
 // ==========================================
 superRouter.get("/domains", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
   try {
-    const page = await prisma.cmsPage.findUnique({
-      where: { slug: "system-custom-domains" },
-    });
-
-    if (page?.content && Array.isArray((page.content as any).domains)) {
-      return res.json((page.content as any).domains);
-    }
-
-    // Seed initial dynamic domains from actual tenants
-    const tenants = await prisma.tenant.findMany({
-      take: 12,
+    const domains = await prisma.tenantDomain.findMany({
       include: {
-        subscription: true,
+        tenant: {
+          include: {
+            subscription: {
+              include: { plan: true },
+            },
+          },
+        },
       },
+      orderBy: { createdAt: "desc" },
     });
 
-    const defaultDomains = tenants.map((t: any, idx: number) => {
-      const planName = t.subscription?.plan?.name || (idx % 3 === 0 ? "Enterprise" : idx % 2 === 0 ? "Advanced" : "Basic");
-      const planType = idx % 2 === 0 ? "Monthly" : "Yearly";
-      const status = idx === 0 ? "approved" : idx === 1 ? "approved" : idx === 2 ? "pending" : idx === 3 ? "rejected" : "approved";
-      return {
-        id: `dom-${t.id.slice(0, 8)}`,
-        domain: `${t.slug}.example.com`,
-        tenantId: t.id,
-        tenantName: t.name,
-        subdomain: `${t.slug}.mastererp.cloud`,
-        targetCname: "cname.mastererp.cloud",
-        planName,
-        planType,
-        price: idx % 3 === 0 ? "499" : idx % 2 === 0 ? "200" : "99",
-        status,
-        sslStatus: status === "approved" ? "active" : "provisioning",
-        dnsStatus: status === "approved" ? "verified" : "pending",
-        createdAt: new Date(Date.now() - (idx + 1) * 86400000 * 5).toISOString().split("T")[0],
-        expiryDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-      };
-    });
+    const formatted = domains.map((d: any) => ({
+      id: d.id,
+      domain: d.domain,
+      tenantId: d.tenantId,
+      tenantName: d.tenant?.name || "Workspace",
+      subdomain: d.subdomain || `${d.tenant?.slug || "tenant"}.mastererp.cloud`,
+      targetCname: d.targetCname,
+      isPrimary: d.isPrimary,
+      planName: d.tenant?.subscription?.plan?.name || "Standard Plan",
+      planType: d.tenant?.subscription?.billingCycle || "Monthly",
+      price: String(d.tenant?.subscription?.plan?.priceMonthly || "199"),
+      status: d.status,
+      sslStatus: d.sslStatus,
+      dnsStatus: d.dnsStatus,
+      createdAt: d.createdAt ? new Date(d.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+    }));
 
-    if (page?.content && Array.isArray((page.content as any).domains) && (page.content as any).domains.length > 0) {
-      const existing = (page.content as any).domains.map((d: any, idx: number) => ({
-        ...d,
-        planName: d.planName || (idx % 3 === 0 ? "Enterprise" : idx % 2 === 0 ? "Advanced" : "Basic"),
-        planType: d.planType || (idx % 2 === 0 ? "Monthly" : "Yearly"),
-        price: d.price || "200",
-        status: d.status || (d.dnsStatus === "verified" ? "approved" : "pending"),
-        expiryDate: d.expiryDate || new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-      }));
-      return res.json(existing);
-    }
-
-    await prisma.cmsPage.upsert({
-      where: { slug: "system-custom-domains" },
-      create: {
-        slug: "system-custom-domains",
-        title: "Platform Custom Domains",
-        content: { domains: defaultDomains },
-      },
-      update: {
-        content: { domains: defaultDomains },
-      },
-    });
-
-    return res.json(defaultDomains);
+    return res.json(formatted);
   } catch (err: any) {
+    console.error("Super Admin domains GET error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch custom domains" });
   }
 });
 
 superRouter.post("/domains", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { domain, tenantId, subdomain, planName, planType, price } = req.body;
+    const { domain, tenantId, subdomain, isPrimary } = req.body;
     if (!domain || !tenantId) {
       return res.status(400).json({ error: "domain and tenantId are required" });
     }
@@ -967,42 +2000,43 @@ superRouter.post("/domains", requireAuth, requireSuperAdmin, async (req: AuthReq
       return res.status(404).json({ error: "Tenant workspace not found" });
     }
 
-    const page = await prisma.cmsPage.findUnique({ where: { slug: "system-custom-domains" } });
-    const currentDomains = (page?.content as any)?.domains || [];
-
-    const newRecord = {
-      id: `dom-${Date.now()}`,
-      domain: domain.trim().toLowerCase(),
-      tenantId: tenant.id,
-      tenantName: tenant.name,
-      subdomain: subdomain || `${tenant.slug}.mastererp.cloud`,
-      targetCname: "cname.mastererp.cloud",
-      planName: planName || "Advanced",
-      planType: planType || "Monthly",
-      price: price || "200",
-      status: "pending",
-      sslStatus: "provisioning",
-      dnsStatus: "pending",
-      createdAt: new Date().toISOString().split("T")[0],
-      expiryDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-    };
-
-    const updatedDomains = [newRecord, ...currentDomains];
-
-    await prisma.cmsPage.upsert({
-      where: { slug: "system-custom-domains" },
-      create: {
-        slug: "system-custom-domains",
-        title: "Platform Custom Domains",
-        content: { domains: updatedDomains },
+    const created = await prisma.tenantDomain.create({
+      data: {
+        tenantId,
+        domain: domain.trim().toLowerCase(),
+        subdomain: subdomain || `${tenant.slug}.mastererp.cloud`,
+        isPrimary: Boolean(isPrimary),
+        status: "pending",
+        sslStatus: "provisioning",
+        dnsStatus: "pending",
       },
-      update: {
-        content: { domains: updatedDomains },
+      include: {
+        tenant: {
+          include: {
+            subscription: { include: { plan: true } },
+          },
+        },
       },
     });
 
-    return res.status(201).json(newRecord);
+    return res.status(201).json({
+      id: created.id,
+      domain: created.domain,
+      tenantId: created.tenantId,
+      tenantName: created.tenant.name,
+      subdomain: created.subdomain,
+      targetCname: created.targetCname,
+      isPrimary: created.isPrimary,
+      planName: created.tenant.subscription?.plan?.name || "Standard Plan",
+      planType: created.tenant.subscription?.billingCycle || "Monthly",
+      price: String(created.tenant.subscription?.plan?.priceMonthly || "199"),
+      status: created.status,
+      sslStatus: created.sslStatus,
+      dnsStatus: created.dnsStatus,
+      createdAt: created.createdAt.toISOString().split("T")[0],
+    });
   } catch (err: any) {
+    console.error("Super Admin domains POST error:", err);
     return res.status(500).json({ error: err.message || "Failed to register custom domain" });
   }
 });
@@ -1011,30 +2045,23 @@ superRouter.put("/domains/:id/status", requireAuth, requireSuperAdmin, async (re
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const page = await prisma.cmsPage.findUnique({ where: { slug: "system-custom-domains" } });
-    const currentDomains = (page?.content as any)?.domains || [];
 
-    const targetIdx = currentDomains.findIndex((d: any) => d.id === id);
-    if (targetIdx === -1) {
+    const existing = await prisma.tenantDomain.findUnique({ where: { id } });
+    if (!existing) {
       return res.status(404).json({ error: "Domain record not found" });
     }
 
-    currentDomains[targetIdx].status = status;
-    if (status === "approved") {
-      currentDomains[targetIdx].dnsStatus = "verified";
-      currentDomains[targetIdx].sslStatus = "active";
-    } else if (status === "rejected") {
-      currentDomains[targetIdx].dnsStatus = "failed";
-      currentDomains[targetIdx].sslStatus = "failed";
-    }
+    const sslStatus = status === "approved" ? "active" : status === "rejected" ? "failed" : "provisioning";
+    const dnsStatus = status === "approved" ? "verified" : status === "rejected" ? "failed" : "pending";
 
-    await prisma.cmsPage.update({
-      where: { slug: "system-custom-domains" },
-      data: { content: { domains: currentDomains } },
+    const updated = await prisma.tenantDomain.update({
+      where: { id },
+      data: { status, sslStatus, dnsStatus },
     });
 
-    return res.json({ success: true, domain: currentDomains[targetIdx] });
+    return res.json({ success: true, domain: updated });
   } catch (err: any) {
+    console.error("Super Admin domains PUT status error:", err);
     return res.status(500).json({ error: err.message || "Failed to update domain status" });
   }
 });
@@ -1042,25 +2069,24 @@ superRouter.put("/domains/:id/status", requireAuth, requireSuperAdmin, async (re
 superRouter.post("/domains/:id/verify", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const page = await prisma.cmsPage.findUnique({ where: { slug: "system-custom-domains" } });
-    const currentDomains = (page?.content as any)?.domains || [];
 
-    const targetIdx = currentDomains.findIndex((d: any) => d.id === id);
-    if (targetIdx === -1) {
+    const existing = await prisma.tenantDomain.findUnique({ where: { id } });
+    if (!existing) {
       return res.status(404).json({ error: "Domain record not found" });
     }
 
-    currentDomains[targetIdx].dnsStatus = "verified";
-    currentDomains[targetIdx].sslStatus = "active";
-    currentDomains[targetIdx].status = "approved";
-
-    await prisma.cmsPage.update({
-      where: { slug: "system-custom-domains" },
-      data: { content: { domains: currentDomains } },
+    const updated = await prisma.tenantDomain.update({
+      where: { id },
+      data: {
+        status: "approved",
+        sslStatus: "active",
+        dnsStatus: "verified",
+      },
     });
 
-    return res.json({ success: true, domain: currentDomains[targetIdx] });
+    return res.json({ success: true, domain: updated });
   } catch (err: any) {
+    console.error("Super Admin domains POST verify error:", err);
     return res.status(500).json({ error: err.message || "Failed to verify domain" });
   }
 });
@@ -1068,49 +2094,56 @@ superRouter.post("/domains/:id/verify", requireAuth, requireSuperAdmin, async (r
 superRouter.delete("/domains/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const page = await prisma.cmsPage.findUnique({ where: { slug: "system-custom-domains" } });
-    const currentDomains = (page?.content as any)?.domains || [];
 
-    const updatedDomains = currentDomains.filter((d: any) => d.id !== id);
+    const existing = await prisma.tenantDomain.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Domain record not found" });
+    }
 
-    await prisma.cmsPage.update({
-      where: { slug: "system-custom-domains" },
-      data: { content: { domains: updatedDomains } },
-    });
+    await prisma.tenantDomain.delete({ where: { id } });
 
     return res.json({ success: true, message: "Custom domain removed successfully" });
   } catch (err: any) {
+    console.error("Super Admin domains DELETE error:", err);
     return res.status(500).json({ error: err.message || "Failed to delete custom domain" });
   }
 });
 
 // ==========================================
-// 6. PLATFORM TELEMETRY & SYSTEM ANALYTICS
+// 6. PLATFORM TELEMETRY & SYSTEM ANALYTICS (REAL MRR & METRICS)
 // ==========================================
 superRouter.get("/analytics/telemetry", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
   try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
+
     const [
       totalTenants,
       activeTenants,
+      newTenantsLast30d,
+      suspendedTenants,
       totalUsers,
       totalEmployees,
       totalTransactions,
+      activeSubscriptions,
       tenantsList,
     ] = await Promise.all([
       prisma.tenant.count(),
-      prisma.tenantSubscription.count({ where: { status: "active" } }),
+      prisma.tenantSubscription.count({ where: { status: { in: ["active", "trialing"] } } }),
+      prisma.tenant.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      prisma.tenantSubscription.count({ where: { status: { in: ["suspended", "cancelled"] } } }),
       prisma.user.count(),
       prisma.employee.count(),
-      prisma.paymentGatewayTransaction.count(),
+      prisma.billingInvoice.count(),
+      prisma.tenantSubscription.findMany({
+        where: { status: "active" },
+        include: { plan: true },
+      }),
       prisma.tenant.findMany({
-        take: 6,
+        take: 10,
         orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
+        include: {
           subscription: {
-            select: { status: true },
+            include: { plan: true },
           },
           _count: {
             select: {
@@ -1122,13 +2155,26 @@ superRouter.get("/analytics/telemetry", requireAuth, requireSuperAdmin, async (_
       }),
     ]);
 
+    // Calculate real MRR
+    const mrr = activeSubscriptions.reduce((sum: number, s: any) => {
+      if (!s.plan) return sum;
+      const monthlyRate = s.billingCycle === "annual" ? Number(s.plan.priceAnnual) / 12 : Number(s.plan.priceMonthly);
+      return sum + (isNaN(monthlyRate) ? 0 : monthlyRate);
+    }, 0);
+
+    const churnRate = totalTenants > 0 ? Number(((suspendedTenants / totalTenants) * 100).toFixed(1)) : 0;
+
     return res.json({
       metrics: {
         totalTenants,
-        activeTenants: activeTenants || totalTenants,
+        activeTenants,
+        newTenantsLast30d,
         totalUsers,
         totalEmployees,
         totalTransactions,
+        mrr: Math.round(mrr),
+        arr: Math.round(mrr * 12),
+        churnRate,
         apiRequestsToday: 14250 + totalTransactions * 12,
         dbStorageMb: 128.4 + totalEmployees * 0.15,
         cacheHitRate: 98.6,
@@ -1137,8 +2183,9 @@ superRouter.get("/analytics/telemetry", requireAuth, requireSuperAdmin, async (_
         id: t.id,
         name: t.name,
         slug: t.slug,
-        usersCount: t._count.profiles,
-        employeesCount: t._count.employees,
+        plan: t.subscription?.plan?.name || "Standard Trial",
+        usersCount: t._count.profiles || 1,
+        employeesCount: t._count.employees || 0,
         status: t.subscription?.status || "active",
       })),
     });
@@ -1148,71 +2195,35 @@ superRouter.get("/analytics/telemetry", requireAuth, requireSuperAdmin, async (_
 });
 
 // ==========================================
-// 7. TENANT USAGE METRICS (LIVE DB ENGINE)
+// 7. TENANT USAGE METRICS (AUTHORITATIVE DB ENGINE)
 // ==========================================
-superRouter.get("/tenant-usage-metrics", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+superRouter.get("/tenant-usage-metrics", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const tenants = await prisma.tenant.findMany({
-      include: {
-        _count: {
-          select: {
-            employees: true,
-            departments: true,
-            profiles: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
+    const { search, plan, status, sortBy, period } = req.query as any;
+    const metrics = await TenantUsageMetricsService.getTenantUsageMetricsList({
+      search,
+      plan,
+      status,
+      sortBy,
+      period,
     });
-
-    const policyMap = await getWorkspacePoliciesBatch(tenants.map((t) => t.id));
-
-    const metrics = tenants.map((tenant, idx) => {
-      const policy = policyMap[tenant.id] || resolveWorkspacePolicy();
-      const activeUsers = tenant._count.profiles || 1;
-      const maxUsers = policy.maxUsers || 50;
-      const userUsagePercentage = Math.min(100, Math.round((activeUsers / maxUsers) * 100));
-
-      // Calculate storage dynamically (GB)
-      const empCount = tenant._count.employees || 1;
-      const baseGb = 1.2 + (empCount * 0.08) + ((idx % 5) * 0.4);
-      const limitGb = policy.planName?.toLowerCase().includes("enterprise") ? 50 : policy.planName?.toLowerCase().includes("advanced") ? 20 : 10;
-      const storageUsedGb = Number(baseGb.toFixed(1));
-      const storagePercentage = Math.min(100, Math.round((storageUsedGb / limitGb) * 100));
-
-      // Module usage tags based on tenant profile
-      const defaultModules = [
-        ["HRMS", "Invoicing", "Payroll"],
-        ["CRM", "POS", "Inventory"],
-        ["HRMS", "Attendance", "Leaves"],
-        ["Recruitment", "OKR", "Assets"],
-        ["HRMS", "Finance", "Accounting"],
-      ];
-      const mostModuleUsage = defaultModules[idx % defaultModules.length];
-
-      return {
-        id: tenant.id,
-        name: tenant.name,
-        slug: tenant.slug,
-        domainUrl: `${tenant.slug}.mastererp.cloud`,
-        logoUrl: tenant.logoUrl || `/ui-assets/company/company-0${(idx % 5) + 1}.svg`,
-        plan: policy.planName || "Basic (Monthly)",
-        billingCycle: policy.billingCycle || "monthly",
-        activeUsers,
-        maxUsers,
-        userUsagePercentage,
-        storageUsedGb,
-        storageLimitGb: limitGb,
-        storagePercentage,
-        mostModuleUsage,
-        status: policy.status === "suspended" ? "Inactive" : "Active",
-        createdAt: tenant.createdAt ? new Date(tenant.createdAt).toISOString().split("T")[0] : "2024-01-14",
-      };
-    });
-
     return res.json(metrics);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch tenant usage metrics" });
+  }
+});
+
+// GET /api/super/tenant-usage-metrics/:id (DEEP TENANT DETAIL)
+superRouter.get("/tenant-usage-metrics/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const period = (req.query.period as string) || "30d";
+    const detail = await TenantUsageMetricsService.getTenantUsageDetail(id, period);
+    return res.json(detail);
+  } catch (err: any) {
+    return res.status(err.message?.includes("not found") ? 404 : 500).json({
+      error: err.message || "Failed to fetch tenant usage detail",
+    });
   }
 });
 
@@ -1652,39 +2663,29 @@ superRouter.delete("/support/escalation-rules/:id", requireAuth, requireSuperAdm
   }
 });
 
-// ==========================================
-// 11. TENANT DIRECT DELETION & STATUS TOGGLE
-// ==========================================
-superRouter.delete("/tenants/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
-  try {
-    const { id } = req.params;
-    await prisma.tenant.delete({ where: { id } });
-    getIO()?.in(`tenant:${id}`).disconnectSockets(true);
-    return res.json({ success: true, message: "Tenant workspace deleted successfully" });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to delete tenant workspace" });
-  }
-});
 
 superRouter.put("/tenants/:id/status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
     if (!["active", "suspended"].includes(status)) {
       return res.status(400).json({ error: "Status must be 'active' or 'suspended'" });
     }
 
-    await prisma.tenantSubscription.upsert({
-      where: { tenantId: id },
-      create: { tenantId: id, status },
-      update: { status },
-    });
-
     if (status === "suspended") {
-      getIO()?.in(`tenant:${id}`).disconnectSockets(true);
+      const result = await handleTenantSuspension({
+        tenantId: id,
+        reason,
+        actorEmail: req.user?.email,
+      });
+      return res.json({ success: true, status: "suspended", message: result.message, emailsSent: result.emailsSent });
+    } else {
+      const result = await handleTenantReactivation({
+        tenantId: id,
+        actorEmail: req.user?.email,
+      });
+      return res.json({ success: true, status: "active", message: result.message });
     }
-
-    return res.json({ success: true, status });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to update tenant status" });
   }
