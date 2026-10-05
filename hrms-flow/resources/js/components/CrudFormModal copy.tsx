@@ -46,45 +46,46 @@ export function CrudFormModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [relationOptions, setRelationOptions] = useState<Record<string, any[]>>({});
   
-  // Load initial data when modal opens
+  // Guarded render-phase state adjustment for modal open / initialData changes
+  const [prevModalKey, setPrevModalKey] = useState<string>('');
+  const currentModalKey = isOpen ? `${mode}-${JSON.stringify(initialData || {})}` : '';
+
+  if (isOpen && currentModalKey !== prevModalKey) {
+    setPrevModalKey(currentModalKey);
+    const cleanData = { ...initialData };
+
+    formConfig.fields.forEach(field => {
+      if (field.type === 'multi-select') {
+        if (cleanData[field.name] && !Array.isArray(cleanData[field.name])) {
+          cleanData[field.name] = [cleanData[field.name].toString()];
+        }
+      }
+    });
+
+    setFormData(cleanData || {});
+    setErrors({});
+  }
+
+  // Load relation data for select fields asynchronously when modal opens
   useEffect(() => {
-    if (isOpen) {
-      // Create a clean copy of the initial data
-      const cleanData = { ...initialData };
-      
-      // Process multi-select fields in initial data
-      formConfig.fields.forEach(field => {
-        if (field.type === 'multi-select') {
-          if (cleanData[field.name] && !Array.isArray(cleanData[field.name])) {
-            // Convert to array if it's not already
-            cleanData[field.name] = Array.isArray(cleanData[field.name]) 
-              ? cleanData[field.name] 
-              : cleanData[field.name] ? [cleanData[field.name].toString()] : [];
-          }
-        }
-      });
-      
-      setFormData(cleanData || {});
-      setErrors({});
-      
-      // Load relation data for select fields
-      formConfig.fields.forEach(field => {
-        if (field.relation && field.relation.endpoint) {
-          fetch(field.relation.endpoint)
-            .then(res => res.json())
-            .then(data => {
-              setRelationOptions(prev => ({
-                ...prev,
-                [field.name]: Array.isArray(data) ? data : data.data || []
-              }));
-            })
-            .catch(err => {
-              // Silent error handling
-            });
-        }
-      });
-    }
-  }, [isOpen, initialData, formConfig.fields, mode]);
+    if (!isOpen) return;
+
+    formConfig.fields.forEach(field => {
+      if (field.relation && field.relation.endpoint) {
+        fetch(field.relation.endpoint)
+          .then(res => res.json())
+          .then(data => {
+            setRelationOptions(prev => ({
+              ...prev,
+              [field.name]: Array.isArray(data) ? data : data.data || []
+            }));
+          })
+          .catch(() => {
+            // Silent error handling
+          });
+      }
+    });
+  }, [isOpen, formConfig.fields]);
   
   const handleChange = (name: string, value: any) => {
     setFormData(prev => ({ ...prev, [name]: value }));

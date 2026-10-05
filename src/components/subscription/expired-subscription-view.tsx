@@ -47,9 +47,9 @@ export function ExpiredSubscriptionView({
       <header className="w-full max-w-5xl mx-auto flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
           <img
-            src="/logo.webp"
+            src="/white-logo.webp"
             alt="Master HRMS"
-            className="h-8 w-auto object-contain brightness-0 invert opacity-90"
+            className="h-8 w-auto object-contain"
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/favicon.webp";
             }}

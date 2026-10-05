@@ -259,8 +259,8 @@ function BrandCol({
   } catch (e) {}
 
   const activeLogo = isDark
-    ? platformSettings?.logoDarkUrl || platformSettings?.logoLightUrl || cachedLogo || "/logo.webp"
-    : platformSettings?.logoLightUrl || platformSettings?.logoDarkUrl || cachedLogo || "/logo.webp";
+    ? platformSettings?.logoDarkUrl || cachedLogo || "/white-logo.webp"
+    : platformSettings?.logoLightUrl || cachedLogo || "/logo.webp";
 
   const appName = platformSettings?.appName || f.logo_text || "Master HRMS";
 
@@ -276,7 +276,11 @@ function BrandCol({
             src={activeLogo}
             alt={appName}
             className="h-9 max-h-11 max-w-[170px] object-contain transition-all duration-300"
-           loading="lazy"/>
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+            }}
+            loading="lazy"
+          />
         ) : (
           <div className="flex items-center gap-2">
             <div

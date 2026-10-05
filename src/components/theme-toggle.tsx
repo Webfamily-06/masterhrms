@@ -11,25 +11,33 @@ export function ThemeToggle({
   variant?: "ghost" | "outline" | "default";
   size?: "icon" | "sm" | "default";
 }) {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    // Check initial dark class or localStorage
+    // Check initial dark class or localStorage - default is dark mode
     const saved = localStorage.getItem("theme");
-    const hasDarkClass = document.documentElement.classList.contains("dark");
-    if (
-      saved === "dark" ||
-      (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) ||
-      hasDarkClass
-    ) {
-      setIsDark(true);
-      document.documentElement.classList.add("dark");
-      document.documentElement.setAttribute("data-theme", "dark");
-    } else {
+    const isLight = saved === "light";
+    if (isLight) {
       setIsDark(false);
       document.documentElement.classList.remove("dark");
       document.documentElement.setAttribute("data-theme", "light");
+    } else {
+      setIsDark(true);
+      document.documentElement.classList.add("dark");
+      document.documentElement.setAttribute("data-theme", "dark");
     }
+  }, []);
+
+  useEffect(() => {
+    const handleThemeChange = (e: any) => {
+      if (typeof e.detail?.isDark === "boolean") {
+        setIsDark(e.detail.isDark);
+      } else {
+        setIsDark(document.documentElement.classList.contains("dark"));
+      }
+    };
+    window.addEventListener("theme-change", handleThemeChange);
+    return () => window.removeEventListener("theme-change", handleThemeChange);
   }, []);
 
   function toggleTheme() {
@@ -44,6 +52,7 @@ export function ThemeToggle({
       document.documentElement.setAttribute("data-theme", "light");
       localStorage.setItem("theme", "light");
     }
+    window.dispatchEvent(new CustomEvent("theme-change", { detail: { isDark: nextDark } }));
   }
 
   return (

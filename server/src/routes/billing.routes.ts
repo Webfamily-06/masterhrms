@@ -17,6 +17,14 @@ import {
 } from "../services/billing-duration.service";
 import { validateCoupon, recordCouponRedemption } from "../services/coupon.service";
 import { getBaseDomain } from "../lib/workspace-host";
+import { getAuthoritativeCanonicalInvoice } from "../services/invoice-engine.service";
+import { generateInvoicePdf } from "../services/invoice-pdf.service";
+import { sendPaymentConfirmationEmail } from "../lib/email";
+import {
+  verifyRazorpayPayment,
+  captureAndVerifyPayPalOrder,
+  verifyStripePayment,
+} from "../services/gateway-verification.service";
 
 export const billingRouter = Router();
 
@@ -637,7 +645,7 @@ billingRouter.post("/checkout", requireAuth, async (req: AuthRequest, res: Respo
 });
 
 // ---------------------------------------------------------------------------
-// 4.1 POST /api/billing/verify - Verify Razorpay payment signature & activate
+// 4.1 POST /api/billing/verify - Verify payment gateway signature/capture & activate
 // ---------------------------------------------------------------------------
 billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -651,10 +659,19 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
       return res.status(403).json({ error: "Unauthorized: Only tenant administrators can verify payments." });
     }
 
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, invoiceId } = req.body;
+    const {
+      razorpay_order_id = req.body.razorpayOrderId,
+      razorpay_payment_id = req.body.razorpayPaymentId,
+      razorpay_signature = req.body.razorpaySignature,
+      paypal_order_id = req.body.paypalOrderId || req.body.orderId,
+      paypal_capture_id = req.body.paypalCaptureId || req.body.captureId,
+      payment_intent_id = req.body.paymentIntentId,
+      provider = req.body.gateway,
+      invoiceId = req.body.invoice_id,
+    } = req.body;
 
-    if (!razorpay_order_id || !razorpay_payment_id || !invoiceId) {
-      return res.status(400).json({ error: "Order ID, Payment ID, and Invoice ID are required." });
+    if (!invoiceId) {
+      return res.status(400).json({ error: "Invoice ID is required for verification." });
     }
 
     const invoice = await db.billingInvoice.findFirst({
@@ -663,16 +680,83 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
 
     if (!invoice) return res.status(404).json({ error: "Billing invoice not found." });
 
-    // Verify signature if secret provided (or in test environment)
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-    if (secret && razorpay_signature) {
-      const generated = crypto
-        .createHmac("sha256", secret)
-        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-        .digest("hex");
+    const providerKey = (provider || (paypal_order_id ? "paypal" : payment_intent_id ? "stripe" : "razorpay")).toLowerCase();
+    let orderId = razorpay_order_id;
+    let paymentId = razorpay_payment_id;
 
-      if (generated !== razorpay_signature) {
-        return res.status(400).json({ error: "Invalid Razorpay payment signature." });
+    if (providerKey === "paypal" || paypal_order_id) {
+      const pOrderId = String(paypal_order_id || "");
+      const result = await captureAndVerifyPayPalOrder({
+        orderId: pOrderId,
+        expectedAmount: Number(invoice.amount),
+        expectedCurrency: invoice.currency || "USD",
+      });
+
+      if (!result.verified) {
+        const statusCode = result.code === "PAYMENT_VERIFICATION_UNAVAILABLE" ? 503
+          : result.code === "VERIFICATION_MISMATCH" ? 422
+          : 400;
+        return res.status(statusCode).json({
+          error: result.error || "PayPal server-side verification failed.",
+          code: result.code || "PAYMENT_VERIFICATION_FAILED",
+          provider: "paypal",
+        });
+      }
+
+      orderId = result.orderId || pOrderId;
+      paymentId = result.paymentId || paypal_capture_id || orderId;
+    } else if (providerKey === "stripe" || payment_intent_id) {
+      const result = await verifyStripePayment({
+        paymentIntentId: payment_intent_id,
+        sessionId: req.body.sessionId,
+        expectedAmount: Number(invoice.amount),
+        expectedCurrency: invoice.currency || "USD",
+      });
+
+      if (!result.verified) {
+        const statusCode = result.code === "PAYMENT_VERIFICATION_UNAVAILABLE" ? 503
+          : result.code === "VERIFICATION_MISMATCH" ? 422
+          : 400;
+        return res.status(statusCode).json({
+          error: result.error || "Stripe server-side verification failed.",
+          code: result.code || "PAYMENT_VERIFICATION_FAILED",
+          provider: "stripe",
+        });
+      }
+
+      orderId = result.orderId || payment_intent_id;
+      paymentId = result.paymentId || payment_intent_id;
+    } else {
+      // Default: Razorpay
+      if (!razorpay_order_id || !razorpay_payment_id) {
+        return res.status(400).json({ error: "Order ID and Payment ID are required." });
+      }
+
+      const result = await verifyRazorpayPayment({
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+        signature: razorpay_signature,
+        expectedAmountPaise: Math.round(Number(invoice.amount) * 100),
+        expectedCurrency: invoice.currency || "INR",
+      });
+
+      if (!result.verified) {
+        const statusCode = result.code === "PAYMENT_VERIFICATION_UNAVAILABLE" ? 503
+          : result.code === "VERIFICATION_MISMATCH" ? 422
+          : 400;
+        return res.status(statusCode).json({
+          error: result.error || "Razorpay server-side verification failed.",
+          code: result.code || "PAYMENT_VERIFICATION_FAILED",
+          provider: "razorpay",
+        });
+      }
+
+      // Check order ID matches invoice if invoice has gatewayOrderId
+      if (invoice.gatewayOrderId && invoice.gatewayOrderId !== razorpay_order_id) {
+        return res.status(422).json({
+          error: "Order ID mismatch: submitted order ID does not match invoice gateway order ID.",
+          code: "VERIFICATION_MISMATCH",
+        });
       }
     }
 
@@ -684,10 +768,44 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
       data: {
         status: "paid",
         paidAt: now,
-        gatewayOrderId: razorpay_order_id,
-        gatewayPaymentId: razorpay_payment_id,
+        paymentMethod: providerKey,
+        gatewayOrderId: orderId,
+        gatewayPaymentId: paymentId,
       },
     });
+
+    // Authoritative gateway transaction persistence for cross-verification
+    try {
+      await db.paymentGatewayTransaction.upsert({
+        where: {
+          tenantId_provider_providerOrderId: {
+            tenantId,
+            provider: providerKey,
+            providerOrderId: orderId,
+          },
+        },
+        create: {
+          tenantId,
+          provider: providerKey,
+          providerOrderId: orderId,
+          providerPaymentId: paymentId,
+          amount: invoice.amount,
+          currency: invoice.currency || (providerKey === "paypal" ? "USD" : "INR"),
+          status: "captured",
+          method: providerKey === "paypal" ? "PayPal" : providerKey === "stripe" ? "Stripe" : "Razorpay",
+          verifiedAt: now,
+          payload: { orderId, paymentId, invoiceId: invoice.id, verifiedBy: req.user?.email },
+        },
+        update: {
+          providerPaymentId: paymentId,
+          status: "captured",
+          verifiedAt: now,
+          payload: { orderId, paymentId, invoiceId: invoice.id, verifiedBy: req.user?.email },
+        },
+      });
+    } catch (gwErr) {
+      console.warn("Could not upsert paymentGatewayTransaction on /verify:", gwErr);
+    }
 
     // Record coupon redemption if applicable
     if (invoice.couponCode) {
@@ -698,7 +816,7 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
         await recordCouponRedemption({
           couponId: coupon.id,
           tenantId,
-          orderId: razorpay_order_id,
+          orderId,
           invoiceId: invoice.id,
           discountApplied: Number(invoice.discountAmount || 0),
         });
@@ -743,14 +861,298 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
       expiresAt: invoice.periodEnd.toISOString(),
     });
 
+    // Authoritative email dispatch with generated invoice PDF
+    let mailSuccess = false;
+    let mailError: string | null = null;
+    try {
+      const canonical = await getAuthoritativeCanonicalInvoice(invoice.id);
+      if (canonical) {
+        const pdfBuffer = await generateInvoicePdf(canonical);
+        const recipientEmail = req.user?.email || canonical.customer.email;
+        if (recipientEmail) {
+          const mailRes = await sendPaymentConfirmationEmail({
+            toEmail: recipientEmail,
+            customerName: canonical.customer.name,
+            tenantSlug: canonical.customer.slug || undefined,
+            tenantId: invoice.tenantId,
+            planName: plan?.name || canonical.items[0]?.description || "Subscription Plan",
+            amount: Number(invoice.amount),
+            currency: invoice.currency || "INR",
+            paymentMethod: providerKey === "paypal" ? "PayPal" : providerKey === "stripe" ? "Stripe" : "Razorpay",
+            transactionRef: paymentId,
+            invoiceNo: invoice.invoiceNo || invoice.id,
+            paidAt: now,
+            pdfBuffer,
+          });
+          mailSuccess = !!mailRes?.success;
+          mailError = mailRes?.error || null;
+        }
+      }
+    } catch (mailErr: any) {
+      mailSuccess = false;
+      mailError = mailErr?.message || "Email delivery failed";
+      console.warn("Could not dispatch confirmation email on /verify:", mailErr?.message);
+    }
+
     return res.json({
       success: true,
-      message: "Payment verified and subscription activated successfully.",
+      message: mailSuccess
+        ? "Payment verified, subscription activated, and invoice emailed successfully."
+        : "Payment verified and subscription activated. Invoice email delivery pending/failed.",
+      emailDelivery: mailSuccess ? "sent" : "failed",
+      emailError: mailSuccess ? undefined : mailError,
       invoiceNo: invoice.invoiceNo,
       expiresAt: invoice.periodEnd,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Payment verification failed." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 4.2 POST /api/billing/submit-offline-payment - Submit Offline / Bank Transfer proof
+// ---------------------------------------------------------------------------
+billingRouter.post("/submit-offline-payment", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const db = rawPrisma || prisma;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const userRoles = req.user?.roles || [];
+    const isAuthorized = userRoles.some((r: string) => ["hr_admin", "admin", "super_admin", "owner"].includes(r));
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Unauthorized: Only tenant administrators can submit payment receipts." });
+    }
+
+    const {
+      invoiceId,
+      planId,
+      itemName,
+      itemType = "plan",
+      amount,
+      referenceNo,
+      receiptUrl,
+      paymentMethod = "bank_transfer",
+      notes,
+    } = req.body;
+
+    if (!referenceNo || !String(referenceNo).trim()) {
+      return res.status(400).json({ error: "Bank Transaction / UTR / Reference Number is required." });
+    }
+
+    // Receipt validation (C5b & C5c): Must be non-empty, non-placeholder, valid format
+    if (!receiptUrl || typeof receiptUrl !== "string" || !receiptUrl.trim()) {
+      return res.status(400).json({ error: "Payment proof receipt is required.", code: "RECEIPT_REQUIRED" });
+    }
+
+    const lowerReceipt = receiptUrl.toLowerCase();
+    if (
+      lowerReceipt.includes("unsplash.com") ||
+      lowerReceipt.includes("placeholder") ||
+      lowerReceipt.includes("dummy") ||
+      lowerReceipt.includes("example.com")
+    ) {
+      return res.status(400).json({
+        error: "Invalid payment proof. Placeholder images are not accepted as payment evidence.",
+        code: "PLACEHOLDER_RECEIPT_REJECTED",
+      });
+    }
+
+    const isDataUrl = receiptUrl.startsWith("data:");
+    const isHttpUrl = receiptUrl.startsWith("http://") || receiptUrl.startsWith("https://");
+    if (!isDataUrl && !isHttpUrl) {
+      return res.status(400).json({ error: "Invalid payment receipt URL or format.", code: "INVALID_RECEIPT_FORMAT" });
+    }
+
+    if (isDataUrl) {
+      const allowedMimes = ["data:image/jpeg", "data:image/jpg", "data:image/png", "data:image/webp", "data:application/pdf"];
+      const matchesMime = allowedMimes.some((mime) => receiptUrl.startsWith(mime));
+      if (!matchesMime) {
+        return res.status(400).json({
+          error: "Invalid receipt format. Allowed formats: PNG, JPG, WEBP, PDF.",
+          code: "INVALID_RECEIPT_FORMAT",
+        });
+      }
+      if (receiptUrl.length > 14 * 1024 * 1024) {
+        return res.status(400).json({
+          error: "Payment proof file exceeds maximum limit of 10MB.",
+          code: "RECEIPT_TOO_LARGE",
+        });
+      }
+    }
+
+    const trimmedRef = String(referenceNo).trim();
+    const cleanMethod = paymentMethod === "net_banking" ? "net_banking" : "bank_transfer";
+
+    let invoice: any = null;
+    if (invoiceId) {
+      invoice = await db.billingInvoice.findFirst({
+        where: { id: invoiceId, tenantId },
+      });
+      if (!invoice) {
+        return res.status(404).json({
+          error: "Invoice not found or does not belong to this tenant.",
+          code: "INVOICE_NOT_FOUND",
+        });
+      }
+    }
+
+    const now = new Date();
+
+    if (invoice) {
+      // Validate client amount matches existing invoice amount
+      if (amount !== undefined && amount !== null) {
+        const clientAmount = Number(amount);
+        const invoiceAmount = Number(invoice.amount);
+        if (Math.abs(clientAmount - invoiceAmount) > 0.01) {
+          return res.status(400).json({
+            error: `Payment amount mismatch. Expected ${invoice.currency} ${invoiceAmount.toFixed(2)}, received ${invoice.currency} ${clientAmount.toFixed(2)}.`,
+            code: "PAYMENT_AMOUNT_MISMATCH",
+            expectedAmount: invoiceAmount,
+            expectedCurrency: invoice.currency,
+          });
+        }
+      }
+
+      // Update existing invoice with offline payment reference
+      invoice = await db.billingInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          paymentMethod: cleanMethod,
+          bankTransferRef: trimmedRef,
+          status: "open", // Keeps invoice in pending review state, NEVER automatically paid
+        },
+      });
+    } else {
+      // Find or create subscription for tenant
+      let sub = await db.tenantSubscription.findFirst({ where: { tenantId } });
+      if (!sub) {
+        sub = await db.tenantSubscription.create({
+          data: {
+            tenantId,
+            planId: planId || null,
+            status: "trialing",
+            billingCycle: "monthly",
+            billingInterval: "1_month",
+            billingIntervalCount: 1,
+          },
+        });
+      }
+
+      // C5: Authoritative amount derivation from plan
+      let resolvedPlan: any = null;
+      if (planId) {
+        resolvedPlan = await db.subscriptionPlan.findUnique({ where: { id: planId } });
+      }
+      if (!resolvedPlan && sub.planId) {
+        resolvedPlan = await db.subscriptionPlan.findUnique({ where: { id: sub.planId } });
+      }
+
+      let authoritativeAmount = 0;
+      let authoritativeCurrency = "INR";
+
+      if (resolvedPlan) {
+        authoritativeAmount = Number(resolvedPlan.priceMonthly) || Number(resolvedPlan.priceAnnual) || 0;
+        authoritativeCurrency = resolvedPlan.currency || "INR";
+      }
+
+      if (authoritativeAmount > 0) {
+        if (amount !== undefined && amount !== null) {
+          const clientAmount = Number(amount);
+          if (Math.abs(clientAmount - authoritativeAmount) > 0.01) {
+            return res.status(400).json({
+              error: `Payment amount mismatch. Expected ${authoritativeCurrency} ${authoritativeAmount.toFixed(2)}, received ${authoritativeCurrency} ${clientAmount.toFixed(2)}.`,
+              code: "PAYMENT_AMOUNT_MISMATCH",
+              expectedAmount: authoritativeAmount,
+              expectedCurrency: authoritativeCurrency,
+            });
+          }
+        }
+      } else {
+        authoritativeAmount = Number(amount);
+        if (!authoritativeAmount || authoritativeAmount <= 0) {
+          return res.status(400).json({ error: "Valid payment amount is required." });
+        }
+      }
+
+      const count = await db.billingInvoice.count({ where: { tenantId } });
+      const invoiceNo = `SUB-INV-${now.getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+      const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      invoice = await db.billingInvoice.create({
+        data: {
+          tenantId,
+          subscriptionId: sub.id,
+          invoiceNo,
+          amount: authoritativeAmount,
+          currency: authoritativeCurrency,
+          status: "open", // PENDING REVIEW
+          planId: planId || sub.planId,
+          billingCycle: "monthly",
+          paymentMethod: cleanMethod,
+          bankTransferRef: trimmedRef,
+          periodStart: now,
+          periodEnd,
+        },
+      });
+    }
+
+    // Persist to system-monetization-plans bank transfers list (accessible by Super Admin)
+    try {
+      const page = await db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } });
+      let content: any = {};
+      if (page?.content) {
+        content = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+      }
+      const existingTransfers = Array.isArray(content.bankTransfers) ? content.bankTransfers : [];
+      const newTransfer = {
+        id: `bt-${Date.now()}`,
+        tenant_id: tenantId,
+        tenant_name: (req.user as any)?.name || req.user?.email || "Workspace Tenant",
+        amount: Number(invoice.amount),
+        currency: invoice.currency || "INR",
+        reference_no: trimmedRef,
+        receipt_url: receiptUrl || null,
+        status: "pending",
+        date: now.toISOString().slice(0, 10),
+        item_type: itemType,
+        item_id: planId || invoice.planId || "plan",
+        item_name: itemName || "Subscription Plan",
+        invoice_id: invoice.id,
+        invoice_no: invoice.invoiceNo,
+        notes: notes || null,
+      };
+
+      await db.cmsPage.upsert({
+        where: { slug: "system-monetization-plans" },
+        update: {
+          content: { ...content, bankTransfers: [newTransfer, ...existingTransfers] },
+        },
+        create: {
+          slug: "system-monetization-plans",
+          title: "Monetization Plans & Bank Transfers",
+          content: { ...content, bankTransfers: [newTransfer, ...existingTransfers] },
+          published: true,
+        },
+      });
+    } catch (cmsErr) {
+      console.warn("Could not record bankTransfer in CMS page:", cmsErr);
+    }
+
+    broadcastToTenant(tenantId, "payment:submitted", {
+      invoiceId: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      status: "pending_review",
+      referenceNo: trimmedRef,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Bank transfer payment request submitted with Reference ${trimmedRef}. Super Admin will review payment evidence and approve.`,
+      invoice,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to submit offline payment proof." });
   }
 });
 
@@ -819,7 +1221,23 @@ export async function handleRazorpayWebhook(req: any, res: Response) {
   try {
     const db = rawPrisma || prisma;
     const signature = req.headers["x-razorpay-signature"] as string;
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || "default_webhook_secret";
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    // C4: Fail closed — Webhook secret must be configured
+    if (!webhookSecret) {
+      return res.status(503).json({
+        error: "Webhook signing is not configured on this server.",
+        code: "WEBHOOK_VERIFICATION_UNAVAILABLE",
+      });
+    }
+
+    // C4: Fail closed — Signature header must be present
+    if (!signature) {
+      return res.status(400).json({
+        error: "Missing Razorpay webhook signature header.",
+        code: "SIGNATURE_REQUIRED",
+      });
+    }
 
     let rawBody = "";
     if (Buffer.isBuffer(req.body)) {
@@ -830,15 +1248,19 @@ export async function handleRazorpayWebhook(req: any, res: Response) {
       rawBody = JSON.stringify(req.body);
     }
 
-    if (signature && process.env.NODE_ENV === "production") {
-      const expectedSignature = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(rawBody)
-        .digest("hex");
+    const expectedSignature = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(rawBody)
+      .digest("hex");
 
-      if (expectedSignature !== signature) {
-        return res.status(400).json({ error: "Invalid webhook signature." });
-      }
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expectedSignature);
+    const isSigValid =
+      sigBuf.length === expBuf.length &&
+      crypto.timingSafeEqual(sigBuf, expBuf);
+
+    if (!isSigValid) {
+      return res.status(400).json({ error: "Invalid webhook cryptographic signature.", code: "INVALID_SIGNATURE" });
     }
 
     const payload = typeof req.body === "object" && !Buffer.isBuffer(req.body)
@@ -867,6 +1289,28 @@ export async function handleRazorpayWebhook(req: any, res: Response) {
         });
 
         if (invoice) {
+          // C4b: Cross-verify amount and currency against internal invoice record
+          const gatewayAmountInPaise = Number(payment.amount);
+          const gatewayCurrency = String(payment.currency || "INR").toUpperCase();
+          const invoiceAmountInPaise = Math.round(Number(invoice.amount) * 100);
+          const invoiceCurrency = String(invoice.currency || "INR").toUpperCase();
+
+          if (gatewayAmountInPaise !== invoiceAmountInPaise) {
+            console.warn(`[Webhook Mismatch] Amount discrepancy: invoice expected ${invoiceAmountInPaise} paise, gateway received ${gatewayAmountInPaise} paise.`);
+            return res.status(422).json({
+              error: `Payment verification mismatch: expected ${invoiceAmountInPaise} paise, received ${gatewayAmountInPaise} paise.`,
+              code: "VERIFICATION_MISMATCH",
+            });
+          }
+
+          if (gatewayCurrency !== invoiceCurrency) {
+            console.warn(`[Webhook Mismatch] Currency discrepancy: invoice expected ${invoiceCurrency}, gateway received ${gatewayCurrency}.`);
+            return res.status(422).json({
+              error: `Payment verification mismatch: expected currency ${invoiceCurrency}, received ${gatewayCurrency}.`,
+              code: "VERIFICATION_MISMATCH",
+            });
+          }
+
           const now = new Date();
           await db.billingInvoice.update({
             where: { id: invoice.id },
@@ -877,6 +1321,39 @@ export async function handleRazorpayWebhook(req: any, res: Response) {
               gatewayEventId: eventId,
             },
           });
+
+          // Authoritative gateway transaction persistence for cross-verification
+          try {
+            await db.paymentGatewayTransaction.upsert({
+              where: {
+                tenantId_provider_providerOrderId: {
+                  tenantId: invoice.tenantId,
+                  provider: "razorpay",
+                  providerOrderId: orderId,
+                },
+              },
+              create: {
+                tenantId: invoice.tenantId,
+                provider: "razorpay",
+                providerOrderId: orderId,
+                providerPaymentId: paymentId,
+                amount: invoice.amount,
+                currency: invoice.currency || "INR",
+                status: "captured",
+                method: payment.method || "Razorpay",
+                verifiedAt: now,
+                payload: payment,
+              },
+              update: {
+                providerPaymentId: paymentId,
+                status: "captured",
+                verifiedAt: now,
+                payload: payment,
+              },
+            });
+          } catch (e) {
+            console.warn("Could not upsert paymentGatewayTransaction in webhook:", e);
+          }
 
           // Record coupon redemption if coupon was applied
           if (invoice.couponCode) {
@@ -924,6 +1401,79 @@ export async function handleRazorpayWebhook(req: any, res: Response) {
             planId: invoice.planId,
             status: "active",
           });
+
+          // Authoritative email dispatch with generated invoice PDF
+          try {
+            const canonical = await getAuthoritativeCanonicalInvoice(invoice.id);
+            if (canonical && canonical.customer?.email) {
+              const pdfBuffer = await generateInvoicePdf(canonical);
+              await sendPaymentConfirmationEmail({
+                toEmail: canonical.customer.email,
+                customerName: canonical.customer.name,
+                tenantSlug: canonical.customer.slug || undefined,
+                tenantId: invoice.tenantId,
+                planName: plan?.name || canonical.items[0]?.description || "Subscription Plan",
+                amount: Number(invoice.amount),
+                currency: invoice.currency || "INR",
+                paymentMethod: payment.method || "Razorpay",
+                transactionRef: paymentId,
+                invoiceNo: invoice.invoiceNo || invoice.id,
+                paidAt: now,
+                pdfBuffer,
+              });
+            }
+          } catch (mailErr: any) {
+            console.warn("Could not dispatch confirmation email on webhook:", mailErr?.message);
+          }
+        }
+      }
+    } else if (eventType === "payment.failed") {
+      const payment = payload.payload?.payment?.entity || {};
+      const orderId = payment.order_id || payload.payload?.order?.entity?.id;
+      const paymentId = payment.id;
+
+      if (orderId) {
+        const invoice = await db.billingInvoice.findFirst({
+          where: { gatewayOrderId: orderId },
+        });
+
+        if (invoice && invoice.status !== "paid") {
+          await db.billingInvoice.update({
+            where: { id: invoice.id },
+            data: {
+              status: "failed",
+              gatewayPaymentId: paymentId || invoice.gatewayPaymentId,
+              gatewayEventId: eventId,
+            },
+          });
+
+          try {
+            await db.paymentGatewayTransaction.upsert({
+              where: {
+                tenantId_provider_providerOrderId: {
+                  tenantId: invoice.tenantId,
+                  provider: "razorpay",
+                  providerOrderId: orderId,
+                },
+              },
+              create: {
+                tenantId: invoice.tenantId,
+                provider: "razorpay",
+                providerOrderId: orderId,
+                providerPaymentId: paymentId || null,
+                amount: invoice.amount,
+                currency: invoice.currency || "INR",
+                status: "failed",
+                method: payment.method || "Razorpay",
+                payload: payment,
+              },
+              update: {
+                status: "failed",
+                providerPaymentId: paymentId || undefined,
+                payload: payment,
+              },
+            });
+          } catch (e) {}
         }
       }
     }

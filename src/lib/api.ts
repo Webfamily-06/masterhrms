@@ -140,4 +140,6 @@ export const api = {
   patch: <T = any>(endpoint: string, body?: any) =>
     apiRequest<T>(endpoint, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T = any>(endpoint: string) => apiRequest<T>(endpoint, { method: "DELETE" }),
+  upload: <T = any>(endpoint: string, formData: FormData) =>
+    apiRequest<T>(endpoint, { method: "POST", body: formData }),
 };

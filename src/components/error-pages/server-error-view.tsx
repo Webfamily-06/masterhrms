@@ -135,7 +135,7 @@ export function ServerErrorView({
   const darkLogo =
     branding?.isWhiteLabeled && branding?.logoDark && branding.logoDark !== "/logo.webp"
       ? branding.logoDark
-      : "/logo-white.webp";
+      : "/white-logo.webp";
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col justify-between selection:bg-rose-500/20 relative overflow-hidden font-sans">
@@ -170,7 +170,7 @@ export function ServerErrorView({
               alt="WebFamily Master HRMS"
               className="h-7 sm:h-9 w-auto object-contain transition-transform group-hover:scale-105"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = "/logo-white.webp";
+                (e.target as HTMLImageElement).src = "/white-logo.webp";
               }}
               loading="lazy"
             />

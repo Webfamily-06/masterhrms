@@ -13,6 +13,7 @@ import {
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { WorkspaceHostRequest } from "../middleware/workspace-host.middleware";
+import { SettingsService } from "../services/settings/settings.service";
 
 export const workspaceRoutingRouter = Router();
 
@@ -113,13 +114,18 @@ workspaceRoutingRouter.get("/public/workspace", async (req: WorkspaceHostRequest
       }
 
       const tenant = req.resolvedTenant;
+      const brandingGroup = await SettingsService.getGroup("TENANT", tenant.id, "branding");
+
       return res.json({
         resolved: true,
         id: tenant.id,
         tenantId: tenant.id,
-        name: tenant.name,
+        name: brandingGroup.values["branding.app_name"] || tenant.name,
         slug: tenant.slug,
-        logoUrl: tenant.logoUrl || null,
+        logoUrl: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl || null,
+        logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl || null,
+        faviconUrl: brandingGroup.mediaUrls["branding.favicon_id"] || null,
+        primaryColor: brandingGroup.values["branding.primary_color"] || null,
         timezone: tenant.timezone || "Asia/Kolkata",
         status: tenant.status,
         baseDomain: hostContext.baseDomain,
@@ -138,15 +144,20 @@ workspaceRoutingRouter.get("/public/workspace", async (req: WorkspaceHostRequest
       }
 
       const tenant = req.resolvedTenant;
+      const brandingGroup = await SettingsService.getGroup("TENANT", tenant.id, "branding");
+
       return res.json({
         resolved: true,
         isCustomDomain: true,
         customDomain: hostContext.domain,
         id: tenant.id,
         tenantId: tenant.id,
-        name: tenant.name,
+        name: brandingGroup.values["branding.app_name"] || tenant.name,
         slug: tenant.slug,
-        logoUrl: tenant.logoUrl || null,
+        logoUrl: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl || null,
+        logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl || null,
+        faviconUrl: brandingGroup.mediaUrls["branding.favicon_id"] || null,
+        primaryColor: brandingGroup.values["branding.primary_color"] || null,
         timezone: tenant.timezone || "Asia/Kolkata",
         status: tenant.status,
         baseDomain: hostContext.baseDomain,

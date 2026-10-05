@@ -1142,7 +1142,7 @@ pm2 start server/dist/index.js --name "master-hrms-api" -i max
                         {[
                           { key: "PORT", req: "Optional", def: "4000", desc: "Port on which the Express HTTP & WebSocket server listens." },
                           { key: "NODE_ENV", req: "Required", def: "development", desc: "Runtime mode: 'development' or 'production'." },
-                          { key: "DATABASE_URL", req: "Required", def: "mysql://user:pass@host:3306/master_hrms", desc: "MySQL connection URI with connection pool parameters." },
+                          { key: "DATABASE_URL", req: "Required", def: "mysql://${DB_USER}:${DB_PASSWORD}@localhost:3306/master_hrms", desc: "MySQL connection URI with connection pool parameters." },
                           { key: "JWT_SECRET", req: "Required", def: "master-hrms-jwt-super-secret-key...", desc: "HMAC SHA-256 signing secret for authentication tokens." },
                           { key: "JWT_EXPIRES_IN", req: "Optional", def: "7d", desc: "Validity duration of issued bearer tokens." },
                           { key: "CORS_ORIGIN", req: "Required", def: "http://localhost:8080,http://localhost:5173", desc: "Comma-separated allowed web origins for CORS." },

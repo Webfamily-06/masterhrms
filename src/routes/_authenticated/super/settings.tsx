@@ -63,10 +63,16 @@ import {
   Check,
   ExternalLink,
   Share2,
+  Folder,
+  Sparkles,
 } from "lucide-react";
 import { MaintenanceMarqueeBanner } from "@/components/maintenance-marquee-banner";
 import { formatSystemAmount } from "@/lib/currency";
 import { getPlatformBaseDomain } from "@/lib/platform-domain";
+import { MediaImageUploader } from "@/components/settings/media-image-uploader";
+import { LivePreviewDock } from "@/components/settings/live-preview-dock";
+import { MediaLibraryManager } from "@/components/settings/media-library-manager";
+import { UnsavedChangesBar } from "@/components/settings/unsaved-changes-bar";
 
 export const Route = createFileRoute("/_authenticated/super/settings")({
   component: SuperSettingsAdmin,
@@ -88,6 +94,10 @@ export type SuperSettings = {
   logoLightUrl: string;
   logoDarkUrl: string;
   faviconUrl: string;
+  logoLightId?: string | null;
+  logoDarkId?: string | null;
+  faviconId?: string | null;
+  footerText?: string;
   primaryThemeColor: string;
   fontFamily: string;
 
@@ -188,9 +198,13 @@ const DEFAULT_SETTINGS: SuperSettings = {
   appName: "Master HRMS & ERP",
   supportEmail: `hello@${getPlatformBaseDomain()}`,
   logoLightUrl: "/logo.webp",
-  logoDarkUrl: "/logo.webp",
+  logoDarkUrl: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
-  primaryThemeColor: "#2563eb",
+  logoLightId: null,
+  logoDarkId: null,
+  faviconId: null,
+  footerText: "© 2026 Master HRMS. All rights reserved.",
+  primaryThemeColor: "#FF6B00",
   fontFamily: "Inter",
 
   // Currency Defaults
@@ -360,7 +374,7 @@ function SuperSettingsAdmin() {
   const [testRecipientEmail, setTestRecipientEmail] = useState("");
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
 
-  // 1. REALTIME QUERY: Fetch platform settings from MySQL
+  // 1. REALTIME QUERY: Fetch platform settings from MySQL & Settings Service
   const {
     data: settingsData,
     isLoading,
@@ -369,11 +383,33 @@ function SuperSettingsAdmin() {
     queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
       try {
-        const page = await api.get("/cms/pages/system-platform-settings");
-        if (page?.content) {
-          return { ...DEFAULT_SETTINGS, ...(page.content as any) } as SuperSettings;
+        const brandingRes = await api.get("/v1/settings/PLATFORM/branding").catch(() => null);
+        let cmsContent: any = {};
+        try {
+          const page = await api.get("/cms/pages/system-platform-settings");
+          if (page?.content) cmsContent = page.content;
+        } catch {}
+
+        const merged: SuperSettings = {
+          ...DEFAULT_SETTINGS,
+          ...cmsContent,
+        };
+
+        if (brandingRes?.values) {
+          if (brandingRes.values["branding.app_name"]) merged.appName = brandingRes.values["branding.app_name"];
+          if (brandingRes.values["branding.support_email"]) merged.supportEmail = brandingRes.values["branding.support_email"];
+          if (brandingRes.values["branding.primary_color"]) merged.primaryThemeColor = brandingRes.values["branding.primary_color"];
+          if (brandingRes.values["branding.footer_text"]) merged.footerText = brandingRes.values["branding.footer_text"];
+          if (brandingRes.values["branding.logo_light_id"]) merged.logoLightId = brandingRes.values["branding.logo_light_id"];
+          if (brandingRes.values["branding.logo_dark_id"]) merged.logoDarkId = brandingRes.values["branding.logo_dark_id"];
+          if (brandingRes.values["branding.favicon_id"]) merged.faviconId = brandingRes.values["branding.favicon_id"];
+          if (brandingRes.mediaUrls) {
+            if (brandingRes.mediaUrls["branding.logo_light_id"]) merged.logoLightUrl = brandingRes.mediaUrls["branding.logo_light_id"];
+            if (brandingRes.mediaUrls["branding.logo_dark_id"]) merged.logoDarkUrl = brandingRes.mediaUrls["branding.logo_dark_id"];
+            if (brandingRes.mediaUrls["branding.favicon_id"]) merged.faviconUrl = brandingRes.mediaUrls["branding.favicon_id"];
+          }
         }
-        return DEFAULT_SETTINGS;
+        return merged;
       } catch {
         return DEFAULT_SETTINGS;
       }
@@ -386,9 +422,24 @@ function SuperSettingsAdmin() {
     }
   }, [settingsData]);
 
-  // 2. REALTIME MUTATION: Save settings to MySQL
+  // Track dirty state for sticky unsaved bar
+  const isDirty = JSON.stringify(form) !== JSON.stringify(settingsData || DEFAULT_SETTINGS);
+
+  // 2. REALTIME MUTATION: Save settings to MySQL & Settings Service
   const saveMutation = useMutation({
     mutationFn: async (updatedForm: SuperSettings) => {
+      // 1. Save typed settings to Settings Service (Phase 1)
+      await api.put("/v1/settings/PLATFORM/branding", {
+        "branding.app_name": updatedForm.appName,
+        "branding.support_email": updatedForm.supportEmail,
+        "branding.primary_color": updatedForm.primaryThemeColor,
+        "branding.logo_light_id": updatedForm.logoLightId || null,
+        "branding.logo_dark_id": updatedForm.logoDarkId || null,
+        "branding.favicon_id": updatedForm.faviconId || null,
+        "branding.footer_text": updatedForm.footerText || "© 2026 Master HRMS. All rights reserved.",
+      });
+
+      // 2. Also keep CMS page updated for backward compatibility
       await api.put("/cms/pages/system-platform-settings", {
         title: "System Platform Settings",
         meta_description:
@@ -397,10 +448,27 @@ function SuperSettingsAdmin() {
         published: true,
       });
     },
-    onSuccess: () => {
-      toast.success("System Settings saved! Applied to entire website, CMS & portals.");
+    onSuccess: (_, updatedForm) => {
+      toast.success("Settings saved! Realtime changes broadcast across all portals.");
       qc.invalidateQueries({ queryKey: ["realtime-platform-settings"] });
+      qc.invalidateQueries({ queryKey: ["app-config"] });
+      qc.invalidateQueries({ queryKey: ["tenant-branding"] });
+      qc.invalidateQueries({ queryKey: ["platform-media-library"] });
       qc.invalidateQueries({ queryKey: ["oauth-config"] });
+      // Apply theme immediately in this tab
+      if (updatedForm.primaryThemeColor) {
+        import("@/lib/useAppConfig").then(({ applyThemeVariables }) => {
+          applyThemeVariables(updatedForm.primaryThemeColor);
+        });
+      }
+      // Broadcast to all other open tabs
+      try {
+        if (typeof BroadcastChannel !== "undefined") {
+          const bc = new BroadcastChannel("masterhrms_settings");
+          bc.postMessage({ type: "settings_updated", primaryColor: updatedForm.primaryThemeColor });
+          bc.close();
+        }
+      } catch {}
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -623,138 +691,234 @@ function SuperSettingsAdmin() {
           >
             <AlertTriangle className="size-3.5" /> Maintenance
           </TabsTrigger>
+          <TabsTrigger
+            value="media"
+            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
+          >
+            <Folder className="size-3.5 text-blue-500" /> Media Library
+          </TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: BRANDING & THEME */}
+        {/* TAB 1: BRANDING & THEME (PHASE 1 CORE) */}
         <TabsContent value="branding" className="space-y-6 pt-4">
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Logos & Favicon Upload */}
-            <Card className="p-5 border shadow-xs space-y-4">
-              <h3 className="font-bold text-sm border-b pb-2 flex items-center gap-2">
-                <ImageIcon className="size-4 text-primary" /> Branding Logos & Favicon
-              </h3>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Light Mode Logo URL / PNG</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={form.logoLightUrl}
-                    onChange={(e) => setForm({ ...form, logoLightUrl: e.target.value })}
-                    className="text-xs"
-                  />
-                  <input
-                    type="file"
-                    ref={logoLightRef}
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload("logoLightUrl", e)}
-                    className="hidden"
-                  />
+          <div className="grid gap-6 lg:grid-cols-12 items-start">
+            {/* Left 7 Columns: Enterprise Media Uploaders & Identity */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Logos Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-base flex items-center gap-2 text-foreground">
+                      <ImageIcon className="size-4.5 text-primary" /> Logos & Favicon
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Upload brand assets with instant 0ms preview and direct storage in the Relational Media Library.
+                    </p>
+                  </div>
                   <Button
-                    size="sm"
                     variant="outline"
-                    onClick={() => logoLightRef.current?.click()}
-                    className="shrink-0 gap-1 text-xs"
+                    size="sm"
+                    onClick={() => saveMutation.mutate(form)}
+                    disabled={saveMutation.isPending}
+                    className="gap-1.5 text-xs font-semibold h-8"
                   >
-                    <Upload className="size-3.5" /> Upload
+                    {saveMutation.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Save className="size-3.5 text-primary" />
+                    )}
+                    Save Branding
                   </Button>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Dark Mode Logo URL / PNG</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={form.logoDarkUrl}
-                    onChange={(e) => setForm({ ...form, logoDarkUrl: e.target.value })}
-                    className="text-xs"
+                {/* Logos: side-by-side, Favicon: full-width below */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <MediaImageUploader
+                    label="Light Mode Logo"
+                    description="Displayed on white/light surfaces."
+                    currentUrl={form.logoLightUrl}
+                    currentMediaId={form.logoLightId}
+                    previewBg="light"
+                    recommendedDims="240×60px PNG/SVG transparent"
+                    onUploaded={({ id, url }) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        logoLightId: id,
+                        logoLightUrl: url,
+                      }));
+                    }}
+                    onRemove={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        logoLightId: null,
+                        logoLightUrl: "",
+                      }));
+                    }}
                   />
-                  <input
-                    type="file"
-                    ref={logoDarkRef}
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload("logoDarkUrl", e)}
-                    className="hidden"
+
+                  <MediaImageUploader
+                    label="Dark Mode Logo"
+                    description="Displayed on dark navbars/headers."
+                    currentUrl={form.logoDarkUrl}
+                    currentMediaId={form.logoDarkId}
+                    previewBg="dark"
+                    recommendedDims="240×60px PNG/SVG light lettering"
+                    onUploaded={({ id, url }) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        logoDarkId: id,
+                        logoDarkUrl: url,
+                      }));
+                    }}
+                    onRemove={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        logoDarkId: null,
+                        logoDarkUrl: "",
+                      }));
+                    }}
                   />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => logoDarkRef.current?.click()}
-                    className="shrink-0 gap-1 text-xs"
-                  >
-                    <Upload className="size-3.5" /> Upload
-                  </Button>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Favicon Icon URL (.ico / .png)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={form.faviconUrl}
-                    onChange={(e) => setForm({ ...form, faviconUrl: e.target.value })}
-                    className="text-xs"
-                  />
-                  <input
-                    type="file"
-                    ref={faviconRef}
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload("faviconUrl", e)}
-                    className="hidden"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => faviconRef.current?.click()}
-                    className="shrink-0 gap-1 text-xs"
-                  >
-                    <Upload className="size-3.5" /> Upload
-                  </Button>
-                </div>
-              </div>
-            </Card>
-
-            {/* Platform Identity */}
-            <Card className="p-5 border shadow-xs space-y-4">
-              <h3 className="font-bold text-sm border-b pb-2 flex items-center gap-2">
-                <Palette className="size-4 text-primary" /> Application Identity
-              </h3>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Application Name</Label>
-                <Input
-                  value={form.appName}
-                  onChange={(e) => setForm({ ...form, appName: e.target.value })}
-                  className="text-xs"
+                <MediaImageUploader
+                  label="Browser Favicon Icon"
+                  description="Browser tab icon. Applied immediately on upload."
+                  currentUrl={form.faviconUrl}
+                  currentMediaId={form.faviconId}
+                  previewBg="checker"
+                  recommendedDims="32×32 or 64×64 PNG or ICO"
+                  onUploaded={({ id, url }) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      faviconId: id,
+                      faviconUrl: url,
+                    }));
+                    let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+                    if (link) link.href = url;
+                  }}
+                  onRemove={() => {
+                    setForm((prev) => ({
+                      ...prev,
+                      faviconId: null,
+                      faviconUrl: "",
+                    }));
+                  }}
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">System Support Email</Label>
-                <Input
-                  value={form.supportEmail}
-                  onChange={(e) => setForm({ ...form, supportEmail: e.target.value })}
-                  className="text-xs"
-                />
-              </div>
+              {/* Platform Identity Section */}
+              <Card className="p-5 border shadow-xs space-y-4">
+                <h3 className="font-bold text-sm border-b pb-2 flex items-center gap-2">
+                  <Palette className="size-4 text-primary" /> Platform Identity & Colors
+                </h3>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Primary Theme Accent Color</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={form.primaryThemeColor}
-                    onChange={(e) => setForm({ ...form, primaryThemeColor: e.target.value })}
-                    className="size-9 rounded cursor-pointer border p-0.5"
-                  />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Application Display Name</Label>
+                    <Input
+                      value={form.appName}
+                      onChange={(e) => setForm({ ...form, appName: e.target.value })}
+                      placeholder="e.g. Master HRMS"
+                      className="text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">System Support Email</Label>
+                    <Input
+                      type="email"
+                      value={form.supportEmail}
+                      onChange={(e) => setForm({ ...form, supportEmail: e.target.value })}
+                      placeholder="support@company.com"
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold">Primary Theme Accent Color</Label>
+                    <span className="text-[11px] font-mono text-muted-foreground">{form.primaryThemeColor}</span>
+                  </div>
+
+                  {/* Preset Swatches */}
+                  <div className="flex flex-wrap items-center gap-2 pb-1">
+                    {[
+                      { name: "Master Orange", hex: "#FF6B00" },
+                      { name: "Royal Blue", hex: "#2563EB" },
+                      { name: "Emerald Green", hex: "#10B981" },
+                      { name: "Purple Indigo", hex: "#6366F1" },
+                      { name: "Rose Ruby", hex: "#E11D48" },
+                      { name: "Amber Gold", hex: "#F59E0B" },
+                      { name: "Cyan Teal", hex: "#06B6D4" },
+                    ].map((swatch) => (
+                      <button
+                        key={swatch.hex}
+                        type="button"
+                        onClick={() => setForm({ ...form, primaryThemeColor: swatch.hex })}
+                        className={`size-7 rounded-lg transition-all border flex items-center justify-center ${
+                          form.primaryThemeColor.toLowerCase() === swatch.hex.toLowerCase()
+                            ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-sm"
+                            : "opacity-80 hover:opacity-100 hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: swatch.hex }}
+                        title={swatch.name}
+                      >
+                        {form.primaryThemeColor.toLowerCase() === swatch.hex.toLowerCase() && (
+                          <Check className="size-3.5 text-white drop-shadow-xs" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Color Picker Input */}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={form.primaryThemeColor}
+                      onChange={(e) => setForm({ ...form, primaryThemeColor: e.target.value })}
+                      className="size-9 rounded-lg cursor-pointer border p-0.5 bg-background shadow-xs shrink-0"
+                    />
+                    <Input
+                      value={form.primaryThemeColor}
+                      onChange={(e) => setForm({ ...form, primaryThemeColor: e.target.value })}
+                      placeholder="#FF6B00"
+                      className="text-xs font-mono max-w-[140px]"
+                    />
+                    <span className="text-[11px] text-muted-foreground">
+                      Repaints all buttons, navigation pills, and interactive states in real-time.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t">
+                  <Label className="text-xs font-semibold">Footer Copyright Text</Label>
                   <Input
-                    value={form.primaryThemeColor}
-                    onChange={(e) => setForm({ ...form, primaryThemeColor: e.target.value })}
-                    className="text-xs font-mono"
+                    value={form.footerText || ""}
+                    onChange={(e) => setForm({ ...form, footerText: e.target.value })}
+                    placeholder="© 2026 Master HRMS. All rights reserved."
+                    className="text-xs"
                   />
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </div>
+
+            {/* Right 5 Columns: Interactive Live Preview Dock */}
+            <div className="lg:col-span-5">
+              <LivePreviewDock
+                appName={form.appName}
+                primaryColor={form.primaryThemeColor}
+                logoLightUrl={form.logoLightUrl}
+                logoDarkUrl={form.logoDarkUrl}
+                footerText={form.footerText}
+              />
+            </div>
           </div>
+        </TabsContent>
+
+        {/* TAB 8: RELATIONAL MEDIA LIBRARY */}
+        <TabsContent value="media" className="space-y-6 pt-4">
+          <MediaLibraryManager />
         </TabsContent>
 
         {/* TAB 2: CURRENCY, LOCALIZATION & RECAPTCHA SECURITY */}
@@ -1695,7 +1859,7 @@ function SuperSettingsAdmin() {
                     type={showAppleKey ? "text" : "password"}
                     value={form.applePrivateKey}
                     onChange={(e) => setForm({ ...form, applePrivateKey: e.target.value })}
-                    placeholder="-----BEGIN PRIVATE KEY-----..."
+                    placeholder="Paste Apple .p8 private key text here..."
                     className="text-xs font-mono pr-9"
                   />
                   <button
@@ -2249,6 +2413,18 @@ function SuperSettingsAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Unsaved Changes Bar */}
+      <UnsavedChangesBar
+        isDirty={isDirty}
+        isSaving={saveMutation.isPending}
+        sectionTitle="Branding & System Configuration"
+        onSave={handleSave}
+        onDiscard={() => {
+          if (settingsData) setForm(settingsData);
+          toast.info("Unsaved changes discarded.");
+        }}
+      />
     </div>
   );
 }

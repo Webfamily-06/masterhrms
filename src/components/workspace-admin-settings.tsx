@@ -7,9 +7,10 @@ import {
   Shield, ShieldCheck, Plus, Search, Edit2, Copy, Trash2,
   Users, Check, X, CheckCircle2, AlertCircle, Loader2,
   Sparkles, Layers, Sliders, ToggleLeft, ToggleRight, Building, Lock,
-  Globe, Globe2, ExternalLink, ArrowRight, History
+  Globe, Globe2, ExternalLink, ArrowRight, History, Palette
 } from "lucide-react";
 import { CustomDomainSettings } from "./custom-domain-settings";
+import { WorkspaceBrandingSettings } from "@/components/settings/workspace-branding-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -419,6 +420,11 @@ export function WorkspaceAdminSettings() {
           <TabsTrigger value="custom-domain" className="text-xs font-semibold gap-1.5">
             <Globe2 className="w-3.5 h-3.5 text-indigo-500" />
             <span>Custom Domain</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="branding" className="text-xs font-semibold gap-1.5">
+            <Palette className="w-3.5 h-3.5 text-primary" />
+            <span>Workspace Branding</span>
           </TabsTrigger>
 
           <TabsTrigger value="general" className="text-xs font-semibold gap-1.5">
@@ -866,6 +872,13 @@ export function WorkspaceAdminSettings() {
         {/* ======================================================== */}
         <TabsContent value="custom-domain" className="space-y-5 mt-4">
           <CustomDomainSettings />
+        </TabsContent>
+
+        {/* ======================================================== */}
+        {/* TAB: WORKSPACE BRANDING (WHITE-LABEL) */}
+        {/* ======================================================== */}
+        <TabsContent value="branding" className="space-y-5 mt-4">
+          <WorkspaceBrandingSettings />
         </TabsContent>
 
         {/* ======================================================== */}

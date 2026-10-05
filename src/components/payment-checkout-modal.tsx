@@ -32,7 +32,9 @@ import {
   Building,
   Check,
   Image as ImageIcon,
+  AlertTriangle,
 } from "lucide-react";
+import { PaymentProviderIcon, PaymentProviderBadge } from "@/components/payment-provider-badge";
 
 export type PaymentCheckoutModalProps = {
   open: boolean;
@@ -84,6 +86,12 @@ export function PaymentCheckoutModal({
   const [refNo, setRefNo] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [failureState, setFailureState] = useState<{
+    type: "payment_failed" | "service_unavailable";
+    message: string;
+    reference?: string;
+    method?: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: sysConfig } = useQuery({
@@ -169,38 +177,28 @@ export function PaymentCheckoutModal({
           throw new Error("Please attach your payment receipt screenshot.");
         }
 
-        const receiptUrl =
-          proofPreview || "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400";
+        const receiptUrl = proofPreview;
+        if (!receiptUrl) {
+          throw new Error("Payment receipt screenshot is required as proof of payment.");
+        }
 
-        const monetizationSlug = "system-monetization-plans";
-        let currentContent: any = {};
-        try {
-          const existingData = await api.get(`/cms/pages/${monetizationSlug}`);
-          currentContent = existingData?.content || {};
-        } catch {}
-
-        const existingTransfers = currentContent.bankTransfers || [];
-
-        const newRequest = {
-          id: `bt-${Date.now()}`,
-          tenant_name: profile?.full_name || user?.email || "Workspace Tenant",
-          amount: amount,
-          reference_no: refNo.trim(),
-          receipt_url: receiptUrl,
-          status: "pending" as const,
-          date: new Date().toISOString().slice(0, 10),
-          item_type: itemType,
-          item_id: itemId,
-          item_name: itemName,
-        };
-
-        await api.put(`/cms/pages/${monetizationSlug}`, {
-          title: "Monetization Plans & Bank Transfers",
-          content: { ...currentContent, bankTransfers: [newRequest, ...existingTransfers] },
-          published: true,
+        // Submit offline payment evidence through dedicated server endpoint (preserves tenant RBAC & updates invoice + CMS)
+        await api.post("/billing/submit-offline-payment", {
+          planId: itemId,
+          amount,
+          referenceNo: refNo.trim(),
+          paymentMethod: "bank_transfer",
+          receiptUrl,
+          itemType,
+          itemName,
+          notes: `Bank transfer payment proof submitted by ${profile?.full_name || user?.email}`,
         });
 
         qc.invalidateQueries({ queryKey: ["public-plans-list"] });
+        qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+        qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
+        qc.invalidateQueries({ queryKey: ["billing-plans"] });
+        qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
 
         toast.success(
           `⏳ Bank Transfer Request Submitted (Ref: ${refNo})! Super Admin will review your payment screenshot and activate ${itemName}.`,
@@ -214,119 +212,202 @@ export function PaymentCheckoutModal({
         return;
       }
     } catch (err: any) {
-      toast.error(
-        `Payment Rejected / Failed: ${err.message || "Payment response was null or cancelled."}`,
-        { duration: 6000 },
-      );
+      const errMsg = String(err?.message || "").toLowerCase();
+      const isUnavailable =
+        errMsg.includes("connect") ||
+        errMsg.includes("network") ||
+        errMsg.includes("unavailable") ||
+        errMsg.includes("failed to fetch") ||
+        errMsg.includes("timeout") ||
+        errMsg.includes("503") ||
+        errMsg.includes("500");
+
+      setFailureState({
+        type: isUnavailable ? "service_unavailable" : "payment_failed",
+        message: isUnavailable
+          ? "We couldn't connect to the payment service. Your payment status has not been confirmed."
+          : err.message || "Payment could not be completed by the payment provider.",
+        method: paymentMethod === "paypal" ? "PayPal" : paymentMethod === "bank_transfer" ? "Bank Transfer" : "Razorpay",
+        reference: err.reference || err.paymentId || (paymentMethod === "bank_transfer" ? refNo : undefined),
+      });
     } finally {
       setIsProcessing(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(val) => {
+      if (!val) setFailureState(null);
+      onOpenChange(val);
+    }}>
       <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CreditCard className="size-5 text-primary" /> {title}
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            Choose your preferred payment gateway to activate{" "}
-            <strong className="text-foreground">{itemName}</strong> (
-            {formatSystemAmount(amount, sysConfig?.currency)}).
-          </DialogDescription>
-        </DialogHeader>
+        {failureState ? (
+          <div className="space-y-4 py-2 text-xs">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-foreground">
+                <AlertTriangle className={`size-5 ${failureState.type === "service_unavailable" ? "text-amber-500" : "text-rose-500"}`} />
+                {failureState.type === "service_unavailable" ? "Payment Service Unavailable" : "Payment Failed"}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                {failureState.type === "service_unavailable"
+                  ? "We couldn't connect to the payment service. Your payment status has not been confirmed."
+                  : "We couldn't complete your payment."}
+              </DialogDescription>
+            </DialogHeader>
 
-        <div className="space-y-4 py-2 text-xs">
-          {/* Item Summary Banner */}
-          <div className="p-3 rounded-xl bg-secondary/40 border flex items-center justify-between">
-            <div>
-              <div className="font-extrabold text-sm">{itemName}</div>
-              <div className="text-muted-foreground text-[11px]">{description}</div>
+            <div className={`p-4 rounded-xl border space-y-3 ${
+              failureState.type === "service_unavailable"
+                ? "bg-amber-500/10 border-amber-500/30"
+                : "bg-rose-500/10 border-rose-500/30"
+            }`}>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Payment Method:</span>
+                  <PaymentProviderBadge provider={failureState.method || paymentMethod} />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Amount:</span>
+                  <span className="font-bold text-foreground">{formatSystemAmount(amount, sysConfig?.currency)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    failureState.type === "service_unavailable"
+                      ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                      : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                  }`}>
+                    {failureState.type === "service_unavailable" ? "Service Unavailable" : "Payment Failed"}
+                  </span>
+                </div>
+                {failureState.reference && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Reference:</span>
+                    <span className="font-mono text-[11px] text-foreground">{failureState.reference}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-start gap-2 pt-1 border-t border-border/50">
+                  <span className="text-muted-foreground shrink-0">Reason:</span>
+                  <span className="text-muted-foreground text-right">
+                    {failureState.type === "service_unavailable"
+                      ? "Unable to reach payment verification servers. Please check your network connection or try again."
+                      : failureState.message || "Payment could not be completed by the payment provider."}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="font-black text-lg text-primary font-mono shrink-0">
-              {formatSystemAmount(amount, sysConfig?.currency)}
-            </div>
+
+            <DialogFooter className="gap-2 sm:justify-between pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFailureState(null);
+                  onOpenChange(false);
+                }}
+              >
+                Back to Billing
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setFailureState(null)}
+              >
+                Try Again
+              </Button>
+            </DialogFooter>
           </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CreditCard className="size-5 text-primary" /> {title}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Choose your preferred payment gateway to activate{" "}
+                <strong className="text-foreground">{itemName}</strong> (
+                {formatSystemAmount(amount, sysConfig?.currency)}).
+              </DialogDescription>
+            </DialogHeader>
 
-          {/* Payment Method Selector with Official Brand Logos */}
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Select Payment Method
-            </Label>
+            <div className="space-y-4 py-2 text-xs">
+              {/* Item Summary Banner */}
+              <div className="p-3 rounded-xl bg-secondary/40 border flex items-center justify-between">
+                <div>
+                  <div className="font-extrabold text-sm">{itemName}</div>
+                  <div className="text-muted-foreground text-[11px]">{description}</div>
+                </div>
+                <div className="font-black text-lg text-primary font-mono shrink-0">
+                  {formatSystemAmount(amount, sysConfig?.currency)}
+                </div>
+              </div>
 
-            <RadioGroup
-              value={paymentMethod}
-              onValueChange={(v: any) => setPaymentMethod(v)}
-              className="space-y-2"
-            >
-              {/* Razorpay */}
-              <label
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "razorpay" ? "border-blue-600 bg-blue-500/5 shadow-xs ring-1 ring-blue-500/30" : "hover:bg-secondary/30"}`}
-              >
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem value="razorpay" id="pm-razorpay" />
-                  <div className="flex items-center gap-3">
-                    <div className="h-7 w-20 rounded-lg bg-white border p-1 grid place-items-center shrink-0 shadow-xs">
-                      <img
-                        src="https://upload.wikimedia.org/wikipedia/commons/8/89/Razorpay_logo.svg"
-                        alt="Razorpay Logo"
-                        className="h-full object-contain"
-                       loading="lazy"/>
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs">Razorpay Payment Gateway</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        UPI, Credit/Debit Cards, NetBanking, Wallets
+              {/* Payment Method Selector with Official Brand Logos */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Select Payment Method
+                </Label>
+
+                <RadioGroup
+                  value={paymentMethod}
+                  onValueChange={(v: any) => setPaymentMethod(v)}
+                  className="space-y-2"
+                >
+                  {/* Razorpay */}
+                  <label
+                    className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "razorpay" ? "border-blue-600 bg-blue-500/5 shadow-xs ring-1 ring-blue-500/30" : "hover:bg-secondary/30"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <RadioGroupItem value="razorpay" id="pm-razorpay" />
+                      <div className="flex items-center gap-3">
+                        <div className="h-7 w-20 rounded-lg bg-card border p-1 grid place-items-center shrink-0 shadow-xs">
+                          <PaymentProviderIcon provider="razorpay" className="h-5 w-auto" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs">Razorpay Payment Gateway</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            UPI, Credit/Debit Cards, NetBanking, Wallets
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-                <Badge className="bg-blue-600 text-white text-[9px]">Auto-Active</Badge>
-              </label>
+                    <Badge className="bg-blue-600 text-white text-[9px]">Auto-Active</Badge>
+                  </label>
 
-              {/* PayPal */}
-              <label
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "paypal" ? "border-indigo-600 bg-indigo-500/5 shadow-xs ring-1 ring-indigo-500/30" : "hover:bg-secondary/30"}`}
-              >
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem value="paypal" id="pm-paypal" />
-                  <div className="flex items-center gap-3">
-                    <div className="h-7 w-20 rounded-lg bg-white border p-1 grid place-items-center shrink-0 shadow-xs">
-                      <img
-                        src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg"
-                        alt="PayPal Logo"
-                        className="h-full object-contain"
-                       loading="lazy"/>
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs">PayPal Global Checkout</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        PayPal Balance & International Credit Cards ($ USD)
+                  {/* PayPal */}
+                  <label
+                    className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "paypal" ? "border-indigo-600 bg-indigo-500/5 shadow-xs ring-1 ring-indigo-500/30" : "hover:bg-secondary/30"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <RadioGroupItem value="paypal" id="pm-paypal" />
+                      <div className="flex items-center gap-3">
+                        <div className="h-7 w-20 rounded-lg bg-card border p-1 grid place-items-center shrink-0 shadow-xs">
+                          <PaymentProviderIcon provider="paypal" className="h-5 w-auto" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs">PayPal Global Checkout</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            PayPal Balance & International Credit Cards ($ USD)
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-                <Badge className="bg-indigo-600 text-white text-[9px]">Global Instant</Badge>
-              </label>
+                    <Badge className="bg-indigo-600 text-white text-[9px]">Global Instant</Badge>
+                  </label>
 
-              {/* PayPal Inline Panel */}
-              {paymentMethod === "paypal" && (
-                <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 space-y-2 text-xs">
-                  <div className="flex items-center gap-2 font-bold text-indigo-700 dark:text-indigo-400">
-                    <img
-                      src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg"
-                      alt="PayPal"
-                      className="h-4"
-                     loading="lazy"/>
-                    <span>Direct PayPal Express Checkout</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Clicking "Pay via PayPal" will launch the secure PayPal checkout window
-                    directly. Once approved, your {itemName} will be activated instantly.
-                  </p>
-                </div>
-              )}
+                  {/* PayPal Inline Panel */}
+                  {paymentMethod === "paypal" && (
+                    <div className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 space-y-2 text-xs">
+                      <div className="flex items-center gap-2 font-bold text-indigo-700 dark:text-indigo-400">
+                        <PaymentProviderIcon provider="paypal" className="h-4 w-auto" />
+                        <span>Direct PayPal Express Checkout</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Clicking "Pay via PayPal" will launch the secure PayPal checkout window
+                        directly. Once approved, your {itemName} will be activated instantly.
+                      </p>
+                    </div>
+                  )}
 
               {/* Manual Bank Transfer */}
               <label
@@ -335,11 +416,8 @@ export function PaymentCheckoutModal({
                 <div className="flex items-center gap-3">
                   <RadioGroupItem value="bank_transfer" id="pm-bank" />
                   <div className="flex items-center gap-3">
-                    <div className="h-7 w-20 rounded-lg bg-white border p-1 flex items-center justify-center gap-1 shrink-0 shadow-xs">
-                      <Landmark className="size-3.5 text-emerald-600" />
-                      <span className="font-black text-[10px] text-emerald-700 font-mono">
-                        UPI/BANK
-                      </span>
+                    <div className="h-7 w-20 rounded-lg bg-card border p-1 grid place-items-center shrink-0 shadow-xs">
+                      <PaymentProviderIcon provider="bank_transfer" className="h-5 w-auto" />
                     </div>
                     <div>
                       <div className="font-bold text-xs">Manual Bank Transfer + Receipt Upload</div>
@@ -480,6 +558,8 @@ export function PaymentCheckoutModal({
               : `Pay ${formatSystemAmount(amount, sysConfig?.currency)} via ${paymentMethod === "paypal" ? "PayPal" : "Razorpay"}`}
           </Button>
         </DialogFooter>
+        </>
+      )}
       </DialogContent>
     </Dialog>
   );

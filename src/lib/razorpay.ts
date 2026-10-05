@@ -84,14 +84,14 @@ export async function openRazorpayCheckout({
       },
       handler: function (response: any) {
         isHandled = true;
-        if (response && response.razorpay_payment_id) {
+        if (response && response.razorpay_payment_id && response.razorpay_order_id && response.razorpay_signature) {
           resolve({
             razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_order_id: response.razorpay_order_id || `ord_${Date.now()}`,
-            razorpay_signature: response.razorpay_signature || "",
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_signature: response.razorpay_signature,
           });
         } else {
-          reject(new Error("Payment response is null or incomplete. Payment was not verified."));
+          reject(new Error("Payment response is incomplete. Gateway did not return order, payment ID, or signature."));
         }
       },
       modal: {

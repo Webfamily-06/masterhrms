@@ -46,7 +46,16 @@ export function WorkspaceUnavailableView({
           <img
             src="/logo.webp"
             alt="Master ERP"
-            className="h-8 w-auto object-contain"
+            className="h-8 w-auto object-contain dark:hidden"
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = "none";
+            }}
+            loading="lazy"
+          />
+          <img
+            src="/white-logo.webp"
+            alt="Master ERP"
+            className="h-8 w-auto object-contain hidden dark:block"
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}

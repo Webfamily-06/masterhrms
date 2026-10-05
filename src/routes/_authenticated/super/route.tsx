@@ -28,6 +28,8 @@ import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-vie
 import { NotFoundView } from "@/components/error-pages/not-found-view";
 import { isTenantWorkspaceHost } from "@/lib/platform-domain";
 import { SuperLoginPage } from "@/routes/super-login";
+import { useAppConfig } from "@/lib/useAppConfig";
+import { useThemeMode } from "@/lib/theme";
 
 export const Route = createFileRoute("/_authenticated/super")({
   beforeLoad: () => {
@@ -109,6 +111,12 @@ function SuperSidebar({
   const path = useRouterState({ select: (r) => r.location.pathname });
   const [isHovered, setIsHovered] = useState(false);
   const [ignoreHover, setIgnoreHover] = useState(false);
+  const { appConfig } = useAppConfig();
+  const { isDark } = useThemeMode();
+
+  const activeLogo = isDark
+    ? (appConfig.logoDarkUrl || "/white-logo.webp")
+    : (appConfig.logoLightUrl || "/logo.webp");
 
   const isMini = collapsed && !isHovered;
 
@@ -153,13 +161,15 @@ function SuperSidebar({
           <Link
             to="/super"
             className="flex items-center justify-center size-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Super Admin Root Console"
+            title={appConfig.appName || "Super Admin Root Console"}
           >
             <img
-              src="/favicon.webp"
-              alt="Root Console"
+              src={appConfig.faviconUrl || "/favicon.webp"}
+              alt={appConfig.appName || "Root Console"}
               className="size-7 object-contain"
-             loading="lazy"/>
+              onError={(e) => { (e.target as HTMLImageElement).src = "/favicon.webp"; }}
+              loading="lazy"
+            />
           </Link>
         ) : (
           <>
@@ -170,10 +180,12 @@ function SuperSidebar({
               onClick={onCloseMobile}
             >
               <img
-                src="/logo.webp"
-                alt="Master Platform"
-                className="h-8 max-h-8 w-auto object-contain dark:brightness-110"
-               loading="lazy"/>
+                src={activeLogo}
+                alt={appConfig.appName || "Master Platform"}
+                className="h-8 max-h-8 w-auto object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp"; }}
+                loading="lazy"
+              />
             </Link>
 
             {/* Desktop Collapse / Expand Button */}
@@ -184,8 +196,8 @@ function SuperSidebar({
               className={cn(
                 "hidden lg:flex items-center justify-center size-7 rounded-md border transition-all cursor-pointer shadow-xs",
                 collapsed
-                  ? "bg-slate-100 dark:bg-slate-800 border-border-color text-muted-foreground hover:text-purple-600"
-                  : "bg-purple-600/10 border-purple-600/20 text-purple-600 hover:bg-purple-600/20"
+                  ? "bg-slate-100 dark:bg-slate-800 border-border-color text-muted-foreground hover:text-primary"
+                  : "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
               )}
               title={collapsed ? "Expand Sidebar (250px)" : "Collapse Sidebar (72px)"}
               aria-label="Toggle Sidebar"
@@ -244,7 +256,7 @@ function SuperSidebar({
                           className={cn(
                             "flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-md transition-colors select-none",
                             isAnyChildActive
-                              ? "bg-purple-600/10 text-purple-600 font-bold dark:bg-purple-950/40"
+                              ? "bg-primary/10 text-primary font-bold dark:bg-primary/20"
                               : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60"
                           )}
                         >
@@ -365,6 +377,12 @@ function SuperShell() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const { appConfig } = useAppConfig();
+  const { isDark } = useThemeMode();
+
+  const activeLogo = isDark
+    ? (appConfig.logoDarkUrl || "/white-logo.webp")
+    : (appConfig.logoLightUrl || "/logo.webp");
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -473,8 +491,8 @@ function SuperShell() {
     return (
       <div className="min-h-screen grid place-items-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="size-12 rounded-2xl bg-purple-600/10 border border-purple-600/20 flex items-center justify-center">
-            <Loader2 className="size-6 animate-spin text-purple-600" />
+          <div className="size-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Loader2 className="size-6 animate-spin text-primary" />
           </div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Verifying platform access...</p>
         </div>
@@ -537,7 +555,7 @@ function SuperShell() {
 
             {/* Mobile Brand Logo (Visible only on mobile / tablet < 992px) */}
             <Link to="/super" className="logo lg:hidden flex items-center gap-1.5 shrink-0">
-              <img src="/logo.webp" alt="Master Platform" className="h-7 max-h-7 w-auto object-contain" loading="lazy"/>
+              <img src={activeLogo} alt={appConfig.appName || "Master Platform"} className="h-7 max-h-7 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp"; }} loading="lazy"/>
             </Link>
 
             {/* Desktop Full Sidebar / Mini Sidebar Toggle Button */}
@@ -555,7 +573,7 @@ function SuperShell() {
               className={cn(
                 "sidenav-toggle-btn topbar-link shrink-0 size-8 text-[18px] hidden lg:flex items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs",
                 collapsed
-                  ? "bg-purple-600/10 border-purple-600/20 text-purple-600 hover:bg-purple-600/20"
+                  ? "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
                   : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
               )}
               aria-label="Toggle Sidebar Mini Rail"
@@ -566,7 +584,7 @@ function SuperShell() {
 
             {/* Breadcrumb / Title */}
             <div className="hidden sm:flex items-center gap-2 text-xs font-semibold">
-              <Badge className="bg-purple-600 text-white text-[10px] font-bold py-0.5 px-2">Super Admin</Badge>
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-bold py-0.5 px-2">Super Admin</Badge>
               <span className="text-muted-foreground/60">/</span>
               <span className="text-foreground font-bold truncate max-w-[200px]">{currentTitle}</span>
             </div>
@@ -595,7 +613,7 @@ function SuperShell() {
                 className={cn(
                   "topbar-link flex items-center justify-center size-8 rounded-md border transition-all cursor-pointer shadow-xs",
                   fullView
-                    ? "bg-purple-600 text-white border-purple-600 hover:bg-purple-700"
+                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
                     : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
                 )}
                 title={fullView ? "Exit Full View (Show Sidebar) (⌘B)" : "Full View Console (Hide Sidebar) (⌘B)"}
@@ -630,28 +648,28 @@ function SuperShell() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="flex items-center justify-center rounded-full ring-2 ring-purple-500/30 hover:ring-purple-500/60 transition-all p-0.5 cursor-pointer"
+                    className="flex items-center justify-center rounded-full ring-2 ring-primary/30 hover:ring-primary/60 transition-all p-0.5 cursor-pointer"
                     aria-label="Super Admin Profile"
                   >
                     <Avatar className="size-8">
                       <AvatarImage src={profile.avatar_url || "/favicon.webp"} alt={profile.full_name || "Admin"} />
-                      <AvatarFallback className="bg-purple-600/10 text-purple-600 text-xs font-bold">{initials}</AvatarFallback>
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">{initials}</AvatarFallback>
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-64 p-3" align="end" forceMount>
                   <DropdownMenuLabel className="p-1">
                     <div className="flex items-center gap-3">
-                      <Avatar className="size-10 ring-2 ring-purple-500/30">
+                      <Avatar className="size-10 ring-2 ring-primary/30">
                         <AvatarImage src={profile.avatar_url || "/favicon.webp"} alt={profile.full_name || "Admin"} />
-                        <AvatarFallback className="bg-purple-600/10 text-purple-600 text-sm font-bold">{initials}</AvatarFallback>
+                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">{initials}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <p className="text-sm font-bold leading-tight truncate text-foreground">{profile.full_name || "Super Admin"}</p>
                         <p className="text-[11px] text-muted-foreground truncate">{profile.email}</p>
                         <div className="flex items-center gap-1 pt-0.5">
-                          <Badge className="bg-purple-600 text-white text-[9px] font-bold py-0 h-4 px-1.5">SUPER ADMIN</Badge>
-                          <Badge variant="outline" className="text-[9px] py-0 h-4 px-1.5 border-purple-500/30 text-purple-600">Root</Badge>
+                          <Badge className="bg-primary text-primary-foreground text-[9px] font-bold py-0 h-4 px-1.5">SUPER ADMIN</Badge>
+                          <Badge variant="outline" className="text-[9px] py-0 h-4 px-1.5 border-primary/30 text-primary">Root</Badge>
                         </div>
                       </div>
                     </div>
@@ -714,7 +732,7 @@ function SuperShell() {
                     className="flex items-center justify-between gap-2 cursor-pointer py-2 px-3"
                   >
                     <div className="flex items-center gap-2.5">
-                      <i className={cn("text-base ph-duotone", item.iconClass, "text-purple-600")} />
+                      <i className={cn("text-base ph-duotone", item.iconClass, "text-primary")} />
                       <span className="font-medium text-sm">{item.label}</span>
                     </div>
                     <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{item.to}</span>

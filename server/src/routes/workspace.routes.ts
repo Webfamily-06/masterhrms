@@ -4,6 +4,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { ERP_MODULES } from "../lib/erp-modules";
 import { getWorkspacePolicy } from "../services/workspace-policy.service";
+import { SettingsService } from "../services/settings/settings.service";
 
 export const workspaceRouter = Router();
 
@@ -1204,13 +1205,15 @@ workspaceRouter.get("/settings", async (req: AuthRequest, res: Response) => {
       where: { slug: `tenant-${tenantId}-settings` },
     });
 
+    const brandingGroup = await SettingsService.getGroup("TENANT", tenantId, "branding");
+
     const defaultBrand = {
-      titleText: tenant.name,
-      footerText: `© ${new Date().getFullYear()} ${tenant.name}. All rights reserved.`,
-      logoDark: tenant.logoUrl,
-      logoLight: tenant.logoUrl,
-      favicon: tenant.logoUrl,
-      themeColor: "indigo",
+      titleText: brandingGroup.values["branding.app_name"] || tenant.name,
+      footerText: brandingGroup.values["branding.footer_text"] || `© ${new Date().getFullYear()} ${tenant.name}. All rights reserved.`,
+      logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl,
+      logoLight: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl,
+      favicon: brandingGroup.mediaUrls["branding.favicon_id"] || tenant.logoUrl,
+      themeColor: brandingGroup.values["branding.primary_color"] || "#FF6B00",
       themeMode: "light",
       currency: "INR",
       currencySymbol: "₹",
@@ -1225,7 +1228,7 @@ workspaceRouter.get("/settings", async (req: AuthRequest, res: Response) => {
 
     return res.json({
       tenant,
-      brand: settingsPage?.content ? { ...defaultBrand, ...pageContent } : defaultBrand,
+      brand: { ...defaultBrand, ...pageContent },
       company,
     });
   } catch (err: any) {

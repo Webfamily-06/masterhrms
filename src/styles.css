@@ -413,9 +413,9 @@ body {
   --sidebar-border: #e2e8f0;
   --sidebar-menu-item: #475569;
   --sidebar-menu-item-hover: #0f172a;
-  --sidebar-menu-active-bg: rgba(79, 70, 229, 0.08);
-  --sidebar-menu-active-item: #4f46e5;
-  --sidebar-submenu-active-item: #4f46e5;
+  --sidebar-menu-active-bg: color-mix(in srgb, var(--primary, #FF6B00) 10%, transparent);
+  --sidebar-menu-active-item: var(--primary, #FF6B00);
+  --sidebar-submenu-active-item: var(--primary, #FF6B00);
   --sidebar-menu-title: #94a3b8;
 }
 
@@ -425,9 +425,9 @@ body {
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-menu-item: #94a3b8;
   --sidebar-menu-item-hover: #f8fafc;
-  --sidebar-menu-active-bg: rgba(99, 102, 241, 0.16);
-  --sidebar-menu-active-item: #818cf8;
-  --sidebar-submenu-active-item: #818cf8;
+  --sidebar-menu-active-bg: color-mix(in srgb, var(--primary, #FF6B00) 18%, transparent);
+  --sidebar-menu-active-item: var(--primary, #FF6B00);
+  --sidebar-submenu-active-item: var(--primary, #FF6B00);
   --sidebar-menu-title: #64748b;
 }
 
@@ -516,7 +516,16 @@ body {
 .sidebar .sidebar-logo .brand-logo img {
   max-height: 32px !important;
   width: auto !important;
-  display: block !important;
+}
+
+/* Explicitly honor hidden / dark:hidden inside sidebar logo */
+.sidebar .sidebar-logo img.hidden,
+.sidebar .sidebar-logo img[hidden],
+html.dark .sidebar .sidebar-logo img.dark\:hidden,
+[data-theme="dark"] .sidebar .sidebar-logo img.dark\:hidden,
+html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
+[data-theme="light"] .sidebar .sidebar-logo img.dark\:block.hidden {
+  display: none !important;
 }
 
 /* Sidebar Toggle Button (#toggle_btn) inside Logo Header */
@@ -1208,7 +1217,6 @@ body {
   max-height: 32px !important;
   width: auto !important;
   object-fit: contain !important;
-  display: block !important;
 }
 
 /* Any text node / span inside the logo link */
@@ -1280,7 +1288,8 @@ body {
   }
 
   /* Mini rail — stable 72px */
-  body.mini-sidebar:not(.expand-menu) .sidebar {
+  body.mini-sidebar:not(.expand-menu) .sidebar,
+  .main-wrapper.mini-sidebar:not(.expand-menu) .sidebar {
     width: var(--sidebar-mini-width, 72px) !important;
     min-width: var(--sidebar-mini-width, 72px) !important;
     max-width: var(--sidebar-mini-width, 72px) !important;
@@ -1288,7 +1297,8 @@ body {
   }
 
   /* Hover-expand from mini — animate smoothly to 250px */
-  body.mini-sidebar.expand-menu .sidebar {
+  body.mini-sidebar.expand-menu .sidebar,
+  .main-wrapper.mini-sidebar.expand-menu .sidebar {
     width: var(--sidebar-width, 250px) !important;
     min-width: var(--sidebar-width, 250px) !important;
     max-width: var(--sidebar-width, 250px) !important;

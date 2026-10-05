@@ -31,18 +31,24 @@ export function ColumnMappingModal({
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [isImporting, setIsImporting] = useState(false);
 
-  useEffect(() => {
+  const [prevModalState, setPrevModalState] = useState<{ isOpen: boolean; excelColumns: string[] }>({
+    isOpen: false,
+    excelColumns: [],
+  });
+
+  if (prevModalState.isOpen !== isOpen || prevModalState.excelColumns !== excelColumns) {
+    setPrevModalState({ isOpen, excelColumns });
     if (isOpen && excelColumns.length > 0) {
       const autoMapping: Record<string, string> = {};
       databaseFields.forEach(field => {
-        const match = excelColumns.find(col =>col.toLowerCase().replace(/[_\s]/g, '') === field.key.toLowerCase().replace(/[_\s]/g, ''));
+        const match = excelColumns.find(col => col.toLowerCase().replace(/[_\s]/g, '') === field.key.toLowerCase().replace(/[_\s]/g, ''));
         if (match) {
           autoMapping[field.key] = match;
         }
       });
       setMapping(autoMapping);
     }
-  }, [isOpen, excelColumns, databaseFields]);
+  }
 
   const handleSubmit = () => {
     if (!data || data.length === 0) {

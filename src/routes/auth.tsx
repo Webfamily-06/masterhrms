@@ -136,7 +136,7 @@ function AuthPage() {
   } catch (e) {}
 
   const logoLightUrl = branding.isWhiteLabeled && branding.logoUrl ? branding.logoUrl : (platformSettings?.logoLightUrl || cachedLogoLight || "/logo.webp");
-  const logoDarkUrl = branding.isWhiteLabeled && branding.logoDark ? branding.logoDark : (platformSettings?.logoDarkUrl || cachedLogoDark || "/logo-white.webp");
+  const logoDarkUrl = branding.isWhiteLabeled && branding.logoDark ? branding.logoDark : (platformSettings?.logoDarkUrl || cachedLogoDark || "/white-logo.webp");
   const appName = branding.isWhiteLabeled && branding.name ? branding.name : (platformSettings?.appName || cachedAppName || "Master Workspace ERP");
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
@@ -441,7 +441,7 @@ function AuthPage() {
               alt={appName}
               className="h-10 max-h-10 w-auto object-contain mx-auto hidden dark:block"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = "/logo.webp";
+                (e.target as HTMLImageElement).src = "/white-logo.webp";
               }}
               loading="lazy"
             />

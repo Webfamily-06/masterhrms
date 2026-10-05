@@ -77,6 +77,11 @@ import { requireActiveSubscription } from "./middleware/subscription";
 import { maintenanceMiddleware } from "./middleware/maintenance";
 import { billingRouter, handleRazorpayWebhook } from "./routes/billing.routes";
 import { timesheetsRouter } from "./routes/timesheets.routes";
+import { settingsRouter } from "./routes/settings.routes";
+import { mediaRouter } from "./routes/media.routes";
+import { appConfigRouter } from "./routes/app-config.routes";
+import { SettingsService } from "./services/settings/settings.service";
+import { getUploadsRoot } from "./services/media/media.service";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -133,7 +138,20 @@ app.use(
 
 app.post("/api/payments/razorpay/webhook", express.raw({ type: "application/json" }), razorpayWebhookHandler);
 app.use(express.json());
-app.use(express.text({ type: ["text/*", "application/octet-stream", "*/*"] }));
+// NOTE: Do NOT include "multipart/*" or "*/*" here — multer handles multipart/form-data
+// and express.text consuming it first causes "Unexpected end of form" errors in multer.
+app.use(
+  express.text({
+    type: (req) => {
+      const ct = req.headers["content-type"] || "";
+      // Skip multipart — let multer handle it
+      if (ct.startsWith("multipart/")) return false;
+      // Match text/* and application/octet-stream only
+      return ct.startsWith("text/") || ct === "application/octet-stream";
+    },
+  }),
+);
+app.use("/uploads", express.static(getUploadsRoot()));
 app.use(compression()); // Gzip all responses — 60-80% smaller payloads
 app.use(workspaceHostMiddleware); // Host resolution early in the pipeline
 app.use(maintenanceMiddleware);
@@ -148,6 +166,13 @@ app.get("/api/health", (req, res) => {
     websocket: "active",
   });
 });
+
+// Settings & Media & App-Config (Phase 1)
+app.use("/api/v1/settings", settingsRouter);
+app.use("/api/v1/media", mediaRouter);
+app.use("/api/v1/public", appConfigRouter);
+app.use("/api/public", appConfigRouter);
+app.use("/api", appConfigRouter);
 
 // Mount Routes
 app.use("/api/billing", billingRouter);
@@ -295,8 +320,15 @@ function scheduleDailySubscriptionReminders() {
 }
 scheduleDailySubscriptionReminders();
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🚀 Master HRMS Backend Server running on http://localhost:${PORT}`);
   console.log(`🔌 Database Provider: Supabase PostgreSQL (Prisma ORM connected)`);
   console.log(`⚡ WebSocket Server: Ready on ws://localhost:${PORT}`);
+
+  try {
+    await SettingsService.ensureDefaultSettings();
+    console.log(`⚙️ [STARTUP] Platform default settings verified in database.`);
+  } catch (err: any) {
+    console.error(`⚠️ [STARTUP] Failed to ensure default settings:`, err?.message || err);
+  }
 });

@@ -94,7 +94,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" className="dark" suppressHydrationWarning>
       <head>
         <HeadContent />
         {/* Synchronous 0ms Head Script to prevent color glitch & dark theme FOUC */}
@@ -104,13 +104,20 @@ function RootShell({ children }: { children: ReactNode }) {
               (function() {
                 try {
                   var theme = localStorage.getItem("theme");
-                  if (theme === "dark" || (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-                    document.documentElement.classList.add("dark"); document.documentElement.setAttribute("data-theme", "dark");
-                  } else {
+                  if (theme === "light") {
                     document.documentElement.classList.remove("dark"); document.documentElement.setAttribute("data-theme", "light");
+                  } else {
+                    document.documentElement.classList.add("dark"); document.documentElement.setAttribute("data-theme", "dark");
                   }
                   var c = localStorage.getItem("master_hrms_primary_color");
-                  if (c) document.documentElement.style.setProperty("--primary", c);
+                  if (c) {
+                    document.documentElement.style.setProperty("--primary", c);
+                    document.documentElement.style.setProperty("--ring", c);
+                    document.documentElement.style.setProperty("--sidebar-primary", c);
+                    document.documentElement.style.setProperty("--sidebar-menu-active-item", c);
+                    document.documentElement.style.setProperty("--sidebar-submenu-active-item", c);
+                    document.documentElement.style.setProperty("--sidebar-menu-active-bg", "color-mix(in srgb, " + c + " 12%, transparent)");
+                  }
                   var icon = localStorage.getItem("master_hrms_favicon") || "/favicon.webp";
                   var link = document.querySelector("link[rel*='icon']");
                   if (link) {
@@ -130,65 +137,10 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+import { useAppConfig } from "@/lib/useAppConfig";
+
 function PlatformFaviconSync() {
-  const { data } = useQuery({
-    queryKey: ["realtime-platform-settings-favicon"],
-    queryFn: async () => {
-      try {
-        const page = await api.get("/cms/pages/system-platform-settings");
-        return page?.content || null;
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  useEffect(() => {
-    if (!data) return;
-
-    // 1. Dynamic Favicon Sync & Cache
-    if (data.faviconUrl) {
-      try {
-        localStorage.setItem("master_hrms_favicon", data.faviconUrl);
-      } catch (e) {}
-      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        document.head.appendChild(link);
-      }
-      link.href = data.faviconUrl;
-    }
-
-    // 2. Dynamic Primary Theme Color Accent Sync & Cache
-    if (data.primaryThemeColor) {
-      document.documentElement.style.setProperty("--primary", data.primaryThemeColor);
-      try {
-        localStorage.setItem("master_hrms_primary_color", data.primaryThemeColor);
-      } catch (e) {}
-    }
-
-    // 3. Dynamic Font Family Strict Enforcement
-    document.body.style.fontFamily = "'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-
-    // 4. Dynamic Logo & App Name Cache
-    if (data.logoLightUrl) {
-      try {
-        localStorage.setItem("master_hrms_logo_light", data.logoLightUrl);
-      } catch (e) {}
-    }
-    if (data.logoDarkUrl) {
-      try {
-        localStorage.setItem("master_hrms_logo_dark", data.logoDarkUrl);
-      } catch (e) {}
-    }
-    if (data.appName) {
-      try {
-        localStorage.setItem("master_hrms_app_name", data.appName);
-      } catch (e) {}
-    }
-  }, [data]);
-
+  useAppConfig();
   return null;
 }
 

@@ -4233,5 +4233,100 @@ model SubscriptionNotificationEvent {
   @@map("subscription_notification_events")
 }
 
+// ─── Phase 1: Settings Core & Relational Media Models ───────────────────────
+enum SettingScope {
+  PLATFORM
+  TENANT
+  USER
+}
 
+model Setting {
+  id         String       @id @default(uuid()) @db.VarChar(36)
+  scope      SettingScope @default(TENANT)
+  scopeId    String?      @map("scope_id") @db.VarChar(36)
+  group      String       @db.VarChar(50)
+  key        String       @db.VarChar(100)
+  valueJson  Json         @map("value_json")
+  valueType  String       @map("value_type") @db.VarChar(30)
+  isSecret   Boolean      @default(false) @map("is_secret")
+  version    Int          @default(1)
+  updatedBy  String?      @map("updated_by") @db.VarChar(36)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
 
+  secret     SettingSecret?
+
+  @@unique([scope, scopeId, key])
+  @@index([scope, scopeId, group])
+  @@map("settings")
+}
+
+model SettingSecret {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  settingId   String   @unique @map("setting_id") @db.VarChar(36)
+  ciphertext  String   @db.Text
+  iv          String   @db.VarChar(64)
+  authTag     String   @map("auth_tag") @db.VarChar(64)
+  keyVersion  Int      @default(1) @map("key_version")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  setting     Setting  @relation(fields: [settingId], references: [id], onDelete: Cascade)
+
+  @@map("setting_secrets")
+}
+
+model SettingAudit {
+  id              String       @id @default(uuid()) @db.VarChar(36)
+  scope           SettingScope
+  scopeId         String?      @map("scope_id") @db.VarChar(36)
+  key             String       @db.VarChar(100)
+  oldValueMasked  Json?        @map("old_value_masked")
+  newValueMasked  Json         @map("new_value_masked")
+  changedBy       String       @map("changed_by") @db.VarChar(36)
+  ipAddress       String?      @map("ip_address") @db.VarChar(45)
+  userAgent       String?      @map("user_agent") @db.VarChar(255)
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@index([scope, scopeId, key])
+  @@index([createdAt])
+  @@map("setting_audits")
+}
+
+model MediaFile {
+  id           String       @id @default(uuid()) @db.VarChar(36)
+  tenantId     String?      @map("tenant_id") @db.VarChar(36)
+  storageDisk  String       @default("LOCAL") @map("storage_disk") @db.VarChar(30)
+  filePath     String       @map("file_path") @db.VarChar(500)
+  url          String       @db.VarChar(500)
+  fileName     String       @map("file_name") @db.VarChar(255)
+  mimeType     String       @map("mime_type") @db.VarChar(100)
+  fileSize     Int          @map("file_size")
+  width        Int?
+  height       Int?
+  checksumSha  String       @map("checksum_sha") @db.VarChar(64)
+  folder       String       @default("general") @db.VarChar(100)
+  tags         String[]
+  uploadedBy   String?      @map("uploaded_by") @db.VarChar(36)
+  deletedAt    DateTime?    @map("deleted_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  usages       MediaUsage[]
+
+  @@index([tenantId, folder])
+  @@map("media_files")
+}
+
+model MediaUsage {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  mediaId    String    @map("media_id") @db.VarChar(36)
+  entityType String    @map("entity_type") @db.VarChar(50)
+  entityId   String    @map("entity_id") @db.VarChar(36)
+  fieldKey   String    @map("field_key") @db.VarChar(50)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  media      MediaFile @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, entityType, entityId, fieldKey])
+  @@map("media_usages")
+}

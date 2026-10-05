@@ -89,6 +89,8 @@ export async function runSubscriptionExpiryRemindersCron(): Promise<ReminderProc
           const emailRes = await sendSubscriptionLifecycleEmail({
             toEmail: recipientEmail,
             templateId: "subscription-expired",
+            tenantId: sub.tenantId,
+            scope: "TENANT",
             variables: {
               company_name: sub.tenant?.name || "Company Workspace",
               tenant_name: sub.tenant?.name || "Company Workspace",
@@ -179,6 +181,8 @@ export async function runSubscriptionExpiryRemindersCron(): Promise<ReminderProc
     const emailRes = await sendSubscriptionLifecycleEmail({
       toEmail: recipientEmail,
       templateId: threshold.templateId,
+      tenantId: sub.tenantId,
+      scope: "TENANT",
       variables: {
         company_name: sub.tenant?.name || "Company Workspace",
         tenant_name: sub.tenant?.name || "Company Workspace",

@@ -109,10 +109,10 @@ function LockScreenComponent() {
       <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md shadow-sm w-full max-w-md sm:p-8 p-5">
         <div className="text-center mb-6">
           <div className="block dark:hidden">
-            <Link to="/"><img src="/logo.webp" className="h-10 mx-auto mb-4 object-contain" alt="logo" /></Link>
+            <Link to="/"><img src="/logo.webp" className="h-10 mx-auto mb-4 object-contain" alt="logo" onError={(e) => { (e.target as HTMLImageElement).src = "/logo.webp"; }} /></Link>
           </div>
           <div className="hidden dark:block">
-            <Link to="/"><img src="/logo-white.webp" className="h-10 mx-auto mb-4 object-contain" alt="logo" /></Link>
+            <Link to="/"><img src="/white-logo.webp" className="h-10 mx-auto mb-4 object-contain" alt="logo" onError={(e) => { (e.target as HTMLImageElement).src = "/white-logo.webp"; }} /></Link>
           </div>
           <img
             src={avatarUrl}

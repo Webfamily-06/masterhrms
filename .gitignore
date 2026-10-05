@@ -102,4 +102,7 @@ tenant_dashboard.png
 
 # Runtime storage & OCR models
 server/storage/
+server/uploads/
+uploads/
+server/test_out.pdf
 *.traineddata

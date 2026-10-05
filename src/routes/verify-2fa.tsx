@@ -257,7 +257,8 @@ function Verify2faPage() {
       {/* Top Header */}
       <header className="p-4 sm:p-6 flex items-center justify-between border-b border-border/40">
         <Link to="/auth" className="flex items-center gap-2">
-          <img src="/logo.webp" alt="Master HRMS" className="h-8 w-auto object-contain"  loading="lazy"/>
+          <img src="/logo.webp" alt="Master HRMS" className="h-8 w-auto object-contain dark:hidden" onError={(e) => { (e.target as HTMLImageElement).src = "/logo.webp"; }} loading="lazy"/>
+          <img src="/white-logo.webp" alt="Master HRMS" className="h-8 w-auto object-contain hidden dark:block" onError={(e) => { (e.target as HTMLImageElement).src = "/white-logo.webp"; }} loading="lazy"/>
           <span className="font-bold tracking-tight text-sm">Master ERP</span>
         </Link>
         <ThemeToggle />

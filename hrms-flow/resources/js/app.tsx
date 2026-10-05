@@ -26,26 +26,26 @@ if (typeof window !== 'undefined') {
         }
         return originalAppendChild.call(this, node);
     };
+
+    // Initialize lazy loading of images when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        lazyLoadImages();
+    });
+
+    // Add event listener for theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        // Re-apply theme when system preference changes
+        const savedTheme = localStorage.getItem('themeSettings');
+        if (savedTheme) {
+            const themeSettings = JSON.parse(savedTheme);
+            if (themeSettings.appearance === 'system') {
+                initializeTheme();
+            }
+        }
+    });
 }
 // Initialize performance monitoring
 initPerformanceMonitoring();
-
-// Initialize lazy loading of images when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    lazyLoadImages();
-});
-
-// Add event listener for theme changes
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    // Re-apply theme when system preference changes
-    const savedTheme = localStorage.getItem('themeSettings');
-    if (savedTheme) {
-        const themeSettings = JSON.parse(savedTheme);
-        if (themeSettings.appearance === 'system') {
-            initializeTheme();
-        }
-    }
-});
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

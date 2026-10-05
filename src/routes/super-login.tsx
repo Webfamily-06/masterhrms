@@ -83,7 +83,8 @@ export function SuperLoginPage() {
     },
   });
 
-  const logoUrl = platformSettings?.logoLightUrl || "/logo.webp";
+  const logoLightUrl = platformSettings?.logoLightUrl || "/logo.webp";
+  const logoDarkUrl = platformSettings?.logoDarkUrl || "/white-logo.webp";
   const appName = platformSettings?.appName || "Master Platform";
 
   useEffect(() => {
@@ -315,13 +316,23 @@ export function SuperLoginPage() {
           <div className="space-y-2">
             <Link to="/" className="inline-flex items-center gap-2.5">
               <img
-                src={logoUrl}
+                src={logoLightUrl}
                 alt={appName}
-                className="h-9 w-auto object-contain"
+                className="h-9 w-auto object-contain dark:hidden"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = "/logo.webp";
                 }}
-               loading="lazy"/>
+                loading="lazy"
+              />
+              <img
+                src={logoDarkUrl}
+                alt={appName}
+                className="h-9 w-auto object-contain hidden dark:block"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/white-logo.webp";
+                }}
+                loading="lazy"
+              />
             </Link>
           </div>
 

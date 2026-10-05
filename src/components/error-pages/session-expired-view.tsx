@@ -63,11 +63,21 @@ export function SessionExpiredView({ redirectPath }: SessionExpiredViewProps) {
           <img
             src="/logo.webp"
             alt="Master ERP"
-            className="h-8 w-auto object-contain transition-transform group-hover:scale-105"
+            className="h-8 w-auto object-contain transition-transform group-hover:scale-105 dark:hidden"
             onError={(e) => {
               (e.target as HTMLElement).style.display = "none";
             }}
-           loading="lazy"/>
+            loading="lazy"
+          />
+          <img
+            src="/white-logo.webp"
+            alt="Master ERP"
+            className="h-8 w-auto object-contain transition-transform group-hover:scale-105 hidden dark:block"
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = "none";
+            }}
+            loading="lazy"
+          />
           <div className="flex flex-col">
             <span className="font-bold text-base tracking-tight text-foreground">
               Master ERP

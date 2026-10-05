@@ -103,63 +103,62 @@ export function CrudFormModal({
     return formConfig.priceSummary.unitPrice * quantity;
   };
 
-  // Load initial data when modal opens
+  // Guarded render-phase state adjustment for modal open / initialData changes
+  const [prevModalKey, setPrevModalKey] = useState<string>('');
+  const currentModalKey = isOpen ? `${mode}-${JSON.stringify(initialData || {})}` : '';
+
+  if (isOpen && currentModalKey !== prevModalKey) {
+    setPrevModalKey(currentModalKey);
+    const cleanData = { ...initialData };
+
+    formConfig.fields.forEach(field => {
+      if (field.type === 'multi-select') {
+        if (cleanData[field.name] && !Array.isArray(cleanData[field.name])) {
+          cleanData[field.name] = [cleanData[field.name].toString()];
+        }
+      }
+      if (mode === 'create' && (cleanData[field.name] === undefined || cleanData[field.name] === null)) {
+        if (field.defaultValue !== undefined) {
+          cleanData[field.name] = field.defaultValue;
+        }
+      }
+    });
+
+    setFormData(cleanData || {});
+    setErrors({});
+  }
+
+  // Guarded render-phase state adjustment for backend errors
+  const [prevBackendErrors, setPrevBackendErrors] = useState<Record<string, any>>({});
+  if (backendErrors && backendErrors !== prevBackendErrors && Object.keys(backendErrors).length > 0) {
+    setPrevBackendErrors(backendErrors);
+    const processedErrors: Record<string, string> = {};
+    Object.entries(backendErrors).forEach(([key, value]) => {
+      processedErrors[key] = Array.isArray(value) ? value[0] : value;
+    });
+    setErrors(processedErrors);
+  }
+
+  // Load relation data for select fields asynchronously when modal opens
   useEffect(() => {
-    if (isOpen) {
-      // Create a clean copy of the initial data
-      const cleanData = { ...initialData };
+    if (!isOpen) return;
 
-      // Process fields and set default values
-      formConfig.fields.forEach(field => {
-        if (field.type === 'multi-select') {
-          if (cleanData[field.name] && !Array.isArray(cleanData[field.name])) {
-            // Convert to array if it's not already
-            cleanData[field.name] = Array.isArray(cleanData[field.name])
-              ? cleanData[field.name]
-              : cleanData[field.name] ? [cleanData[field.name].toString()] : [];
-          }
-        }
-
-        // Set default values for fields that don't have values yet (create mode)
-        if (mode === 'create' && (cleanData[field.name] === undefined || cleanData[field.name] === null)) {
-          if (field.defaultValue !== undefined) {
-            cleanData[field.name] = field.defaultValue;
-          }
-        }
-      });
-
-      setFormData(cleanData || {});
-      setErrors({});
-
-      // Load relation data for select fields
-      formConfig.fields.forEach(field => {
-        if (field.relation && field.relation.endpoint) {
-          fetch(field.relation.endpoint)
-            .then(res => res.json())
-            .then(data => {
-              setRelationOptions(prev => ({
-                ...prev,
-                [field.name]: Array.isArray(data) ? data : data.data || []
-              }));
-            })
-            .catch(err => {
-              // Silent error handling
-            });
-        }
-      });
-    }
-  }, [isOpen, initialData, formConfig.fields, mode]);
-
-  // Update errors when backend errors change
-  useEffect(() => {
-    if (backendErrors && Object.keys(backendErrors).length > 0) {
-      const processedErrors: Record<string, string> = {};
-      Object.entries(backendErrors).forEach(([key, value]) => {
-        processedErrors[key] = Array.isArray(value) ? value[0] : value;
-      });
-      setErrors(processedErrors);
-    }
-  }, [backendErrors]);
+    formConfig.fields.forEach(field => {
+      if (field.relation && field.relation.endpoint) {
+        fetch(field.relation.endpoint)
+          .then(res => res.json())
+          .then(data => {
+            setRelationOptions(prev => ({
+              ...prev,
+              [field.name]: Array.isArray(data) ? data : data.data || []
+            }));
+          })
+          .catch(() => {
+            // Silent error handling
+          });
+      }
+    });
+  }, [isOpen, formConfig.fields]);
 
   const handleChange = (name: string, value: any) => {
     setFormData(prev => ({ ...prev, [name]: value }));

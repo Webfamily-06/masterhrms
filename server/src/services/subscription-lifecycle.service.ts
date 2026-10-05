@@ -137,6 +137,8 @@ export async function handleTenantSuspension(options: SuspendTenantOptions): Pro
       const emailRes = await sendSubscriptionLifecycleEmail({
         toEmail: tenantAdminEmail,
         templateId: "tenant-account-suspended",
+        tenantId,
+        scope: "TENANT",
         variables: {
           company_name: tenant.name,
           tenant_name: tenant.name,
@@ -201,6 +203,7 @@ export async function handleTenantSuspension(options: SuspendTenantOptions): Pro
       const emailRes = await sendSubscriptionLifecycleEmail({
         toEmail: superAdminEmail,
         templateId: "tenant-account-suspended",
+        scope: "PLATFORM",
         variables: {
           company_name: `[SUPER ADMIN AUDIT] ${tenant.name}`,
           tenant_name: tenant.name,
@@ -316,6 +319,8 @@ export async function handleTenantReactivation(options: ReactivateTenantOptions)
     await sendSubscriptionLifecycleEmail({
       toEmail: tenantAdminEmail,
       templateId: "tenant-account-reactivated",
+      tenantId,
+      scope: "TENANT",
       variables: {
         company_name: tenant.name,
         tenant_name: tenant.name,

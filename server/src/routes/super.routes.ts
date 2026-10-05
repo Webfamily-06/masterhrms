@@ -1,4 +1,9 @@
-import { sendTwoFactorOtpEmail, sendSubscriptionLifecycleEmail } from "../lib/email";
+import {
+  sendTwoFactorOtpEmail,
+  sendSubscriptionLifecycleEmail,
+  sendPaymentConfirmationEmail,
+  sendPaymentRejectionEmail,
+} from "../lib/email";
 import { Router, Response } from "express";
 import { rawPrisma as prisma } from "../prisma";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
@@ -7,7 +12,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
-import { getIO } from "../socket";
+import { getIO, broadcastToTenant } from "../socket";
 import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, syncSubscriptionPlans } from "../services/workspace-policy.service";
 import { generateDatabaseBackup, listBackupSnapshots, getBackupFilePath, deleteBackupSnapshot } from "../services/backup.service";
 import { getLanguagesList, getLanguagePhrases, saveLanguagePhrases, createLanguagePack, deleteLanguagePack, toggleLanguagePackStatus } from "../services/language.service";
@@ -23,9 +28,22 @@ import {
 
 import { TenantUsageMetricsService } from "../services/tenant-usage-metrics.service";
 import { invalidateMaintenanceCache } from "../middleware/maintenance";
+import { SettingsService } from "../services/settings/settings.service";
 import { getBaseDomain, getWorkspaceUrl, getSuperAdminUrl, getRootUrl, invalidateCustomDomainCache, getCustomDomainUrl } from "../lib/workspace-host";
 import { validateCustomDomain } from "../lib/domain-normalization";
 import { getRequiredDnsRecords, verifyDomainDns, getPlatformCnameTarget } from "../services/domain-dns.service";
+import {
+  mapPaymentProvider,
+  resolveDocumentClassification,
+  getAuthoritativeCanonicalInvoice,
+  crossVerifyTransaction,
+  formatDocumentDate,
+  getVerificationMode,
+  resolveVerificationStatus,
+  type VerificationMode,
+  type VerificationStatus,
+} from "../services/invoice-engine.service";
+import { generateInvoicePdf } from "../services/invoice-pdf.service";
 
 export const superRouter = Router();
 
@@ -1938,7 +1956,26 @@ superRouter.get("/settings", requireAuth, requireSuperAdmin, async (_req: AuthRe
       enableTwoFactor: true,
     };
 
-    return res.json(page?.content ? { ...defaultSettings, ...(page.content as any) } : defaultSettings);
+    const brandingRes = await SettingsService.getGroup("branding", "PLATFORM").catch(() => null);
+    const brandingValues = brandingRes?.values || {};
+    const mediaUrls = brandingRes?.mediaUrls || {};
+
+    const merged = {
+      ...defaultSettings,
+      ...((page?.content as any) || {}),
+      ...(brandingValues["branding.app_name"] ? { appName: brandingValues["branding.app_name"] } : {}),
+      ...(brandingValues["branding.support_email"] ? { supportEmail: brandingValues["branding.support_email"] } : {}),
+      ...(brandingValues["branding.primary_color"] ? { primaryThemeColor: brandingValues["branding.primary_color"] } : {}),
+      ...(brandingValues["branding.footer_text"] ? { footerText: brandingValues["branding.footer_text"] } : {}),
+      ...(brandingValues["branding.logo_light_id"] ? { logoLightId: brandingValues["branding.logo_light_id"] } : {}),
+      ...(brandingValues["branding.logo_dark_id"] ? { logoDarkId: brandingValues["branding.logo_dark_id"] } : {}),
+      ...(brandingValues["branding.favicon_id"] ? { faviconId: brandingValues["branding.favicon_id"] } : {}),
+      ...(mediaUrls["branding.logo_light_id"] ? { logoLightUrl: mediaUrls["branding.logo_light_id"] } : {}),
+      ...(mediaUrls["branding.logo_dark_id"] ? { logoDarkUrl: mediaUrls["branding.logo_dark_id"] } : {}),
+      ...(mediaUrls["branding.favicon_id"] ? { faviconUrl: mediaUrls["branding.favicon_id"] } : {}),
+    };
+
+    return res.json(merged);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch platform settings" });
   }
@@ -1962,6 +1999,27 @@ superRouter.put("/settings", requireAuth, requireSuperAdmin, async (req: AuthReq
         updatedBy: req.user!.userId,
       },
     });
+
+    if (content && typeof content === "object") {
+      try {
+        const toSet: Record<string, any> = {};
+        if (content.appName) toSet["branding.app_name"] = content.appName;
+        if (content.supportEmail) toSet["branding.support_email"] = content.supportEmail;
+        if (content.primaryThemeColor || content.primaryColor) {
+          toSet["branding.primary_color"] = content.primaryThemeColor || content.primaryColor;
+        }
+        if (content.footerText) toSet["branding.footer_text"] = content.footerText;
+        if (content.logoLightId !== undefined) toSet["branding.logo_light_id"] = content.logoLightId;
+        if (content.logoDarkId !== undefined) toSet["branding.logo_dark_id"] = content.logoDarkId;
+        if (content.faviconId !== undefined) toSet["branding.favicon_id"] = content.faviconId;
+
+        if (Object.keys(toSet).length > 0) {
+          await SettingsService.setMany(toSet, "PLATFORM", null, req.user?.userId || null);
+        }
+      } catch (syncErr) {
+        console.error("Failed to sync super /settings to SettingsService:", syncErr);
+      }
+    }
 
     invalidateMaintenanceCache();
 
@@ -1994,8 +2052,8 @@ superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: Aut
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const limitNum = Math.max(1, parseInt(String(limit || pageSize), 10) || 10);
 
-    // 1. Fetch real BillingInvoice and PaymentGatewayTransaction from DB
-    const [invoices, rawTxns] = await Promise.all([
+    // 1. Fetch real BillingInvoice, PaymentGatewayTransaction, and CMS Bank Transfers from DB
+    const [invoices, rawTxns, monetizationPage] = await Promise.all([
       prisma.billingInvoice.findMany({
         include: {
           tenant: {
@@ -2035,144 +2093,214 @@ superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: Aut
         },
         orderBy: { createdAt: "desc" },
       }),
+      prisma.cmsPage.findUnique({
+        where: { slug: "system-monetization-plans" },
+      }),
     ]);
 
-    // 2. Map BillingInvoice records
-    const invoiceTransactions = invoices.map((inv: any) => {
-      const tenantEmail =
-        inv.tenant?.profiles?.find((p: any) => p.email)?.email ||
-        `billing@${inv.tenant?.slug || "master"}.com`;
-
-      // Status mapping
-      const rawStatus = (inv.status || "open").toLowerCase();
-      let displayStatus: "Paid" | "Unpaid" | "Failed" = "Unpaid";
-      if (rawStatus === "paid" || rawStatus === "success" || rawStatus === "verified") {
-        displayStatus = "Paid";
-      } else if (rawStatus === "failed" || rawStatus === "void") {
-        displayStatus = "Failed";
+    let bankTransfers: any[] = [];
+    if (monetizationPage?.content) {
+      const c = typeof monetizationPage.content === "string" ? JSON.parse(monetizationPage.content) : monetizationPage.content;
+      if (Array.isArray(c?.bankTransfers)) {
+        bankTransfers = c.bankTransfers;
       }
+    }
 
-      // Payment method formatting
-      const rawMethod = (inv.paymentMethod || "razorpay").toLowerCase();
-      let displayMethod = "Online Payment";
-      if (rawMethod === "stripe") displayMethod = "Credit Card";
-      else if (rawMethod === "razorpay") displayMethod = "Razorpay";
-      else if (rawMethod === "paypal") displayMethod = "Paypal";
-      else if (rawMethod === "bank_transfer") displayMethod = "Bank Transfer";
-      else if (rawMethod === "credit_card") displayMethod = "Credit Card";
-      else if (rawMethod === "debit_card") displayMethod = "Debit Card";
-      else if (rawMethod === "manual") displayMethod = "Manual";
+    // 2. Map BillingInvoice records with Cross-Verification
+    const invoiceTransactions = await Promise.all(
+      invoices.map(async (inv: any) => {
+        const tenantEmail =
+          inv.tenant?.profiles?.find((p: any) => p.email)?.email ||
+          `billing@${inv.tenant?.slug || "master"}.com`;
 
-      const currency = inv.currency || "INR";
-      const amount = Number(inv.amount) || 0;
-      const invoiceNo = inv.invoiceNo || `SUB-INV-${inv.id.slice(0, 8).toUpperCase()}`;
+        // Cross-reference any offline payment proof/evidence submitted for this invoice
+        const matchingTransfer = bankTransfers.find((bt: any) =>
+          (bt.invoice_id && bt.invoice_id === inv.id) ||
+          (bt.invoice_no && bt.invoice_no === inv.invoiceNo) ||
+          (inv.bankTransferRef && bt.reference_no && bt.reference_no.trim().toLowerCase() === inv.bankTransferRef.trim().toLowerCase())
+        );
 
-      return {
-        id: inv.id,
-        invoiceId: invoiceNo,
-        transactionNo: invoiceNo,
-        customerName: inv.tenant?.name || "Master Enterprise ERP",
-        tenantSlug: inv.tenant?.slug || "master",
-        customerEmail: tenantEmail,
-        companyLogo: inv.tenant?.logoUrl || null,
-        amount,
-        currency,
-        paymentMethod: displayMethod,
-        rawPaymentMethod: rawMethod,
-        status: displayStatus,
-        rawStatus,
-        planName: inv.subscription?.plan?.name || "Enterprise SaaS Plan",
-        billingCycle: inv.billingCycle || "monthly",
-        pricingModel: inv.pricingModel || "fixed",
-        billableUsers: inv.billableUsers || null,
-        pricePerUser: inv.pricePerUser ? Number(inv.pricePerUser) : null,
-        discountAmount: Number(inv.discountAmount || 0),
-        subtotalAmount: Number(inv.subtotalAmount || inv.amount),
-        taxAmount: Number(inv.taxAmount || 0),
-        couponCode: inv.couponCode || null,
-        gatewayPaymentId: inv.gatewayPaymentId || inv.gatewayOrderId || inv.gatewayEventId || null,
-        gatewayOrderId: inv.gatewayOrderId || null,
-        bankTransferRef: inv.bankTransferRef || null,
-        periodStart: inv.periodStart ? new Date(inv.periodStart).toISOString() : null,
-        periodEnd: inv.periodEnd ? new Date(inv.periodEnd).toISOString() : null,
-        paidAt: inv.paidAt ? new Date(inv.paidAt).toISOString() : null,
-        createdAt: inv.createdAt ? new Date(inv.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : null,
-        sourceType: "billing_invoice" as const,
-      };
-    });
+        const proofUrl = matchingTransfer?.receipt_url || null;
+        const proofNotes = matchingTransfer?.notes || null;
+        const proofStatus = matchingTransfer?.status || null;
+        const bankTransferRef = inv.bankTransferRef || matchingTransfer?.reference_no || null;
 
-    // 3. Map PaymentGatewayTransaction records
-    const gatewayTransactions = rawTxns.map((tx: any) => {
-      const tenantEmail =
-        tx.tenant?.profiles?.find((p: any) => p.email)?.email ||
-        `billing@${tx.tenant?.slug || "tenant"}.com`;
+        // Status mapping
+        const rawStatus = (inv.status || "open").toLowerCase();
+        let displayStatus: "Paid" | "Unpaid" | "Failed" = "Unpaid";
+        if (rawStatus === "paid" || rawStatus === "success" || rawStatus === "verified") {
+          displayStatus = "Paid";
+        } else if (rawStatus === "failed" || rawStatus === "void" || rawStatus === "rejected") {
+          displayStatus = "Failed";
+        }
 
-      const rawStatus = (tx.status || "pending").toLowerCase();
-      let displayStatus: "Paid" | "Unpaid" | "Failed" = "Unpaid";
-      if (rawStatus === "verified" || rawStatus === "success" || rawStatus === "paid") {
-        displayStatus = "Paid";
-      } else if (rawStatus === "failed" || rawStatus === "declined") {
-        displayStatus = "Failed";
-      }
+        // Payment method formatting & Document Classification
+        const providerMapping = mapPaymentProvider(inv.paymentMethod);
+        const classification = resolveDocumentClassification({
+          sourceType: "billing_invoice",
+          status: inv.status,
+          taxAmount: Number(inv.taxAmount || 0),
+        });
 
-      const rawProvider = (tx.provider || "gateway").toLowerCase();
-      let displayMethod = "Online Payment";
-      if (rawProvider === "stripe") displayMethod = "Credit Card";
-      else if (rawProvider === "paypal") displayMethod = "Paypal";
-      else if (rawProvider === "razorpay") displayMethod = "Razorpay";
-      else if (tx.method) displayMethod = tx.method;
+        const currency = inv.currency || "INR";
+        const amount = Number(inv.amount) || 0;
+        const invoiceNo = inv.invoiceNo || `SUB-INV-${inv.id.slice(0, 8).toUpperCase()}`;
 
-      const currency = tx.currency || "USD";
-      const amount = Number(tx.amount) || 0;
-      const invoiceNo = tx.providerOrderId || `TXN-${tx.id.slice(0, 8).toUpperCase()}`;
+        const verification = await crossVerifyTransaction({
+          sourceType: "billing_invoice",
+          id: inv.id,
+          provider: inv.paymentMethod || "online_payment",
+          amount,
+          currency,
+          status: inv.status,
+          orderId: inv.gatewayOrderId || inv.invoiceNo,
+          paymentId: inv.gatewayPaymentId || bankTransferRef,
+          paidAt: inv.paidAt,
+        });
 
-      return {
-        id: tx.id,
-        invoiceId: invoiceNo,
-        transactionNo: invoiceNo,
-        customerName: tx.tenant?.name || "Global Enterprise",
-        tenantSlug: tx.tenant?.slug || "tenant",
-        customerEmail: tenantEmail,
-        companyLogo: tx.tenant?.logoUrl || null,
-        amount,
-        currency,
-        paymentMethod: displayMethod,
-        rawPaymentMethod: rawProvider,
-        status: displayStatus,
-        rawStatus,
-        planName:
-          rawProvider === "stripe"
-            ? "Stripe Enterprise Checkout"
-            : rawProvider === "paypal"
-            ? "Paypal Plan Settlement"
-            : "Enterprise SaaS Plan",
-        billingCycle: "monthly",
-        pricingModel: "fixed",
-        billableUsers: null,
-        pricePerUser: null,
-        discountAmount: 0,
-        subtotalAmount: amount,
-        taxAmount: 0,
-        couponCode: null,
-        gatewayPaymentId: tx.providerPaymentId || null,
-        gatewayOrderId: tx.providerOrderId || null,
-        bankTransferRef: null,
-        periodStart: null,
-        periodEnd: null,
-        paidAt: tx.verifiedAt
-          ? new Date(tx.verifiedAt).toISOString()
-          : displayStatus === "Paid"
-          ? new Date(tx.createdAt).toISOString()
-          : null,
-        createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: tx.updatedAt ? new Date(tx.updatedAt).toISOString() : null,
-        sourceType: "gateway_transaction" as const,
-      };
-    });
+        return {
+          id: inv.id,
+          invoiceId: invoiceNo,
+          transactionNo: invoiceNo,
+          customerName: inv.tenant?.name || "Master Enterprise ERP",
+          tenantSlug: inv.tenant?.slug || "master",
+          customerEmail: tenantEmail,
+          companyLogo: inv.tenant?.logoUrl || null,
+          amount,
+          currency,
+          paymentMethod: providerMapping.displayName,
+          rawPaymentMethod: providerMapping.normalizedKey,
+          verificationMode: getVerificationMode(inv.paymentMethod),
+          verificationStatus: resolveVerificationStatus(inv.status, getVerificationMode(inv.paymentMethod)),
+          classification,
+          status: displayStatus,
+          rawStatus,
+          planName: inv.subscription?.plan?.name || "Enterprise SaaS Plan",
+          billingCycle: inv.billingCycle || "monthly",
+          pricingModel: inv.pricingModel || "fixed",
+          billableUsers: inv.billableUsers || null,
+          pricePerUser: inv.pricePerUser ? Number(inv.pricePerUser) : null,
+          discountAmount: Number(inv.discountAmount || 0),
+          subtotalAmount: Number(inv.subtotalAmount || inv.amount),
+          taxAmount: Number(inv.taxAmount || 0),
+          couponCode: inv.couponCode || null,
+          gatewayPaymentId: inv.gatewayPaymentId || inv.gatewayOrderId || inv.gatewayEventId || null,
+          gatewayOrderId: inv.gatewayOrderId || null,
+          bankTransferRef,
+          proofUrl,
+          proofNotes,
+          proofStatus,
+          periodStart: inv.periodStart ? new Date(inv.periodStart).toISOString() : null,
+          periodEnd: inv.periodEnd ? new Date(inv.periodEnd).toISOString() : null,
+          paidAt: inv.paidAt ? new Date(inv.paidAt).toISOString() : null,
+          verifiedAt: inv.paidAt ? new Date(inv.paidAt).toISOString() : null,
+          verifiedBy: inv.status === "paid" ? (getVerificationMode(inv.paymentMethod) === "MANUAL" ? (matchingTransfer?.reviewed_by || "Super Admin") : "SYSTEM / Gateway") : null,
+          rejectionReason: matchingTransfer?.rejection_reason || null,
+          createdAt: inv.createdAt ? new Date(inv.createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : null,
+          sourceType: "billing_invoice" as const,
+          verification,
+        };
+      })
+    );
+
+    // 3. Map PaymentGatewayTransaction records with Cross-Verification
+    const gatewayTransactions = await Promise.all(
+      rawTxns.map(async (tx: any) => {
+        const tenantEmail =
+          tx.tenant?.profiles?.find((p: any) => p.email)?.email ||
+          `billing@${tx.tenant?.slug || "tenant"}.com`;
+
+        const rawStatus = (tx.status || "pending").toLowerCase();
+        let displayStatus: "Paid" | "Unpaid" | "Failed" = "Unpaid";
+        if (rawStatus === "verified" || rawStatus === "success" || rawStatus === "paid" || rawStatus === "captured") {
+          displayStatus = "Paid";
+        } else if (rawStatus === "failed" || rawStatus === "declined") {
+          displayStatus = "Failed";
+        }
+
+        const providerMapping = mapPaymentProvider(tx.provider, tx.method);
+        const classification = resolveDocumentClassification({
+          sourceType: "gateway_transaction",
+          status: tx.status,
+          taxAmount: 0,
+        });
+
+        const currency = tx.currency || "USD";
+        const amount = Number(tx.amount) || 0;
+        const invoiceNo = tx.providerOrderId || `TXN-${tx.id.slice(0, 8).toUpperCase()}`;
+
+        const verification = await crossVerifyTransaction({
+          sourceType: "gateway_transaction",
+          id: tx.id,
+          provider: tx.provider,
+          amount,
+          currency,
+          status: tx.status,
+          orderId: tx.providerOrderId,
+          paymentId: tx.providerPaymentId,
+          paidAt: tx.verifiedAt || tx.createdAt,
+        });
+
+        return {
+          id: tx.id,
+          invoiceId: invoiceNo,
+          transactionNo: invoiceNo,
+          customerName: tx.tenant?.name || "Global Enterprise",
+          tenantSlug: tx.tenant?.slug || "tenant",
+          customerEmail: tenantEmail,
+          companyLogo: tx.tenant?.logoUrl || null,
+          amount,
+          currency,
+          paymentMethod: providerMapping.displayName,
+          rawPaymentMethod: providerMapping.normalizedKey,
+          verificationMode: getVerificationMode(tx.provider, tx.method),
+          verificationStatus: resolveVerificationStatus(tx.status, getVerificationMode(tx.provider, tx.method)),
+          classification,
+          status: displayStatus,
+          rawStatus,
+          planName: providerMapping.planDescription,
+          billingCycle: "monthly",
+          pricingModel: "fixed",
+          billableUsers: null,
+          pricePerUser: null,
+          discountAmount: 0,
+          subtotalAmount: amount,
+          taxAmount: 0,
+          couponCode: null,
+          gatewayPaymentId: tx.providerPaymentId || null,
+          gatewayOrderId: tx.providerOrderId || null,
+          bankTransferRef: null,
+          proofUrl: null,
+          proofNotes: null,
+          proofStatus: null,
+          periodStart: null,
+          periodEnd: null,
+          paidAt: tx.verifiedAt
+            ? new Date(tx.verifiedAt).toISOString()
+            : displayStatus === "Paid"
+            ? new Date(tx.createdAt).toISOString()
+            : null,
+          verifiedAt: tx.verifiedAt ? new Date(tx.verifiedAt).toISOString() : (displayStatus === "Paid" ? new Date(tx.createdAt).toISOString() : null),
+          verifiedBy: tx.status === "captured" ? (tx.payload?.verifiedBy || "SYSTEM / Gateway") : null,
+          rejectionReason: null,
+          createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: tx.updatedAt ? new Date(tx.updatedAt).toISOString() : null,
+          sourceType: "gateway_transaction" as const,
+          verification,
+        };
+      })
+    );
 
     // 4. Combine all records
     let all = [...invoiceTransactions, ...gatewayTransactions];
+
+    // Filter by Verification Mode if provided
+    const { verificationMode: queryVerificationMode } = req.query;
+    if (queryVerificationMode && String(queryVerificationMode).trim() !== "" && String(queryVerificationMode) !== "all") {
+      const qMode = String(queryVerificationMode).trim().toUpperCase();
+      all = all.filter((t) => t.verificationMode === qMode);
+    }
 
     // 5. Apply Search Filter
     if (search && String(search).trim()) {
@@ -2221,6 +2349,12 @@ superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: Aut
         if (filterMethod === "bank transfer" || filterMethod === "bank_transfer") {
           return methodLower.includes("bank") || rawMethodLower === "bank_transfer";
         }
+        if (filterMethod === "net banking" || filterMethod === "net_banking") {
+          return methodLower.includes("net") || rawMethodLower === "net_banking";
+        }
+        if (filterMethod === "offline" || filterMethod === "offline payment" || filterMethod === "offline_payment") {
+          return methodLower.includes("offline") || rawMethodLower === "offline";
+        }
         return methodLower === filterMethod || rawMethodLower === filterMethod;
       });
     }
@@ -2243,7 +2377,6 @@ superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: Aut
     // 9. Apply Sorting
     const sort = String(sortBy || "recent").toLowerCase();
     if (sort.includes("last 7 days") || sort === "last_7_days") {
-      // Prioritize last 7 days records, newest first
       all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     } else if (sort.includes("last month") || sort === "last_month" || sort === "last_30_days") {
       all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -2254,7 +2387,6 @@ superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: Aut
     } else if (sort === "amount_low" || sort === "lowest" || sort.includes("low to high")) {
       all.sort((a, b) => a.amount - b.amount);
     } else {
-      // Default: recent / newest
       all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
@@ -2291,329 +2423,679 @@ superRouter.get("/transactions", requireAuth, requireSuperAdmin, async (req: Aut
   }
 });
 
-// Single transaction detail
+// Single transaction detail (Backwards-compatible + canonical invoice record)
 superRouter.get("/transactions/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const canonical = await getAuthoritativeCanonicalInvoice(id);
 
-    // Check BillingInvoice
-    const inv = await prisma.billingInvoice.findUnique({
-      where: { id },
-      include: {
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            logoUrl: true,
-            profiles: { select: { email: true, fullName: true }, take: 3 },
-          },
-        },
-        subscription: {
-          include: { plan: true },
-        },
-      },
-    });
-
-    if (inv) {
-      const tenantEmail =
-        inv.tenant?.profiles?.find((p: any) => p.email)?.email ||
-        `billing@${inv.tenant?.slug || "master"}.com`;
-
-      return res.json({
-        id: inv.id,
-        invoiceId: inv.invoiceNo || `SUB-INV-${inv.id.slice(0, 8).toUpperCase()}`,
-        transactionNo: inv.invoiceNo || `SUB-INV-${inv.id.slice(0, 8).toUpperCase()}`,
-        customerName: inv.tenant?.name || "Master Enterprise ERP",
-        tenantSlug: inv.tenant?.slug || "master",
-        customerEmail: tenantEmail,
-        companyLogo: inv.tenant?.logoUrl || null,
-        amount: Number(inv.amount) || 0,
-        currency: inv.currency || "INR",
-        paymentMethod: inv.paymentMethod || "Razorpay",
-        status: inv.status === "paid" ? "Paid" : inv.status === "failed" ? "Failed" : "Unpaid",
-        rawStatus: inv.status,
-        planName: inv.subscription?.plan?.name || "Enterprise SaaS Plan",
-        billingCycle: inv.billingCycle || "monthly",
-        pricingModel: inv.pricingModel || "fixed",
-        billableUsers: inv.billableUsers || null,
-        pricePerUser: inv.pricePerUser ? Number(inv.pricePerUser) : null,
-        discountAmount: Number(inv.discountAmount || 0),
-        subtotalAmount: Number(inv.subtotalAmount || inv.amount),
-        taxAmount: Number(inv.taxAmount || 0),
-        couponCode: inv.couponCode || null,
-        gatewayPaymentId: inv.gatewayPaymentId || inv.gatewayOrderId || null,
-        gatewayOrderId: inv.gatewayOrderId || null,
-        bankTransferRef: inv.bankTransferRef || null,
-        periodStart: inv.periodStart ? new Date(inv.periodStart).toISOString() : null,
-        periodEnd: inv.periodEnd ? new Date(inv.periodEnd).toISOString() : null,
-        paidAt: inv.paidAt ? new Date(inv.paidAt).toISOString() : null,
-        createdAt: inv.createdAt ? new Date(inv.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: inv.updatedAt ? new Date(inv.updatedAt).toISOString() : null,
-        sourceType: "billing_invoice",
-      });
+    if (!canonical) {
+      return res.status(404).json({ error: "Purchase transaction record not found" });
     }
 
-    // Check PaymentGatewayTransaction
-    const tx = await prisma.paymentGatewayTransaction.findUnique({
-      where: { id },
-      include: {
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            logoUrl: true,
-            profiles: { select: { email: true, fullName: true }, take: 3 },
-          },
-        },
-      },
+    // Lookup any offline payment screenshot proof
+    let proofUrl: string | null = null;
+    let proofNotes: string | null = null;
+    let proofStatus: string | null = null;
+
+    const invoice = await prisma.billingInvoice.findFirst({
+      where: { OR: [{ id }, { invoiceNo: id }] },
     });
 
-    if (tx) {
-      const tenantEmail =
-        tx.tenant?.profiles?.find((p: any) => p.email)?.email ||
-        `billing@${tx.tenant?.slug || "tenant"}.com`;
-
-      return res.json({
-        id: tx.id,
-        invoiceId: tx.providerOrderId || `TXN-${tx.id.slice(0, 8).toUpperCase()}`,
-        transactionNo: tx.providerOrderId || `TXN-${tx.id.slice(0, 8).toUpperCase()}`,
-        customerName: tx.tenant?.name || "Global Enterprise",
-        tenantSlug: tx.tenant?.slug || "tenant",
-        customerEmail: tenantEmail,
-        companyLogo: tx.tenant?.logoUrl || null,
-        amount: Number(tx.amount) || 0,
-        currency: tx.currency || "USD",
-        paymentMethod: tx.provider === "stripe" ? "Credit Card" : tx.provider === "paypal" ? "Paypal" : "Razorpay",
-        status: tx.status === "verified" || tx.status === "success" ? "Paid" : tx.status === "failed" ? "Failed" : "Unpaid",
-        rawStatus: tx.status,
-        planName: tx.provider === "stripe" ? "Stripe Direct Checkout" : "Paypal Plan Settlement",
-        billingCycle: "monthly",
-        pricingModel: "fixed",
-        billableUsers: null,
-        pricePerUser: null,
-        discountAmount: 0,
-        subtotalAmount: Number(tx.amount) || 0,
-        taxAmount: 0,
-        couponCode: null,
-        gatewayPaymentId: tx.providerPaymentId || null,
-        gatewayOrderId: tx.providerOrderId || null,
-        bankTransferRef: null,
-        periodStart: null,
-        periodEnd: null,
-        paidAt: tx.verifiedAt ? new Date(tx.verifiedAt).toISOString() : null,
-        createdAt: tx.createdAt ? new Date(tx.createdAt).toISOString() : new Date().toISOString(),
-        updatedAt: tx.updatedAt ? new Date(tx.updatedAt).toISOString() : null,
-        sourceType: "gateway_transaction",
-      });
+    if (invoice) {
+      const page = await prisma.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } });
+      if (page?.content) {
+        const c = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+        if (Array.isArray(c?.bankTransfers)) {
+          const bt = c.bankTransfers.find((t: any) =>
+            (t.invoice_id && t.invoice_id === invoice.id) ||
+            (t.invoice_no && t.invoice_no === invoice.invoiceNo) ||
+            (invoice.bankTransferRef && t.reference_no && t.reference_no.trim().toLowerCase() === invoice.bankTransferRef.trim().toLowerCase())
+          );
+          if (bt) {
+            proofUrl = bt.receipt_url || null;
+            proofNotes = bt.notes || null;
+            proofStatus = bt.status || null;
+          }
+        }
+      }
     }
 
-    return res.status(404).json({ error: "Purchase transaction record not found" });
+    return res.json({
+      id,
+      invoiceId: canonical.invoiceNo,
+      transactionNo: canonical.invoiceNo,
+      classification: canonical.classification,
+      customerName: canonical.customer.name,
+      tenantSlug: canonical.customer.slug || "master",
+      customerEmail: canonical.customer.email,
+      companyLogo: null,
+      amount: canonical.total,
+      currency: canonical.currency,
+      paymentMethod: canonical.payment.gateway,
+      status: canonical.status === "PAID" ? "Paid" : canonical.status === "FAILED" ? "Failed" : "Unpaid",
+      rawStatus: canonical.status.toLowerCase(),
+      planName: canonical.items[0]?.description || "Enterprise SaaS Plan",
+      billingCycle: canonical.billingPeriod || "monthly",
+      pricingModel: "fixed",
+      billableUsers: null,
+      pricePerUser: null,
+      discountAmount: canonical.discount,
+      subtotalAmount: canonical.subtotal,
+      taxAmount: canonical.tax,
+      couponCode: null,
+      gatewayPaymentId: canonical.payment.reference,
+      gatewayOrderId: canonical.invoiceNo,
+      bankTransferRef: canonical.payment.reference || invoice?.bankTransferRef || null,
+      proofUrl,
+      proofNotes,
+      proofStatus,
+      periodStart: null,
+      periodEnd: null,
+      paidAt: canonical.settlementDate,
+      createdAt: canonical.issueDate,
+      verificationMode: getVerificationMode(canonical.payment.gateway),
+      verificationStatus: resolveVerificationStatus(canonical.status, getVerificationMode(canonical.payment.gateway)),
+      verifiedBy: canonical.status === "PAID" ? (getVerificationMode(canonical.payment.gateway) === "MANUAL" ? "Super Admin" : "SYSTEM / Gateway") : null,
+      verifiedAt: canonical.settlementDate,
+      canonical,
+    });
   } catch (err: any) {
     console.error("Super Admin transaction detail error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch transaction details" });
   }
 });
 
-// Download invoice document / printable receipt
+// Structured invoice preview API (Phase 7 & Phase H)
+superRouter.get("/transactions/:id/preview", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const canonical = await getAuthoritativeCanonicalInvoice(id);
+
+    if (!canonical) {
+      return res.status(404).json({ error: "Purchase transaction record not found for preview" });
+    }
+
+    return res.json({
+      success: true,
+      invoice: canonical,
+    });
+  } catch (err: any) {
+    console.error("Super Admin invoice preview error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch invoice preview" });
+  }
+});
+
+// Download genuine vector PDF document (Phase 7 & Phase E)
 superRouter.get("/transactions/:id/download", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const canonical = await getAuthoritativeCanonicalInvoice(id);
 
-    // Retrieve transaction details
-    const inv = await prisma.billingInvoice.findUnique({
-      where: { id },
+    if (!canonical) {
+      return res.status(404).json({ error: "Purchase transaction record not found for PDF download" });
+    }
+
+    const pdfBuffer = await generateInvoicePdf(canonical);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Invoice-${canonical.invoiceNo}.pdf"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    res.setHeader("Cache-Control", "no-cache");
+    return res.send(pdfBuffer);
+  } catch (err: any) {
+    console.error("Super Admin invoice PDF download error:", err);
+    return res.status(500).json({ error: err.message || "Failed to generate invoice PDF" });
+  }
+});
+
+// ==========================================
+// 4.1 SUPER ADMIN APPROVAL / REJECTION / STATUS ACTIONS
+// ==========================================
+
+// POST /api/super/transactions/:id/approve - Approve offline/manual/bank transfer payment
+superRouter.post("/transactions/:id/approve", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = prisma;
+
+    // 1. Locate the transaction/invoice
+    let invoice = await db.billingInvoice.findFirst({
+      where: {
+        OR: [
+          { id },
+          { invoiceNo: id },
+          { gatewayOrderId: id },
+          { gatewayPaymentId: id },
+          { bankTransferRef: id },
+        ],
+      },
       include: {
         tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            logoUrl: true,
-            timezone: true,
-            profiles: { select: { email: true, fullName: true }, take: 1 },
+          include: {
+            profiles: { select: { email: true, fullName: true } },
+          },
+        },
+        subscription: true,
+      },
+    });
+
+    if (!invoice) {
+      // Check if it's a gateway transaction without an invoice yet
+      const gwTx = await db.paymentGatewayTransaction.findUnique({
+        where: { id },
+        include: { tenant: { include: { profiles: true } } },
+      });
+      if (gwTx) {
+        const vMode = getVerificationMode(gwTx.provider, gwTx.method);
+        if (vMode === "AUTOMATIC") {
+          return res.status(400).json({
+            error: "Automatic gateway transactions (Razorpay, Stripe, PayPal) cannot be manually approved. Automatic payments are verified directly by payment gateway response/webhooks.",
+            code: "AUTOMATIC_TRANSACTION_MANUAL_APPROVAL_DISALLOWED",
+          });
+        }
+        await db.paymentGatewayTransaction.update({
+          where: { id: gwTx.id },
+          data: { status: "captured", verifiedAt: new Date() },
+        });
+        return res.json({
+          success: true,
+          message: `Transaction ${gwTx.providerOrderId} approved successfully.`,
+          status: "Paid",
+        });
+      }
+      return res.status(404).json({ error: "Transaction / invoice record not found" });
+    }
+
+    // Strict Workflow Validation: Automatic gateway transactions cannot be manually approved!
+    const vMode = getVerificationMode(invoice.paymentMethod);
+    if (vMode === "AUTOMATIC") {
+      return res.status(400).json({
+        error: "Automatic gateway transactions (Razorpay, Stripe, PayPal) cannot be manually approved. Automatic payments are verified directly by payment gateway response/webhooks.",
+        code: "AUTOMATIC_TRANSACTION_MANUAL_APPROVAL_DISALLOWED",
+      });
+    }
+
+    // Idempotency: If already paid, return early without duplicate side effects
+    if (invoice.status === "paid") {
+      return res.json({
+        success: true,
+        message: `Invoice #${invoice.invoiceNo} is already verified and marked as Paid.`,
+        invoiceId: invoice.id,
+        invoiceNo: invoice.invoiceNo,
+        status: "Paid",
+      });
+    }
+
+    // State validation: Only eligible pending / open manual payments can be approved
+    if (invoice.status !== "open" && invoice.status !== "draft" && invoice.status !== "pending") {
+      return res.status(400).json({
+        error: `Cannot approve transaction with status '${invoice.status}'. Only pending manual transactions can be approved.`,
+        code: "INVALID_STATE_TRANSITION",
+      });
+    }
+
+    const now = new Date();
+
+    // 2. Authoritative update of BillingInvoice
+    const updatedInvoice = await db.billingInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "paid",
+        paidAt: now,
+      },
+    });
+
+    // 3. Register or update authoritative PaymentGatewayTransaction ledger
+    const providerMapping = mapPaymentProvider(invoice.paymentMethod);
+    const providerKey = providerMapping.normalizedKey || "bank_transfer";
+    const orderId = invoice.invoiceNo;
+    const paymentRef = invoice.bankTransferRef || invoice.gatewayPaymentId || `MANUAL-${invoice.id.slice(0, 8).toUpperCase()}`;
+
+    let registeredTx: any = null;
+    try {
+      registeredTx = await db.paymentGatewayTransaction.upsert({
+        where: {
+          tenantId_provider_providerOrderId: {
+            tenantId: invoice.tenantId,
+            provider: providerKey,
+            providerOrderId: orderId,
+          },
+        },
+        create: {
+          tenantId: invoice.tenantId,
+          provider: providerKey,
+          providerOrderId: orderId,
+          providerPaymentId: paymentRef,
+          amount: invoice.amount,
+          currency: invoice.currency || "INR",
+          status: "captured",
+          method: invoice.paymentMethod || "bank_transfer",
+          verifiedAt: now,
+          payload: {
+            approverId: req.user!.userId,
+            approverRole: "super_admin",
+            approvedAt: now.toISOString(),
+            bankTransferRef: invoice.bankTransferRef,
+            invoiceId: invoice.id,
+            invoiceNo: invoice.invoiceNo,
+          },
+        },
+        update: {
+          providerPaymentId: paymentRef,
+          amount: invoice.amount,
+          currency: invoice.currency || "INR",
+          status: "captured",
+          method: invoice.paymentMethod || "bank_transfer",
+          verifiedAt: now,
+          payload: {
+            approverId: req.user!.userId,
+            approverRole: "super_admin",
+            approvedAt: now.toISOString(),
+            bankTransferRef: invoice.bankTransferRef,
+            invoiceId: invoice.id,
+            invoiceNo: invoice.invoiceNo,
+          },
+        },
+      });
+    } catch (gwErr) {
+      console.warn("Could not upsert paymentGatewayTransaction on manual approval:", gwErr);
+    }
+
+    // 4. Update tenant subscription to active
+    const sub = invoice.subscription;
+    if (sub) {
+      await db.tenantSubscription.update({
+        where: { id: sub.id },
+        data: {
+          status: "active",
+          currentPeriodStart: now,
+          currentPeriodEnd: invoice.periodEnd || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+
+    // 5. Update CMS page system-monetization-plans bank transfers list
+    try {
+      const page = await db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } });
+      if (page?.content) {
+        const content = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+        if (Array.isArray(content.bankTransfers)) {
+          let updated = false;
+          const updatedTransfers = content.bankTransfers.map((bt: any) => {
+            const matches =
+              (bt.invoice_id && bt.invoice_id === invoice.id) ||
+              (bt.invoice_no && bt.invoice_no === invoice.invoiceNo) ||
+              (invoice.bankTransferRef && bt.reference_no && bt.reference_no.trim().toLowerCase() === invoice.bankTransferRef.trim().toLowerCase());
+            if (matches) {
+              updated = true;
+              return {
+                ...bt,
+                status: "approved",
+                reviewed_by: req.user!.userId,
+                approved_at: now.toISOString(),
+              };
+            }
+            return bt;
+          });
+
+          if (updated) {
+            await db.cmsPage.update({
+              where: { slug: "system-monetization-plans" },
+              data: {
+                content: { ...content, bankTransfers: updatedTransfers },
+              },
+            });
+          }
+        }
+      }
+    } catch (cmsErr) {
+      console.warn("Could not update CMS bankTransfers on approval:", cmsErr);
+    }
+
+    // 6. Generate genuine PDF and send confirmation email to tenant billing email
+    try {
+      const canonical = await getAuthoritativeCanonicalInvoice(invoice.id);
+      if (canonical) {
+        const pdfBuffer = await generateInvoicePdf(canonical);
+        const recipientEmail =
+          invoice.tenant?.profiles?.find((p: any) => p.email)?.email ||
+          canonical.customer.email;
+
+        if (recipientEmail && recipientEmail.includes("@")) {
+          await sendPaymentConfirmationEmail({
+            toEmail: recipientEmail,
+            customerName: canonical.customer.name,
+            tenantSlug: canonical.customer.slug || undefined,
+            tenantId: invoice.tenantId,
+            planName: canonical.items[0]?.description || "Enterprise Subscription Plan",
+            paymentMethod: canonical.payment.gateway,
+            amount: canonical.total,
+            currency: canonical.currency,
+            paidAt: now,
+            transactionRef: canonical.payment.reference,
+            invoiceNo: canonical.invoiceNo,
+            pdfBuffer,
+          });
+        }
+      }
+    } catch (emailErr) {
+      console.warn("Could not dispatch confirmation email on manual approval:", emailErr);
+    }
+
+    // 7. Audit logging in SubscriptionPolicyAudit
+    await db.subscriptionPolicyAudit.create({
+      data: {
+        tenantId: invoice.tenantId,
+        subscriptionId: invoice.subscriptionId,
+        actorUserId: req.user!.userId,
+        before: { status: invoice.status, verificationStatus: "PENDING" },
+        after: {
+          status: "paid",
+          verificationStatus: "VERIFIED",
+          verificationMode: "MANUAL",
+          action: "MANUAL_PAYMENT_APPROVED",
+          approvedBy: req.user!.userId,
+          invoiceNo: invoice.invoiceNo,
+          amount: Number(invoice.amount),
+        },
+      },
+    }).catch((auditErr: any) => {
+      console.warn("Could not log SubscriptionPolicyAudit on manual approval:", auditErr);
+    });
+
+    // 8. Real-time WebSocket notification to tenant & Super Admin
+    broadcastToTenant(invoice.tenantId, "payment:confirmed", {
+      invoiceId: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      status: "paid",
+      amount: Number(invoice.amount),
+      currency: invoice.currency,
+    });
+    broadcastToTenant(invoice.tenantId, "subscription:updated", {
+      status: "active",
+      planId: invoice.planId,
+    });
+    getIO()?.emit("super:transaction_updated", {
+      id: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      status: "Paid",
+      verificationStatus: "VERIFIED",
+    });
+
+    return res.json({
+      success: true,
+      message: `Payment for Invoice #${invoice.invoiceNo} has been verified, approved, and registered in the transaction ledger.`,
+      invoiceId: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      status: "Paid",
+      transaction: registeredTx,
+    });
+  } catch (err: any) {
+    console.error("Super Admin transaction approval error:", err);
+    return res.status(500).json({ error: err.message || "Failed to approve transaction." });
+  }
+});
+
+// POST /api/super/transactions/:id/reject - Reject offline/manual payment verification
+superRouter.post("/transactions/:id/reject", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason = "Payment proof could not be verified by Super Admin." } = req.body || {};
+    const db = prisma;
+
+    const invoice = await db.billingInvoice.findFirst({
+      where: {
+        OR: [
+          { id },
+          { invoiceNo: id },
+          { gatewayOrderId: id },
+          { gatewayPaymentId: id },
+          { bankTransferRef: id },
+        ],
+      },
+      include: {
+        tenant: {
+          include: {
+            profiles: { select: { email: true, fullName: true } },
           },
         },
         subscription: {
-          include: { plan: true },
+          include: {
+            plan: true,
+          },
         },
       },
     });
 
-    let invoiceData: any = null;
+    if (!invoice) {
+      const gwTx = await db.paymentGatewayTransaction.findUnique({ where: { id } });
+      if (gwTx) {
+        const vMode = getVerificationMode(gwTx.provider, gwTx.method);
+        if (vMode === "AUTOMATIC") {
+          return res.status(400).json({
+            error: "Automatic gateway transactions (Razorpay, Stripe, PayPal) cannot be manually rejected via this endpoint.",
+            code: "AUTOMATIC_TRANSACTION_MANUAL_REJECTION_DISALLOWED",
+          });
+        }
+        await db.paymentGatewayTransaction.update({
+          where: { id: gwTx.id },
+          data: { status: "failed" },
+        });
+        return res.json({
+          success: true,
+          message: `Transaction ${gwTx.providerOrderId} rejected.`,
+          status: "Failed",
+        });
+      }
+      return res.status(404).json({ error: "Transaction / invoice record not found" });
+    }
 
-    if (inv) {
-      invoiceData = {
-        invoiceNo: inv.invoiceNo || `SUB-INV-${inv.id.slice(0, 8).toUpperCase()}`,
-        tenantName: inv.tenant?.name || "Master Enterprise ERP",
-        tenantEmail: inv.tenant?.profiles?.[0]?.email || `billing@${inv.tenant?.slug || "master"}.com`,
-        slug: inv.tenant?.slug || "master",
-        planName: inv.subscription?.plan?.name || "Enterprise Sovereign Plan",
-        amount: Number(inv.amount) || 0,
-        currency: inv.currency || "INR",
-        status: inv.status === "paid" ? "PAID" : "UNPAID",
-        paymentMethod: inv.paymentMethod?.toUpperCase() || "RAZORPAY",
-        reference: inv.gatewayPaymentId || inv.gatewayOrderId || `REF-${inv.id.slice(0, 8).toUpperCase()}`,
-        date: inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Recent",
-        period: inv.periodStart && inv.periodEnd
-          ? `${new Date(inv.periodStart).toLocaleDateString()} to ${new Date(inv.periodEnd).toLocaleDateString()}`
-          : "Standard Billing Cycle",
-      };
-    } else {
-      const tx = await prisma.paymentGatewayTransaction.findUnique({
-        where: { id },
-        include: {
-          tenant: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              logoUrl: true,
-              profiles: { select: { email: true, fullName: true }, take: 1 },
-            },
-          },
+    // Strict Workflow Validation: Automatic gateway transactions cannot be manually rejected!
+    const vMode = getVerificationMode(invoice.paymentMethod);
+    if (vMode === "AUTOMATIC") {
+      return res.status(400).json({
+        error: "Automatic gateway transactions (Razorpay, Stripe, PayPal) cannot be manually rejected via this endpoint.",
+        code: "AUTOMATIC_TRANSACTION_MANUAL_REJECTION_DISALLOWED",
+      });
+    }
+
+    // Cannot reject an already verified and paid transaction
+    if (invoice.status === "paid") {
+      return res.status(400).json({
+        error: "Cannot reject an already verified and paid transaction.",
+        code: "TRANSACTION_ALREADY_PAID",
+      });
+    }
+
+    // Idempotency: If already rejected/failed, return early
+    if (invoice.status === "failed") {
+      return res.json({
+        success: true,
+        message: `Invoice #${invoice.invoiceNo} is already marked as rejected.`,
+        invoiceId: invoice.id,
+        invoiceNo: invoice.invoiceNo,
+        status: "Failed",
+      });
+    }
+
+    const now = new Date();
+
+    // Authoritative update
+    await db.billingInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "failed",
+      },
+    });
+
+    // Update CMS
+    try {
+      const page = await db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } });
+      if (page?.content) {
+        const content = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+        if (Array.isArray(content.bankTransfers)) {
+          let updated = false;
+          const updatedTransfers = content.bankTransfers.map((bt: any) => {
+            const matches =
+              (bt.invoice_id && bt.invoice_id === invoice.id) ||
+              (bt.invoice_no && bt.invoice_no === invoice.invoiceNo) ||
+              (invoice.bankTransferRef && bt.reference_no && bt.reference_no.trim().toLowerCase() === invoice.bankTransferRef.trim().toLowerCase());
+            if (matches) {
+              updated = true;
+              return {
+                ...bt,
+                status: "rejected",
+                rejection_reason: reason,
+                reviewed_by: req.user!.userId,
+                rejected_at: now.toISOString(),
+              };
+            }
+            return bt;
+          });
+
+          if (updated) {
+            await db.cmsPage.update({
+              where: { slug: "system-monetization-plans" },
+              data: {
+                content: { ...content, bankTransfers: updatedTransfers },
+              },
+            });
+          }
+        }
+      }
+    } catch (cmsErr) {
+      console.warn("Could not update CMS bankTransfers on rejection:", cmsErr);
+    }
+
+    // Audit logging for manual rejection
+    await db.subscriptionPolicyAudit.create({
+      data: {
+        tenantId: invoice.tenantId,
+        subscriptionId: invoice.subscriptionId,
+        actorUserId: req.user!.userId,
+        before: { status: invoice.status, verificationStatus: "PENDING" },
+        after: {
+          status: "failed",
+          verificationStatus: "REJECTED",
+          verificationMode: "MANUAL",
+          action: "MANUAL_PAYMENT_REJECTED",
+          rejectedBy: req.user!.userId,
+          rejectionReason: reason,
+          invoiceNo: invoice.invoiceNo,
+        },
+      },
+    }).catch((auditErr: any) => {
+      console.warn("Could not log SubscriptionPolicyAudit on rejection:", auditErr);
+    });
+
+    // Send rejection email to tenant billing email
+    try {
+      const recipientEmail =
+        invoice.tenant?.profiles?.find((p: any) => p.email)?.email ||
+        `billing@${invoice.tenant?.slug || "master"}.com`;
+
+      if (recipientEmail && recipientEmail.includes("@")) {
+        await sendPaymentRejectionEmail({
+          toEmail: recipientEmail,
+          customerName: invoice.tenant?.name || "Workspace Customer",
+          tenantId: invoice.tenantId,
+          planName: invoice.subscription?.plan?.name || "Enterprise SaaS Plan",
+          paymentMethod: invoice.paymentMethod || "Bank Transfer",
+          invoiceNo: invoice.invoiceNo,
+          amount: Number(invoice.amount),
+          currency: invoice.currency || "INR",
+          transactionRef: invoice.bankTransferRef || null,
+          rejectionReason: reason,
+        });
+      }
+    } catch (emailErr) {
+      console.warn("Could not send rejection email:", emailErr);
+    }
+
+    // Broadcast to tenant and Super Admin
+    broadcastToTenant(invoice.tenantId, "payment:failed", {
+      invoiceId: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      status: "rejected",
+      reason,
+    });
+    getIO()?.emit("super:transaction_updated", {
+      id: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      status: "Failed",
+      verificationStatus: "REJECTED",
+    });
+
+    return res.json({
+      success: true,
+      message: `Payment verification rejected for Invoice #${invoice.invoiceNo}.`,
+      invoiceId: invoice.id,
+      invoiceNo: invoice.invoiceNo,
+      status: "Failed",
+      rejectionReason: reason,
+    });
+  } catch (err: any) {
+    console.error("Super Admin transaction rejection error:", err);
+    return res.status(500).json({ error: err.message || "Failed to reject transaction." });
+  }
+});
+
+// PATCH /api/super/transactions/:id/status - Super Admin manual status change
+superRouter.patch("/transactions/:id/status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+    if (!status) {
+      return res.status(400).json({ error: "Status is required." });
+    }
+
+    const norm = String(status).toLowerCase();
+    const validStatuses = ["paid", "open", "failed", "void", "pending"];
+    if (!validStatuses.includes(norm)) {
+      return res.status(400).json({ error: `Invalid status '${status}'. Must be one of: ${validStatuses.join(", ")}` });
+    }
+
+    const invoice = await prisma.billingInvoice.findFirst({
+      where: {
+        OR: [{ id }, { invoiceNo: id }],
+      },
+    });
+
+    if (invoice) {
+      const updated = await prisma.billingInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: norm,
+          ...(norm === "paid" && !invoice.paidAt ? { paidAt: new Date() } : {}),
         },
       });
-
-      if (tx) {
-        invoiceData = {
-          invoiceNo: tx.providerOrderId || `TXN-${tx.id.slice(0, 8).toUpperCase()}`,
-          tenantName: tx.tenant?.name || "Global Enterprise",
-          tenantEmail: tx.tenant?.profiles?.[0]?.email || `billing@${tx.tenant?.slug || "tenant"}.com`,
-          slug: tx.tenant?.slug || "tenant",
-          planName: tx.provider === "stripe" ? "Stripe Enterprise Checkout" : "Paypal Subscription Settlement",
-          amount: Number(tx.amount) || 0,
-          currency: tx.currency || "USD",
-          status: tx.status === "verified" || tx.status === "success" ? "PAID" : "UNPAID",
-          paymentMethod: tx.provider.toUpperCase(),
-          reference: tx.providerPaymentId || `PAY-${tx.id.slice(0, 8).toUpperCase()}`,
-          date: tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "Recent",
-          period: "Monthly Subscription Interval",
-        };
-      }
+      return res.json({
+        success: true,
+        message: `Transaction status updated to '${norm}'`,
+        invoice: updated,
+      });
     }
 
-    if (!invoiceData) {
-      return res.status(404).json({ error: "Invoice not found for download" });
+    const tx = await prisma.paymentGatewayTransaction.findUnique({ where: { id } });
+    if (tx) {
+      const updated = await prisma.paymentGatewayTransaction.update({
+        where: { id: tx.id },
+        data: {
+          status: norm === "paid" ? "captured" : norm,
+          ...(norm === "paid" && !tx.verifiedAt ? { verifiedAt: new Date() } : {}),
+        },
+      });
+      return res.json({
+        success: true,
+        message: `Transaction status updated to '${norm}'`,
+        transaction: updated,
+      });
     }
 
-    // Generate clean, high-fidelity printable HTML tax invoice
-    const symbol = invoiceData.currency === "INR" ? "₹" : "$";
-    const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Invoice #${invoiceData.invoiceNo} — Master HRMS</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 40px; color: #1e293b; background: #fff; line-height: 1.5; }
-    .invoice-card { max-width: 800px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f1f5f9; padding-bottom: 24px; margin-bottom: 30px; }
-    .brand h1 { margin: 0 0 4px 0; font-size: 24px; font-weight: 800; color: #0f172a; }
-    .brand p { margin: 0; font-size: 12px; color: #64748b; }
-    .invoice-meta { text-align: right; }
-    .invoice-meta h2 { margin: 0 0 4px 0; font-size: 20px; font-weight: 700; color: #ff6b00; }
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; background: ${invoiceData.status === 'PAID' ? '#dcfce7' : '#fee2e2'}; color: ${invoiceData.status === 'PAID' ? '#15803d' : '#b91c1c'}; }
-    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 30px; font-size: 13px; }
-    .parties h4 { margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
-    .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
-    .table th { background: #f8fafc; padding: 12px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0; }
-    .table td { padding: 14px 12px; border-bottom: 1px solid #f1f5f9; }
-    .totals { margin-left: auto; width: 280px; font-size: 13px; }
-    .totals .row { display: flex; justify-content: space-between; padding: 8px 0; color: #64748b; }
-    .totals .grand-total { border-top: 2px solid #e2e8f0; padding-top: 12px; margin-top: 8px; font-size: 16px; font-weight: 800; color: #0f172a; }
-    .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; }
-    @media print {
-      body { padding: 0; }
-      .invoice-card { border: none; box-shadow: none; padding: 0; }
-      .no-print { display: none; }
-    }
-  </style>
-</head>
-<body>
-  <div class="invoice-card">
-    <div class="header">
-      <div class="brand">
-        <h1>Master HRMS</h1>
-        <p>Next-Gen Multi-Tenant Enterprise Cloud Platform</p>
-        <p>support@masterhrms.com • https://masterhrms.com</p>
-      </div>
-      <div class="invoice-meta">
-        <h2>${invoiceData.invoiceNo}</h2>
-        <span class="badge">${invoiceData.status}</span>
-        <p style="margin: 8px 0 0 0; font-size: 12px; color: #64748b;">Date: <strong>${invoiceData.date}</strong></p>
-        <p style="margin: 2px 0 0 0; font-size: 12px; color: #64748b;">Ref: <code style="font-size: 11px;">${invoiceData.reference}</code></p>
-      </div>
-    </div>
-
-    <div class="parties">
-      <div>
-        <h4>Billed To:</h4>
-        <strong style="font-size: 15px; color: #0f172a;">${invoiceData.tenantName}</strong><br>
-        <span>Workspace: ${invoiceData.slug}.masterhrms.com</span><br>
-        <span>Billing Email: ${invoiceData.tenantEmail}</span>
-      </div>
-      <div>
-        <h4>Payment Overview:</h4>
-        <span>Payment Method: <strong>${invoiceData.paymentMethod}</strong></span><br>
-        <span>Billing Cycle: <strong>${invoiceData.period}</strong></span><br>
-        <span>Settlement Status: <strong style="color: ${invoiceData.status === 'PAID' ? '#15803d' : '#b91c1c'};">${invoiceData.status}</strong></span>
-      </div>
-    </div>
-
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th>Service Interval</th>
-          <th style="text-align: right;">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <strong>${invoiceData.planName}</strong><br>
-            <span style="font-size: 11px; color: #64748b;">Cloud ERP subscription tier license and tenant isolation compute</span>
-          </td>
-          <td>${invoiceData.period}</td>
-          <td style="text-align: right; font-weight: 700;">${symbol}${invoiceData.amount.toLocaleString()}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="totals">
-      <div class="row">
-        <span>Subtotal</span>
-        <span>${symbol}${invoiceData.amount.toLocaleString()}</span>
-      </div>
-      <div class="row">
-        <span>Taxes & Fees</span>
-        <span>${symbol}0.00</span>
-      </div>
-      <div class="row grand-total">
-        <span>Total Paid</span>
-        <span style="color: #ff6b00;">${symbol}${invoiceData.amount.toLocaleString()} ${invoiceData.currency}</span>
-      </div>
-    </div>
-
-    <div class="footer">
-      <p>Thank you for choosing Master HRMS. This is a computer-generated tax invoice and requires no physical signature.</p>
-    </div>
-  </div>
-  <script>
-    if (window.location.search.includes('print=true')) {
-      window.onload = function() { window.print(); };
-    }
-  </script>
-</body>
-</html>`;
-
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="Invoice_${invoiceData.invoiceNo}.html"`);
-    return res.send(htmlContent);
+    return res.status(404).json({ error: "Transaction not found." });
   } catch (err: any) {
-    console.error("Super Admin invoice download error:", err);
-    return res.status(500).json({ error: err.message || "Failed to download invoice" });
+    return res.status(500).json({ error: err.message || "Failed to update transaction status." });
   }
 });
 

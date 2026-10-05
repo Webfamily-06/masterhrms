@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { useThemeMode, isDarkModeActive } from "./theme";
+
+export { useThemeMode, isDarkModeActive };
 
 export interface TenantBranding {
   resolved: boolean;
@@ -12,6 +15,7 @@ export interface TenantBranding {
   slug: string;
   logoUrl: string;
   logoDark?: string;
+  activeLogo?: string;
   faviconUrl: string;
   primaryColor: string;
   timezone: string;
@@ -33,7 +37,8 @@ export const DEFAULT_BRANDING: TenantBranding = {
   name: "Master HRMS",
   slug: "default",
   logoUrl: "/logo.webp",
-  logoDark: "/logo.webp",
+  logoDark: "/white-logo.webp",
+  activeLogo: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
   primaryColor: "#FF6B00",
   timezone: "Asia/Kolkata",
@@ -43,9 +48,10 @@ export const DEFAULT_BRANDING: TenantBranding = {
 };
 
 export function useTenantBranding() {
+  const { isDark } = useThemeMode();
   const hasAuthToken = typeof window !== "undefined" && !!localStorage.getItem("hrms_auth_token");
 
-  const { data: branding = DEFAULT_BRANDING, isLoading } = useQuery<TenantBranding>({
+  const { data: rawBranding = DEFAULT_BRANDING, isLoading } = useQuery<TenantBranding>({
     queryKey: ["tenant-branding", hasAuthToken],
     queryFn: async () => {
       try {
@@ -61,7 +67,8 @@ export function useTenantBranding() {
                 name: hostRes.name || DEFAULT_BRANDING.name,
                 slug: hostRes.slug,
                 logoUrl: hostRes.logoUrl || DEFAULT_BRANDING.logoUrl,
-                logoDark: hostRes.logoUrl || DEFAULT_BRANDING.logoDark,
+                logoDark: hostRes.logoDark || hostRes.logoUrl || DEFAULT_BRANDING.logoDark,
+                faviconUrl: hostRes.faviconUrl || DEFAULT_BRANDING.faviconUrl,
                 timezone: hostRes.timezone || "Asia/Kolkata",
                 baseDomain: hostRes.baseDomain,
                 workspaceUrl: hostRes.workspaceUrl,
@@ -107,8 +114,8 @@ export function useTenantBranding() {
               name: brand.titleText || tenant.name || DEFAULT_BRANDING.name,
               slug: tenant.slug || "default",
               logoUrl: brand.logoLight || brand.logoDark || tenant.logoUrl || DEFAULT_BRANDING.logoUrl,
-              logoDark: brand.logoDark || brand.logoLight || tenant.logoUrl || DEFAULT_BRANDING.logoUrl,
-              faviconUrl: brand.favicon || tenant.logoUrl || DEFAULT_BRANDING.faviconUrl,
+              logoDark: brand.logoDark || brand.logoLight || tenant.logoUrl || DEFAULT_BRANDING.logoDark,
+              faviconUrl: brand.favicon || tenant.faviconUrl || tenant.logoUrl || DEFAULT_BRANDING.faviconUrl,
               primaryColor: brand.themeColor ? (brand.themeColor.startsWith("#") ? brand.themeColor : "#FF6B00") : (tenant.primaryColor || "#FF6B00"),
               timezone: tenant.timezone || "Asia/Kolkata",
               currency: brand.currency || "INR",
@@ -118,6 +125,23 @@ export function useTenantBranding() {
           }
         }
 
+        // Load platform app-config for platform branding fallback
+        try {
+          const appConfig = await api.get("/v1/public/app-config");
+          if (appConfig) {
+            return {
+              ...DEFAULT_BRANDING,
+              name: appConfig.appName || DEFAULT_BRANDING.name,
+              logoUrl: appConfig.logoLightUrl || DEFAULT_BRANDING.logoUrl,
+              logoDark: appConfig.logoDarkUrl || DEFAULT_BRANDING.logoDark,
+              faviconUrl: appConfig.faviconUrl || DEFAULT_BRANDING.faviconUrl,
+              primaryColor: appConfig.primaryColor || DEFAULT_BRANDING.primaryColor,
+              currency: appConfig.locale?.defaultCurrency || DEFAULT_BRANDING.currency,
+              currencySymbol: appConfig.locale?.currencySymbol || DEFAULT_BRANDING.currencySymbol,
+            };
+          }
+        } catch {}
+
         return DEFAULT_BRANDING;
       } catch {
         return DEFAULT_BRANDING;
@@ -125,6 +149,16 @@ export function useTenantBranding() {
     },
     staleTime: 60 * 1000,
   });
+
+  const branding: TenantBranding = {
+    ...rawBranding,
+    logoUrl: rawBranding.logoUrl || DEFAULT_BRANDING.logoUrl,
+    logoDark: rawBranding.logoDark || DEFAULT_BRANDING.logoDark,
+    faviconUrl: rawBranding.faviconUrl || DEFAULT_BRANDING.faviconUrl,
+    activeLogo: isDark
+      ? rawBranding.logoDark || DEFAULT_BRANDING.logoDark
+      : rawBranding.logoUrl || DEFAULT_BRANDING.logoUrl,
+  };
 
   // Dynamically apply Favicon and Brand Colors
   useEffect(() => {
@@ -152,5 +186,5 @@ export function useTenantBranding() {
     }
   }, [branding]);
 
-  return { branding, isLoading };
+  return { branding, isDark, isLoading };
 }

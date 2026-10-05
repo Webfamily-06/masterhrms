@@ -153,5 +153,7 @@ i18n
 // Export the initialized instance
 export default i18n;
 
-// Make sure the i18n instance is available for direct imports
-window.i18next = i18n;
+// Make sure the i18n instance is available for direct imports in browser environments
+if (typeof window !== 'undefined') {
+  window.i18next = i18n;
+}

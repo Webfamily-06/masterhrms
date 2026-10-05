@@ -154,7 +154,7 @@ const ALL_SEARCH_ITEMS = [
 function AppShell() {
   const { data: profile, isLoading, error: profileError, refetch: reloadProfile } = useCurrentProfile();
   const { loading } = useSession();
-  const { branding } = useTenantBranding();
+  const { branding, isDark } = useTenantBranding();
   const navigate = useNavigate();
   const path = useRouterState({ select: (r) => r.location.pathname });
 
@@ -597,11 +597,11 @@ function AppShell() {
             {/* Mobile Brand Logo (Visible only on mobile / tablet < 992px) */}
             <Link to={homeRoute} className="logo lg:hidden flex items-center gap-1.5 shrink-0">
               <img
-                src={branding.logoUrl || "/logo.webp"}
+                src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
                 alt={branding.name || "Master Platform"}
                 className="h-7 max-h-7 w-auto object-contain"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/logo.webp";
+                  (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
                 }}
                 loading="lazy"
               />
@@ -638,7 +638,7 @@ function AppShell() {
                   <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md py-[6px] px-2.5 flex items-center justify-between gap-2 shadow-xs hover:border-primary/40 transition-colors">
                     <div className="flex items-center gap-2">
                       <div className="size-5 rounded-md flex items-center justify-center shrink-0">
-                        <img src="/favicon.webp" alt="company" className="size-3.5"  loading="lazy"/>
+                        <img src={branding.faviconUrl || "/favicon.webp"} alt="company" className="size-3.5 object-contain" loading="lazy"/>
                       </div>
                       <p className="text-[13px] font-semibold text-title leading-none truncate max-w-[150px]">
                         {profile.tenant?.name || "Falcon LLP"}
@@ -654,7 +654,7 @@ function AppShell() {
                 </DropdownMenuLabel>
                 <DropdownMenuItem className="flex items-center gap-2 p-2 rounded-md font-medium text-sm">
                   <div className="size-6 rounded-md flex items-center justify-center">
-                    <img src="/favicon.webp" alt="Tenant" className="size-4"  loading="lazy"/>
+                    <img src={branding.faviconUrl || "/favicon.webp"} alt="Tenant" className="size-4 object-contain" loading="lazy"/>
                   </div>
                   <span className="truncate">{profile.tenant?.name || "Falcon LLP"}</span>
                 </DropdownMenuItem>

@@ -320,18 +320,9 @@ export function SubscriptionPage() {
             invoiceId: pendingCheckout.invoiceId,
           });
         } else {
-          await api.post("/billing/webhook", {
-            event: "payment.captured",
-            id: `evt_${Date.now()}`,
-            payload: {
-              payment: {
-                entity: {
-                  id: paymentDetails.paymentId || `pay_${Date.now()}`,
-                  order_id: pendingCheckout.orderId,
-                },
-              },
-            },
-          });
+          throw new Error(
+            `Automated server-side verification for ${paymentDetails.method} is pending gateway configuration. Please use Razorpay or Bank Transfer.`
+          );
         }
       }
       toast.success("Payment confirmed! Your subscription is now active.");

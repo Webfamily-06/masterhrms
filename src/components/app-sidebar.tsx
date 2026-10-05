@@ -54,12 +54,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAppConfig } from "@/lib/useAppConfig";
+import { useThemeMode } from "@/lib/theme";
 
 export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const path = useRouterState({ select: (r) => r.location.pathname });
   const navigate = useNavigate();
+  const { isDark } = useThemeMode();
 
   const HRM_PATHS = new Set([
     "/hrm", "/employees", "/attendance", "/leave", "/payroll",
@@ -106,15 +109,8 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
     );
   }
 
-  const { data: platformSettings } = useQuery({
-    queryKey: ["realtime-platform-settings"],
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-    queryFn: async () => {
-      try { const page = await api.get("/cms/pages/system-platform-settings"); return page?.content || null; }
-      catch { return null; }
-    },
-  });
+  // Use authoritative Settings Registry branding via useAppConfig
+  const { appConfig } = useAppConfig();
 
   async function signOut() {
     try { await api.post("/auth/logout"); } catch {}
@@ -217,18 +213,20 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         <Link to="/hrm-dashboard" className="flex items-center justify-center py-3 px-4 hover:opacity-80 transition-opacity">
           {collapsed ? (
             <img
-              src={platformSettings?.faviconUrl || "/favicon.webp"}
+              src={appConfig.faviconUrl || "/favicon.webp"}
               alt="Logo"
               className="size-8 object-contain"
               onError={(e) => { (e.target as HTMLImageElement).src = "/favicon.webp"; }}
-             loading="lazy"/>
+              loading="lazy"
+            />
           ) : (
             <img
-              src={platformSettings?.logoLightUrl || "/logo.webp"}
-              alt="Platform"
+              src={isDark ? (appConfig.logoDarkUrl || "/white-logo.webp") : (appConfig.logoLightUrl || "/logo.webp")}
+              alt={appConfig.appName || "Platform"}
               className="h-9 w-full object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).src = "/logo.webp"; }}
-             loading="lazy"/>
+              onError={(e) => { (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp"; }}
+              loading="lazy"
+            />
           )}
         </Link>
       </SidebarHeader>
@@ -389,7 +387,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         {/* Super Admin */}
         {profile?.roles?.includes("super_admin") && (
           <>
-            <SectionLabel label="System" color="text-purple-500/70" />
+            <SectionLabel label="System" color="text-primary/70" />
             <SidebarGroup className="p-0">
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -398,8 +396,8 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
                       asChild isActive={path.startsWith("/super")}
                       className={cn("h-9 px-3 rounded-md text-[11px] font-semibold transition-all",
                         path.startsWith("/super")
-                          ? "bg-purple-500/15 text-purple-600 dark:text-purple-400"
-                          : "text-purple-600 dark:text-purple-400 hover:bg-purple-500/10")}
+                          ? "bg-primary/15 text-primary"
+                          : "text-primary hover:bg-primary/10")}
                     >
                       <Link to="/super" className="flex items-center gap-2.5">
                         <ShieldCheck className="size-4 shrink-0" />

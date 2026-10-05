@@ -104,13 +104,10 @@ export async function openPayPalCheckout({
         if (document.body.contains(slot)) {
           document.body.removeChild(slot);
         }
-        // Fallback simulation
-        const orderId = `PP-PAY-${Date.now().toString().slice(-8)}`;
-        resolve({ paypal_order_id: orderId });
+        reject(new Error(err?.message || "Failed to initialize PayPal checkout window."));
       }
     } else {
-      const orderId = `PP-PAY-${Date.now().toString().slice(-8)}`;
-      resolve({ paypal_order_id: orderId });
+      reject(new Error("PayPal checkout SDK is unavailable in this environment."));
     }
   });
 }

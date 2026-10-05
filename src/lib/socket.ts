@@ -88,6 +88,50 @@ export function useRealtimeSocket() {
       qc.invalidateQueries({ queryKey: ["realtime-tenant-dashboard-stats"] });
     }
 
+    function onPaymentConfirmed(data: any) {
+      toast.success("Payment Confirmed", {
+        description: `Invoice #${data.invoiceNo || data.invoiceId} verified! Subscription is active.`,
+      });
+      qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
+      qc.invalidateQueries({ queryKey: ["billing-plans"] });
+      qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+      qc.invalidateQueries({ queryKey: ["tenant-billing-history"] });
+      qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
+    }
+
+    function onPaymentRejected(data: any) {
+      toast.error("Payment Verification Failed", {
+        description: data.reason || `Payment for Invoice #${data.invoiceNo || data.invoiceId} was rejected.`,
+      });
+      qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
+      qc.invalidateQueries({ queryKey: ["billing-plans"] });
+      qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+      qc.invalidateQueries({ queryKey: ["tenant-billing-history"] });
+      qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
+    }
+
+    function onSubscriptionUpdated(data: any) {
+      qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
+      qc.invalidateQueries({ queryKey: ["billing-plans"] });
+      qc.invalidateQueries({ queryKey: ["tenant-features"] });
+      qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
+    }
+
+    function onSuperTransactionUpdated() {
+      qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
+    }
+
+    function onSettingsUpdated(data: any) {
+      console.log("⚡ [Realtime] settings.updated received:", data);
+      qc.invalidateQueries({ queryKey: ["app-config"] });
+      qc.invalidateQueries({ queryKey: ["tenant-branding"] });
+      qc.invalidateQueries({ queryKey: ["realtime-platform-settings"] });
+      if (data?.group) {
+        qc.invalidateQueries({ queryKey: ["settings", data.group] });
+      }
+      window.dispatchEvent(new CustomEvent("settings-updated", { detail: data }));
+    }
+
     function onNotification(notif: { title: string; description: string; type?: any; timestamp?: string }) {
       const newNotif: RealtimeNotification = {
         id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -114,6 +158,12 @@ export function useRealtimeSocket() {
     socket.on("punch:new", onNewPunch);
     socket.on("leave:updated", onLeaveUpdated);
     socket.on("notification:new", onNotification);
+    socket.on("payment:confirmed", onPaymentConfirmed);
+    socket.on("payment:rejected", onPaymentRejected);
+    socket.on("subscription:activated", onSubscriptionUpdated);
+    socket.on("subscription:updated", onSubscriptionUpdated);
+    socket.on("super:transaction_updated", onSuperTransactionUpdated);
+    socket.on("settings.updated", onSettingsUpdated);
 
     if (socket.connected) {
       onConnect();
@@ -125,6 +175,12 @@ export function useRealtimeSocket() {
       socket.off("punch:new", onNewPunch);
       socket.off("leave:updated", onLeaveUpdated);
       socket.off("notification:new", onNotification);
+      socket.off("payment:confirmed", onPaymentConfirmed);
+      socket.off("payment:rejected", onPaymentRejected);
+      socket.off("subscription:activated", onSubscriptionUpdated);
+      socket.off("subscription:updated", onSubscriptionUpdated);
+      socket.off("super:transaction_updated", onSuperTransactionUpdated);
+      socket.off("settings.updated", onSettingsUpdated);
     };
   }, [tenantId, qc]);
 

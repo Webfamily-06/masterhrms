@@ -1,4 +1,5 @@
 import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
+import { WorkspaceBrandingSettings } from "@/components/settings/workspace-branding-settings";
 import { AccessDenied } from "@/components/access-denied";
 import { isWorkspaceAdminUser } from "@/lib/permissions";
 import { createFileRoute, Link, useSearch, Outlet, useRouterState } from "@tanstack/react-router";
@@ -74,6 +75,7 @@ import {
   Code,
   Play,
   AlertTriangle,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -682,6 +684,11 @@ function Settings() {
                 <span>Workspace (Roles &amp; Modules)</span>
               </TabsTrigger>
 
+              <TabsTrigger value="workspace-branding" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
+                <Palette className="size-3.5 text-primary" />
+                <span>Workspace Branding</span>
+              </TabsTrigger>
+
               <TabsTrigger value="organization" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
                 <Building2 className="size-3.5 text-primary" />
                 <span>Organization &amp; Office Timing</span>
@@ -745,6 +752,11 @@ function Settings() {
         {/* ===================== TAB 0: WORKSPACE ADMIN (ROLES & MODULES) ===================== */}
         <TabsContent value="workspace" className="space-y-5">
           <WorkspaceAdminSettings />
+        </TabsContent>
+
+        {/* ===================== TAB 0.5: WORKSPACE BRANDING (WHITE-LABEL) ===================== */}
+        <TabsContent value="workspace-branding" className="space-y-5">
+          <WorkspaceBrandingSettings />
         </TabsContent>
 
         {/* ===================== TAB 1: ORGANIZATION & OFFICE TIMINGS ===================== */}

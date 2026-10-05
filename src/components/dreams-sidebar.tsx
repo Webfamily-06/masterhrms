@@ -24,7 +24,7 @@ export function DreamsSidebar({
   fullView = false,
   onToggleFullView,
 }: DreamsSidebarProps) {
-  const { branding } = useTenantBranding();
+  const { branding, isDark } = useTenantBranding();
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const [isHovered, setIsHovered] = useState(false);
   const [ignoreHover, setIgnoreHover] = useState(false);
@@ -113,11 +113,11 @@ export function DreamsSidebar({
               onClick={onCloseMobile}
             >
               <img
-                src={branding.logoUrl || "/logo.webp"}
+                src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
                 alt={branding.name || "Master HRMS & ERP"}
-                className="h-8 max-h-8 w-auto object-contain dark:brightness-110"
+                className="h-8 max-h-8 w-auto object-contain"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/logo.webp";
+                  (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
                 }}
                 loading="lazy"
               />
@@ -176,7 +176,7 @@ export function DreamsSidebar({
                 <Link
                   to="/super"
                   onClick={onCloseMobile}
-                  className={cn(currentPath.startsWith("/super") && "active", "text-purple-600 dark:text-purple-400 font-semibold")}
+                  className={cn(currentPath.startsWith("/super") && "active", "text-primary font-semibold")}
                 >
                   <i className="ph-duotone ph-shield-check"></i>
                   <span>Super Admin Console</span>
@@ -1807,7 +1807,7 @@ export function DreamsSidebar({
                   to="/super"
                   onClick={onCloseMobile}
                   className={cn(
-                    "text-purple-600 dark:text-purple-400 font-semibold",
+                    "text-primary font-semibold",
                     currentPath.startsWith("/super") && "active"
                   )}
                 >

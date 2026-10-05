@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../prisma";
 import { getBaseDomain, getRootUrl } from "./workspace-host";
+import { resolveBranding, ResolvedBranding } from "../services/branding/branding-resolver.service";
 
 export interface SmtpConfig {
   smtpHost: string;
@@ -15,12 +16,37 @@ export interface SmtpConfig {
   logoUrl?: string;
   otpEmailSubject?: string;
   otpEmailTemplate?: string;
+  branding?: ResolvedBranding;
+}
+
+export interface EmailConfigOptions {
+  scope?: "PLATFORM" | "TENANT";
+  tenantId?: string | null;
+  baseUrl?: string;
 }
 
 /**
- * Fetch latest SMTP and Email Template settings dynamically from Database
+ * Fetch latest SMTP and Email Template settings dynamically from Database.
+ * Resolves brand identity (appName, logoUrl, supportEmail) via authoritative BrandingResolverService.
  */
-export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
+export async function getDynamicEmailConfig(options: EmailConfigOptions = {}): Promise<SmtpConfig> {
+  const branding = await resolveBranding({
+    scope: options.scope,
+    tenantId: options.tenantId,
+    baseUrl: options.baseUrl,
+  });
+
+  let host = process.env.SMTP_HOST || process.env.VITE_SMTP_HOST || "";
+  let port = parseInt(process.env.SMTP_PORT || process.env.VITE_SMTP_PORT || "465", 10);
+  let user = process.env.SMTP_USER || process.env.VITE_SMTP_USER || "";
+  let pass = process.env.SMTP_PASS || process.env.VITE_SMTP_PASS || "";
+  let encryption = (process.env.SMTP_ENCRYPTION || process.env.VITE_SMTP_ENCRYPTION || "ssl") as any;
+  let fromName = branding.appName || process.env.SMTP_FROM_NAME || process.env.VITE_SMTP_FROM_NAME || "Master HRMS System";
+  let fromEmail = branding.supportEmail || process.env.SMTP_FROM_EMAIL || process.env.VITE_SMTP_FROM_EMAIL || user || `support@${getBaseDomain()}`;
+  let ignoreTls = process.env.SMTP_IGNORE_TLS === "true" || process.env.VITE_SMTP_IGNORE_TLS === "true";
+  let otpEmailSubject: string | undefined = undefined;
+  let otpEmailTemplate: string | undefined = undefined;
+
   try {
     const page = await prisma.cmsPage.findFirst({
       where: { slug: "system-platform-settings" },
@@ -28,47 +54,30 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
 
     if (page?.content) {
       const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
-      let logoUrl = c.logoLightUrl || c.logoDarkUrl || "";
-      if (logoUrl && !logoUrl.startsWith("http://") && !logoUrl.startsWith("https://")) {
-        const baseUrl = (c.frontendBaseUrl || process.env.APP_URL || getRootUrl()).replace(/\/$/, "");
-        logoUrl = `${baseUrl}${logoUrl.startsWith("/") ? "" : "/"}${logoUrl}`;
-      }
 
       if (c.smtpHost && c.smtpUser && c.smtpPass) {
-        return {
-          smtpHost: String(c.smtpHost).trim(),
-          smtpPort: parseInt(String(c.smtpPort || "465"), 10),
-          smtpUser: String(c.smtpUser).trim(),
-          smtpPass: String(c.smtpPass).trim(),
-          smtpEncryption: (c.smtpEncryption || "ssl") as any,
-          smtpFromName: c.smtpFromName || "Master HRMS System",
-          smtpFromEmail: c.smtpFromEmail || c.smtpUser,
-          ignoreTls: c.smtpIgnoreTls === true || c.smtpIgnoreTls === "true" || false,
-          appName: c.appName || "Master HRMS & ERP",
-          logoUrl: logoUrl || undefined,
-          otpEmailSubject: c.otpEmailSubject || undefined,
-          otpEmailTemplate: c.otpEmailTemplate || undefined,
-        };
+        host = String(c.smtpHost).trim();
+        port = parseInt(String(c.smtpPort || "465"), 10);
+        user = String(c.smtpUser).trim();
+        pass = String(c.smtpPass).trim();
+        encryption = (c.smtpEncryption || "ssl") as any;
+        if (c.smtpFromName) fromName = c.smtpFromName;
+        if (c.smtpFromEmail) fromEmail = c.smtpFromEmail;
+        if (c.smtpIgnoreTls !== undefined) {
+          ignoreTls = c.smtpIgnoreTls === true || c.smtpIgnoreTls === "true";
+        }
       }
+      if (c.otpEmailSubject) otpEmailSubject = c.otpEmailSubject;
+      if (c.otpEmailTemplate) otpEmailTemplate = c.otpEmailTemplate;
     }
   } catch (err: any) {
     console.warn("⚠️ Could not load dynamic SMTP settings from DB, checking .env fallback:", err.message);
   }
 
-  // Fallback to process.env — check both bare SMTP_* and VITE_SMTP_* (Vite prefix)
-  const host = process.env.SMTP_HOST || process.env.VITE_SMTP_HOST || "";
-  const port = parseInt(process.env.SMTP_PORT || process.env.VITE_SMTP_PORT || "465", 10);
-  const user = process.env.SMTP_USER || process.env.VITE_SMTP_USER || "";
-  const pass = process.env.SMTP_PASS || process.env.VITE_SMTP_PASS || "";
-  const encryption = (process.env.SMTP_ENCRYPTION || process.env.VITE_SMTP_ENCRYPTION || "ssl") as any;
-  const fromName = process.env.SMTP_FROM_NAME || process.env.VITE_SMTP_FROM_NAME || "Master HRMS System";
-  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.VITE_SMTP_FROM_EMAIL || user || `support@${getBaseDomain()}`;
-  const ignoreTls = process.env.SMTP_IGNORE_TLS === "true" || process.env.VITE_SMTP_IGNORE_TLS === "true";
-
   if (host && user && pass) {
-    console.log(`📨 [email.ts] Using .env SMTP fallback: ${host}:${port} (${encryption}) ignoreTLS=${ignoreTls} as ${user}`);
+    console.log(`📨 [email.ts] Using SMTP host: ${host}:${port} (${encryption}) ignoreTLS=${ignoreTls} as ${user}`);
   } else {
-    console.warn("⚠️ [email.ts] No SMTP config found in DB or .env — emails will not be delivered.");
+    console.warn("⚠️ [email.ts] No SMTP credentials found in DB or .env — emails will not be delivered.");
   }
 
   return {
@@ -80,8 +89,11 @@ export async function getDynamicEmailConfig(): Promise<SmtpConfig> {
     smtpFromName: fromName,
     smtpFromEmail: fromEmail,
     ignoreTls,
-    appName: "Master HRMS & ERP",
-    logoUrl: `${process.env.APP_URL || getRootUrl()}/logo.webp`,
+    appName: branding.appName,
+    logoUrl: branding.absoluteLogoLightUrl || branding.absoluteLogoDarkUrl,
+    otpEmailSubject,
+    otpEmailTemplate,
+    branding,
   };
 }
 
@@ -90,6 +102,8 @@ export interface SendOtpOptions {
   otp: string;
   fullName?: string;
   isSetup?: boolean;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
 }
 
 /**
@@ -200,8 +214,11 @@ export async function sendTwoFactorOtpEmail({
   otp,
   fullName,
   isSetup = false,
+  tenantId,
+  scope,
 }: SendOtpOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const config = await getDynamicEmailConfig();
+  const resolvedScope = scope || (tenantId ? "TENANT" : "PLATFORM");
+  const config = await getDynamicEmailConfig({ scope: resolvedScope, tenantId });
   const userName = fullName || toEmail.split("@")[0] || "User";
   const appName = config.appName || "Master HRMS & ERP";
 
@@ -339,6 +356,8 @@ export interface LifecycleEmailOptions {
     htmlBody: string;
   };
   variables: Record<string, string>;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
 }
 
 export const LIFECYCLE_EMAIL_TEMPLATES: Record<string, { subject: string; htmlBody: string }> = {
@@ -586,7 +605,14 @@ export async function sendSubscriptionLifecycleEmail(options: LifecycleEmailOpti
   error?: string;
 }> {
   const { toEmail, templateId, templateFallback, variables } = options;
-  const config = await getDynamicEmailConfig();
+  const tenantId = options.tenantId || variables?.tenant_id || variables?.tenantId || null;
+  const resolvedScope = options.scope || (tenantId ? "TENANT" : "PLATFORM");
+  const config = await getDynamicEmailConfig({ scope: resolvedScope, tenantId });
+
+  // Enrich variables with resolved branding
+  if (!variables.app_name) variables.app_name = config.appName || "Master HRMS";
+  if (!variables.support_email) variables.support_email = config.smtpFromEmail || `support@${getBaseDomain()}`;
+  if (!variables.logo_url && config.logoUrl) variables.logo_url = config.logoUrl;
 
   // 1. Try to find customized template from CMS
   let subject = "";
@@ -698,4 +724,374 @@ export async function sendSubscriptionLifecycleEmail(options: LifecycleEmailOpti
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// 4. Authoritative Payment Confirmation & Invoice Dispatch
+// ---------------------------------------------------------------------------
+export interface PaymentConfirmationEmailParams {
+  toEmail: string;
+  customerName: string;
+  tenantSlug?: string;
+  tenantId?: string | null;
+  planName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  transactionRef: string;
+  invoiceNo: string;
+  paidAt: string | Date;
+  pdfBuffer?: Buffer;
+  scope?: "PLATFORM" | "TENANT";
+}
+
+export async function sendPaymentConfirmationEmail(
+  params: PaymentConfirmationEmailParams
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const resolvedScope = params.scope || (params.tenantId ? "TENANT" : "PLATFORM");
+  const config = await getDynamicEmailConfig({ scope: resolvedScope, tenantId: params.tenantId });
+  const {
+    toEmail,
+    customerName,
+    tenantSlug,
+    planName,
+    amount,
+    currency,
+    paymentMethod,
+    transactionRef,
+    invoiceNo,
+    paidAt,
+    pdfBuffer,
+  } = params;
+
+  const appName = config.appName || "Master HRMS & ERP";
+  const formattedDate =
+    typeof paidAt === "string"
+      ? paidAt
+      : new Date(paidAt).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+
+  const formattedAmount = `${(currency || "INR").toUpperCase()} ${Number(amount || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+  const subject = `Payment Confirmed — Invoice #${invoiceNo}`;
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${subject}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 28px 24px; text-align: center; color: #ffffff;">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">Payment Confirmed</h1>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #d1fae5;">Invoice #${invoiceNo} has been verified and settled.</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 28px 24px;">
+        <p style="font-size: 15px; font-weight: 700; margin: 0 0 14px 0; color: #0f172a;">Dear ${customerName || "Workspace Administrator"},</p>
+        <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">
+          Thank you for your payment. Your workspace subscription has been updated and is active. Details of this authoritative financial settlement are summarized below:
+        </p>
+        
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px; font-size: 12px;">
+          <tr>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Organization / Customer:</td>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${customerName} ${tenantSlug ? `(@${tenantSlug})` : ""}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Plan / Service:</td>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${planName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Payment Method:</td>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #0f172a;">${paymentMethod}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Settlement Date:</td>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #0f172a;">${formattedDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Transaction Reference:</td>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-family: monospace; color: #0f172a;">${transactionRef}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Invoice Number:</td>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-family: monospace; color: #0f172a;">#${invoiceNo}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Subscription Status:</td>
+            <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #059669;">ACTIVE</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 14px; font-weight: 700; color: #0f172a; font-size: 13px;">Total Settled:</td>
+            <td style="padding: 12px 14px; font-weight: 800; color: #059669; font-size: 14px;">${formattedAmount}</td>
+          </tr>
+        </table>
+
+        ${pdfBuffer ? `<p style="font-size: 12px; color: #64748b; margin: 0 0 16px 0;">📎 Your official Tax / Commercial Invoice PDF is attached to this email.</p>` : ""}
+
+        <p style="font-size: 12px; line-height: 1.5; color: #64748b; margin: 0;">
+          You can also download this invoice at any time from your Tenant Console at <strong>Subscription &rarr; Billing History</strong>.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 16px 24px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8;">
+        &copy; ${new Date().getFullYear()} ${appName}. All rights reserved. Authoritative transaction ledger copy.
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const plainText = `Payment Confirmed — Invoice #${invoiceNo}
+
+Customer: ${customerName} ${tenantSlug ? `(@${tenantSlug})` : ""}
+Plan: ${planName}
+Payment Method: ${paymentMethod}
+Amount: ${formattedAmount}
+Payment Date: ${formattedDate}
+Transaction Reference: ${transactionRef}
+Invoice Number: #${invoiceNo}
+Subscription Status: ACTIVE
+
+Your official invoice PDF has been attached to this email. You can also view and download invoices anytime from your workspace billing dashboard.
+
+Regards,
+${appName} Billing`;
+
+  if (config.smtpHost && config.smtpUser && config.smtpPass) {
+    try {
+      const isSSL = config.smtpPort === 465 || config.smtpEncryption === "ssl";
+      const isSTARTTLS = config.smtpPort === 587 || config.smtpEncryption === "tls";
+
+      const transportOptions: any = {
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: isSSL,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPass,
+        },
+        tls: { rejectUnauthorized: false, minVersion: "TLSv1.2" },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
+      };
+
+      if (isSTARTTLS) {
+        if (config.ignoreTls) transportOptions.ignoreTLS = true;
+        else transportOptions.requireTLS = false;
+      }
+
+      const transporter: any = nodemailer.createTransport(transportOptions);
+      const attachments = pdfBuffer
+        ? [
+            {
+              filename: `Invoice-${invoiceNo}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf",
+            },
+          ]
+        : [];
+
+      const info = await transporter.sendMail({
+        from: `"${config.smtpFromName}" <${config.smtpFromEmail}>`,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject,
+        text: plainText,
+        html: htmlContent,
+        attachments,
+      });
+
+      console.log(`📨 [Payment Confirmation] Invoice #${invoiceNo} delivered to ${toEmail} (ID: ${info.messageId})`);
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.error(`❌ [Payment Confirmation] Error sending invoice to ${toEmail}: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log(`📨 [DEV PAYMENT CONFIRMATION EMAIL (No SMTP configured)]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Subject: ${subject}`);
+    console.log(`   Amount: ${formattedAmount} | Method: ${paymentMethod}`);
+    console.log(`   Invoice: #${invoiceNo} | Ref: ${transactionRef}`);
+    console.log(`   Attachment: ${pdfBuffer ? `Invoice-${invoiceNo}.pdf (${pdfBuffer.length} bytes)` : "None"}`);
+    console.log("==================================================================");
+    return { success: true, messageId: `dev-payment-${Date.now()}` };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. Payment Rejection Notification
+// ---------------------------------------------------------------------------
+export interface PaymentRejectionEmailParams {
+  toEmail: string;
+  customerName: string;
+  tenantId?: string | null;
+  planName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  transactionRef?: string | null;
+  invoiceNo: string;
+  rejectionReason: string;
+  scope?: "PLATFORM" | "TENANT";
+}
+
+export async function sendPaymentRejectionEmail(
+  params: PaymentRejectionEmailParams
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const resolvedScope = params.scope || (params.tenantId ? "TENANT" : "PLATFORM");
+  const config = await getDynamicEmailConfig({ scope: resolvedScope, tenantId: params.tenantId });
+  const {
+    toEmail,
+    customerName,
+    planName,
+    amount,
+    currency,
+    paymentMethod,
+    transactionRef,
+    invoiceNo,
+    rejectionReason,
+  } = params;
+
+  const appName = config.appName || "Master HRMS & ERP";
+  const formattedAmount = `${(currency || "INR").toUpperCase()} ${Number(amount || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+  const subject = `Payment Verification Update — Invoice #${invoiceNo}`;
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${subject}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); padding: 28px 24px; text-align: center; color: #ffffff;">
+        <h1 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">Payment Verification Notice</h1>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #ffe4e6;">Manual payment review could not be verified.</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 28px 24px;">
+        <p style="font-size: 15px; font-weight: 700; margin: 0 0 14px 0; color: #0f172a;">Dear ${customerName || "Workspace Administrator"},</p>
+        <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">
+          Our finance administration team was unable to verify your offline / bank transfer submission for invoice <strong>#${invoiceNo}</strong>.
+        </p>
+        
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; margin-bottom: 20px; font-size: 12px;">
+          <tr>
+            <td style="padding: 10px 14px; color: #9f1239; font-weight: 600;">Plan / Item:</td>
+            <td style="padding: 10px 14px; font-weight: 700; color: #9f1239;">${planName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; color: #9f1239; font-weight: 600;">Submitted Reference:</td>
+            <td style="padding: 10px 14px; font-family: monospace; color: #9f1239;">${transactionRef || "N/A"}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; color: #9f1239; font-weight: 600;">Amount:</td>
+            <td style="padding: 10px 14px; font-weight: 700; color: #9f1239;">${formattedAmount}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; color: #9f1239; font-weight: 600;">Status:</td>
+            <td style="padding: 10px 14px; font-weight: 800; color: #e11d48;">VERIFICATION REJECTED</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; color: #9f1239; font-weight: 600;">Reason:</td>
+            <td style="padding: 10px 14px; font-weight: 600; color: #881337;">${rejectionReason || "Verification failed during administrative review."}</td>
+          </tr>
+        </table>
+
+        <div style="background-color: #f8fafc; border-left: 4px solid #6366f1; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px;">
+          <h4 style="margin: 0 0 6px 0; font-size: 13px; color: #1e1b4b;">Next Steps:</h4>
+          <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #475569;">
+            Please log into your Workspace Dashboard, navigate to <strong>Subscription</strong>, and resubmit with a clear receipt screenshot or complete the payment securely using Razorpay or PayPal.
+          </p>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 16px 24px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8;">
+        &copy; ${new Date().getFullYear()} ${appName}. Authoritative finance dispatch.
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const plainText = `Payment Verification Update — Invoice #${invoiceNo}
+
+Customer: ${customerName}
+Plan: ${planName}
+Amount: ${formattedAmount}
+Status: VERIFICATION REJECTED
+Reason: ${rejectionReason || "Verification failed during administrative review."}
+
+Please visit your workspace subscription page to re-upload clear evidence or complete the checkout with an automated gateway.
+
+Regards,
+${appName} Finance`;
+
+  if (config.smtpHost && config.smtpUser && config.smtpPass) {
+    try {
+      const isSSL = config.smtpPort === 465 || config.smtpEncryption === "ssl";
+      const isSTARTTLS = config.smtpPort === 587 || config.smtpEncryption === "tls";
+
+      const transportOptions: any = {
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: isSSL,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPass,
+        },
+        tls: { rejectUnauthorized: false, minVersion: "TLSv1.2" },
+      };
+
+      if (isSTARTTLS) {
+        if (config.ignoreTls) transportOptions.ignoreTLS = true;
+        else transportOptions.requireTLS = false;
+      }
+
+      const transporter: any = nodemailer.createTransport(transportOptions);
+      const info = await transporter.sendMail({
+        from: `"${config.smtpFromName}" <${config.smtpFromEmail}>`,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject,
+        text: plainText,
+        html: htmlContent,
+      });
+
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log(`📨 [DEV PAYMENT REJECTION EMAIL (No SMTP configured)]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Subject: ${subject}`);
+    console.log(`   Reason: ${rejectionReason}`);
+    console.log("==================================================================");
+    return { success: true, messageId: `dev-reject-${Date.now()}` };
+  }
+}
+
 

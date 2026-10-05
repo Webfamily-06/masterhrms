@@ -4,6 +4,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import crypto from "crypto";
 import { z } from "zod";
 import { syncSubscriptionPlans } from "../services/workspace-policy.service";
+import { SettingsService } from "../services/settings/settings.service";
 
 export const cmsRouter = Router();
 
@@ -187,9 +188,23 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
       }
     }
 
-    const page = await prisma.cmsPage.findUnique({
+    let page = await prisma.cmsPage.findUnique({
       where: { slug },
     });
+
+    if (!page && slug === "system-platform-settings") {
+      page = {
+        id: "system-platform-settings",
+        slug: "system-platform-settings",
+        title: "Global Platform Settings",
+        metaDescription: null,
+        content: {},
+        published: true,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any;
+    }
 
     if (!page) {
       return res.status(404).json({ error: "CMS Page / config not found" });
@@ -199,35 +214,61 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
     if (!isSuper && slug === "system-monetization-plans") {
       return res.json({ ...page, content: { plans: (page.content as any)?.plans || [] } });
     }
-    if (!isSuper && slug === "system-platform-settings") {
-      const safeKeys = [
-        "companyName",
-        "siteName",
-        "appName",
-        "logoUrl",
-        "logoLightUrl",
-        "logoDarkUrl",
-        "faviconUrl",
-        "defaultCurrency",
-        "currencySymbol",
-        "decimalPlaces",
-        "symbolPosition",
-        "decimalSeparator",
-        "thousandsSeparator",
-        "showDecimals",
-        "addSpaceBetweenSymbol",
-        "defaultTimezone",
-        "primaryThemeColor",
-        "maintenanceMode",
-        "maintenanceScheduled",
-        "maintenanceNoticeMessage",
-        "maintenanceStartTime",
-        "maintenanceEndTime",
-        "allowRegistration",
-        "supportEmail",
-      ];
-      const content = Object.fromEntries(Object.entries((page.content as any) || {}).filter(([key]) => safeKeys.includes(key)));
-      return res.json({ ...page, content });
+    if (slug === "system-platform-settings") {
+      try {
+        const brandingRes = await SettingsService.getGroup("branding", "PLATFORM");
+        const bVals = brandingRes?.values || {};
+        const mUrls = brandingRes?.mediaUrls || {};
+        const content = {
+          ...((page.content as any) || {}),
+          ...(bVals["branding.app_name"] ? { appName: bVals["branding.app_name"] } : {}),
+          ...(bVals["branding.support_email"] ? { supportEmail: bVals["branding.support_email"] } : {}),
+          ...(bVals["branding.primary_color"] ? { primaryThemeColor: bVals["branding.primary_color"] } : {}),
+          ...(bVals["branding.footer_text"] ? { footerText: bVals["branding.footer_text"] } : {}),
+          ...(bVals["branding.logo_light_id"] ? { logoLightId: bVals["branding.logo_light_id"] } : {}),
+          ...(bVals["branding.logo_dark_id"] ? { logoDarkId: bVals["branding.logo_dark_id"] } : {}),
+          ...(bVals["branding.favicon_id"] ? { faviconId: bVals["branding.favicon_id"] } : {}),
+          ...(mUrls["branding.logo_light_id"] ? { logoLightUrl: mUrls["branding.logo_light_id"] } : {}),
+          ...(mUrls["branding.logo_dark_id"] ? { logoDarkUrl: mUrls["branding.logo_dark_id"] } : {}),
+          ...(mUrls["branding.favicon_id"] ? { faviconUrl: mUrls["branding.favicon_id"] } : {}),
+        };
+        page.content = content;
+      } catch (brandingErr) {
+        console.error("Failed to overlay authoritative branding onto system-platform-settings:", brandingErr);
+      }
+
+      if (!isSuper) {
+        const safeKeys = [
+          "companyName",
+          "siteName",
+          "appName",
+          "logoUrl",
+          "logoLightUrl",
+          "logoDarkUrl",
+          "faviconUrl",
+          "defaultCurrency",
+          "currencySymbol",
+          "decimalPlaces",
+          "symbolPosition",
+          "decimalSeparator",
+          "thousandsSeparator",
+          "showDecimals",
+          "addSpaceBetweenSymbol",
+          "defaultTimezone",
+          "primaryThemeColor",
+          "maintenanceMode",
+          "maintenanceScheduled",
+          "maintenanceNoticeMessage",
+          "maintenanceStartTime",
+          "maintenanceEndTime",
+          "allowRegistration",
+          "supportEmail",
+          "footerText",
+        ];
+        const content = Object.fromEntries(Object.entries((page.content as any) || {}).filter(([key]) => safeKeys.includes(key)));
+        return res.json({ ...page, content });
+      }
+      return res.json(page);
     }
     if (!isSuper && !slug.startsWith("tenant-") && !slug.startsWith("system-") && !page.published) {
       return res.status(404).json({ error: "Page not found" });
@@ -297,6 +338,27 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
 
     if (slug === "system-monetization-plans") {
       await syncSubscriptionPlans(Array.isArray((content as any)?.plans) ? (content as any).plans : []);
+    }
+
+    if (slug === "system-platform-settings" && content && typeof content === "object") {
+      try {
+        const toSet: Record<string, any> = {};
+        if (content.appName) toSet["branding.app_name"] = content.appName;
+        if (content.supportEmail) toSet["branding.support_email"] = content.supportEmail;
+        if (content.primaryThemeColor || content.primaryColor) {
+          toSet["branding.primary_color"] = content.primaryThemeColor || content.primaryColor;
+        }
+        if (content.footerText) toSet["branding.footer_text"] = content.footerText;
+        if (content.logoLightId !== undefined) toSet["branding.logo_light_id"] = content.logoLightId;
+        if (content.logoDarkId !== undefined) toSet["branding.logo_dark_id"] = content.logoDarkId;
+        if (content.faviconId !== undefined) toSet["branding.favicon_id"] = content.faviconId;
+
+        if (Object.keys(toSet).length > 0) {
+          await SettingsService.setMany(toSet, "PLATFORM", null, req.user?.userId || null);
+        }
+      } catch (syncErr) {
+        console.error("Failed to sync system-platform-settings to SettingsService:", syncErr);
+      }
     }
 
     return res.json(page);
