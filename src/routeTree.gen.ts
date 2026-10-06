@@ -120,6 +120,7 @@ import { Route as AuthenticatedAppLeadsDashboardRouteImport } from './routes/_au
 import { Route as AuthenticatedAppLearningAnalyticsRouteImport } from './routes/_authenticated/_app/learning-analytics'
 import { Route as AuthenticatedAppLeaveRouteImport } from './routes/_authenticated/_app/leave'
 import { Route as AuthenticatedAppLeaveReportRouteImport } from './routes/_authenticated/_app/leave-report'
+import { Route as AuthenticatedAppManagerHubRouteImport } from './routes/_authenticated/_app/manager-hub'
 import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/_app/marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/_app/media'
 import { Route as AuthenticatedAppNotesRouteImport } from './routes/_authenticated/_app/notes'
@@ -833,6 +834,12 @@ const AuthenticatedAppLeaveReportRoute =
     path: '/leave-report',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppManagerHubRoute =
+  AuthenticatedAppManagerHubRouteImport.update({
+    id: '/manager-hub',
+    path: '/manager-hub',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppMarketplaceRoute =
   AuthenticatedAppMarketplaceRouteImport.update({
     id: '/marketplace',
@@ -1533,6 +1540,7 @@ export interface FileRoutesByFullPath {
   '/learning-analytics': typeof AuthenticatedAppLearningAnalyticsRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
   '/leave-report': typeof AuthenticatedAppLeaveReportRoute
+  '/manager-hub': typeof AuthenticatedAppManagerHubRoute
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
   '/notes': typeof AuthenticatedAppNotesRoute
@@ -1745,6 +1753,7 @@ export interface FileRoutesByTo {
   '/learning-analytics': typeof AuthenticatedAppLearningAnalyticsRoute
   '/leave': typeof AuthenticatedAppLeaveRoute
   '/leave-report': typeof AuthenticatedAppLeaveReportRoute
+  '/manager-hub': typeof AuthenticatedAppManagerHubRoute
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
   '/notes': typeof AuthenticatedAppNotesRoute
@@ -1961,6 +1970,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/learning-analytics': typeof AuthenticatedAppLearningAnalyticsRoute
   '/_authenticated/_app/leave': typeof AuthenticatedAppLeaveRoute
   '/_authenticated/_app/leave-report': typeof AuthenticatedAppLeaveReportRoute
+  '/_authenticated/_app/manager-hub': typeof AuthenticatedAppManagerHubRoute
   '/_authenticated/_app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/_app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/_app/notes': typeof AuthenticatedAppNotesRoute
@@ -2176,6 +2186,7 @@ export interface FileRouteTypes {
     | '/learning-analytics'
     | '/leave'
     | '/leave-report'
+    | '/manager-hub'
     | '/marketplace'
     | '/media'
     | '/notes'
@@ -2388,6 +2399,7 @@ export interface FileRouteTypes {
     | '/learning-analytics'
     | '/leave'
     | '/leave-report'
+    | '/manager-hub'
     | '/marketplace'
     | '/media'
     | '/notes'
@@ -2603,6 +2615,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/learning-analytics'
     | '/_authenticated/_app/leave'
     | '/_authenticated/_app/leave-report'
+    | '/_authenticated/_app/manager-hub'
     | '/_authenticated/_app/marketplace'
     | '/_authenticated/_app/media'
     | '/_authenticated/_app/notes'
@@ -3527,6 +3540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLeaveReportRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/manager-hub': {
+      id: '/_authenticated/_app/manager-hub'
+      path: '/manager-hub'
+      fullPath: '/manager-hub'
+      preLoaderRoute: typeof AuthenticatedAppManagerHubRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/marketplace': {
       id: '/_authenticated/_app/marketplace'
       path: '/marketplace'
@@ -4343,6 +4363,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppLearningAnalyticsRoute: typeof AuthenticatedAppLearningAnalyticsRoute
   AuthenticatedAppLeaveRoute: typeof AuthenticatedAppLeaveRoute
   AuthenticatedAppLeaveReportRoute: typeof AuthenticatedAppLeaveReportRoute
+  AuthenticatedAppManagerHubRoute: typeof AuthenticatedAppManagerHubRoute
   AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppNotesRoute: typeof AuthenticatedAppNotesRoute
@@ -4489,6 +4510,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppLearningAnalyticsRoute,
   AuthenticatedAppLeaveRoute: AuthenticatedAppLeaveRoute,
   AuthenticatedAppLeaveReportRoute: AuthenticatedAppLeaveReportRoute,
+  AuthenticatedAppManagerHubRoute: AuthenticatedAppManagerHubRoute,
   AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppNotesRoute: AuthenticatedAppNotesRoute,

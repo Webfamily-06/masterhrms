@@ -510,6 +510,24 @@ export function DreamsSidebar({
                   <span>Team Chat</span>
                 </Link>
               </li>
+
+              {profile?.roles?.includes("manager") && (
+                <>
+                  <li className="menu-title">
+                    <span>MANAGER PORTAL</span>
+                  </li>
+                  <li>
+                    <Link
+                      to="/manager-hub"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/manager-hub" && "active")}
+                    >
+                      <i className="ph-duotone ph-user-check"></i>
+                      <span>Team & Approvals</span>
+                    </Link>
+                  </li>
+                </>
+              )}
             </ul>
           ) : (
             <ul>
@@ -1209,6 +1227,16 @@ export function DreamsSidebar({
               >
                 <i className="ph-duotone ph-users"></i>
                 <span>Employee Directory</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/manager-hub"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/manager-hub" && "active")}
+              >
+                <i className="ph-duotone ph-user-check"></i>
+                <span>Manager Hub & Approvals</span>
               </Link>
             </li>
 
