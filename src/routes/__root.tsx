@@ -79,6 +79,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       throw notFound();
     }
 
+    // TENANT HOST + /cms MUST REDIRECT TO /auth -> CMS is platform-only content
+    if (isTenant && (p.toLowerCase() === "/cms" || p.toLowerCase().startsWith("/cms/"))) {
+      throw redirect({ to: "/auth" });
+    }
+
     if (p === "/Super") {
       throw redirect({ to: "/super" });
     }

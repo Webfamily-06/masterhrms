@@ -1,8 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { isTenantWorkspaceHost } from "@/lib/platform-domain";
 import { MarketingLayout, PageHero } from "@/components/marketing/marketing-layout";
 import { useAppConfig } from "@/lib/useAppConfig";
 
 export const Route = createFileRoute("/cms/")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined" && isTenantWorkspaceHost()) {
+      throw redirect({ to: "/auth" });
+    }
+  },
   component: CmsIndexPage,
 });
 

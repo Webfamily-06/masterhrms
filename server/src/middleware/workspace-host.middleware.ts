@@ -5,6 +5,7 @@ import {
   getCachedWorkspace,
   setCachedWorkspace,
   getWorkspaceUrl,
+  getCustomDomainUrl,
   getBaseDomain,
   getEffectiveRequestHost,
   getCachedCustomDomain,
@@ -68,6 +69,21 @@ export async function workspaceHostMiddleware(
           error: "Not Found",
           code: "NOT_FOUND",
         });
+      }
+
+      // CMS TENANT-HOST ISOLATION:
+      // Tenant hosts must NEVER access platform CMS pages or APIs
+      if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+        return res.status(404).json({
+          error: "Not Found",
+          code: "NOT_FOUND",
+        });
+      }
+      if (rawPath === "/cms" || rawPath.startsWith("/cms/")) {
+        const portMatch = rawHost.match(/:(\d+)$/);
+        const port = portMatch ? parseInt(portMatch[1], 10) : undefined;
+        const targetUrl = getWorkspaceUrl(slug, port) + "/auth";
+        return res.redirect(301, targetUrl);
       }
 
       // 1. Check in-memory routing cache (60s TTL)
@@ -195,6 +211,20 @@ export async function workspaceHostMiddleware(
         });
       }
 
+      // CMS CUSTOM-DOMAIN ISOLATION:
+      if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+        return res.status(404).json({
+          error: "Not Found",
+          code: "NOT_FOUND",
+        });
+      }
+      if (rawPath === "/cms" || rawPath.startsWith("/cms/")) {
+        const portMatch = rawHost.match(/:(\d+)$/);
+        const port = portMatch ? parseInt(portMatch[1], 10) : undefined;
+        const targetUrl = getCustomDomainUrl(hostname, port) + "/auth";
+        return res.redirect(301, targetUrl);
+      }
+
       const cached = getCachedCustomDomain(hostname);
       if (cached) {
         req.resolvedTenant = {
@@ -224,6 +254,20 @@ export async function workspaceHostMiddleware(
               error: "Not Found",
               code: "NOT_FOUND",
             });
+          }
+
+          // CMS CUSTOM-DOMAIN ISOLATION:
+          if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+            return res.status(404).json({
+              error: "Not Found",
+              code: "NOT_FOUND",
+            });
+          }
+          if (rawPath === "/cms" || rawPath.startsWith("/cms/")) {
+            const portMatch = rawHost.match(/:(\d+)$/);
+            const port = portMatch ? parseInt(portMatch[1], 10) : undefined;
+            const targetUrl = getCustomDomainUrl(hostname, port) + "/auth";
+            return res.redirect(301, targetUrl);
           }
 
           req.hostContext = {
@@ -285,6 +329,20 @@ export async function workspaceHostMiddleware(
               error: "Not Found",
               code: "NOT_FOUND",
             });
+          }
+
+          // CMS CUSTOM-DOMAIN ISOLATION:
+          if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+            return res.status(404).json({
+              error: "Not Found",
+              code: "NOT_FOUND",
+            });
+          }
+          if (rawPath === "/cms" || rawPath.startsWith("/cms/")) {
+            const portMatch = rawHost.match(/:(\d+)$/);
+            const port = portMatch ? parseInt(portMatch[1], 10) : undefined;
+            const targetUrl = getCustomDomainUrl(hostname, port) + "/auth";
+            return res.redirect(301, targetUrl);
           }
 
           req.hostContext = {
