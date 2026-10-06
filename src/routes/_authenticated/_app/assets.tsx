@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useCurrentProfile } from "@/lib/session";
 import { useAddon } from "@/hooks/use-addon";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +75,60 @@ export function AssetManagementPage() {
   const { isEntitled, isTrial, trialDaysLeft, startTrial, isStartingTrial, subscribe, isSubscribing } =
     useAddon("asset-management");
 
+  const { data: profile } = useCurrentProfile();
+  const isEmployeeOnly =
+    Boolean(profile?.roles?.includes("employee") &&
+    !profile?.roles?.includes("admin") &&
+    !profile?.roles?.includes("superadmin"));
+
   const [activeTab, setActiveTab] = useState("inventory");
+
+  useEffect(() => {
+    if (isEmployeeOnly) {
+      setActiveTab("my-assets");
+    }
+  }, [isEmployeeOnly]);
+
+  // Employee Self-Service allocated assets & hardware requests
+  const { data: myAssetsData, isLoading: isMyAssetsLoading, refetch: refetchMyAssets } = useQuery({
+    queryKey: ["my-assets-portal"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/assets");
+        return res?.data || { assignedAssets: [], assetRequests: [] };
+      } catch {
+        return { assignedAssets: [], assetRequests: [] };
+      }
+    },
+  });
+
+  const [isMyRequestOpen, setIsMyRequestOpen] = useState(false);
+  const [myRequestForm, setMyRequestForm] = useState({
+    itemName: "",
+    categoryName: "Laptop",
+    quantity: 1,
+    priority: "medium",
+    purpose: "",
+  });
+
+  const submitMyRequestMutation = useMutation({
+    mutationFn: async (payload: { itemName: string; categoryName: string; quantity: number; priority: string; purpose: string }) => {
+      return await api.post("/api/v1/me/assets/request", payload);
+    },
+    onSuccess: () => {
+      toast.success("Equipment request submitted successfully!");
+      setIsMyRequestOpen(false);
+      setMyRequestForm({
+        itemName: "",
+        categoryName: "Laptop",
+        quantity: 1,
+        priority: "medium",
+        purpose: "",
+      });
+      refetchMyAssets();
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to submit request"),
+  });
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -415,10 +470,281 @@ export function AssetManagementPage() {
     onError: (e: any) => toast.error(e.message || "Failed to approve disposal"),
   });
 
+  const renderMyAssetsPortal = () => {
+    const assigned = myAssetsData?.assignedAssets || [];
+    const myRequests = myAssetsData?.assetRequests || [];
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 border p-4 rounded-xl">
+          <div>
+            <div className="flex items-center gap-2">
+              <Laptop className="size-5 text-primary" />
+              <h2 className="text-lg font-bold tracking-tight text-foreground">
+                My Allocated Assets & Hardware
+              </h2>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              View company hardware assigned to your care and request new equipment, peripherals, or upgrades.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setIsMyRequestOpen(true)}
+            className="gap-1.5 text-xs font-semibold h-9 shadow-xs"
+          >
+            <Plus className="size-3.5" />
+            <span>Request Equipment</span>
+          </Button>
+        </div>
+
+        {/* Assigned Devices */}
+        <Card className="border shadow-2xs">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <HardDrive className="size-4 text-primary" />
+                  Assigned Hardware & Devices
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Physical assets currently allocated to your profile
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                {assigned.length} Active
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {assigned.length === 0 ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                <Laptop className="size-8 mx-auto text-muted-foreground/40 mb-2" />
+                No physical company assets are currently registered to your profile.
+                <div className="mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMyRequestOpen(true)}
+                    className="text-xs h-7"
+                  >
+                    Request Workstation Hardware
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y text-xs">
+                {assigned.map((item: any) => (
+                  <div key={item.id} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-muted/10 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground text-sm">
+                          {item.asset?.name || "Assigned Asset"}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                          {item.asset?.assetTag || "TAG-NA"}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {item.conditionOnAssign || item.asset?.condition || "Good"}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                        <span>Brand/Model: <strong className="text-foreground">{item.asset?.brand || "—"} {item.asset?.model || ""}</strong></span>
+                        <span>Serial: <code className="font-mono">{item.asset?.serialNumber || "—"}</code></span>
+                        <span>Category: {item.asset?.category || "Equipment"}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-medium">
+                        <CheckCircle2 className="size-3 mr-1" /> In Possession
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Equipment Requests */}
+        <Card className="border shadow-2xs">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Send className="size-4 text-emerald-500" />
+                  My Equipment Requests
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Requisitions submitted to IT and Operations
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                {myRequests.length} Requests
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {myRequests.length === 0 ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                <Send className="size-8 mx-auto text-muted-foreground/40 mb-2" />
+                No equipment requisitions submitted.
+              </div>
+            ) : (
+              <div className="divide-y text-xs">
+                {myRequests.map((req: any) => (
+                  <div key={req.id} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-muted/10 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground text-sm">{req.itemName}</span>
+                        <Badge variant="outline" className="text-[10px] capitalize">
+                          {req.categoryName}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-medium capitalize",
+                            req.priority === "urgent"
+                              ? "border-rose-500/30 text-rose-600 bg-rose-500/5"
+                              : req.priority === "high"
+                              ? "border-amber-500/30 text-amber-600 bg-amber-500/5"
+                              : "border-blue-500/30 text-blue-600 bg-blue-500/5"
+                          )}
+                        >
+                          {req.priority}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Purpose: {req.purpose} · Qty: {req.quantity || 1}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "text-[10px] font-medium capitalize",
+                          req.status === "approved"
+                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                            : req.status === "rejected"
+                            ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                            : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                        )}
+                      >
+                        {req.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  const renderMyRequestDialog = () => (
+    <Dialog open={isMyRequestOpen} onOpenChange={setIsMyRequestOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base font-bold flex items-center gap-2">
+            <Laptop className="size-4 text-primary" />
+            Request Hardware / Equipment
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Submit a requisition for hardware, accessories, or workstation supplies.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3.5 py-2 text-xs">
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Item Name / Model</Label>
+            <Input
+              placeholder="e.g. MacBook Pro M2, 27-inch Monitor, Ergonomic Mouse"
+              value={myRequestForm.itemName}
+              onChange={(e) => setMyRequestForm({ ...myRequestForm, itemName: e.target.value })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Category</Label>
+              <Select
+                value={myRequestForm.categoryName}
+                onValueChange={(v) => setMyRequestForm({ ...myRequestForm, categoryName: v })}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Laptop">Laptop / Workstation</SelectItem>
+                  <SelectItem value="Monitor">Monitor & Display</SelectItem>
+                  <SelectItem value="Peripheral">Keyboard / Mouse / Headset</SelectItem>
+                  <SelectItem value="Mobile">Mobile / Tablet</SelectItem>
+                  <SelectItem value="Furniture">Desk / Ergonomic Chair</SelectItem>
+                  <SelectItem value="Other">Other Equipment</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Priority</Label>
+              <Select
+                value={myRequestForm.priority}
+                onValueChange={(v) => setMyRequestForm({ ...myRequestForm, priority: v })}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Business Purpose / Justification</Label>
+            <Textarea
+              placeholder="Explain why this equipment is needed for your role..."
+              value={myRequestForm.purpose}
+              onChange={(e) => setMyRequestForm({ ...myRequestForm, purpose: e.target.value })}
+              className="text-xs min-h-[70px]"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button size="sm" variant="outline" onClick={() => setIsMyRequestOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!myRequestForm.itemName || !myRequestForm.purpose || submitMyRequestMutation.isPending}
+            onClick={() => submitMyRequestMutation.mutate(myRequestForm)}
+            className="text-xs font-bold"
+          >
+            {submitMyRequestMutation.isPending ? "Submitting..." : "Submit Requisition"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   // ─── ADDON GUARD: If Tenant is NOT subscribed / active ───
   if (!isEntitled) {
+    if (isEmployeeOnly) {
+      return (
+        <div className="max-w-4xl mx-auto py-4 space-y-6">
+          {renderMyAssetsPortal()}
+          {renderMyRequestDialog()}
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-4xl mx-auto py-8 space-y-6">
+        {renderMyAssetsPortal()}
+
         <Card className="border-2 border-dashed border-primary/30 p-8 text-center bg-card shadow-sm space-y-6">
           <div className="size-16 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 grid place-items-center mx-auto shadow-xs">
             <HardDrive className="size-8" />
@@ -487,6 +813,7 @@ export function AssetManagementPage() {
             </Button>
           </div>
         </Card>
+        {renderMyRequestDialog()}
       </div>
     );
   }
@@ -628,6 +955,9 @@ export function AssetManagementPage() {
       {/* ─── 3. ENTERPRISE SUB-TABS ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-muted/40 h-8 p-0.5 overflow-x-auto flex-nowrap max-w-full">
+          <TabsTrigger value="my-assets" className="text-xs h-7">
+            My Allocated Assets ({myAssetsData?.assignedAssets?.length || 0})
+          </TabsTrigger>
           <TabsTrigger value="inventory" className="text-xs h-7">
             Inventory ({assets.length})
           </TabsTrigger>
@@ -647,6 +977,11 @@ export function AssetManagementPage() {
             Audit Log
           </TabsTrigger>
         </TabsList>
+
+        {/* ===================== TAB 0: MY ALLOCATED ASSETS ===================== */}
+        <TabsContent value="my-assets" className="space-y-4">
+          {renderMyAssetsPortal()}
+        </TabsContent>
 
         {/* ===================== TAB 1: ASSET INVENTORY ===================== */}
         <TabsContent value="inventory" className="space-y-3">
@@ -1837,6 +2172,7 @@ export function AssetManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {renderMyRequestDialog()}
     </div>
   );
 }

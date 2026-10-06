@@ -199,8 +199,8 @@ export default function EmployeeDashboardPage() {
   });
 
   useEffect(() => {
-    if (essDashboard?.todayAttendance) {
-      const att = essDashboard.todayAttendance;
+    const att = essDashboard?.attendanceToday || essDashboard?.todayAttendance;
+    if (att) {
       if (att.checkIn && !att.checkOut) {
         setIsClockedIn(true);
         const inDate = new Date(att.checkIn);
@@ -427,11 +427,11 @@ export default function EmployeeDashboardPage() {
             </div>
             <div className="overflow-hidden">
               <h2 className="text-sm font-bold text-white leading-tight truncate">
-                {profile?.full_name || "Stephan Peralt"}
+                {essDashboard?.employee ? `${essDashboard.employee.firstName} ${essDashboard.employee.lastName}` : (profile?.full_name || "Alex Morgan")}
               </h2>
-              <p className="text-xs text-slate-300 mt-0.5 truncate">Senior Product Designer</p>
+              <p className="text-xs text-slate-300 mt-0.5 truncate">{essDashboard?.employee?.position || "Senior Full Stack Engineer"}</p>
               <span className="inline-block text-[10px] bg-white/20 text-white px-2 py-0.5 rounded mt-1 font-medium">
-                UI/UX Design Team
+                {essDashboard?.employee?.department?.name || "Engineering Team"}
               </span>
             </div>
           </div>
@@ -439,25 +439,33 @@ export default function EmployeeDashboardPage() {
           <div className="p-4 space-y-2.5 text-xs text-default flex-1">
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
               <span className="text-muted-foreground">Employee ID</span>
-              <span className="font-semibold text-gray-900 dark:text-gray-100 font-mono">#EMP-0492</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100 font-mono">
+                {essDashboard?.employee?.employeeCode ? `#${essDashboard.employee.employeeCode}` : "#EMP-0001"}
+              </span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
               <span className="text-muted-foreground">Email Address</span>
               <span className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[180px]">
-                {profile?.email || "stephan.peralt@workspace.com"}
+                {essDashboard?.employee?.email || profile?.email || "employee@masterhrms.com"}
               </span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
               <span className="text-muted-foreground">Reporting Manager</span>
-              <span className="font-semibold text-gray-900 dark:text-gray-100">Doglas Martini</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100">
+                {essDashboard?.employee?.manager ? `${essDashboard.employee.manager.firstName} ${essDashboard.employee.manager.lastName}` : "Direct Management"}
+              </span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
               <span className="text-muted-foreground">Shift & Work Mode</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">Regular (09:00 - 18:00) · Hybrid</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">
+                {essDashboard?.shiftToday?.name || "Regular (09:00 - 18:00) · Hybrid"}
+              </span>
             </div>
             <div className="flex justify-between items-center py-1">
               <span className="text-muted-foreground">Date of Joining</span>
-              <span className="font-semibold text-gray-900 dark:text-gray-100">15 Jan 2024</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100">
+                {essDashboard?.employee?.joinedAt ? new Date(essDashboard.employee.joinedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "15 Jan 2024"}
+              </span>
             </div>
           </div>
         </div>
@@ -518,27 +526,37 @@ export default function EmployeeDashboardPage() {
           <div className="grid grid-cols-3 gap-2 my-auto py-2">
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Total Allowed</span>
-              <p className="text-lg font-bold text-gray-900 dark:text-gray-100">16</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.totalAccrued || 0), 0) : 16}
+              </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Days Taken</span>
-              <p className="text-lg font-bold text-primary">10</p>
+              <p className="text-lg font-bold text-primary">
+                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.approvedDays || 0), 0) : 0}
+              </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Remaining</span>
-              <p className="text-lg font-bold text-success">6</p>
+              <p className="text-lg font-bold text-success">
+                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.availableDays || 0), 0) : 16}
+              </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Unpaid Leave</span>
-              <p className="text-lg font-bold text-warning">2</p>
+              <p className="text-lg font-bold text-warning">0</p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Pending</span>
-              <p className="text-lg font-bold text-gray-900 dark:text-gray-100">0</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.pendingDays || 0), 0) : 0}
+              </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Worked Days</span>
-              <p className="text-lg font-bold text-gray-900 dark:text-gray-100">240</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {essDashboard?.attendanceToday ? 1 : 240}
+              </p>
             </div>
           </div>
 

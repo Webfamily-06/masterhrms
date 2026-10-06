@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +51,14 @@ import {
   Filter,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { z } from "zod";
+
+const managerHubSearchSchema = z.object({
+  tab: z.enum(["approvals", "team"]).catch("approvals").optional(),
+});
 
 export const Route = createFileRoute("/_authenticated/_app/manager-hub")({
+  validateSearch: managerHubSearchSchema,
   component: ManagerHubPage,
   head: () => ({ meta: [{ title: "Manager Self-Service Hub — Master HRMS" }] }),
 });
@@ -60,9 +66,17 @@ export const Route = createFileRoute("/_authenticated/_app/manager-hub")({
 export function ManagerHubPage() {
   const qc = useQueryClient();
   const { data: profile } = useCurrentProfile();
+  const search = Route.useSearch();
 
-  const [activeTab, setActiveTab] = useState<"approvals" | "team">("approvals");
+  const [activeTab, setActiveTab] = useState<"approvals" | "team">(search?.tab || "approvals");
   const [searchTeam, setSearchTeam] = useState("");
+
+  // Sync tab if search param changes
+  useEffect(() => {
+    if (search?.tab && (search.tab === "approvals" || search.tab === "team")) {
+      setActiveTab(search.tab);
+    }
+  }, [search?.tab]);
   
   // Rejection dialog state
   const [rejectDialog, setRejectDialog] = useState<{

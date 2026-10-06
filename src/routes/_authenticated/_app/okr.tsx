@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useCurrentProfile } from "@/lib/session";
 import { useAddon } from "@/hooks/use-addon";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,25 @@ export function OkrPerformancePage() {
   const queryClient = useQueryClient();
   const { isEntitled, isTrial, trialDaysLeft, startTrial, isStartingTrial, subscribe, isSubscribing } =
     useAddon("okr-performance");
+
+  const { data: profile } = useCurrentProfile();
+  const isEmployeeOnly = Boolean(
+    profile?.roles?.includes("employee") &&
+    !profile?.roles?.includes("admin") &&
+    !profile?.roles?.includes("superadmin")
+  );
+
+  const { data: myOkrsData = [] } = useQuery({
+    queryKey: ["my-okrs-portal"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/okrs");
+        return res?.data || [];
+      } catch {
+        return [];
+      }
+    },
+  });
 
   const [activeTab, setActiveTab] = useState("list");
   const [selectedCycleId, setSelectedCycleId] = useState<string>("all");
@@ -297,10 +317,91 @@ export function OkrPerformancePage() {
     onError: (e: any) => toast.error(e.message || "Failed to create cycle"),
   });
 
+  const renderMyOkrsView = () => (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 border p-4 rounded-xl">
+        <div>
+          <div className="flex items-center gap-2">
+            <Target className="size-5 text-indigo-600" />
+            <h2 className="text-lg font-bold tracking-tight text-foreground">
+              My Objectives & Key Results (OKRs)
+            </h2>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Quarterly performance milestones, progress metrics, and key result deliverables.
+          </p>
+        </div>
+      </div>
+
+      <Card className="border shadow-2xs">
+        <CardHeader className="pb-3 border-b">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Target className="size-4 text-indigo-600" />
+                Assigned Objectives & Targets
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Performance objectives assigned to your profile
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="font-mono text-xs">
+              {myOkrsData.length} OKRs
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {myOkrsData.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted-foreground">
+              <Target className="size-8 mx-auto text-muted-foreground/40 mb-2" />
+              No OKRs assigned to your profile for the current quarter. Check back once your manager creates team goals.
+            </div>
+          ) : (
+            <div className="divide-y text-xs">
+              {myOkrsData.map((item: any) => (
+                <div key={item.id} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground text-sm">
+                      {item.title || item.objective?.title || "Key Objective"}
+                    </span>
+                    <Badge variant="secondary" className="capitalize text-[10px]">
+                      {item.status || "In Progress"}
+                    </Badge>
+                  </div>
+                  {item.keyResults && item.keyResults.length > 0 && (
+                    <div className="space-y-1.5 pt-2">
+                      <span className="text-[11px] font-semibold text-muted-foreground">Key Results:</span>
+                      {item.keyResults.map((kr: any) => (
+                        <div key={kr.id} className="text-[11px] flex justify-between bg-muted/10 p-2 rounded">
+                          <span>{kr.title}</span>
+                          <span className="font-mono">{kr.currentValue || 0} / {kr.targetValue || 100}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   // ─── ADDON GUARD: If Tenant is NOT subscribed / active ───
   if (!isEntitled) {
+    if (isEmployeeOnly) {
+      return (
+        <div className="max-w-4xl mx-auto py-4 space-y-6">
+          {renderMyOkrsView()}
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-4xl mx-auto py-8 space-y-6">
+        {renderMyOkrsView()}
+
         <Card className="border-2 border-dashed border-primary/30 p-8 text-center bg-card shadow-sm space-y-6">
           <div className="size-16 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 grid place-items-center mx-auto shadow-xs">
             <Target className="size-8" />

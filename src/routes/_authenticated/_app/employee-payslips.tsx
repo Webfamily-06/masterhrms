@@ -675,7 +675,7 @@ export function EmployeePayslipsPage() {
               </Badge>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Employee Code: {profile?.id || "EMP"} • Department: Engineering • Role: {profile?.role || "Team Member"}
+              Employee Code: {profile?.id || "EMP"} • Department: Engineering • Role: {profile?.roles?.[0] || profile?.workspaceRole?.name || "Team Member"}
             </DialogDescription>
           </DialogHeader>
 

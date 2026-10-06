@@ -61,10 +61,11 @@ export function DreamsSidebar({
   const userRoles = profile?.roles || [];
   const isSuperAdmin = userRoles.includes("super_admin");
   const isAdminOrSuper = userRoles.some((r) =>
-    ["admin", "super_admin", "tenant_admin", "hr_admin", "manager"].includes(r)
+    ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r)
   );
+  const isManager = userRoles.includes("manager");
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
-  const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
+  const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
   const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/hrm-dashboard";
 
   return (
@@ -328,6 +329,16 @@ export function DreamsSidebar({
                   <span>My Dashboard</span>
                 </Link>
               </li>
+              <li>
+                <Link
+                  to="/profile"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/profile" && "active")}
+                >
+                  <i className="ph-duotone ph-user"></i>
+                  <span>My Profile</span>
+                </Link>
+              </li>
 
               <li className="menu-title">
                 <span>TIME & ATTENDANCE</span>
@@ -472,6 +483,16 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
+                  to="/okr"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/okr" && "active")}
+                >
+                  <i className="ph-duotone ph-target"></i>
+                  <span>Goals & OKRs</span>
+                </Link>
+              </li>
+              <li>
+                <Link
                   to="/forms"
                   onClick={onCloseMobile}
                   className={cn(currentPath === "/forms" && "active")}
@@ -498,6 +519,16 @@ export function DreamsSidebar({
                 >
                   <i className="ph-duotone ph-user-minus"></i>
                   <span>Resignation & Notice</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/assets"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/assets" && "active")}
+                >
+                  <i className="ph-duotone ph-laptop"></i>
+                  <span>My Allocated Assets</span>
                 </Link>
               </li>
               <li>
@@ -531,7 +562,7 @@ export function DreamsSidebar({
                 </Link>
               </li>
 
-              {profile?.roles?.includes("manager") && (
+              {profile?.roles?.some((r) => ["manager", "admin", "tenant_admin", "hr_admin"].includes(r)) && (
                 <>
                   <li className="menu-title">
                     <span>MANAGER PORTAL</span>
@@ -543,7 +574,29 @@ export function DreamsSidebar({
                       className={cn(currentPath === "/manager-hub" && "active")}
                     >
                       <i className="ph-duotone ph-user-check"></i>
-                      <span>Team & Approvals</span>
+                      <span>Manager Hub & Approvals</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/manager-hub"
+                      search={{ tab: "team" }}
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/manager-hub" && "active")}
+                    >
+                      <i className="ph-duotone ph-users-three"></i>
+                      <span>Team Roster</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/manager-hub"
+                      search={{ tab: "approvals" }}
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/manager-hub" && "active")}
+                    >
+                      <i className="ph-duotone ph-check-circle"></i>
+                      <span>Pending Approvals</span>
                     </Link>
                   </li>
                 </>

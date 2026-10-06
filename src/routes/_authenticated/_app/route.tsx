@@ -162,11 +162,12 @@ function AppShell() {
 
   const userRoles = profile?.roles || [];
   const isAdminOrSuper = userRoles.some((r) =>
-    ["admin", "super_admin", "tenant_admin", "hr_admin", "manager"].includes(r)
+    ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r)
   );
+  const isManager = userRoles.includes("manager");
   const isSuperAdmin = isSuperAdminUser(profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
-  const isEmployeeOnly = userRoles.includes("employee") && !isAdminOrSuper;
+  const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
   const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/hrm-dashboard";
   const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
@@ -185,9 +186,6 @@ function AppShell() {
     (subscription?.status === "expired" ||
       subscription?.isExpired === true ||
       (!!subscription?.expiresAt && new Date(subscription.expiresAt).getTime() < Date.now()));
-
-  
-
 
   const { data: maintenanceStatus } = useQuery({
     queryKey: ["platform-maintenance-guard"],
@@ -210,11 +208,21 @@ function AppShell() {
     "/overtime",
     "/work-from-home",
     "/tasks",
-    "/helpdesk",
-    "/chat",
+    "/employee-payslips",
+    "/awards",
+    "/okr",
+    "/training",
+    "/forms",
     "/documents",
     "/resignation",
+    "/announcements",
+    "/helpdesk",
+    "/chat",
+    "/todo",
+    "/expenses",
+    "/assets",
     "/profile",
+    "/manager-hub",
     "/daily-report",
     "/clear-cache",
     "/offline",
@@ -818,7 +826,11 @@ function AppShell() {
                   </div>
 
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" search={{ tab: "profile" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
+                    <Link
+                      to={isEmployeeOnly ? "/profile" : "/settings"}
+                      search={isEmployeeOnly ? undefined : { tab: "profile" }}
+                      className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg"
+                    >
                       <User className="size-3.5 text-muted-foreground" />
                       <span>Profile</span>
                     </Link>

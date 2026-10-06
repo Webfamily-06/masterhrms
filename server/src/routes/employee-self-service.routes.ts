@@ -635,6 +635,73 @@ employeeSelfServiceRouter.get("/leave-balance", async (req: EmployeeAuthRequest,
   }
 });
 
+/**
+ * GET /api/v1/me/leaves
+ * Lists all leave applications for caller
+ */
+employeeSelfServiceRouter.get("/leaves", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+
+  try {
+    const leaves = await db.leaveRequest.findMany({
+      where: { tenantId, employeeId },
+      include: {
+        leaveType: {
+          select: { id: true, name: true, color: true, daysPerYear: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json({ success: true, data: leaves });
+  } catch (err: any) {
+    console.error("[GET /me/leaves] Error:", err);
+    return res.status(500).json({ error: "Failed to fetch leaves" });
+  }
+});
+
+/**
+ * POST /api/v1/me/leaves
+ * Submits authoritative leave application for current employee
+ */
+employeeSelfServiceRouter.post("/leaves", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+  const { leaveTypeId, startDate, endDate, days, reason } = req.body;
+
+  if (!leaveTypeId || !startDate || !endDate) {
+    return res.status(400).json({ error: "leaveTypeId, startDate, and endDate are required" });
+  }
+
+  try {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const calcDays = Number(days) || Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+    const leave = await db.leaveRequest.create({
+      data: {
+        tenantId,
+        employeeId,
+        leaveTypeId,
+        startDate: start,
+        endDate: end,
+        days: calcDays,
+        reason: reason || null,
+        status: "pending",
+      },
+      include: {
+        leaveType: { select: { id: true, name: true, color: true } },
+      },
+    });
+    return res.status(201).json({ success: true, data: leave });
+  } catch (err: any) {
+    console.error("[POST /me/leaves] Error:", err);
+    return res.status(500).json({ error: "Failed to apply for leave" });
+  }
+});
+
 // ==========================================
 // PHASE E3: PAYROLL & STATUTORY SELF-SERVICE
 // ==========================================

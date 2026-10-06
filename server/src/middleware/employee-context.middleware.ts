@@ -38,7 +38,10 @@ export async function requireEmployee(
     const employee = await db.employee.findFirst({
       where: {
         tenantId,
-        userId,
+        OR: [
+          { userId },
+          ...(req.user.email ? [{ email: req.user.email }] : []),
+        ],
       },
       select: {
         id: true,
