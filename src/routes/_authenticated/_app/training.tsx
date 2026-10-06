@@ -205,6 +205,18 @@ export function TrainingPage() {
     },
   });
 
+  const { data: myTrainings = [], isLoading: isMyTrainingsLoading } = useQuery({
+    queryKey: ["my-training-enrollments"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/trainings");
+        return Array.isArray(res?.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
   const { data: summary } = useQuery({
     queryKey: ["training-summary", tenantId],
     queryFn: async () => {
@@ -396,6 +408,10 @@ export function TrainingPage() {
               <BookOpen className="size-3.5" />
               <span>Courses ({courses.length})</span>
             </TabsTrigger>
+            <TabsTrigger value="my-trainings" className="text-xs font-bold h-7 gap-1.5">
+              <GraduationCap className="size-3.5 text-primary" />
+              <span>My Courses ({myTrainings.length})</span>
+            </TabsTrigger>
             <TabsTrigger value="enrollments" className="text-xs font-bold h-7 gap-1.5">
               <Award className="size-3.5" />
               <span>Enrollments & Certifications ({enrollments.length})</span>
@@ -442,6 +458,94 @@ export function TrainingPage() {
             )}
           </div>
         </div>
+
+        {/* ===================== TAB 0: MY PERSONAL TRAININGS ===================== */}
+        <TabsContent value="my-trainings" className="space-y-4 pt-1">
+          {isMyTrainingsLoading ? (
+            <div className="py-20 text-center text-muted-foreground text-xs">
+              Loading your course curriculum...
+            </div>
+          ) : myTrainings.length === 0 ? (
+            <Card className="p-12 text-center space-y-3 border-dashed">
+              <GraduationCap className="size-10 mx-auto text-muted-foreground/50" />
+              <h3 className="font-bold text-base">No Assigned Trainings</h3>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                You are currently up-to-date with all mandatory learning modules. Browse the course catalog to enroll in upcoming skill workshops.
+              </p>
+              <Button size="sm" onClick={() => setActiveTab("courses")} className="text-xs font-bold h-8">
+                Browse Course Catalog
+              </Button>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myTrainings.map((enr: any) => {
+                const c = enr.course || {};
+                const isDone = enr.status === "completed" || enr.progressPercent >= 100;
+
+                return (
+                  <Card key={enr.id} className="p-4 border shadow-2xs bg-card space-y-3 hover:border-primary/40 transition-all flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-[10px] font-mono">
+                          {c.category || "General Training"}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-bold ${
+                            isDone
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                              : "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                          }`}
+                        >
+                          {isDone ? "Completed" : "In Progress"}
+                        </Badge>
+                      </div>
+
+                      <h4 className="font-bold text-sm text-foreground">{c.title || "Untitled Course"}</h4>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{c.description || "Interactive skill building curriculum."}</p>
+
+                      <div className="space-y-1.5 pt-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Course Progress</span>
+                          <span className="font-bold font-mono text-foreground">{enr.progressPercent || 0}%</span>
+                        </div>
+                        <Progress value={enr.progressPercent || 0} className="h-2" />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        {c.durationHours ? `${c.durationHours} Hours` : "Self-paced"}
+                      </span>
+                      {isDone ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            toast.success(`Downloading Certificate of Completion for ${c.title}...`);
+                          }}
+                          className="h-7 text-xs font-bold text-emerald-600 border-emerald-500/30 gap-1.5 shadow-2xs"
+                        >
+                          <Award className="size-3.5" /> Certificate
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            toast.info(`Launching ${c.title} course module...`);
+                          }}
+                          className="h-7 text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-2xs"
+                        >
+                          <PlayCircle className="size-3.5" /> Continue
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
 
         {/* ===================== TAB 1: COURSE CATALOG ===================== */}
         <TabsContent value="courses" className="space-y-4 pt-1">

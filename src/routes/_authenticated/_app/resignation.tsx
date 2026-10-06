@@ -96,6 +96,42 @@ export function ResignationPage() {
   const [editingRecord, setEditingRecord] = useState<ExitRecord | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // Employee Self-Service Resignation State
+  const [isSelfResignOpen, setIsSelfResignOpen] = useState(false);
+  const [selfResignForm, setSelfResignForm] = useState({
+    preferredLastWorkingDay: new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString().split("T")[0],
+    reason: "",
+  });
+
+  // Query caller's self-service resignation status
+  const { data: myResignation, isLoading: isMyResignationLoading } = useQuery({
+    queryKey: ["my-resignation-status"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/resignation");
+        return res?.data || null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  const selfResignMut = useMutation({
+    mutationFn: async (payload: { preferredLastWorkingDay: string; reason: string }) =>
+      api.post("/api/v1/me/resignation", payload),
+    onSuccess: (res: any) => {
+      toast.success(res?.message || "Resignation submitted successfully to management.");
+      qc.invalidateQueries({ queryKey: ["my-resignation-status"] });
+      qc.invalidateQueries({ queryKey: ["exits"] });
+      setIsSelfResignOpen(false);
+      setSelfResignForm({
+        preferredLastWorkingDay: new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString().split("T")[0],
+        reason: "",
+      });
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to submit resignation"),
+  });
+
   // Form states
   const [employeeId, setEmployeeId] = useState("");
   const [noticeDate, setNoticeDate] = useState(new Date().toISOString().split("T")[0]);
@@ -257,6 +293,15 @@ export function ResignationPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsSelfResignOpen(true)}
+            className="gap-2 text-rose-600 border-rose-500/30 hover:bg-rose-50 shadow-sm"
+          >
+            <UserX className="h-4 w-4" />
+            Submit My Resignation
+          </Button>
           <Link to="/offboarding">
             <Button variant="outline" size="sm" className="gap-2">
               <ExternalLink className="h-4 w-4" />
@@ -273,6 +318,52 @@ export function ResignationPage() {
           </Button>
         </div>
       </div>
+
+      {/* ── My Personal Separation Status Banner ── */}
+      {myResignation && (
+        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/5 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-500/20 pb-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-rose-500/10 text-rose-600 border border-rose-500/20 grid place-items-center">
+                <UserX className="size-4" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  My Active Separation & Notice Tracker
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold bg-rose-500/10 text-rose-600 border-rose-500/30">
+                    {myResignation.status?.replace(/_/g, " ")}
+                  </Badge>
+                </h4>
+                <p className="text-[11px] text-muted-foreground font-mono">
+                  Exit Reference: {myResignation.exitCode}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[11px] text-muted-foreground block">Official Last Working Day</span>
+              <span className="text-xs font-black font-mono text-foreground">
+                {myResignation.lastWorkingDay ? new Date(myResignation.lastWorkingDay).toLocaleDateString() : "Pending Scheduling"}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold">Submitted Reason</span>
+              <p className="text-foreground font-medium line-clamp-2">{myResignation.reason}</p>
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold">Notice Period Policy</span>
+              <p className="text-foreground font-medium font-mono">{myResignation.noticePeriodDays || 60} Days Required</p>
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold">Clearance & FnF Status</span>
+              <p className="text-amber-600 dark:text-amber-400 font-medium">
+                {myResignation.fnfSettlementStatus || "Checklists in progress across IT, Finance, HR"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── KPI Metric Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -622,6 +713,83 @@ export function ResignationPage() {
               {deleteMutation.isPending ? "Deleting..." : "Confirm Delete"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ── Employee Self-Service Resignation Dialog ── */}
+      <Dialog open={isSelfResignOpen} onOpenChange={setIsSelfResignOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <UserX className="size-5 text-rose-600" /> Submit Formal Resignation Letter
+            </DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!selfResignForm.reason.trim()) {
+                toast.error("Please provide a reason or statement for your resignation");
+                return;
+              }
+              selfResignMut.mutate(selfResignForm);
+            }}
+            className="space-y-4 py-2 text-xs"
+          >
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-700 dark:text-rose-300">
+              <p className="font-semibold text-xs">Standard Notice Period: 60 Days</p>
+              <p className="text-[11px] mt-0.5 opacity-90">
+                Submitting this formal notice will notify HR Operations and your line manager to initiate handover and departmental clearances.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Preferred Last Working Day *</Label>
+              <Input
+                type="date"
+                required
+                value={selfResignForm.preferredLastWorkingDay}
+                onChange={(e) =>
+                  setSelfResignForm({ ...selfResignForm, preferredLastWorkingDay: e.target.value })
+                }
+                className="h-8 text-xs"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Your manager will finalize the official last working day during clearance review.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Reason for Departure & Statement *</Label>
+              <Textarea
+                required
+                rows={4}
+                placeholder="Please share details regarding your career transition, relocation, or personal reasons..."
+                value={selfResignForm.reason}
+                onChange={(e) =>
+                  setSelfResignForm({ ...selfResignForm, reason: e.target.value })
+                }
+                className="text-xs resize-none"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setIsSelfResignOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={selfResignMut.isPending}
+                className="font-bold gap-1 bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {selfResignMut.isPending ? "Submitting..." : "Submit Formal Notice"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

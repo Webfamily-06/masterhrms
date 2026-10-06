@@ -145,6 +145,19 @@ export function OkrPerformancePage() {
     queryKey: ["okr-objectives", selectedCycleId, alignmentFilter, searchQuery],
     queryFn: async () => {
       try {
+        if (alignmentFilter === "my") {
+          const res: any = await api.get("/api/v1/me/okrs");
+          const myObjs = res?.data?.objectives || [];
+          return {
+            objectives: myObjs,
+            summary: {
+              totalObjectives: myObjs.length,
+              avgProgress: myObjs.length
+                ? Math.round(myObjs.reduce((acc: number, o: any) => acc + (o.progress || 0), 0) / myObjs.length)
+                : 0,
+            },
+          };
+        }
         const params = new URLSearchParams();
         if (selectedCycleId && selectedCycleId !== "all") params.append("cycleId", selectedCycleId);
         if (alignmentFilter && alignmentFilter !== "all") params.append("alignmentType", alignmentFilter);
@@ -555,6 +568,7 @@ export function OkrPerformancePage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Alignments</SelectItem>
+                <SelectItem value="my" className="font-semibold text-primary">My Personal OKRs</SelectItem>
                 <SelectItem value="company">Company</SelectItem>
                 <SelectItem value="department">Department</SelectItem>
                 <SelectItem value="individual">Individual</SelectItem>

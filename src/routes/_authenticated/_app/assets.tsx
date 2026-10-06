@@ -347,6 +347,14 @@ export function AssetManagementPage() {
 
   const submitRequestMutation = useMutation({
     mutationFn: async () => {
+      if (!requestForm.employeeId || requestForm.employeeId === "me") {
+        return await api.post("/api/v1/me/assets/request", {
+          itemName: requestForm.itemName,
+          priority: requestForm.priority,
+          purpose: requestForm.purpose,
+          quantity: requestForm.quantity,
+        });
+      }
       return await api.post("/addons/assets/requests", requestForm);
     },
     onSuccess: () => {
@@ -1616,6 +1624,9 @@ export function AssetManagementPage() {
                   <SelectValue placeholder="Select Staff" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="me" className="text-xs font-semibold text-primary">
+                    Me (Current Authenticated Employee)
+                  </SelectItem>
                   {employeesList?.map((emp: any) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.firstName} {emp.lastName} ({emp.position || "Staff"})

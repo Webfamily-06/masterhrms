@@ -221,7 +221,17 @@ export function HelpdeskPage() {
 
   // Mutations
   const createTicketMut = useMutation({
-    mutationFn: async (payload: any) => api.post("/helpdesk/tickets", payload),
+    mutationFn: async (payload: any) => {
+      if (!payload.employeeId || payload.employeeId === "me") {
+        return api.post("/api/v1/me/tickets", {
+          subject: payload.subject,
+          category: payload.category,
+          priority: payload.priority,
+          description: payload.description,
+        });
+      }
+      return api.post("/helpdesk/tickets", payload);
+    },
     onSuccess: () => {
       toast.success("Helpdesk ticket submitted successfully!");
       qc.invalidateQueries({ queryKey: ["helpdesk-tickets"] });
@@ -269,7 +279,7 @@ export function HelpdeskPage() {
 
   function resetTicketForm() {
     setTicketForm({
-      employeeId: employees[0]?.id || "",
+      employeeId: "me",
       subject: "",
       category: "IT & Hardware",
       priority: "medium",
@@ -793,6 +803,9 @@ export function HelpdeskPage() {
                   <SelectValue placeholder="Select employee..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="me" className="text-xs font-semibold text-primary">
+                    Me (Current Authenticated Employee)
+                  </SelectItem>
                   {employees.map((e: any) => (
                     <SelectItem key={e.id} value={e.id} className="text-xs">
                       {e.firstName} {e.lastName} ({e.employeeCode})

@@ -80,15 +80,50 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; border: string; 
   expired: { bg: "bg-rose-500/10", text: "text-rose-600 dark:text-rose-400", border: "border-rose-500/30", label: "Expired" },
 };
 
+const LETTER_TYPES: Record<string, { label: string; desc: string; icon: any; category: string }> = {
+  BONAFIDE: {
+    label: "Bonafide Certificate",
+    desc: "Proof of active employment for visa applications, passport renewals, bank loans, or academic enrollment.",
+    icon: ShieldCheck,
+    category: "Identity & Verification",
+  },
+  EXPERIENCE: {
+    label: "Experience & Service Certificate",
+    desc: "Official statement of tenure, role designation, and organizational contributions.",
+    icon: Award,
+    category: "Career & Tenure",
+  },
+  NOC: {
+    label: "No Objection Certificate (NOC)",
+    desc: "NOC for embassy visa issuance, international personal travel, or higher education clearance.",
+    icon: Globe,
+    category: "Travel & Embassy",
+  },
+  SALARY: {
+    label: "Salary & Compensation Certificate",
+    desc: "Certified proof of monthly remuneration and earnings for home loans, credit applications, or lease rentals.",
+    icon: FileSpreadsheet,
+    category: "Financial & Compensation",
+  },
+};
+
 export function DocumentsPage() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);
   const tenantId = profile?.tenant_id;
   const qc = useQueryClient();
 
+  const [activeTab, setActiveTab] = useState<string>("vault");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
+
+  // Official Letter Requests State
+  const [isRequestLetterOpen, setIsRequestLetterOpen] = useState(false);
+  const [letterForm, setLetterForm] = useState({
+    letterType: "BONAFIDE",
+    purpose: "",
+  });
 
   // Modals
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -113,6 +148,31 @@ export function DocumentsPage() {
   const [signatureType, setSignatureType] = useState<"draw" | "type">("draw");
   const [typedSignature, setTypedSignature] = useState(profile?.full_name || user?.email || "Authorized Signatory");
   const [consentAccepted, setConsentAccepted] = useState(true);
+
+  // Employee Letter Requests Query & Mutation
+  const { data: letterRequests = [], isLoading: isLettersLoading } = useQuery({
+    queryKey: ["my-document-requests"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/documents");
+        return Array.isArray(res?.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const requestLetterMut = useMutation({
+    mutationFn: async (payload: { letterType: string; purpose: string }) =>
+      api.post("/api/v1/me/documents/request", payload),
+    onSuccess: (res: any) => {
+      toast.success(res?.message || "Letter request submitted to HR!");
+      qc.invalidateQueries({ queryKey: ["my-document-requests"] });
+      setIsRequestLetterOpen(false);
+      setLetterForm({ letterType: "BONAFIDE", purpose: "" });
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to submit letter request"),
+  });
 
   // Queries
   const { data: employees = [] } = useQuery({
@@ -301,24 +361,56 @@ export function DocumentsPage() {
             <FolderLock className="size-6 text-primary" /> Document Vault & Digital E-Signatures
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Cryptographic document storage, employment agreements, NDAs, company policies, and legal e-Signatures with IP audit trails.
+            Cryptographic document storage, employment agreements, NDAs, company policies, legal e-Signatures, and official HR letter requests.
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            onClick={() => {
-              resetUploadForm();
-              setIsUploadOpen(true);
-            }}
-            className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
-          >
-            <Plus className="size-3.5" />
-            <span>Upload Document to Vault</span>
-          </Button>
+          {activeTab === "vault" ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                resetUploadForm();
+                setIsUploadOpen(true);
+              }}
+              className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+            >
+              <Plus className="size-3.5" />
+              <span>Upload Document to Vault</span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => {
+                setLetterForm({ letterType: "BONAFIDE", purpose: "" });
+                setIsRequestLetterOpen(true);
+              }}
+              className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+            >
+              <Plus className="size-3.5" />
+              <span>Request Official Letter</span>
+            </Button>
+          )}
         </div>
       </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="bg-muted/60 p-1 border">
+          <TabsTrigger value="vault" className="text-xs font-bold gap-2">
+            <FolderLock className="size-3.5" /> Company Vault & Agreements
+          </TabsTrigger>
+          <TabsTrigger value="letters" className="text-xs font-bold gap-2">
+            <FileCheck className="size-3.5 text-primary" /> Official Letters & Certificates
+            {letterRequests.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 font-mono font-bold">
+                {letterRequests.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ─── TAB 1: COMPANY VAULT & E-SIGNATURES ─── */}
+        <TabsContent value="vault" className="space-y-6 m-0">
 
       {/* Metrics Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -557,6 +649,260 @@ export function DocumentsPage() {
           </Table>
         </CardContent>
       </Card>
+    </TabsContent>
+
+    {/* ─── TAB 2: OFFICIAL LETTERS & CERTIFICATES (SELF-SERVICE) ─── */}
+    <TabsContent value="letters" className="space-y-6 m-0">
+      {/* Quick Request Options Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        {Object.entries(LETTER_TYPES).map(([typeKey, item]) => {
+          const Icon = item.icon;
+          return (
+            <Card
+              key={typeKey}
+              className="p-4 border shadow-2xs bg-card hover:border-primary/50 transition-all flex flex-col justify-between"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="size-8 rounded-lg bg-primary/10 text-primary border border-primary/20 grid place-items-center">
+                    <Icon className="size-4" />
+                  </div>
+                  <Badge variant="outline" className="text-[9px] font-medium text-muted-foreground">
+                    {item.category}
+                  </Badge>
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-foreground">{item.label}</h4>
+                  <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                    {item.desc}
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setLetterForm({ letterType: typeKey, purpose: "" });
+                  setIsRequestLetterOpen(true);
+                }}
+                className="mt-3.5 h-7 text-xs font-bold w-full text-primary border-primary/30 hover:bg-primary hover:text-primary-foreground gap-1.5"
+              >
+                <Plus className="size-3" /> Request Letter
+              </Button>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Letter Requests Status & Ledger */}
+      <Card className="border shadow-2xs">
+        <CardHeader className="py-3 px-4 border-b flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <FileCheck className="size-4 text-primary" /> My Letter & Certificate Requests
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Track verification status, HR processing, and instant downloads of issued certified PDFs.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 text-xs">
+                <TableHead className="text-xs">Certificate Type</TableHead>
+                <TableHead className="text-xs">Purpose / Reason</TableHead>
+                <TableHead className="text-xs">Submitted On</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">HR Notes / Issuance</TableHead>
+                <TableHead className="text-xs text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLettersLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-10 text-xs">
+                    Loading official letter records...
+                  </TableCell>
+                </TableRow>
+              ) : letterRequests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12 text-xs italic">
+                    No letter requests submitted yet. Click one of the cards above to request Bonafide, NOC, or Salary Certificate.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                letterRequests.map((req: any) => {
+                  const typeConfig = LETTER_TYPES[req.letterType] || {
+                    label: req.letterType,
+                    icon: FileText,
+                  };
+                  const Icon = typeConfig.icon;
+
+                  return (
+                    <TableRow key={req.id} className="hover:bg-muted/20 text-xs">
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          <div className="size-7 rounded-md bg-primary/10 text-primary border border-primary/20 grid place-items-center shrink-0">
+                            <Icon className="size-3.5" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-foreground block">{typeConfig.label}</span>
+                            <span className="text-[10px] font-mono text-muted-foreground uppercase">{req.letterType}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="max-w-[280px]">
+                        <p className="text-xs text-foreground truncate" title={req.purpose}>
+                          {req.purpose}
+                        </p>
+                      </TableCell>
+
+                      <TableCell className="font-mono text-muted-foreground text-xs whitespace-nowrap">
+                        {new Date(req.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </TableCell>
+
+                      <TableCell>
+                        {req.status === "PENDING" && (
+                          <Badge variant="outline" className="text-[10px] font-bold bg-amber-500/10 text-amber-600 border-amber-500/30 gap-1">
+                            <Clock className="size-3" /> Under HR Review
+                          </Badge>
+                        )}
+                        {req.status === "ISSUED" && (
+                          <Badge variant="outline" className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1">
+                            <CheckCircle2 className="size-3" /> Issued & Certified
+                          </Badge>
+                        )}
+                        {req.status === "REJECTED" && (
+                          <Badge variant="outline" className="text-[10px] font-bold bg-rose-500/10 text-rose-600 border-rose-500/30 gap-1">
+                            <X className="size-3" /> Rejected
+                          </Badge>
+                        )}
+                      </TableCell>
+
+                      <TableCell>
+                        {req.rejectionNotes ? (
+                          <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                            {req.rejectionNotes}
+                          </span>
+                        ) : req.issuedAt ? (
+                          <span className="text-xs text-emerald-600 font-mono">
+                            Issued: {new Date(req.issuedAt).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">In queue with HR Ops</span>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        {req.status === "ISSUED" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              toast.success(`Downloading certified ${typeConfig.label}...`);
+                            }}
+                            className="h-6 text-[10px] font-bold text-primary border-primary/30 gap-1 shadow-2xs"
+                          >
+                            <Download className="size-3" /> Download PDF
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground font-mono">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </TabsContent>
+  </Tabs>
+
+  {/* ─── MODAL 0: REQUEST OFFICIAL LETTER ─── */}
+  <Dialog open={isRequestLetterOpen} onOpenChange={setIsRequestLetterOpen}>
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle className="text-base font-bold flex items-center gap-2">
+          <FileCheck className="size-5 text-primary" /> Request Official Letter / Certificate
+        </DialogTitle>
+        <DialogDescription className="text-xs">
+          Submit formal request for company credentials. Once authorized by HR, digitally stamped PDF will be generated.
+        </DialogDescription>
+      </DialogHeader>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!letterForm.purpose.trim()) {
+            toast.error("Please enter purpose or justification");
+            return;
+          }
+          requestLetterMut.mutate(letterForm);
+        }}
+        className="space-y-3.5 py-2 text-xs"
+      >
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold">Document / Certificate Type *</Label>
+          <Select
+            value={letterForm.letterType}
+            onValueChange={(v) => setLetterForm({ ...letterForm, letterType: v })}
+          >
+            <SelectTrigger className="h-8 text-xs bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="BONAFIDE">Bonafide Certificate (Active Employment)</SelectItem>
+              <SelectItem value="EXPERIENCE">Experience & Service Certificate</SelectItem>
+              <SelectItem value="NOC">No Objection Certificate (NOC - Visa/Travel)</SelectItem>
+              <SelectItem value="SALARY">Salary & Compensation Certificate</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs font-semibold">Purpose & Authority Addressed To *</Label>
+          <Textarea
+            required
+            rows={3}
+            placeholder="e.g. Applying for Schengen Visa at German Embassy; or HDFC Home Loan verification..."
+            value={letterForm.purpose}
+            onChange={(e) => setLetterForm({ ...letterForm, purpose: e.target.value })}
+            className="text-xs resize-none"
+          />
+          <p className="text-[10px] text-muted-foreground">
+            State Embassy / Bank name or specific wording required by recipient authority.
+          </p>
+        </div>
+
+        <DialogFooter className="pt-2 border-t">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setIsRequestLetterOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={requestLetterMut.isPending}
+            className="font-bold gap-1 bg-primary text-primary-foreground"
+          >
+            {requestLetterMut.isPending ? "Submitting..." : "Submit to HR"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
 
       {/* ─── MODAL 1: UPLOAD / REGISTER NEW DOCUMENT ─── */}
       <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>

@@ -84,6 +84,7 @@ export function AwardsPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState("all");
+  const [filterScope, setFilterScope] = useState<"all" | "my">("all");
   const [activeTab, setActiveTab] = useState<"grid" | "table">("grid");
 
   // Dialog States
@@ -108,8 +109,12 @@ export function AwardsPage() {
 
   // Fetch Awards
   const { data: awardsData, isLoading: awardsLoading } = useQuery({
-    queryKey: ["awards", selectedTypeFilter, searchTerm],
+    queryKey: ["awards", selectedTypeFilter, searchTerm, filterScope],
     queryFn: async () => {
+      if (filterScope === "my") {
+        const res: any = await api.get("/api/v1/me/awards");
+        return { data: Array.isArray(res?.data) ? res.data : [] };
+      }
       const params = new URLSearchParams();
       if (selectedTypeFilter !== "all") params.append("awardTypeId", selectedTypeFilter);
       if (searchTerm) params.append("search", searchTerm);
@@ -337,19 +342,31 @@ export function AwardsPage() {
           placeholder: "Search awardee, voucher, certificate #...",
         }}
         filters={
-          <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
-            <SelectTrigger className="w-[180px] h-8.5 text-xs">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">All Categories</SelectItem>
-              {awardTypes.map((t) => (
-                <SelectItem key={t.id} value={t.id} className="text-xs">
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={filterScope} onValueChange={(v: any) => setFilterScope(v)}>
+              <SelectTrigger className="w-[170px] h-8.5 text-xs font-semibold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Company Awards</SelectItem>
+                <SelectItem value="my" className="text-xs font-bold text-primary">My Honors & Badges</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
+              <SelectTrigger className="w-[180px] h-8.5 text-xs">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Categories</SelectItem>
+                {awardTypes.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
         viewToggle={
           <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40">
