@@ -110,8 +110,24 @@ export function InvoiceCreatorView({
   const [notes, setNotes] = useState<string>("Thank you for your business. Please remit payment via NEFT/RTGS to our bank account.");
   const [terms, setTerms] = useState<string>("Interest @ 18% p.a. will be charged on delayed payments beyond due date.");
 
-  // Indian GST Settings
-  const companyState = "29"; // Default Karnataka state
+  // Dynamically fetch Tenant Company Profile / GST Settings (Phase 2 Wave 2.1)
+  const { data: companyProfileData } = useQuery<{
+    profile?: any;
+    primaryGst?: any;
+  }>({
+    queryKey: ["company-profile", "current"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/company-profile");
+        return res.data || res;
+      } catch {
+        return {};
+      }
+    },
+    staleTime: 60_000,
+  });
+
+  const companyState = companyProfileData?.primaryGst?.stateCode || companyProfileData?.profile?.registeredStateCode || "29";
   const [customerState, setCustomerState] = useState<string>(initialValues?.customerState || "29");
   const [manualTaxModeOverride, setManualTaxModeOverride] = useState<"auto" | "sgst_cgst" | "igst">("auto");
 

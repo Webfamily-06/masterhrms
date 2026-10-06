@@ -215,6 +215,8 @@ model Tenant {
   employeeChangeRequests EmployeeChangeRequest[]
   documentRequests       DocumentRequest[]
   approvalDelegations    ApprovalDelegation[]
+  companyProfile         CompanyProfile?
+  gstRegistrations       GSTRegistration[]
   @@map("tenants")
 }
 
@@ -4397,4 +4399,73 @@ model DocumentRequest {
   @@index([tenantId, employeeId, status])
   @@map("document_requests")
 }
+
+// ==========================================
+// PHASE 2 WAVE 2.1: COMPANY PROFILE & STATUTORY GST
+// ==========================================
+
+model CompanyProfile {
+  id                   String   @id @default(uuid()) @db.VarChar(36)
+  tenantId             String   @unique @map("tenant_id") @db.VarChar(36)
+  legalName            String   @map("legal_name") @db.VarChar(255)
+  tradeName            String?  @map("trade_name") @db.VarChar(255)
+  businessType         String   @default("pvt_ltd") @map("business_type") @db.VarChar(50) // pvt_ltd, public_ltd, llp, partnership, proprietorship, individual
+  cin                  String?  @db.VarChar(30)
+  pan                  String?  @db.VarChar(20)
+  tan                  String?  @db.VarChar(20)
+  phone                String?  @db.VarChar(50)
+  email                String?  @db.VarChar(150)
+  website              String?  @db.VarChar(255)
+
+  // Registered Address
+  registeredAddress    String?  @map("registered_address") @db.Text
+  registeredCity       String?  @map("registered_city") @db.VarChar(100)
+  registeredState      String?  @map("registered_state") @db.VarChar(100)
+  registeredStateCode  String?  @map("registered_state_code") @db.VarChar(10) // 2-digit Indian state code (e.g. "29", "27")
+  registeredPostalCode String?  @map("registered_postal_code") @db.VarChar(20)
+  registeredCountry    String   @default("India") @map("registered_country") @db.VarChar(100)
+
+  // Billing Address (optional separate or same as registered)
+  billingAddress       String?  @map("billing_address") @db.Text
+  billingCity          String?  @map("billing_city") @db.VarChar(100)
+  billingState         String?  @map("billing_state") @db.VarChar(100)
+  billingStateCode     String?  @map("billing_state_code") @db.VarChar(10)
+  billingPostalCode    String?  @map("billing_postal_code") @db.VarChar(20)
+  billingCountry       String?  @default("India") @map("billing_country") @db.VarChar(100)
+  sameAsRegistered     Boolean  @default(true) @map("same_as_registered")
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  tenant               Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  gstRegistrations     GSTRegistration[]
+
+  @@map("company_profiles")
+}
+
+model GSTRegistration {
+  id                String   @id @default(uuid()) @db.VarChar(36)
+  companyProfileId  String   @map("company_profile_id") @db.VarChar(36)
+  tenantId          String   @map("tenant_id") @db.VarChar(36)
+  gstin             String   @db.VarChar(20)
+  legalName         String?  @map("legal_name") @db.VarChar(255)
+  tradeName         String?  @map("trade_name") @db.VarChar(255)
+  stateCode         String   @map("state_code") @db.VarChar(10) // 2-digit Indian state code
+  registrationType  String   @default("REGULAR") @map("registration_type") @db.VarChar(30) // REGULAR, COMPOSITION, SEZ, ISD, CASUAL
+  isPrimary         Boolean  @default(true) @map("is_primary")
+  status            String   @default("ACTIVE") @db.VarChar(20) // ACTIVE, INACTIVE, CANCELLED
+  filingFrequency   String?  @default("MONTHLY") @map("filing_frequency") @db.VarChar(20) // MONTHLY, QUARTERLY
+  eInvoicingEnabled Boolean  @default(false) @map("e_invoicing_enabled")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  companyProfile    CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, gstin])
+  @@index([tenantId, isPrimary])
+  @@index([stateCode])
+  @@map("gst_registrations")
+}
+
 

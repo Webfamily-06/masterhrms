@@ -1,5 +1,6 @@
 import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
 import { WorkspaceBrandingSettings } from "@/components/settings/workspace-branding-settings";
+import { CompanyProfileSettings } from "@/components/settings/company-profile-settings";
 import { AccessDenied } from "@/components/access-denied";
 import { isWorkspaceAdminUser } from "@/lib/permissions";
 import { createFileRoute, Link, useSearch, Outlet, useRouterState } from "@tanstack/react-router";
@@ -12,8 +13,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  SettingsNestedNav,
+  SettingsSectionBreadcrumb,
+  type SettingsNavCategory,
+} from "@/components/settings/settings-nested-nav";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -106,14 +113,24 @@ function Settings() {
   // Pure employees (no admin/HR/manager role) can only access the security tab (their own 2FA)
   const isEmployeeOnly = !isAdmin && (profile?.roles ?? []).includes("employee");
 
-  const [activeTab, setActiveTab] = useState<string>(searchParams.tab || (isEmployeeOnly ? "security" : "organization"));
+  const [activeTab, setActiveTabState] = useState<string>(
+    searchParams.tab || (isEmployeeOnly ? "security" : "organization"),
+  );
 
-  // Sync tab with URL search parameter if changed
+  const navigate = Route.useNavigate();
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    navigate({ search: { tab } as any, replace: true });
+  };
+
+  // Sync tab with URL search parameter if changed, and ensure default tab is in URL
   useEffect(() => {
-    if (searchParams.tab) {
-      setActiveTab(searchParams.tab);
+    if (searchParams.tab && searchParams.tab !== activeTab) {
+      setActiveTabState(searchParams.tab);
+    } else if (!searchParams.tab) {
+      navigate({ search: { tab: activeTab } as any, replace: true });
     }
-  }, [searchParams.tab]);
+  }, [searchParams.tab, activeTab, navigate]);
 
   // 2FA Setup & Management Modal States
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
@@ -655,6 +672,162 @@ function Settings() {
     },
   ];
 
+  // Tenant Settings Nested Menus Hierarchy Definition
+  const TENANT_SETTINGS_NAV: SettingsNavCategory[] = useMemo(() => {
+    return [
+      {
+        id: "workspace-cat",
+        label: "Workspace & Identity",
+        icon: Building2,
+        description: "Access roles, white-label branding, legal company profile and timings",
+        hidden: !isAdmin,
+        items: [
+          {
+            id: "workspace",
+            label: "Workspace Roles & Modules",
+            description: "Manage member roles, seat licenses & module permissions",
+            icon: Shield,
+          },
+          {
+            id: "workspace-branding",
+            label: "Workspace Branding",
+            description: "Tenant logo, primary accent color & custom appearance",
+            icon: Palette,
+          },
+          {
+            id: "company-profile",
+            label: "Company Profile & GST",
+            description: "Authoritative legal entity, GSTIN registrations & dispatch address",
+            icon: Building2,
+          },
+          {
+            id: "organization",
+            label: "Office Timing & Policy",
+            description: "Working shift timings, grace windows & official hours",
+            icon: Clock,
+          },
+        ],
+      },
+      {
+        id: "workforce-cat",
+        label: "Workforce & HR",
+        icon: Users,
+        description: "Leave quotas, department structures and approval workflows",
+        hidden: !isHR && !isAdmin,
+        items: [
+          {
+            id: "leave-types",
+            label: "Leave Types & Quotas",
+            description: "Annual vacation, sick, and casual leave quotas",
+            icon: CalendarCheck,
+            hidden: !isHR,
+          },
+          {
+            id: "departments",
+            label: "Departments & Teams",
+            description: "Organizational structure, divisions and department heads",
+            icon: Users,
+            badge: `${rawDepts.length} Depts`,
+            badgeColor: "bg-muted text-muted-foreground border-border",
+            hidden: !isHR,
+          },
+          {
+            id: "approvals",
+            label: "Approval Workflows",
+            description: "Multi-tier approval chains and auto-approval timeouts",
+            icon: Workflow,
+            badge: `${approvalWorkflows.length} Chains`,
+            badgeColor: "bg-muted text-muted-foreground border-border",
+            hidden: !isAdmin,
+          },
+        ],
+      },
+      {
+        id: "finance-cat",
+        label: "Payroll & Billing",
+        icon: DollarSign,
+        description: "Statutory compensation rules, invoice templates and wire terms",
+        hidden: !isAdmin,
+        items: [
+          {
+            id: "salary-settings",
+            label: "Salary & Statutory",
+            description: "DA, HRA, PF, ESI, and professional tax formula rules",
+            icon: Calculator,
+          },
+          {
+            id: "invoice-settings",
+            label: "Invoice & Billing Terms",
+            description: "Invoice numbering prefix, standard terms, and bank wire details",
+            icon: FileText,
+          },
+        ],
+      },
+      {
+        id: "system-cat",
+        label: "System & Intelligence",
+        icon: SlidersHorizontal,
+        description: "HRMS module quick-hub, dynamic custom fields and AI engine",
+        hidden: !isAdmin,
+        items: [
+          {
+            id: "config-hub",
+            label: "HRMS Portal Config Hub",
+            description: "Quick access shortcuts to core operational modules",
+            icon: SlidersHorizontal,
+          },
+          {
+            id: "custom-fields",
+            label: "Dynamic Custom Fields",
+            description: "Extend schemas for employees, projects, tickets and clients",
+            icon: Code,
+            badge: `${customFields.length} Fields`,
+            badgeColor: "bg-muted text-muted-foreground border-border",
+          },
+          {
+            id: "ai-settings",
+            label: "AI & ChatGPT Settings",
+            description: "Configure OpenAI, Google Gemini, Claude, and DeepSeek keys",
+            icon: Sparkles,
+          },
+        ],
+      },
+      {
+        id: "account-cat",
+        label: "Account & Security",
+        icon: ShieldCheck,
+        description: "Two-factor authentication and personal account credentials",
+        items: [
+          {
+            id: "security",
+            label: "Security & 2FA",
+            description: "Authenticator app, emergency backup codes & protection",
+            icon: ShieldCheck,
+            badge: twoFactorStatus?.twoFactorEnabled ? "2FA Active" : "Disabled",
+            badgeColor: twoFactorStatus?.twoFactorEnabled
+              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+              : "bg-muted text-muted-foreground border-border",
+          },
+        ],
+      },
+    ];
+  }, [
+    isAdmin,
+    isHR,
+    rawDepts.length,
+    approvalWorkflows.length,
+    customFields.length,
+    twoFactorStatus?.twoFactorEnabled,
+  ]);
+
+  const activeNavInfo = useMemo(() => {
+    for (const cat of TENANT_SETTINGS_NAV) {
+      const found = cat.items.find((i) => i.id === activeTab);
+      if (found) return { category: cat, item: found };
+    }
+    return null;
+  }, [TENANT_SETTINGS_NAV, activeTab]);
+
   return (
     <div className="space-y-6 max-w-full pb-16">
       {/* Header */}
@@ -664,90 +837,44 @@ function Settings() {
             <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
               <Building2 className="size-5" />
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-foreground">Organization & System Settings</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Organization & System Settings</h1>
             <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5">
               Control Panel
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Configure default office work timings, leave categories, company profile, and HRMS portal modules.
           </p>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted/40 h-10 p-1 flex flex-wrap gap-1 w-full justify-start border">
-          {isAdmin && (
-            <>
-              <TabsTrigger value="workspace" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Shield className="size-3.5 text-orange-500" />
-                <span>Workspace (Roles &amp; Modules)</span>
-              </TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          {/* Sub Menu & Nested Menus Navigation Sidebar */}
+          <SettingsNestedNav
+            categories={TENANT_SETTINGS_NAV}
+            activeTab={activeTab}
+            onSelectTab={setActiveTab}
+            title="Workspace Settings"
+            subtitle="Organization & HR Controls"
+            searchPlaceholder="Search workspace settings..."
+          />
 
-              <TabsTrigger value="workspace-branding" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Palette className="size-3.5 text-primary" />
-                <span>Workspace Branding</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="organization" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Building2 className="size-3.5 text-primary" />
-                <span>Organization &amp; Office Timing</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="config-hub" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <SlidersHorizontal className="size-3.5 text-indigo-500" />
-                <span>HRMS Portal Config Hub</span>
-              </TabsTrigger>
-            </>
-          )}
-
-          {isHR && (
-            <>
-              <TabsTrigger value="leave-types" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <CalendarCheck className="size-3.5 text-amber-500" />
-                <span>Leave Types & Quotas</span>
-              </TabsTrigger>
-              <TabsTrigger value="departments" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Users className="size-3.5 text-blue-500" />
-                <span>Departments</span>
-              </TabsTrigger>
-            </>
-          )}
-
-          {isAdmin && (
-            <>
-              <TabsTrigger value="approvals" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Workflow className="size-3.5 text-blue-500" />
-                <span>Approval Settings</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="salary-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Calculator className="size-3.5 text-emerald-500" />
-                <span>Salary &amp; Statutory</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="invoice-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <FileText className="size-3.5 text-purple-500" />
-                <span>Invoice &amp; Billing</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="custom-fields" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Code className="size-3.5 text-amber-500" />
-                <span>Custom Fields</span>
-              </TabsTrigger>
-
-              <TabsTrigger value="ai-settings" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-                <Sparkles className="size-3.5 text-fuchsia-500" />
-                <span>AI &amp; ChatGPT Settings</span>
-              </TabsTrigger>
-            </>
-          )}
-
-          <TabsTrigger value="security" className="text-xs h-8 gap-1.5 font-bold data-[state=active]:bg-background">
-            <ShieldCheck className="size-3.5 text-emerald-500" />
-            <span>Security &amp; 2FA</span>
-          </TabsTrigger>
-        </TabsList>
+          {/* Right Active Panel (No Tab Space!) */}
+          <main className="flex-1 min-w-0 w-full space-y-5">
+            <SettingsSectionBreadcrumb
+              categoryLabel={activeNavInfo?.category?.label}
+              itemLabel={activeNavInfo?.item?.label || "Settings"}
+              itemDescription={activeNavInfo?.item?.description}
+              icon={activeNavInfo?.item?.icon}
+              badge={
+                activeNavInfo?.item?.badge ? (
+                  <Badge variant="outline" className={cn("text-[10px] font-mono", activeNavInfo.item.badgeColor)}>
+                    {activeNavInfo.item.badge}
+                  </Badge>
+                ) : null
+              }
+            />
 
         {/* ===================== TAB 0: WORKSPACE ADMIN (ROLES & MODULES) ===================== */}
         <TabsContent value="workspace" className="space-y-5">
@@ -759,6 +886,11 @@ function Settings() {
           <WorkspaceBrandingSettings />
         </TabsContent>
 
+        {/* ===================== TAB 0.7: COMPANY PROFILE & GST (PHASE 2 WAVE 2.1) ===================== */}
+        <TabsContent value="company-profile" className="space-y-5">
+          <CompanyProfileSettings />
+        </TabsContent>
+
         {/* ===================== TAB 1: ORGANIZATION & OFFICE TIMINGS ===================== */}
         <TabsContent value="organization" className="space-y-5">
           {/* Section 1: Default Office Work Timings & Shift Rules */}
@@ -766,7 +898,7 @@ function Settings() {
             <CardHeader className="py-3 px-4 border-b bg-muted/20">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                     <Clock className="size-4 text-primary" />
                     <span>Default Office Work Timings & Shift Policy</span>
                   </CardTitle>
@@ -939,7 +1071,7 @@ function Settings() {
             <CardHeader className="py-3 px-4 border-b bg-muted/20">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                     <CalendarCheck className="size-4 text-amber-500" />
                     <span>Annual Leave Categories & Quotas</span>
                   </CardTitle>
@@ -1064,7 +1196,7 @@ function Settings() {
             <CardHeader className="py-3 px-4 border-b bg-muted/20">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                     <Building2 className="size-4 text-primary" />
                     <span>Company Legal Profile & Regional Identity</span>
                   </CardTitle>
@@ -1201,7 +1333,7 @@ function Settings() {
             <CardHeader className="py-3 px-4 border-b bg-muted/20">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                     <SlidersHorizontal className="size-4 text-indigo-500" />
                     <span>HRMS Portal Module Configuration Directory</span>
                   </CardTitle>
@@ -1257,7 +1389,7 @@ function Settings() {
               <CardHeader className="py-3 px-4 border-b bg-muted/20">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                       <CalendarCheck className="size-4 text-amber-500" />
                       <span>Leave Categories & Annual PTO Quotas</span>
                     </CardTitle>
@@ -1386,7 +1518,7 @@ function Settings() {
             <Dialog open={!!editingDept} onOpenChange={(open) => { if (!open) { setEditingDept(null); setEditDeptName(""); setEditDeptDescription(""); } }}>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-sm font-black">
+                  <DialogTitle className="flex items-center gap-2 text-sm font-bold">
                     <Edit2 className="size-4 text-blue-500" /> Edit Department
                   </DialogTitle>
                   <DialogDescription className="text-xs">Update the department name and description.</DialogDescription>
@@ -1414,7 +1546,7 @@ function Settings() {
               <CardHeader className="py-3 px-4 border-b bg-muted/20">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                       <Users className="size-4 text-blue-500" />
                       <span>Departments &amp; Team Directories</span>
                       <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 border-blue-400/50 text-blue-600 bg-blue-50 dark:bg-blue-900/20">{departments.length}</Badge>
@@ -1484,7 +1616,7 @@ function Settings() {
             <CardHeader className="py-3.5 px-5 border-b bg-muted/20">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                     <ShieldCheck className="size-4 text-emerald-500" />
                     <span>Two-Factor Authentication (Email OTP)</span>
                   </CardTitle>
@@ -1598,7 +1730,7 @@ function Settings() {
           <Card className="border shadow-2xs bg-card">
             <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                   <Sparkles className="size-4 text-fuchsia-500 animate-pulse" />
                   <span>AI & Multi-Model ChatGPT Configuration</span>
                 </CardTitle>
@@ -1790,7 +1922,7 @@ function Settings() {
           <Card className="border shadow-2xs">
             <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                   <Workflow className="size-4 text-blue-500" /> Multi-Tier Approval Workflows
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -1858,7 +1990,7 @@ function Settings() {
           <Card className="border shadow-2xs">
             <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                   <Calculator className="size-4 text-emerald-500" /> Salary Allowances & Statutory Formula Configuration
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -1950,7 +2082,7 @@ function Settings() {
           <Card className="border shadow-2xs">
             <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                   <FileText className="size-4 text-purple-500" /> Invoicing, Billing & Bank Wire Credentials
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -2038,7 +2170,7 @@ function Settings() {
           <Card className="border shadow-2xs">
             <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-black flex items-center gap-2 text-foreground">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                   <Code className="size-4 text-amber-500" /> Dynamic Custom Fields Engine
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -2105,13 +2237,15 @@ function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
+          </main>
+        </div>
       </Tabs>
 
       {/* ===== EDIT LEAVE TYPE MODAL ===== */}
       <Dialog open={!!editingLT} onOpenChange={(o) => !o && setEditingLT(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base font-black flex items-center gap-2">
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
               <CalendarCheck className="size-5 text-amber-500" /> Edit Leave Category Policy
             </DialogTitle>
             <DialogDescription className="text-xs">
@@ -2187,7 +2321,7 @@ function Settings() {
       <Dialog open={isSetupModalOpen} onOpenChange={setIsSetupModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base font-black flex items-center gap-2">
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
               <Shield className="size-5 text-primary" /> Setup Two-Factor Authentication
             </DialogTitle>
           </DialogHeader>

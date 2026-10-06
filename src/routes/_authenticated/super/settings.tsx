@@ -1,14 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -57,6 +57,9 @@ import {
   Coins,
   ShieldCheck,
   Building,
+  Building2,
+  MapPin,
+  FileText,
   Languages,
   RotateCcw,
   Copy,
@@ -73,8 +76,19 @@ import { MediaImageUploader } from "@/components/settings/media-image-uploader";
 import { LivePreviewDock } from "@/components/settings/live-preview-dock";
 import { MediaLibraryManager } from "@/components/settings/media-library-manager";
 import { UnsavedChangesBar } from "@/components/settings/unsaved-changes-bar";
+import {
+  SettingsNestedNav,
+  SettingsSectionBreadcrumb,
+  type SettingsNavCategory,
+} from "@/components/settings/settings-nested-nav";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/super/settings")({
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => {
+    return {
+      tab: (search.tab as string) || undefined,
+    };
+  },
   component: SuperSettingsAdmin,
 });
 
@@ -192,6 +206,16 @@ export type SuperSettings = {
   smtpLogs?: SmtpDeliveryLog[];
   otpEmailSubject?: string;
   otpEmailTemplate?: string;
+
+  // Platform Legal Entity & Invoicing Address (From Address)
+  platformLegalName?: string;
+  platformAddress?: string;
+  platformCity?: string;
+  platformState?: string;
+  platformPostalCode?: string;
+  platformCountry?: string;
+  platformGstin?: string;
+  platformPhone?: string;
 };
 
 const DEFAULT_SETTINGS: SuperSettings = {
@@ -304,6 +328,16 @@ const DEFAULT_SETTINGS: SuperSettings = {
       error_details: "250 2.0.0 OK Message accepted for delivery",
     },
   ],
+
+  // Platform Origin / Dispatch Address Defaults
+  platformLegalName: "Master ERP Technologies Private Limited",
+  platformAddress: "DLF Cyber City, Tower B, 8th Floor, DLF Phase 2",
+  platformCity: "Gurugram",
+  platformState: "Haryana (06)",
+  platformPostalCode: "122002",
+  platformCountry: "India",
+  platformGstin: "06AAACM1234F1Z8",
+  platformPhone: "+91 98765 43210",
 };
 
 const COLOR_PRESETS = [
@@ -317,8 +351,132 @@ const COLOR_PRESETS = [
 
 function SuperSettingsAdmin() {
   const qc = useQueryClient();
+  const navigate = Route.useNavigate();
+  const searchParams = useSearch({ from: "/_authenticated/super/settings" });
   const [form, setForm] = useState<SuperSettings>(DEFAULT_SETTINGS);
-  const [activeTab, setActiveTab] = useState("branding");
+  const [activeTab, setActiveTabState] = useState<string>(searchParams.tab || "branding");
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    navigate({ search: { tab } as any, replace: true });
+  };
+
+  // Keep activeTab in sync with URL search param, and populate default tab in URL if missing
+  useEffect(() => {
+    if (searchParams.tab && searchParams.tab !== activeTab) {
+      setActiveTabState(searchParams.tab);
+    } else if (!searchParams.tab) {
+      navigate({ search: { tab: activeTab } as any, replace: true });
+    }
+  }, [searchParams.tab, activeTab, navigate]);
+
+  // Nested Menus Hierarchy Definition
+  const SUPER_SETTINGS_NAV: SettingsNavCategory[] = useMemo(
+    () => [
+      {
+        id: "identity",
+        label: "Brand & Identity",
+        icon: Sparkles,
+        description: "Logos, themes, legal entity and media storage",
+        items: [
+          {
+            id: "branding",
+            label: "Branding & Themes",
+            description: "Logos, favicon, primary theme color and brand identity",
+            icon: ImageIcon,
+          },
+          {
+            id: "addresses",
+            label: "Dispatch & Invoicing",
+            description: "Platform legal name, GSTIN, origin dispatch address",
+            icon: Building2,
+          },
+          {
+            id: "media",
+            label: "Media Library",
+            description: "Asset storage, vector icons, media repository",
+            icon: Folder,
+          },
+        ],
+      },
+      {
+        id: "finance",
+        label: "Currency & Payments",
+        icon: Coins,
+        description: "Master currency, formatting and payment gateways",
+        items: [
+          {
+            id: "currency",
+            label: "Currency & Locale",
+            description: "Currency symbols, separators and number formatting",
+            icon: Coins,
+            badge: form.defaultCurrency,
+            badgeColor: "bg-muted text-muted-foreground border-border",
+          },
+          {
+            id: "payments",
+            label: "Payment Gateways",
+            description: "Stripe, PayPal, Razorpay & Bank transfer credentials",
+            icon: CreditCard,
+          },
+        ],
+      },
+      {
+        id: "integrations",
+        label: "Comms & Integrations",
+        icon: Radio,
+        description: "Email delivery, OAuth logins, and live websockets",
+        items: [
+          {
+            id: "smtp",
+            label: "SMTP Email Engine",
+            description: "Mail server, credentials & live test email dispatch",
+            icon: Mail,
+          },
+          {
+            id: "oauth",
+            label: "OAuth 2.0 Logins",
+            description: "Google, Apple, LinkedIn & Facebook social sign-in",
+            icon: Lock,
+          },
+          {
+            id: "pusher",
+            label: "WebSockets & Events",
+            description: "Pusher & Soketi real-time event broadcasting",
+            icon: Radio,
+          },
+        ],
+      },
+      {
+        id: "operations",
+        label: "Platform Operations",
+        icon: AlertTriangle,
+        description: "Maintenance schedule and emergency broadcast",
+        items: [
+          {
+            id: "system",
+            label: "Maintenance & System",
+            description: "Emergency maintenance mode, lockouts & announcements",
+            icon: AlertTriangle,
+            badge: form.maintenanceMode ? "ACTIVE" : "Normal",
+            badgeColor: form.maintenanceMode
+              ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
+              : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+          },
+        ],
+      },
+    ],
+    [form.defaultCurrency, form.maintenanceMode],
+  );
+
+  const activeNavInfo = useMemo(() => {
+    for (const cat of SUPER_SETTINGS_NAV) {
+      const found = cat.items.find((i) => i.id === activeTab);
+      if (found) return { category: cat, item: found };
+    }
+    return null;
+  }, [SUPER_SETTINGS_NAV, activeTab]);
+
   const logoLightRef = useRef<HTMLInputElement>(null);
   const logoDarkRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
@@ -374,6 +532,47 @@ function SuperSettingsAdmin() {
   const [testRecipientEmail, setTestRecipientEmail] = useState("");
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
 
+  // Super Admin Workspace & Tenant Company Profile Integration (Wave 2.1 Follow-Up)
+  const [selectedTenantId, setSelectedTenantId] = useState<string>("");
+
+  // Query all tenant workspaces for the selector
+  const { data: tenants = [], isLoading: isLoadingTenants } = useQuery({
+    queryKey: ["super-tenants-list"],
+    queryFn: async () => {
+      const res = await api.get("/super/tenants");
+      return Array.isArray(res) ? res : Array.isArray((res as any)?.data) ? (res as any).data : [];
+    },
+  });
+
+  // Automatically select the first tenant once loaded if none is active
+  useEffect(() => {
+    if (!selectedTenantId && tenants.length > 0) {
+      setSelectedTenantId(tenants[0].id);
+    }
+  }, [tenants, selectedTenantId]);
+
+  // Selected tenant object
+  const selectedTenant = tenants.find((t: any) => t.id === selectedTenantId);
+
+  // Query authoritative CompanyProfile & GST for the selected tenant using the canonical query key
+  const {
+    data: tenantProfileData,
+    isLoading: isLoadingTenantProfile,
+    isRefetching: isRefetchingTenantProfile,
+    refetch: refetchTenantProfile,
+  } = useQuery({
+    queryKey: ["company-profile", selectedTenantId],
+    queryFn: async () => {
+      if (!selectedTenantId) return null;
+      const res: any = await api.get(`/v1/company-profile/tenant/${selectedTenantId}`);
+      return res;
+    },
+    enabled: !!selectedTenantId,
+  });
+
+  const tenantCompanyProfile = tenantProfileData?.profile;
+  const tenantGstRegistration = tenantProfileData?.primaryGst;
+
   // 1. REALTIME QUERY: Fetch platform settings from MySQL & Settings Service
   const {
     data: settingsData,
@@ -394,6 +593,20 @@ function SuperSettingsAdmin() {
           ...DEFAULT_SETTINGS,
           ...cmsContent,
         };
+
+        // Harmonize platform address fields from legacy/current cmsPage keys
+        if (cmsContent.platformName || cmsContent.companyName) {
+          merged.platformLegalName = cmsContent.platformLegalName || cmsContent.platformName || cmsContent.companyName;
+        }
+        if (cmsContent.companyAddress || cmsContent.address) {
+          merged.platformAddress = cmsContent.platformAddress || cmsContent.companyAddress || cmsContent.address;
+        }
+        if (cmsContent.taxGstNumber || cmsContent.gstNumber) {
+          merged.platformGstin = cmsContent.platformGstin || cmsContent.taxGstNumber || cmsContent.gstNumber;
+        }
+        if (cmsContent.contactNumber || cmsContent.contactPhone) {
+          merged.platformPhone = cmsContent.platformPhone || cmsContent.contactNumber || cmsContent.contactPhone;
+        }
 
         if (brandingRes?.values) {
           if (brandingRes.values["branding.app_name"]) merged.appName = brandingRes.values["branding.app_name"];
@@ -444,7 +657,14 @@ function SuperSettingsAdmin() {
         title: "System Platform Settings",
         meta_description:
           "Global master configuration for currency, language, branding, SMTP, Pusher, and maintenance.",
-        content: updatedForm,
+        content: {
+          ...updatedForm,
+          companyAddress: updatedForm.platformAddress,
+          platformName: updatedForm.platformLegalName,
+          companyName: updatedForm.platformLegalName,
+          taxGstNumber: updatedForm.platformGstin,
+          contactPhone: updatedForm.platformPhone,
+        },
         published: true,
       });
     },
@@ -455,6 +675,7 @@ function SuperSettingsAdmin() {
       qc.invalidateQueries({ queryKey: ["tenant-branding"] });
       qc.invalidateQueries({ queryKey: ["platform-media-library"] });
       qc.invalidateQueries({ queryKey: ["oauth-config"] });
+      qc.invalidateQueries({ queryKey: ["company-profile"] });
       // Apply theme immediately in this tab
       if (updatedForm.primaryThemeColor) {
         import("@/lib/useAppConfig").then(({ applyThemeVariables }) => {
@@ -648,56 +869,49 @@ function SuperSettingsAdmin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1 p-1.5 w-full bg-secondary/50 rounded-xl">
-          <TabsTrigger
-            value="branding"
-            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
-          >
-            <ImageIcon className="size-3.5" /> Branding
-          </TabsTrigger>
-          <TabsTrigger
-            value="currency"
-            className="gap-1.5 text-xs flex-1 min-w-[120px] sm:min-w-[135px]"
-          >
-            <Coins className="size-3.5 text-amber-500" /> Currency & Locale
-          </TabsTrigger>
-          <TabsTrigger
-            value="smtp"
-            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
-          >
-            <Mail className="size-3.5" /> SMTP Engine
-          </TabsTrigger>
-          <TabsTrigger
-            value="oauth"
-            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
-          >
-            <Lock className="size-3.5" /> OAuth Logins
-          </TabsTrigger>
-          <TabsTrigger
-            value="pusher"
-            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
-          >
-            <Radio className="size-3.5" /> WebSockets
-          </TabsTrigger>
-          <TabsTrigger
-            value="payments"
-            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
-          >
-            <CreditCard className="size-3.5" /> Payments
-          </TabsTrigger>
-          <TabsTrigger
-            value="system"
-            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
-          >
-            <AlertTriangle className="size-3.5" /> Maintenance
-          </TabsTrigger>
-          <TabsTrigger
-            value="media"
-            className="gap-1.5 text-xs flex-1 min-w-[100px] sm:min-w-[110px]"
-          >
-            <Folder className="size-3.5 text-blue-500" /> Media Library
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          {/* Sub Menu & Nested Menus Navigation Sidebar */}
+          <SettingsNestedNav
+            categories={SUPER_SETTINGS_NAV}
+            activeTab={activeTab}
+            onSelectTab={setActiveTab}
+            title="System Settings"
+            subtitle="Global Master Config"
+            searchPlaceholder="Search system settings..."
+          />
+
+          {/* Right Active Panel (No Tab Space!) */}
+          <main className="flex-1 min-w-0 w-full space-y-6">
+            <SettingsSectionBreadcrumb
+              categoryLabel={activeNavInfo?.category?.label}
+              itemLabel={activeNavInfo?.item?.label || "Settings"}
+              itemDescription={activeNavInfo?.item?.description}
+              icon={activeNavInfo?.item?.icon}
+              badge={
+                activeNavInfo?.item?.badge ? (
+                  <Badge variant="outline" className={cn("text-[10px] font-mono", activeNavInfo.item.badgeColor)}>
+                    {activeNavInfo.item.badge}
+                  </Badge>
+                ) : null
+              }
+              actions={
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={saveMutation.isPending}
+                    className="gap-1.5 text-xs h-8 bg-primary"
+                  >
+                    {saveMutation.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Save className="size-3.5" />
+                    )}
+                    Save Settings
+                  </Button>
+                </div>
+              }
+            />
 
         {/* TAB 1: BRANDING & THEME (PHASE 1 CORE) */}
         <TabsContent value="branding" className="space-y-6 pt-4">
@@ -885,9 +1099,6 @@ function SuperSettingsAdmin() {
                       placeholder="#FF6B00"
                       className="text-xs font-mono max-w-[140px]"
                     />
-                    <span className="text-[11px] text-muted-foreground">
-                      Repaints all buttons, navigation pills, and interactive states in real-time.
-                    </span>
                   </div>
                 </div>
 
@@ -919,6 +1130,473 @@ function SuperSettingsAdmin() {
         {/* TAB 8: RELATIONAL MEDIA LIBRARY */}
         <TabsContent value="media" className="space-y-6 pt-4">
           <MediaLibraryManager />
+        </TabsContent>
+
+        {/* TAB 9: DISPATCH & INVOICING ADDRESSES (PHASE 2 WAVE 2.1) */}
+        <TabsContent value="addresses" className="space-y-6 pt-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-card border shadow-xs">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                  <Building2 className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Dispatch & Invoicing Addresses
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Clear visual separation between Platform Origin (From Address) and Workspace Destination (To Address).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-medium">
+                Platform Identity: Locked
+              </Badge>
+              <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-medium">
+                Tenant Identity: Authoritative
+              </Badge>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-12 items-start">
+            {/* LEFT 6 COLS: FROM ADDRESS (PLATFORM / SUPER ADMIN) */}
+            <div className="lg:col-span-6 space-y-6">
+              <Card className="p-6 border shadow-xs space-y-5 bg-card">
+                <div className="flex items-center justify-between border-b pb-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                        From Address
+                      </span>
+                      <h4 className="font-bold text-sm text-foreground">Platform / Service Provider</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Authoritative legal identity of the SaaS platform used on commercial invoices and outgoing dispatch.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={saveMutation.isPending}
+                    className="gap-1.5 text-xs font-semibold h-8"
+                  >
+                    {saveMutation.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Save className="size-3.5 text-primary" />
+                    )}
+                    Save Platform Address
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Platform Legal Entity Name</Label>
+                    <Input
+                      value={form.platformLegalName || ""}
+                      onChange={(e) => setForm({ ...form, platformLegalName: e.target.value })}
+                      placeholder="e.g. Master ERP Technologies Private Limited"
+                      className="text-xs font-medium"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Registered Street Address</Label>
+                    <Textarea
+                      value={form.platformAddress || ""}
+                      onChange={(e) => setForm({ ...form, platformAddress: e.target.value })}
+                      placeholder="e.g. DLF Cyber City, Tower B, 8th Floor, DLF Phase 2"
+                      rows={2}
+                      className="text-xs"
+                    />
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">City</Label>
+                      <Input
+                        value={form.platformCity || ""}
+                        onChange={(e) => setForm({ ...form, platformCity: e.target.value })}
+                        placeholder="e.g. Gurugram"
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">State / Province</Label>
+                      <Input
+                        value={form.platformState || ""}
+                        onChange={(e) => setForm({ ...form, platformState: e.target.value })}
+                        placeholder="e.g. Haryana (06)"
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Postal / PIN Code</Label>
+                      <Input
+                        value={form.platformPostalCode || ""}
+                        onChange={(e) => setForm({ ...form, platformPostalCode: e.target.value })}
+                        placeholder="e.g. 122002"
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Country</Label>
+                      <Input
+                        value={form.platformCountry || ""}
+                        onChange={(e) => setForm({ ...form, platformCountry: e.target.value })}
+                        placeholder="e.g. India"
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Platform GSTIN / Tax Registration</Label>
+                    <Input
+                      value={form.platformGstin || ""}
+                      onChange={(e) => setForm({ ...form, platformGstin: e.target.value.toUpperCase() })}
+                      placeholder="e.g. 06AAACM1234F1Z8"
+                      className="text-xs font-mono uppercase tracking-wider"
+                    />
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Official Support Email</Label>
+                      <Input
+                        value={form.supportEmail || ""}
+                        onChange={(e) => setForm({ ...form, supportEmail: e.target.value })}
+                        placeholder="support@masterhrms.com"
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Support Contact Phone</Label>
+                      <Input
+                        value={form.platformPhone || ""}
+                        onChange={(e) => setForm({ ...form, platformPhone: e.target.value })}
+                        placeholder="+91 98765 43210"
+                        className="text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Preview Box for From Address */}
+                <div className="p-4 rounded-xl border bg-muted/40 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground font-semibold">
+                    <span className="flex items-center gap-1.5 text-foreground">
+                      <FileText className="size-3.5 text-indigo-500" /> Letterhead / Dispatch Preview
+                    </span>
+                    <span className="font-mono text-[10px]">ORIGIN</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-card border text-xs space-y-1">
+                    <div className="font-bold text-foreground">
+                      {form.platformLegalName || form.appName || "Platform Legal Entity"}
+                    </div>
+                    <div className="text-muted-foreground text-[11px] leading-relaxed">
+                      {form.platformAddress || "Platform Address Not Configured"}
+                      {form.platformCity && `, ${form.platformCity}`}
+                      {form.platformState && `, ${form.platformState}`}
+                      {form.platformPostalCode && ` — ${form.platformPostalCode}`}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-muted-foreground font-mono">
+                      {form.platformGstin && (
+                        <span>
+                          <strong className="text-foreground">GSTIN:</strong> {form.platformGstin}
+                        </span>
+                      )}
+                      {form.supportEmail && (
+                        <span>
+                          <strong className="text-foreground">Email:</strong> {form.supportEmail}
+                        </span>
+                      )}
+                      {form.platformPhone && (
+                        <span>
+                          <strong className="text-foreground">Phone:</strong> {form.platformPhone}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* RIGHT 6 COLS: TO ADDRESS (SELECTED WORKSPACE / TENANT) */}
+            <div className="lg:col-span-6 space-y-6">
+              <Card className="p-6 border shadow-xs space-y-5 bg-card">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                        To Address
+                      </span>
+                      <h4 className="font-bold text-sm text-foreground">Selected Workspace / Tenant</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Normalized CompanyProfile & GST record consumed live from the selected tenant workspace.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => refetchTenantProfile()}
+                      disabled={isRefetchingTenantProfile || !selectedTenantId}
+                      className="gap-1.5 text-xs font-semibold h-8"
+                      title="Refetch live tenant records from database"
+                    >
+                      <RefreshCw className={cn("size-3.5", (isRefetchingTenantProfile || isLoadingTenantProfile) && "animate-spin text-primary")} />
+                      Refresh
+                    </Button>
+                    {selectedTenant && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                        className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        title="Open tenant workspace settings in new tab"
+                      >
+                        <a
+                          href={`http://${selectedTenant.domain || `${selectedTenant.slug}.localhost:5173`}/settings`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="size-3.5" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Workspace Selection Toolbar */}
+                <div className="space-y-2 p-3.5 rounded-xl border bg-secondary/30">
+                  <Label className="text-xs font-semibold flex items-center justify-between">
+                    <span>Select Workspace Tenant</span>
+                    {isLoadingTenants && (
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="size-3 animate-spin" /> Loading workspaces...
+                      </span>
+                    )}
+                  </Label>
+                  <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
+                    <SelectTrigger className="h-9 text-xs bg-background">
+                      <SelectValue placeholder="Choose a tenant workspace..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{t.name}</span>
+                            <span className="text-muted-foreground text-xs font-mono">
+                              ({t.slug})
+                            </span>
+                            {t.status && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 uppercase">
+                                {t.status}
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Tenant Address Display State Machine */}
+                {isLoadingTenantProfile ? (
+                  <div className="flex flex-col items-center justify-center p-10 space-y-3 bg-muted/20 rounded-xl border">
+                    <Loader2 className="size-6 animate-spin text-primary" />
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Fetching authoritative CompanyProfile & GST statutory records...
+                    </p>
+                  </div>
+                ) : !selectedTenantId ? (
+                  <div className="p-8 text-center space-y-2 border border-dashed rounded-xl bg-muted/10">
+                    <Building2 className="size-8 mx-auto text-muted-foreground/40" />
+                    <p className="text-xs font-medium text-muted-foreground">
+                      No tenant selected. Select a workspace from the dropdown above.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Legal Corporate Identity Card */}
+                    <div className="p-4 rounded-xl border bg-card space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-xs text-muted-foreground font-mono uppercase">
+                            Legal Entity Name
+                          </div>
+                          <div className="text-sm font-bold text-foreground">
+                            {tenantCompanyProfile?.legalName || selectedTenant?.name || "Workspace Profile"}
+                          </div>
+                          {tenantCompanyProfile?.tradeName && (
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              Trade Name: <span className="text-foreground font-medium">{tenantCompanyProfile.tradeName}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-muted">
+                          {tenantCompanyProfile?.constitutionOfBusiness
+                            ? tenantCompanyProfile.constitutionOfBusiness.replace(/_/g, " ")
+                            : "Private Limited"}
+                        </Badge>
+                      </div>
+
+                      {/* PAN, TAN, CIN Identification */}
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t text-xs">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] text-muted-foreground uppercase font-mono block">PAN</span>
+                          <span className="font-mono font-bold text-[11px]">
+                            {tenantCompanyProfile?.pan || "—"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] text-muted-foreground uppercase font-mono block">TAN</span>
+                          <span className="font-mono font-bold text-[11px]">
+                            {tenantCompanyProfile?.tan || "—"}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] text-muted-foreground uppercase font-mono block">CIN</span>
+                          <span className="font-mono font-bold text-[11px] truncate block" title={tenantCompanyProfile?.cin || "—"}>
+                            {tenantCompanyProfile?.cin || "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Registered Office Address */}
+                    <div className="p-4 rounded-xl border bg-card space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                        <MapPin className="size-3.5 text-emerald-600" />
+                        <span>Registered Office Address</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground leading-relaxed">
+                        {(tenantCompanyProfile?.registeredAddress || tenantCompanyProfile?.registeredAddressLine1) ? (
+                          <>
+                            <div>{tenantCompanyProfile.registeredAddress || tenantCompanyProfile.registeredAddressLine1}</div>
+                            {tenantCompanyProfile.registeredAddressLine2 && (
+                              <div>{tenantCompanyProfile.registeredAddressLine2}</div>
+                            )}
+                            <div>
+                              {tenantCompanyProfile.registeredCity}, {tenantCompanyProfile.registeredState}{" "}
+                              {tenantCompanyProfile.registeredPostalCode}
+                            </div>
+                            <div>{tenantCompanyProfile.registeredCountry || "India"}</div>
+                          </>
+                        ) : (
+                          <span className="italic">No registered address specified by tenant yet.</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Billing Address */}
+                    <div className="p-4 rounded-xl border bg-card space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                          <Building className="size-3.5 text-blue-600" />
+                          <span>Billing Address</span>
+                        </div>
+                        {(tenantCompanyProfile?.sameAsRegistered || tenantCompanyProfile?.sameAsRegisteredAddress) && (
+                          <Badge variant="outline" className="text-[9px] bg-blue-500/10 text-blue-600 border-blue-500/20 font-medium">
+                            Identical to Registered Office
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground leading-relaxed">
+                        {(tenantCompanyProfile?.sameAsRegistered || tenantCompanyProfile?.sameAsRegisteredAddress) ? (
+                          <div>
+                            {tenantCompanyProfile.registeredAddress || tenantCompanyProfile.registeredAddressLine1}, {tenantCompanyProfile.registeredCity},{" "}
+                            {tenantCompanyProfile.registeredState} {tenantCompanyProfile.registeredPostalCode}
+                          </div>
+                        ) : (tenantCompanyProfile?.billingAddress || tenantCompanyProfile?.billingAddressLine1) ? (
+                          <>
+                            <div>{tenantCompanyProfile.billingAddress || tenantCompanyProfile.billingAddressLine1}</div>
+                            {tenantCompanyProfile.billingAddressLine2 && (
+                              <div>{tenantCompanyProfile.billingAddressLine2}</div>
+                            )}
+                            <div>
+                              {tenantCompanyProfile.billingCity}, {tenantCompanyProfile.billingState}{" "}
+                              {tenantCompanyProfile.billingPostalCode}
+                            </div>
+                            <div>{tenantCompanyProfile.billingCountry || "India"}</div>
+                          </>
+                        ) : (
+                          <span className="italic">Defaulting to registered office address.</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Statutory GST Registration */}
+                    <div className="p-4 rounded-xl border bg-card space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <CheckCircle2 className="size-3.5 text-emerald-600" />
+                          <span>GST Registration (Statutory)</span>
+                        </span>
+                        {tenantGstRegistration?.status === "ACTIVE" ? (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                            Active GSTIN
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                            {tenantGstRegistration ? "Inactive" : "Unregistered"}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {tenantGstRegistration ? (
+                        <div className="space-y-2">
+                          <div className="p-2.5 rounded-lg bg-muted/40 border font-mono text-xs flex items-center justify-between">
+                            <span className="font-bold text-foreground tracking-wider">
+                              {tenantGstRegistration.gstin}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {tenantGstRegistration.state} ({tenantGstRegistration.stateCode || tenantGstRegistration.gstin?.substring(0, 2)})
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span>
+                              Filing Preference: <strong className="text-foreground">{tenantGstRegistration.filingFrequency || "MONTHLY"}</strong>
+                            </span>
+                            <span>
+                              Type: <strong className="text-foreground">{tenantGstRegistration.registrationType || "REGULAR"}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400">
+                          Tenant has no active GSTIN registered. B2C or Composition scheme applies.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Immutability & Authority Guard Notice */}
+                    <div className="p-3 rounded-xl bg-muted/40 border text-[11px] text-muted-foreground flex items-start gap-2 leading-relaxed">
+                      <ShieldCheck className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="text-foreground">Authoritative Data Isolation:</strong> This CompanyProfile is owned exclusively by the tenant at{" "}
+                        <span className="font-mono text-[10px] text-foreground">
+                          http://{selectedTenant?.slug}.localhost:5173/settings
+                        </span>
+                        . Super Admin consumes this record in read-only mode to prevent configuration drift.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* TAB 2: CURRENCY, LOCALIZATION & RECAPTCHA SECURITY */}
@@ -953,7 +1631,7 @@ function SuperSettingsAdmin() {
                     <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-bold">
                       Realtime Currency Preview
                     </div>
-                    <div className="text-3xl font-black font-mono text-foreground mt-1">
+                    <div className="text-3xl font-bold font-mono text-foreground mt-1">
                       {liveSampleAmount}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -2371,6 +3049,8 @@ function SuperSettingsAdmin() {
             </div>
           </Card>
         </TabsContent>
+          </main>
+        </div>
       </Tabs>
 
       {/* Send Test Email Dialog */}

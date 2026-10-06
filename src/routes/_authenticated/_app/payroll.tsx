@@ -138,6 +138,66 @@ function Payroll() {
   const [exportingExcelId, setExportingExcelId] = useState<string | null>(null);
   const [exportingPdfId, setExportingPdfId] = useState<string | null>(null);
 
+  // Authoritative Tenant Company Profile for Legal Documents & Payslip PDFs
+  const { data: companyProfileData } = useQuery<{
+    profile?: any;
+    primaryGst?: any;
+  }>({
+    queryKey: ["company-profile", "current"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/company-profile");
+        return res.data || res;
+      } catch {
+        return {};
+      }
+    },
+    staleTime: 60_000,
+  });
+
+  const handleGeneratePayslipPdf = (rawSlip: any) => {
+    if (!rawSlip) return;
+    const legalName = companyProfileData?.profile?.legalName || companyProfileData?.profile?.tradeName || "Enterprise Workspace";
+    const address = companyProfileData?.profile?.registeredAddress || companyProfileData?.profile?.registeredCity || "";
+    const email = companyProfileData?.profile?.email || "";
+
+    const earnings = [
+      { label: "Basic Salary", amount: Number(rawSlip.basic_salary || rawSlip.basic || 0) },
+      { label: "House Rent Allowance (HRA)", amount: Number(rawSlip.hra || 0) },
+      { label: "Special Allowance", amount: Number(rawSlip.special_allowance || 0) },
+      { label: "Bonus / Incentives", amount: Number(rawSlip.bonus || 0) },
+    ].filter((e) => e.amount > 0);
+
+    const deductions = [
+      { label: "Provident Fund (EPF)", amount: Number(rawSlip.epf || rawSlip.pf || 0) },
+      { label: "Professional Tax (PT)", amount: Number(rawSlip.pt || 0) },
+      { label: "Income Tax (TDS)", amount: Number(rawSlip.tds || 0) },
+      { label: "Other Deductions", amount: Number(rawSlip.other_deductions || 0) },
+    ].filter((d) => d.amount > 0);
+
+    const pdfData = {
+      companyName: legalName,
+      companyAddress: address,
+      companyEmail: email,
+      employeeName: `${rawSlip.employee?.firstName || ""} ${rawSlip.employee?.lastName || ""}`.trim() || rawSlip.name || "Employee",
+      employeeCode: rawSlip.employee?.employeeCode || rawSlip.employeeCode || "EMP-001",
+      designation: rawSlip.employee?.designation || rawSlip.designation || "Staff Member",
+      department: rawSlip.employee?.department?.name || rawSlip.department || "General",
+      email: rawSlip.employee?.email || rawSlip.email || "",
+      periodMonth: MONTHS[(rawSlip.period_month || 1) - 1] || "Current",
+      periodYear: String(rawSlip.period_year || new Date().getFullYear()),
+      paymentDate: rawSlip.created_at ? new Date(rawSlip.created_at).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN"),
+      grossSalary: Number(rawSlip.gross_salary || rawSlip.gross || 0),
+      netSalary: Number(rawSlip.net_salary || rawSlip.netPay || 0),
+      totalDeductions: Number(rawSlip.deductions || 0),
+      earnings: earnings.length > 0 ? earnings : [{ label: "Gross Wages", amount: Number(rawSlip.gross_salary || 0) }],
+      deductions: deductions.length > 0 ? deductions : [{ label: "Total Deductions", amount: Number(rawSlip.deductions || 0) }],
+      currencySymbol: "₹",
+    };
+
+    generatePayslipPdf(pdfData);
+  };
+
   // Component Modal State
   const [isCompModalOpen, setIsCompModalOpen] = useState(false);
   const [editingComp, setEditingComp] = useState<any | null>(null);
@@ -1161,7 +1221,7 @@ function Payroll() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => generatePayslipPdf(slip)}
+                            onClick={() => handleGeneratePayslipPdf(slip)}
                             className="h-7 text-[11px] font-bold text-emerald-600"
                           >
                             <Download className="size-3 mr-1" /> PDF
@@ -2186,7 +2246,7 @@ function Payroll() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => generatePayslipPdf(viewingSlip)}
+              onClick={() => handleGeneratePayslipPdf(viewingSlip)}
               className="font-bold text-xs"
             >
               <Download className="size-3.5 mr-1" /> Download PDF

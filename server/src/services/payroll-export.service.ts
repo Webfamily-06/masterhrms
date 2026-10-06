@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { Readable } from 'stream';
+import { CompanyProfileService } from './company-profile/company-profile.service';
 
 export interface ColumnDefinition {
   key: string;
@@ -303,8 +304,18 @@ export class PayrollExportService {
       rows.push(row);
     }
 
+    let authoritativeName = payrollRun.tenant.name;
+    try {
+      const identity = await CompanyProfileService.resolveTenantCompanyIdentity(tenantId);
+      if (identity?.legalName) {
+        authoritativeName = identity.legalName;
+      }
+    } catch {
+      // safe fallback
+    }
+
     return {
-      companyName: payrollRun.tenant.name,
+      companyName: authoritativeName,
       periodLabel,
       rows,
     };

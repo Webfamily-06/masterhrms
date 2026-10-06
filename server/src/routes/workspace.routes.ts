@@ -5,6 +5,7 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { ERP_MODULES } from "../lib/erp-modules";
 import { getWorkspacePolicy } from "../services/workspace-policy.service";
 import { SettingsService } from "../services/settings/settings.service";
+import { CompanyProfileService } from "../services/company-profile/company-profile.service";
 
 export const workspaceRouter = Router();
 
@@ -1228,7 +1229,7 @@ workspaceRouter.get("/settings", async (req: AuthRequest, res: Response) => {
 
     return res.json({
       tenant,
-      brand: { ...defaultBrand, ...pageContent },
+      brand: { ...pageContent, ...defaultBrand },
       company,
     });
   } catch (err: any) {
@@ -1261,6 +1262,21 @@ workspaceRouter.put("/settings/brand", async (req: AuthRequest, res: Response) =
         where: { id: tenantId },
         data: { logoUrl: logoUrl || logoDark },
       });
+    }
+
+    // Sync to authoritative SettingsService if primary branding attributes provided
+    try {
+      const syncValues: Record<string, any> = {};
+      if (themeColor !== undefined) syncValues["branding.primary_color"] = themeColor;
+      if (titleText !== undefined) syncValues["branding.app_name"] = titleText;
+      if (footerText !== undefined) syncValues["branding.footer_text"] = footerText;
+      if (Object.keys(syncValues).length > 0) {
+        await SettingsService.setGroup("TENANT", tenantId, "branding", syncValues, {
+          userId: req.user?.userId,
+        });
+      }
+    } catch (syncErr) {
+      console.warn("[WorkspaceSettings] Failed to sync brand update to SettingsService:", syncErr);
     }
 
     const previous = await prisma.cmsPage.findUnique({
@@ -1365,6 +1381,33 @@ workspaceRouter.put("/settings/company", async (req: AuthRequest, res: Response)
         updatedBy: req.user!.userId,
       },
     });
+
+    // Dual-write sync into normalized CompanyProfile (Phase 2 Wave 2.1)
+    try {
+      await CompanyProfileService.upsertProfile(tenantId, {
+        legalName: companyName || updatedCompany.name || "Company Legal Name",
+        tradeName: companyName || updatedCompany.name || null,
+        email: email || updatedCompany.email || `contact@${tenantId}.masterhrms.com`,
+        phone: phone || updatedCompany.phone || null,
+        registeredAddress: address || updatedCompany.address || null,
+        registeredCity: city || updatedCompany.city || null,
+        registeredState: state || updatedCompany.state || null,
+        registeredPostalCode: zipCode || updatedCompany.zipCode || null,
+        registeredCountry: country || updatedCompany.country || "India",
+        billingAddress: address || updatedCompany.address || null,
+        billingCity: city || updatedCompany.city || null,
+        billingState: state || updatedCompany.state || null,
+        billingPostalCode: zipCode || updatedCompany.zipCode || null,
+        billingCountry: country || updatedCompany.country || "India",
+        sameAsRegistered: true,
+      }, {
+        userId: req.user?.userId,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+    } catch (profileSyncErr) {
+      console.warn("[WorkspaceSettings] Non-blocking sync to CompanyProfile failed:", profileSyncErr);
+    }
 
     return res.json({
       success: true,

@@ -1,7 +1,6 @@
 import React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Eye, Bell, User, Lock, Mail, Sparkles, CheckCircle2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Bell, Lock, Mail } from "lucide-react";
 
 interface LivePreviewDockProps {
   appName: string;
@@ -20,19 +19,6 @@ export function LivePreviewDock({
 }: LivePreviewDockProps) {
   return (
     <Card className="border border-border/80 shadow-md bg-card/70 backdrop-blur-md overflow-hidden sticky top-6">
-      <CardHeader className="py-3.5 px-4 border-b bg-muted/30 flex flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2">
-          <Eye className="size-4 text-primary" />
-          <CardTitle className="text-sm font-semibold">Realtime Visual Preview</CardTitle>
-        </div>
-        <Badge
-          variant="outline"
-          className="text-[11px] gap-1 border-primary/30 text-primary font-mono bg-primary/5"
-        >
-          <Sparkles className="size-3" /> Live Repaint
-        </Badge>
-      </CardHeader>
-
       <CardContent className="p-4 space-y-5">
         {/* 1. Header (Light Mode) */}
         <div className="space-y-1.5">

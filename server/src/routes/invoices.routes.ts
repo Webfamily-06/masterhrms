@@ -12,6 +12,7 @@ import {
   processDueRecurringInvoices,
   calculateNextBillingDate,
 } from "../services/recurring-invoice.service";
+import { CompanyProfileService } from "../services/company-profile/company-profile.service";
 
 export const invoicesRouter = Router();
 
@@ -109,7 +110,17 @@ invoicesRouter.post("/", requireAuth, requirePermission("finance.invoices.create
     // Determine Indian GST mode (Intra-state CGST+SGST vs Inter-state IGST)
     const clientGstin = (body.client_gstin || body.clientGstin || "").trim();
     const customerState = body.customerState || body.clientState || (clientGstin.length >= 2 ? clientGstin.slice(0, 2) : "");
-    const companyState = body.companyState || "29"; // Default Karnataka state code 29
+    // Dynamically resolve seller state code from persisted GSTRegistration / CompanyProfile (Phase 2 Wave 2.1)
+    let companyState = body.companyState;
+    if (!companyState) {
+      try {
+        const companyProfile = await CompanyProfileService.getProfile(tenantId);
+        const primaryGst = companyProfile?.gstRegistrations?.find((g: any) => g.isPrimary && g.status === "ACTIVE");
+        companyState = primaryGst?.stateCode || companyProfile?.registeredStateCode || "29";
+      } catch {
+        companyState = "29";
+      }
+    }
     let taxMode: "sgst_cgst" | "igst" = body.taxMode || body.tax_mode;
 
     if (!taxMode) {

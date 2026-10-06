@@ -40,6 +40,20 @@ export function InvoicePrintPage() {
     staleTime: 30_000,
   });
 
+  // Fetch Authoritative Company Profile & Primary GST Registration (Phase 2 Wave 2.1)
+  const { data: companyData } = useQuery<{ profile?: any; primaryGst?: any }>({
+    queryKey: ["company-profile", "current"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/company-profile");
+        return res.data || res;
+      } catch {
+        return {};
+      }
+    },
+    staleTime: 60_000,
+  });
+
   const handlePrint = () => {
     window.print();
   };
@@ -140,17 +154,23 @@ export function InvoicePrintPage() {
               </div>
               <div>
                 <h1 className="text-xl font-black text-gray-900 dark:text-foreground tracking-tight">
-                  {profile?.tenant?.name || "Master HRMS & ERP Enterprise"}
+                  {companyData?.profile?.legalName || profile?.tenant?.name || "Master HRMS & ERP Enterprise"}
                 </h1>
-                <p className="text-xs text-gray-500">Commercial Cloud SaaS & Global Enterprise Operations</p>
+                <p className="text-xs text-gray-500">{companyData?.profile?.tradeName || "Commercial Cloud SaaS & Global Enterprise Operations"}</p>
               </div>
             </div>
 
             <div className="text-xs text-gray-600 dark:text-muted-foreground space-y-0.5 pt-2">
-              <p>Corporate Headquarters &bull; Tech Park Campus</p>
-              <p>Email: billing@enterprise-erp.com &bull; Phone: +91 (080) 4123 5678</p>
+              <p>{companyData?.profile?.registeredAddress || "Corporate Headquarters • Tech Park Campus"}</p>
+              <p>Email: {companyData?.profile?.email || "billing@enterprise-erp.com"} &bull; Phone: {companyData?.profile?.phone || "+91 (080) 4123 5678"}</p>
               <p className="font-mono text-gray-800 dark:text-foreground font-semibold">
-                GSTIN: 29AAAAA0000A1Z5 &bull; PAN: AAAAA0000A &bull; State Code: 29 (Karnataka)
+                {companyData?.primaryGst?.gstin ? (
+                  <>GSTIN: {companyData.primaryGst.gstin} &bull; PAN: {companyData?.profile?.pan || companyData.primaryGst.gstin.slice(2, 12)} &bull; State Code: {companyData.primaryGst.stateCode}</>
+                ) : companyData?.profile?.pan ? (
+                  <>PAN: {companyData.profile.pan} &bull; State: {companyData?.profile?.registeredState || "—"}</>
+                ) : (
+                  <>Commercial Tax Invoice &bull; Registered Workspace</>
+                )}
               </p>
             </div>
           </div>

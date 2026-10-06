@@ -3,6 +3,7 @@ import path from "path";
 import { prisma, rawPrisma } from "../prisma";
 import { InvoicePdfData } from "./invoice-pdf.service";
 import { resolveBranding } from "./branding/branding-resolver.service";
+import { CompanyProfileService } from "./company-profile/company-profile.service";
 
 export type DocumentClassification =
   | "TAX INVOICE"
@@ -272,11 +273,20 @@ export async function getAuthoritativeSupplierInfo(options?: {
 }
 
 /**
- * Fetches customer organization profile including registered address & GSTIN with tenant branding fallback
+ * Fetches customer organization profile including registered/billing address & GSTIN with tenant branding fallback.
+ * Uses canonical CompanyProfileService as authoritative identity source for platform subscription invoices.
  */
 export async function getAuthoritativeCustomerInfo(tenantId: string, tenant: any) {
   const db = rawPrisma || prisma;
   const customerBranding = await resolveBranding({ scope: "TENANT", tenantId });
+
+  // Resolve authoritative tenant company identity
+  let identity: any = null;
+  try {
+    identity = await CompanyProfileService.resolveTenantCompanyIdentity(tenantId);
+  } catch (err) {
+    // Non-fatal, fallback to CMS/branding
+  }
 
   const page = await db.cmsPage.findUnique({
     where: { slug: `tenant-${tenantId}-settings` },
@@ -287,22 +297,40 @@ export async function getAuthoritativeCustomerInfo(tenantId: string, tenant: any
 
   const tenantEmail =
     tenant?.profiles?.find((p: any) => p.email)?.email ||
+    identity?.email ||
     company.email ||
     customerBranding.supportEmail ||
     `billing@${tenant?.slug || "tenant"}.masterhrms.com`;
 
-  let fullAddress: string | null = company.address || null;
+  let fullAddress: string | null = identity?.billingOffice?.formatted || identity?.registeredOffice?.formatted || company.address || null;
   if (!fullAddress && (company.city || company.state || company.country)) {
     fullAddress = [company.city, company.state, company.country].filter(Boolean).join(", ");
   }
 
+  const customerName =
+    identity?.legalName ||
+    identity?.tradeName ||
+    customerBranding.appName ||
+    tenant?.name ||
+    company.name ||
+    company.companyName ||
+    "Enterprise Customer";
+
+  const taxId =
+    identity?.primaryGst?.gstin ||
+    identity?.pan ||
+    company.taxNumber ||
+    company.gstin ||
+    null;
+
   return {
-    name: customerBranding.appName || tenant?.name || company.name || company.companyName || "Enterprise Customer",
+    name: customerName,
     slug: tenant?.slug || null,
     email: tenantEmail,
     address: fullAddress,
-    taxId: company.taxNumber || company.gstin || null,
+    taxId,
     branding: customerBranding,
+    identity: identity || undefined,
   };
 }
 

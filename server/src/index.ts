@@ -81,6 +81,7 @@ import { settingsRouter } from "./routes/settings.routes";
 import { mediaRouter } from "./routes/media.routes";
 import { appConfigRouter } from "./routes/app-config.routes";
 import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes";
+import { companyProfileRouter } from "./routes/company-profile.routes";
 import { SettingsService } from "./services/settings/settings.service";
 import { getUploadsRoot } from "./services/media/media.service";
 
@@ -178,6 +179,10 @@ app.use("/api", appConfigRouter);
 // Employee Self-Service (ESS) Routes (/api/v1/me & /api/me)
 app.use("/api/v1/me", employeeSelfServiceRouter);
 app.use("/api/me", employeeSelfServiceRouter);
+
+// Company Profile & GST (Phase 2 Wave 2.1)
+app.use("/api/v1/company-profile", companyProfileRouter);
+app.use("/api/company-profile", companyProfileRouter);
 
 // Mount Routes
 app.use("/api/billing", billingRouter);

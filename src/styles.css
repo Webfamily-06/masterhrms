@@ -14,6 +14,7 @@ body {
 
 @theme inline {
   --font-sans: "Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -385,8 +386,8 @@ body {
   * {
     border-color: var(--color-border);
   }
-  html, body {
-    font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  html, body, :root {
+    font-family: var(--font-sans) !important;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -1490,12 +1491,18 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 
 :root {
   --font-sans: 'Public Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'Public Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --font-family-primary: var(--font-sans) !important;
+  --default-font-family: var(--font-sans) !important;
+  --default-mono-font-family: var(--font-mono) !important;
 }
 
 html,
-body {
-  font-family: var(--font-sans);
+body,
+:root {
+  font-family: var(--font-sans) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,
@@ -1504,11 +1511,22 @@ textarea,
 select,
 optgroup,
 option {
-  font-family: inherit;
+  font-family: var(--font-sans) !important;
+}
+
+.font-sans {
+  font-family: var(--font-sans) !important;
 }
 
 .font-mono {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono) !important;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono) !important;
 }
 /* ===== ApexCharts Mobile Fixes: prevent text overflow/overlap ===== */
 @media (max-width: 640px) {

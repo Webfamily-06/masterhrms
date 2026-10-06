@@ -178,6 +178,20 @@ function InvoiceDetailPage() {
     staleTime: 60_000,
   });
 
+  // Fetch Authoritative Company Profile & Primary GST Registration (Phase 2 Wave 2.1)
+  const { data: companyData } = useQuery<{ profile?: any; primaryGst?: any }>({
+    queryKey: ["company-profile", "current"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/company-profile");
+        return res.data || res;
+      } catch {
+        return {};
+      }
+    },
+    staleTime: 60_000,
+  });
+
   const fmt = (n: number) =>
     formatSystemAmount(n, sysConfig?.currency ? { defaultCurrency: sysConfig.currency } : undefined);
 
@@ -433,11 +447,15 @@ function InvoiceDetailPage() {
             {/* From */}
             <div className="md:col-span-5 space-y-1 text-xs">
               <p className="font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Billed By (From)</p>
-              <h4 className="font-bold text-sm text-foreground">{profile?.tenant?.name || "Global Cloud Systems"}</h4>
-              <p className="text-muted-foreground">Finance & Commercial Billing Operations</p>
-              <p className="text-muted-foreground">Email: billing@enterprise-erp.com</p>
-              <p className="text-muted-foreground">Phone: +91 (080) 4123 5678</p>
-              <p className="text-muted-foreground font-mono">GSTIN: 29AAAAA0000A1Z5</p>
+              <h4 className="font-bold text-sm text-foreground">{companyData?.profile?.legalName || profile?.tenant?.name || "Global Cloud Systems"}</h4>
+              <p className="text-muted-foreground">{companyData?.profile?.registeredAddress || "Finance & Commercial Billing Operations"}</p>
+              <p className="text-muted-foreground">Email: {companyData?.profile?.email || "billing@enterprise-erp.com"}</p>
+              {companyData?.profile?.phone && <p className="text-muted-foreground">Phone: {companyData.profile.phone}</p>}
+              {companyData?.primaryGst?.gstin ? (
+                <p className="text-muted-foreground font-mono">GSTIN: {companyData.primaryGst.gstin}</p>
+              ) : companyData?.profile?.pan ? (
+                <p className="text-muted-foreground font-mono">PAN: {companyData.profile.pan}</p>
+              ) : null}
             </div>
 
             {/* To */}

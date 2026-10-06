@@ -40,8 +40,8 @@ export async function generatePayslipPdf(data: PayslipPdfData) {
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(data.companyName.toUpperCase(), 14, 12);
+  const companyDisplayName = (data.companyName || "Enterprise Workspace").toUpperCase();
+  doc.text(companyDisplayName, 14, 12);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
