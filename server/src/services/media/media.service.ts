@@ -255,11 +255,10 @@ export class MediaService {
       isSuper?: boolean;
       requestedByTenantId?: string | null;
     } =
-      typeof optionsOrTenantId === "string" || optionsOrTenantId === null
-        ? {
-            isSuper: optionsOrTenantId === null,
-            requestedByTenantId: optionsOrTenantId,
-          }
+      typeof optionsOrTenantId === "string"
+        ? { force: false, isSuper: false, requestedByTenantId: optionsOrTenantId }
+        : optionsOrTenantId === null
+        ? { force: false, isSuper: true, requestedByTenantId: null }
         : optionsOrTenantId || {};
 
     const file = await prisma.mediaFile.findUnique({

@@ -173,31 +173,89 @@ export default function EmployeeDashboardPage() {
     },
   });
 
-  // Clock In/Out Mutation
+  // Real DB Queries & Today's Punch State
+  const { data: essDashboard } = useQuery({
+    queryKey: ["ess-dashboard"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/dashboard");
+        return res?.data || null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  const { data: leaveBalances = [] } = useQuery({
+    queryKey: ["my-leave-balances"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/leave-balance");
+        return Array.isArray(res?.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (essDashboard?.todayAttendance) {
+      const att = essDashboard.todayAttendance;
+      if (att.checkIn && !att.checkOut) {
+        setIsClockedIn(true);
+        const inDate = new Date(att.checkIn);
+        setPunchTime(inDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+        setElapsedSeconds(Math.max(0, Math.floor((Date.now() - inDate.getTime()) / 1000)));
+      } else if (att.checkIn && att.checkOut) {
+        setIsClockedIn(false);
+        const inDate = new Date(att.checkIn);
+        setPunchTime(inDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+        if (att.hours) {
+          setElapsedSeconds(Math.round(att.hours * 3600));
+        }
+      }
+    }
+  }, [essDashboard]);
+
+  // Clock In/Out Mutation (Server authoritative timestamps)
   const handlePunchToggle = async () => {
     try {
       if (!isClockedIn) {
         setIsClockedIn(true);
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        await api.post("/api/v1/me/attendance/check-in");
+        const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         setPunchTime(timeStr);
-        await api.post("/api/attendance/clock-in", { timestamp: now.toISOString() }).catch(() => {});
+        setElapsedSeconds(0);
         toast.success(`Punch In Recorded at ${timeStr}`);
       } else {
         setIsClockedIn(false);
-        const now = new Date();
-        await api.post("/api/attendance/clock-out", { timestamp: now.toISOString() }).catch(() => {});
+        await api.post("/api/v1/me/attendance/check-out");
         toast.info(`Punch Out Recorded. Session Duration: ${formatTimer(elapsedSeconds)}`);
       }
       queryClient.invalidateQueries({ queryKey: ["my-attendance"] });
-    } catch {
-      toast.error("Failed to record punch status");
+      queryClient.invalidateQueries({ queryKey: ["ess-dashboard"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to record punch status");
     }
   };
 
-  // Apply Leave Mutation
+  // Apply Leave Mutation with dry-run policy validation
   const applyLeaveMutation = useMutation({
     mutationFn: async (payload: typeof leaveForm) => {
+      // Pre-validation dry run against employee entitlement
+      try {
+        const valRes: any = await api.post("/api/v1/me/leaves/validate", {
+          leaveTypeId: payload.leaveTypeId,
+          startDate: payload.startDate,
+          endDate: payload.endDate,
+        });
+        if (valRes && !valRes.valid && valRes.blockingIssues?.length > 0) {
+          throw new Error(valRes.blockingIssues[0]);
+        }
+      } catch (e: any) {
+        if (e.message) throw e;
+      }
+
       return await api.post("/api/leaves", {
         leaveTypeId: payload.leaveTypeId,
         startDate: payload.startDate,
@@ -210,6 +268,7 @@ export default function EmployeeDashboardPage() {
       toast.success("Leave request submitted successfully!");
       setLeaveModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["my-leaves"] });
+      queryClient.invalidateQueries({ queryKey: ["my-leave-balances"] });
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to submit leave request.");

@@ -101,33 +101,72 @@ export function EmployeeAttendancePage() {
   const isCheckedIn = Boolean(todayRecord?.checkIn);
   const isCheckedOut = Boolean(todayRecord?.checkOut);
 
-  // Quick Punch In/Out Mutation
+  // Fetch employee's regularization requests
+  const { data: regularizationsRes } = useQuery({
+    queryKey: ["my-regularizations"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/v1/me/regularizations");
+        return Array.isArray(res?.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+  const myRegularizations: any[] = regularizationsRes || [];
+
+  // Quick Punch In/Out Mutation (Server authoritative timestamps)
   const punchMut = useMutation({
     mutationFn: async (type: "check_in" | "check_out") => {
-      return await api.post("/attendance/punch", { type });
+      if (type === "check_in") {
+        return await api.post("/api/v1/me/attendance/check-in");
+      } else {
+        return await api.post("/api/v1/me/attendance/check-out");
+      }
     },
-    onSuccess: (res) => {
-      toast.success(res.action === "check_in" ? "Punched in successfully!" : "Punched out successfully!");
+    onSuccess: (_, type) => {
+      toast.success(type === "check_in" ? "Punched in successfully!" : "Punched out successfully!");
       qc.invalidateQueries({ queryKey: ["my-monthly-attendance"] });
+      qc.invalidateQueries({ queryKey: ["my-today-punch"] });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Punch failed.");
+      toast.error(err.message || "Punch operation failed.");
     },
   });
 
-  // Regularization Mutation
+  // Regularization Submission Mutation
   const regularizeMut = useMutation({
     mutationFn: async (payload: any) => {
-      return await api.post("/attendance/regularize", payload);
+      return await api.post("/api/v1/me/regularizations", {
+        attendanceDate: payload.date,
+        proposedIn: payload.checkIn ? `${payload.date}T${payload.checkIn}:00` : undefined,
+        proposedOut: payload.checkOut ? `${payload.date}T${payload.checkOut}:00` : undefined,
+        reason: payload.reason,
+      });
     },
     onSuccess: () => {
       toast.success("Attendance regularization submitted successfully!");
       qc.invalidateQueries({ queryKey: ["my-monthly-attendance"] });
+      qc.invalidateQueries({ queryKey: ["my-regularizations"] });
       setIsRegularizeModalOpen(false);
       setRegReason("");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to submit regularization.");
+    },
+  });
+
+  // Withdraw Regularization Mutation
+  const withdrawMut = useMutation({
+    mutationFn: async (id: string) => {
+      return await api.post(`/api/v1/me/regularizations/${id}/withdraw`);
+    },
+    onSuccess: () => {
+      toast.success("Regularization request withdrawn.");
+      qc.invalidateQueries({ queryKey: ["my-regularizations"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to withdraw request.");
     },
   });
 
@@ -412,6 +451,85 @@ export function EmployeeAttendancePage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* ── Regularization Requests Tracker ── */}
+      {myRegularizations.length > 0 && (
+        <Card className="shadow-xs">
+          <CardHeader className="p-4 border-b bg-muted/20">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Clock className="size-4 text-primary" />
+              <span>My Regularization Requests</span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Review submission status, manager remarks, or withdraw pending regularization requests.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead className="text-xs font-bold">Attendance Date</TableHead>
+                  <TableHead className="text-xs font-bold">Proposed Timing</TableHead>
+                  <TableHead className="text-xs font-bold">Reason</TableHead>
+                  <TableHead className="text-xs font-bold">Status</TableHead>
+                  <TableHead className="text-xs font-bold">Reviewed By / Notes</TableHead>
+                  <TableHead className="text-xs font-bold text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {myRegularizations.map((reg: any) => {
+                  const regD = new Date(reg.attendanceDate);
+                  return (
+                    <TableRow key={reg.id} className="hover:bg-muted/30 text-xs">
+                      <TableCell className="font-mono font-bold">
+                        {regD.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                      </TableCell>
+                      <TableCell className="font-mono text-muted-foreground">
+                        {reg.proposedIn ? new Date(reg.proposedIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                        {" → "}
+                        {reg.proposedOut ? new Date(reg.proposedOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-muted-foreground" title={reg.reason}>
+                        {reg.reason}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-bold uppercase",
+                            reg.status === "APPROVED" && "bg-emerald-500/10 text-emerald-600 border-emerald-500/30",
+                            reg.status === "PENDING" && "bg-amber-500/10 text-amber-600 border-amber-500/30",
+                            reg.status === "REJECTED" && "bg-rose-500/10 text-rose-600 border-rose-500/30",
+                            reg.status === "WITHDRAWN" && "bg-slate-500/10 text-slate-500 border-slate-500/30"
+                          )}
+                        >
+                          {reg.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-[11px]">
+                        {reg.reviewComments || (reg.reviewedAt ? `Reviewed on ${new Date(reg.reviewedAt).toLocaleDateString()}` : "Awaiting Manager Review")}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {reg.status === "PENDING" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={withdrawMut.isPending}
+                            onClick={() => withdrawMut.mutate(reg.id)}
+                            className="h-6 text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:underline"
+                          >
+                            Withdraw
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Dialog: Attendance Regularization Request ── */}
       <Dialog open={isRegularizeModalOpen} onOpenChange={setIsRegularizeModalOpen}>

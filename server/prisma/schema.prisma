@@ -215,6 +215,8 @@ model Tenant {
   employeeChangeRequests EmployeeChangeRequest[]
   documentRequests       DocumentRequest[]
   approvalDelegations    ApprovalDelegation[]
+  attendanceRegularizations AttendanceRegularization[]
+  leaveLedgerEntries     LeaveLedgerEntry[]
   companyProfile         CompanyProfile?
   gstRegistrations       GSTRegistration[]
   @@map("tenants")
@@ -365,6 +367,8 @@ model Employee {
   documentRequests            DocumentRequest[]
   delegationsGiven            ApprovalDelegation[]          @relation("DelegationManager")
   delegationsReceived         ApprovalDelegation[]          @relation("DelegationDelegate")
+  attendanceRegularizations   AttendanceRegularization[]
+  leaveLedgerEntries          LeaveLedgerEntry[]
 
   @@index([tenantId, status])  // Perf: list active employees by tenant
   @@index([tenantId, departmentId]) // Perf: filter by department
@@ -4467,5 +4471,49 @@ model GSTRegistration {
   @@index([stateCode])
   @@map("gst_registrations")
 }
+
+model AttendanceRegularization {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  tenantId       String    @map("tenant_id") @db.VarChar(36)
+  employeeId     String    @map("employee_id") @db.VarChar(36)
+  attendanceDate DateTime  @map("attendance_date") @db.Date
+  proposedIn     DateTime? @map("proposed_in")
+  proposedOut    DateTime? @map("proposed_out")
+  reason         String    @db.Text
+  status         String    @default("PENDING") @db.VarChar(20) // PENDING, APPROVED, REJECTED, WITHDRAWN
+  approverId     String?   @map("approver_id") @db.VarChar(36)
+  reviewedAt     DateTime? @map("reviewed_at")
+  reviewComments String?   @map("review_comments") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId, status])
+  @@index([tenantId, attendanceDate])
+  @@map("attendance_regularizations")
+}
+
+model LeaveLedgerEntry {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  employeeId  String   @map("employee_id") @db.VarChar(36)
+  leaveTypeId String   @map("leave_type_id") @db.VarChar(36)
+  entryType   String   @map("entry_type") @db.VarChar(20) // ACCRUAL, DEBIT, CREDIT, CARRY_FORWARD, ENCASHMENT
+  days        Decimal  @db.Decimal(5, 2)
+  balance     Decimal  @db.Decimal(5, 2)
+  referenceId String?  @map("reference_id") @db.VarChar(36) // e.g. leaveRequestId
+  notes       String?  @db.VarChar(255)
+  effectiveAt DateTime @default(now()) @map("effective_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId, leaveTypeId])
+  @@map("leave_ledger_entries")
+}
+
 
 
