@@ -700,10 +700,14 @@ function SuperShell() {
       </header>
 
       {/* Main Page Wrapper */}
-      <div className="page-wrapper">
-        <main className="content p-3 lg:p-6 min-w-0">
+      <div className="page-wrapper flex flex-col justify-between">
+        <main className="content p-3 lg:p-6 min-w-0 flex-1">
           <Outlet />
         </main>
+        <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="super-footer">
+          <span data-testid="super-footer-text">{appConfig.footerText || "© 2026 Master HRMS. All rights reserved."}</span>
+          <span>{appConfig.appName}</span>
+        </footer>
       </div>
 
       {/* Mobile Sidebar Overlay */}

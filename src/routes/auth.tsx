@@ -26,6 +26,7 @@ import {
   Building2,
   RefreshCw,
 } from "lucide-react";
+import { useAppConfig } from "@/lib/useAppConfig";
 import { useTenantBranding } from "@/lib/useTenantBranding";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ function AuthPage() {
   const { mode: initialMode, redirect, token: searchToken, error: searchError, provider: searchProvider, email: searchEmail } = Route.useSearch();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { appConfig } = useAppConfig();
   const { branding } = useTenantBranding();
   const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset" | "verify">(initialMode ?? "signin");
   const [email, setEmail] = useState(searchEmail || "");
@@ -94,19 +96,6 @@ function AuthPage() {
     }
   }, [resendCountdown, canResend]);
 
-  // Query platform settings for dynamic logos & app name
-  const { data: platformSettings } = useQuery({
-    queryKey: ["realtime-platform-settings"],
-    queryFn: async () => {
-      try {
-        const page = await api.get("/cms/pages/system-platform-settings");
-        return (page?.content as any) || null;
-      } catch {
-        return null;
-      }
-    },
-  });
-
   // Query OAuth config from backend
   const { data: oauthConfig } = useQuery({
     queryKey: ["oauth-config"],
@@ -119,25 +108,10 @@ function AuthPage() {
     },
   });
 
-  let cachedLogoLight = "";
-  let cachedAppName = "";
-  try {
-    if (typeof window !== "undefined") {
-      cachedLogoLight = localStorage.getItem("master_hrms_logo_light") || "";
-      cachedAppName = localStorage.getItem("master_hrms_app_name") || "";
-    }
-  } catch (e) {}
-
-  let cachedLogoDark = "";
-  try {
-    if (typeof window !== "undefined") {
-      cachedLogoDark = localStorage.getItem("master_hrms_logo_dark") || "";
-    }
-  } catch (e) {}
-
-  const logoLightUrl = branding.isWhiteLabeled && branding.logoUrl ? branding.logoUrl : (platformSettings?.logoLightUrl || cachedLogoLight || "/logo.webp");
-  const logoDarkUrl = branding.isWhiteLabeled && branding.logoDark ? branding.logoDark : (platformSettings?.logoDarkUrl || cachedLogoDark || "/white-logo.webp");
-  const appName = branding.isWhiteLabeled && branding.name ? branding.name : (platformSettings?.appName || cachedAppName || "Master Workspace ERP");
+  const logoLightUrl = appConfig.logoLightUrl || branding.logoUrl || "/logo.webp";
+  const logoDarkUrl = appConfig.logoDarkUrl || branding.logoDark || "/white-logo.webp";
+  const appName = appConfig.appName || branding.name || "Master Workspace ERP";
+  const footerText = appConfig.footerText || branding.footerText || "© 2026 Master HRMS. All rights reserved.";
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
   const appleVisible = Boolean(oauthConfig?.apple?.enabled);
@@ -932,6 +906,11 @@ function AuthPage() {
           <Link to="/contact" className="hover:text-foreground">
             Contact Support
           </Link>
+        </div>
+
+        {/* Dynamic Footer Text */}
+        <div className="text-center text-xs text-muted-foreground pt-3" data-testid="auth-footer-text">
+          {footerText}
         </div>
       </div>
     </div>

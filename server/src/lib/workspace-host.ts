@@ -280,17 +280,27 @@ export function getEffectiveRequestHost(headers: Record<string, any>): string {
 
   if (!hostIsApiOwn) return host;
 
+  const appHost = headers["x-app-host"] ? String(headers["x-app-host"]).trim() : "";
+  if (appHost) {
+    const actx = resolveHostContext(appHost);
+    if (actx.type === "super" || actx.type === "tenant" || actx.type === "custom_domain") {
+      return appHost;
+    }
+  }
+
   const origin = headers.origin ? String(headers.origin) : "";
-  if (!origin || origin === "null") return host;
+  const referer = headers.referer ? String(headers.referer) : "";
+  const sourceUrl = origin || referer;
+  if (!sourceUrl || sourceUrl === "null") return host;
 
   try {
-    const originHost = new URL(origin).host;
-    const octx = resolveHostContext(originHost);
-    if (octx.type === "super") return originHost;
-    if (octx.type === "tenant" && !RESERVED_WORKSPACE_SLUGS.has(octx.slug)) return originHost;
-    if (octx.type === "custom_domain") return originHost;
+    const sourceHost = new URL(sourceUrl).host;
+    const octx = resolveHostContext(sourceHost);
+    if (octx.type === "super") return sourceHost;
+    if (octx.type === "tenant" && !RESERVED_WORKSPACE_SLUGS.has(octx.slug)) return sourceHost;
+    if (octx.type === "custom_domain") return sourceHost;
   } catch {
-    /* malformed Origin — ignore */
+    /* malformed Origin or Referer — ignore */
   }
   return host;
 }

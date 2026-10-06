@@ -77,6 +77,15 @@ export async function apiRequest<T = any>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
+  if (typeof window !== "undefined") {
+    if (!headers.has("X-App-Host") && window.location.host) {
+      headers.set("X-App-Host", window.location.host);
+    }
+    if (!headers.has("X-App-Path") && window.location.pathname) {
+      headers.set("X-App-Path", window.location.pathname);
+    }
+  }
+
   let cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   if (API_BASE.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
     cleanEndpoint = cleanEndpoint.substring(4);

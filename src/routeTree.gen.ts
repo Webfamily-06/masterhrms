@@ -44,6 +44,8 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSuperRouteRouteImport } from './routes/_authenticated/super/route'
 import { Route as ATagRouteImport } from './routes/a.$tag'
 import { Route as AddonsSlugRouteImport } from './routes/addons.$slug'
+import { Route as CmsIndexRouteImport } from './routes/cms.index'
+import { Route as CmsSplatRouteImport } from './routes/cms.$'
 import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as PaymentFailedRouteImport } from './routes/payment.failed'
@@ -137,6 +139,7 @@ import { Route as AuthenticatedAppPosDashboardRouteImport } from './routes/_auth
 import { Route as AuthenticatedAppProbationRouteImport } from './routes/_authenticated/_app/probation'
 import { Route as AuthenticatedAppProcurementDashboardRouteImport } from './routes/_authenticated/_app/procurement-dashboard'
 import { Route as AuthenticatedAppProductsRouteImport } from './routes/_authenticated/_app/products'
+import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/_app/profile'
 import { Route as AuthenticatedAppProjectDashboardRouteImport } from './routes/_authenticated/_app/project-dashboard'
 import { Route as AuthenticatedAppProjectReportRouteImport } from './routes/_authenticated/_app/project-report'
 import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenticated/_app/projects'
@@ -391,6 +394,16 @@ const AddonsSlugRoute = AddonsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => AddonsRoute,
+} as any)
+const CmsIndexRoute = CmsIndexRouteImport.update({
+  id: '/cms/',
+  path: '/cms/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CmsSplatRoute = CmsSplatRouteImport.update({
+  id: '/cms/$',
+  path: '/cms/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const LegalSlugRoute = LegalSlugRouteImport.update({
   id: '/legal/$slug',
@@ -928,6 +941,11 @@ const AuthenticatedAppProductsRoute =
     path: '/products',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppProfileRoute = AuthenticatedAppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppProjectDashboardRoute =
   AuthenticatedAppProjectDashboardRouteImport.update({
     id: '/project-dashboard',
@@ -1432,11 +1450,13 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
+  '/cms/$': typeof CmsSplatRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/cms/': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
@@ -1525,6 +1545,7 @@ export interface FileRoutesByFullPath {
   '/probation': typeof AuthenticatedAppProbationRoute
   '/procurement-dashboard': typeof AuthenticatedAppProcurementDashboardRoute
   '/products': typeof AuthenticatedAppProductsRoute
+  '/profile': typeof AuthenticatedAppProfileRoute
   '/project-dashboard': typeof AuthenticatedAppProjectDashboardRoute
   '/project-report': typeof AuthenticatedAppProjectReportRoute
   '/projects': typeof AuthenticatedAppProjectsRoute
@@ -1640,11 +1661,13 @@ export interface FileRoutesByTo {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
+  '/cms/$': typeof CmsSplatRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/cms': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
@@ -1733,6 +1756,7 @@ export interface FileRoutesByTo {
   '/probation': typeof AuthenticatedAppProbationRoute
   '/procurement-dashboard': typeof AuthenticatedAppProcurementDashboardRoute
   '/products': typeof AuthenticatedAppProductsRoute
+  '/profile': typeof AuthenticatedAppProfileRoute
   '/project-dashboard': typeof AuthenticatedAppProjectDashboardRoute
   '/project-report': typeof AuthenticatedAppProjectReportRoute
   '/projects': typeof AuthenticatedAppProjectsRoute
@@ -1852,11 +1876,13 @@ export interface FileRoutesById {
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
+  '/cms/$': typeof CmsSplatRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/cms/': typeof CmsIndexRoute
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/_authenticated/_app/ai': typeof AuthenticatedAppAiRoute
@@ -1945,6 +1971,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/probation': typeof AuthenticatedAppProbationRoute
   '/_authenticated/_app/procurement-dashboard': typeof AuthenticatedAppProcurementDashboardRoute
   '/_authenticated/_app/products': typeof AuthenticatedAppProductsRoute
+  '/_authenticated/_app/profile': typeof AuthenticatedAppProfileRoute
   '/_authenticated/_app/project-dashboard': typeof AuthenticatedAppProjectDashboardRoute
   '/_authenticated/_app/project-report': typeof AuthenticatedAppProjectReportRoute
   '/_authenticated/_app/projects': typeof AuthenticatedAppProjectsRoute
@@ -2063,11 +2090,13 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/a/$tag'
     | '/addons/$slug'
+    | '/cms/$'
     | '/legal/$slug'
     | '/p/$slug'
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
+    | '/cms/'
     | '/accounting'
     | '/adjustments'
     | '/ai'
@@ -2156,6 +2185,7 @@ export interface FileRouteTypes {
     | '/probation'
     | '/procurement-dashboard'
     | '/products'
+    | '/profile'
     | '/project-dashboard'
     | '/project-report'
     | '/projects'
@@ -2271,11 +2301,13 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/a/$tag'
     | '/addons/$slug'
+    | '/cms/$'
     | '/legal/$slug'
     | '/p/$slug'
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
+    | '/cms'
     | '/accounting'
     | '/adjustments'
     | '/ai'
@@ -2364,6 +2396,7 @@ export interface FileRouteTypes {
     | '/probation'
     | '/procurement-dashboard'
     | '/products'
+    | '/profile'
     | '/project-dashboard'
     | '/project-report'
     | '/projects'
@@ -2482,11 +2515,13 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding'
     | '/a/$tag'
     | '/addons/$slug'
+    | '/cms/$'
     | '/legal/$slug'
     | '/p/$slug'
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
+    | '/cms/'
     | '/_authenticated/_app/accounting'
     | '/_authenticated/_app/adjustments'
     | '/_authenticated/_app/ai'
@@ -2575,6 +2610,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/probation'
     | '/_authenticated/_app/procurement-dashboard'
     | '/_authenticated/_app/products'
+    | '/_authenticated/_app/profile'
     | '/_authenticated/_app/project-dashboard'
     | '/_authenticated/_app/project-report'
     | '/_authenticated/_app/projects'
@@ -2690,11 +2726,13 @@ export interface RootRouteChildren {
   SuperLoginRoute: typeof SuperLoginRoute
   Verify2faRoute: typeof Verify2faRoute
   ATagRoute: typeof ATagRoute
+  CmsSplatRoute: typeof CmsSplatRoute
   LegalSlugRoute: typeof LegalSlugRoute
   PSlugRoute: typeof PSlugRoute
   PaymentFailedRoute: typeof PaymentFailedRoute
   PaymentPendingRoute: typeof PaymentPendingRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
+  CmsIndexRoute: typeof CmsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2943,6 +2981,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/addons/$slug'
       preLoaderRoute: typeof AddonsSlugRouteImport
       parentRoute: typeof AddonsRoute
+    }
+    '/cms/': {
+      id: '/cms/'
+      path: '/cms'
+      fullPath: '/cms/'
+      preLoaderRoute: typeof CmsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cms/$': {
+      id: '/cms/$'
+      path: '/cms/$'
+      fullPath: '/cms/$'
+      preLoaderRoute: typeof CmsSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/legal/$slug': {
       id: '/legal/$slug'
@@ -3593,6 +3645,13 @@ declare module '@tanstack/react-router' {
       path: '/products'
       fullPath: '/products'
       preLoaderRoute: typeof AuthenticatedAppProductsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/profile': {
+      id: '/_authenticated/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedAppProfileRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/project-dashboard': {
@@ -4283,6 +4342,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppProbationRoute: typeof AuthenticatedAppProbationRoute
   AuthenticatedAppProcurementDashboardRoute: typeof AuthenticatedAppProcurementDashboardRoute
   AuthenticatedAppProductsRoute: typeof AuthenticatedAppProductsRoute
+  AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
   AuthenticatedAppProjectDashboardRoute: typeof AuthenticatedAppProjectDashboardRoute
   AuthenticatedAppProjectReportRoute: typeof AuthenticatedAppProjectReportRoute
   AuthenticatedAppProjectsRoute: typeof AuthenticatedAppProjectsRoute
@@ -4432,6 +4492,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppProcurementDashboardRoute:
     AuthenticatedAppProcurementDashboardRoute,
   AuthenticatedAppProductsRoute: AuthenticatedAppProductsRoute,
+  AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
   AuthenticatedAppProjectDashboardRoute: AuthenticatedAppProjectDashboardRoute,
   AuthenticatedAppProjectReportRoute: AuthenticatedAppProjectReportRoute,
   AuthenticatedAppProjectsRoute: AuthenticatedAppProjectsRoute,
@@ -4652,11 +4713,13 @@ const rootRouteChildren: RootRouteChildren = {
   SuperLoginRoute: SuperLoginRoute,
   Verify2faRoute: Verify2faRoute,
   ATagRoute: ATagRoute,
+  CmsSplatRoute: CmsSplatRoute,
   LegalSlugRoute: LegalSlugRoute,
   PSlugRoute: PSlugRoute,
   PaymentFailedRoute: PaymentFailedRoute,
   PaymentPendingRoute: PaymentPendingRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
+  CmsIndexRoute: CmsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

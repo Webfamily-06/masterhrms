@@ -2,8 +2,9 @@ import { Router, Response } from "express";
 import crypto from "crypto";
 import { SettingsService } from "../services/settings/settings.service";
 import { SettingScopeType } from "../services/settings/settings-registry";
-import { resolveBranding } from "../services/branding/branding-resolver.service";
+import { resolveBranding, resolveBrandingContext } from "../services/branding/branding-resolver.service";
 import { WorkspaceHostRequest } from "../middleware/workspace-host.middleware";
+import { getEffectiveRequestHost } from "../lib/workspace-host";
 import { verifyToken } from "../lib/jwt";
 import { prisma, rawPrisma } from "../prisma";
 
@@ -11,54 +12,73 @@ export const appConfigRouter = Router();
 
 /**
  * GET /api/v1/public/app-config
- * Bootstrap configuration endpoint with scope-aware White-Label resolution.
- * Resolves tenant identity strictly via trusted architecture (subdomain/hostname or verified JWT token).
- * Client query parameter tenant spoofing is strictly rejected.
- * Cached with ETag and Vary: Host, Authorization for complete cache isolation.
+ * Authoritative bootstrap configuration endpoint with Workspace Branding Matrix resolution.
+ *
+ * Rules:
+ *   PLATFORM HOST -> PLATFORM branding
+ *   TENANT HOST + LOGIN -> TENANT branding
+ *   TENANT HOST + CMS -> PLATFORM branding
+ *   TENANT HOST + APPLICATION -> TENANT branding
+ *
+ * Exposes:
+ *   {
+ *     scope: "PLATFORM" | "TENANT",
+ *     tenantId: string | null,
+ *     context: "PLATFORM" | "TENANT_LOGIN" | "TENANT_APP" | "CMS",
+ *     branding: { ... }
+ *   }
  */
 appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Response) => {
   try {
-    let scope: SettingScopeType = "PLATFORM";
-    let scopeId: string | null = null;
-    let tenantMeta: any = null;
+    const rawHost = getEffectiveRequestHost(req.headers);
 
-    // 1. Host-based tenant resolution (subdomain or custom domain via workspaceHostMiddleware)
-    if (req.resolvedTenant) {
-      scope = "TENANT";
-      scopeId = req.resolvedTenant.id;
-      tenantMeta = req.resolvedTenant;
-    }
-    // 2. Authenticated bearer token resolution (for SPA / single-domain contexts)
-    else if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+    // Path resolution from query parameter, header, or referer
+    const requestedPath =
+      (req.query.pathname as string) ||
+      (req.query.path as string) ||
+      (req.headers["x-app-path"] as string) ||
+      (req.headers.referer
+        ? (() => {
+            try {
+              return new URL(req.headers.referer as string).pathname;
+            } catch {
+              return "/";
+            }
+          })()
+        : "/");
+
+    let isTenantHost = Boolean(
+      req.resolvedTenant ||
+      (req.hostContext && (req.hostContext.type === "tenant" || req.hostContext.type === "custom_domain"))
+    );
+    let resolvedTenantId = req.resolvedTenant?.id || null;
+
+    // Bearer token fallback for authenticated SPA context if not already tenant host
+    if (!isTenantHost && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
       try {
         const token = req.headers.authorization.split(" ")[1];
         const decoded = verifyToken(token);
         if (decoded?.tenantId) {
-          const tenant = await (rawPrisma || prisma).tenant.findUnique({
-            where: { id: decoded.tenantId },
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              logoUrl: true,
-              timezone: true,
-            },
-          });
-          if (tenant) {
-            scope = "TENANT";
-            scopeId = tenant.id;
-            tenantMeta = tenant;
-          }
+          resolvedTenantId = decoded.tenantId;
         }
       } catch {
-        // Expired or invalid token, fall back safely to PLATFORM scope
+        // Expired or invalid token, fall back safely
       }
     }
-    // Note: req.query.tenantId is deliberately NOT checked to prevent client spoofing
 
-    // 3. Resolve branding and locale through authoritative BrandingResolverService precedence
-    // Precedence: TENANT override -> PLATFORM fallback -> SYSTEM default
-    const resolved = await resolveBranding({ scope, tenantId: scopeId });
+    // Call single authoritative resolver
+    const resolution = resolveBrandingContext({
+      host: rawHost,
+      pathname: requestedPath,
+      tenantId: resolvedTenantId,
+      isTenantHost: isTenantHost || Boolean(resolvedTenantId),
+    });
+
+    // Resolve branding from SettingsService using the resolved scope and tenantId
+    const resolved = await resolveBranding({
+      scope: resolution.scope,
+      tenantId: resolution.scope === "TENANT" ? resolution.tenantId : null,
+    });
 
     const branding = {
       logoLight: resolved.logoLightUrl,
@@ -74,8 +94,9 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
     };
 
     const config = {
-      scope: resolved.scope,
-      tenantId: resolved.tenantId,
+      scope: resolution.scope,
+      tenantId: resolution.tenantId,
+      context: resolution.context,
       branding,
       appName: resolved.appName,
       supportEmail: resolved.supportEmail,
@@ -88,7 +109,7 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       faviconUrl: resolved.faviconUrl,
       footerText: resolved.footerText,
       locale: resolved.locale,
-      isWhiteLabeled: resolved.isWhiteLabeled,
+      isWhiteLabeled: resolution.scope === "TENANT",
       version: resolved.version,
       timestamp: new Date().toISOString(),
     };
@@ -96,7 +117,7 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
-    res.setHeader("Vary", "Host, Authorization");
+    res.setHeader("Vary", "Host, Authorization, X-App-Path");
 
     return res.json(config);
   } catch (err: any) {

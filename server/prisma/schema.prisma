@@ -212,6 +212,9 @@ model Tenant {
   projectMilestones      ProjectMilestone[]
   workspaceSlugHistory   WorkspaceSlugHistory[]
   workspaceSlugRedirects WorkspaceSlugRedirect[]
+  employeeChangeRequests EmployeeChangeRequest[]
+  documentRequests       DocumentRequest[]
+  approvalDelegations    ApprovalDelegation[]
   @@map("tenants")
 }
 
@@ -356,6 +359,10 @@ model Employee {
   employeeContracts           EmployeeContract[]
   bankDisbursementItems       BankDisbursementItem[]
   timesheets                  Timesheet[]
+  changeRequests              EmployeeChangeRequest[]
+  documentRequests            DocumentRequest[]
+  delegationsGiven            ApprovalDelegation[]          @relation("DelegationManager")
+  delegationsReceived         ApprovalDelegation[]          @relation("DelegationDelegate")
 
   @@index([tenantId, status])  // Perf: list active employees by tenant
   @@index([tenantId, departmentId]) // Perf: filter by department
@@ -4330,3 +4337,64 @@ model MediaUsage {
   @@unique([mediaId, entityType, entityId, fieldKey])
   @@map("media_usages")
 }
+
+model EmployeeChangeRequest {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  tenantId       String    @map("tenant_id") @db.VarChar(36)
+  employeeId     String    @map("employee_id") @db.VarChar(36)
+  fieldCategory  String    @map("field_category") @db.VarChar(50) // bank, personal, statutory, address
+  fieldKey       String    @map("field_key") @db.VarChar(50)      // bankAccount, pan, legalName, etc.
+  oldValueJson   String?   @map("old_value_json") @db.Text
+  newValueJson   String    @map("new_value_json") @db.Text
+  proofMediaId   String?   @map("proof_media_id") @db.VarChar(36)
+  status         String    @default("PENDING") @db.VarChar(20)    // PENDING, APPROVED, REJECTED
+  reviewedBy     String?   @map("reviewed_by") @db.VarChar(36)
+  reviewedAt     DateTime? @map("reviewed_at")
+  reviewComments String?   @map("review_comments") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId, status])
+  @@map("employee_change_requests")
+}
+
+model ApprovalDelegation {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  managerId   String   @map("manager_id") @db.VarChar(36)
+  delegateId  String   @map("delegate_id") @db.VarChar(36)
+  modulesJson String   @map("modules_json") @db.VarChar(255) // ["LEAVE", "TIMESHEET", "REGULARIZATION"]
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  status      String   @default("ACTIVE") @db.VarChar(20)    // ACTIVE, REVOKED, EXPIRED
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  manager  Employee @relation("DelegationManager", fields: [managerId], references: [id], onDelete: Cascade)
+  delegate Employee @relation("DelegationDelegate", fields: [delegateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, managerId, status])
+  @@map("approval_delegations")
+}
+
+model DocumentRequest {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  tenantId       String    @map("tenant_id") @db.VarChar(36)
+  employeeId     String    @map("employee_id") @db.VarChar(36)
+  letterType     String    @map("letter_type") @db.VarChar(50) // BONAFIDE, EXPERIENCE, NOC, SALARY
+  purpose        String    @db.Text
+  status         String    @default("PENDING") @db.VarChar(20) // PENDING, ISSUED, REJECTED
+  issuedMediaId  String?   @map("issued_media_id") @db.VarChar(36)
+  issuedAt       DateTime? @map("issued_at")
+  rejectionNotes String?   @map("rejection_notes") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId, status])
+  @@map("document_requests")
+}
+

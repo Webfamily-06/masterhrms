@@ -35,6 +35,7 @@ import {
 import { api, clearToken, setToken } from "@/lib/api";
 import { toast } from "sonner";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
+import { useAppConfig } from "@/lib/useAppConfig";
 import { useTenantBranding } from "@/lib/useTenantBranding";
 import { AccessDenied } from "@/components/access-denied";
 import { isSuperAdminUser, isSharedRoute, isPlatformOnlyRoute } from "@/lib/permissions";
@@ -155,6 +156,7 @@ function AppShell() {
   const { data: profile, isLoading, error: profileError, refetch: reloadProfile } = useCurrentProfile();
   const { loading } = useSession();
   const { branding, isDark } = useTenantBranding();
+  const { appConfig } = useAppConfig();
   const navigate = useNavigate();
   const path = useRouterState({ select: (r) => r.location.pathname });
 
@@ -869,8 +871,8 @@ function AppShell() {
       </header>
 
       {/* Main Page Wrapper */}
-      <div className="page-wrapper">
-        <main className="content min-w-0">
+      <div className="page-wrapper flex flex-col justify-between">
+        <main className="content min-w-0 flex-1">
           {isSuperAdmin && !profile?.tenant_id && !isPlatformOrShared ? (
             <AccessDenied
               moduleName="Tenant Workspace"
@@ -880,6 +882,10 @@ function AppShell() {
             <Outlet />
           )}
         </main>
+        <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="workspace-footer">
+          <span data-testid="workspace-footer-text">{branding.footerText || appConfig.footerText || "© 2026 Master HRMS. All rights reserved."}</span>
+          <span>{branding.name || appConfig.appName}</span>
+        </footer>
       </div>
 
       {/* Mobile Sidebar Overlay */}

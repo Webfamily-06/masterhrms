@@ -80,6 +80,7 @@ import { timesheetsRouter } from "./routes/timesheets.routes";
 import { settingsRouter } from "./routes/settings.routes";
 import { mediaRouter } from "./routes/media.routes";
 import { appConfigRouter } from "./routes/app-config.routes";
+import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes";
 import { SettingsService } from "./services/settings/settings.service";
 import { getUploadsRoot } from "./services/media/media.service";
 
@@ -173,6 +174,10 @@ app.use("/api/v1/media", mediaRouter);
 app.use("/api/v1/public", appConfigRouter);
 app.use("/api/public", appConfigRouter);
 app.use("/api", appConfigRouter);
+
+// Employee Self-Service (ESS) Routes (/api/v1/me & /api/me)
+app.use("/api/v1/me", employeeSelfServiceRouter);
+app.use("/api/me", employeeSelfServiceRouter);
 
 // Mount Routes
 app.use("/api/billing", billingRouter);

@@ -126,6 +126,7 @@ workspaceRoutingRouter.get("/public/workspace", async (req: WorkspaceHostRequest
         logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl || null,
         faviconUrl: brandingGroup.mediaUrls["branding.favicon_id"] || null,
         primaryColor: brandingGroup.values["branding.primary_color"] || null,
+        footerText: brandingGroup.values["branding.footer_text"] || null,
         timezone: tenant.timezone || "Asia/Kolkata",
         status: tenant.status,
         baseDomain: hostContext.baseDomain,

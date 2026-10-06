@@ -694,7 +694,7 @@ export class SettingsService {
         // Clear in-memory cache
         cacheStore.delete(getCacheKey(scope, normScopeId, key));
       }
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     // 3. Emit Realtime Event
     const realtimePayload = {
@@ -916,40 +916,41 @@ export class SettingsService {
     const platformScopeId = normalizeScopeId("PLATFORM", null);
     const definitions = Object.values(SETTINGS_REGISTRY);
 
+    // 1. Fetch all existing platform setting keys in a single query
+    const existingSettings = await prisma.setting.findMany({
+      where: {
+        scope: "PLATFORM",
+        OR: [{ scopeId: platformScopeId }, { scopeId: null }, { scopeId: "global" }],
+      },
+      select: { key: true },
+    });
+    const existingKeySet = new Set(existingSettings.map((s) => s.key));
+
+    // 2. Identify missing platform defaults
+    const missingData: any[] = [];
     for (const def of definitions) {
       if (!def.scopes.includes("PLATFORM")) continue;
+      if (existingKeySet.has(def.key)) continue;
 
-      // Check if setting already exists in DB (either "global" or null scopeId)
-      const existing = await prisma.setting.findFirst({
-        where: {
-          scope: "PLATFORM",
-          OR: [{ scopeId: platformScopeId }, { scopeId: null }, { scopeId: "global" }],
-          key: def.key,
-        },
+      missingData.push({
+        scope: "PLATFORM",
+        scopeId: platformScopeId,
+        group: def.group,
+        key: def.key,
+        valueJson: def.default,
+        valueType: def.type,
+        isSecret: !!def.isSecret,
+        version: 1,
+        updatedBy: "system_bootstrap",
       });
+    }
 
-      if (!existing) {
-        try {
-          await prisma.setting.create({
-            data: {
-              scope: "PLATFORM",
-              scopeId: platformScopeId,
-              group: def.group,
-              key: def.key,
-              valueJson: def.default,
-              valueType: def.type,
-              isSecret: !!def.isSecret,
-              version: 1,
-              updatedBy: "system_bootstrap",
-            },
-          });
-        } catch (createErr: any) {
-          // Ignore unique collision if another process bootstrapped concurrently
-          if (createErr?.code !== "P2002") {
-            console.warn(`[SettingsService] ensureDefaultSettings warning for ${def.key}:`, createErr.message);
-          }
-        }
-      }
+    // 3. Batch insert missing defaults (skipDuplicates for multi-process concurrency safety)
+    if (missingData.length > 0) {
+      await prisma.setting.createMany({
+        data: missingData,
+        skipDuplicates: true,
+      });
     }
   }
 

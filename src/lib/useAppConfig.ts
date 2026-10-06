@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
+import { resolveBrandingContext, BrandingContextType } from "./branding-context";
 
 export interface AppConfig {
   appName: string;
@@ -27,6 +28,7 @@ export interface AppConfig {
     timeFormat: string;
   };
   scope: "PLATFORM" | "TENANT";
+  context: BrandingContextType;
   tenantId: string | null;
   isWhiteLabeled: boolean;
   version: number;
@@ -49,6 +51,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     timeFormat: "12",
   },
   scope: "PLATFORM",
+  context: "PLATFORM",
   tenantId: null,
   isWhiteLabeled: false,
   version: 1,
@@ -82,36 +85,57 @@ export function useAppConfig() {
     typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null
   );
 
+  const [currentPath, setCurrentPath] = useState<string>(() =>
+    typeof window !== "undefined" ? window.location.pathname : "/"
+  );
+
   useEffect(() => {
     const handleAuthChange = () => {
       setAuthToken(localStorage.getItem("hrms_auth_token"));
     };
+    const handlePathChange = () => {
+      if (typeof window !== "undefined" && window.location.pathname !== currentPath) {
+        setCurrentPath(window.location.pathname);
+      }
+    };
+
     window.addEventListener("auth-token-changed", handleAuthChange);
     window.addEventListener("storage", handleAuthChange);
+    window.addEventListener("popstate", handlePathChange);
+    window.addEventListener("hashchange", handlePathChange);
+
+    // Watch for internal SPA routing changes
+    const pathTimer = setInterval(handlePathChange, 400);
+
     return () => {
       window.removeEventListener("auth-token-changed", handleAuthChange);
       window.removeEventListener("storage", handleAuthChange);
+      window.removeEventListener("popstate", handlePathChange);
+      window.removeEventListener("hashchange", handlePathChange);
+      clearInterval(pathTimer);
     };
-  }, []);
+  }, [currentPath]);
 
   const host = typeof window !== "undefined" ? window.location.host : "";
-  const queryKey = ["app-config", host, authToken ? authToken.slice(-16) : "public"];
+  const predicted = resolveBrandingContext({ host, pathname: currentPath });
+  const queryKey = ["app-config", host, predicted.context, authToken ? authToken.slice(-16) : "public"];
 
   const { data: config = DEFAULT_APP_CONFIG, isLoading, isError } = useQuery<AppConfig>({
     queryKey,
     queryFn: async () => {
+      const pathParam = encodeURIComponent(currentPath);
       try {
-        const res = await api.get("/v1/public/app-config");
+        const res = await api.get(`/v1/public/app-config?pathname=${pathParam}`);
         if (res && (res.appName || res.primaryColor)) return res;
       } catch (err) {}
 
       try {
-        const fallback = await api.get("/public/app-config");
+        const fallback = await api.get(`/public/app-config?pathname=${pathParam}`);
         if (fallback && (fallback.appName || fallback.primaryColor)) return fallback;
       } catch {}
 
       try {
-        const fallback2 = await api.get("/app-config");
+        const fallback2 = await api.get(`/app-config?pathname=${pathParam}`);
         if (fallback2 && (fallback2.appName || fallback2.primaryColor)) return fallback2;
       } catch {}
 
@@ -163,9 +187,14 @@ export function useAppConfig() {
       const data = e.detail;
       if (!data) return;
 
-      // Tenant isolation: If event is for a specific tenant, ensure it matches current tenant
-      if (data.scope === "TENANT" && config.tenantId && data.tenantId && config.tenantId !== data.tenantId) {
-        return; // Ignore other tenant updates
+      // Tenant isolation: Never overwrite CMS or Platform context
+      if (data.scope === "TENANT") {
+        if (config.context === "CMS" || config.scope === "PLATFORM") {
+          return; // Ignore tenant update in CMS or Platform context
+        }
+        if (config.tenantId && data.tenantId && config.tenantId !== data.tenantId) {
+          return; // Ignore other tenant updates
+        }
       }
 
       if (data?.keys?.includes("branding.primary_color") && data?.values?.["branding.primary_color"]) {
@@ -176,7 +205,7 @@ export function useAppConfig() {
 
     window.addEventListener("settings-updated", handleSettingsUpdated);
     return () => window.removeEventListener("settings-updated", handleSettingsUpdated);
-  }, [config.tenantId, queryClient]);
+  }, [config.context, config.scope, config.tenantId, queryClient]);
 
   // BroadcastChannel for cross-tab realtime branding propagation with scope isolation
   useEffect(() => {
@@ -191,8 +220,9 @@ export function useAppConfig() {
         const eventTenantId = data.tenantId;
 
         // Tenant update isolation:
+        // A Tenant branding update must NOT overwrite PLATFORM context or CMS context!
         if (eventScope === "TENANT") {
-          if (config.tenantId && config.tenantId === eventTenantId) {
+          if (config.scope === "TENANT" && config.context !== "CMS" && config.tenantId && config.tenantId === eventTenantId) {
             if (data.primaryColor) applyThemeVariables(data.primaryColor);
             queryClient.invalidateQueries({ queryKey: ["app-config"] });
           }
@@ -200,9 +230,9 @@ export function useAppConfig() {
         }
 
         // Platform update:
+        // Platform branding updates must affect Platform contexts (including CMS)
         if (eventScope === "PLATFORM" || !eventScope) {
-          // Only update if this session is platform, or if tenant has not overridden primary color
-          if (config.scope === "PLATFORM" || !config.isWhiteLabeled) {
+          if (config.scope === "PLATFORM" || config.context === "CMS") {
             if (data.primaryColor) applyThemeVariables(data.primaryColor);
             queryClient.invalidateQueries({ queryKey: ["app-config"] });
           }
@@ -210,7 +240,7 @@ export function useAppConfig() {
       }
     };
     return () => bc.close();
-  }, [config.scope, config.tenantId, config.isWhiteLabeled, queryClient]);
+  }, [config.scope, config.context, config.tenantId, config.isWhiteLabeled, queryClient]);
 
   return { appConfig: config, isLoading, isError };
 }

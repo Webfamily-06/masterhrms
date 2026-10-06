@@ -18,6 +18,7 @@ export interface TenantBranding {
   activeLogo?: string;
   faviconUrl: string;
   primaryColor: string;
+  footerText?: string;
   timezone: string;
   currency?: string;
   currencySymbol?: string;
@@ -41,18 +42,23 @@ export const DEFAULT_BRANDING: TenantBranding = {
   activeLogo: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
   primaryColor: "#FF6B00",
+  footerText: "© 2026 Master HRMS. All rights reserved.",
   timezone: "Asia/Kolkata",
   currency: "INR",
   currencySymbol: "₹",
   isWhiteLabeled: false,
 };
 
+import { resolveBrandingContext } from "./branding-context";
+
 export function useTenantBranding() {
   const { isDark } = useThemeMode();
   const hasAuthToken = typeof window !== "undefined" && !!localStorage.getItem("hrms_auth_token");
+  const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
+  const currentHost = typeof window !== "undefined" ? window.location.host : "";
 
   const { data: rawBranding = DEFAULT_BRANDING, isLoading } = useQuery<TenantBranding>({
-    queryKey: ["tenant-branding", hasAuthToken],
+    queryKey: ["tenant-branding", currentHost, currentPath, hasAuthToken],
     queryFn: async () => {
       try {
         // First check current host resolution via GET /api/public/workspace
@@ -60,19 +66,28 @@ export function useTenantBranding() {
           const hostRes = await api.get("/public/workspace");
           if (hostRes) {
             if (hostRes.resolved) {
+              const resContext = resolveBrandingContext({
+                host: currentHost,
+                pathname: currentPath,
+                tenantId: hostRes.id,
+              });
+              const isWhiteLabeled = resContext.scope === "TENANT";
+
               return {
                 ...DEFAULT_BRANDING,
                 resolved: true,
                 id: hostRes.id,
-                name: hostRes.name || DEFAULT_BRANDING.name,
+                name: isWhiteLabeled ? (hostRes.name || DEFAULT_BRANDING.name) : DEFAULT_BRANDING.name,
                 slug: hostRes.slug,
-                logoUrl: hostRes.logoUrl || DEFAULT_BRANDING.logoUrl,
-                logoDark: hostRes.logoDark || hostRes.logoUrl || DEFAULT_BRANDING.logoDark,
-                faviconUrl: hostRes.faviconUrl || DEFAULT_BRANDING.faviconUrl,
+                logoUrl: isWhiteLabeled ? (hostRes.logoUrl || DEFAULT_BRANDING.logoUrl) : DEFAULT_BRANDING.logoUrl,
+                logoDark: isWhiteLabeled ? (hostRes.logoDark || hostRes.logoUrl || DEFAULT_BRANDING.logoDark) : DEFAULT_BRANDING.logoDark,
+                faviconUrl: isWhiteLabeled ? (hostRes.faviconUrl || DEFAULT_BRANDING.faviconUrl) : DEFAULT_BRANDING.faviconUrl,
+                primaryColor: isWhiteLabeled ? (hostRes.primaryColor || DEFAULT_BRANDING.primaryColor) : DEFAULT_BRANDING.primaryColor,
+                footerText: isWhiteLabeled ? (hostRes.footerText || hostRes.brand?.footerText || DEFAULT_BRANDING.footerText) : DEFAULT_BRANDING.footerText,
                 timezone: hostRes.timezone || "Asia/Kolkata",
                 baseDomain: hostRes.baseDomain,
                 workspaceUrl: hostRes.workspaceUrl,
-                isWhiteLabeled: true,
+                isWhiteLabeled,
               };
             }
             if (hostRes.isRoot) {
