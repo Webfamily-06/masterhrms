@@ -672,13 +672,12 @@ function Settings() {
     },
   ];
 
-  // Tenant Settings Nested Menus Hierarchy Definition
+  // Tenant Settings Nested Menus Hierarchy Definition — Text-driven enterprise navigation
   const TENANT_SETTINGS_NAV: SettingsNavCategory[] = useMemo(() => {
     return [
       {
         id: "workspace-cat",
         label: "Workspace & Identity",
-        icon: Building2,
         description: "Access roles, white-label branding, legal company profile and timings",
         hidden: !isAdmin,
         items: [
@@ -686,32 +685,27 @@ function Settings() {
             id: "workspace",
             label: "Workspace Roles & Modules",
             description: "Manage member roles, seat licenses & module permissions",
-            icon: Shield,
           },
           {
             id: "workspace-branding",
             label: "Workspace Branding",
             description: "Tenant logo, primary accent color & custom appearance",
-            icon: Palette,
           },
           {
             id: "company-profile",
             label: "Company Profile & GST",
             description: "Authoritative legal entity, GSTIN registrations & dispatch address",
-            icon: Building2,
           },
           {
             id: "organization",
             label: "Office Timing & Policy",
             description: "Working shift timings, grace windows & official hours",
-            icon: Clock,
           },
         ],
       },
       {
         id: "workforce-cat",
         label: "Workforce & HR",
-        icon: Users,
         description: "Leave quotas, department structures and approval workflows",
         hidden: !isHR && !isAdmin,
         items: [
@@ -719,25 +713,18 @@ function Settings() {
             id: "leave-types",
             label: "Leave Types & Quotas",
             description: "Annual vacation, sick, and casual leave quotas",
-            icon: CalendarCheck,
             hidden: !isHR,
           },
           {
             id: "departments",
             label: "Departments & Teams",
             description: "Organizational structure, divisions and department heads",
-            icon: Users,
-            badge: `${rawDepts.length} Depts`,
-            badgeColor: "bg-muted text-muted-foreground border-border",
             hidden: !isHR,
           },
           {
             id: "approvals",
             label: "Approval Workflows",
             description: "Multi-tier approval chains and auto-approval timeouts",
-            icon: Workflow,
-            badge: `${approvalWorkflows.length} Chains`,
-            badgeColor: "bg-muted text-muted-foreground border-border",
             hidden: !isAdmin,
           },
         ],
@@ -745,7 +732,6 @@ function Settings() {
       {
         id: "finance-cat",
         label: "Payroll & Billing",
-        icon: DollarSign,
         description: "Statutory compensation rules, invoice templates and wire terms",
         hidden: !isAdmin,
         items: [
@@ -753,20 +739,17 @@ function Settings() {
             id: "salary-settings",
             label: "Salary & Statutory",
             description: "DA, HRA, PF, ESI, and professional tax formula rules",
-            icon: Calculator,
           },
           {
             id: "invoice-settings",
             label: "Invoice & Billing Terms",
             description: "Invoice numbering prefix, standard terms, and bank wire details",
-            icon: FileText,
           },
         ],
       },
       {
         id: "system-cat",
         label: "System & Intelligence",
-        icon: SlidersHorizontal,
         description: "HRMS module quick-hub, dynamic custom fields and AI engine",
         hidden: !isAdmin,
         items: [
@@ -774,39 +757,30 @@ function Settings() {
             id: "config-hub",
             label: "HRMS Portal Config Hub",
             description: "Quick access shortcuts to core operational modules",
-            icon: SlidersHorizontal,
           },
           {
             id: "custom-fields",
             label: "Dynamic Custom Fields",
             description: "Extend schemas for employees, projects, tickets and clients",
-            icon: Code,
-            badge: `${customFields.length} Fields`,
-            badgeColor: "bg-muted text-muted-foreground border-border",
           },
           {
             id: "ai-settings",
             label: "AI & ChatGPT Settings",
             description: "Configure OpenAI, Google Gemini, Claude, and DeepSeek keys",
-            icon: Sparkles,
           },
         ],
       },
       {
         id: "account-cat",
         label: "Account & Security",
-        icon: ShieldCheck,
         description: "Two-factor authentication and personal account credentials",
         items: [
           {
             id: "security",
             label: "Security & 2FA",
             description: "Authenticator app, emergency backup codes & protection",
-            icon: ShieldCheck,
-            badge: twoFactorStatus?.twoFactorEnabled ? "2FA Active" : "Disabled",
-            badgeColor: twoFactorStatus?.twoFactorEnabled
-              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-              : "bg-muted text-muted-foreground border-border",
+            badge: twoFactorStatus?.twoFactorEnabled ? "ACTIVE" : undefined,
+            badgeColor: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
           },
         ],
       },

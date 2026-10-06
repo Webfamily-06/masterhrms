@@ -138,7 +138,7 @@ function SuperSidebar({
 
   return (
     <aside
-      className="sidebar"
+      className="sidebar border-r border-border/70 bg-card/95 backdrop-blur-md shadow-2xs"
       id="sidebar"
       onMouseEnter={() => {
         if (collapsed && !ignoreHover) {
@@ -155,12 +155,12 @@ function SuperSidebar({
       }}
     >
       {/* Sidebar Logo Header */}
-      <div className={cn("sidebar-logo flex items-center h-14 border-b border-border-color gap-2", isMini ? "justify-center px-2" : "px-3 sm:px-4")}>
+      <div className={cn("sidebar-logo flex items-center h-14 border-b border-border/70 gap-2 bg-card/40", isMini ? "justify-center px-2" : "px-3 sm:px-4")}>
         {isMini ? (
           /* Mini Mode Centered Favicon */
           <Link
             to="/super"
-            className="flex items-center justify-center size-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="flex items-center justify-center size-9 rounded-xl hover:bg-muted/70 transition-colors"
             title={appConfig.appName || "Super Admin Root Console"}
           >
             <img
@@ -194,9 +194,9 @@ function SuperSidebar({
               id="toggle_btn"
               onClick={handleToggleCollapse}
               className={cn(
-                "hidden lg:flex items-center justify-center size-7 rounded-md border transition-all cursor-pointer shadow-xs",
+                "hidden lg:flex items-center justify-center size-7.5 rounded-xl border transition-all cursor-pointer shadow-2xs",
                 collapsed
-                  ? "bg-slate-100 dark:bg-slate-800 border-border-color text-muted-foreground hover:text-primary"
+                  ? "bg-card border-border/70 text-muted-foreground hover:text-primary"
                   : "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
               )}
               title={collapsed ? "Expand Sidebar (250px)" : "Collapse Sidebar (72px)"}
@@ -208,7 +208,7 @@ function SuperSidebar({
             {/* Mobile Close X Button */}
             <button
               type="button"
-              className="sidebar-close lg:hidden size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer border border-border-color"
+              className="sidebar-close lg:hidden size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer border border-border/70 transition-colors"
               onClick={onCloseMobile}
               aria-label="Close Mobile Menu"
             >
@@ -220,7 +220,7 @@ function SuperSidebar({
 
       {/* Sidenav Scrollable Menu */}
       <div
-        className="sidebar-inner"
+        className="sidebar-inner custom-scrollbar"
         data-simplebar
         style={{ overflowY: "auto", height: "calc(100% - 56px)" }}
         onClick={(e) => {
@@ -538,7 +538,7 @@ function SuperShell() {
       />
 
       {/* Topbar Header */}
-      <header className="navbar-header flex items-center max-lg:w-full">
+      <header className="navbar-header flex items-center max-lg:w-full border-b border-border/60 bg-background/80 backdrop-blur-md transition-colors">
         <div className="topbar-menu flex items-center justify-between w-full gap-2 px-1 sm:px-2 flex-nowrap">
           {/* Left section: mobile hamburger + mobile brand logo + desktop toggle + breadcrumbs */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -546,7 +546,7 @@ function SuperShell() {
             <button
               type="button"
               id="mobile_btn"
-              className="mobile-btn lg:hidden flex items-center justify-center size-9 rounded-lg border border-border-color bg-white dark:bg-slate-900 text-foreground shadow-xs hover:bg-light cursor-pointer transition-colors"
+              className="mobile-btn lg:hidden flex items-center justify-center size-9 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs cursor-pointer transition-colors"
               onClick={() => setMobileOpen((m) => !m)}
               aria-label="Toggle Navigation Menu"
             >
@@ -571,10 +571,10 @@ function SuperShell() {
                 }
               }}
               className={cn(
-                "sidenav-toggle-btn topbar-link shrink-0 size-8 text-[18px] hidden lg:flex items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs",
+                "sidenav-toggle-btn topbar-link shrink-0 size-8.5 text-[18px] hidden lg:flex items-center justify-center rounded-xl border transition-all cursor-pointer shadow-2xs",
                 collapsed
                   ? "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
-                  : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
+                  : "bg-card border-border/70 hover:bg-muted/70 text-foreground"
               )}
               aria-label="Toggle Sidebar Mini Rail"
               title={collapsed ? "Expand Sidebar to Full Width (250px)" : "Collapse Sidebar to Mini Rail (72px)"}
@@ -584,8 +584,8 @@ function SuperShell() {
 
             {/* Breadcrumb / Title */}
             <div className="hidden sm:flex items-center gap-2 text-xs font-semibold">
-              <Badge className="bg-primary text-primary-foreground text-[10px] font-bold py-0.5 px-2">Super Admin</Badge>
-              <span className="text-muted-foreground/60">/</span>
+              <Badge className="bg-primary text-primary-foreground text-[10px] font-bold py-0.5 px-2 rounded-md shadow-2xs">Super Admin</Badge>
+              <span className="text-muted-foreground/40">/</span>
               <span className="text-foreground font-bold truncate max-w-[200px]">{currentTitle}</span>
             </div>
           </div>
@@ -596,12 +596,12 @@ function SuperShell() {
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="header-item flex items-center gap-2 px-2.5 py-1.5 h-8 rounded-md border border-border-color bg-light/60 hover:bg-light text-muted-foreground hover:text-foreground text-xs transition-colors shadow-xs"
+              className="header-item flex items-center gap-2 px-3 py-1.5 h-8.5 rounded-xl border border-border/70 bg-muted/40 hover:bg-muted/70 text-muted-foreground hover:text-foreground text-xs transition-colors shadow-2xs cursor-pointer"
               aria-label="Global Search"
             >
               <i className="ph-duotone ph-magnifying-glass text-sm"></i>
               <span className="hidden md:inline font-medium">Search Console...</span>
-              <kbd className="hidden sm:inline-flex pointer-events-none h-4 items-center gap-0.5 rounded border bg-background px-1 font-mono text-[9px] font-semibold text-muted-foreground">⌘K</kbd>
+              <kbd className="hidden sm:inline-flex pointer-events-none h-4.5 items-center gap-0.5 rounded-md border border-border/60 bg-background px-1.5 font-mono text-[9px] font-semibold text-muted-foreground shadow-2xs">⌘K</kbd>
             </button>
 
             {/* Full View Canvas Toggle (Hide / Show Sidebar) */}
@@ -611,10 +611,10 @@ function SuperShell() {
                 id="btn_full_view"
                 onClick={() => setFullView((v) => !v)}
                 className={cn(
-                  "topbar-link flex items-center justify-center size-8 rounded-md border transition-all cursor-pointer shadow-xs",
+                  "topbar-link flex items-center justify-center size-8.5 rounded-xl border transition-all cursor-pointer shadow-2xs",
                   fullView
                     ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
-                    : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
+                    : "bg-card border-border/70 hover:bg-muted/70 text-foreground"
                 )}
                 title={fullView ? "Exit Full View (Show Sidebar) (⌘B)" : "Full View Console (Hide Sidebar) (⌘B)"}
                 aria-label="Toggle Full View Console"
@@ -629,7 +629,7 @@ function SuperShell() {
                 type="button"
                 id="btn_fullscreen"
                 onClick={toggleBrowserFullscreen}
-                className="topbar-link flex items-center justify-center size-8 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:bg-light text-foreground shadow-xs cursor-pointer transition-colors"
+                className="topbar-link flex items-center justify-center size-8.5 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs cursor-pointer transition-colors"
                 title={isFullscreen ? "Exit Fullscreen (Esc)" : "Full View Screen (Fullscreen)"}
                 aria-label="Toggle Fullscreen"
               >

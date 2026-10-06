@@ -73,6 +73,12 @@ const TAGS: Record<string, { label: string; color: string; bg: string }> = {
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { LoadingState } from "@/components/system-states/loading-state";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export function NotesPage() {
   const { user } = useSession();
@@ -108,6 +114,7 @@ export function NotesPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [noteToDeleteForever, setNoteToDeleteForever] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -154,6 +161,7 @@ export function NotesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       toast.success("Note permanently deleted.");
+      setNoteToDeleteForever(null);
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || "Failed to delete note");
@@ -316,235 +324,304 @@ export function NotesPage() {
       });
   }, [notes, activeFolder, selectedTag, selectedPriority, searchQuery]);
 
+  // KPI Counts
+  const activeCount = notes.filter((n) => !n.isTrash).length;
+  const starredCount = notes.filter((n) => n.isStarred && !n.isTrash).length;
+  const pinnedCount = notes.filter((n) => n.isPinned && !n.isTrash).length;
+  const trashCount = notes.filter((n) => n.isTrash).length;
+
   return (
-    <div className="space-y-5 max-w-full pb-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <FileText className="size-5 text-primary" />
-            <h1 className="text-2xl font-black tracking-tight text-foreground">Workspace Notes</h1>
-            <Badge variant="outline" className="text-[10px] font-mono">
-              {filteredNotes.length} Notes
-            </Badge>
+    <div className="space-y-6 max-w-full pb-8">
+      {/* ─── PageHeader ─── */}
+      <PageHeader
+        title="Workspace Notes"
+        description="Personal memos, meeting minutes, company standard operating procedures, and quick drafts."
+        icon={<FileText className="size-5 text-primary" />}
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Workplace", href: "/notes" },
+          { label: "Workspace Notes" },
+        ]}
+        badge={
+          <Badge variant="outline" className="text-[10px] font-mono border-border/80">
+            {filteredNotes.length} Notes Shown
+          </Badge>
+        }
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportNotesTxt}
+              className="gap-1.5 text-xs font-semibold"
+            >
+              <Download className="size-3.5" /> Export Notes
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleOpenCreate}
+              className="gap-1.5 text-xs font-semibold shadow-2xs"
+            >
+              <Plus className="size-3.5" /> New Note
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Personal memos, meeting minutes, company standard operating procedures, and quick drafts.
-          </p>
-        </div>
+        }
+      />
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={exportNotesTxt} className="gap-1.5 text-xs font-semibold">
-            <Download className="size-3.5" /> Export Notes
-          </Button>
-          <Button size="sm" onClick={handleOpenCreate} className="gap-1.5 text-xs font-bold bg-primary text-primary-foreground">
-            <Plus className="size-3.5" /> New Note
-          </Button>
-        </div>
-      </div>
+      {/* ─── KPI Stats Overview Grid ─── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Active Notes"
+          value={activeCount}
+          icon={<FileText className="size-4.5" />}
+          description="Workspace active memos"
+          variant="default"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Starred & Important"
+          value={starredCount}
+          icon={<Star className="size-4.5 text-amber-500 fill-amber-500" />}
+          description="Bookmarked for quick review"
+          variant="warning"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Pinned Notes"
+          value={pinnedCount}
+          icon={<Pin className="size-4.5" />}
+          description="Priority notes fixed at top"
+          variant="primary"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Trash / Bin"
+          value={trashCount}
+          icon={<Trash2 className="size-4.5" />}
+          description="Pending permanent purge"
+          variant="rose"
+          isLoading={isLoading}
+        />
+      </StatsOverviewGrid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Sidebar Nav */}
-        <div className="lg:col-span-3 space-y-4">
-          <Card className="p-4 space-y-4">
-            {/* Folder Views */}
-            <div className="space-y-1">
-              <button
+      {/* ─── FilterToolbar ─── */}
+      <FilterToolbar
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Search in title or note contents...",
+        }}
+        filters={
+          <>
+            {/* Folder Views Toggle */}
+            <div className="flex items-center border border-border/70 rounded-lg p-0.5 bg-muted/40 shrink-0">
+              <Button
+                size="sm"
+                variant={activeFolder === "all" ? "secondary" : "ghost"}
                 onClick={() => setActiveFolder("all")}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left",
-                  activeFolder === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                  "h-7 px-2.5 text-xs font-semibold gap-1.5",
+                  activeFolder === "all" && "bg-background shadow-2xs font-bold text-foreground"
                 )}
               >
-                <span className="flex items-center gap-2">
-                  <FileText className="size-4" /> All Active Notes
-                </span>
-                <Badge variant="secondary" className="text-[10px]">
-                  {notes.filter((n) => !n.isTrash).length}
-                </Badge>
-              </button>
-
-              <button
+                <FileText className="size-3.5" /> All ({activeCount})
+              </Button>
+              <Button
+                size="sm"
+                variant={activeFolder === "starred" ? "secondary" : "ghost"}
                 onClick={() => setActiveFolder("starred")}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left",
-                  activeFolder === "starred" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                  "h-7 px-2.5 text-xs font-semibold gap-1.5",
+                  activeFolder === "starred" && "bg-background shadow-2xs font-bold text-foreground"
                 )}
               >
-                <span className="flex items-center gap-2">
-                  <Star className="size-4 text-amber-500 fill-amber-500" /> Starred & Important
-                </span>
-                <Badge variant="secondary" className="text-[10px]">
-                  {notes.filter((n) => n.isStarred && !n.isTrash).length}
-                </Badge>
-              </button>
-
-              <button
+                <Star className="size-3.5 text-amber-500 fill-amber-500" /> Starred ({starredCount})
+              </Button>
+              <Button
+                size="sm"
+                variant={activeFolder === "trash" ? "secondary" : "ghost"}
                 onClick={() => setActiveFolder("trash")}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all text-left",
-                  activeFolder === "trash" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                  "h-7 px-2.5 text-xs font-semibold gap-1.5",
+                  activeFolder === "trash" && "bg-background shadow-2xs font-bold text-foreground"
                 )}
               >
-                <span className="flex items-center gap-2">
-                  <Trash2 className="size-4 text-rose-500" /> Trash / Bin
-                </span>
-                <Badge variant="secondary" className="text-[10px]">
-                  {notes.filter((n) => n.isTrash).length}
-                </Badge>
-              </button>
+                <Trash2 className="size-3.5 text-rose-500" /> Trash ({trashCount})
+              </Button>
             </div>
 
-            {/* Tag Categories */}
-            <div className="border-t pt-3 space-y-1">
-              <h4 className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
-                Topic Tags
-              </h4>
-              <button
-                onClick={() => setSelectedTag("all")}
-                className={cn(
-                  "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-between",
-                  selectedTag === "all" ? "bg-muted font-bold text-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <span>All Topics</span>
-              </button>
-              {Object.entries(TAGS).map(([key, t]) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedTag(key)}
-                  className={cn(
-                    "w-full text-left px-2.5 py-1.5 rounded-md text-xs font-medium transition-all flex items-center justify-between",
-                    selectedTag === key ? "bg-muted font-bold text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className={cn("size-2 rounded-full", t.bg)} />
+            {/* Tag Filter */}
+            <Select value={selectedTag} onValueChange={setSelectedTag}>
+              <SelectTrigger className="w-[140px] text-xs h-8.5 bg-background border-border/80">
+                <SelectValue placeholder="Topics" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Topics</SelectItem>
+                {Object.entries(TAGS).map(([key, t]) => (
+                  <SelectItem key={key} value={key} className="text-xs">
                     {t.label}
-                  </span>
-                </button>
-              ))}
-            </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {/* Priority Filter */}
-            <div className="border-t pt-3 space-y-1">
-              <h4 className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
-                Priority
-              </h4>
-              {(["all", "high", "medium", "low"] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setSelectedPriority(p)}
-                  className={cn(
-                    "w-full text-left px-2.5 py-1.5 rounded-md text-xs capitalize font-medium transition-all",
-                    selectedPriority === p ? "bg-muted font-bold text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {p} Priority
-                </button>
-              ))}
-            </div>
-          </Card>
-        </div>
+            <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+              <SelectTrigger className="w-[130px] text-xs h-8.5 bg-background border-border/80">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priority</SelectItem>
+                <SelectItem value="high" className="text-xs">High Priority</SelectItem>
+                <SelectItem value="medium" className="text-xs">Medium Priority</SelectItem>
+                <SelectItem value="low" className="text-xs">Low Priority</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
-        {/* Notes Grid */}
-        <div className="lg:col-span-9 space-y-4">
-          {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search in title or note contents..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          {filteredNotes.length === 0 ? (
-            <Card className="p-12 text-center text-muted-foreground text-xs italic">
-              No notes found in this view. Click "New Note" above to write one.
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredNotes.map((note) => {
-                const tagInfo = TAGS[note.tag] || TAGS.general;
-                return (
-                  <Card
-                    key={note.id}
-                    className={cn(
-                      "p-4 flex flex-col justify-between transition-all hover:shadow-md border",
-                      note.isPinned && "ring-1 ring-primary/40 bg-primary/[0.02]"
-                    )}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <Badge variant="outline" className={cn("text-[10px] font-semibold border", tagInfo.bg, tagInfo.color)}>
-                          {tagInfo.label}
-                        </Badge>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => togglePin(note.id)}
-                            className={cn(
-                              "size-6 rounded flex items-center justify-center transition-colors cursor-pointer",
-                              note.isPinned ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                            )}
-                            title={note.isPinned ? "Unpin note" : "Pin note to top"}
-                          >
-                            <Pin className="size-3.5" />
-                          </button>
-                          <button
-                            onClick={() => toggleStar(note.id)}
-                            className={cn(
-                              "size-6 rounded flex items-center justify-center transition-colors cursor-pointer",
-                              note.isStarred ? "text-amber-500 fill-amber-500" : "text-muted-foreground hover:text-foreground"
-                            )}
-                            title={note.isStarred ? "Starred" : "Star note"}
-                          >
-                            <Star className="size-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <h3 className="font-bold text-sm text-foreground mb-1 line-clamp-1">{note.title}</h3>
-                      <p className="text-xs text-muted-foreground line-clamp-4 whitespace-pre-line leading-relaxed mb-4">
-                        {note.content}
-                      </p>
-                    </div>
-
-                    <div className="border-t pt-2.5 flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span className="font-mono text-[10px] flex items-center gap-1">
-                        <Clock className="size-3" /> {note.updatedAt.slice(0, 10)}
-                      </span>
-
-                      <div className="flex items-center gap-1.5">
-                        {note.isTrash ? (
-                          <>
-                            <Button size="icon" variant="ghost" className="size-6 text-emerald-600" onClick={() => restoreFromTrash(note.id)} title="Restore">
-                              <Check className="size-3" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="size-6 text-rose-600" onClick={() => permanentlyDelete(note.id)} title="Delete Forever">
-                              <Trash2 className="size-3" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button size="icon" variant="ghost" className="size-6" onClick={() => handleOpenEdit(note)} title="Edit Note">
-                              <Edit2 className="size-3" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="size-6 text-rose-500" onClick={() => moveToTrash(note.id)} title="Move to Trash">
-                              <Trash2 className="size-3" />
-                            </Button>
-                          </>
+      {/* ─── Notes Content Grid ─── */}
+      {isLoading ? (
+        <LoadingState
+          variant="cards"
+          rows={3}
+          message="Loading workspace notes and memos..."
+        />
+      ) : filteredNotes.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title="No notes found"
+          description={
+            searchQuery || selectedTag !== "all" || selectedPriority !== "all"
+              ? "No notes match your current filter parameters."
+              : activeFolder === "starred"
+              ? "No starred notes yet. Click the star icon on any note to mark it as important."
+              : activeFolder === "trash"
+              ? "Your trash is empty."
+              : "No notes registered in this workspace yet. Write your first memo to get started."
+          }
+          actionLabel="Create First Note"
+          onAction={handleOpenCreate}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredNotes.map((note) => {
+            const tagInfo = TAGS[note.tag] || TAGS.general;
+            return (
+              <Card
+                key={note.id}
+                className={cn(
+                  "p-4 flex flex-col justify-between transition-all hover:shadow-xs border border-border/70 bg-card rounded-xl",
+                  note.isPinned && "ring-1 ring-primary/40 bg-primary/[0.02]"
+                )}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <Badge variant="outline" className={cn("text-[10px] font-semibold border", tagInfo.bg, tagInfo.color)}>
+                      {tagInfo.label}
+                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => togglePin(note.id)}
+                        className={cn(
+                          "size-6 rounded flex items-center justify-center transition-colors cursor-pointer",
+                          note.isPinned ? "text-primary" : "text-muted-foreground hover:text-foreground"
                         )}
-                      </div>
+                        title={note.isPinned ? "Unpin note" : "Pin note to top"}
+                      >
+                        <Pin className="size-3.5" />
+                      </button>
+                      <button
+                        onClick={() => toggleStar(note.id)}
+                        className={cn(
+                          "size-6 rounded flex items-center justify-center transition-colors cursor-pointer",
+                          note.isStarred ? "text-amber-500 fill-amber-500" : "text-muted-foreground hover:text-foreground"
+                        )}
+                        title={note.isStarred ? "Starred" : "Star note"}
+                      >
+                        <Star className="size-3.5" />
+                      </button>
                     </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                  </div>
+
+                  <h3 className="font-semibold text-sm text-foreground mb-1 line-clamp-1">{note.title}</h3>
+                  <p className="text-xs text-muted-foreground line-clamp-4 whitespace-pre-line leading-relaxed mb-4">
+                    {note.content}
+                  </p>
+                </div>
+
+                <div className="border-t border-border/60 pt-2.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span className="font-mono text-[10px] flex items-center gap-1">
+                    <Clock className="size-3 text-muted-foreground/70" /> {note.updatedAt.slice(0, 10)}
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    {note.isTrash ? (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 text-emerald-600 hover:bg-emerald-500/10"
+                          onClick={() => restoreFromTrash(note.id)}
+                          title="Restore"
+                        >
+                          <Check className="size-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 text-rose-600 hover:bg-rose-500/10"
+                          onClick={() => setNoteToDeleteForever(note.id)}
+                          title="Delete Forever"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6"
+                          onClick={() => handleOpenEdit(note)}
+                          title="Edit Note"
+                        >
+                          <Edit2 className="size-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                          onClick={() => moveToTrash(note.id)}
+                          title="Move to Trash"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
-      </div>
+      )}
+
+      {/* ─── ConfirmationDialog for Permanent Note Deletion ─── */}
+      <ConfirmationDialog
+        open={!!noteToDeleteForever}
+        onOpenChange={(open) => !open && setNoteToDeleteForever(null)}
+        title="Permanently Delete Note?"
+        description="This will permanently delete this note from the trash bin. This action cannot be reversed."
+        confirmLabel="Delete Forever"
+        onConfirm={() => {
+          if (noteToDeleteForever) {
+            permanentlyDelete(noteToDeleteForever);
+          }
+        }}
+        isLoading={deleteMutation.isPending}
+      />
 
       {/* Modal: Create or Edit Note */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

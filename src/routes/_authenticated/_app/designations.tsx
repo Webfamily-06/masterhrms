@@ -32,6 +32,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   Briefcase,
   Plus,
@@ -285,109 +289,83 @@ export function DesignationsPage() {
 
   return (
     <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
-      {/* ── Breadcrumbs & Top Bar ───────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Briefcase className="size-6 text-primary" /> Designations
-          </h1>
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground transition-colors">
-              Dashboard
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <Link to="/employees" className="hover:text-foreground transition-colors">
-              Workforce
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <span className="font-semibold text-foreground">Designations</span>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportCSV}
-            className="gap-1.5 text-xs font-bold"
-          >
-            <Download className="size-3.5" /> Export CSV
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleOpenAdd}
-            className="gap-1.5 font-bold text-xs bg-primary text-primary-foreground shadow-xs"
-          >
-            <Plus className="size-4" /> Add Designation
-          </Button>
-        </div>
-      </div>
+      {/* ── Page Header ─────────────────────────────────────────────── */}
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/hrm-dashboard" },
+          { label: "Workforce", href: "/employees" },
+          { label: "Designations" },
+        ]}
+        icon={<Briefcase className="size-5" />}
+        title="Designations"
+        description="Job positions, role seniority bands, and departmental workforce titles."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCSV}
+              className="gap-1.5 text-xs font-bold h-8.5"
+            >
+              <Download className="size-3.5" /> Export CSV
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleOpenAdd}
+              className="gap-1.5 font-bold text-xs h-8.5 bg-primary text-primary-foreground shadow-2xs"
+            >
+              <Plus className="size-4" /> Add Designation
+            </Button>
+          </>
+        }
+      />
 
       {/* ── KPI Metric Cards ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-primary/10 grid place-items-center text-primary shrink-0">
-            <Award className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Total Designations</div>
-            <div className="text-xl font-black font-mono tracking-tight">{totalDesignations}</div>
-          </div>
-        </Card>
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Designations"
+          value={totalDesignations}
+          icon={<Award className="size-5" />}
+          variant="primary"
+          description="Registered role titles"
+        />
 
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-emerald-500/10 grid place-items-center text-emerald-600 shrink-0">
-            <CheckCircle2 className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Active Designations</div>
-            <div className="text-xl font-black font-mono tracking-tight text-emerald-600">
-              {activeDesignations}
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          label="Active Designations"
+          value={activeDesignations}
+          icon={<CheckCircle2 className="size-5" />}
+          variant="success"
+          description="Operational job tracks"
+        />
 
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-blue-500/10 grid place-items-center text-blue-600 shrink-0">
-            <Building2 className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Departments Covered</div>
-            <div className="text-xl font-black font-mono tracking-tight text-blue-600">
-              {uniqueDeptsCount}
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          label="Departments Covered"
+          value={uniqueDeptsCount}
+          icon={<Building2 className="size-5" />}
+          variant="info"
+          description="Across workforce units"
+        />
 
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-amber-500/10 grid place-items-center text-amber-600 shrink-0">
-            <Users className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Assigned Workforce</div>
-            <div className="text-xl font-black font-mono tracking-tight text-amber-600">
-              {totalEmpsAssigned}
-            </div>
-          </div>
-        </Card>
-      </div>
+        <StatCard
+          label="Assigned Workforce"
+          value={totalEmpsAssigned}
+          icon={<Users className="size-5" />}
+          variant="warning"
+          description="Assigned employees"
+        />
+      </StatsOverviewGrid>
 
       {/* ── Filter & Search Bar ─────────────────────────────────────────── */}
-      <Card className="p-4 border shadow-xs">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search designation title, department, or grade..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto">
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search designation title, department, or grade...",
+        }}
+        filters={
+          <>
             <Select value={deptFilter} onValueChange={setDeptFilter}>
-              <SelectTrigger className="w-[160px] text-xs h-9">
+              <SelectTrigger className="w-[160px] text-xs h-8.5 bg-background">
                 <SelectValue placeholder="Department" />
               </SelectTrigger>
               <SelectContent>
@@ -401,7 +379,7 @@ export function DesignationsPage() {
             </Select>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[130px] text-xs h-9">
+              <SelectTrigger className="w-[130px] text-xs h-8.5 bg-background">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -412,7 +390,7 @@ export function DesignationsPage() {
             </Select>
 
             <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-              <SelectTrigger className="w-[150px] text-xs h-9">
+              <SelectTrigger className="w-[150px] text-xs h-8.5 bg-background">
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
@@ -421,9 +399,9 @@ export function DesignationsPage() {
                 <SelectItem value="dept-asc">Department</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </div>
-      </Card>
+          </>
+        }
+      />
 
       {/* ── Designations Table ──────────────────────────────────────────── */}
       <Card className="border shadow-xs overflow-hidden">
@@ -776,61 +754,31 @@ export function DesignationsPage() {
       )}
 
       {/* ── DELETE DESIGNATION MODAL (#delete_modal) ─────────────────────── */}
-      {deletingDesig && (
-        <Dialog open={!!deletingDesig} onOpenChange={(o) => !o && setDeletingDesig(null)}>
-          <DialogContent className="max-w-sm text-center">
-            <div className="size-12 rounded-full bg-rose-100 dark:bg-rose-950/40 text-rose-600 mx-auto grid place-items-center mb-2">
-              <AlertTriangle className="size-6" />
-            </div>
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-center">
-                Delete Designation?
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="text-xs text-muted-foreground space-y-2 py-2">
-              <p>
-                Are you sure you want to remove <strong>{deletingDesig.title}</strong>?
-              </p>
-              {(deletingDesig.employeeCount || 0) > 0 && (
-                <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-left text-[11px] flex items-start gap-2">
-                  <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-                  <span>
-                    Warning: <strong>{deletingDesig.employeeCount}</strong> staff members currently
-                    hold this designation.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className="gap-2 sm:justify-center pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeletingDesig(null)}
-                disabled={deleteMut.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleteMut.isPending}
-                className="font-bold"
-              >
-                {deleteMut.isPending ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin mr-1.5" /> Deleting...
-                  </>
-                ) : (
-                  "Confirm Delete"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <ConfirmationDialog
+        open={!!deletingDesig}
+        onOpenChange={(o) => !o && setDeletingDesig(null)}
+        title="Delete Designation?"
+        description={
+          deletingDesig ? (
+            <span>
+              Are you sure you want to remove <strong>{deletingDesig.title}</strong>?
+            </span>
+          ) : undefined
+        }
+        confirmLabel="Confirm Delete"
+        onConfirm={handleDelete}
+        isLoading={deleteMut.isPending}
+      >
+        {(deletingDesig?.employeeCount || 0) > 0 && (
+          <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-left text-[11px] flex items-start gap-2">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+            <span>
+              Warning: <strong>{deletingDesig?.employeeCount}</strong> staff members currently
+              hold this designation.
+            </span>
+          </div>
+        )}
+      </ConfirmationDialog>
     </div>
   );
 }

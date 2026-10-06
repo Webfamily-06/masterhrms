@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
@@ -29,15 +29,19 @@ import {
   Clock,
   Download,
   Calendar,
-  Search,
   RotateCw,
-  Home,
-  User,
   BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+
+// Canonical Wave 4 composites & system states
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { LoadingState } from "@/components/system-states/loading-state";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/daily-report")({
   component: DailyReportPage,
@@ -130,218 +134,155 @@ export function DailyReportPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-[1600px] mx-auto">
-      {/* ─── Breadcrumb & Top Bar ───────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/" className="hover:text-primary flex items-center gap-1">
-              <Home className="size-3" />
-              <span>Home</span>
-            </Link>
-            <span>/</span>
-            <span className="text-muted-foreground">Reports</span>
-            <span>/</span>
-            <span className="text-foreground font-medium">Daily Report</span>
+    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto">
+      {/* ─── PageHeader with Breadcrumb and Actions ────────────────────────── */}
+      <PageHeader
+        title="Daily Report"
+        description="Cross-departmental daily operational status, employee attendance, and task execution progress."
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Reports" },
+          { label: "Daily Report" },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="gap-1.5 h-9"
+            >
+              <Download className="size-3.5" />
+              <span>Export CSV</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              className="gap-1.5 h-9"
+            >
+              <RotateCw className="size-3.5" />
+              <span>Refresh</span>
+            </Button>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <FileText className="size-6 text-primary" />
-            <span>Daily Report</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Cross-departmental daily operational status, employee attendance, and task execution progress.
-          </p>
-        </div>
+        }
+      />
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="text-xs gap-1.5 h-8"
-          >
-            <Download className="size-3.5" />
-            <span>Export CSV</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            className="text-xs gap-1.5 h-8"
-          >
-            <RotateCw className="size-3.5" />
-            <span>Refresh</span>
-          </Button>
-        </div>
-      </div>
+      {/* ─── Standardized KPI Cards ────────────────────────────────────────── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Present"
+          value={metrics.totalPresent}
+          variant="success"
+          icon={<UserCheck className="size-5" />}
+          description="Active personnel today"
+        />
+        <StatCard
+          label="Completed Tasks"
+          value={metrics.completedTasks}
+          variant="primary"
+          icon={<CheckSquare className="size-5" />}
+          description="Tasks marked done"
+        />
+        <StatCard
+          label="Total Absent"
+          value={metrics.totalAbsent}
+          variant="rose"
+          icon={<UserX className="size-5" />}
+          description="Unexcused & on leave"
+        />
+        <StatCard
+          label="Pending Tasks"
+          value={metrics.pendingTasks}
+          variant="warning"
+          icon={<Clock className="size-5" />}
+          description="Ongoing & queued items"
+        />
+      </StatsOverviewGrid>
 
-      {/* ─── Top Stats & Attendance Chart ───────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
-        {/* Left Side: 4 KPI Cards (2x2) */}
-        <div className="xl:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Card 1: Total Present */}
-          <Card className="shadow-none border">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium mb-1">
-                  Total Present
-                </p>
-                <h3 className="text-2xl font-bold text-foreground">
-                  {metrics.totalPresent}
-                </h3>
-              </div>
-              <div className="size-11 rounded-full border border-primary/20 bg-primary/10 text-primary flex items-center justify-center">
-                <UserCheck className="size-5" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Completed Tasks */}
-          <Card className="shadow-none border">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium mb-1">
-                  Completed Tasks
-                </p>
-                <h3 className="text-2xl font-bold text-foreground">
-                  {metrics.completedTasks}
-                </h3>
-              </div>
-              <div className="size-11 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                <CheckSquare className="size-5" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Total Absent */}
-          <Card className="shadow-none border">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium mb-1">
-                  Total Absent
-                </p>
-                <h3 className="text-2xl font-bold text-foreground">
-                  {metrics.totalAbsent}
-                </h3>
-              </div>
-              <div className="size-11 rounded-full border border-rose-500/20 bg-rose-500/10 text-rose-600 flex items-center justify-center">
-                <UserX className="size-5" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 4: Pending Tasks */}
-          <Card className="shadow-none border">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium mb-1">
-                  Pending Tasks
-                </p>
-                <h3 className="text-2xl font-bold text-foreground">
-                  {metrics.pendingTasks}
-                </h3>
-              </div>
-              <div className="size-11 rounded-full border border-sky-500/20 bg-sky-500/10 text-sky-600 flex items-center justify-center">
-                <Clock className="size-5" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Side: Daily Attendance Chart Card */}
-        <div className="xl:col-span-6">
-          <Card className="shadow-none border h-full">
-            <CardHeader className="p-4 pb-2 border-b flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="size-4 text-primary" />
-                <CardTitle className="text-base font-semibold">Daily Attendance Trends</CardTitle>
-              </div>
-              <div className="flex items-center gap-3 text-xs">
-                <div className="flex items-center gap-1.5 font-medium">
-                  <span className="size-2.5 rounded bg-emerald-500" />
-                  <span>Present</span>
-                </div>
-                <div className="flex items-center gap-1.5 font-medium">
-                  <span className="size-2.5 rounded bg-rose-500" />
-                  <span>Absent</span>
-                </div>
-                <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="h-7 text-xs w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2026">2026</SelectItem>
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2024">2024</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-3">
-              {/* Monthly Visual Comparison Bars */}
-              <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5 text-center pt-2">
-                {monthlyTrends.map((t: any) => {
-                  const maxVal = 300;
-                  const presentH = Math.round((t.present / maxVal) * 90);
-                  const absentH = Math.round((t.absent / maxVal) * 90);
-
-                  return (
-                    <div key={t.month} className="flex flex-col items-center">
-                      <div className="h-[95px] w-full flex items-end justify-center gap-0.5 pb-1">
-                        <div
-                          className="w-2 sm:w-2.5 bg-emerald-500 rounded-t-sm"
-                          style={{ height: `${presentH}px` }}
-                          title={`Present: ${t.present}`}
-                        />
-                        <div
-                          className="w-2 sm:w-2.5 bg-rose-500 rounded-t-sm"
-                          style={{ height: `${absentH}px` }}
-                          title={`Absent: ${t.absent}`}
-                        />
-                      </div>
-                      <span className="text-[10px] font-medium text-muted-foreground mt-0.5">
-                        {t.month}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* ─── Daily Attendance List ─────────────────────────────────────────── */}
-      <Card className="shadow-none border">
-        <CardHeader className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <CardTitle className="text-base font-semibold">Daily Attendance List</CardTitle>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Search Input */}
-            <div className="relative w-44 sm:w-56">
-              <Search className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <Input
-                placeholder="Search employee..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-8 text-xs"
-              />
+      {/* ─── Daily Attendance Trends Visual Card ───────────────────────────── */}
+      <Card className="border border-border/70 shadow-2xs">
+        <CardHeader className="p-4 sm:p-5 pb-2 border-b flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="size-4 text-primary" />
+            <CardTitle className="text-sm font-semibold">Daily Attendance Trends</CardTitle>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5 font-medium">
+              <span className="size-2.5 rounded bg-emerald-500" />
+              <span>Present</span>
             </div>
+            <div className="flex items-center gap-1.5 font-medium">
+              <span className="size-2.5 rounded bg-rose-500" />
+              <span>Absent</span>
+            </div>
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="h-7 text-xs w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2024">2024</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-5 pt-3">
+          <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5 text-center pt-2">
+            {monthlyTrends.map((t: any) => {
+              const maxVal = 300;
+              const presentH = Math.round((t.present / maxVal) * 90);
+              const absentH = Math.round((t.absent / maxVal) * 90);
 
+              return (
+                <div key={t.month} className="flex flex-col items-center">
+                  <div className="h-[95px] w-full flex items-end justify-center gap-0.5 pb-1">
+                    <div
+                      className="w-2 sm:w-2.5 bg-emerald-500 rounded-t-sm"
+                      style={{ height: `${presentH}px` }}
+                      title={`Present: ${t.present}`}
+                    />
+                    <div
+                      className="w-2 sm:w-2.5 bg-rose-500 rounded-t-sm"
+                      style={{ height: `${absentH}px` }}
+                      title={`Absent: ${t.absent}`}
+                    />
+                  </div>
+                  <span className="text-[10px] font-medium text-muted-foreground mt-0.5">
+                    {t.month}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── FilterToolbar with Search, Date Picker, Status, and Sort ──────── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee by name, department, or email...",
+        }}
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
             {/* Date Picker */}
-            <div className="flex items-center gap-1.5">
-              <Calendar className="size-3.5 text-muted-foreground" />
-              <Input
+            <div className="flex items-center gap-1.5 bg-background border border-border/80 rounded-md px-2 h-8.5">
+              <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+              <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="h-8 text-xs w-36"
+                className="bg-transparent border-0 text-xs focus:outline-hidden p-0 text-foreground"
               />
             </div>
 
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 text-xs w-32">
-                <SelectValue placeholder="Select Status" />
+              <SelectTrigger className="h-8.5 text-xs w-32">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
@@ -354,8 +295,8 @@ export function DailyReportPage() {
 
             {/* Sort Order */}
             <Select value={sortOrder} onValueChange={(v: "desc" | "asc") => setSortOrder(v)}>
-              <SelectTrigger className="h-8 text-xs w-32">
-                <SelectValue placeholder="Sort Order" />
+              <SelectTrigger className="h-8.5 text-xs w-32">
+                <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="desc">Sort: Newest</SelectItem>
@@ -363,97 +304,119 @@ export function DailyReportPage() {
               </SelectContent>
             </Select>
           </div>
+        }
+        actions={
+          <div className="text-xs text-muted-foreground font-medium">
+            {filteredRecords.length} {filteredRecords.length === 1 ? "record" : "records"}
+          </div>
+        }
+      />
+
+      {/* ─── Daily Attendance Table ────────────────────────────────────────── */}
+      <Card className="border border-border/70 shadow-2xs overflow-hidden">
+        <CardHeader className="p-4 sm:p-5 border-b bg-muted/20">
+          <CardTitle className="text-sm font-semibold">Daily Attendance List</CardTitle>
         </CardHeader>
 
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              <RotateCw className="size-5 animate-spin mx-auto mb-2 text-primary" />
-              Loading daily report...
+            <div className="p-6">
+              <LoadingState variant="table" rows={6} message="Loading attendance records..." />
             </div>
           ) : filteredRecords.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              No attendance records found for this criteria.
+            <div className="py-12">
+              <EmptyState
+                icon={FileText}
+                title="No attendance records found"
+                description={
+                  search || statusFilter !== "all"
+                    ? "Try adjusting your search terms or filters."
+                    : "No employee attendance records logged for this date."
+                }
+              />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30">
-                  <TableHead>Employee Name</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Working Hours</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRecords.map((r) => {
-                  const isPresent = r.status === "present";
-                  const isAbsent = r.status === "absent";
-                  const isLate = r.status === "late";
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="font-semibold text-xs">Employee Name</TableHead>
+                    <TableHead className="font-semibold text-xs">Date</TableHead>
+                    <TableHead className="font-semibold text-xs">Department</TableHead>
+                    <TableHead className="font-semibold text-xs">Working Hours</TableHead>
+                    <TableHead className="font-semibold text-xs">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRecords.map((r) => {
+                    const isPresent = r.status === "present";
+                    const isAbsent = r.status === "absent";
+                    const isLate = r.status === "late";
 
-                  return (
-                    <TableRow key={r.id} className="hover:bg-muted/40">
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs border">
-                            {r.name?.charAt(0) || "E"}
-                          </div>
-                          <div>
-                            <div className="text-xs font-semibold text-foreground">
-                              {r.name}
+                    return (
+                      <TableRow key={r.id || r.email || r.name} className="hover:bg-muted/40 transition-colors">
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs border border-primary/20">
+                              {r.name?.charAt(0) || "E"}
                             </div>
-                            <span className="text-[11px] text-muted-foreground">
-                              {r.email || r.position || "-"}
-                            </span>
+                            <div>
+                              <div className="text-xs font-semibold text-foreground">
+                                {r.name}
+                              </div>
+                              <span className="text-[11px] text-muted-foreground">
+                                {r.email || r.position || "-"}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {fmtReportDate(r.date)}
-                      </TableCell>
-                      <TableCell className="text-xs font-medium text-foreground">
-                        {r.department}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">
-                        {r.hours ? `${r.hours} hrs` : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] px-2 py-0.5 font-medium gap-1",
-                            isPresent &&
-                              "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
-                            isAbsent &&
-                              "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800",
-                            isLate &&
-                              "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
-                            !isPresent &&
-                              !isAbsent &&
-                              !isLate &&
-                              "bg-blue-50 text-blue-700 border-blue-200"
-                          )}
-                        >
-                          <span
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {fmtReportDate(r.date)}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium text-foreground">
+                          {r.department || "-"}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">
+                          {r.hours ? `${r.hours} hrs` : "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
                             className={cn(
-                              "size-1.5 rounded-full",
-                              isPresent && "bg-emerald-500",
-                              isAbsent && "bg-rose-500",
-                              isLate && "bg-amber-500"
+                              "text-[10px] px-2 py-0.5 font-medium gap-1",
+                              isPresent &&
+                                "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
+                              isAbsent &&
+                                "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800",
+                              isLate &&
+                                "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
+                              !isPresent &&
+                                !isAbsent &&
+                                !isLate &&
+                                "bg-blue-50 text-blue-700 border-blue-200"
                             )}
-                          />
-                          <span className="capitalize">{r.status}</span>
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                          >
+                            <span
+                              className={cn(
+                                "size-1.5 rounded-full",
+                                isPresent && "bg-emerald-500",
+                                isAbsent && "bg-rose-500",
+                                isLate && "bg-amber-500"
+                              )}
+                            />
+                            <span className="capitalize">{r.status}</span>
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
+

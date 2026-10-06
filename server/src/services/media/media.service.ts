@@ -91,16 +91,36 @@ export class MediaService {
       return { isValid: true, mimeType: "image/svg+xml", extension: ".svg" };
     }
 
+    // 7. PDF check: %PDF- (25 50 44 46 2D)
+    if (
+      buffer.length >= 5 &&
+      buffer[0] === 0x25 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x44 &&
+      buffer[3] === 0x46 &&
+      buffer[4] === 0x2d
+    ) {
+      return { isValid: true, mimeType: "application/pdf", extension: ".pdf" };
+    }
+
     return {
       isValid: false,
       mimeType: "",
       extension: "",
-      error: "Unsupported file type. Please upload PNG, JPG, WebP, GIF, ICO, or sanitized SVG.",
+      error: "Unsupported file type. Please upload PNG, JPG, WebP, GIF, ICO, sanitized SVG, or PDF.",
     };
   }
 
   /**
-   * Save an uploaded file to local disk and create MediaFile record
+   * Alias for backwards compatibility
+   */
+  static validateMediaBuffer(buffer: Buffer, declaredMime?: string) {
+    return this.validateImageBuffer(buffer, declaredMime);
+  }
+
+  /**
+   * Save an uploaded file to local disk and create MediaFile record.
+   * Performs deduplication within the target tenant scope when checksum & filename match.
    */
   static async uploadMedia(
     buffer: Buffer,
@@ -114,17 +134,36 @@ export class MediaService {
   ) {
     const validation = this.validateImageBuffer(buffer);
     if (!validation.isValid) {
-      throw new Error(validation.error || "Invalid image file");
+      throw new Error(validation.error || "Invalid file");
     }
 
-    const folder = (options.folder || "system/branding").replace(/[^a-zA-Z0-9_\-\/]/g, "");
+    const checksumSha = computeSha256(buffer);
+
+    // Deduplication check within the same scope
+    const existing = await prisma.mediaFile.findFirst({
+      where: {
+        tenantId: options.tenantId || null,
+        checksumSha,
+        fileName: originalName,
+        deletedAt: null,
+      },
+      include: {
+        usages: true,
+      },
+    });
+    if (existing) {
+      return existing;
+    }
+
+    const folder = (options.folder || "system/branding")
+      .replace(/[^a-zA-Z0-9_\-\/]/g, "")
+      .replace(/\.\./g, "");
     const uploadsRoot = getUploadsRoot();
     const targetDir = path.join(uploadsRoot, folder);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const checksumSha = computeSha256(buffer);
     const uniqueFileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${validation.extension}`;
     const fullDiskPath = path.join(targetDir, uniqueFileName);
     const relativeFilePath = `${folder}/${uniqueFileName}`;
@@ -148,9 +187,24 @@ export class MediaService {
         tags: options.tags || ["branding"],
         uploadedBy: options.uploadedBy || "system",
       },
+      include: {
+        usages: true,
+      },
     });
 
     return mediaFile;
+  }
+
+  /**
+   * Get a single media file by ID with usages
+   */
+  static async getMedia(id: string) {
+    return await prisma.mediaFile.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        usages: true,
+      },
+    });
   }
 
   /**
@@ -187,12 +241,27 @@ export class MediaService {
    */
   static async deleteMedia(
     id: string,
-    options: {
+    optionsOrTenantId:
+      | {
+          force?: boolean;
+          isSuper?: boolean;
+          requestedByTenantId?: string | null;
+        }
+      | string
+      | null = {}
+  ) {
+    const options: {
       force?: boolean;
       isSuper?: boolean;
       requestedByTenantId?: string | null;
-    } = {}
-  ) {
+    } =
+      typeof optionsOrTenantId === "string" || optionsOrTenantId === null
+        ? {
+            isSuper: optionsOrTenantId === null,
+            requestedByTenantId: optionsOrTenantId,
+          }
+        : optionsOrTenantId || {};
+
     const file = await prisma.mediaFile.findUnique({
       where: { id },
       include: { usages: true },

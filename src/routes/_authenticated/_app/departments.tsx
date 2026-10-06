@@ -32,6 +32,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   Building2,
   Plus,
@@ -232,119 +236,92 @@ export function DepartmentsPage() {
 
   return (
     <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
-      {/* ── Breadcrumb & Top Bar ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Building2 className="size-6 text-primary" /> Departments
-          </h1>
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground transition-colors">
-              Dashboard
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <Link to="/employees" className="hover:text-foreground transition-colors">
-              Workforce
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <span className="font-semibold text-foreground">Departments</span>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportCSV}
-            className="gap-1.5 text-xs font-bold"
-          >
-            <Download className="size-3.5" /> Export CSV
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setName("");
-              setDescription("");
-              setStatus("active");
-              setIsAddOpen(true);
-            }}
-            className="gap-1.5 font-bold text-xs bg-primary text-primary-foreground shadow-xs"
-          >
-            <Plus className="size-4" /> Add Department
-          </Button>
-        </div>
-      </div>
+      {/* ── Page Header ─────────────────────────────────────────────── */}
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/hrm-dashboard" },
+          { label: "Workforce", href: "/employees" },
+          { label: "Departments" },
+        ]}
+        icon={<Building2 className="size-5" />}
+        title="Departments"
+        description="Organizational structural units, workforce allocations, and department leadership."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCSV}
+              className="gap-1.5 text-xs font-bold h-8.5"
+            >
+              <Download className="size-3.5" /> Export CSV
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setName("");
+                setDescription("");
+                setStatus("active");
+                setIsAddOpen(true);
+              }}
+              className="gap-1.5 font-bold text-xs h-8.5 bg-primary text-primary-foreground shadow-2xs"
+            >
+              <Plus className="size-4" /> Add Department
+            </Button>
+          </>
+        }
+      />
 
       {/* ── KPI Summary Cards ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-primary/10 grid place-items-center text-primary shrink-0">
-            <FolderTree className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Total Departments</div>
-            <div className="text-xl font-black font-mono tracking-tight">{totalDepartments}</div>
-          </div>
-        </Card>
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Departments"
+          value={totalDepartments}
+          icon={<FolderTree className="size-5" />}
+          variant="primary"
+          description="Total active units"
+        />
 
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-emerald-500/10 grid place-items-center text-emerald-600 shrink-0">
-            <CheckCircle2 className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Active Departments</div>
-            <div className="text-xl font-black font-mono tracking-tight text-emerald-600">
-              {activeDepartments}
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          label="Active Departments"
+          value={activeDepartments}
+          icon={<CheckCircle2 className="size-5" />}
+          variant="success"
+          description="Operational units"
+        />
 
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-blue-500/10 grid place-items-center text-blue-600 shrink-0">
-            <Users className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Assigned Employees</div>
-            <div className="text-xl font-black font-mono tracking-tight text-blue-600">
-              {totalAssignedStaff}
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          label="Assigned Workforce"
+          value={totalAssignedStaff}
+          icon={<Users className="size-5" />}
+          variant="info"
+          description="Active staff members"
+        />
 
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-amber-500/10 grid place-items-center text-amber-600 shrink-0">
-            <Building2 className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs text-muted-foreground font-semibold">Largest Team</div>
-            <div className="text-sm font-bold truncate">
-              {largestDepartment?.name || "N/A"}
-              {largestDepartment && (
-                <span className="text-xs font-mono font-normal text-muted-foreground ml-1">
-                  ({largestDepartment._count?.employees || 0})
-                </span>
-              )}
-            </div>
-          </div>
-        </Card>
-      </div>
+        <StatCard
+          label="Largest Department"
+          value={largestDepartment?.name || "N/A"}
+          icon={<Building2 className="size-5" />}
+          variant="warning"
+          description={
+            largestDepartment
+              ? `${largestDepartment._count?.employees || 0} assigned staff`
+              : "No assignments"
+          }
+        />
+      </StatsOverviewGrid>
 
       {/* ── Filters & Search Bar ────────────────────────────────────────── */}
-      <Card className="p-4 border shadow-xs">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search department name or description..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto">
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search department name or description...",
+        }}
+        filters={
+          <>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px] text-xs h-9">
+              <SelectTrigger className="w-[140px] text-xs h-8.5 bg-background">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -355,7 +332,7 @@ export function DepartmentsPage() {
             </Select>
 
             <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-              <SelectTrigger className="w-[170px] text-xs h-9">
+              <SelectTrigger className="w-[170px] text-xs h-8.5 bg-background">
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
@@ -364,9 +341,9 @@ export function DepartmentsPage() {
                 <SelectItem value="employees-desc">Staff Count (High – Low)</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </div>
-      </Card>
+          </>
+        }
+      />
 
       {/* ── Departments Table ───────────────────────────────────────────── */}
       <Card className="border shadow-xs overflow-hidden">
@@ -671,61 +648,33 @@ export function DepartmentsPage() {
       )}
 
       {/* ── DELETE DEPARTMENT CONFIRMATION MODAL (#delete_modal) ────────── */}
-      {deletingDept && (
-        <Dialog open={!!deletingDept} onOpenChange={(o) => !o && setDeletingDept(null)}>
-          <DialogContent className="max-w-sm text-center">
-            <div className="size-12 rounded-full bg-rose-100 dark:bg-rose-950/40 text-rose-600 mx-auto grid place-items-center mb-2">
-              <AlertTriangle className="size-6" />
-            </div>
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-center">
-                Delete Department?
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="text-xs text-muted-foreground space-y-2 py-2">
-              <p>
-                Are you sure you want to remove <strong>{deletingDept.name}</strong>?
-              </p>
-              {(deletingDept._count?.employees || 0) > 0 && (
-                <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-left text-[11px] flex items-start gap-2">
-                  <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-                  <span>
-                    Warning: There are <strong>{deletingDept._count?.employees}</strong> staff
-                    members currently assigned to this department. They will need to be reassigned.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className="gap-2 sm:justify-center pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeletingDept(null)}
-                disabled={deleteMut.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => deleteMut.mutate(deletingDept.id)}
-                disabled={deleteMut.isPending}
-                className="font-bold"
-              >
-                {deleteMut.isPending ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin mr-1.5" /> Deleting...
-                  </>
-                ) : (
-                  "Confirm Delete"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <ConfirmationDialog
+        open={!!deletingDept}
+        onOpenChange={(o) => !o && setDeletingDept(null)}
+        title="Delete Department?"
+        description={
+          deletingDept ? (
+            <span>
+              Are you sure you want to remove <strong>{deletingDept.name}</strong>?
+            </span>
+          ) : undefined
+        }
+        confirmLabel="Confirm Delete"
+        onConfirm={() => {
+          if (deletingDept) deleteMut.mutate(deletingDept.id);
+        }}
+        isLoading={deleteMut.isPending}
+      >
+        {(deletingDept?._count?.employees || 0) > 0 && (
+          <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-left text-[11px] flex items-start gap-2">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+            <span>
+              Warning: There are <strong>{deletingDept?._count?.employees}</strong> staff
+              members currently assigned to this department. They will need to be reassigned.
+            </span>
+          </div>
+        )}
+      </ConfirmationDialog>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,10 +22,21 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, FileSpreadsheet, Download, Search, MoreVertical, Trash2 } from "lucide-react";
+import {
+  Plus, FileSpreadsheet, Download, MoreVertical, Trash2,
+  TrendingUp, TrendingDown, ArrowRightLeft,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+
+// Canonical Wave 4 composites & system states
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { LoadingState } from "@/components/system-states/loading-state";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/promotions")({
   component: PromotionsPage,
@@ -33,9 +44,9 @@ export const Route = createFileRoute("/_authenticated/_app/promotions")({
 });
 
 const TYPE_BADGE: Record<string, { label: string; class: string }> = {
-  promotion: { label: "Promotion",  class: "bg-green-100 text-green-700 border-green-200" },
-  demotion:  { label: "Demotion",   class: "bg-red-100 text-red-700 border-red-200" },
-  lateral:   { label: "Lateral",    class: "bg-blue-100 text-blue-700 border-blue-200" },
+  promotion: { label: "Promotion", class: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800" },
+  demotion:  { label: "Demotion",  class: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800" },
+  lateral:   { label: "Lateral",   class: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800" },
 };
 
 function getInitials(first: string, last: string) {
@@ -57,6 +68,7 @@ export function PromotionsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -90,6 +102,11 @@ export function PromotionsPage() {
   });
   const employees: any[] = empData?.data ?? empData?.employees ?? [];
 
+  // Metrics calculation
+  const totalPromotions = records.filter((r) => r.promotionType === "promotion").length;
+  const totalDemotions = records.filter((r) => r.promotionType === "demotion").length;
+  const totalLateral = records.filter((r) => r.promotionType === "lateral").length;
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
   const createMut = useMutation({
@@ -98,157 +115,246 @@ export function PromotionsPage() {
       toast.success("Promotion record added.");
       qc.invalidateQueries({ queryKey: ["promotions"] });
       setAddOpen(false);
-      setForm({ employeeId: "", promotionDate: new Date().toISOString().split("T")[0], newDesignation: "", previousDesignation: "", previousDepartment: "", newDepartment: "", previousSalary: "", newSalary: "", promotionType: "promotion", remarks: "" });
+      setForm({
+        employeeId: "",
+        promotionDate: new Date().toISOString().split("T")[0],
+        newDesignation: "",
+        previousDesignation: "",
+        previousDepartment: "",
+        newDepartment: "",
+        previousSalary: "",
+        newSalary: "",
+        promotionType: "promotion",
+        remarks: "",
+      });
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to add record."),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/promotions/${id}`),
-    onSuccess: () => { toast.success("Deleted."); qc.invalidateQueries({ queryKey: ["promotions"] }); },
-    onError: (e: any) => toast.error(e.message ?? "Failed to delete."),
+    onSuccess: () => {
+      toast.success("Record deleted.");
+      qc.invalidateQueries({ queryKey: ["promotions"] });
+      setDeleteTargetId(null);
+    },
+    onError: (e: any) => {
+      toast.error(e.message ?? "Failed to delete.");
+      setDeleteTargetId(null);
+    },
   });
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Promotion</h2>
-          <nav className="text-sm text-muted-foreground mt-1">
-            <span>Home</span> / <span>HRM</span> / <span className="text-foreground">Promotion</span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1">
-                <FileSpreadsheet className="h-4 w-4" /> Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as PDF</DropdownMenuItem>
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as Excel</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {isAdmin && (
-            <Button size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4" /> Add Promotion
-            </Button>
-          )}
-        </div>
-      </div>
+    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto">
+      {/* ─── PageHeader with Breadcrumbs and Actions ───────────────────────── */}
+      <PageHeader
+        title="Promotions"
+        description="Employee career transitions, promotions, demotions, and lateral department movements."
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "HRM" },
+          { label: "Promotions" },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 h-9">
+                  <FileSpreadsheet className="size-4" />
+                  <span>Export</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>
+                  <Download className="size-4 mr-2" />
+                  <span>Export as PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Download className="size-4 mr-2" />
+                  <span>Export as Excel</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-      {/* Table Card */}
-      <Card>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b">
-          <h5 className="font-semibold">Promotion Records</h5>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employee..."
-                className="pl-8 h-9 w-56"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+            {isAdmin && (
+              <Button size="sm" className="gap-1.5 h-9" onClick={() => setAddOpen(true)}>
+                <Plus className="size-4" />
+                <span>Add Promotion</span>
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      {/* ─── KPI Metrics Overview ──────────────────────────────────────────── */}
+      <StatsOverviewGrid columns={3}>
+        <StatCard
+          label="Promotions"
+          value={totalPromotions}
+          variant="success"
+          icon={<TrendingUp className="size-5" />}
+          description="Career advancement records"
+        />
+        <StatCard
+          label="Demotions"
+          value={totalDemotions}
+          variant="rose"
+          icon={<TrendingDown className="size-5" />}
+          description="Role re-evaluations"
+        />
+        <StatCard
+          label="Lateral Transfers"
+          value={totalLateral}
+          variant="info"
+          icon={<ArrowRightLeft className="size-5" />}
+          description="Cross-department movements"
+        />
+      </StatsOverviewGrid>
+
+      {/* ─── FilterToolbar ─────────────────────────────────────────────────── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee by name...",
+        }}
+        filters={
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="h-8.5 text-xs w-36">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="promotion">Promotion</SelectItem>
+              <SelectItem value="demotion">Demotion</SelectItem>
+              <SelectItem value="lateral">Lateral</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        actions={
+          <Badge variant="outline" className="text-xs">
+            {records.length} {records.length === 1 ? "record" : "records"}
+          </Badge>
+        }
+      />
+
+      {/* ─── Table Card ────────────────────────────────────────────────────── */}
+      <Card className="border border-border/70 shadow-2xs overflow-hidden">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-6">
+              <LoadingState variant="table" rows={6} message="Loading promotion records..." />
+            </div>
+          ) : records.length === 0 ? (
+            <div className="py-12">
+              <EmptyState
+                icon={TrendingUp}
+                title="No promotion records found"
+                description={
+                  search || typeFilter !== "all"
+                    ? "Try adjusting your search criteria or type filter."
+                    : "No employee promotions or career transitions recorded yet."
+                }
+                actionLabel={isAdmin ? "Add Promotion" : undefined}
+                onAction={isAdmin ? () => setAddOpen(true) : undefined}
               />
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="h-9 w-36">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="promotion">Promotion</SelectItem>
-                <SelectItem value="demotion">Demotion</SelectItem>
-                <SelectItem value="lateral">Lateral</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Emp ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Prev. Designation</TableHead>
-                <TableHead>New Designation</TableHead>
-                <TableHead>Prev. Department</TableHead>
-                <TableHead>New Department</TableHead>
-                <TableHead>Prev. Salary</TableHead>
-                <TableHead>New Salary</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Type</TableHead>
-                {isAdmin && <TableHead className="w-12"></TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">Loading…</TableCell>
-                </TableRow>
-              ) : records.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="h-32 text-center text-muted-foreground">
-                    No promotion records found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                records.map((r: any) => {
-                  const emp = r.employee;
-                  const badge = TYPE_BADGE[r.promotionType] ?? TYPE_BADGE.promotion;
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-medium text-primary text-sm">{emp?.employeeCode ?? "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8 border">
-                            <AvatarFallback className="text-xs">{getInitials(emp?.firstName, emp?.lastName)}</AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium text-sm">{emp?.firstName} {emp?.lastName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{r.previousDesignation ?? "-"}</TableCell>
-                      <TableCell className="text-sm font-medium">{r.newDesignation}</TableCell>
-                      <TableCell className="text-sm">{r.previousDepartment ?? "-"}</TableCell>
-                      <TableCell className="text-sm">{r.newDepartment ?? "-"}</TableCell>
-                      <TableCell className="text-sm">{r.previousSalary ? `₹${Number(r.previousSalary).toLocaleString()}` : "-"}</TableCell>
-                      <TableCell className="text-sm">{r.newSalary ? `₹${Number(r.newSalary).toLocaleString()}` : "-"}</TableCell>
-                      <TableCell className="text-sm">{fmtDate(r.promotionDate)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={cn("text-xs font-medium border", badge.class)}>{badge.label}</Badge>
-                      </TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => { if (confirm("Delete this record?")) deleteMut.mutate(r.id); }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="font-semibold text-xs">Emp ID</TableHead>
+                    <TableHead className="font-semibold text-xs">Name</TableHead>
+                    <TableHead className="font-semibold text-xs">Prev. Designation</TableHead>
+                    <TableHead className="font-semibold text-xs">New Designation</TableHead>
+                    <TableHead className="font-semibold text-xs">Prev. Department</TableHead>
+                    <TableHead className="font-semibold text-xs">New Department</TableHead>
+                    <TableHead className="font-semibold text-xs">Prev. Salary</TableHead>
+                    <TableHead className="font-semibold text-xs">New Salary</TableHead>
+                    <TableHead className="font-semibold text-xs">Date</TableHead>
+                    <TableHead className="font-semibold text-xs">Type</TableHead>
+                    {isAdmin && <TableHead className="w-12"></TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {records.map((r: any) => {
+                    const emp = r.employee;
+                    const badge = TYPE_BADGE[r.promotionType] ?? TYPE_BADGE.promotion;
+                    return (
+                      <TableRow key={r.id} className="hover:bg-muted/40 transition-colors">
+                        <TableCell className="font-medium text-primary text-xs font-mono">
+                          {emp?.employeeCode ?? "-"}
                         </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-7 w-7 border">
+                              <AvatarFallback className="text-[10px] font-semibold">
+                                {getInitials(emp?.firstName, emp?.lastName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium text-xs">
+                              {emp?.firstName} {emp?.lastName}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {r.previousDesignation ?? "-"}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium text-foreground">
+                          {r.newDesignation}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {r.previousDepartment ?? "-"}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium text-foreground">
+                          {r.newDepartment ?? "-"}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">
+                          {r.previousSalary ? `₹${Number(r.previousSalary).toLocaleString()}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono font-medium text-foreground">
+                          {r.newSalary ? `₹${Number(r.newSalary).toLocaleString()}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {fmtDate(r.promotionDate)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5 font-medium border", badge.class)}>
+                            {badge.label}
+                          </Badge>
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive text-xs"
+                                  onClick={() => setDeleteTargetId(r.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                  <span>Delete</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
-      {/* ── Add Promotion Modal ── */}
+      {/* ─── Add Promotion Modal ────────────────────────────────────────────── */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
@@ -326,6 +432,23 @@ export function PromotionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── ConfirmationDialog for Deleting Record ────────────────────────── */}
+      <ConfirmationDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => !open && setDeleteTargetId(null)}
+        title="Delete Promotion Record"
+        description="Are you sure you want to delete this promotion record? This action cannot be undone."
+        confirmLabel="Delete Record"
+        variant="destructive"
+        isLoading={deleteMut.isPending}
+        onConfirm={() => {
+          if (deleteTargetId) {
+            deleteMut.mutate(deleteTargetId);
+          }
+        }}
+      />
     </div>
   );
 }
+

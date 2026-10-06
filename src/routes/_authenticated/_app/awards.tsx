@@ -61,6 +61,14 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+// Canonical Wave 4 composites & system states
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { LoadingState } from "@/components/system-states/loading-state";
+import { EmptyState } from "@/components/system-states/empty-state";
+
 export const Route = createFileRoute("/_authenticated/_app/awards")({
   component: AwardsPage,
   head: () => ({ meta: [{ title: "Awards & Recognitions — Master HRMS" }] }),
@@ -82,6 +90,7 @@ export function AwardsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   const [certificateViewAward, setCertificateViewAward] = useState<any | null>(null);
+  const [deleteAwardId, setDeleteAwardId] = useState<string | null>(null);
 
   // Form State
   const [formEmployeeId, setFormEmployeeId] = useState("");
@@ -245,192 +254,155 @@ export function AwardsPage() {
   const recentAwardee = awards[0];
 
   return (
-    <div className="w-full min-w-0 flex-1 space-y-6 p-4 lg:p-6 pb-16">
-      {/* Header & Breadcrumbs */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/hrm" className="hover:text-foreground transition-colors">
-              HRM
-            </Link>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-medium">Awards & Recognition</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Trophy className="h-6 w-6 text-amber-500" />
-            Awards & Employee Honors
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Celebrate organizational achievements, honor outstanding work, and generate digital certificates.
-          </p>
-        </div>
-
-        {canManageAwards && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsTypeModalOpen(true)}
-              className="h-9 text-xs gap-1.5"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New Category
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setIsCreateModalOpen(true)}
-              className="h-9 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
-            >
-              <Trophy className="h-3.5 w-3.5" />
-              Issue Award
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-border/60 shadow-sm bg-gradient-to-br from-amber-500/5 to-transparent">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Total Honors Bestowed</CardTitle>
-            <Trophy className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-extrabold text-foreground">{stats.totalAwards || awards.length}</div>
-            <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-amber-500" />
-              Milestone & performance recognitions
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/60 shadow-sm">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Active Categories</CardTitle>
-            <Award className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-extrabold text-foreground">{awardTypes.length}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Employee of the Month, Star Performer, etc.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/60 shadow-sm">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Gift Value Disbursed</CardTitle>
-            <Gift className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-extrabold text-foreground">
-              ${Number(stats.totalGiftValue || 0).toLocaleString()}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Vouchers, trophies & incentives
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/60 shadow-sm">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Latest Awardee</CardTitle>
-            <Medal className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            {recentAwardee ? (
-              <div>
-                <div className="text-sm font-bold text-foreground truncate">
-                  {recentAwardee.employee?.firstName} {recentAwardee.employee?.lastName}
-                </div>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {recentAwardee.awardType?.name || recentAwardee.giftItem}
-                </p>
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground mt-1 italic">No awards issued yet</div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters & View Controls */}
-      <Card className="border border-border/60 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex flex-1 items-center gap-2">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search awardee, voucher, certificate #..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-9 pl-8 text-xs"
-                />
-              </div>
-
-              <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
-                <SelectTrigger className="w-[180px] h-9 text-xs">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">All Categories</SelectItem>
-                  {awardTypes.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="text-xs">
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto pb-16">
+      {/* ─── PageHeader with Breadcrumbs and Actions ───────────────────────── */}
+      <PageHeader
+        title="Awards & Recognition"
+        description="Celebrate organizational achievements, honor outstanding work, and generate digital certificates."
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "HRM" },
+          { label: "Awards & Recognition" },
+        ]}
+        actions={
+          canManageAwards && (
             <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/30">
-                <Button
-                  variant={activeTab === "grid" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveTab("grid")}
-                  className="h-7 px-2.5 text-xs gap-1.5"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  Wall
-                </Button>
-                <Button
-                  variant={activeTab === "table" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveTab("table")}
-                  className="h-7 px-2.5 text-xs gap-1.5"
-                >
-                  <List className="h-3.5 w-3.5" />
-                  Directory
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsTypeModalOpen(true)}
+                className="h-9 text-xs gap-1.5"
+              >
+                <Plus className="size-3.5" />
+                <span>New Category</span>
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="h-9 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+              >
+                <Trophy className="size-3.5" />
+                <span>Issue Award</span>
+              </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )
+        }
+      />
 
-      {/* Main Content: Wall View vs Directory Table */}
+      {/* ─── Metric Summary Cards ──────────────────────────────────────────── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Honors Bestowed"
+          value={stats.totalAwards || awards.length}
+          variant="warning"
+          icon={<Trophy className="size-5" />}
+          description="Milestone & performance honors"
+        />
+        <StatCard
+          label="Active Categories"
+          value={awardTypes.length}
+          variant="info"
+          icon={<Award className="size-5" />}
+          description="Employee of Month, Star Performer, etc."
+        />
+        <StatCard
+          label="Gift Value Disbursed"
+          value={`$${Number(stats.totalGiftValue || 0).toLocaleString()}`}
+          variant="success"
+          icon={<Gift className="size-5" />}
+          description="Vouchers, trophies & incentives"
+        />
+        <StatCard
+          label="Latest Awardee"
+          value={
+            recentAwardee
+              ? `${recentAwardee.employee?.firstName} ${recentAwardee.employee?.lastName}`
+              : "None yet"
+          }
+          variant="purple"
+          icon={<Medal className="size-5" />}
+          description={
+            recentAwardee
+              ? recentAwardee.awardType?.name || recentAwardee.giftItem
+              : "No awards issued yet"
+          }
+        />
+      </StatsOverviewGrid>
+
+      {/* ─── Filters & View Controls ───────────────────────────────────────── */}
+      <FilterToolbar
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search awardee, voucher, certificate #...",
+        }}
+        filters={
+          <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
+            <SelectTrigger className="w-[180px] h-8.5 text-xs">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">All Categories</SelectItem>
+              {awardTypes.map((t) => (
+                <SelectItem key={t.id} value={t.id} className="text-xs">
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+        viewToggle={
+          <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40">
+            <Button
+              variant={activeTab === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("grid")}
+              className="h-7 px-2.5 text-xs gap-1.5"
+            >
+              <LayoutGrid className="size-3.5" />
+              <span>Wall</span>
+            </Button>
+            <Button
+              variant={activeTab === "table" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("table")}
+              className="h-7 px-2.5 text-xs gap-1.5"
+            >
+              <List className="size-3.5" />
+              <span>Directory</span>
+            </Button>
+          </div>
+        }
+        actions={
+          <Badge variant="outline" className="text-xs">
+            {filteredAwards.length} {filteredAwards.length === 1 ? "award" : "awards"}
+          </Badge>
+        }
+      />
+
+      {/* ─── Main Content: Wall View vs Directory Table ─────────────────────── */}
       {awardsLoading ? (
-        <div className="py-16 text-center text-xs text-muted-foreground animate-pulse">
-          Loading employee honors and recognition certificates...
+        <div className="p-8 bg-card rounded-xl border border-border/70 shadow-2xs">
+          <LoadingState
+            variant={activeTab === "grid" ? "cards" : "table"}
+            rows={6}
+            message="Loading employee honors and recognition certificates..."
+          />
         </div>
       ) : filteredAwards.length === 0 ? (
-        <Card className="border border-dashed border-border/80 text-center py-12">
-          <CardContent className="space-y-3">
-            <Trophy className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-            <h3 className="text-sm font-semibold text-foreground">No awards found</h3>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              There are no recognition honors matching your search criteria. Issue an award to recognize employee excellence.
-            </p>
-            {canManageAwards && (
-              <Button size="sm" onClick={() => setIsCreateModalOpen(true)} className="h-8 text-xs gap-1.5 mt-2">
-                <Plus className="h-3.5 w-3.5" />
-                Issue First Award
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <div className="py-12 bg-card rounded-xl border border-border/70 shadow-2xs">
+          <EmptyState
+            icon={Trophy}
+            title="No awards found"
+            description={
+              searchTerm || selectedTypeFilter !== "all"
+                ? "There are no recognition honors matching your search criteria."
+                : "No recognition honors recorded yet. Issue an award to recognize employee excellence."
+            }
+            actionLabel={canManageAwards ? "Issue First Award" : undefined}
+            onAction={canManageAwards ? () => setIsCreateModalOpen(true) : undefined}
+          />
+        </div>
       ) : activeTab === "grid" ? (
         /* Recognition Wall (Cards) */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -509,17 +481,13 @@ export function AwardsPage() {
                       className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1 px-2"
                     >
                       <Eye className="h-3.5 w-3.5" />
-                      Certificate
+                      <span>Certificate</span>
                     </Button>
                     {canManageAwards && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          if (confirm("Are you sure you want to delete this award record?")) {
-                            deleteAwardMutation.mutate(award.id);
-                          }
-                        }}
+                        onClick={() => setDeleteAwardId(award.id)}
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -533,92 +501,90 @@ export function AwardsPage() {
         </div>
       ) : (
         /* Directory Table */
-        <Card className="border border-border/60 shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40">
-                <TableHead className="text-xs font-semibold">Awardee</TableHead>
-                <TableHead className="text-xs font-semibold">Honor Title</TableHead>
-                <TableHead className="text-xs font-semibold">Award Date</TableHead>
-                <TableHead className="text-xs font-semibold">Gift & Incentive</TableHead>
-                <TableHead className="text-xs font-semibold">Presented By</TableHead>
-                <TableHead className="text-xs font-semibold">Certificate #</TableHead>
-                <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAwards.map((award) => (
-                <TableRow key={award.id} className="hover:bg-muted/30">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        <AvatarFallback className="text-[10px] font-bold">
-                          {award.employee?.firstName?.[0]}
-                          {award.employee?.lastName?.[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="text-xs font-bold text-foreground">
-                          {award.employee?.firstName} {award.employee?.lastName}
+        <Card className="border border-border/70 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="text-xs font-semibold">Awardee</TableHead>
+                  <TableHead className="text-xs font-semibold">Honor Title</TableHead>
+                  <TableHead className="text-xs font-semibold">Award Date</TableHead>
+                  <TableHead className="text-xs font-semibold">Gift & Incentive</TableHead>
+                  <TableHead className="text-xs font-semibold">Presented By</TableHead>
+                  <TableHead className="text-xs font-semibold">Certificate #</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAwards.map((award) => (
+                  <TableRow key={award.id} className="hover:bg-muted/40 transition-colors">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7">
+                          <AvatarFallback className="text-[10px] font-bold">
+                            {award.employee?.firstName?.[0]}
+                            {award.employee?.lastName?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="text-xs font-bold text-foreground">
+                            {award.employee?.firstName} {award.employee?.lastName}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">{award.employee?.employeeCode}</div>
                         </div>
-                        <div className="text-[10px] text-muted-foreground">{award.employee?.employeeCode}</div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] gap-1">
-                      <Trophy className="h-3 w-3" />
-                      {award.awardType?.name || "Recognition"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {new Date(award.awardDate).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs font-medium text-foreground">{award.giftItem}</div>
-                    {Number(award.giftAmount) > 0 && (
-                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                        +${Number(award.giftAmount).toLocaleString()}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {award.presentedBy || "Management"}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono text-muted-foreground">
-                    {award.certificateNo}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCertificateViewAward(award)}
-                        className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1 px-2"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        View
-                      </Button>
-                      {canManageAwards && (
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] gap-1">
+                        <Trophy className="h-3 w-3" />
+                        {award.awardType?.name || "Recognition"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(award.awardDate).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs font-medium text-foreground">{award.giftItem}</div>
+                      {Number(award.giftAmount) > 0 && (
+                        <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                          +${Number(award.giftAmount).toLocaleString()}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {award.presentedBy || "Management"}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">
+                      {award.certificateNo}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this award record?")) {
-                              deleteAwardMutation.mutate(award.id);
-                            }
-                          }}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => setCertificateViewAward(award)}
+                          className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1 px-2"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>View</span>
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                        {canManageAwards && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteAwardId(award.id)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       )}
 
@@ -901,6 +867,25 @@ export function AwardsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ─── ConfirmationDialog for Deleting Award ────────────────────────── */}
+      <ConfirmationDialog
+        open={!!deleteAwardId}
+        onOpenChange={(open) => !open && setDeleteAwardId(null)}
+        title="Delete Award Record"
+        description="Are you sure you want to delete this recognition record and revoke its certificate? This action cannot be undone."
+        confirmLabel="Delete Award"
+        variant="destructive"
+        isLoading={deleteAwardMutation.isPending}
+        onConfirm={() => {
+          if (deleteAwardId) {
+            deleteAwardMutation.mutate(deleteAwardId, {
+              onSettled: () => setDeleteAwardId(null),
+            });
+          }
+        }}
+      />
     </div>
   );
 }
+

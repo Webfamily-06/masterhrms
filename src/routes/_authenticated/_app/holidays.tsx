@@ -33,6 +33,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   CalendarDays,
   Plus,
@@ -264,34 +268,104 @@ export function HolidaysPage() {
 
   return (
     <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
-      {/* ── Breadcrumb & Top Action Header ──────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <CalendarDays className="size-6 text-primary" /> Holidays Calendar
-          </h1>
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground transition-colors">
-              Dashboard
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <Link to="/attendance" className="hover:text-foreground transition-colors">
-              Attendance
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <span className="font-semibold text-foreground">Holidays</span>
-          </nav>
-        </div>
+      {/* ── Page Header ─────────────────────────────────────────────── */}
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/hrm-dashboard" },
+          { label: "Attendance", href: "/attendance" },
+          { label: "Holidays" },
+        ]}
+        icon={<CalendarDays className="size-5" />}
+        title="Holidays Calendar"
+        description="Manage annual company observances, public holidays, and national gazetted leaves."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCSV}
+              className="gap-1.5 text-xs font-bold h-8.5"
+            >
+              <Download className="size-3.5" /> Export CSV
+            </Button>
 
-        <div className="flex items-center gap-2">
-          {/* List vs Calendar Toggle */}
-          <div className="flex items-center border rounded-lg p-0.5 bg-muted/40 shrink-0">
+            <Button
+              size="sm"
+              onClick={handleOpenAdd}
+              className="gap-1.5 font-bold text-xs h-8.5 bg-primary text-primary-foreground shadow-2xs"
+            >
+              <Plus className="size-4" /> Add Holiday
+            </Button>
+          </>
+        }
+      />
+
+      {/* ── KPI Cards ───────────────────────────────────────────────────── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Annual Holidays"
+          value={`${totalHolidays} Days`}
+          icon={<Sun className="size-5" />}
+          variant="primary"
+          description="Total scheduled for year"
+        />
+
+        <StatCard
+          label="Upcoming This Year"
+          value={`${upcomingHolidays} Days`}
+          icon={<CheckCircle2 className="size-5" />}
+          variant="success"
+          description="Remaining leaves"
+        />
+
+        <StatCard
+          label="National / Gazetted"
+          value={`${nationalHolidays} Days`}
+          icon={<CalendarDays className="size-5" />}
+          variant="info"
+          description="Mandatory gazetted"
+        />
+
+        <StatCard
+          label="Company / Observance"
+          value={`${publicHolidays} Days`}
+          icon={<CalendarIcon className="size-5" />}
+          variant="purple"
+          description="Cultural & optional"
+        />
+      </StatsOverviewGrid>
+
+      {/* ── Search & Filter Controls ────────────────────────────────────── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search holiday name, date (YYYY-MM), or description...",
+        }}
+        filters={
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[160px] text-xs h-8.5 bg-background">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="national">National Holiday</SelectItem>
+              <SelectItem value="public">Public / Cultural</SelectItem>
+              <SelectItem value="company">Company Mandatory</SelectItem>
+              <SelectItem value="optional">Optional / Floating</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        viewToggle={
+          <div className="flex items-center border border-border/80 rounded-lg p-0.5 bg-muted/40 shrink-0">
             <Button
               size="sm"
               variant={viewMode === "list" ? "secondary" : "ghost"}
               onClick={() => setViewMode("list")}
-              className={`h-8 px-2.5 text-xs font-semibold gap-1 ${
-                viewMode === "list" ? "bg-background shadow-2xs font-bold text-foreground" : "text-muted-foreground"
+              className={`h-7.5 px-2.5 text-xs font-semibold gap-1 ${
+                viewMode === "list"
+                  ? "bg-background shadow-2xs font-bold text-foreground"
+                  : "text-muted-foreground"
               }`}
             >
               <List className="size-3.5" /> List
@@ -300,111 +374,17 @@ export function HolidaysPage() {
               size="sm"
               variant={viewMode === "calendar" ? "secondary" : "ghost"}
               onClick={() => setViewMode("calendar")}
-              className={`h-8 px-2.5 text-xs font-semibold gap-1 ${
-                viewMode === "calendar" ? "bg-background shadow-2xs font-bold text-foreground" : "text-muted-foreground"
+              className={`h-7.5 px-2.5 text-xs font-semibold gap-1 ${
+                viewMode === "calendar"
+                  ? "bg-background shadow-2xs font-bold text-foreground"
+                  : "text-muted-foreground"
               }`}
             >
               <CalendarIcon className="size-3.5" /> Calendar
             </Button>
           </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportCSV}
-            className="gap-1.5 text-xs font-bold"
-          >
-            <Download className="size-3.5" /> Export CSV
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={handleOpenAdd}
-            className="gap-1.5 font-bold text-xs bg-primary text-primary-foreground shadow-xs"
-          >
-            <Plus className="size-4" /> Add Holiday
-          </Button>
-        </div>
-      </div>
-
-      {/* ── KPI Cards ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-primary/10 grid place-items-center text-primary shrink-0">
-            <Sun className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Total Annual Holidays</div>
-            <div className="text-xl font-black font-mono tracking-tight">{totalHolidays} Days</div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-emerald-500/10 grid place-items-center text-emerald-600 shrink-0">
-            <CheckCircle2 className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Upcoming This Year</div>
-            <div className="text-xl font-black font-mono tracking-tight text-emerald-600">
-              {upcomingHolidays} Days
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-blue-500/10 grid place-items-center text-blue-600 shrink-0">
-            <CalendarDays className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">National / Gazetted</div>
-            <div className="text-xl font-black font-mono tracking-tight text-blue-600">
-              {nationalHolidays} Days
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card flex items-center gap-3">
-          <div className="size-11 rounded-xl bg-purple-500/10 grid place-items-center text-purple-600 shrink-0">
-            <CalendarIcon className="size-5" />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground font-semibold">Company / Observance</div>
-            <div className="text-xl font-black font-mono tracking-tight text-purple-600">
-              {publicHolidays} Days
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Search & Filter Controls ────────────────────────────────────── */}
-      <Card className="p-4 border shadow-xs">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search holiday name, date (YYYY-MM), or description..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[160px] text-xs h-9">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="national">National Holiday</SelectItem>
-                <SelectItem value="public">Public / Cultural</SelectItem>
-                <SelectItem value="company">Company Mandatory</SelectItem>
-                <SelectItem value="optional">Optional / Floating</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Card>
+        }
+      />
 
       {/* ── VIEW: LIST TABLE OR CALENDAR GRID ───────────────────────────── */}
       {viewMode === "list" ? (
@@ -788,53 +768,22 @@ export function HolidaysPage() {
       )}
 
       {/* ── DELETE HOLIDAY MODAL (#delete_modal) ─────────────────────────── */}
-      {deletingHoliday && (
-        <Dialog open={!!deletingHoliday} onOpenChange={(o) => !o && setDeletingHoliday(null)}>
-          <DialogContent className="max-w-sm text-center">
-            <div className="size-12 rounded-full bg-rose-100 dark:bg-rose-950/40 text-rose-600 mx-auto grid place-items-center mb-2">
-              <AlertTriangle className="size-6" />
-            </div>
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-center">
-                Delete Holiday?
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="text-xs text-muted-foreground space-y-2 py-2">
-              <p>
-                Are you sure you want to remove <strong>{deletingHoliday.title}</strong> (
-                {deletingHoliday.date})?
-              </p>
-            </div>
-
-            <DialogFooter className="gap-2 sm:justify-center pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeletingHoliday(null)}
-                disabled={createMut.isPending || deleteMut.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={createMut.isPending || deleteMut.isPending}
-                className="font-bold"
-              >
-                {(createMut.isPending || deleteMut.isPending) ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin mr-1.5" /> Deleting...
-                  </>
-                ) : (
-                  "Confirm Delete"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <ConfirmationDialog
+        open={!!deletingHoliday}
+        onOpenChange={(o) => !o && setDeletingHoliday(null)}
+        title="Delete Holiday?"
+        description={
+          deletingHoliday ? (
+            <span>
+              Are you sure you want to remove <strong>{deletingHoliday.title}</strong> (
+              {deletingHoliday.date})? This holiday will be permanently deleted from the calendar.
+            </span>
+          ) : undefined
+        }
+        confirmLabel="Confirm Delete"
+        onConfirm={handleDelete}
+        isLoading={createMut.isPending || deleteMut.isPending}
+      />
     </div>
   );
 }

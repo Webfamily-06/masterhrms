@@ -1,4 +1,4 @@
-import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useSearch, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -74,7 +74,6 @@ import { formatSystemAmount } from "@/lib/currency";
 import { getPlatformBaseDomain } from "@/lib/platform-domain";
 import { MediaImageUploader } from "@/components/settings/media-image-uploader";
 import { LivePreviewDock } from "@/components/settings/live-preview-dock";
-import { MediaLibraryManager } from "@/components/settings/media-library-manager";
 import { UnsavedChangesBar } from "@/components/settings/unsaved-changes-bar";
 import {
   SettingsNestedNav,
@@ -354,15 +353,26 @@ function SuperSettingsAdmin() {
   const navigate = Route.useNavigate();
   const searchParams = useSearch({ from: "/_authenticated/super/settings" });
   const [form, setForm] = useState<SuperSettings>(DEFAULT_SETTINGS);
-  const [activeTab, setActiveTabState] = useState<string>(searchParams.tab || "branding");
+  const [activeTab, setActiveTabState] = useState<string>(
+    searchParams.tab === "media" ? "branding" : searchParams.tab || "branding",
+  );
 
   const setActiveTab = (tab: string) => {
+    if (tab === "media") {
+      navigate({ to: "/super/media" as any });
+      return;
+    }
     setActiveTabState(tab);
     navigate({ search: { tab } as any, replace: true });
   };
 
-  // Keep activeTab in sync with URL search param, and populate default tab in URL if missing
+  // Keep activeTab in sync with URL search param, and populate default tab in URL if missing.
+  // Instantly redirect /super/settings?tab=media to the canonical Platform Media Gallery /super/media.
   useEffect(() => {
+    if (searchParams.tab === "media") {
+      navigate({ to: "/super/media" as any, replace: true });
+      return;
+    }
     if (searchParams.tab && searchParams.tab !== activeTab) {
       setActiveTabState(searchParams.tab);
     } else if (!searchParams.tab) {
@@ -370,103 +380,86 @@ function SuperSettingsAdmin() {
     }
   }, [searchParams.tab, activeTab, navigate]);
 
-  // Nested Menus Hierarchy Definition
+  // Nested Menus Hierarchy Definition — Text-driven enterprise navigation
   const SUPER_SETTINGS_NAV: SettingsNavCategory[] = useMemo(
     () => [
       {
         id: "identity",
         label: "Brand & Identity",
-        icon: Sparkles,
         description: "Logos, themes, legal entity and media storage",
         items: [
           {
             id: "branding",
             label: "Branding & Themes",
             description: "Logos, favicon, primary theme color and brand identity",
-            icon: ImageIcon,
           },
           {
             id: "addresses",
             label: "Dispatch & Invoicing",
             description: "Platform legal name, GSTIN, origin dispatch address",
-            icon: Building2,
           },
           {
             id: "media",
-            label: "Media Library",
-            description: "Asset storage, vector icons, media repository",
-            icon: Folder,
+            label: "Media Gallery",
+            description: "Authoritative platform asset and vector repository",
           },
         ],
       },
       {
         id: "finance",
         label: "Currency & Payments",
-        icon: Coins,
         description: "Master currency, formatting and payment gateways",
         items: [
           {
             id: "currency",
             label: "Currency & Locale",
             description: "Currency symbols, separators and number formatting",
-            icon: Coins,
-            badge: form.defaultCurrency,
-            badgeColor: "bg-muted text-muted-foreground border-border",
           },
           {
             id: "payments",
             label: "Payment Gateways",
             description: "Stripe, PayPal, Razorpay & Bank transfer credentials",
-            icon: CreditCard,
           },
         ],
       },
       {
         id: "integrations",
         label: "Comms & Integrations",
-        icon: Radio,
         description: "Email delivery, OAuth logins, and live websockets",
         items: [
           {
             id: "smtp",
             label: "SMTP Email Engine",
             description: "Mail server, credentials & live test email dispatch",
-            icon: Mail,
           },
           {
             id: "oauth",
             label: "OAuth 2.0 Logins",
             description: "Google, Apple, LinkedIn & Facebook social sign-in",
-            icon: Lock,
           },
           {
             id: "pusher",
             label: "WebSockets & Events",
             description: "Pusher & Soketi real-time event broadcasting",
-            icon: Radio,
           },
         ],
       },
       {
         id: "operations",
         label: "Platform Operations",
-        icon: AlertTriangle,
         description: "Maintenance schedule and emergency broadcast",
         items: [
           {
             id: "system",
             label: "Maintenance & System",
             description: "Emergency maintenance mode, lockouts & announcements",
-            icon: AlertTriangle,
-            badge: form.maintenanceMode ? "ACTIVE" : "Normal",
-            badgeColor: form.maintenanceMode
-              ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
-              : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+            badge: form.maintenanceMode ? "ACTIVE" : undefined,
+            badgeColor: "bg-rose-500/10 text-rose-600 border-rose-500/20",
           },
         ],
       },
     ],
-    [form.defaultCurrency, form.maintenanceMode],
+    [form.maintenanceMode],
   );
 
   const activeNavInfo = useMemo(() => {
@@ -728,31 +721,6 @@ function SuperSettingsAdmin() {
     });
   }
 
-  function handleImageUpload(
-    field: "logoLightUrl" | "logoDarkUrl" | "faviconUrl",
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const url = event.target?.result as string;
-      setForm((prev) => ({ ...prev, [field]: url }));
-
-      if (field === "faviconUrl") {
-        const link =
-          (document.querySelector("link[rel*='icon']") as HTMLLinkElement) ||
-          document.createElement("link");
-        link.type = "image/x-icon";
-        link.rel = "shortcut icon";
-        link.href = url;
-      }
-      toast.success(`${field} image uploaded and preview updated!`);
-    };
-    reader.readAsDataURL(file);
-  }
-
   async function handleExecuteSendTestEmail() {
     if (!testRecipientEmail) return toast.error("Please enter recipient email address");
     setIsSendingTestEmail(true);
@@ -837,12 +805,7 @@ function SuperSettingsAdmin() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
-            <Badge variant="secondary" className="gap-1 text-xs font-mono">
-              <Settings className="size-3 text-primary" /> Global Master Config
-            </Badge>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">System Settings</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Configure Currency, reCAPTCHA, Language, Date/Time Formats, Branding, SMTP, OAuth &
             Maintenance Schedule.
@@ -876,7 +839,7 @@ function SuperSettingsAdmin() {
             activeTab={activeTab}
             onSelectTab={setActiveTab}
             title="System Settings"
-            subtitle="Global Master Config"
+            subtitle="Manage system settings and configurations"
             searchPlaceholder="Search system settings..."
           />
 
@@ -1127,9 +1090,19 @@ function SuperSettingsAdmin() {
           </div>
         </TabsContent>
 
-        {/* TAB 8: RELATIONAL MEDIA LIBRARY */}
+        {/* TAB 8: CANONICAL PLATFORM MEDIA GALLERY REDIRECT */}
         <TabsContent value="media" className="space-y-6 pt-4">
-          <MediaLibraryManager />
+          <Card className="p-8 text-center bg-card border shadow-xs max-w-lg mx-auto">
+            <h3 className="text-base font-bold text-foreground">Platform Media Gallery</h3>
+            <p className="text-sm text-muted-foreground mt-2 mb-5">
+              Platform media and asset management has moved to the canonical centralized Platform Media Gallery.
+            </p>
+            <Button asChild className="gap-2">
+              <Link to="/super/media">
+                Open Media Gallery
+              </Link>
+            </Button>
+          </Card>
         </TabsContent>
 
         {/* TAB 9: DISPATCH & INVOICING ADDRESSES (PHASE 2 WAVE 2.1) */}
@@ -1149,15 +1122,6 @@ function SuperSettingsAdmin() {
                   </p>
                 </div>
               </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-medium">
-                Platform Identity: Locked
-              </Badge>
-              <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-medium">
-                Tenant Identity: Authoritative
-              </Badge>
             </div>
           </div>
 

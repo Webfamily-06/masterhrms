@@ -59,6 +59,12 @@ import {
   Filter,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { LoadingState } from "@/components/system-states/loading-state";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/announcements")({
   component: AnnouncementsPage,
@@ -96,6 +102,7 @@ export function AnnouncementsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<any>(null);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
+  const [deletingAnnouncement, setDeletingAnnouncement] = useState<any>(null);
   const [isAcknowledgementsOpen, setIsAcknowledgementsOpen] = useState(false);
   const [selectedForAckView, setSelectedForAckView] = useState<any>(null);
   const [ackComment, setAckComment] = useState("");
@@ -255,128 +262,120 @@ export function AnnouncementsPage() {
   const regularAnnouncements = announcements.filter((a: any) => !a.isPinned);
 
   return (
-    <div className="space-y-6 max-w-full pb-12">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Megaphone className="size-6 text-primary" /> Company Announcements & Broadcast Feeds
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Organization-wide news, urgent alerts, policy compliance signatures, and targeted department broadcasts.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
+    <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
+      {/* ── Page Header ─────────────────────────────────────────────── */}
+      <PageHeader
+        breadcrumbs={[
+          { label: "Dashboard", href: "/hrm-dashboard" },
+          { label: "Organization", href: "/announcements" },
+          { label: "Announcements" },
+        ]}
+        icon={<Megaphone className="size-5" />}
+        title="Company Announcements & Feeds"
+        description="Organization-wide news, urgent alerts, policy compliance signatures, and targeted department broadcasts."
+        actions={
           <Button
             size="sm"
             onClick={() => {
               resetForm();
               setIsCreateOpen(true);
             }}
-            className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+            className="text-xs font-bold h-8.5 shadow-2xs gap-1.5 bg-primary text-primary-foreground"
           >
             <Plus className="size-3.5" />
             <span>New Announcement</span>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Metrics Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-            <Megaphone className="size-3.5 text-blue-500" /> Total Broadcasts
-          </span>
-          <div className="text-xl font-black font-mono text-foreground">
-            {summary?.totalAnnouncements || announcements.length} Published
-          </div>
-        </Card>
+      {/* ── Standardized KPI Metrics Overview ─────────────────────────── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Broadcasts"
+          value={`${summary?.totalAnnouncements ?? announcements.length} Published`}
+          icon={<Megaphone className="size-5" />}
+          variant="info"
+          description="Organization broadcasts"
+        />
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-            <Pin className="size-3.5 text-amber-500" /> Pinned Hero Updates
-          </span>
-          <div className="text-xl font-black font-mono text-amber-600">
-            {summary?.pinnedCount || pinnedAnnouncements.length} Pinned
-          </div>
-        </Card>
+        <StatCard
+          label="Pinned Hero Updates"
+          value={`${summary?.pinnedCount ?? pinnedAnnouncements.length} Pinned`}
+          icon={<Pin className="size-5" />}
+          variant="warning"
+          description="High-priority banners"
+        />
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
-          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-            <ShieldAlert className="size-3.5 text-purple-500" /> Policy Directives
-          </span>
-          <div className="text-xl font-black font-mono text-purple-600">
-            {summary?.policyCount || 0} Policies
-          </div>
-        </Card>
+        <StatCard
+          label="Policy Directives"
+          value={`${summary?.policyCount ?? 0} Policies`}
+          icon={<ShieldAlert className="size-5" />}
+          variant="purple"
+          description="Mandatory guidelines"
+        />
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-emerald-500/5 border-emerald-500/20">
-          <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
-            <FileCheck2 className="size-3.5" /> Compliance Rate
-          </span>
-          <div className="text-xl font-black font-mono text-emerald-600">
-            {summary?.complianceRate || 100}% Acknowledged
-          </div>
-        </Card>
-      </div>
+        <StatCard
+          label="Compliance Rate"
+          value={`${summary?.complianceRate ?? 100}%`}
+          icon={<FileCheck2 className="size-5" />}
+          variant="success"
+          description="Signatures acknowledged"
+        />
+      </StatsOverviewGrid>
 
-      {/* Filters Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-2 rounded-xl border">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search title, summary, author..."
-              className="h-7 text-xs pl-8 w-48 sm:w-60 bg-background"
-            />
-          </div>
+      {/* ── Standardized Filter Toolbar ───────────────────────────────── */}
+      <FilterToolbar
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Search title, summary, author...",
+        }}
+        filters={
+          <>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="h-8.5 text-xs w-[140px] sm:w-[160px] bg-background">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="company_news">Company News</SelectItem>
+                <SelectItem value="policy_update">Policy Update</SelectItem>
+                <SelectItem value="event">Event & Wellness</SelectItem>
+                <SelectItem value="celebration">Celebration</SelectItem>
+                <SelectItem value="urgent_alert">Urgent Alert</SelectItem>
+                <SelectItem value="holiday">Holiday Notice</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="h-7 text-xs w-40 bg-background">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="company_news">Company News</SelectItem>
-              <SelectItem value="policy_update">Policy Update</SelectItem>
-              <SelectItem value="event">Event & Wellness</SelectItem>
-              <SelectItem value="celebration">Celebration</SelectItem>
-              <SelectItem value="urgent_alert">Urgent Alert</SelectItem>
-              <SelectItem value="holiday">Holiday Notice</SelectItem>
-            </SelectContent>
-          </Select>
+            <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+              <SelectTrigger className="h-8.5 text-xs w-[120px] sm:w-[130px] bg-background">
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Select value={selectedPriority} onValueChange={setSelectedPriority}>
-            <SelectTrigger className="h-7 text-xs w-32 bg-background">
-              <SelectValue placeholder="All Priorities" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priorities</SelectItem>
-              <SelectItem value="urgent">Urgent</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="normal">Normal</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-          <SelectTrigger className="h-7 text-xs w-44 bg-background">
-            <SelectValue placeholder="All Target Audiences" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Departments (Company-wide)</SelectItem>
-            {departments.map((d: any) => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.name} Only
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+              <SelectTrigger className="h-8.5 text-xs w-[150px] sm:w-[180px] bg-background">
+                <SelectValue placeholder="All Audiences" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments (Company-wide)</SelectItem>
+                {departments.map((d: any) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name} Only
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       {/* ─── PINNED HERO SECTION ─── */}
       {pinnedAnnouncements.length > 0 && (
@@ -518,11 +517,7 @@ export function AnnouncementsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => {
-                            if (confirm(`Delete announcement "${ann.title}"?`)) {
-                              deleteAnnouncementMut.mutate(ann.id);
-                            }
-                          }}
+                          onClick={() => setDeletingAnnouncement(ann)}
                           className="size-6 text-rose-600 hover:bg-rose-50"
                         >
                           <Trash2 className="size-3" />
@@ -544,13 +539,17 @@ export function AnnouncementsPage() {
         </h2>
 
         {isAnnouncementsLoading ? (
-          <Card className="p-8 text-center text-xs text-muted-foreground">
-            Loading company announcements...
-          </Card>
+          <LoadingState variant="cards" rows={3} message="Loading company announcements..." />
         ) : regularAnnouncements.length === 0 ? (
-          <Card className="p-8 text-center text-xs text-muted-foreground italic">
-            No regular announcements found matching criteria. Click "New Announcement" to publish a broadcast.
-          </Card>
+          <EmptyState
+            title="No announcements found"
+            description="No regular announcements match your current filters. Click below to publish a new broadcast."
+            actionLabel="New Announcement"
+            onAction={() => {
+              resetForm();
+              setIsCreateOpen(true);
+            }}
+          />
         ) : (
           <div className="space-y-3">
             {regularAnnouncements.map((ann: any) => {
@@ -667,11 +666,7 @@ export function AnnouncementsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => {
-                            if (confirm(`Delete announcement "${ann.title}"?`)) {
-                              deleteAnnouncementMut.mutate(ann.id);
-                            }
-                          }}
+                          onClick={() => setDeletingAnnouncement(ann)}
                           className="size-6 text-rose-600 hover:bg-rose-50"
                         >
                           <Trash2 className="size-3" />
@@ -1044,6 +1039,22 @@ export function AnnouncementsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ─── CONFIRMATION DIALOG: DELETE ANNOUNCEMENT ─── */}
+      <ConfirmationDialog
+        open={!!deletingAnnouncement}
+        onOpenChange={(open) => !open && setDeletingAnnouncement(null)}
+        title="Delete Announcement?"
+        description={`Are you sure you want to delete "${deletingAnnouncement?.title}"? This broadcast and its compliance logs will be removed.`}
+        confirmLabel="Delete Announcement"
+        onConfirm={() => {
+          if (deletingAnnouncement) {
+            deleteAnnouncementMut.mutate(deletingAnnouncement.id);
+            setDeletingAnnouncement(null);
+          }
+        }}
+        isLoading={deleteAnnouncementMut.isPending}
+      />
     </div>
   );
 }

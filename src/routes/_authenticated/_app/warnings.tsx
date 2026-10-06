@@ -59,6 +59,14 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+// Canonical Wave 4 composites & system states
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { LoadingState } from "@/components/system-states/loading-state";
+import { EmptyState } from "@/components/system-states/empty-state";
+
 export const Route = createFileRoute("/_authenticated/_app/warnings")({
   component: WarningsPage,
   head: () => ({ meta: [{ title: "Disciplinary Warnings — Master HRMS" }] }),
@@ -83,6 +91,8 @@ export function WarningsPage() {
   const [viewNoticeWarning, setViewNoticeWarning] = useState<any | null>(null);
   const [acknowledgeWarning, setAcknowledgeWarning] = useState<any | null>(null);
   const [employeeResponseText, setEmployeeResponseText] = useState("");
+  const [deleteWarningId, setDeleteWarningId] = useState<string | null>(null);
+  const [resolveWarningId, setResolveWarningId] = useState<string | null>(null);
 
   // Create Form State
   const [formEmployeeId, setFormEmployeeId] = useState("");
@@ -299,302 +309,268 @@ export function WarningsPage() {
   };
 
   return (
-    <div className="w-full min-w-0 flex-1 space-y-6 p-4 lg:p-6 pb-16">
-      {/* Header & Breadcrumbs */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/hrm" className="hover:text-foreground transition-colors">
-              HRM
-            </Link>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-medium">Disciplinary Warnings</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <ShieldAlert className="h-6 w-6 text-rose-500" />
-            Disciplinary Warnings & Incidents
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Track workplace policy notices, infractions, formal letters, and employee acknowledgment records.
-          </p>
-        </div>
-
-        {canManageWarnings && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsTypeModalOpen(true)}
-              className="h-9 text-xs gap-1.5"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New Infraction Type
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setIsCreateModalOpen(true)}
-              className="h-9 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
-            >
-              <AlertTriangle className="h-3.5 w-3.5" />
-              Issue Warning
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-border/60 shadow-sm bg-gradient-to-br from-rose-500/5 to-transparent">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Total Warnings Logged</CardTitle>
-            <AlertOctagon className="h-4 w-4 text-rose-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-extrabold text-foreground">{stats.totalWarnings || warnings.length}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Historical and active formal notices
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/60 shadow-sm">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Pending Acknowledgment</CardTitle>
-            <Clock className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-extrabold text-foreground">{stats.activeCount || 0}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Awaiting employee signature sign-off
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/60 shadow-sm">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Critical Infractions</CardTitle>
-            <ShieldAlert className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-extrabold text-foreground">{stats.criticalCount || 0}</div>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Major violations requiring executive review
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/60 shadow-sm">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">Resolved / Remediated</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-extrabold text-foreground">
-              {warnings.filter((w) => w.status === "resolved").length}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Successfully corrected behaviors
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filter Bar */}
-      <Card className="border border-border/60 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex flex-1 flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search subject, employee, details..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-9 pl-8 text-xs"
-                />
-              </div>
-
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="All Severities" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">All Severities</SelectItem>
-                  <SelectItem value="minor" className="text-xs">Minor</SelectItem>
-                  <SelectItem value="moderate" className="text-xs">Moderate</SelectItem>
-                  <SelectItem value="major" className="text-xs">Major</SelectItem>
-                  <SelectItem value="critical" className="text-xs">Critical</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-                  <SelectItem value="issued" className="text-xs">Active Notice</SelectItem>
-                  <SelectItem value="acknowledged" className="text-xs">Acknowledged</SelectItem>
-                  <SelectItem value="resolved" className="text-xs">Resolved</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
+    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto pb-16">
+      {/* ─── PageHeader with Breadcrumbs and Actions ───────────────────────── */}
+      <PageHeader
+        title="Disciplinary Warnings"
+        description="Track workplace policy notices, infractions, formal letters, and employee acknowledgment records."
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "HRM" },
+          { label: "Disciplinary Warnings" },
+        ]}
+        actions={
+          canManageWarnings && (
             <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/30">
-                <Button
-                  variant={activeTab === "table" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveTab("table")}
-                  className="h-7 px-2.5 text-xs gap-1.5"
-                >
-                  <List className="h-3.5 w-3.5" />
-                  Table
-                </Button>
-                <Button
-                  variant={activeTab === "grid" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveTab("grid")}
-                  className="h-7 px-2.5 text-xs gap-1.5"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  Cards
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsTypeModalOpen(true)}
+                className="h-9 text-xs gap-1.5"
+              >
+                <Plus className="size-3.5" />
+                <span>New Infraction Type</span>
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="h-9 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+              >
+                <AlertTriangle className="size-3.5" />
+                <span>Issue Warning</span>
+              </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )
+        }
+      />
 
-      {/* Warnings Content */}
+      {/* ─── Metric Cards ──────────────────────────────────────────────────── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Warnings Logged"
+          value={stats.totalWarnings || warnings.length}
+          variant="rose"
+          icon={<AlertOctagon className="size-5" />}
+          description="Historical and active formal notices"
+        />
+        <StatCard
+          label="Pending Acknowledgment"
+          value={stats.activeCount || 0}
+          variant="warning"
+          icon={<Clock className="size-5" />}
+          description="Awaiting employee signature sign-off"
+        />
+        <StatCard
+          label="Critical Infractions"
+          value={stats.criticalCount || 0}
+          variant="rose"
+          icon={<ShieldAlert className="size-5" />}
+          description="Major violations requiring review"
+        />
+        <StatCard
+          label="Resolved / Remediated"
+          value={warnings.filter((w) => w.status === "resolved").length}
+          variant="success"
+          icon={<CheckCircle2 className="size-5" />}
+          description="Successfully corrected behaviors"
+        />
+      </StatsOverviewGrid>
+
+      {/* ─── FilterToolbar ─────────────────────────────────────────────────── */}
+      <FilterToolbar
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search subject, employee, details...",
+        }}
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="w-[140px] h-8.5 text-xs">
+                <SelectValue placeholder="All Severities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Severities</SelectItem>
+                <SelectItem value="minor" className="text-xs">Minor</SelectItem>
+                <SelectItem value="moderate" className="text-xs">Moderate</SelectItem>
+                <SelectItem value="major" className="text-xs">Major</SelectItem>
+                <SelectItem value="critical" className="text-xs">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px] h-8.5 text-xs">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                <SelectItem value="issued" className="text-xs">Active Notice</SelectItem>
+                <SelectItem value="acknowledged" className="text-xs">Acknowledged</SelectItem>
+                <SelectItem value="resolved" className="text-xs">Resolved</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        }
+        viewToggle={
+          <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40">
+            <Button
+              variant={activeTab === "table" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("table")}
+              className="h-7 px-2.5 text-xs gap-1.5"
+            >
+              <List className="size-3.5" />
+              <span>Table</span>
+            </Button>
+            <Button
+              variant={activeTab === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("grid")}
+              className="h-7 px-2.5 text-xs gap-1.5"
+            >
+              <LayoutGrid className="size-3.5" />
+              <span>Cards</span>
+            </Button>
+          </div>
+        }
+        actions={
+          <Badge variant="outline" className="text-xs">
+            {filteredWarnings.length} {filteredWarnings.length === 1 ? "warning" : "warnings"}
+          </Badge>
+        }
+      />
+
+      {/* ─── Warnings Content ──────────────────────────────────────────────── */}
       {warningsLoading ? (
-        <div className="py-16 text-center text-xs text-muted-foreground animate-pulse">
-          Loading disciplinary incident records...
+        <div className="p-8 bg-card rounded-xl border border-border/70 shadow-2xs">
+          <LoadingState
+            variant={activeTab === "grid" ? "cards" : "table"}
+            rows={6}
+            message="Loading disciplinary incident records..."
+          />
         </div>
       ) : filteredWarnings.length === 0 ? (
-        <Card className="border border-dashed border-border/80 text-center py-12">
-          <CardContent className="space-y-3">
-            <ShieldCheck className="h-10 w-10 text-emerald-500/40 mx-auto" />
-            <h3 className="text-sm font-semibold text-foreground">No disciplinary warnings found</h3>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              There are no active disciplinary actions matching the selected filter criteria.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="py-12 bg-card rounded-xl border border-border/70 shadow-2xs">
+          <EmptyState
+            icon={ShieldCheck}
+            title="No disciplinary warnings found"
+            description={
+              searchTerm || severityFilter !== "all" || statusFilter !== "all"
+                ? "There are no disciplinary actions matching the selected filter criteria."
+                : "There are no active disciplinary actions recorded in the system."
+            }
+            actionLabel={canManageWarnings ? "Issue Warning" : undefined}
+            onAction={canManageWarnings ? () => setIsCreateModalOpen(true) : undefined}
+          />
+        </div>
       ) : activeTab === "table" ? (
-        <Card className="border border-border/60 shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40">
-                <TableHead className="text-xs font-semibold">Employee</TableHead>
-                <TableHead className="text-xs font-semibold">Infraction Subject</TableHead>
-                <TableHead className="text-xs font-semibold">Category</TableHead>
-                <TableHead className="text-xs font-semibold">Severity</TableHead>
-                <TableHead className="text-xs font-semibold">Date</TableHead>
-                <TableHead className="text-xs font-semibold">Issued By</TableHead>
-                <TableHead className="text-xs font-semibold">Status</TableHead>
-                <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredWarnings.map((warning) => (
-                <TableRow key={warning.id} className="hover:bg-muted/30">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        <AvatarFallback className="text-[10px] font-bold">
-                          {warning.employee?.firstName?.[0]}
-                          {warning.employee?.lastName?.[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="text-xs font-bold text-foreground">
-                          {warning.employee?.firstName} {warning.employee?.lastName}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {warning.employee?.employeeCode} • {warning.employee?.department?.name || "General"}
+        <Card className="border border-border/70 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="text-xs font-semibold">Employee</TableHead>
+                  <TableHead className="text-xs font-semibold">Infraction Subject</TableHead>
+                  <TableHead className="text-xs font-semibold">Category</TableHead>
+                  <TableHead className="text-xs font-semibold">Severity</TableHead>
+                  <TableHead className="text-xs font-semibold">Date</TableHead>
+                  <TableHead className="text-xs font-semibold">Issued By</TableHead>
+                  <TableHead className="text-xs font-semibold">Status</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredWarnings.map((warning) => (
+                  <TableRow key={warning.id} className="hover:bg-muted/40 transition-colors">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7">
+                          <AvatarFallback className="text-[10px] font-bold">
+                            {warning.employee?.firstName?.[0]}
+                            {warning.employee?.lastName?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="text-xs font-bold text-foreground">
+                            {warning.employee?.firstName} {warning.employee?.lastName}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {warning.employee?.employeeCode} • {warning.employee?.department?.name || "General"}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs font-semibold text-foreground line-clamp-1">{warning.subject}</div>
-                    <div className="text-[10px] text-muted-foreground line-clamp-1 italic">{warning.description}</div>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {warning.warningType?.name || "General Violation"}
-                  </TableCell>
-                  <TableCell>{getSeverityBadge(warning.severity)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {new Date(warning.warningDate).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {warning.warningBy || "HR Dept"}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(warning.status)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setViewNoticeWarning(warning)}
-                        className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 px-2"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Notice
-                      </Button>
-
-                      {warning.status === "issued" && (
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs font-semibold text-foreground line-clamp-1">{warning.subject}</div>
+                      <div className="text-[10px] text-muted-foreground line-clamp-1 italic">{warning.description}</div>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {warning.warningType?.name || "General Violation"}
+                    </TableCell>
+                    <TableCell>{getSeverityBadge(warning.severity)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {new Date(warning.warningDate).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {warning.warningBy || "HR Dept"}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(warning.status)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            setAcknowledgeWarning(warning);
-                            setEmployeeResponseText("");
-                          }}
-                          className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1 px-2"
+                          onClick={() => setViewNoticeWarning(warning)}
+                          className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 px-2"
                         >
-                          <FileCheck className="h-3.5 w-3.5" />
-                          Sign Off
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>Notice</span>
                         </Button>
-                      )}
 
-                      {canManageWarnings && warning.status !== "resolved" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm("Mark this incident as resolved and closed?")) {
-                              resolveMutation.mutate(warning.id);
-                            }
-                          }}
-                          className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 px-2"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Resolve
-                        </Button>
-                      )}
+                        {warning.status === "issued" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setAcknowledgeWarning(warning);
+                              setEmployeeResponseText("");
+                            }}
+                            className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1 px-2"
+                          >
+                            <FileCheck className="h-3.5 w-3.5" />
+                            <span>Sign Off</span>
+                          </Button>
+                        )}
 
-                      {canManageWarnings && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this warning record?")) {
-                              deleteWarningMutation.mutate(warning.id);
-                            }
-                          }}
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                        {canManageWarnings && warning.status !== "resolved" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setResolveWarningId(warning.id)}
+                            className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 px-2"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span>Resolve</span>
+                          </Button>
+                        )}
+
+                        {canManageWarnings && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteWarningId(warning.id)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       ) : (
         /* Cards View */
@@ -675,7 +651,7 @@ export function WarningsPage() {
                       className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 px-2"
                     >
                       <FileText className="h-3.5 w-3.5" />
-                      Notice
+                      <span>Notice</span>
                     </Button>
                     {warning.status === "issued" && (
                       <Button
@@ -688,7 +664,28 @@ export function WarningsPage() {
                         className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1 px-2"
                       >
                         <FileCheck className="h-3.5 w-3.5" />
-                        Sign
+                        <span>Sign</span>
+                      </Button>
+                    )}
+                    {canManageWarnings && warning.status !== "resolved" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setResolveWarningId(warning.id)}
+                        className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 gap-1 px-2"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Resolve</span>
+                      </Button>
+                    )}
+                    {canManageWarnings && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteWarningId(warning.id)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
@@ -1039,6 +1036,43 @@ export function WarningsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ─── ConfirmationDialog for Deleting Warning ────────────────────────── */}
+      <ConfirmationDialog
+        open={!!deleteWarningId}
+        onOpenChange={(open) => !open && setDeleteWarningId(null)}
+        title="Delete Warning Record"
+        description="Are you sure you want to delete this disciplinary warning record? This action cannot be undone."
+        confirmLabel="Delete Warning"
+        variant="destructive"
+        isLoading={deleteWarningMutation.isPending}
+        onConfirm={() => {
+          if (deleteWarningId) {
+            deleteWarningMutation.mutate(deleteWarningId, {
+              onSettled: () => setDeleteWarningId(null),
+            });
+          }
+        }}
+      />
+
+      {/* ─── ConfirmationDialog for Resolving Warning ───────────────────────── */}
+      <ConfirmationDialog
+        open={!!resolveWarningId}
+        onOpenChange={(open) => !open && setResolveWarningId(null)}
+        title="Resolve Disciplinary Incident"
+        description="Mark this incident as resolved and closed? This confirms that corrective remediation milestones have been satisfactorily met."
+        confirmLabel="Resolve Incident"
+        variant="default"
+        isLoading={resolveMutation.isPending}
+        onConfirm={() => {
+          if (resolveWarningId) {
+            resolveMutation.mutate(resolveWarningId, {
+              onSettled: () => setResolveWarningId(null),
+            });
+          }
+        }}
+      />
     </div>
   );
 }
+

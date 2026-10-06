@@ -21,14 +21,13 @@ import {
   ChevronDown,
   ChevronRight,
   Menu,
-  Sparkles,
 } from "lucide-react";
 
 export interface SettingsNavItem {
   id: string;
   label: string;
   description?: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string }>;
   badge?: string;
   badgeColor?: string;
   hidden?: boolean;
@@ -235,20 +234,22 @@ export function SettingsNestedNav({
                           "w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all duration-150 relative group",
                           isActive
                             ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                            : "hover:bg-muted/70 text-foreground/80 hover:text-foreground",
+                            : "hover:bg-muted/70 text-foreground/85 hover:text-foreground",
                         )}
                       >
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <div
-                            className={cn(
-                              "p-1.5 rounded-lg shrink-0 transition-colors",
-                              isActive
-                                ? "bg-white/20 text-white"
-                                : "bg-muted/80 text-muted-foreground group-hover:text-foreground group-hover:bg-muted",
-                            )}
-                          >
-                            <ItemIcon className="size-3.5" />
-                          </div>
+                          {ItemIcon && (
+                            <div
+                              className={cn(
+                                "p-1.5 rounded-lg shrink-0 transition-colors",
+                                isActive
+                                  ? "bg-primary-foreground/20 text-primary-foreground"
+                                  : "bg-muted/80 text-muted-foreground group-hover:text-foreground group-hover:bg-muted",
+                              )}
+                            >
+                              <ItemIcon className="size-3.5" />
+                            </div>
+                          )}
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
@@ -267,7 +268,7 @@ export function SettingsNestedNav({
                                 className={cn(
                                   "text-[10px] truncate leading-tight mt-0.5",
                                   isActive
-                                    ? "text-primary-foreground/80"
+                                    ? "text-primary-foreground/90"
                                     : "text-muted-foreground",
                                 )}
                               >
@@ -284,7 +285,7 @@ export function SettingsNestedNav({
                               className={cn(
                                 "text-[10px] font-bold px-1.5 py-0.2 rounded-md font-mono border",
                                 isActive
-                                  ? "bg-white/20 text-white border-white/30"
+                                  ? "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
                                   : item.badgeColor || "bg-muted text-muted-foreground border-border/40",
                               )}
                             >
@@ -312,43 +313,47 @@ export function SettingsNestedNav({
     <>
       {/* Mobile Sticky Selector Bar (< lg screens) */}
       <div className="lg:hidden w-full mb-4">
-        <div className="p-3 rounded-xl border bg-card/95 backdrop-blur-sm shadow-xs flex items-center justify-between gap-3">
+        <div className="p-3.5 rounded-2xl border border-border/70 bg-card/90 backdrop-blur-md shadow-2xs flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            {activeItemInfo?.item && (
-              <>
-                <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-                  <activeItemInfo.item.icon className="size-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      {activeItemInfo.category.label}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground/60">•</span>
-                    <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 border-primary/20 text-primary">
-                      Active
-                    </Badge>
+            {activeItemInfo?.item && (() => {
+              const ActiveIcon = activeItemInfo.item.icon;
+              return (
+                <>
+                  {ActiveIcon && (
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                      <ActiveIcon className="size-4" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        {activeItemInfo.category.label}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60">•</span>
+                      <Badge variant="outline" className="text-[9px] h-4 py-0 px-1 border-primary/20 text-primary">
+                        Active
+                      </Badge>
+                    </div>
+                    <h4 className="text-sm font-bold text-foreground truncate">
+                      {activeItemInfo.item.label}
+                    </h4>
                   </div>
-                  <h4 className="text-sm font-bold text-foreground truncate">
-                    {activeItemInfo.item.label}
-                  </h4>
-                </div>
-              </>
-            )}
+                </>
+              );
+            })()}
           </div>
 
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
             <SheetTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8 shrink-0">
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8 shrink-0 rounded-xl">
                 <Menu className="size-3.5" />
                 <span>Sub Menus</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[85vw] max-w-sm p-4 overflow-y-auto">
-              <SheetHeader className="pb-3 border-b text-left">
-                <SheetTitle className="text-base font-bold flex items-center gap-2">
-                  <Sparkles className="size-4 text-primary" />
-                  <span>{title}</span>
+              <SheetHeader className="pb-3 border-b border-border/60 text-left">
+                <SheetTitle className="text-base font-bold text-foreground">
+                  {title}
                 </SheetTitle>
                 <p className="text-xs text-muted-foreground">{subtitle}</p>
               </SheetHeader>
@@ -361,7 +366,7 @@ export function SettingsNestedNav({
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8 pr-7 h-8 text-xs bg-muted/40"
+                    className="pl-8 pr-7 h-8.5 text-xs bg-muted/40 rounded-xl"
                   />
                   {searchQuery && (
                     <button
@@ -384,16 +389,15 @@ export function SettingsNestedNav({
       {/* Desktop Sticky Vertical Sidebar (>= lg screens) */}
       <aside
         className={cn(
-          "hidden lg:flex flex-col w-72 xl:w-80 shrink-0 sticky top-4 max-h-[calc(100vh-2rem)] rounded-2xl border bg-card shadow-xs overflow-hidden",
+          "hidden lg:flex flex-col w-72 xl:w-80 shrink-0 sticky top-4 max-h-[calc(100vh-2rem)] rounded-2xl border border-border/70 bg-card/90 backdrop-blur-md shadow-2xs overflow-hidden",
           className,
         )}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b bg-muted/20">
+        <div className="p-4 border-b border-border/60 bg-muted/15">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="font-bold text-sm tracking-tight text-foreground flex items-center gap-2">
-              <Sparkles className="size-3.5 text-primary" />
-              <span>{title}</span>
+            <h3 className="font-bold text-sm tracking-tight text-foreground">
+              {title}
             </h3>
             <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0">
               {visibleCategories.reduce((acc, c) => acc + c.items.length, 0)} Sections
@@ -408,7 +412,7 @@ export function SettingsNestedNav({
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-7 h-8 text-xs bg-background/80"
+              className="pl-8 pr-7 h-8.5 text-xs bg-background/90 border-border/70 rounded-xl"
             />
             {searchQuery && (
               <button
@@ -429,7 +433,7 @@ export function SettingsNestedNav({
 
         {/* Sidebar Footer Info */}
         {activeItemInfo?.item && (
-          <div className="p-3 border-t bg-muted/10 flex items-center justify-between text-[11px] text-muted-foreground">
+          <div className="p-3 border-t border-border/60 bg-muted/15 flex items-center justify-between text-[11px] text-muted-foreground">
             <span className="truncate">
               Viewing: <strong className="text-foreground">{activeItemInfo.item.label}</strong>
             </span>
@@ -460,7 +464,7 @@ export function SettingsSectionBreadcrumb({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="p-4 rounded-2xl border bg-card/60 backdrop-blur-xs shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+    <div className="p-4 sm:p-5 rounded-2xl border border-border/70 bg-card/75 backdrop-blur-xs shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
       <div className="flex items-center gap-3 min-w-0">
         {Icon && (
           <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">

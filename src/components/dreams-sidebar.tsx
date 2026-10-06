@@ -69,7 +69,7 @@ export function DreamsSidebar({
 
   return (
     <aside
-      className={cn("sidebar", mobileOpen && "opened")}
+      className={cn("sidebar border-r border-border/70 bg-card/95 backdrop-blur-md shadow-2xs", mobileOpen && "opened")}
       id="sidebar"
       onMouseEnter={() => {
         if (collapsed && !ignoreHover) {
@@ -86,12 +86,12 @@ export function DreamsSidebar({
       }}
     >
       {/* Sidebar Logo Header */}
-      <div className={cn("sidebar-logo flex items-center h-14 border-b border-border-color gap-2", isMini ? "justify-center px-2" : "px-3 sm:px-4")}>
+      <div className={cn("sidebar-logo flex items-center h-14 border-b border-border/70 gap-2 bg-card/40", isMini ? "justify-center px-2" : "px-3 sm:px-4")}>
         {isMini ? (
           /* Mini Mode Centered Favicon */
           <Link
             to={homeRoute}
-            className="flex items-center justify-center size-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="flex items-center justify-center size-9 rounded-xl hover:bg-muted/70 transition-colors"
             title={branding.name || "Master HRMS & ERP"}
           >
             <img
@@ -129,9 +129,9 @@ export function DreamsSidebar({
               id="toggle_btn"
               onClick={handleToggleCollapse}
               className={cn(
-                "hidden lg:flex items-center justify-center size-7 rounded-md border transition-all cursor-pointer shadow-xs",
+                "hidden lg:flex items-center justify-center size-7.5 rounded-xl border transition-all cursor-pointer shadow-2xs",
                 collapsed
-                  ? "bg-slate-100 dark:bg-slate-800 border-border-color text-muted-foreground hover:text-primary"
+                  ? "bg-card border-border/70 text-muted-foreground hover:text-primary"
                   : "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
               )}
               title={collapsed ? "Expand Sidebar (250px)" : "Collapse Sidebar (72px)"}
@@ -143,7 +143,7 @@ export function DreamsSidebar({
             {/* Mobile Close X Button */}
             <button
               type="button"
-              className="sidebar-close lg:hidden size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer border border-border-color"
+              className="sidebar-close lg:hidden size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer border border-border/70 transition-colors"
               onClick={onCloseMobile}
               aria-label="Close Mobile Menu"
             >
@@ -155,7 +155,7 @@ export function DreamsSidebar({
 
       {/* Sidenav Scrollable Menu */}
       <div
-        className="sidebar-inner"
+        className="sidebar-inner custom-scrollbar"
         data-simplebar
         style={{ overflowY: "auto", height: "calc(100% - 56px)" }}
         onClick={(e) => {

@@ -581,7 +581,7 @@ function AppShell() {
       />
 
       {/* Topbar Header */}
-      <header className="navbar-header flex items-center max-lg:w-full">
+      <header className="navbar-header flex items-center max-lg:w-full border-b border-border/60 bg-background/80 backdrop-blur-md transition-colors">
         <div className="topbar-menu flex items-center justify-between w-full gap-2 px-1 sm:px-2 flex-nowrap">
           {/* Left section: mobile hamburger + mobile brand logo + desktop collapse toggle + workspace */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -589,7 +589,7 @@ function AppShell() {
             <button
               type="button"
               id="mobile_btn"
-              className="mobile-btn lg:hidden flex items-center justify-center size-9 rounded-lg border border-border-color bg-white dark:bg-slate-900 text-foreground shadow-xs hover:bg-light cursor-pointer transition-colors"
+              className="mobile-btn lg:hidden flex items-center justify-center size-9 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs cursor-pointer transition-colors"
               onClick={() => setMobileOpen((m) => !m)}
               aria-label="Toggle Navigation Menu"
             >
@@ -622,10 +622,10 @@ function AppShell() {
                 }
               }}
               className={cn(
-                "sidenav-toggle-btn topbar-link shrink-0 size-8 text-[18px] hidden lg:flex items-center justify-center rounded-lg border transition-all cursor-pointer shadow-xs",
+                "sidenav-toggle-btn topbar-link shrink-0 size-8.5 text-[18px] hidden lg:flex items-center justify-center rounded-xl border transition-all cursor-pointer shadow-2xs",
                 collapsed
                   ? "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
-                  : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
+                  : "bg-card border-border/70 hover:bg-muted/70 text-foreground"
               )}
               aria-label="Toggle Sidebar Mini Rail"
               title={collapsed ? "Expand Sidebar to Full Width (250px)" : "Collapse Sidebar to Mini Rail (72px)"}
@@ -637,12 +637,12 @@ function AppShell() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="header-item hidden md:flex relative company-dropdown me-auto cursor-pointer">
-                  <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md py-[6px] px-2.5 flex items-center justify-between gap-2 shadow-xs hover:border-primary/40 transition-colors">
+                  <div className="bg-card border border-border/70 rounded-xl py-1.5 px-3 flex items-center justify-between gap-2.5 shadow-2xs hover:border-primary/40 hover:bg-muted/40 transition-colors">
                     <div className="flex items-center gap-2">
                       <div className="size-5 rounded-md flex items-center justify-center shrink-0">
                         <img src={branding.faviconUrl || "/favicon.webp"} alt="company" className="size-3.5 object-contain" loading="lazy"/>
                       </div>
-                      <p className="text-[13px] font-semibold text-title leading-none truncate max-w-[150px]">
+                      <p className="text-xs font-bold text-foreground leading-none truncate max-w-[150px]">
                         {profile.tenant?.name || "Falcon LLP"}
                       </p>
                     </div>
@@ -650,11 +650,11 @@ function AppShell() {
                   </div>
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 p-2" align="start">
-                <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
+              <DropdownMenuContent className="w-56 p-2 rounded-xl border border-border/70 shadow-md" align="start">
+                <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
                   Active Workspace
                 </DropdownMenuLabel>
-                <DropdownMenuItem className="flex items-center gap-2 p-2 rounded-md font-medium text-sm">
+                <DropdownMenuItem className="flex items-center gap-2 p-2 rounded-lg font-medium text-xs">
                   <div className="size-6 rounded-md flex items-center justify-center">
                     <img src={branding.faviconUrl || "/favicon.webp"} alt="Tenant" className="size-4 object-contain" loading="lazy"/>
                   </div>
@@ -662,7 +662,7 @@ function AppShell() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/settings" className="flex items-center gap-2 p-2 cursor-pointer text-xs">
+                  <Link to="/settings" className="flex items-center gap-2 p-2 cursor-pointer text-xs rounded-lg">
                     <Settings className="size-3.5 text-muted-foreground" />
                     <span>Workspace Settings</span>
                   </Link>
@@ -676,7 +676,7 @@ function AppShell() {
             {/* Quick POS Terminal Button */}
             <Link
               to="/pos"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors shrink-0"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
               title="Open POS Terminal"
             >
               <i className="ph-duotone ph-shopping-cart text-sm"></i>
@@ -688,7 +688,7 @@ function AppShell() {
               href="/customer-display"
               target="_blank"
               rel="noopener noreferrer"
-              className="header-item topbar-link hidden xl:flex items-center justify-center size-8 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:bg-light text-foreground shadow-xs"
+              className="header-item topbar-link hidden xl:flex items-center justify-center size-8.5 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs transition-colors"
               title="Open Dual Customer Display in New Window"
             >
               <i className="ph-duotone ph-monitor text-base"></i>
@@ -698,12 +698,12 @@ function AppShell() {
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="header-item flex items-center gap-2 px-2.5 py-1.5 h-8 rounded-md border border-border-color bg-light/60 hover:bg-light text-muted-foreground hover:text-foreground text-xs transition-colors shadow-xs"
+              className="header-item flex items-center gap-2 px-3 py-1.5 h-8.5 rounded-xl border border-border/70 bg-muted/40 hover:bg-muted/70 text-muted-foreground hover:text-foreground text-xs transition-colors shadow-2xs cursor-pointer"
               aria-label="Global Search"
             >
               <i className="ph-duotone ph-magnifying-glass text-sm"></i>
               <span className="hidden md:inline font-medium">Search...</span>
-              <kbd className="hidden sm:inline-flex pointer-events-none h-4 items-center gap-0.5 rounded border bg-background px-1 font-mono text-[9px] font-semibold text-muted-foreground">⌘K</kbd>
+              <kbd className="hidden sm:inline-flex pointer-events-none h-4.5 items-center gap-0.5 rounded-md border border-border/60 bg-background px-1.5 font-mono text-[9px] font-semibold text-muted-foreground shadow-2xs">⌘K</kbd>
             </button>
 
             {/* Realtime Notification Drawer */}
@@ -715,7 +715,7 @@ function AppShell() {
             <div className="header-item hidden sm:flex">
               <Link
                 to="/chat"
-                className="topbar-link flex items-center justify-center size-8 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:bg-light text-foreground shadow-xs"
+                className="topbar-link flex items-center justify-center size-8.5 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs transition-colors"
                 title="Team Chat"
               >
                 <i className="ph-duotone ph-chats-circle text-base"></i>
@@ -729,10 +729,10 @@ function AppShell() {
                 id="btn_full_view"
                 onClick={() => setFullView((v) => !v)}
                 className={cn(
-                  "topbar-link flex items-center justify-center size-8 rounded-md border transition-all cursor-pointer shadow-xs",
+                  "topbar-link flex items-center justify-center size-8.5 rounded-xl border transition-all cursor-pointer shadow-2xs",
                   fullView
                     ? "bg-primary text-white border-primary hover:bg-primary/90"
-                    : "bg-white dark:bg-slate-900 border-border-color hover:bg-light text-foreground"
+                    : "bg-card border-border/70 hover:bg-muted/70 text-foreground"
                 )}
                 title={fullView ? "Exit Full View (Show Sidebar) (⌘B)" : "Full View Canvas (Hide Sidebar) (⌘B)"}
                 aria-label="Toggle Full View Canvas"
@@ -747,7 +747,7 @@ function AppShell() {
                 type="button"
                 id="btn_fullscreen"
                 onClick={toggleBrowserFullscreen}
-                className="topbar-link flex items-center justify-center size-8 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:bg-light text-foreground shadow-xs cursor-pointer transition-colors"
+                className="topbar-link flex items-center justify-center size-8.5 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs cursor-pointer transition-colors"
                 title={isFullscreen ? "Exit Fullscreen (Esc)" : "Full View Screen (Fullscreen)"}
                 aria-label="Toggle Fullscreen"
               >
@@ -775,7 +775,7 @@ function AppShell() {
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-64 p-3" align="end" forceMount>
+                <DropdownMenuContent className="w-64 p-3 rounded-2xl border border-border/70 shadow-lg" align="end" forceMount>
                   <DropdownMenuLabel className="p-1">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-10 ring-2 ring-primary/20">
@@ -799,7 +799,7 @@ function AppShell() {
                   <DropdownMenuSeparator className="my-2" />
 
                   {/* 2FA Security Status Indicator */}
-                  <div className="px-2 py-1.5 rounded-lg bg-muted/40 border border-border/50 text-[11px] flex items-center justify-between mb-1">
+                  <div className="px-2.5 py-1.5 rounded-xl bg-muted/40 border border-border/60 text-[11px] flex items-center justify-between mb-1">
                     <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
                       <ShieldCheck className="size-3.5 text-primary" />
                       2FA Status
@@ -818,31 +818,31 @@ function AppShell() {
                   </div>
 
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" search={{ tab: "profile" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium">
+                    <Link to="/settings" search={{ tab: "profile" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
                       <User className="size-3.5 text-muted-foreground" />
                       <span>Profile</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" search={{ tab: "security" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium">
+                    <Link to="/settings" search={{ tab: "security" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
                       <ShieldCheck className="size-3.5 text-emerald-500" />
                       <span>Security & 2FA</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/setup-notes" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium">
+                    <Link to="/setup-notes" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
                       <HelpCircle className="size-3.5 text-primary" />
                       <span>Setup Notes & Guide</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium">
+                    <Link to="/settings" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
                       <Settings className="size-3.5 text-muted-foreground" />
                       <span>Workspace Settings</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/subscription" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium">
+                    <Link to="/subscription" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
                       <CreditCard className="size-3.5 text-muted-foreground" />
                       <span>Subscription & Plan</span>
                     </Link>
@@ -851,7 +851,7 @@ function AppShell() {
                     <>
                       <DropdownMenuSeparator className="my-1" />
                       <DropdownMenuItem asChild>
-                        <Link to="/super" className="flex items-center gap-2.5 cursor-pointer py-2 text-purple-600 dark:text-purple-400 font-semibold">
+                        <Link to="/super" className="flex items-center gap-2.5 cursor-pointer py-2 text-purple-600 dark:text-purple-400 font-semibold rounded-lg">
                           <ShieldCheck className="size-4" />
                           <span>Super Admin Console</span>
                         </Link>
@@ -859,7 +859,7 @@ function AppShell() {
                     </>
                   )}
                   <DropdownMenuSeparator className="my-2" />
-                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2.5 cursor-pointer text-destructive focus:text-destructive py-2">
+                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2.5 cursor-pointer text-destructive focus:text-destructive py-2 rounded-lg">
                     <LogOut className="size-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>

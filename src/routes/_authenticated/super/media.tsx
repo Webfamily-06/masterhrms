@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,672 +22,449 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  FolderPlus,
   Upload,
   Copy,
   Folder,
   Image as ImageIcon,
+  FileText,
   Trash2,
   Search,
   RefreshCw,
   Loader2,
-  Building2,
-  Plus,
-  Globe,
-  Sparkles,
-  CheckCircle2,
-  Tag,
-  Filter,
+  ExternalLink,
+  CheckCircle,
+  AlertTriangle,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/super/media")({
-  component: MediaLibraryAdmin,
+  component: PlatformMediaGallery,
 });
 
-export type MediaFile = {
+export interface MediaUsageItem {
   id: string;
-  name: string;
-  folder: string;
-  category: string;
+  entityType: string;
+  entityId: string;
+  fieldKey: string;
+}
+
+export interface PlatformMediaFile {
+  id: string;
+  tenantId: string | null;
+  storageDisk: string;
+  filePath: string;
   url: string;
-  size: string;
-  date: string;
-};
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  width?: number | null;
+  height?: number | null;
+  checksumSha: string;
+  folder: string;
+  tags: string[];
+  uploadedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  usages: MediaUsageItem[];
+}
 
-export type ClientLogoItem = {
-  id: string;
-  name: string;
-  logo_url?: string;
-  logoUrl?: string;
-  badge?: string;
-};
-
-const DEFAULT_FOLDERS = ["Core UI", "Hero Banners", "Addon Icons", "Marketing", "Clients"];
-const DEFAULT_CATEGORIES = ["General", "Logos", "Banners", "Icons", "Screenshots"];
-
-const DEFAULT_CLIENT_LOGOS: ClientLogoItem[] = [
-  { id: "c1", name: "Apex Global Manufacturing", badge: "Manufacturing" },
-  { id: "c2", name: "Nova Health System", badge: "Healthcare" },
-  { id: "c3", name: "Zenith Retail Cloud", badge: "Retail" },
-  { id: "c4", name: "Horizon Logistics", badge: "Logistics" },
-  { id: "c5", name: "Reliance Tech Digital", badge: "Enterprise" },
-  { id: "c6", name: "Tata Communications", badge: "Telecom" },
-  { id: "c7", name: "Mahindra Operations", badge: "Automotive" },
-  { id: "c8", name: "Infosys Cloud", badge: "IT & Tech" },
+const DEFAULT_FOLDERS = [
+  "system/branding",
+  "general",
+  "marketing",
+  "documents",
+  "clients",
 ];
 
-function MediaLibraryAdmin() {
+function PlatformMediaGallery() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<"media_grid" | "client_logos">("media_grid");
-  const [selectedFolder, setSelectedFolder] = useState<string>("All");
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFolder, setSelectedFolder] = useState<string>("All");
+  const [selectedType, setSelectedType] = useState<"ALL" | "IMAGE" | "DOCUMENT">("ALL");
 
-  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-
-  const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
-  const [newLogoName, setNewLogoName] = useState("");
-  const [newLogoUrl, setNewLogoUrl] = useState("");
-  const [newLogoBadge, setNewLogoBadge] = useState("");
-
+  // Upload modal states
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadFolderChoice, setUploadFolderChoice] = useState("General");
-  const [uploadCategoryChoice, setUploadCategoryChoice] = useState("General");
-  const [selectedFileObj, setSelectedFileObj] = useState<File | null>(null);
+  const [uploadFolder, setUploadFolder] = useState("system/branding");
+  const [uploadTags, setUploadTags] = useState("branding");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // 1. Realtime Media Library Query from MySQL API
+  // Deletion conflict modal states
+  const [selectedFileForDelete, setSelectedFileForDelete] = useState<PlatformMediaFile | null>(null);
+  const [inUseConflict, setInUseConflict] = useState<{
+    file: PlatformMediaFile;
+    usages: MediaUsageItem[];
+    message: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // 1. Authoritative Platform Media Query from MySQL API
   const {
-    data: mediaData,
+    data: mediaList = [],
     isLoading,
     refetch,
-  } = useQuery({
-    queryKey: ["realtime-media-library"],
+  } = useQuery<PlatformMediaFile[]>({
+    queryKey: ["platform-canonical-media"],
     queryFn: async () => {
       try {
-        const [mediaRes, logoRes] = await Promise.all([
-          api.get("/cms/pages/system-media-library").catch(() => null),
-          api.get("/cms/pages/system-client-logos").catch(() => null),
-        ]);
-
-        const mediaParsed = mediaRes?.content || {};
-        const logoParsed = logoRes?.content || {};
-
-        return {
-          folders: (mediaParsed.folders ?? DEFAULT_FOLDERS) as string[],
-          categories: (mediaParsed.categories ?? DEFAULT_CATEGORIES) as string[],
-          files: (mediaParsed.files ?? []) as MediaFile[],
-          clientLogos: (logoParsed.logos ?? DEFAULT_CLIENT_LOGOS) as ClientLogoItem[],
-        };
-      } catch {
-        return {
-          folders: DEFAULT_FOLDERS,
-          categories: DEFAULT_CATEGORIES,
-          files: [],
-          clientLogos: DEFAULT_CLIENT_LOGOS,
-        };
+        const res = await api.get("/v1/media");
+        return Array.isArray(res) ? res : [];
+      } catch (err: any) {
+        toast.error(err.message || "Failed to load platform media");
+        return [];
       }
     },
   });
 
-  const folders = mediaData?.folders ?? DEFAULT_FOLDERS;
-  const categories = mediaData?.categories ?? DEFAULT_CATEGORIES;
-  const files = mediaData?.files ?? [];
-  const clientLogos = mediaData?.clientLogos ?? DEFAULT_CLIENT_LOGOS;
-
-  // 2. Save Media Library Mutation
-  const saveMediaMutation = useMutation({
-    mutationFn: async (updatedData: {
-      folders?: string[];
-      categories?: string[];
-      files?: MediaFile[];
-    }) => {
-      const payload = {
-        folders: updatedData.folders ?? folders,
-        categories: updatedData.categories ?? categories,
-        files: updatedData.files ?? files,
-      };
-      await api.put("/cms/pages/system-media-library", {
-        title: "System Media Library",
-        meta_description: "Realtime media assets, folders and category uploads",
-        content: payload,
-        published: true,
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["realtime-media-library"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  // 3. Save Client Logos Mutation
-  const saveLogosMutation = useMutation({
-    mutationFn: async (updatedLogos: ClientLogoItem[]) => {
-      await api.put("/cms/pages/system-client-logos", {
-        title: "Enterprise Client Logos",
-        meta_description: "Live homepage client logos and partner badges",
-        content: { logos: updatedLogos },
-        published: true,
-      });
-    },
-    onSuccess: () => {
-      toast.success("Client logos updated in real-time on public homepage!");
-      qc.invalidateQueries({ queryKey: ["realtime-media-library"] });
-      qc.invalidateQueries({ queryKey: ["homepage-client-logos"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  function handleCopyPath(url: string) {
-    navigator.clipboard.writeText(url);
-    toast.success("Image URL path copied to clipboard!");
-  }
-
-  // Create Folder Handler
-  function handleCreateFolder() {
-    if (!newFolderName.trim()) return toast.error("Folder name required");
-    const name = newFolderName.trim();
-    if (folders.includes(name)) {
-      return toast.error("Folder already exists");
+  // Extract distinct folders
+  const availableFolders = useMemo(() => {
+    const set = new Set<string>(DEFAULT_FOLDERS);
+    for (const f of mediaList) {
+      if (f.folder) set.add(f.folder);
     }
-    saveMediaMutation.mutate({ folders: [...folders, name] });
-    setNewFolderName("");
-    setIsFolderModalOpen(false);
-    toast.success(`Folder "${name}" created in real-time`);
-  }
+    return Array.from(set);
+  }, [mediaList]);
 
-  // File Selected for Upload Modal
+  // Filter media files
+  const filteredFiles = useMemo(() => {
+    return mediaList.filter((f) => {
+      const matchesSearch =
+        !searchQuery ||
+        f.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.folder.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (f.tags && f.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
+
+      const matchesFolder =
+        selectedFolder === "All" || f.folder === selectedFolder;
+
+      const isImg = f.mimeType.startsWith("image/");
+      const matchesType =
+        selectedType === "ALL" ||
+        (selectedType === "IMAGE" && isImg) ||
+        (selectedType === "DOCUMENT" && !isImg);
+
+      return matchesSearch && matchesFolder && matchesType;
+    });
+  }, [mediaList, searchQuery, selectedFolder, selectedType]);
+
+  // File selected for upload
   function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const filesArr = e.target.files;
-    if (!filesArr || filesArr.length === 0) return;
-    const file = filesArr[0];
-    setSelectedFileObj(file);
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setPreviewUrl(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    setSelectedFile(file);
+    if (file.type.startsWith("image/")) {
+      const localUrl = URL.createObjectURL(file);
+      setPreviewUrl(localUrl);
+    } else {
+      setPreviewUrl(null);
+    }
   }
 
-  // Confirm Upload with Chosen Folder & Category
-  function handleConfirmUpload() {
-    if (!selectedFileObj || !previewUrl) return toast.error("Please select a file to upload");
+  // Confirm upload
+  async function handleConfirmUpload() {
+    if (!selectedFile) {
+      return toast.error("Please select a file to upload");
+    }
 
     setIsUploading(true);
     try {
-      const newMedia: MediaFile = {
-        id: `m-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        name: selectedFileObj.name,
-        folder: uploadFolderChoice || "Client Logos",
-        category: uploadCategoryChoice || "Client Logos",
-        url: previewUrl,
-        size: `${Math.round(selectedFileObj.size / 1024)} KB`,
-        date: new Date().toISOString().split("T")[0],
-      };
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("folder", uploadFolder);
+      formData.append("tags", uploadTags);
 
-      // Also automatically register into Client Logos if category is Client Logos or Logos
-      if (uploadCategoryChoice === "Client Logos" || uploadFolderChoice === "Client Logos") {
-        const logoItem: ClientLogoItem = {
-          id: `logo-${Date.now()}`,
-          name: selectedFileObj.name.replace(/\.[^/.]+$/, ""),
-          badge: "Partner Logo",
-          logoUrl: previewUrl,
-        };
-        saveLogosMutation.mutate([...clientLogos, logoItem]);
-      }
+      await api.upload("/v1/media/upload", formData);
 
-      saveMediaMutation.mutate({ files: [newMedia, ...files] });
-      toast.success(
-        `Asset uploaded into folder "${uploadFolderChoice}" [${uploadCategoryChoice}]!`,
-      );
-      setSelectedFileObj(null);
+      toast.success(`Asset "${selectedFile.name}" registered in Platform Media Gallery!`);
+      qc.invalidateQueries({ queryKey: ["platform-canonical-media"] });
+      setSelectedFile(null);
       setPreviewUrl(null);
       setIsUploadModalOpen(false);
     } catch (err: any) {
-      toast.error(err.message || "Upload failed");
+      toast.error(err.message || "Failed to upload file");
     } finally {
       setIsUploading(false);
     }
   }
 
-  // Simplified Direct Client Logo Image File Upload (No Client Name Required!)
-  function handleDirectLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const filesArr = e.target.files;
-    if (!filesArr || filesArr.length === 0) return;
-    const file = filesArr[0];
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const url = ev.target?.result as string;
-      const logoName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-
-      const logoItem: ClientLogoItem = {
-        id: `logo-${Date.now()}`,
-        name: logoName,
-        badge: "Client Logo",
-        logoUrl: url,
-      };
-
-      // Also save to Media Files
-      const mediaItem: MediaFile = {
-        id: `m-${Date.now()}`,
-        name: file.name,
-        folder: "Client Logos",
-        category: "Client Logos",
-        url,
-        size: `${Math.round(file.size / 1024)} KB`,
-        date: new Date().toISOString().split("T")[0],
-      };
-
-      saveLogosMutation.mutate([...clientLogos, logoItem]);
-      saveMediaMutation.mutate({ files: [mediaItem, ...files] });
-      toast.success(`Client Logo "${file.name}" uploaded to live homepage logo carousel!`);
-    };
-    reader.readAsDataURL(file);
+  // Delete file handler
+  async function handleDeleteFile(file: PlatformMediaFile, force = false) {
+    setIsDeleting(true);
+    try {
+      await api.delete(`/v1/media/${file.id}${force ? "?force=true" : ""}`);
+      toast.success(`Deleted "${file.fileName}" from Platform Media Gallery`);
+      qc.invalidateQueries({ queryKey: ["platform-canonical-media"] });
+      setSelectedFileForDelete(null);
+      setInUseConflict(null);
+    } catch (err: any) {
+      if (err.status === 409 || err.code === "MEDIA_IN_USE" || err.response?.status === 409) {
+        setInUseConflict({
+          file,
+          usages: file.usages || [],
+          message: err.message || "This file is currently in use by active system settings.",
+        });
+      } else {
+        toast.error(err.message || "Failed to delete file");
+      }
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
-  function handleDeleteFile(id: string) {
-    const updatedFiles = files.filter((f) => f.id !== id);
-    saveMediaMutation.mutate({ files: updatedFiles });
-    toast.success("Media file deleted");
+  function copyToClipboard(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard!`);
   }
-
-  function handleDeleteClientLogo(id: string) {
-    const updated = clientLogos.filter((l) => l.id !== id);
-    saveLogosMutation.mutate(updated);
-  }
-
-  const filteredFiles = files.filter((f) => {
-    const matchesFolder = selectedFolder === "All" || f.folder === selectedFolder;
-    const matchesCategory = selectedCategory === "All" || f.category === selectedCategory;
-    const matchesSearch = !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFolder && matchesCategory && matchesSearch;
-  });
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">Media & Client Logos Hub</h1>
-            <Badge variant="secondary" className="gap-1 text-xs font-mono">
-              <ImageIcon className="size-3 text-primary" /> Realtime Assets Sync
-            </Badge>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            Platform Media Gallery
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Create custom folders, choose asset categories, and upload client logos directly.
+            Authoritative platform asset repository for system branding, documents, and global media.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsFolderModalOpen(true)}
-            className="gap-1.5 text-xs"
+            onClick={() => refetch()}
+            className="gap-2"
           >
-            <FolderPlus className="size-4 text-primary" /> Create Folder
-          </Button>
-
-          <input
-            type="file"
-            ref={logoFileInputRef}
-            accept="image/*"
-            onChange={handleDirectLogoUpload}
-            className="hidden"
-          />
-          <Button
-            size="sm"
-            onClick={() => logoFileInputRef.current?.click()}
-            className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Upload className="size-4" /> Upload Client Logo
+            <RefreshCw className="size-4" /> Refresh
           </Button>
 
           <Button
-            size="sm"
-            onClick={() => setIsUploadModalOpen(true)}
-            className="gap-1.5 text-xs bg-primary"
+            onClick={() => {
+              setSelectedFile(null);
+              setPreviewUrl(null);
+              setIsUploadModalOpen(true);
+            }}
+            className="gap-2 bg-primary"
           >
-            <Plus className="size-4" /> Upload File (Folder & Category)
+            <Upload className="size-4" /> Upload Asset
           </Button>
         </div>
       </div>
 
-      {/* Tabs: Media Manager vs Homepage Client Logos */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="grid grid-cols-2 w-full max-w-sm mb-6">
-          <TabsTrigger value="media" className="gap-2 text-xs">
-            <ImageIcon className="size-4" /> Media Files ({files.length})
-          </TabsTrigger>
-          <TabsTrigger value="logos" className="gap-2 text-xs">
-            <Building2 className="size-4" /> Homepage Client Logos ({clientLogos.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 rounded-xl border bg-card/60">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search assets by name, folder or tag..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 text-xs h-9"
+          />
+        </div>
 
-        {/* TAB 1: MEDIA FILES MANAGER (Folders & Categories) */}
-        <TabsContent value="media">
-          {isLoading ? (
-            <div className="py-20 grid place-items-center">
-              <Loader2 className="size-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="grid lg:grid-cols-[250px_1fr] gap-6 items-start">
-              {/* Folders Sidebar */}
-              <Card className="p-3 border shadow-xs space-y-1.5">
-                <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-muted-foreground uppercase border-b mb-1">
-                  <span className="flex items-center gap-1.5">
-                    <Folder className="size-3.5" /> Folders
-                  </span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-6"
-                    onClick={() => setIsFolderModalOpen(true)}
-                    title="Create Folder"
-                  >
-                    <Plus className="size-3.5" />
-                  </Button>
-                </div>
+        <div className="flex items-center gap-2">
+          <Select value={selectedFolder} onValueChange={setSelectedFolder}>
+            <SelectTrigger className="w-36 text-xs h-9">
+              <SelectValue placeholder="Folder" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Folders</SelectItem>
+              {availableFolders.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {f}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-                <button
-                  onClick={() => setSelectedFolder("All")}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                    selectedFolder === "All"
-                      ? "bg-primary text-primary-foreground font-semibold"
-                      : "hover:bg-secondary text-foreground"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <Folder className="size-3.5" /> All Media
-                  </span>
-                  <span className="font-mono text-[10px]">({files.length})</span>
-                </button>
+          <Select
+            value={selectedType}
+            onValueChange={(val: any) => setSelectedType(val)}
+          >
+            <SelectTrigger className="w-32 text-xs h-9">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Types</SelectItem>
+              <SelectItem value="IMAGE">Images</SelectItem>
+              <SelectItem value="DOCUMENT">Documents</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-                {folders.map((f) => {
-                  const count = files.filter((x) => x.folder === f).length;
-                  return (
-                    <button
-                      key={f}
-                      onClick={() => setSelectedFolder(f)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                        selectedFolder === f
-                          ? "bg-primary text-primary-foreground font-semibold"
-                          : "hover:bg-secondary text-foreground"
-                      }`}
-                    >
-                      <span className="flex items-center gap-2 truncate">
-                        <Folder className="size-3.5 shrink-0" />{" "}
-                        <span className="truncate">{f}</span>
-                      </span>
-                      <span className="font-mono text-[10px]">({count})</span>
-                    </button>
-                  );
-                })}
-              </Card>
+      {/* Media Grid */}
+      {isLoading ? (
+        <div className="flex items-center justify-center p-16 text-muted-foreground gap-2">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <span className="text-sm font-medium">Loading platform media assets...</span>
+        </div>
+      ) : filteredFiles.length === 0 ? (
+        <div className="border border-dashed rounded-xl p-16 text-center text-muted-foreground">
+          <Folder className="size-10 mx-auto mb-3 opacity-40 text-primary" />
+          <h3 className="text-base font-semibold text-foreground">No media assets found</h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+            {searchQuery
+              ? "No assets matched your search filter. Try clearing your search query."
+              : "Upload platform assets like logos, favicons, or document templates to register them here."}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsUploadModalOpen(true)}
+            className="mt-4 gap-1.5 text-xs"
+          >
+            <Upload className="size-3.5" /> Upload First Asset
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredFiles.map((file) => {
+            const isInUse = file.usages && file.usages.length > 0;
+            const isImage = file.mimeType.startsWith("image/");
 
-              {/* Main Content Area */}
-              <div className="space-y-4">
-                {/* Search & Category Filter Pills */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-xs">
-                  <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search assets by filename..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 h-9 text-xs"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto py-1">
-                    <span className="text-[11px] font-bold text-muted-foreground shrink-0 flex items-center gap-1">
-                      <Filter className="size-3" /> Category:
-                    </span>
-                    <Button
-                      size="sm"
-                      variant={selectedCategory === "All" ? "default" : "ghost"}
-                      className="h-7 text-xs px-2.5 font-semibold shrink-0"
-                      onClick={() => setSelectedCategory("All")}
-                    >
-                      All
-                    </Button>
-                    {categories.map((cat) => (
-                      <Button
-                        key={cat}
-                        size="sm"
-                        variant={selectedCategory === cat ? "default" : "ghost"}
-                        className="h-7 text-xs px-2.5 font-semibold shrink-0"
-                        onClick={() => setSelectedCategory(cat)}
-                      >
-                        {cat}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Media Grid */}
-                {filteredFiles.length === 0 ? (
-                  <Card className="p-12 text-center text-xs text-muted-foreground italic space-y-2">
-                    <ImageIcon className="size-8 mx-auto opacity-30" />
-                    <p>
-                      No image files found matching folder "{selectedFolder}" and category "
-                      {selectedCategory}".
-                    </p>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {filteredFiles.map((file) => (
-                      <Card
-                        key={file.id}
-                        className="group overflow-hidden hover:border-primary/50 transition-all flex flex-col justify-between"
-                      >
-                        <div className="aspect-video bg-secondary/30 relative flex items-center justify-center overflow-hidden">
-                          <img
-                            src={file.url}
-                            alt={file.name}
-                            className="object-cover size-full group-hover:scale-105 transition-transform"
-                           loading="lazy"/>
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <Button
-                              size="icon"
-                              variant="secondary"
-                              onClick={() => handleCopyPath(file.url)}
-                              title="Copy Image URL"
-                            >
-                              <Copy className="size-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="destructive"
-                              onClick={() => handleDeleteFile(file.id)}
-                              title="Delete Asset"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="absolute top-2 left-2 text-[9px] font-mono bg-background/80 backdrop-blur-xs"
-                          >
-                            {file.category || "General"}
-                          </Badge>
-                        </div>
-                        <div className="p-3 space-y-1">
-                          <div className="font-bold text-xs truncate" title={file.name}>
-                            {file.name}
-                          </div>
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono pt-1 border-t">
-                            <span className="truncate">{file.folder}</span>
-                            <span className="shrink-0">{file.size}</span>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* TAB 2: HOMEPAGE CLIENT LOGOS STREAM */}
-        <TabsContent value="logos">
-          <Card className="p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-              <div>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <Building2 className="size-5 text-primary" /> Live Homepage Client Logos
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Upload client logos directly (no company name required). Logos render in real-time
-                  on the public landing page.
-                </CardDescription>
-              </div>
-
-              <label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleDirectLogoUpload}
-                  className="hidden"
-                />
-                <Button
-                  asChild
-                  size="sm"
-                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
-                >
-                  <span>
-                    <Upload className="size-4" /> Upload Client Logo
-                  </span>
-                </Button>
-              </label>
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {clientLogos.map((logo) => (
-                <div
-                  key={logo.id}
-                  className="p-4 rounded-xl border bg-card flex items-center justify-between gap-3 group hover:border-primary/50 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    {logo.logoUrl ? (
+            return (
+              <Card
+                key={file.id}
+                className="overflow-hidden border bg-card/60 transition-all hover:border-primary/40 hover:shadow-xs group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="h-36 bg-slate-100 dark:bg-slate-900 border-b flex items-center justify-center p-3 relative">
+                    {isImage ? (
                       <img
-                        src={logo.logoUrl}
-                        alt={logo.name}
-                        className="size-10 object-contain rounded-lg border p-1 shrink-0 bg-background"
-                       loading="lazy"/>
+                        src={file.url}
+                        alt={file.fileName}
+                        className="max-h-full max-w-full object-contain"
+                      />
                     ) : (
-                      <div className="size-10 rounded-lg bg-primary/10 text-primary grid place-items-center font-bold text-sm font-mono shrink-0">
-                        {logo.name[0]}
+                      <div className="flex flex-col items-center justify-center text-muted-foreground">
+                        <FileText className="size-10 text-primary mb-1" />
+                        <span className="text-[10px] font-mono uppercase">
+                          {file.mimeType.split("/")[1] || "DOCUMENT"}
+                        </span>
                       </div>
                     )}
-                    <div className="min-w-0">
-                      <div className="font-bold text-xs truncate" title={logo.name}>
-                        {logo.name}
-                      </div>
-                      <Badge variant="secondary" className="text-[9px] font-mono mt-0.5">
-                        {logo.badge}
+
+                    {isInUse ? (
+                      <Badge
+                        variant="default"
+                        className="absolute top-2 left-2 text-[10px] bg-emerald-600 gap-1 font-sans"
+                      >
+                        <CheckCircle className="size-2.5" /> In Use ({file.usages.length})
                       </Badge>
+                    ) : (
+                      <Badge
+                        variant="secondary"
+                        className="absolute top-2 left-2 text-[10px] font-sans opacity-70"
+                      >
+                        Unused
+                      </Badge>
+                    )}
+                  </div>
+
+                  <CardContent className="p-3 text-xs space-y-2">
+                    <div>
+                      <p
+                        className="font-semibold truncate text-foreground text-sm"
+                        title={file.fileName}
+                      >
+                        {file.fileName}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {(file.fileSize / 1024).toFixed(1)} KB • {file.folder}
+                      </p>
                     </div>
+
+                    {isInUse && (
+                      <div className="p-2 rounded bg-muted/60 border text-[10px] space-y-0.5">
+                        <span className="font-semibold text-primary block">Active Usages:</span>
+                        {file.usages.map((u, i) => (
+                          <div key={i} className="truncate text-muted-foreground">
+                            • {u.fieldKey} ({u.entityType})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </div>
+
+                <div className="p-3 pt-0 border-t flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Copy URL"
+                      aria-label="Copy URL"
+                      className="size-7 p-0"
+                      onClick={() => copyToClipboard(file.url, "URL")}
+                    >
+                      <Copy className="size-3.5" />
+                    </Button>
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="size-7 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                      title="View File"
+                    >
+                      <ExternalLink className="size-3.5" />
+                    </a>
                   </div>
 
                   <Button
-                    size="icon"
                     variant="ghost"
-                    onClick={() => handleDeleteClientLogo(logo.id)}
-                    className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    size="sm"
+                    title="Delete Media"
+                    aria-label="Delete Media"
+                    className="size-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (isInUse) {
+                        setInUseConflict({
+                          file,
+                          usages: file.usages,
+                          message: `File is actively used by ${file.usages.length} setting(s).`,
+                        });
+                      } else {
+                        setSelectedFileForDelete(file);
+                      }
+                    }}
                   >
-                    <Trash2 className="size-4" />
+                    <Trash2 className="size-3.5" />
                   </Button>
                 </div>
-              ))}
-            </div>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      {/* MODAL 1: CREATE NEW FOLDER */}
-      <Dialog open={isFolderModalOpen} onOpenChange={setIsFolderModalOpen}>
+      {/* Upload Modal */}
+      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FolderPlus className="size-5 text-primary" /> Create New Folder
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Create a custom folder directory to organize logos, banners, and documents.
+            <DialogTitle>Upload Platform Asset</DialogTitle>
+            <DialogDescription>
+              Upload media to the canonical platform storage repository.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Folder Name *</Label>
-              <Input
-                placeholder="e.g. Client Logos, Executive Photos, Banners"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsFolderModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateFolder} className="bg-primary font-bold">
-              Create Folder
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL 2: UPLOAD FILE WITH FOLDER & CATEGORY SELECTOR */}
-      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Upload className="size-5 text-primary" /> Upload Asset File
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Choose an image file, destination folder, and category tag.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-            {/* File Input */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Select File *</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelected}
-                className="text-xs"
-              />
-            </div>
-
-            {/* Folder Selection */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Destination Folder</Label>
-              <Select value={uploadFolderChoice} onValueChange={setUploadFolderChoice}>
-                <SelectTrigger className="h-9 text-xs">
+            <div>
+              <Label className="text-xs">Destination Folder</Label>
+              <Select value={uploadFolder} onValueChange={setUploadFolder}>
+                <SelectTrigger className="mt-1 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {folders.map((f) => (
-                    <SelectItem key={f} value={f} className="text-xs">
+                  {availableFolders.map((f) => (
+                    <SelectItem key={f} value={f}>
                       {f}
                     </SelectItem>
                   ))}
@@ -695,50 +472,175 @@ function MediaLibraryAdmin() {
               </Select>
             </div>
 
-            {/* Category Selection */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Asset Category</Label>
-              <Select value={uploadCategoryChoice} onValueChange={setUploadCategoryChoice}>
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c} value={c} className="text-xs">
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div>
+              <Label className="text-xs">Tags (comma-separated)</Label>
+              <Input
+                value={uploadTags}
+                onChange={(e) => setUploadTags(e.target.value)}
+                placeholder="branding, logo, vector"
+                className="mt-1 text-xs"
+              />
             </div>
 
-            {/* Image Preview */}
-            {previewUrl && (
-              <div className="p-2 border rounded-xl bg-secondary/30 text-center">
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="h-28 mx-auto object-contain rounded-lg"
-                 loading="lazy"/>
+            <div>
+              <Label className="text-xs">Select File</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,application/pdf"
+                className="hidden"
+                onChange={handleFileSelected}
+              />
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-1 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              >
+                {previewUrl ? (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="max-h-24 max-w-full object-contain mb-2"
+                    />
+                    <p className="text-xs font-medium text-foreground">
+                      {selectedFile?.name}
+                    </p>
+                  </div>
+                ) : selectedFile ? (
+                  <div className="flex flex-col items-center">
+                    <FileText className="size-10 text-primary mb-2" />
+                    <p className="text-xs font-medium text-foreground">
+                      {selectedFile.name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {(selectedFile.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center text-muted-foreground">
+                    <Upload className="size-8 mb-2 opacity-50" />
+                    <p className="text-xs font-medium text-foreground">
+                      Click to choose file
+                    </p>
+                    <p className="text-[11px] mt-0.5">
+                      PNG, JPG, WebP, SVG, ICO, or PDF (up to 10MB)
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUploadModalOpen(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsUploadModalOpen(false)}
+            >
               Cancel
             </Button>
             <Button
+              size="sm"
+              disabled={!selectedFile || isUploading}
               onClick={handleConfirmUpload}
-              disabled={isUploading || !selectedFileObj}
-              className="bg-primary font-bold gap-2"
+              className="gap-2"
             >
               {isUploading ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-3.5 animate-spin" />
               ) : (
-                <Upload className="size-4" />
-              )}{" "}
-              Upload to Media
+                <Upload className="size-3.5" />
+              )}
+              Upload Asset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog
+        open={!!selectedFileForDelete}
+        onOpenChange={(open) => !open && setSelectedFileForDelete(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Media File</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove &quot;{selectedFileForDelete?.fileName}&quot;?
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedFileForDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => selectedFileForDelete && handleDeleteFile(selectedFileForDelete, false)}
+            >
+              {isDeleting ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deletion Conflict (MEDIA_IN_USE) Modal */}
+      <Dialog
+        open={!!inUseConflict}
+        onOpenChange={(open) => !open && setInUseConflict(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="size-5" />
+              Media File Is In Use
+            </DialogTitle>
+            <DialogDescription>
+              This file cannot be deleted because it is actively referenced by system settings.
+            </DialogDescription>
+          </DialogHeader>
+
+          {inUseConflict && (
+            <div className="space-y-3 py-2 text-xs">
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">
+                <p className="font-medium">{inUseConflict.message}</p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-foreground mb-1">Active References:</p>
+                <div className="space-y-1 max-h-36 overflow-y-auto border rounded p-2 bg-muted/40 font-mono text-[11px]">
+                  {inUseConflict.usages.map((u, i) => (
+                    <div key={i} className="truncate">
+                      • {u.fieldKey} ({u.entityType})
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setInUseConflict(null)}
+            >
+              Close
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => inUseConflict && handleDeleteFile(inUseConflict.file, true)}
+            >
+              {isDeleting ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
+              Force Delete Anyway
             </Button>
           </DialogFooter>
         </DialogContent>

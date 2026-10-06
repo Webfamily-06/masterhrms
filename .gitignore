@@ -87,6 +87,7 @@ master_hrms_production_dump.sql
 
 # Test & Tooling artifacts
 .playwright-mcp/
+owasp-zap-mcp/
 graphify-out/
 landing_page.png
 mobile_dashboard.png

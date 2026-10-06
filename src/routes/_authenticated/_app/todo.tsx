@@ -42,6 +42,12 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { LoadingState } from "@/components/system-states/loading-state";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/todo")({
   component: TodoPage,
@@ -103,6 +109,7 @@ export function TodoPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null);
+  const [todoToDelete, setTodoToDelete] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -150,6 +157,7 @@ export function TodoPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
       toast.success("Task deleted.");
+      setTodoToDelete(null);
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || "Failed to delete task");
@@ -256,86 +264,80 @@ export function TodoPage() {
   }, [todos, statusFilter, priorityFilter, tagFilter, search, sortBy]);
 
   return (
-    <div className="space-y-5 max-w-full pb-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <CheckSquare className="size-5 text-primary" />
-            <h1 className="text-2xl font-black tracking-tight text-foreground">Todo & Task Tracker</h1>
-            <Badge variant="outline" className="text-[10px] font-mono">
-              {completedCount}/{totalCount} Done ({progressPercent}%)
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Operational action items, daily agendas, and team priorities.
-          </p>
-        </div>
+    <div className="space-y-6 max-w-full pb-8">
+      {/* ─── PageHeader ─── */}
+      <PageHeader
+        title="Todo & Task Tracker"
+        description="Operational action items, daily agendas, and team priorities."
+        icon={<CheckSquare className="size-5 text-primary" />}
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Workplace", href: "/todo" },
+          { label: "Todo & Tasks" },
+        ]}
+        badge={
+          <Badge variant="outline" className="text-[10px] font-mono border-border/80">
+            {completedCount}/{totalCount} Done ({progressPercent}%)
+          </Badge>
+        }
+        actions={
+          <Button
+            size="sm"
+            onClick={handleOpenCreate}
+            className="gap-1.5 text-xs font-semibold shadow-2xs"
+          >
+            <Plus className="size-3.5" /> Add New Task
+          </Button>
+        }
+      />
 
-        <Button size="sm" onClick={handleOpenCreate} className="gap-1.5 text-xs font-bold bg-primary text-primary-foreground">
-          <Plus className="size-3.5" /> Add New Task
-        </Button>
-      </div>
+      {/* ─── KPI Stats Overview Grid ─── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Tasks"
+          value={totalCount}
+          icon={<ListTodo className="size-4.5" />}
+          description="All active registered action items"
+          variant="default"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Pending Action"
+          value={pendingCount}
+          icon={<Clock className="size-4.5" />}
+          description="Awaiting completion"
+          variant="warning"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Completed"
+          value={completedCount}
+          icon={<CheckCircle2 className="size-4.5" />}
+          description="Finished successfully"
+          variant="success"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Completion Rate"
+          value={`${progressPercent}%`}
+          icon={<CheckSquare className="size-4.5" />}
+          description={`${completedCount} of ${totalCount} items completed`}
+          variant="primary"
+          isLoading={isLoading}
+        />
+      </StatsOverviewGrid>
 
-      {/* KPI Stats Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Total Tasks</p>
-            <h3 className="text-2xl font-bold text-foreground">{totalCount}</h3>
-          </div>
-          <div className="p-2.5 rounded-full bg-primary/10 text-primary">
-            <ListTodo className="size-5" />
-          </div>
-        </Card>
-
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Pending Action</p>
-            <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingCount}</h3>
-          </div>
-          <div className="p-2.5 rounded-full bg-amber-500/10 text-amber-500">
-            <Clock className="size-5" />
-          </div>
-        </Card>
-
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Completed</p>
-            <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{completedCount}</h3>
-          </div>
-          <div className="p-2.5 rounded-full bg-emerald-500/10 text-emerald-500">
-            <CheckCircle2 className="size-5" />
-          </div>
-        </Card>
-
-        <Card className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Completion Rate</p>
-            <h3 className="text-2xl font-bold text-primary">{progressPercent}%</h3>
-          </div>
-          <div className="size-10 rounded-full border-4 border-primary/20 border-t-primary flex items-center justify-center font-bold text-xs">
-            {progressPercent}%
-          </div>
-        </Card>
-      </div>
-
-      {/* Filter & Action Controls */}
-      <Card className="p-4">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tasks..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
-            {/* Status Filter */}
-            <div className="flex items-center border rounded-lg p-0.5 bg-muted/40 shrink-0">
+      {/* ─── FilterToolbar ─── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search tasks by title or notes...",
+        }}
+        filters={
+          <>
+            {/* Status Quick Toggle */}
+            <div className="flex items-center border border-border/70 rounded-lg p-0.5 bg-muted/40 shrink-0">
               {(["all", "pending", "completed"] as const).map((s) => (
                 <Button
                   key={s}
@@ -354,20 +356,20 @@ export function TodoPage() {
 
             {/* Priority Select */}
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[120px] text-xs h-9">
+              <SelectTrigger className="w-[120px] text-xs h-8.5 bg-background border-border/80">
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Priority</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="high">High Priority</SelectItem>
+                <SelectItem value="medium">Medium Priority</SelectItem>
+                <SelectItem value="low">Low Priority</SelectItem>
               </SelectContent>
             </Select>
 
             {/* Tag Select */}
             <Select value={tagFilter} onValueChange={setTagFilter}>
-              <SelectTrigger className="w-[140px] text-xs h-9">
+              <SelectTrigger className="w-[140px] text-xs h-8.5 bg-background border-border/80">
                 <SelectValue placeholder="Tags" />
               </SelectTrigger>
               <SelectContent>
@@ -382,7 +384,7 @@ export function TodoPage() {
 
             {/* Sort Order */}
             <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-              <SelectTrigger className="w-[130px] text-xs h-9">
+              <SelectTrigger className="w-[130px] text-xs h-8.5 bg-background border-border/80">
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
@@ -391,15 +393,29 @@ export function TodoPage() {
                 <SelectItem value="due">Due Date</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </div>
-      </Card>
+          </>
+        }
+      />
 
-      {/* Task List */}
-      {filteredTodos.length === 0 ? (
-        <Card className="p-12 text-center text-muted-foreground text-xs italic">
-          No tasks found matching your filter criteria.
-        </Card>
+      {/* ─── Task Content List ─── */}
+      {isLoading ? (
+        <LoadingState
+          variant="cards"
+          rows={3}
+          message="Loading action items and daily agendas..."
+        />
+      ) : filteredTodos.length === 0 ? (
+        <EmptyState
+          icon={CheckSquare}
+          title="No tasks found"
+          description={
+            search || priorityFilter !== "all" || tagFilter !== "all" || statusFilter !== "all"
+              ? "No tasks match your current filter parameters. Try clearing some filters."
+              : "You have no registered tasks yet. Create one to begin tracking action items."
+          }
+          actionLabel="Create First Task"
+          onAction={handleOpenCreate}
+        />
       ) : (
         <div className="space-y-2">
           {filteredTodos.map((todo) => {
@@ -408,8 +424,8 @@ export function TodoPage() {
               <Card
                 key={todo.id}
                 className={cn(
-                  "p-3.5 flex items-start justify-between gap-3 transition-all hover:shadow-xs border",
-                  todo.completed && "opacity-60 bg-muted/20"
+                  "p-3.5 flex items-start justify-between gap-3 transition-all hover:shadow-xs border border-border/70 bg-card",
+                  todo.completed && "opacity-60 bg-muted/20 border-border/50"
                 )}
               >
                 <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -417,7 +433,7 @@ export function TodoPage() {
                     <Checkbox
                       checked={todo.completed}
                       onCheckedChange={() => handleToggleComplete(todo.id)}
-                      className="size-4.5 rounded cursor-pointer"
+                      className="size-4 rounded cursor-pointer"
                     />
                   </div>
 
@@ -425,7 +441,7 @@ export function TodoPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className={cn(
-                          "font-bold text-xs text-foreground cursor-pointer transition-all",
+                          "font-semibold text-xs text-foreground cursor-pointer transition-all hover:text-primary",
                           todo.completed && "line-through text-muted-foreground"
                         )}
                         onClick={() => handleToggleComplete(todo.id)}
@@ -453,7 +469,7 @@ export function TodoPage() {
                     </div>
 
                     {todo.description && (
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
                         {todo.description}
                       </p>
                     )}
@@ -470,7 +486,13 @@ export function TodoPage() {
                   <Button size="icon" variant="ghost" className="size-7" onClick={() => handleOpenEdit(todo)} title="Edit">
                     <Edit2 className="size-3.5" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="size-7 text-rose-500" onClick={() => handleDeleteTodo(todo.id)} title="Delete">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                    onClick={() => setTodoToDelete(todo.id)}
+                    title="Delete"
+                  >
                     <Trash2 className="size-3.5" />
                   </Button>
                 </div>
@@ -479,6 +501,21 @@ export function TodoPage() {
           })}
         </div>
       )}
+
+      {/* ─── ConfirmationDialog for Task Deletion ─── */}
+      <ConfirmationDialog
+        open={!!todoToDelete}
+        onOpenChange={(open) => !open && setTodoToDelete(null)}
+        title="Delete Task?"
+        description="This will permanently delete this task from your action tracker. This action cannot be undone."
+        confirmLabel="Delete Task"
+        onConfirm={() => {
+          if (todoToDelete) {
+            handleDeleteTodo(todoToDelete);
+          }
+        }}
+        isLoading={deleteMutation.isPending}
+      />
 
       {/* Modal: Create or Edit Todo */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
