@@ -462,6 +462,16 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
+                  to="/awards"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/awards" && "active")}
+                >
+                  <i className="ph-duotone ph-trophy"></i>
+                  <span>Awards & Honors</span>
+                </Link>
+              </li>
+              <li>
+                <Link
                   to="/forms"
                   onClick={onCloseMobile}
                   className={cn(currentPath === "/forms" && "active")}
@@ -477,7 +487,17 @@ export function DreamsSidebar({
                   className={cn(currentPath === "/documents" && "active")}
                 >
                   <i className="ph-duotone ph-folder"></i>
-                  <span>My Documents</span>
+                  <span>My Documents & Letters</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/resignation"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/resignation" && "active")}
+                >
+                  <i className="ph-duotone ph-user-minus"></i>
+                  <span>Resignation & Notice</span>
                 </Link>
               </li>
               <li>
