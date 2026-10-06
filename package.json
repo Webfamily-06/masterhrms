@@ -14,6 +14,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test:cms-isolation": "npx --prefix server vitest run src/tests/cms-tenant-host-isolation.test.ts",
     "format": "prettier --write .",
     "postinstall": "prisma skills sync || exit 0",
     "doctor": "npx react-doctor@latest"

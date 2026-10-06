@@ -161,6 +161,25 @@ describe("CMS Tenant-Host Isolation Acceptance Test Suite", () => {
     expect(res.headers.location).toContain("/auth");
   });
 
+  // Acceptance Criterion 4b: Custom domain API isolation: GET {customDomain}/api/cms/* -> 404 NOT_FOUND
+  it("Criterion 4b: verified custom domain API /api/cms/pages returns 404 NOT_FOUND", async () => {
+    const res = await rawRequest("/api/cms/pages", `${customDomain}:${port}`);
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({
+      error: "Not Found",
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("Criterion 4c: verified custom domain API subpath /api/cms/pages/overview returns 404 NOT_FOUND", async () => {
+    const res = await rawRequest("/api/cms/pages/overview", `${customDomain}:${port}`);
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({
+      error: "Not Found",
+      code: "NOT_FOUND",
+    });
+  });
+
   // Acceptance Criterion 5: GET {subdomain}/api/cms/pages -> 404 NOT_FOUND
   it("Criterion 5: GET {subdomain}/api/cms/pages returns 404 NOT_FOUND", async () => {
     const res = await rawRequest("/api/cms/pages", `${testSlug}.localhost:${port}`);
