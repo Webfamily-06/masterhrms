@@ -98,6 +98,7 @@ import { Route as AuthenticatedAppDesignationsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAppDocumentsRouteImport } from './routes/_authenticated/_app/documents'
 import { Route as AuthenticatedAppEmployeeDashboardRouteImport } from './routes/_authenticated/_app/employee-dashboard'
 import { Route as AuthenticatedAppEmployeeDetailsRouteImport } from './routes/_authenticated/_app/employee-details'
+import { Route as AuthenticatedAppEmployeePayslipsRouteImport } from './routes/_authenticated/_app/employee-payslips'
 import { Route as AuthenticatedAppEmployeeReportRouteImport } from './routes/_authenticated/_app/employee-report'
 import { Route as AuthenticatedAppEmployeesRouteImport } from './routes/_authenticated/_app/employees'
 import { Route as AuthenticatedAppExpensesRouteImport } from './routes/_authenticated/_app/expenses'
@@ -701,6 +702,12 @@ const AuthenticatedAppEmployeeDetailsRoute =
   AuthenticatedAppEmployeeDetailsRouteImport.update({
     id: '/employee-details',
     path: '/employee-details',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppEmployeePayslipsRoute =
+  AuthenticatedAppEmployeePayslipsRouteImport.update({
+    id: '/employee-payslips',
+    path: '/employee-payslips',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppEmployeeReportRoute =
@@ -1504,6 +1511,7 @@ export interface FileRoutesByFullPath {
   '/documents': typeof AuthenticatedAppDocumentsRoute
   '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
+  '/employee-payslips': typeof AuthenticatedAppEmployeePayslipsRoute
   '/employee-report': typeof AuthenticatedAppEmployeeReportRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
   '/expenses': typeof AuthenticatedAppExpensesRoute
@@ -1715,6 +1723,7 @@ export interface FileRoutesByTo {
   '/documents': typeof AuthenticatedAppDocumentsRoute
   '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
+  '/employee-payslips': typeof AuthenticatedAppEmployeePayslipsRoute
   '/employee-report': typeof AuthenticatedAppEmployeeReportRoute
   '/employees': typeof AuthenticatedAppEmployeesRoute
   '/expenses': typeof AuthenticatedAppExpensesRoute
@@ -1930,6 +1939,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/documents': typeof AuthenticatedAppDocumentsRoute
   '/_authenticated/_app/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/_authenticated/_app/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
+  '/_authenticated/_app/employee-payslips': typeof AuthenticatedAppEmployeePayslipsRoute
   '/_authenticated/_app/employee-report': typeof AuthenticatedAppEmployeeReportRoute
   '/_authenticated/_app/employees': typeof AuthenticatedAppEmployeesRoute
   '/_authenticated/_app/expenses': typeof AuthenticatedAppExpensesRoute
@@ -2144,6 +2154,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/employee-dashboard'
     | '/employee-details'
+    | '/employee-payslips'
     | '/employee-report'
     | '/employees'
     | '/expenses'
@@ -2355,6 +2366,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/employee-dashboard'
     | '/employee-details'
+    | '/employee-payslips'
     | '/employee-report'
     | '/employees'
     | '/expenses'
@@ -2569,6 +2581,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/documents'
     | '/_authenticated/_app/employee-dashboard'
     | '/_authenticated/_app/employee-details'
+    | '/_authenticated/_app/employee-payslips'
     | '/_authenticated/_app/employee-report'
     | '/_authenticated/_app/employees'
     | '/_authenticated/_app/expenses'
@@ -3358,6 +3371,13 @@ declare module '@tanstack/react-router' {
       path: '/employee-details'
       fullPath: '/employee-details'
       preLoaderRoute: typeof AuthenticatedAppEmployeeDetailsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/employee-payslips': {
+      id: '/_authenticated/_app/employee-payslips'
+      path: '/employee-payslips'
+      fullPath: '/employee-payslips'
+      preLoaderRoute: typeof AuthenticatedAppEmployeePayslipsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/employee-report': {
@@ -4301,6 +4321,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppDocumentsRoute: typeof AuthenticatedAppDocumentsRoute
   AuthenticatedAppEmployeeDashboardRoute: typeof AuthenticatedAppEmployeeDashboardRoute
   AuthenticatedAppEmployeeDetailsRoute: typeof AuthenticatedAppEmployeeDetailsRoute
+  AuthenticatedAppEmployeePayslipsRoute: typeof AuthenticatedAppEmployeePayslipsRoute
   AuthenticatedAppEmployeeReportRoute: typeof AuthenticatedAppEmployeeReportRoute
   AuthenticatedAppEmployeesRoute: typeof AuthenticatedAppEmployeesRoute
   AuthenticatedAppExpensesRoute: typeof AuthenticatedAppExpensesRoute
@@ -4443,6 +4464,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppEmployeeDashboardRoute:
     AuthenticatedAppEmployeeDashboardRoute,
   AuthenticatedAppEmployeeDetailsRoute: AuthenticatedAppEmployeeDetailsRoute,
+  AuthenticatedAppEmployeePayslipsRoute: AuthenticatedAppEmployeePayslipsRoute,
   AuthenticatedAppEmployeeReportRoute: AuthenticatedAppEmployeeReportRoute,
   AuthenticatedAppEmployeesRoute: AuthenticatedAppEmployeesRoute,
   AuthenticatedAppExpensesRoute: AuthenticatedAppExpensesRoute,

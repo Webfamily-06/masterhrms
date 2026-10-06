@@ -418,9 +418,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/payroll"
+                  to="/employee-payslips"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/payroll" && "active")}
+                  className={cn(currentPath === "/employee-payslips" && "active")}
                 >
                   <i className="ph-duotone ph-money"></i>
                   <span>My Payslips</span>

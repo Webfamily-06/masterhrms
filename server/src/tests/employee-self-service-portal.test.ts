@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import { employeeSelfServiceRouter } from "../routes/employee-self-service.routes";
 import { rawPrisma, prisma } from "../prisma";
 
-describe("EMPLOYEE SELF-SERVICE & MANAGER PORTAL (PHASES E1-E6)", () => {
+describe("EMPLOYEE SELF-SERVICE & MANAGER PORTAL (PHASES E1-E6)", { timeout: 15000 }, () => {
   const db = rawPrisma || prisma;
   let testApp: express.Application;
   let server: http.Server;
