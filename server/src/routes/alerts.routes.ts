@@ -10,6 +10,7 @@ import {
   dispatchSlackNotification,
   dispatchTelegramNotification,
 } from "../services/alert-notification.service";
+import { NotificationService } from "../services/notification.service";
 
 export const alertsRouter = Router();
 
@@ -172,15 +173,12 @@ alertsRouter.post("/whatsapp", requireAuth, async (req: AuthRequest, res: Respon
 
     // Store in notification queue table
     try {
-      await prisma.notification.create({
-        data: {
-          tenantId,
-          userId: req.user?.userId || (req.user as any)?.id,
-          title: `WhatsApp: ${templateName}`,
-          message: `${recipient} (${cleanPhone}): ${message}`,
-          type: "whatsapp_alert",
-          isRead: false,
-        },
+      await NotificationService.createNotification({
+        tenantId,
+        userId: req.user?.userId || (req.user as any)?.id,
+        title: `WhatsApp: ${templateName}`,
+        message: `${recipient} (${cleanPhone}): ${message}`,
+        type: "whatsapp_alert",
       });
     } catch {}
 

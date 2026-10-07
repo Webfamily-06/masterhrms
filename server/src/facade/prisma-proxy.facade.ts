@@ -5,6 +5,7 @@ import {
   GLOBAL_MODELS,
   DIRECT_TENANT_MODELS,
   CHILD_DEPENDENT_MODELS,
+  SCOPED_TENANT_MODELS,
   ROOT_TENANT_MODEL,
 } from "../config/tenant-models.config";
 
@@ -32,10 +33,10 @@ function toPascalCase(str: string): string {
  * 1. If an active TenantContext exists in AsyncLocalStorage (getTenantContext() returns store),
  *    all calls are routed to context.db (the pre-resolved tenant client with autoscoping).
  * 2. If NO active TenantContext exists:
- *    - Global Platform Models (User, SubscriptionPlan, Addon, CmsPage, Permission, TwoFactorOtp)
+ *    - Global Platform Models (User, SubscriptionPlan, Coupon, Addon, CmsPage, Permission, etc.)
  *      are routed to the shared base Prisma client.
- *    - Direct Tenant Models, Child-Dependent Models, and Root Tenant Model FAIL CLOSED
- *      by throwing a TenantContextRequiredError (403 TENANT_CONTEXT_REQUIRED).
+ *    - Direct Tenant Models, Child-Dependent Models, Scoped Tenant Models, Root Tenant Model,
+ *      and ANY UNCLASSIFIED models FAIL CLOSED by throwing a TenantContextRequiredError (403 TENANT_CONTEXT_REQUIRED).
  *    - Special Prisma methods ($transaction, $queryRaw, $connect, etc.) fallback to shared client.
  */
 export function createDynamicPrismaProxy(fallbackClient?: PrismaClient): PrismaClient {
@@ -84,10 +85,11 @@ export function createDynamicPrismaProxy(fallbackClient?: PrismaClient): PrismaC
         return typeof val === "function" ? val.bind(sharedClient) : val;
       }
 
-      // Case B: Direct Tenant Model, Child-Dependent Model, or Root Tenant Model -> FAIL CLOSED!
+      // Case B: Direct Tenant Model, Child-Dependent Model, Scoped Model, or Root Tenant Model -> FAIL CLOSED!
       if (
         DIRECT_TENANT_MODELS.has(pasModel) ||
         CHILD_DEPENDENT_MODELS.has(pasModel) ||
+        SCOPED_TENANT_MODELS.has(pasModel) ||
         pasModel === ROOT_TENANT_MODEL
       ) {
         throw new TenantContextRequiredError(
@@ -112,14 +114,21 @@ export function createDynamicPrismaProxy(fallbackClient?: PrismaClient): PrismaC
         return typeof val === "function" ? val.bind(sharedClient) : val;
       }
 
-      if (propStr === "$connect" || propStr === "$disconnect") {
+      if (
+        propStr === "$connect" ||
+        propStr === "$disconnect" ||
+        propStr === "$on" ||
+        propStr === "$use" ||
+        propStr === "$extends"
+      ) {
         const val = Reflect.get(sharedClient, propStr, receiver);
         return typeof val === "function" ? val.bind(sharedClient) : val;
       }
 
-      // Fallback for any other model/property on shared client
-      const val = Reflect.get(sharedClient, propStr, receiver);
-      return typeof val === "function" ? val.bind(sharedClient) : val;
+      // Case D: Any unclassified model property -> FAIL CLOSED!
+      throw new TenantContextRequiredError(
+        `TENANT_CONTEXT_REQUIRED: Access to unclassified or non-global model '${propStr}' failed closed outside of an active tenant context.`
+      );
     },
   });
 }

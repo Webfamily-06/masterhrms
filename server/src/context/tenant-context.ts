@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { PrismaClient } from "@prisma/client";
+import { prisma as sharedPrisma } from "../prisma";
 
 export type TenancyStrategy = "SHARED_SCHEMA" | "SCHEMA_PER_TENANT" | "DEDICATED_DB";
 export type WorkspaceStatus = "ACTIVE" | "SUSPENDED" | "TRIAL" | "EXPIRED";
@@ -36,7 +37,16 @@ export function getTenantDb(req?: any): PrismaClient {
     return req.tenantContext.db;
   }
   // Fallback to shared prisma
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { prisma } = require("../prisma");
-  return prisma;
+  return sharedPrisma;
 }
+
+/**
+ * Executes a function within the specified tenant context in AsyncLocalStorage.
+ */
+export function runWithTenantContext<T>(
+  ctx: TenantContext,
+  fn: () => T | Promise<T>
+): Promise<T> {
+  return tenantStorage.run(ctx, fn) as Promise<T>;
+}
+

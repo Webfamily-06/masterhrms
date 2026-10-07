@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import Decimal from 'decimal.js';
+import { AttendanceService } from './attendance.service';
 
 export interface AttendanceWindowOptions {
   periodMonth: number;
@@ -22,6 +23,8 @@ export interface EmployeeAttendanceSummary {
   finalLopDays: number;
   payableDays: number;
   prorationFactor: Decimal;
+  overtimeHours: number;
+  isAttendanceLocked: boolean;
   auditNotes?: string;
 }
 
@@ -72,6 +75,12 @@ export class PayrollAttendanceService {
   ): Promise<Map<string, EmployeeAttendanceSummary>> {
     const { startDate, endDate, totalMonthDays } = this.getCutoffDateRange(options);
 
+    // Verify if P3 attendance month is locked
+    const isAttendanceLocked = await AttendanceService.isMonthLocked(
+      tenantId,
+      new Date(Date.UTC(options.periodYear, options.periodMonth - 1, 1))
+    );
+
     // Fetch active employees
     const employees = await this.prisma.employee.findMany({
       where: { tenantId, status: 'active' },
@@ -96,14 +105,25 @@ export class PayrollAttendanceService {
       include: { leaveType: true },
     });
 
+    // Fetch approved overtime requests in range
+    const overtimeRequests = await this.prisma.overtimeRequest.findMany({
+      where: {
+        tenantId,
+        status: 'approved',
+        overtimeDate: { gte: startDate, lte: endDate },
+      },
+    });
+
     const result = new Map<string, EmployeeAttendanceSummary>();
 
     for (const emp of employees) {
       const empPunches = attendanceRecords.filter((a) => a.employeeId === emp.id);
       const empLeaves = leaveRequests.filter((l) => l.employeeId === emp.id);
+      const empOvertimes = overtimeRequests.filter((o) => o.employeeId === emp.id);
 
       let presentPunches = 0;
       let halfDayPunches = 0;
+      let punchOvertimeMinutes = 0;
 
       for (const p of empPunches) {
         if (p.status === 'present' || p.status === 'late') {
@@ -111,7 +131,17 @@ export class PayrollAttendanceService {
         } else if (p.status === 'half_day') {
           halfDayPunches++;
         }
+        if (p.overtimeMinutes) {
+          punchOvertimeMinutes += p.overtimeMinutes;
+        }
       }
+
+      let requestOvertimeHours = 0;
+      for (const o of empOvertimes) {
+        requestOvertimeHours += Number(o.hoursRequested || 0);
+      }
+
+      const totalOvertimeHours = Math.round(((punchOvertimeMinutes / 60) + requestOvertimeHours) * 100) / 100;
 
       let paidLeaveDays = 0;
       let unpaidLeaveDays = 0;
@@ -170,6 +200,8 @@ export class PayrollAttendanceService {
         finalLopDays: calculatedLop,
         payableDays,
         prorationFactor,
+        overtimeHours: totalOvertimeHours,
+        isAttendanceLocked,
         auditNotes,
       });
     }

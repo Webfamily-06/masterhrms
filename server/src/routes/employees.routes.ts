@@ -6,6 +6,7 @@ import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth"
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { requireWithinLimit } from "../middleware/limits";
+import { AuditService } from "../services/audit.service";
 
 export const employeesRouter = Router();
 
@@ -925,13 +926,13 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
 
     // Log audit
     try {
-      await prisma.auditLog.create({
-        data: {
-          tenantId: employee.tenantId,
-          userId: req.user?.userId || (req.user as any)?.id,
-          action: "EMPLOYEE_PASSWORD_SET",
-          entity: "Employee",
-          entityId: employee.id,
+      await AuditService.logMutation({
+        tenantId: employee.tenantId,
+        actorId: req.user?.userId || (req.user as any)?.id,
+        action: "EMPLOYEE_PASSWORD_SET",
+        entityType: "Employee",
+        entityId: employee.id,
+        metadata: {
           details: `Admin reset password for employee ${employee.firstName} ${employee.lastName} (${email})`,
         },
       });
@@ -1064,12 +1065,13 @@ employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: 
 
     // Log bulk audit activity
     try {
-      await prisma.auditLog.create({
-        data: {
-          tenantId,
-          userId: req.user?.userId || (req.user as any)?.id,
-          action: "EMPLOYEES_BULK_IMPORTED",
-          entity: "Employee",
+      await AuditService.logMutation({
+        tenantId,
+        actorId: req.user?.userId || (req.user as any)?.id,
+        action: "EMPLOYEES_BULK_IMPORTED",
+        entityType: "Employee",
+        entityId: tenantId,
+        metadata: {
           details: `Bulk imported ${importedEmployees.length} employees (skipped: ${skippedCount}, errors: ${errors.length})`,
         },
       });

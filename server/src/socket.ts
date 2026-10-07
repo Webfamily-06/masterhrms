@@ -41,6 +41,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
   ioInstance.on("connection", (socket: Socket) => {
     console.log(`⚡ [WebSocket] Client connected: ${socket.id}`);
     socket.join(`tenant:${socket.data.tenantId}`);
+    socket.join(`user:${socket.data.userId}`);
     const expiryTimer = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(socket.data.expiry - Date.now(), 2147483647)));
     expiryTimer.unref();
     socket.use(async (_packet, next) => {
@@ -58,6 +59,20 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         console.log(`⚡ [WebSocket] Socket ${socket.id} joined room tenant:${tenantId}`);
       }
     });
+
+    // Subscribe to specific entity record rooms
+    socket.on("subscribe:record", (payload: { entityType: string; entityId: string }) => {
+      if (payload?.entityType && payload?.entityId) {
+        socket.join(`record:${payload.entityType}:${payload.entityId}`);
+      }
+    });
+
+    socket.on("unsubscribe:record", (payload: { entityType: string; entityId: string }) => {
+      if (payload?.entityType && payload?.entityId) {
+        socket.leave(`record:${payload.entityType}:${payload.entityId}`);
+      }
+    });
+
 
     // Handle real-time chat direct messages with DB persistence
     socket.on("chat:send", async (payload: { tenantId?: string; threadId: string; message: any }) => {

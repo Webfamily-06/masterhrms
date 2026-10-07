@@ -16,6 +16,7 @@ import {
 import { getStatutoryFormData } from "../services/statutory-form-data.service";
 import { TdsCalculatorService } from "../services/tds-calculator.service";
 import { getBaseDomain } from "../lib/workspace-host";
+import { AuditService } from "../services/audit.service";
 
 export const payrollRouter = Router();
 
@@ -2165,13 +2166,13 @@ payrollRouter.post("/:id/disburse-bank", requireAuth, async (req: AuthRequest, r
 
     // Log corporate disbursement audit
     try {
-      await prisma.auditLog.create({
-        data: {
-          tenantId,
-          userId: req.user?.userId || (req.user as any)?.id,
-          action: "PAYROLL_BANK_DISBURSEMENT_DISPATCHED",
-          entity: "PayrollRun",
-          entityId: run.id,
+      await AuditService.logMutation({
+        tenantId,
+        actorId: req.user?.userId || (req.user as any)?.id,
+        action: "PAYROLL_BANK_DISBURSEMENT_DISPATCHED",
+        entityType: "PayrollRun",
+        entityId: run.id,
+        metadata: {
           details: `Direct bank payout batch ${batchId} dispatched via ${provider}. Total payslips: ${run.payslips.length}`,
         },
       });

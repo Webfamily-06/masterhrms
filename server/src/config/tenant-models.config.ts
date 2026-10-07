@@ -1,17 +1,20 @@
 /**
  * Authoritative Model Classification Dictionary for Prisma Tenant Isolation
- * Verified against AST parse of all 106 models in server/prisma/schema.prisma
+ * Verified against AST parse of all 192 models in server/prisma/schema.prisma
  */
 
 // Models belonging strictly to the global SaaS platform control plane (Zero tenant isolation required)
 export const GLOBAL_MODELS = new Set<string>([
   "User",
   "SubscriptionPlan",
+  "Coupon",
   "Addon",
   "CmsPage",
   "Permission",
   "TwoFactorOtp",
   "SystemCronJob",
+  "LoginHistory",
+  "StateUTMaster",
 ]);
 
 // Root Tenant Entity (Has 'id' as the tenant identifier, not 'tenantId')
@@ -52,9 +55,19 @@ export const CHILD_DEPENDENT_MODELS = new Map<string, ChildModelRelation>([
   ["PurchaseReturnDetail", { parentRelation: "purchaseReturn", parentModel: "PurchaseReturn" }],
   ["RolePermission", { parentRelation: "role", parentModel: "WorkspaceRole" }],
   ["BankDisbursementItem", { parentRelation: "batch", parentModel: "BankDisbursementBatch" }],
+  ["RecurringInvoiceItem", { parentRelation: "recurringInvoice", parentModel: "RecurringInvoice" }],
+  ["MediaUsage", { parentRelation: "media", parentModel: "MediaFile" }],
+  ["WorkflowStep", { parentRelation: "workflow", parentModel: "WorkflowDefinition" }],
+  ["SettingSecret", { parentRelation: "setting", parentModel: "Setting" }],
 ]);
 
-// Models with a direct tenant_id column (Primary multi-tenant entities - 75 models)
+// Special Scoped Models (Scoped by scope/scopeId where scopeId is tenantId when scope=TENANT)
+export const SCOPED_TENANT_MODELS = new Set<string>([
+  "Setting",
+  "SettingAudit",
+]);
+
+// Models with a direct tenant_id column (Primary multi-tenant entities - 147 models)
 export const DIRECT_TENANT_MODELS = new Set<string>([
   "Profile",
   "UserRole",
@@ -70,9 +83,12 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "EmployeeSalaryAssignment",
   "StatutoryRule",
   "EmployeeTaxDeclaration",
+  "FbpDeclaration",
   "PayrollSnapshot",
   "GenericFormTemplate",
   "TenantSubscription",
+  "BillingInvoice",
+  "CouponRedemption",
   "SubscriptionPolicyAudit",
   "TenantAddon",
   "OkrCycle",
@@ -84,11 +100,28 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "AssetActivityLog",
   "JobPosting",
   "JobCandidate",
+  "JobCategory",
+  "JobType",
+  "JobLocation",
+  "CandidateSource",
+  "InterviewTypeMaster",
+  "InterviewRoundMaster",
+  "OfferTemplate",
+  "OnboardingChecklistTemplate",
+  "OnboardingCheckItem",
+  "AssessmentTemplate",
+  "CandidateAssessment",
+  "CandidateOffer",
+  "CandidateOnboarding",
+  "CandidateOnboardingTask",
+  "CampusCandidate",
+  "EmployeeReferral",
   "ShiftDefinition",
   "ShiftRoster",
   "ShiftSwapRequest",
   "ExpenseCategory",
   "ExpenseClaim",
+  "StoredDocument",
   "TrainingCourse",
   "CourseEnrollment",
   "EmployeeExit",
@@ -123,6 +156,7 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "PaymentWebhookEvent",
   "HeldOrder",
   "Purchase",
+  "PurchasePayment",
   "StockTransfer",
   "StockAdjustment",
   "StockMovement",
@@ -132,34 +166,93 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "TenantModule",
   "CrmLead",
   "CrmProposal",
+  "CrmContact",
+  "CrmDeal",
+  "TenantDomain",
+  "WorkspaceSlugHistory",
+  "WorkspaceSlugRedirect",
   "Project",
   "ProjectTask",
+  "ProjectMilestone",
+  "Timesheet",
   "CashRegister",
   "RegisterShift",
   "SalesReturn",
   "CreditNote",
   "PurchaseReturn",
-  "PurchasePayment",
   "DebitNote",
   "AwardType",
   "Award",
   "WarningType",
   "DisciplinaryWarning",
-  "StoredDocument",
-  "FbpDeclaration",
+  "CrmCompany",
+  "AutomationRule",
+  "AutomationLog",
+  "OvertimeRequest",
+  "WfhRequest",
+  "PromotionRecord",
+  "ProbationRecord",
+  "ProvidentFundRecord",
+  "BannedIp",
+  "CallHistoryRecord",
+  "RecurringInvoice",
+  "CustomField",
+  "CustomFieldValue",
+  "MarketingCampaign",
+  "Branch",
+  "Designation",
+  "ContractType",
+  "EmployeeContract",
+  "Establishment",
+  "StaffingClient",
+  "PayrollFormula",
+  "PayrollExportTemplate",
+  "PayrollExecutionTrace",
   "BankDisbursementBatch",
   "StatutoryReturnFiling",
   "WorkspaceTodo",
   "WorkspaceNote",
   "CalendarEvent",
+  "SubscriptionNotificationEvent",
+  "MediaFile",
+  "EmployeeChangeRequest",
+  "ApprovalDelegation",
+  "DocumentRequest",
+  "CompanyProfile",
+  "GSTRegistration",
+  "AttendanceRegularization",
+  "LeaveLedgerEntry",
+  "OutboxEvent",
+  "WorkflowDefinition",
+  "ApprovalRequest",
+  "ApprovalAction",
+  "Notification",
+  "NotificationTemplate",
+  "AuditLog",
+  "EmployeeTransfer",
+  "Holiday",
+  "AttendancePolicy",
+  "LeavePolicy",
+  "AttendanceMonthLock",
+  "LeaveEncashmentRequest",
+  "EmployeeLoan",
+  "LoanInstallment",
 ]);
 
-export type ModelClassification = "GLOBAL" | "ROOT_TENANT" | "DIRECT_TENANT" | "CHILD_DEPENDENT" | "UNKNOWN";
+export type ModelClassification =
+  | "GLOBAL"
+  | "ROOT_TENANT"
+  | "DIRECT_TENANT"
+  | "CHILD_DEPENDENT"
+  | "SCOPED_TENANT"
+  | "UNKNOWN";
 
 export function getModelClassification(model: string): ModelClassification {
   if (GLOBAL_MODELS.has(model)) return "GLOBAL";
   if (model === ROOT_TENANT_MODEL) return "ROOT_TENANT";
   if (DIRECT_TENANT_MODELS.has(model)) return "DIRECT_TENANT";
   if (CHILD_DEPENDENT_MODELS.has(model)) return "CHILD_DEPENDENT";
+  if (SCOPED_TENANT_MODELS.has(model)) return "SCOPED_TENANT";
   return "UNKNOWN";
 }
+

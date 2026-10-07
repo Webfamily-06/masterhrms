@@ -4,6 +4,7 @@ import { prisma, rawPrisma } from "../prisma";
 import { getWorkspacePolicy, assertWorkspaceActive } from "../services/workspace-policy.service";
 
 export interface AuthRequest extends Request {
+  tenantId?: string;
   user?: JwtPayload & {
     workspaceRole?: string;
     permissions?: string[];
@@ -48,6 +49,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       return res.status(403).json({ error: "Complete workspace onboarding first." });
     }
 
+    req.tenantId = tenantId ?? undefined;
     req.user = {
       ...decoded,
       userId,

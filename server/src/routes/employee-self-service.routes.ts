@@ -2,6 +2,10 @@ import { Router, Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { requireEmployee, EmployeeAuthRequest } from "../middleware/employee-context.middleware";
 import { prisma, rawPrisma } from "../prisma";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
+import { NotificationService } from "../services/notification.service";
+import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const employeeSelfServiceRouter = Router();
 
@@ -164,6 +168,29 @@ employeeSelfServiceRouter.post("/profile/change-requests", async (req: EmployeeA
         proofMediaId: proofMediaId || null,
         status: "PENDING",
       },
+    });
+
+    // Queue outbox event and audit log (masked)
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "profile.change_requested",
+      entityType: "EmployeeChangeRequest",
+      entityId: changeRequest.id,
+      actorId: req.user!.userId,
+      payload: {
+        employeeId,
+        fieldCategory,
+        fieldKey,
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: req.user!.userId,
+      action: "PROFILE_CHANGE_REQUEST_SUBMIT",
+      entityType: "EmployeeChangeRequest",
+      entityId: changeRequest.id,
+      newState: { fieldCategory, fieldKey, status: "PENDING" },
     });
 
     return res.status(201).json({
@@ -1586,7 +1613,7 @@ employeeSelfServiceRouter.post("/team/profile-changes/:id/action", async (req: E
       return res.status(404).json({ error: "Change request not found" });
     }
 
-    if (changeReq.employee.managerId !== employeeId && !req.user!.roles?.includes("hr_admin") && !req.user!.roles?.includes("super_admin")) {
+    if (changeReq.employee?.managerId !== employeeId && !req.user!.roles?.includes("hr_admin") && !req.user!.roles?.includes("super_admin")) {
       return res.status(403).json({ error: "You are not authorized to review this change request." });
     }
 
@@ -1620,6 +1647,29 @@ employeeSelfServiceRouter.post("/team/profile-changes/:id/action", async (req: E
       }
     }
 
+    // Queue outbox event and audit log
+    await OutboxService.createOutboxEvent({
+      tenantId: changeReq.tenantId,
+      eventType: newStatus === "APPROVED" ? "profile.change_approved" : "profile.change_rejected",
+      entityType: "EmployeeChangeRequest",
+      entityId: updated.id,
+      actorId: req.user!.userId,
+      payload: {
+        employeeId: changeReq.employeeId,
+        fieldKey: changeReq.fieldKey,
+        status: newStatus,
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId: changeReq.tenantId,
+      actorId: req.user!.userId,
+      action: `PROFILE_CHANGE_REQUEST_${newStatus}`,
+      entityType: "EmployeeChangeRequest",
+      entityId: updated.id,
+      newState: { status: newStatus, reviewedBy: employeeId },
+    });
+
     return res.json({
       success: true,
       message: `Change request ${newStatus.toLowerCase()} successfully.`,
@@ -1630,5 +1680,263 @@ employeeSelfServiceRouter.post("/team/profile-changes/:id/action", async (req: E
     return res.status(500).json({ error: "Failed to process change request decision" });
   }
 });
+
+// =========================================================================
+// P2 ESS: ORGANIZATION STRUCTURE (GET /api/v1/me/organization/structure)
+// Stripped of sensitive statutory/payroll data (public directory tree)
+// =========================================================================
+employeeSelfServiceRouter.get("/organization/structure", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const tenantId = req.user!.tenantId!;
+
+  try {
+    const [branches, departments, designations, employees] = await Promise.all([
+      db.branch.findMany({
+        where: { tenantId, status: "active" },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: "asc" },
+      }),
+      db.department.findMany({
+        where: { tenantId, status: "active" },
+        select: { id: true, name: true, branchId: true },
+        orderBy: { name: "asc" },
+      }),
+      db.designation.findMany({
+        where: { tenantId, status: "active" },
+        select: { id: true, name: true, departmentId: true },
+        orderBy: { name: "asc" },
+      }),
+      db.employee.findMany({
+        where: { tenantId, status: "active" },
+        select: {
+          id: true,
+          employeeCode: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          position: true,
+          managerId: true,
+          department: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true } },
+          designation: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
+
+    // Build hierarchy tree
+    const employeeMap = new Map<string, any>();
+    employees.forEach((emp: any) => {
+      employeeMap.set(emp.id, {
+        ...emp,
+        name: `${emp.firstName} ${emp.lastName}`.trim(),
+        subordinates: [],
+      });
+    });
+
+    const rootNodes: any[] = [];
+    employees.forEach((emp: any) => {
+      const node = employeeMap.get(emp.id);
+      if (emp.managerId && employeeMap.has(emp.managerId)) {
+        employeeMap.get(emp.managerId).subordinates.push(node);
+      } else {
+        rootNodes.push(node);
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        branches,
+        departments,
+        designations,
+        orgChart: rootNodes,
+      },
+    });
+  } catch (err: any) {
+    console.error("[GET /me/organization/structure] Error:", err);
+    return res.status(500).json({ error: "Failed to fetch organization structure" });
+  }
+});
+
+// =========================================================================
+// P2 ESS: HOLIDAYS (GET /api/v1/me/organization/holidays)
+// =========================================================================
+employeeSelfServiceRouter.get("/organization/holidays", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const tenantId = req.user!.tenantId!;
+  const year = Number(req.query.year) || new Date().getFullYear();
+
+  try {
+    const holidays = await db.holiday.findMany({
+      where: {
+        tenantId,
+        year,
+      },
+      orderBy: { date: "asc" },
+    });
+
+    return res.json({
+      success: true,
+      data: holidays,
+    });
+  } catch (err: any) {
+    console.error("[GET /me/organization/holidays] Error:", err);
+    return res.status(500).json({ error: "Failed to fetch holidays" });
+  }
+});
+
+// =========================================================================
+// P2 ESS: ANNOUNCEMENTS (GET /api/v1/me/organization/announcements)
+// =========================================================================
+employeeSelfServiceRouter.get("/organization/announcements", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const tenantId = req.user!.tenantId!;
+  const employeeId = req.employee!.id;
+  const departmentId = req.employee!.departmentId;
+
+  try {
+    const announcements = await db.announcement.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { targetType: "all_company" },
+          ...(departmentId ? [{ targetType: "department", targetDepartmentId: departmentId }] : []),
+        ],
+      },
+      include: {
+        acknowledgements: {
+          where: { employeeId },
+          select: { id: true, acknowledgedAt: true },
+        },
+      },
+      orderBy: [{ isPinned: "desc" }, { publishDate: "desc" }],
+    });
+
+    const formatted = announcements.map((a: any) => ({
+      ...a,
+      hasAcknowledged: a.acknowledgements.length > 0,
+      acknowledgedAt: a.acknowledgements[0]?.acknowledgedAt || null,
+    }));
+
+    return res.json({
+      success: true,
+      data: formatted,
+    });
+  } catch (err: any) {
+    console.error("[GET /me/organization/announcements] Error:", err);
+    return res.status(500).json({ error: "Failed to fetch announcements" });
+  }
+});
+
+// =========================================================================
+// P2 ESS: ANNOUNCEMENT ACKNOWLEDGE (POST /api/v1/me/organization/announcements/:id/acknowledge)
+// =========================================================================
+employeeSelfServiceRouter.post("/organization/announcements/:id/acknowledge", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const tenantId = req.user!.tenantId!;
+  const employeeId = req.employee!.id;
+  const announcementId = req.params.id;
+
+  try {
+    const existing = await db.announcementAcknowledgement.findUnique({
+      where: {
+        announcementId_employeeId: {
+          announcementId,
+          employeeId,
+        },
+      },
+    });
+
+    if (existing) {
+      return res.json({ success: true, message: "Already acknowledged", data: existing });
+    }
+
+    const ack = await db.announcementAcknowledgement.create({
+      data: {
+        tenantId,
+        announcementId,
+        employeeId,
+        comments: req.body?.comments || null,
+      },
+    });
+
+    return res.status(201).json({ success: true, message: "Policy acknowledged", data: ack });
+  } catch (err: any) {
+    console.error("[POST /me/organization/announcements/:id/acknowledge] Error:", err);
+    return res.status(500).json({ error: "Failed to record acknowledgement" });
+  }
+});
+
+// =========================================================================
+// P2 ESS: EMPLOYEE DIRECTORY (GET /api/v1/me/employees)
+// Company-wide colleague directory (FLS applied: zero statutory PII)
+// =========================================================================
+employeeSelfServiceRouter.get("/employees", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const tenantId = req.user!.tenantId!;
+  const pagination = parsePaginationParams(req, "firstName", 50);
+  const { departmentId, branchId } = req.query;
+
+  try {
+    const where: any = {
+      tenantId,
+      status: "active",
+    };
+
+    if (pagination.search) {
+      where.OR = [
+        { firstName: { contains: pagination.search, mode: "insensitive" } },
+        { lastName: { contains: pagination.search, mode: "insensitive" } },
+        { email: { contains: pagination.search, mode: "insensitive" } },
+        { employeeCode: { contains: pagination.search, mode: "insensitive" } },
+        { position: { contains: pagination.search, mode: "insensitive" } },
+      ];
+    }
+
+    if (departmentId && departmentId !== "all") {
+      where.departmentId = String(departmentId);
+    }
+    if (branchId && branchId !== "all") {
+      where.branchId = String(branchId);
+    }
+
+    const [total, colleagues] = await Promise.all([
+      db.employee.count({ where }),
+      db.employee.findMany({
+        where,
+        select: {
+          id: true,
+          employeeCode: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          position: true,
+          status: true,
+          joinedAt: true,
+          department: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true } },
+          designation: { select: { id: true, name: true } },
+          manager: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { [pagination.sortField]: pagination.sortType },
+        skip: pagination.skip,
+        take: pagination.limit,
+      }),
+    ]);
+
+    const formatted = colleagues.map((c: any) => ({
+      ...c,
+      fullName: `${c.firstName} ${c.lastName}`.trim(),
+    }));
+
+    return res.json(formatPaginatedResponse(formatted, total, pagination));
+  } catch (err: any) {
+    console.error("[GET /me/employees] Error:", err);
+    return res.status(500).json({ error: "Failed to fetch employee directory" });
+  }
+});
+
 
 

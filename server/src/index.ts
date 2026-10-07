@@ -84,6 +84,8 @@ import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes
 import { companyProfileRouter } from "./routes/company-profile.routes";
 import { SettingsService } from "./services/settings/settings.service";
 import { getUploadsRoot } from "./services/media/media.service";
+import { platformFoundationRouter } from "./routes/platform-foundation.routes";
+import { OutboxService } from "./services/outbox.service";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -263,6 +265,10 @@ app.use("/api/todos", todosRouter);
 app.use("/api/notes", notesRouter);
 app.use("/api/calendar", calendarRouter);
 
+// Platform Foundation APIs (v1 & unversioned alias)
+app.use("/api/v1", platformFoundationRouter);
+app.use("/api", platformFoundationRouter);
+
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled error:", err);
@@ -271,6 +277,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const server = http.createServer(app);
 initSocket(server, allowedOrigins);
+
+// Start Transactional Outbox Background Processor (Every 3 seconds)
+OutboxService.startProcessor(3000);
 
 // Start Biometric Auto-Sync Cron (Every 30 mins)
 setInterval(() => {

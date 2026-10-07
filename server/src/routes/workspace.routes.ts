@@ -25,6 +25,19 @@ workspaceRouter.get("/subscription", async (req: AuthRequest, res: Response) => 
   } catch (error: any) { return res.status(500).json({ error: error.message }); }
 });
 
+// GET /api/workspace/holidays - Legacy route compatibility for _app/holidays.tsx
+workspaceRouter.get("/holidays", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Workspace context required" });
+    const holidays = await prisma.holiday.findMany({
+      where: { tenantId },
+      orderBy: { date: "asc" },
+    });
+    return res.json(holidays);
+  } catch (error: any) { return res.status(500).json({ error: error.message }); }
+});
+
 // POST /api/workspace/onboarding - Complete organization initial setup
 workspaceRouter.post("/onboarding", async (req: AuthRequest, res: Response) => {
   try {

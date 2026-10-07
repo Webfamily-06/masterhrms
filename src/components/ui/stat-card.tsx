@@ -20,7 +20,8 @@ export type StatCardVariant =
   | "rose";
 
 export interface StatCardProps extends React.HTMLAttributes<HTMLDivElement> {
-  label: string;
+  label?: string;
+  title?: string;
   value: string | number | React.ReactNode;
   icon?: React.ReactNode;
   description?: string | React.ReactNode;
@@ -82,6 +83,7 @@ const variantStyles: Record<
 
 export function StatCard({
   label,
+  title,
   value,
   icon,
   description,
@@ -93,6 +95,7 @@ export function StatCard({
   ...props
 }: StatCardProps) {
   const vStyle = variantStyles[variant] || variantStyles.default;
+  const displayTitle = title || label || "";
 
   return (
     <Card
@@ -107,7 +110,7 @@ export function StatCard({
         <div className="space-y-1 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-semibold text-muted-foreground truncate">
-              {label}
+              {displayTitle}
             </span>
             {badge && <div className="inline-flex shrink-0">{badge}</div>}
           </div>

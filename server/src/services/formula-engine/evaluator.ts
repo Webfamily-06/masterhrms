@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
 import { ASTNode, EvaluationStep, SlabRule } from './types';
+import { Parser } from './parser';
 
 // Configure high-precision Decimal.js with standard half-up rounding
 Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_UP });
@@ -334,3 +335,14 @@ export class Evaluator {
     return Boolean(val);
   }
 }
+
+/**
+ * Convenient helper to parse and evaluate formula string against variable context
+ */
+export function evaluateFormula(formula: string, context: Record<string, any>): number {
+  const { ast } = Parser.parse(formula);
+  const evaluator = new Evaluator(context);
+  const { result } = evaluator.evaluate(ast);
+  return result.toNumber();
+}
+
