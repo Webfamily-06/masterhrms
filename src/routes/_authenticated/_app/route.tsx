@@ -38,7 +38,7 @@ import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-vie
 import { useAppConfig } from "@/lib/useAppConfig";
 import { useTenantBranding } from "@/lib/useTenantBranding";
 import { AccessDenied } from "@/components/access-denied";
-import { isSuperAdminUser, isSharedRoute, isPlatformOnlyRoute } from "@/lib/permissions";
+import { isSuperAdminUser, isSharedRoute, isPlatformOnlyRoute, isWorkspaceAdminUser, isModuleAllowed, hasPermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { SuspendedAccountView } from "@/components/subscription/suspended-account-view";
@@ -166,6 +166,8 @@ function AppShell() {
   );
   const isManager = userRoles.includes("manager");
   const isSuperAdmin = isSuperAdminUser(profile);
+  const isWorkspaceAdmin = isWorkspaceAdminUser(profile);
+  const canAccessPos = isModuleAllowed("pos", profile) || hasPermission("pos.terminal.view", profile) || hasPermission("pos.dashboard.view", profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
   const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/hrm-dashboard";
@@ -224,6 +226,7 @@ function AppShell() {
     "/profile",
     "/manager-hub",
     "/daily-report",
+    "/settings",
     "/clear-cache",
     "/offline",
   ];
@@ -606,15 +609,34 @@ function AppShell() {
 
             {/* Mobile Brand Logo (Visible only on mobile / tablet < 992px) */}
             <Link to={homeRoute} className="logo lg:hidden flex items-center gap-1.5 shrink-0">
-              <img
-                src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
-                alt={branding.name || "Master Platform"}
-                className="h-7 max-h-7 w-auto object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
-                }}
-                loading="lazy"
-              />
+              {branding.isWhiteLabeled && (!branding.activeLogo || branding.activeLogo.includes("logo.webp") || branding.activeLogo.includes("white-logo")) ? (
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="size-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                    <img
+                      src={branding.faviconUrl || "/favicon.webp"}
+                      alt={branding.name}
+                      className="size-4 object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/favicon.webp";
+                      }}
+                      loading="lazy"
+                    />
+                  </div>
+                  <span className="font-bold text-xs tracking-tight text-foreground truncate max-w-[120px]">
+                    {branding.name}
+                  </span>
+                </div>
+              ) : (
+                <img
+                  src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
+                  alt={branding.name || "Master Platform"}
+                  className="h-7 max-h-7 w-auto object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+                  }}
+                  loading="lazy"
+                />
+              )}
             </Link>
 
             {/* Desktop Full Sidebar / Mini Sidebar Toggle Button */}
@@ -641,66 +663,83 @@ function AppShell() {
               <i className={cn("ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
 
-            {/* Active Company / Workspace Selector Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <div className="header-item hidden md:flex relative company-dropdown me-auto cursor-pointer">
-                  <div className="bg-card border border-border/70 rounded-xl py-1.5 px-3 flex items-center justify-between gap-2.5 shadow-2xs hover:border-primary/40 hover:bg-muted/40 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <div className="size-5 rounded-md flex items-center justify-center shrink-0">
-                        <img src={branding.faviconUrl || "/favicon.webp"} alt="company" className="size-3.5 object-contain" loading="lazy"/>
+            {/* Active Company / Workspace Selector */}
+            {isWorkspaceAdmin ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="header-item hidden md:flex relative company-dropdown me-auto cursor-pointer">
+                    <div className="bg-card border border-border/70 rounded-xl py-1.5 px-3 flex items-center justify-between gap-2.5 shadow-2xs hover:border-primary/40 hover:bg-muted/40 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <div className="size-5 rounded-md flex items-center justify-center shrink-0">
+                          <img src={branding.faviconUrl || "/favicon.webp"} alt="company" className="size-3.5 object-contain" loading="lazy"/>
+                        </div>
+                        <p className="text-xs font-bold text-foreground leading-none truncate max-w-[150px]">
+                          {profile.tenant?.name || branding.name || "Workspace"}
+                        </p>
                       </div>
-                      <p className="text-xs font-bold text-foreground leading-none truncate max-w-[150px]">
-                        {profile.tenant?.name || "Falcon LLP"}
-                      </p>
+                      <i className="ph-duotone ph-caret-down text-xs text-muted-foreground"></i>
                     </div>
-                    <i className="ph-duotone ph-caret-down text-xs text-muted-foreground"></i>
                   </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 p-2 rounded-xl border border-border/70 shadow-md font-sans" align="start">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
+                    Active Workspace
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem className="flex items-center gap-2 p-2 rounded-lg font-medium text-xs">
+                    <div className="size-6 rounded-md flex items-center justify-center">
+                      <img src={branding.faviconUrl || "/favicon.webp"} alt="Tenant" className="size-4 object-contain" loading="lazy"/>
+                    </div>
+                    <span className="truncate">{profile.tenant?.name || branding.name || "Workspace"}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings" className="flex items-center gap-2 p-2 cursor-pointer text-xs rounded-lg hover:bg-muted/60 transition-colors">
+                      <Settings className="size-3.5 text-muted-foreground" />
+                      <span>Workspace Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="header-item hidden md:flex relative me-auto">
+                <div className="bg-card border border-border/70 rounded-xl py-1.5 px-3 flex items-center gap-2 shadow-2xs">
+                  <div className="size-5 rounded-md flex items-center justify-center shrink-0">
+                    <img src={branding.faviconUrl || "/favicon.webp"} alt="company" className="size-3.5 object-contain" loading="lazy"/>
+                  </div>
+                  <p className="text-xs font-bold text-foreground leading-none truncate max-w-[150px]">
+                    {profile.tenant?.name || branding.name || "Workspace"}
+                  </p>
                 </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 p-2 rounded-xl border border-border/70 shadow-md" align="start">
-                <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                  Active Workspace
-                </DropdownMenuLabel>
-                <DropdownMenuItem className="flex items-center gap-2 p-2 rounded-lg font-medium text-xs">
-                  <div className="size-6 rounded-md flex items-center justify-center">
-                    <img src={branding.faviconUrl || "/favicon.webp"} alt="Tenant" className="size-4 object-contain" loading="lazy"/>
-                  </div>
-                  <span className="truncate">{profile.tenant?.name || "Falcon LLP"}</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link to="/settings" className="flex items-center gap-2 p-2 cursor-pointer text-xs rounded-lg">
-                    <Settings className="size-3.5 text-muted-foreground" />
-                    <span>Workspace Settings</span>
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </div>
+            )}
           </div>
 
           {/* Right section items */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
-            {/* Quick POS Terminal Button */}
-            <Link
-              to="/pos"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
-              title="Open POS Terminal"
-            >
-              <i className="ph-duotone ph-shopping-cart text-sm"></i>
-              <span>POS Register</span>
-            </Link>
+            {/* Quick POS Terminal Button (Role & Module Gated) */}
+            {canAccessPos && (
+              <Link
+                to="/pos"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
+                title="Open POS Terminal"
+              >
+                <i className="ph-duotone ph-shopping-cart text-sm"></i>
+                <span>POS Register</span>
+              </Link>
+            )}
 
-            {/* Customer Display New Window Launch */}
-            <a
-              href="/customer-display"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="header-item topbar-link hidden xl:flex items-center justify-center size-8.5 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs transition-colors"
-              title="Open Dual Customer Display in New Window"
-            >
-              <i className="ph-duotone ph-monitor text-base"></i>
-            </a>
+            {/* Customer Display New Window Launch (Role & Module Gated) */}
+            {canAccessPos && (
+              <a
+                href="/customer-display"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="header-item topbar-link hidden xl:flex items-center justify-center size-8.5 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs transition-colors"
+                title="Open Dual Customer Display in New Window"
+              >
+                <i className="ph-duotone ph-monitor text-base"></i>
+              </a>
+            )}
 
             {/* Global Search Trigger Button */}
             <button
@@ -783,7 +822,7 @@ function AppShell() {
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-64 p-3 rounded-2xl border border-border/70 shadow-lg" align="end" forceMount>
+                <DropdownMenuContent className="w-64 p-3 rounded-2xl border border-border/70 shadow-lg font-sans" align="end" forceMount>
                   <DropdownMenuLabel className="p-1">
                     <div className="flex items-center gap-3">
                       <Avatar className="size-10 ring-2 ring-primary/20">
@@ -798,7 +837,7 @@ function AppShell() {
                             {roleLabel}
                           </Badge>
                           <Badge variant="secondary" className="text-[9px] py-0 h-4 px-1.5 truncate max-w-[90px]">
-                            {profile.tenant?.name || "Workspace"}
+                            {profile.tenant?.name || branding.name || "Workspace"}
                           </Badge>
                         </div>
                       </div>
@@ -829,41 +868,48 @@ function AppShell() {
                     <Link
                       to={isEmployeeOnly ? "/profile" : "/settings"}
                       search={isEmployeeOnly ? undefined : { tab: "profile" }}
-                      className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg"
+                      className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors"
                     >
                       <User className="size-3.5 text-muted-foreground" />
                       <span>Profile</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" search={{ tab: "security" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
+                    <Link to="/settings" search={{ tab: "security" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
                       <ShieldCheck className="size-3.5 text-emerald-500" />
                       <span>Security & 2FA</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/setup-notes" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
-                      <HelpCircle className="size-3.5 text-primary" />
-                      <span>Setup Notes & Guide</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/settings" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
-                      <Settings className="size-3.5 text-muted-foreground" />
-                      <span>Workspace Settings</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/subscription" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg">
-                      <CreditCard className="size-3.5 text-muted-foreground" />
-                      <span>Subscription & Plan</span>
-                    </Link>
-                  </DropdownMenuItem>
+
+                  {/* Administration Options - Workspace Admins Only */}
+                  {isWorkspaceAdmin && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to="/setup-notes" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
+                          <HelpCircle className="size-3.5 text-primary" />
+                          <span>Setup Notes & Guide</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/settings" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
+                          <Settings className="size-3.5 text-muted-foreground" />
+                          <span>Workspace Settings</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/subscription" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
+                          <CreditCard className="size-3.5 text-muted-foreground" />
+                          <span>Subscription & Plan</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+
                   {profile.roles?.includes("super_admin") && (
                     <>
                       <DropdownMenuSeparator className="my-1" />
                       <DropdownMenuItem asChild>
-                        <Link to="/super" className="flex items-center gap-2.5 cursor-pointer py-2 text-purple-600 dark:text-purple-400 font-semibold rounded-lg">
+                        <Link to="/super" className="flex items-center gap-2.5 cursor-pointer py-2 text-purple-600 dark:text-purple-400 font-semibold rounded-lg hover:bg-muted/60 transition-colors">
                           <ShieldCheck className="size-4" />
                           <span>Super Admin Console</span>
                         </Link>
@@ -871,7 +917,7 @@ function AppShell() {
                     </>
                   )}
                   <DropdownMenuSeparator className="my-2" />
-                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2.5 cursor-pointer text-destructive focus:text-destructive py-2 rounded-lg">
+                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2.5 cursor-pointer text-destructive focus:text-destructive py-2 rounded-lg hover:bg-destructive/10 transition-colors">
                     <LogOut className="size-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>

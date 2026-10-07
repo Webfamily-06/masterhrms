@@ -113,15 +113,39 @@ export function DreamsSidebar({
               className="brand-logo logo flex items-center gap-2 flex-1 min-w-0 overflow-hidden"
               onClick={onCloseMobile}
             >
-              <img
-                src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
-                alt={branding.name || "Master HRMS & ERP"}
-                className="h-8 max-h-8 w-auto object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
-                }}
-                loading="lazy"
-              />
+              {branding.isWhiteLabeled && (!branding.activeLogo || branding.activeLogo.includes("logo.webp") || branding.activeLogo.includes("white-logo")) ? (
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                    <img
+                      src={branding.faviconUrl || "/favicon.webp"}
+                      alt={branding.name}
+                      className="size-5 object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/favicon.webp";
+                      }}
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-bold text-sm tracking-tight text-foreground truncate leading-tight">
+                      {branding.name}
+                    </span>
+                    <span className="text-[10px] font-semibold text-primary uppercase tracking-wider leading-none">
+                      Workspace
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <img
+                  src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
+                  alt={branding.name || "Master HRMS & ERP"}
+                  className="h-8 max-h-8 w-auto object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+                  }}
+                  loading="lazy"
+                />
+              )}
             </Link>
 
             {/* Desktop Collapse / Expand Button */}

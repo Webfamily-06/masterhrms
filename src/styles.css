@@ -414,9 +414,9 @@ body {
   --sidebar-border: #e2e8f0;
   --sidebar-menu-item: #475569;
   --sidebar-menu-item-hover: #0f172a;
-  --sidebar-menu-active-bg: color-mix(in srgb, var(--primary, #FF6B00) 10%, transparent);
-  --sidebar-menu-active-item: var(--primary, #FF6B00);
-  --sidebar-submenu-active-item: var(--primary, #FF6B00);
+  --sidebar-menu-active-bg: color-mix(in srgb, var(--primary, #2563EB) 10%, transparent);
+  --sidebar-menu-active-item: var(--primary, #2563EB);
+  --sidebar-submenu-active-item: var(--primary, #2563EB);
   --sidebar-menu-title: #94a3b8;
 }
 
@@ -426,9 +426,9 @@ body {
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-menu-item: #94a3b8;
   --sidebar-menu-item-hover: #f8fafc;
-  --sidebar-menu-active-bg: color-mix(in srgb, var(--primary, #FF6B00) 18%, transparent);
-  --sidebar-menu-active-item: var(--primary, #FF6B00);
-  --sidebar-submenu-active-item: var(--primary, #FF6B00);
+  --sidebar-menu-active-bg: color-mix(in srgb, var(--primary, #2563EB) 18%, transparent);
+  --sidebar-menu-active-item: var(--primary, #2563EB);
+  --sidebar-submenu-active-item: var(--primary, #2563EB);
   --sidebar-menu-title: #64748b;
 }
 

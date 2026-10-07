@@ -41,7 +41,7 @@ export const DEFAULT_BRANDING: TenantBranding = {
   logoDark: "/white-logo.webp",
   activeLogo: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
-  primaryColor: "#FF6B00",
+  primaryColor: "#2563EB",
   footerText: "© 2026 Master HRMS. All rights reserved.",
   timezone: "Asia/Kolkata",
   currency: "INR",
@@ -50,6 +50,7 @@ export const DEFAULT_BRANDING: TenantBranding = {
 };
 
 import { resolveBrandingContext } from "./branding-context";
+import { applyThemeVariables } from "./useAppConfig";
 
 export function useTenantBranding() {
   const { isDark } = useThemeMode();
@@ -198,6 +199,10 @@ export function useTenantBranding() {
         document.head.appendChild(link);
       }
       link.href = branding.faviconUrl;
+    }
+
+    if (branding.primaryColor) {
+      applyThemeVariables(branding.primaryColor);
     }
   }, [branding]);
 
