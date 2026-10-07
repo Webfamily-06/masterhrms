@@ -33,6 +33,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import {
   UserCheck,
   Clock,
   AlertCircle,
@@ -45,12 +56,6 @@ import {
   CheckCircle2,
   Trash2,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -89,6 +94,7 @@ export function OvertimePage() {
   const [addOpen, setAddOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [selected, setSelected] = useState<any>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // Add form
   const [form, setForm] = useState({
@@ -160,6 +166,7 @@ export function OvertimePage() {
       toast.success("Deleted.");
       qc.invalidateQueries({ queryKey: ["overtime"] });
       qc.invalidateQueries({ queryKey: ["overtime-stats"] });
+      setDeleteTargetId(null);
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to delete."),
   });
@@ -175,89 +182,94 @@ export function OvertimePage() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const statCards = [
-    { label: "Overtime Employee", value: stats.total, icon: UserCheck, color: "text-primary border-primary bg-primary/10" },
-    { label: "Overtime Hours",    value: Number(stats.totalApprovedHours).toFixed(1), icon: Clock, color: "text-pink-600 border-pink-400 bg-pink-50" },
-    { label: "Pending Request",   value: stats.pending,  icon: AlertCircle, color: "text-purple-600 border-purple-400 bg-purple-50" },
-    { label: "Rejected",          value: stats.rejected, icon: XCircle, color: "text-sky-600 border-sky-400 bg-sky-50" },
-  ];
-
   return (
-    <div className="p-6 space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Overtime</h2>
-          <nav className="text-sm text-muted-foreground mt-1">
-            <span>Home</span> / <span>Attendance</span> / <span className="text-foreground">Overtime</span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1">
-                <FileSpreadsheet className="h-4 w-4" /> Export
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* ── Page Header ── */}
+      <PageHeader
+        title="Overtime"
+        breadcrumbs={[
+          { label: "Home" },
+          { label: "Attendance" },
+          { label: "Overtime" },
+        ]}
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1">
+                  <FileSpreadsheet className="h-4 w-4" /> Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as Excel</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {isAdmin && (
+              <Button size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4" /> Add Overtime
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as PDF</DropdownMenuItem>
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as Excel</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Overtime
-          </Button>
-        </div>
-      </div>
+            )}
+          </>
+        }
+      />
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {statCards.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="pt-4 pb-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
-                <h4 className="text-2xl font-bold mt-0.5">{s.value}</h4>
-              </div>
-              <span className={cn("p-2 rounded-lg border flex items-center justify-center", s.color)}>
-                <s.icon className="h-5 w-5" />
-              </span>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* ── Metric Stat Cards ── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Overtime Employee"
+          value={stats.total}
+          icon={<UserCheck className="h-5 w-5" />}
+          variant="default"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Overtime Hours"
+          value={Number(stats.totalApprovedHours).toFixed(1)}
+          icon={<Clock className="h-5 w-5" />}
+          variant="info"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Pending Request"
+          value={stats.pending}
+          icon={<AlertCircle className="h-5 w-5" />}
+          variant="warning"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Rejected"
+          value={stats.rejected}
+          icon={<XCircle className="h-5 w-5" />}
+          variant="rose"
+          isLoading={isLoading}
+        />
+      </StatsOverviewGrid>
 
-      {/* Table Card */}
-      <Card>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b">
-          <h5 className="font-semibold">Overtime</h5>
-          <div className="flex flex-wrap gap-2">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employee..."
-                className="pl-8 h-9 w-56"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
+      {/* ── Filter Toolbar ── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee...",
+        }}
+        filters={
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8.5 w-36 text-xs">
+              <SelectValue placeholder="Select Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
 
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-36">
-                <SelectValue placeholder="Select Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
+      {/* ── Table Card ── */}
+      <div className="rounded-xl border border-border/70 bg-card shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -342,9 +354,7 @@ export function OvertimePage() {
                               )}
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => {
-                                  if (confirm("Delete this overtime request?")) deleteMut.mutate(r.id);
-                                }}
+                                onClick={() => setDeleteTargetId(r.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" /> Delete
                               </DropdownMenuItem>
@@ -359,7 +369,7 @@ export function OvertimePage() {
             </TableBody>
           </Table>
         </div>
-      </Card>
+      </div>
 
       {/* ── Add Overtime Modal ── */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -479,6 +489,22 @@ export function OvertimePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <ConfirmationDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+        title="Delete Overtime Request"
+        description="Are you sure you want to delete this overtime request? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={deleteMut.isPending}
+        onConfirm={() => {
+          if (deleteTargetId) {
+            deleteMut.mutate(deleteTargetId);
+          }
+        }}
+      />
     </div>
   );
 }

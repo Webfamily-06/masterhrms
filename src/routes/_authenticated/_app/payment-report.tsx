@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import { useCurrentProfile, useSession } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -25,19 +24,24 @@ import {
 import {
   CreditCard,
   Download,
-  Search,
   CheckCircle2,
-  Clock,
   AlertTriangle,
-  ArrowUpRight,
   TrendingUp,
-  Receipt,
-  Building,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { PageHeader } from "@/components/ui/page-header";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { EmptyState } from "@/components/system-states/empty-state";
+
 export const Route = createFileRoute("/_authenticated/_app/payment-report")({
   component: PaymentReportPage,
+  head: () => ({
+    meta: [{ title: "Payment Report — Master HRMS" }],
+  }),
 });
 
 interface PaymentItem {
@@ -134,7 +138,7 @@ export function PaymentReportPage() {
     });
   }, [payments, search]);
 
-  // Calculations
+  // Calculations (preserved exactly from original)
   const totalSettled = payments.reduce((acc, p) => acc + p.amount, 0);
   const paymentCount = payments.length;
   const failedCount = gatewayData?.metrics?.failed || 0;
@@ -187,133 +191,64 @@ export function PaymentReportPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top Header / Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Payment Report
-          </h2>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-            <span>Reports</span>
-            <span>/</span>
-            <span className="text-foreground font-medium">Payment Report</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Payment Report"
+        description="Track customer transaction settlements, payment channels, and gateway conversion metrics."
+        breadcrumbs={[
+          { label: "Reports", href: "/payment-report" },
+          { label: "Payment Report" },
+        ]}
+        actions={
           <Button
             onClick={exportCSV}
             variant="outline"
             size="sm"
-            className="h-9 gap-1.5 text-xs font-semibold shadow-sm"
+            className="h-9 gap-1.5 text-xs font-semibold shadow-2xs"
           >
-            <Download className="w-3.5 h-3.5 text-muted-foreground" />
+            <Download className="size-3.5 text-muted-foreground" />
             Export CSV
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-blue-600" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Total Collected
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {currencySymbol}
-                  {totalSettled.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950/60 flex items-center justify-center text-blue-600">
-                <CreditCard className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-emerald-600 font-medium flex items-center">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                {paymentCount} settlements
-              </span>{" "}
-              processed across accounts
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-emerald-500" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Settled Invoices
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {paymentCount}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-emerald-600 font-medium">100%</span> verified gateway / cash settlements
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-rose-500" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Failed Gateway Attempts
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {failedCount}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-600">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-rose-600 font-medium">Gateway drops</span> recorded
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-purple-500" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Success Rate
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {successRate}%
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-950/60 flex items-center justify-center text-purple-600">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-purple-600 font-medium">High</span> payment conversion health
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* KPI Overview Grid */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Collected"
+          value={`${currencySymbol}${totalSettled.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={<CreditCard className="size-4" />}
+          description={`${paymentCount} settlements processed across accounts`}
+          variant="default"
+        />
+        <StatCard
+          label="Settled Invoices"
+          value={paymentCount}
+          icon={<CheckCircle2 className="size-4" />}
+          description="100% verified gateway / cash settlements"
+          variant="success"
+        />
+        <StatCard
+          label="Failed Gateway Attempts"
+          value={failedCount}
+          icon={<AlertTriangle className="size-4" />}
+          description="Gateway drops recorded"
+          variant="rose"
+        />
+        <StatCard
+          label="Success Rate"
+          value={`${successRate}%`}
+          icon={<TrendingUp className="size-4" />}
+          description="High payment conversion health"
+          variant="purple"
+        />
+      </StatsOverviewGrid>
 
       {/* Methods Breakdown Card */}
       {Object.keys(methodDist).length > 0 && (
-        <Card className="border border-border/80 shadow-sm">
+        <Card className="border border-border/80 shadow-2xs">
           <CardHeader className="p-4 border-b">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-primary" />
+              <CreditCard className="size-4 text-primary" />
               Payments By Method
             </CardTitle>
           </CardHeader>
@@ -322,7 +257,7 @@ export function PaymentReportPage() {
               {Object.entries(methodDist).map(([method, amount]) => (
                 <div key={method} className="bg-muted/40 p-3 rounded-md border border-border/60">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">{method}</p>
-                  <p className="text-base font-bold mt-0.5">
+                  <p className="text-base font-bold mt-0.5 text-foreground">
                     {currencySymbol}
                     {amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
@@ -336,83 +271,77 @@ export function PaymentReportPage() {
         </Card>
       )}
 
+      {/* Filter Toolbar */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search invoice, customer, ref...",
+        }}
+        filters={
+          <Select value={methodFilter} onValueChange={setMethodFilter}>
+            <SelectTrigger className="w-[160px] h-8.5 text-xs">
+              <SelectValue placeholder="Payment Method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Methods</SelectItem>
+              <SelectItem value="Cash">Cash</SelectItem>
+              <SelectItem value="Bank">Bank Transfer</SelectItem>
+              <SelectItem value="Razorpay">Razorpay Gateway</SelectItem>
+              <SelectItem value="Cheque">Cheque</SelectItem>
+              <SelectItem value="Card">Card</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
+
       {/* Main Payment Table Card */}
-      <Card className="border border-border/80 shadow-sm">
-        <CardHeader className="p-4 sm:p-5 border-b pb-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-base font-semibold">Settlement Receipts</CardTitle>
-              <Badge variant="outline" className="text-xs">
-                {filtered.length} records
-              </Badge>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-48 sm:w-60">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search invoice, customer, ref..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-
-              <Select value={methodFilter} onValueChange={setMethodFilter}>
-                <SelectTrigger className="w-[160px] h-9 text-xs">
-                  <SelectValue placeholder="Payment Method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Methods</SelectItem>
-                  <SelectItem value="Cash">Cash</SelectItem>
-                  <SelectItem value="Bank">Bank Transfer</SelectItem>
-                  <SelectItem value="Razorpay">Razorpay Gateway</SelectItem>
-                  <SelectItem value="Cheque">Cheque</SelectItem>
-                  <SelectItem value="Card">Card</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-
+      <Card className="border border-border/80 shadow-2xs overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
-                  <TableHead className="w-32 text-xs font-semibold">Payment Ref</TableHead>
+                  <TableHead className="w-32 text-xs font-semibold pl-5">Payment Ref</TableHead>
                   <TableHead className="text-xs font-semibold">Invoice No</TableHead>
                   <TableHead className="text-xs font-semibold">Customer / Client</TableHead>
                   <TableHead className="text-xs font-semibold">Payment Method</TableHead>
                   <TableHead className="text-xs font-semibold">Paid Date</TableHead>
                   <TableHead className="text-xs font-semibold text-right">Amount Paid</TableHead>
-                  <TableHead className="text-xs font-semibold text-center">Status</TableHead>
+                  <TableHead className="text-xs font-semibold text-center pr-5">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-32 text-center text-xs text-muted-foreground">
-                      Loading payment records...
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="size-4 animate-spin text-primary" />
+                        <span>Loading payment records...</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center text-xs text-muted-foreground">
-                      No payment settlements found matching criteria.
+                    <TableCell colSpan={7} className="p-0">
+                      <EmptyState
+                        icon={CreditCard}
+                        title="No payment settlements found"
+                        description="No payment transactions match the selected criteria."
+                        compact
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
                   filtered.map((payment) => (
                     <TableRow key={payment.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="font-mono text-xs font-bold text-primary">
+                      <TableCell className="py-3 pl-5 font-mono text-xs font-bold text-primary">
                         {payment.referenceNo}
                       </TableCell>
-                      <TableCell className="font-medium text-xs">
+                      <TableCell className="py-3 font-medium text-xs">
                         {payment.sale?.invoiceNo || "INV-GEN"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3">
                         <div className="font-medium text-xs text-foreground">
                           {payment.sale?.customerName || "Customer"}
                         </div>
@@ -422,23 +351,23 @@ export function PaymentReportPage() {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3">
                         <Badge variant="outline" className="text-[11px] font-normal">
                           {payment.method}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="py-3 text-xs text-muted-foreground">
                         {new Date(payment.paidAt).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
                         })}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <TableCell className="py-3 text-right font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
                         {currencySymbol}
                         {payment.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="py-3 text-center pr-5">
                         <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
                           Captured
                         </Badge>

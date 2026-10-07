@@ -3,9 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile, useSession } from "@/lib/session";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -25,22 +24,24 @@ import {
 import {
   Receipt,
   Download,
-  Search,
-  Filter,
-  Layers,
-  ArrowUpRight,
   Clock,
   CheckCircle2,
   XCircle,
-  FileSpreadsheet,
-  Building2,
-  CreditCard,
-  TrendingUp,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { PageHeader } from "@/components/ui/page-header";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { EmptyState } from "@/components/system-states/empty-state";
+
 export const Route = createFileRoute("/_authenticated/_app/expenses-report")({
   component: ExpensesReportPage,
+  head: () => ({
+    meta: [{ title: "Expense Report — Master HRMS" }],
+  }),
 });
 
 interface ExpenseClaimItem {
@@ -170,7 +171,7 @@ export function ExpensesReportPage() {
     });
   }, [claims, search]);
 
-  // Aggregate Metrics
+  // Aggregate Metrics (preserved exactly from original)
   const totalAmount = claims.reduce((acc, c) => acc + c.amount, 0);
   const approvedAmount = claims
     .filter((c) => ["manager_approved", "finance_approved", "reimbursed"].includes(c.status))
@@ -239,193 +240,100 @@ export function ExpensesReportPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top Header / Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Expense Report
-          </h2>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-            <span>Reports</span>
-            <span>/</span>
-            <span className="text-foreground font-medium">Expense Report</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Expense Report"
+        description="Monitor staff expense claims, approval lifecycles, and reimbursement statuses."
+        breadcrumbs={[
+          { label: "Reports", href: "/expenses-report" },
+          { label: "Expense Report" },
+        ]}
+        actions={
           <Button
             onClick={exportCSV}
             variant="outline"
             size="sm"
-            className="h-9 gap-1.5 text-xs font-semibold shadow-sm"
+            className="h-9 gap-1.5 text-xs font-semibold shadow-2xs"
           >
-            <Download className="w-3.5 h-3.5 text-muted-foreground" />
+            <Download className="size-3.5 text-muted-foreground" />
             Export CSV
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-blue-600" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Total Expenses
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {currencySymbol}
-                  {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950/60 flex items-center justify-center text-blue-600">
-                <Receipt className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-emerald-600 font-medium flex items-center">
-                <ArrowUpRight className="w-3 h-3 mr-0.5" />
-                {claims.length} claims
-              </span>{" "}
-              logged to date
-            </p>
-          </CardContent>
-        </Card>
+      {/* KPI Overview Grid */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Expenses"
+          value={`${currencySymbol}${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={<Receipt className="size-4" />}
+          description={`${claims.length} claims logged to date`}
+          variant="default"
+        />
+        <StatCard
+          label="Approved / Settled"
+          value={`${currencySymbol}${approvedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={<CheckCircle2 className="size-4" />}
+          description={`${totalAmount > 0 ? Math.round((approvedAmount / totalAmount) * 100) : 0}% completion rate`}
+          variant="success"
+        />
+        <StatCard
+          label="Pending Review"
+          value={`${currencySymbol}${pendingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={<Clock className="size-4" />}
+          description={`${claims.filter((c) => c.status === "pending").length} claims awaiting review`}
+          variant="warning"
+        />
+        <StatCard
+          label="Rejected Claims"
+          value={`${currencySymbol}${rejectedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={<XCircle className="size-4" />}
+          description={`${claims.filter((c) => c.status === "rejected").length} claims flagged or declined`}
+          variant="rose"
+        />
+      </StatsOverviewGrid>
 
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-emerald-500" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Approved / Settled
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {currencySymbol}
-                  {approvedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-emerald-600 font-medium">
-                {totalAmount > 0 ? Math.round((approvedAmount / totalAmount) * 100) : 0}%
-              </span>{" "}
-              approval completion rate
-            </p>
-          </CardContent>
-        </Card>
+      {/* Filter Toolbar */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search code, staff, vendor...",
+        }}
+        filters={
+          <>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-[160px] h-8.5 text-xs">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((cat: any) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-amber-500" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Pending Review
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {currencySymbol}
-                  {pendingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center text-amber-600">
-                <Clock className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-amber-600 font-medium">
-                {claims.filter((c) => c.status === "pending").length} claims
-              </span>{" "}
-              awaiting managerial review
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 h-1 w-full bg-rose-500" />
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Rejected Claims
-                </p>
-                <h3 className="text-xl sm:text-2xl font-bold mt-1 text-foreground">
-                  {currencySymbol}
-                  {rejectedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </h3>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center text-rose-600">
-                <XCircle className="w-5 h-5" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
-              <span className="text-rose-600 font-medium">
-                {claims.filter((c) => c.status === "rejected").length} claims
-              </span>{" "}
-              flagged or declined
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[150px] h-8.5 text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="manager_approved">Manager Approved</SelectItem>
+                <SelectItem value="finance_approved">Finance Approved</SelectItem>
+                <SelectItem value="reimbursed">Reimbursed</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       {/* Main Expense Table Card */}
-      <Card className="border border-border/80 shadow-sm">
-        <CardHeader className="p-4 sm:p-5 border-b pb-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-base font-semibold">Expense Claims</CardTitle>
-              <Badge variant="outline" className="text-xs">
-                {filteredClaims.length} records
-              </Badge>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-48 sm:w-60">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search code, staff, vendor..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[150px] h-9 text-xs">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((cat: any) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="manager_approved">Manager Approved</SelectItem>
-                  <SelectItem value="finance_approved">Finance Approved</SelectItem>
-                  <SelectItem value="reimbursed">Reimbursed</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-
+      <Card className="border border-border/80 shadow-2xs overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
@@ -445,13 +353,21 @@ export function ExpensesReportPage() {
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
-                      Loading expense claims...
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="size-4 animate-spin text-primary" />
+                        <span>Loading expense claims...</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : filteredClaims.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
-                      No expense records found matching filter criteria.
+                    <TableCell colSpan={8} className="p-0">
+                      <EmptyState
+                        icon={Receipt}
+                        title="No expense claims found"
+                        description="No expense records match your current search or filter criteria."
+                        compact
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (

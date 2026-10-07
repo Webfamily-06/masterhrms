@@ -1,12 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -24,19 +21,17 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { toast } from "sonner";
 import {
-  CalendarX2,
-  Search,
-  Download,
   Calendar,
+  Download,
   CheckCircle2,
   Clock,
   XCircle,
-  ChevronRight,
-  TrendingUp,
-  Loader2,
-  Filter,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/_app/leave-report")({
@@ -101,29 +96,31 @@ export function LeaveReportPage() {
     );
   });
 
-  // KPIs
+  // Calculate Metrics
   const totalLeaves = requests.length;
   const approvedLeaves = requests.filter((r) => r.status === "approved").length;
   const pendingLeaves = requests.filter((r) => r.status === "pending").length;
   const rejectedLeaves = requests.filter((r) => r.status === "rejected").length;
-  const totalDaysApproved = requests
-    .filter((r) => r.status === "approved")
-    .reduce((sum, r) => sum + (Number(r.days) || 0), 0);
 
   function exportCSV() {
-    if (filtered.length === 0) return toast.error("No leave records to export");
+    if (filtered.length === 0) {
+      toast.error("No leave records available to export");
+      return;
+    }
+
     const headers = [
-      "Employee Code",
+      "Employee ID",
       "Employee Name",
       "Department",
       "Leave Type",
-      "From Date",
-      "To Date",
+      "Start Date",
+      "End Date",
       "Days",
       "Reason",
       "Status",
-      "Applied Date",
+      "Created At",
     ];
+
     const rows = filtered.map((r) => {
       const emp = r.employee || {};
       return [
@@ -153,127 +150,72 @@ export function LeaveReportPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
-      {/* ── Breadcrumb & Top Bar ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <CalendarX2 className="size-6 text-primary" /> Leave & PTO Report
-          </h1>
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground transition-colors">
-              Dashboard
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <Link to="/leave" className="hover:text-foreground transition-colors">
-              Leave & PTO
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <span className="font-semibold text-foreground">Leave Report</span>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* ── Page Header ── */}
+      <PageHeader
+        title="Leave & PTO Report"
+        description="Workforce absence analytics, leave allowance utilization, and approval statuses."
+        breadcrumbs={[
+          { label: "Home" },
+          { label: "Leave & PTO" },
+          { label: "Leave Report" },
+        ]}
+        actions={
           <Button
             variant="outline"
             size="sm"
             onClick={exportCSV}
-            className="gap-1.5 text-xs font-bold"
+            className="h-9 gap-1.5 text-xs font-semibold shadow-xs"
           >
-            <Download className="size-3.5" /> Export Report (CSV)
+            <Download className="size-3.5 text-muted-foreground" />
+            Export Report (CSV)
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── KPI Visual Progress Cards (matching ui-2/leave-report.html) ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Total Leave Applications</span>
-            <div className="size-8 rounded-lg bg-primary/10 grid place-items-center text-primary">
-              <Calendar className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight">{totalLeaves} Applications</div>
-            <div className="mt-2 p-1.5 rounded bg-muted/30 text-[11px] text-muted-foreground flex items-center justify-between">
-              <span>Total Days Approved:</span>
-              <strong className="text-foreground font-mono">{totalDaysApproved} days</strong>
-            </div>
-          </div>
-        </Card>
+      {/* ── KPI Visual Stat Cards ── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Applications"
+          value={totalLeaves}
+          icon={<Calendar className="size-5" />}
+          variant="default"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Approved Leaves"
+          value={approvedLeaves}
+          icon={<CheckCircle2 className="size-5" />}
+          variant="success"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Pending Approval"
+          value={pendingLeaves}
+          icon={<Clock className="size-5" />}
+          variant="warning"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Rejected / Cancelled"
+          value={rejectedLeaves}
+          icon={<XCircle className="size-5" />}
+          variant="rose"
+          isLoading={isLoading}
+        />
+      </StatsOverviewGrid>
 
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Approved Leaves</span>
-            <div className="size-8 rounded-lg bg-emerald-500/10 grid place-items-center text-emerald-600">
-              <CheckCircle2 className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-emerald-600">
-              {approvedLeaves} Approved
-            </div>
-            <div className="mt-2 p-1.5 rounded bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center justify-between">
-              <span>Approval Rate:</span>
-              <strong className="font-mono">
-                {totalLeaves > 0 ? ((approvedLeaves / totalLeaves) * 100).toFixed(0) : 100}%
-              </strong>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Pending Approval</span>
-            <div className="size-8 rounded-lg bg-amber-500/10 grid place-items-center text-amber-600">
-              <Clock className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-amber-600">
-              {pendingLeaves} Requests
-            </div>
-            <div className="mt-2 p-1.5 rounded bg-amber-500/10 text-[11px] text-amber-700 dark:text-amber-400 flex items-center justify-between">
-              <span>Awaiting Manager Review</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Rejected / Cancelled</span>
-            <div className="size-8 rounded-lg bg-rose-500/10 grid place-items-center text-rose-600">
-              <XCircle className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-rose-600">
-              {rejectedLeaves} Requests
-            </div>
-            <div className="mt-2 p-1.5 rounded bg-rose-500/10 text-[11px] text-rose-700 dark:text-rose-400 flex items-center justify-between">
-              <span>Non-Compliant or Conflict</span>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Filters Bar ─────────────────────────────────────────────────── */}
-      <Card className="p-4 border shadow-xs">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search employee name, code, or reason..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto">
+      {/* ── Filter Toolbar ── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee name, code, or reason...",
+        }}
+        filters={
+          <div className="flex items-center gap-2">
             <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger className="w-[160px] text-xs h-9">
+              <SelectTrigger className="w-[150px] h-8.5 text-xs">
                 <SelectValue placeholder="Leave Type" />
               </SelectTrigger>
               <SelectContent>
@@ -287,7 +229,7 @@ export function LeaveReportPage() {
             </Select>
 
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="w-[140px] text-xs h-9">
+              <SelectTrigger className="w-[130px] h-8.5 text-xs">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -298,137 +240,89 @@ export function LeaveReportPage() {
               </SelectContent>
             </Select>
           </div>
-        </div>
-      </Card>
+        }
+      />
 
-      {/* ── Leave Records Table ─────────────────────────────────────────── */}
-      <Card className="border shadow-xs overflow-hidden">
+      {/* ── Leave Applications Table ── */}
+      <div className="rounded-xl border border-border/70 bg-card shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-muted/40">
+            <TableHeader>
               <TableRow>
-                <TableHead className="text-xs font-bold uppercase tracking-wider">
-                  Employee
-                </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wider">
-                  Leave Type
-                </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wider">
-                  From Date
-                </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wider">
-                  To Date
-                </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wider">
-                  Duration
-                </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wider">
-                  Reason / Notes
-                </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wider">
-                  Status
-                </TableHead>
+                <TableHead className="w-56">Employee</TableHead>
+                <TableHead className="w-36">Leave Type</TableHead>
+                <TableHead className="w-24 text-center">Days</TableHead>
+                <TableHead className="w-48">Date Range</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead className="w-28 text-right">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-xs text-muted-foreground">
-                    <Loader2 className="size-5 animate-spin mx-auto mb-2 text-primary" />
-                    Loading leave report...
+                  <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                    Loading leave records...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-xs text-muted-foreground">
-                    No leave requests found for this filter.
+                  <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                    No leave requests found matching the current filters.
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((r) => {
                   const emp = r.employee || {};
-                  const empName = `${emp.firstName || "Employee"} ${emp.lastName || ""}`;
-                  const empCode = emp.employeeCode || "EMP";
-                  const deptName = emp.department?.name || "General";
-
-                  const statusMap: Record<string, { label: string; className: string }> = {
-                    approved: {
-                      label: "APPROVED",
-                      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-                    },
-                    pending: {
-                      label: "PENDING",
-                      className: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-                    },
-                    rejected: {
-                      label: "REJECTED",
-                      className: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
-                    },
-                  };
-
-                  const currentStatus = statusMap[r.status] || {
-                    label: r.status,
-                    className: "bg-muted text-muted-foreground",
-                  };
-
                   return (
-                    <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
+                    <TableRow key={r.id} className="hover:bg-muted/30">
                       <TableCell>
                         <div className="flex items-center gap-2.5">
                           <Avatar className="size-8 border">
-                            <AvatarFallback className="font-bold text-xs bg-primary/10 text-primary">
-                              {empName.slice(0, 2).toUpperCase()}
+                            <AvatarImage src={emp.avatarUrl || ""} />
+                            <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-bold">
+                              {(emp.firstName?.[0] || "E") + (emp.lastName?.[0] || "")}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <span className="font-bold text-xs text-foreground block">
-                              {empName}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              {empCode} • {deptName}
-                            </span>
+                            <div className="text-xs font-bold text-foreground">
+                              {emp.firstName} {emp.lastName}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono">
+                              {emp.employeeCode || "EMP-000"} • {emp.department?.name || "General"}
+                            </div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className="text-[11px] font-semibold"
-                          style={{
-                            borderColor: r.leaveType?.color || "#3B82F6",
-                            color: r.leaveType?.color || "#3B82F6",
-                          }}
-                        >
+                        <Badge variant="outline" className="text-[10px] font-semibold bg-muted/30">
                           {r.leaveType?.name || "Casual Leave"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {r.startDate
-                          ? new Date(r.startDate).toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
+                      <TableCell className="text-center font-bold text-xs font-mono">
+                        {r.days || 1}d
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {r.endDate
-                          ? new Date(r.endDate).toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs font-bold text-foreground">
-                        {r.days || 1} {r.days === 1 ? "day" : "days"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
-                        {r.reason || "Personal work"}
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {r.startDate ? new Date(r.startDate).toLocaleDateString() : "-"}
+                        {" → "}
+                        {r.endDate ? new Date(r.endDate).toLocaleDateString() : "-"}
                       </TableCell>
                       <TableCell>
-                        <Badge className={`text-[10px] font-bold border-0 ${currentStatus.className}`}>
-                          {currentStatus.label}
+                        <p className="text-xs text-muted-foreground max-w-sm truncate" title={r.reason || ""}>
+                          {r.reason || "—"}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge
+                          variant="outline"
+                          className={
+                            r.status === "approved"
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]"
+                              : r.status === "rejected"
+                              ? "bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px]"
+                              : "bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px]"
+                          }
+                        >
+                          {r.status || "pending"}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -438,7 +332,7 @@ export function LeaveReportPage() {
             </TableBody>
           </Table>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -4,8 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -33,22 +32,22 @@ import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
 import {
   FileText,
-  Search,
   Download,
-  Calendar,
-  Building2,
   DollarSign,
-  TrendingUp,
   Loader2,
   Eye,
   CheckCircle2,
   Clock,
   AlertTriangle,
-  ChevronRight,
   Receipt,
-  Printer,
   Copy,
 } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/invoice-report")({
   component: InvoiceReportPage,
@@ -99,7 +98,7 @@ export function InvoiceReportPage() {
     });
   }, [invoices, search, selectedStatus]);
 
-  // Aggregate KPI metrics
+  // Aggregate KPI metrics (preserved exactly from original)
   const metrics = useMemo(() => {
     let totalInvoices = invoices.length;
     let paidCount = 0;
@@ -188,267 +187,210 @@ export function InvoiceReportPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-300">
-      {/* ── Breadcrumb & Top Bar ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            <Link to="/invoices" className="hover:text-foreground transition-colors">
-              Sales & Billing
-            </Link>
-            <ChevronRight className="size-3" />
-            <span className="text-foreground">Reports</span>
-            <ChevronRight className="size-3" />
-            <span className="text-foreground font-bold">Invoice Report</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Receipt className="size-7 text-primary" />
-            Invoice & Revenue Report
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Monitor client billing, cash collection cycles, tax invoices, and outstanding receivables.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            onClick={handleExportCSV}
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5 font-medium border-border/80 shadow-xs"
-          >
-            <Download className="size-4 text-muted-foreground" />
-            Export CSV
-          </Button>
-          <Button asChild size="sm" className="h-9 gap-1.5 font-medium shadow-xs">
-            <Link to="/invoices">
-              <Receipt className="size-4" />
-              Manage Invoices
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      {/* ── KPI Visual Cards (matching ui-2/invoice-report.html) ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Invoices */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-primary/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Total Invoices</span>
-              <h3 className="text-xl font-bold text-foreground">{metrics.totalInvoices}</h3>
-            </div>
-            <div className="size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <FileText className="size-5" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">Generated across all clients</p>
-        </Card>
-
-        {/* Paid Invoices */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-emerald-500/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Paid Invoices</span>
-              <h3 className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{metrics.paidCount}</h3>
-            </div>
-            <div className="size-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
-              <CheckCircle2 className="size-5" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">Fully cleared payments</p>
-        </Card>
-
-        {/* Overdue Invoices */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-rose-500/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Overdue Invoices</span>
-              <h3 className="text-xl font-bold text-rose-500">{metrics.overdueCount}</h3>
-            </div>
-            <div className="size-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
-              <AlertTriangle className="size-5" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">Requires payment follow-up</p>
-        </Card>
-
-        {/* Unpaid Invoices */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-amber-500/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Pending Payments</span>
-              <h3 className="text-xl font-bold text-amber-600 dark:text-amber-400">{metrics.unpaidCount}</h3>
-            </div>
-            <div className="size-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
-              <Clock className="size-5" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">Awaiting due dates</p>
-        </Card>
-
-        {/* Total Collected Revenue */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-sky-500/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Total Revenue</span>
-              <h3 className="text-xl font-bold text-sky-600 dark:text-sky-400">
-                {formatSystemAmount(metrics.totalRevenue)}
-              </h3>
-            </div>
-            <div className="size-10 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600">
-              <DollarSign className="size-5" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Outstanding: {formatSystemAmount(metrics.totalOutstanding)}
-          </p>
-        </Card>
-      </div>
-
-      {/* ── Filters & Invoices Table ─── */}
-      <Card className="border-border/60 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-muted/10">
+    <div className="space-y-6">
+      <PageHeader
+        title="Invoice & Revenue Report"
+        description="Monitor client billing, cash collection cycles, tax invoices, and outstanding receivables."
+        breadcrumbs={[
+          { label: "Sales & Billing", href: "/invoices" },
+          { label: "Reports", href: "/invoice-report" },
+          { label: "Invoice Report" },
+        ]}
+        actions={
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-foreground">Tax Invoice Register</h3>
-            <Badge variant="outline" className="text-xs font-semibold px-2 py-0.5 bg-background">
-              {filteredData.length} invoices
-            </Badge>
+            <Button
+              onClick={handleExportCSV}
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs font-semibold shadow-2xs"
+            >
+              <Download className="size-3.5 text-muted-foreground" />
+              Export CSV
+            </Button>
+            <Button asChild size="sm" className="h-9 gap-1.5 text-xs font-semibold shadow-2xs">
+              <Link to="/invoices">
+                <Receipt className="size-3.5" />
+                Manage Invoices
+              </Link>
+            </Button>
           </div>
+        }
+      />
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="relative min-w-[220px] max-w-xs flex-1">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search invoice no, client..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 pl-9 text-xs bg-background"
-              />
-            </div>
+      {/* KPI Visual Cards */}
+      <StatsOverviewGrid columns={5}>
+        <StatCard
+          label="Total Invoices"
+          value={metrics.totalInvoices}
+          icon={<FileText className="size-4" />}
+          description="Generated across all clients"
+          variant="default"
+        />
+        <StatCard
+          label="Paid Invoices"
+          value={metrics.paidCount}
+          icon={<CheckCircle2 className="size-4" />}
+          description="Fully cleared payments"
+          variant="success"
+        />
+        <StatCard
+          label="Overdue Invoices"
+          value={metrics.overdueCount}
+          icon={<AlertTriangle className="size-4" />}
+          description="Requires payment follow-up"
+          variant="rose"
+        />
+        <StatCard
+          label="Pending Payments"
+          value={metrics.unpaidCount}
+          icon={<Clock className="size-4" />}
+          description="Awaiting due dates"
+          variant="warning"
+        />
+        <StatCard
+          label="Total Revenue"
+          value={formatSystemAmount(metrics.totalRevenue)}
+          icon={<DollarSign className="size-4" />}
+          description={`Outstanding: ${formatSystemAmount(metrics.totalOutstanding)}`}
+          variant="info"
+        />
+      </StatsOverviewGrid>
 
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="h-9 w-[130px] text-xs bg-background font-medium">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Invoices</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="unpaid">Pending</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* Filter Toolbar */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search invoice no, client...",
+        }}
+        filters={
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger className="w-[140px] h-8.5 text-xs">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Invoices</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="unpaid">Pending</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
+
+      {/* Invoices Table Card */}
+      <Card className="border border-border/80 shadow-2xs overflow-hidden">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead className="w-32 text-xs font-semibold pl-5">Invoice ID</TableHead>
+                  <TableHead className="text-xs font-semibold">Client & Company</TableHead>
+                  <TableHead className="text-xs font-semibold">Created Date</TableHead>
+                  <TableHead className="text-xs font-semibold">Due Date</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Invoice Amount</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Balance Due</TableHead>
+                  <TableHead className="text-xs font-semibold text-center">Status</TableHead>
+                  <TableHead className="text-xs font-semibold text-center pr-5">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="size-4 animate-spin text-primary" />
+                        <span>Loading invoice registry...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="p-0">
+                      <EmptyState
+                        icon={Receipt}
+                        title="No invoices found"
+                        description="Try adjusting your search or status filter criteria."
+                        compact
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredData.map((inv: any) => {
+                    const invNo = inv.number || inv.invoiceNo || `INV-${inv.id?.slice(0, 6)}`;
+                    const clientName = inv.client || "Walk-in Customer";
+                    const isPaid = inv.status === "paid" || Number(inv.balanceDue || 0) <= 0;
+                    const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date();
+
+                    return (
+                      <TableRow key={inv.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="py-3 pl-5 font-mono text-xs font-bold text-primary">
+                          <Link to={`/portal/invoices/${invNo}` as any} className="hover:underline">
+                            {invNo}
+                          </Link>
+                        </TableCell>
+
+                        <TableCell className="py-3">
+                          <p className="text-xs font-bold text-foreground">{clientName}</p>
+                          <p className="text-[11px] text-muted-foreground font-mono">
+                            {inv.clientGstin || inv.client_gstin ? `GST: ${inv.clientGstin || inv.client_gstin}` : "B2C Consumer"}
+                          </p>
+                        </TableCell>
+
+                        <TableCell className="py-3 text-xs text-muted-foreground">
+                          {inv.date ? new Date(inv.date).toLocaleDateString() : "—"}
+                        </TableCell>
+
+                        <TableCell className="py-3 text-xs text-muted-foreground">
+                          {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}
+                        </TableCell>
+
+                        <TableCell className="py-3 text-right text-xs font-bold text-foreground">
+                          {formatSystemAmount(inv.total || 0)}
+                        </TableCell>
+
+                        <TableCell className="py-3 text-right text-xs font-medium text-rose-500">
+                          {formatSystemAmount(inv.balanceDue !== undefined ? inv.balanceDue : (isPaid ? 0 : inv.total || 0))}
+                        </TableCell>
+
+                        <TableCell className="py-3 text-center">
+                          <Badge
+                            variant="outline"
+                            className={
+                              isPaid
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] font-bold"
+                                : isOverdue
+                                ? "bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold"
+                                : "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] font-bold"
+                            }
+                          >
+                            {isPaid ? "Paid" : isOverdue ? "Overdue" : "Sent"}
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell className="py-3 text-center pr-5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedInvoice(inv)}
+                            className="h-8 gap-1 text-xs text-primary hover:text-primary hover:bg-primary/10"
+                          >
+                            <Eye className="size-3.5" />
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
           </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 pl-5">Invoice ID</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5">Client & Company</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5">Created Date</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5">Due Date</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-right">Invoice Amount</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-right">Balance Due</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-center">Status</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-center pr-5">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-44 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Loader2 className="size-6 animate-spin text-primary" />
-                      <p className="text-xs text-muted-foreground">Loading invoice registry...</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : filteredData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-44 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Receipt className="size-8 text-muted-foreground/50" />
-                      <p className="text-sm font-semibold text-foreground">No invoices found</p>
-                      <p className="text-xs text-muted-foreground">Try adjusting your search or status filters.</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredData.map((inv: any) => {
-                  const invNo = inv.number || inv.invoiceNo || `INV-${inv.id?.slice(0, 6)}`;
-                  const clientName = inv.client || "Walk-in Customer";
-                  const isPaid = inv.status === "paid" || Number(inv.balanceDue || 0) <= 0;
-                  const isOverdue = !isPaid && inv.dueDate && new Date(inv.dueDate) < new Date();
-
-                  return (
-                    <TableRow key={inv.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="py-3 pl-5 font-mono text-xs font-bold text-primary">
-                        <Link to={`/portal/invoices/${invNo}` as any} className="hover:underline">
-                          {invNo}
-                        </Link>
-                      </TableCell>
-
-                      <TableCell className="py-3">
-                        <p className="text-xs font-bold text-foreground">{clientName}</p>
-                        <p className="text-[11px] text-muted-foreground font-mono">
-                          {inv.clientGstin || inv.client_gstin ? `GST: ${inv.clientGstin || inv.client_gstin}` : "B2C Consumer"}
-                        </p>
-                      </TableCell>
-
-                      <TableCell className="py-3 text-xs text-muted-foreground">
-                        {inv.date ? new Date(inv.date).toLocaleDateString() : "—"}
-                      </TableCell>
-
-                      <TableCell className="py-3 text-xs text-muted-foreground">
-                        {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}
-                      </TableCell>
-
-                      <TableCell className="py-3 text-right text-xs font-bold text-foreground">
-                        {formatSystemAmount(inv.total || 0)}
-                      </TableCell>
-
-                      <TableCell className="py-3 text-right text-xs font-medium text-rose-500">
-                        {formatSystemAmount(inv.balanceDue !== undefined ? inv.balanceDue : (isPaid ? 0 : inv.total || 0))}
-                      </TableCell>
-
-                      <TableCell className="py-3 text-center">
-                        <Badge
-                          variant="outline"
-                          className={
-                            isPaid
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] font-bold"
-                              : isOverdue
-                              ? "bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold"
-                              : "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] font-bold"
-                          }
-                        >
-                          {isPaid ? "Paid" : isOverdue ? "Overdue" : "Sent"}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="py-3 text-center pr-5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedInvoice(inv)}
-                          className="h-8 gap-1 text-xs text-primary hover:text-primary hover:bg-primary/10"
-                        >
-                          <Eye className="size-3.5" />
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        </CardContent>
       </Card>
 
-      {/* ── Invoice Detail Passport Modal ─── */}
+      {/* Invoice Detail Passport Modal */}
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
         <DialogContent className="max-w-xl p-6">
           <DialogHeader>

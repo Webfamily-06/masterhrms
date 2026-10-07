@@ -4,8 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -34,21 +33,24 @@ import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
 import {
   FileText,
-  Search,
   Download,
   Calendar,
   Building2,
   DollarSign,
-  TrendingUp,
   Loader2,
   Eye,
   CheckCircle2,
   Clock,
   Printer,
-  ChevronRight,
   ShieldCheck,
   CreditCard,
 } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/payslip-report")({
   component: PayslipReportPage,
@@ -126,7 +128,7 @@ export function PayslipReportPage() {
     });
   }, [payslips, search, selectedStatus]);
 
-  // Aggregate KPI metrics
+  // Aggregate KPI metrics (preserved exactly from original)
   const metrics = useMemo(() => {
     let totalGross = 0;
     let totalNet = 0;
@@ -221,134 +223,70 @@ export function PayslipReportPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-300">
-      {/* ── Breadcrumb & Top Controls ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            <Link to="/payroll" className="hover:text-foreground transition-colors">
-              HRM & Payroll
-            </Link>
-            <ChevronRight className="size-3" />
-            <span className="text-foreground">Reports</span>
-            <ChevronRight className="size-3" />
-            <span className="text-foreground font-bold">Payslip Report</span>
+    <div className="space-y-6">
+      <PageHeader
+        title="Payroll & Payslip Report"
+        description="Comprehensive audit of salary disbursements, deductions, statutory contributions, and net payouts."
+        breadcrumbs={[
+          { label: "HRM & Payroll", href: "/payroll" },
+          { label: "Reports", href: "/payslip-report" },
+          { label: "Payslip Report" },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleExportCSV}
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs font-semibold shadow-2xs"
+            >
+              <Download className="size-3.5 text-muted-foreground" />
+              Export CSV
+            </Button>
+            <Button asChild size="sm" className="h-9 gap-1.5 text-xs font-semibold shadow-2xs">
+              <Link to="/payroll">
+                <CreditCard className="size-3.5" />
+                Run Payroll
+              </Link>
+            </Button>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <FileText className="size-7 text-primary" />
-            Payroll & Payslip Report
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Comprehensive audit of salary disbursements, deductions, statutory contributions, and net payouts.
-          </p>
-        </div>
+        }
+      />
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            onClick={handleExportCSV}
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5 font-medium border-border/80 shadow-xs"
-          >
-            <Download className="size-4 text-muted-foreground" />
-            Export CSV
-          </Button>
-          <Button
-            asChild
-            size="sm"
-            className="h-9 gap-1.5 font-medium shadow-xs"
-          >
-            <Link to="/payroll">
-              <CreditCard className="size-4" />
-              Run Payroll
-            </Link>
-          </Button>
-        </div>
-      </div>
+      {/* KPI Visual Progress Cards */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Gross Payroll"
+          value={formatSystemAmount(metrics.totalGross)}
+          icon={<DollarSign className="size-4" />}
+          description="+12.5% budget allocation"
+          variant="default"
+        />
+        <StatCard
+          label="Total Deductions"
+          value={formatSystemAmount(metrics.totalDeductions)}
+          icon={<ShieldCheck className="size-4" />}
+          description="PF, ESI, TDS withholdings"
+          variant="rose"
+        />
+        <StatCard
+          label="Disbursed Net Pay"
+          value={formatSystemAmount(metrics.totalNet)}
+          icon={<CheckCircle2 className="size-4" />}
+          description={`${filteredData.length} records processed`}
+          variant="success"
+        />
+        <StatCard
+          label="Allowances & Perks"
+          value={formatSystemAmount(metrics.totalAllowances)}
+          icon={<Building2 className="size-4" />}
+          description="HRA, Special, DA allowances"
+          variant="info"
+        />
+      </StatsOverviewGrid>
 
-      {/* ── KPI Visual Progress Cards (matching ui-2/payslip-report.html) ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Payroll / Gross */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-primary/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Total Gross Payroll</span>
-              <h3 className="text-xl font-bold text-foreground">
-                {formatSystemAmount(metrics.totalGross)}
-              </h3>
-            </div>
-            <div className="size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <DollarSign className="size-5" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
-              <TrendingUp className="size-3.5" /> +12.5%
-            </span>
-            <span>budget allocation</span>
-          </div>
-        </Card>
-
-        {/* Deductions */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-rose-500/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Total Deductions</span>
-              <h3 className="text-xl font-bold text-foreground">
-                {formatSystemAmount(metrics.totalDeductions)}
-              </h3>
-            </div>
-            <div className="size-10 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
-              <ShieldCheck className="size-5" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="text-rose-500 font-semibold">PF, ESI, TDS</span>
-            <span>withholdings</span>
-          </div>
-        </Card>
-
-        {/* Net Pay */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-emerald-500/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Disbursed Net Pay</span>
-              <h3 className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                {formatSystemAmount(metrics.totalNet)}
-              </h3>
-            </div>
-            <div className="size-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600">
-              <CheckCircle2 className="size-5" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="text-emerald-600 font-semibold">{filteredData.length} records</span>
-            <span>processed</span>
-          </div>
-        </Card>
-
-        {/* Allowances */}
-        <Card className="p-4 bg-card border-border/60 shadow-xs hover:border-sky-500/40 transition-colors">
-          <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-lg p-3 mb-2.5">
-            <div>
-              <span className="text-xs font-medium text-muted-foreground block mb-0.5">Allowances & Perks</span>
-              <h3 className="text-xl font-bold text-foreground">
-                {formatSystemAmount(metrics.totalAllowances)}
-              </h3>
-            </div>
-            <div className="size-10 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600">
-              <Building2 className="size-5" />
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="text-sky-600 font-semibold">HRA, Special, DA</span>
-            <span>allowances</span>
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Annual Payroll Distribution Bar Trend ─── */}
-      <Card className="p-5 border-border/60 shadow-xs">
+      {/* Annual Payroll Distribution Bar Trend */}
+      <Card className="p-5 border-border/80 shadow-2xs">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -374,31 +312,17 @@ export function PayslipReportPage() {
         </div>
       </Card>
 
-      {/* ── Filter Bar & Data Table Card ─── */}
-      <Card className="border-border/60 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-border/50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-muted/10">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-foreground">Payslip Ledger</h3>
-            <Badge variant="outline" className="text-xs font-semibold px-2 py-0.5 bg-background">
-              {filteredData.length} records
-            </Badge>
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Search Input */}
-            <div className="relative min-w-[220px] max-w-xs flex-1">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search employee, ID, role..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-9 pl-9 text-xs bg-background"
-              />
-            </div>
-
-            {/* Year Select */}
+      {/* Filter Toolbar */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee, ID, role...",
+        }}
+        filters={
+          <>
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="h-9 w-[110px] text-xs bg-background font-medium">
+              <SelectTrigger className="w-[110px] h-8.5 text-xs">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
@@ -409,9 +333,8 @@ export function PayslipReportPage() {
               </SelectContent>
             </Select>
 
-            {/* Month Select */}
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="h-9 w-[130px] text-xs bg-background font-medium">
+              <SelectTrigger className="w-[130px] h-8.5 text-xs">
                 <SelectValue placeholder="Month" />
               </SelectTrigger>
               <SelectContent>
@@ -424,9 +347,8 @@ export function PayslipReportPage() {
               </SelectContent>
             </Select>
 
-            {/* Status Select */}
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="h-9 w-[120px] text-xs bg-background font-medium">
+              <SelectTrigger className="w-[120px] h-8.5 text-xs">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -435,144 +357,141 @@ export function PayslipReportPage() {
                 <SelectItem value="pending">Pending</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        {/* Payslip Table */}
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 pl-5">Employee</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5">Department & Role</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5">Payroll Period</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-right">Gross Pay</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-right">Deductions</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-right">Net Salary</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-center">Status</TableHead>
-                <TableHead className="font-bold text-xs uppercase tracking-wider py-3.5 text-center pr-5">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+      {/* Payslip Table Card */}
+      <Card className="border border-border/80 shadow-2xs overflow-hidden">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-muted/40">
                 <TableRow>
-                  <TableCell colSpan={8} className="h-44 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Loader2 className="size-6 animate-spin text-primary" />
-                      <p className="text-xs text-muted-foreground">Loading payslip audit records...</p>
-                    </div>
-                  </TableCell>
+                  <TableHead className="w-48 text-xs font-semibold pl-5">Employee</TableHead>
+                  <TableHead className="text-xs font-semibold">Department & Role</TableHead>
+                  <TableHead className="text-xs font-semibold">Payroll Period</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Gross Pay</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Deductions</TableHead>
+                  <TableHead className="text-xs font-semibold text-right">Net Salary</TableHead>
+                  <TableHead className="text-xs font-semibold text-center">Status</TableHead>
+                  <TableHead className="text-xs font-semibold text-center pr-5">Actions</TableHead>
                 </TableRow>
-              ) : filteredData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-44 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <FileText className="size-8 text-muted-foreground/50" />
-                      <p className="text-sm font-semibold text-foreground">No payslips found</p>
-                      <p className="text-xs text-muted-foreground">Try adjusting your year, month, or search filters.</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredData.map((p: any) => {
-                  const emp = p.employee || {};
-                  const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || "Employee";
-                  const monthName = MONTHS[Number(p.periodMonth || 1) - 1] || `Month ${p.periodMonth}`;
-                  const isPaid = p.paymentStatus === "paid" || p.status === "paid";
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="size-4 animate-spin text-primary" />
+                        <span>Loading payslip audit records...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="p-0">
+                      <EmptyState
+                        icon={FileText}
+                        title="No payslips found"
+                        description="Try adjusting your year, month, or search filter criteria."
+                        compact
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredData.map((p: any) => {
+                    const emp = p.employee || {};
+                    const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || "Employee";
+                    const monthName = MONTHS[Number(p.periodMonth || 1) - 1] || `Month ${p.periodMonth}`;
+                    const isPaid = p.paymentStatus === "paid" || p.status === "paid";
 
-                  return (
-                    <TableRow key={p.id} className="hover:bg-muted/30 transition-colors">
-                      {/* Employee Avatar & Name */}
-                      <TableCell className="py-3 pl-5">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-9 border border-border/80">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${fullName}`} />
-                            <AvatarFallback className="text-xs font-semibold">
-                              {fullName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-bold text-foreground leading-tight">{fullName}</p>
-                            <span className="text-[11px] font-mono text-muted-foreground">
-                              {emp.employeeCode || "EMP-000"}
-                            </span>
+                    return (
+                      <TableRow key={p.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="py-3 pl-5">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="size-8 border border-border/80">
+                              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${fullName}`} />
+                              <AvatarFallback className="text-[11px] font-semibold">
+                                {fullName.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-xs font-bold text-foreground leading-tight">{fullName}</p>
+                              <span className="text-[11px] font-mono text-muted-foreground">
+                                {emp.employeeCode || "EMP-000"}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      {/* Department & Role */}
-                      <TableCell className="py-3">
-                        <p className="text-xs font-semibold text-foreground">{emp.department?.name || "General"}</p>
-                        <p className="text-[11px] text-muted-foreground">{emp.position || "Staff"}</p>
-                      </TableCell>
+                        <TableCell className="py-3">
+                          <p className="text-xs font-semibold text-foreground">{emp.department?.name || "General"}</p>
+                          <p className="text-[11px] text-muted-foreground">{emp.position || "Staff"}</p>
+                        </TableCell>
 
-                      {/* Period */}
-                      <TableCell className="py-3 text-xs font-medium text-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="size-3.5 text-muted-foreground" />
-                          <span>{monthName} {p.periodYear || new Date().getFullYear()}</span>
-                        </div>
-                      </TableCell>
+                        <TableCell className="py-3 text-xs font-medium text-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="size-3.5 text-muted-foreground" />
+                            <span>{monthName} {p.periodYear || new Date().getFullYear()}</span>
+                          </div>
+                        </TableCell>
 
-                      {/* Gross Pay */}
-                      <TableCell className="py-3 text-right text-xs font-medium text-foreground">
-                        {formatSystemAmount(p.grossPay || 0)}
-                      </TableCell>
+                        <TableCell className="py-3 text-right text-xs font-medium text-foreground">
+                          {formatSystemAmount(p.grossPay || 0)}
+                        </TableCell>
 
-                      {/* Deductions */}
-                      <TableCell className="py-3 text-right text-xs font-medium text-rose-500">
-                        -{formatSystemAmount(p.totalDeductions || 0)}
-                      </TableCell>
+                        <TableCell className="py-3 text-right text-xs font-medium text-rose-500">
+                          -{formatSystemAmount(p.totalDeductions || 0)}
+                        </TableCell>
 
-                      {/* Net Salary */}
-                      <TableCell className="py-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                        {formatSystemAmount(p.netPay || 0)}
-                      </TableCell>
+                        <TableCell className="py-3 text-right text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                          {formatSystemAmount(p.netPay || 0)}
+                        </TableCell>
 
-                      {/* Status Badge */}
-                      <TableCell className="py-3 text-center">
-                        <Badge
-                          variant="outline"
-                          className={
-                            isPaid
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] font-bold"
-                              : "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] font-bold"
-                          }
-                        >
-                          {isPaid ? (
-                            <span className="flex items-center gap-1">
-                              <CheckCircle2 className="size-3" /> Paid
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1">
-                              <Clock className="size-3" /> Pending
-                            </span>
-                          )}
-                        </Badge>
-                      </TableCell>
+                        <TableCell className="py-3 text-center">
+                          <Badge
+                            variant="outline"
+                            className={
+                              isPaid
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] font-bold"
+                                : "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] font-bold"
+                            }
+                          >
+                            {isPaid ? (
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="size-3" /> Paid
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <Clock className="size-3" /> Pending
+                              </span>
+                            )}
+                          </Badge>
+                        </TableCell>
 
-                      {/* Actions */}
-                      <TableCell className="py-3 text-center pr-5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedPayslip(p)}
-                          className="h-8 gap-1.5 text-xs text-primary hover:text-primary hover:bg-primary/10"
-                        >
-                          <Eye className="size-3.5" />
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                        <TableCell className="py-3 text-center pr-5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedPayslip(p)}
+                            className="h-8 gap-1.5 text-xs text-primary hover:text-primary hover:bg-primary/10"
+                          >
+                            <Eye className="size-3.5" />
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
       </Card>
 
-      {/* ── Payslip Breakdown Passport Dialog ─── */}
+      {/* Payslip Breakdown Passport Dialog */}
       <Dialog open={!!selectedPayslip} onOpenChange={(open) => !open && setSelectedPayslip(null)}>
         <DialogContent className="max-w-2xl p-6">
           <DialogHeader>
@@ -596,7 +515,6 @@ export function PayslipReportPage() {
 
           {selectedPayslip && (
             <div className="space-y-5 text-xs">
-              {/* Employee Summary Header */}
               <div className="bg-muted/40 p-3.5 rounded-lg border border-border/60 flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-bold text-foreground">
@@ -617,9 +535,7 @@ export function PayslipReportPage() {
                 </div>
               </div>
 
-              {/* Earnings & Deductions Columns */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Earnings */}
                 <div className="border border-border/60 rounded-lg p-3 space-y-2 bg-background">
                   <h5 className="font-bold text-foreground text-xs uppercase tracking-wider text-emerald-600 border-b pb-1.5">
                     Earnings
@@ -644,7 +560,6 @@ export function PayslipReportPage() {
                   </div>
                 </div>
 
-                {/* Deductions */}
                 <div className="border border-border/60 rounded-lg p-3 space-y-2 bg-background">
                   <h5 className="font-bold text-foreground text-xs uppercase tracking-wider text-rose-500 border-b pb-1.5">
                     Deductions
@@ -670,7 +585,6 @@ export function PayslipReportPage() {
                 </div>
               </div>
 
-              {/* Net Payout Banner */}
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold text-muted-foreground block">Net Remuneration Disbursed</span>

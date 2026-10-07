@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import {
   Table,
@@ -24,23 +23,22 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
-  FileText,
-  Search,
-  Download,
   Calendar,
   Clock,
   CheckCircle2,
   AlertCircle,
-  Users,
-  ChevronRight,
-  TrendingUp,
+  Download,
   Loader2,
   CalendarCheck,
-  Building2,
 } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/attendance-report")({
   component: AttendanceReportPage,
@@ -171,26 +169,16 @@ export function AttendanceReportPage() {
 
   return (
     <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
-      {/* ── Breadcrumb & Top Bar ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <FileText className="size-6 text-primary" /> Attendance Report
-          </h1>
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground transition-colors">
-              Dashboard
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <Link to="/attendance" className="hover:text-foreground transition-colors">
-              Attendance
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <span className="font-semibold text-foreground">Attendance Report</span>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
+      {/* ── PageHeader ──────────────────────────────────────────────────── */}
+      <PageHeader
+        title="Attendance Report"
+        description="Workforce attendance analytics, punctuality metrics, and work duration records."
+        breadcrumbs={[
+          { label: "Home", href: "/hrm-dashboard" },
+          { label: "Attendance", href: "/attendance" },
+          { label: "Attendance Report" },
+        ]}
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -199,113 +187,50 @@ export function AttendanceReportPage() {
           >
             <Download className="size-3.5" /> Export Report (CSV)
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── KPI Visual Progress Cards (matching ui-2/attendance-report.html) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Total Working Days</span>
-            <div className="size-8 rounded-lg bg-primary/10 grid place-items-center text-primary">
-              <Calendar className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight">25 Days</div>
-            <div className="mt-2 space-y-1">
-              <Progress value={85} className="h-1.5 bg-muted" />
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <span className="text-emerald-600 font-bold flex items-center gap-0.5">
-                  <TrendingUp className="size-3" /> +20.01%
-                </span>
-                from last month
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">On-Time Presence</span>
-            <div className="size-8 rounded-lg bg-emerald-500/10 grid place-items-center text-emerald-600">
-              <CheckCircle2 className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-emerald-600">
-              {presentCount} Logs
-            </div>
-            <div className="mt-2 space-y-1">
-              <Progress value={Number(attendanceRate)} className="h-1.5 bg-muted" />
-              <p className="text-[11px] text-muted-foreground">
-                Average attendance rate: <strong>{attendanceRate}%</strong>
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Late Arrivals</span>
-            <div className="size-8 rounded-lg bg-amber-500/10 grid place-items-center text-amber-600">
-              <Clock className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-amber-600">
-              {lateCount} Logs
-            </div>
-            <div className="mt-2 space-y-1">
-              <Progress
-                value={totalLogs > 0 ? (lateCount / totalLogs) * 100 : 8}
-                className="h-1.5 bg-muted"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Tardiness grace period: <strong>15 mins</strong>
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Absences & Half-Days</span>
-            <div className="size-8 rounded-lg bg-rose-500/10 grid place-items-center text-rose-600">
-              <AlertCircle className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-rose-600">
-              {absentCount + halfDayCount} Logs
-            </div>
-            <div className="mt-2 space-y-1">
-              <Progress
-                value={totalLogs > 0 ? ((absentCount + halfDayCount) / totalLogs) * 100 : 5}
-                className="h-1.5 bg-muted"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Leave requests verified in system
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
+      {/* ── KPI Visual Progress Cards ───────────────────────────────────── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Working Days"
+          value="25 Days"
+          icon={<Calendar className="size-5" />}
+          description="+20.01% from last month"
+          variant="primary"
+        />
+        <StatCard
+          label="Present Days"
+          value={`${presentCount} Logs`}
+          icon={<CheckCircle2 className="size-5" />}
+          description={`On-time rate: ${attendanceRate}%`}
+          variant="success"
+        />
+        <StatCard
+          label="Absent Days"
+          value={`${absentCount} Logs`}
+          icon={<AlertCircle className="size-5" />}
+          description={`Half days: ${halfDayCount}`}
+          variant="rose"
+        />
+        <StatCard
+          label="Attendance Rate"
+          value={`${attendanceRate}%`}
+          icon={<Clock className="size-5" />}
+          description={`${totalLogs} total records processed`}
+          variant="warning"
+        />
+      </StatsOverviewGrid>
 
       {/* ── Filters Bar ─────────────────────────────────────────────────── */}
-      <Card className="p-4 border shadow-xs">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search employee name or employee code..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee name or employee code...",
+        }}
+        filters={
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="w-[140px]">
               <Input
                 type="month"
@@ -342,8 +267,8 @@ export function AttendanceReportPage() {
               </SelectContent>
             </Select>
           </div>
-        </div>
-      </Card>
+        }
+      />
 
       {/* ── Attendance Records Table ────────────────────────────────────── */}
       <Card className="border shadow-xs overflow-hidden">
@@ -381,8 +306,12 @@ export function AttendanceReportPage() {
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
-                    No attendance records found for this period.
+                  <TableCell colSpan={6} className="p-8">
+                    <EmptyState
+                      title="No attendance records found"
+                      description="No employee attendance records match the selected month, department, and status filters."
+                      icon={CalendarCheck}
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

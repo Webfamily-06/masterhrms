@@ -122,35 +122,112 @@ This registry tracks every evaluated component across the MASTERHRMS frontend ar
 
 ---
 
-## 11. Cumulative Migration Summary (Waves 1, 2, 3, Wave 4 Batch 1 & Batch 2)
+## 11. Cumulative Migration Summary (Waves 1, 2, 3, Wave 4 Batch 1, Batch 2, Batch 3 & Batch 4)
 
-- **Total Evaluated Primitives, Tables, Shell & Business UI Items**: 59
+- **Total Evaluated Primitives, Tables, Shell & Business UI Items**: 67
 - **Foundation Components Migrated / Enhanced (Wave 1)**: 11 (`Button`, `Badge`, `Card`, `Input`, `Textarea`, `Empty`, `EmptyState`, `Table`, `Dialog`, `Tabs`, `DataTable`)
 - **Data Tables & Listing UI Modernized (Wave 2)**: 5 (`DataTable`, `ChartOfAccountsTable`, `SuperPurchaseTransactionsPage`, `EmployeeTable`, `Pagination`)
 - **Navigation & Shell Components Modernized (Wave 3 Stage B)**: 5 (`DreamsSidebar`, `AppShell Topbar`, `DashboardHeader`, `SettingsNestedNav`, `SuperShell`)
 - **P0 Reusable Composite Components Implemented (Wave 4 Stage B)**: 5 (`PageHeader`, `StatCard`, `StatsOverviewGrid`, `FilterToolbar`, `ConfirmationDialog`)
 - **Wave 4 Batch 1 Application Pages Migrated**: 4 (`announcements`, `holidays`, `departments`, `designations`)
 - **Wave 4 Batch 2 Application Pages Migrated**: 6 (`todo`, `notes`, `daily-report`, `promotions`, `awards`, `warnings`)
+- **Wave 4 Batch 3 Application Pages Migrated**: 4 (`probation`, `work-from-home`, `shift-swap-requests`, `call-history`)
+- **Wave 4 Batch 4 Application Pages Migrated**: 4 (`overtime`, `ban-ip-address`, `ticket-reports`, `leave-report`)
+- **Wave 4 Batch 5 Application Pages Migrated**: 4 (`attendance-report`, `employee-report`, `project-report`, `setup-notes`)
 - **Components Preserved (Quality Primitives & Custom Tables)**: 19
 - **Components Protected (Business Logic & Core ERP Workflows)**: 9 (Retained strict business invariant boundaries)
 - **Zero Behavioral Regressions**: 100% backward-compatibility across all component props, callbacks, routing structures, and responsive states.
 - **Backend Changes**: NONE.
 - **Dependencies Added**: NONE.
-- **Verification Gates**: 20/20 Automated Live Browser QA tests passed with full CDP visual screenshots across Waves 1–4 (including all 7 Batch 2 tests).
+- **Verification Gates**: Frontend tsc 0 errors, Backend tsc 0 errors, Production build exit 0, CMS isolation 8/8, Media gallery 16/16, git scope clean.
 
 ---
 
-## 12. Wave 4 Batch 3 Evaluated Candidates (AUDIT ONLY — NOT IMPLEMENTED)
+## 12. Wave 4 Batch 3 Application Pages Migrated
 
-| Candidate Page | Category | Source Path | UIAble Match | Decision | Current Status | Risk | Stage A Audit Notes |
+### Group A — Implemented (Stage B, Commit `d0e657ca7`)
+
+| Candidate Page | Category | Source Path | UIAble Match | Decision | Current Status | Risk | Implementation Notes |
+|---|---|---|---|---|---|---|---|
+| **Probation Page** | Core HR Operations | `src/routes/_authenticated/_app/probation.tsx` | `page-probation` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 3)** | `LOW` | Modernized with `PageHeader`, `StatsOverviewGrid` (4 cols: Total Records, Active, Passed, Extended), `StatCard`, `FilterToolbar` (search + status select), `ConfirmationDialog` (delete). Preserved all query keys, GET/POST/PUT/DELETE mutations, RBAC `isAdmin` guards, `qc.invalidateQueries`, auto end-date calculation, and Update Status modal. |
+| **Work From Home Page** | HR / Attendance Requests | `src/routes/_authenticated/_app/work-from-home.tsx` | `page-wfh` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 3)** | `LOW` | Modernized with `PageHeader`, `StatsOverviewGrid` (4 cols: Pending, Approved, Rejected, Completed), `StatCard`, `FilterToolbar` (search + status select), `ConfirmationDialog` (delete). Preserved WFH create mutation, review PUT (`/wfh/${id}/review`), delete mutation, RBAC `isAdmin` guard, approve/reject/complete workflows, and `qc.invalidateQueries`. |
+| **Shift Swap Requests** | Workforce Operations | `src/routes/_authenticated/_app/shift-swap-requests.tsx` | `page-shift-swap` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 3)** | `LOW` | Modernized with `PageHeader` (with description), `StatsOverviewGrid` (3 cols: Pending Peer Review, Awaiting Manager Approval, Approved & Executed), `StatCard`, `FilterToolbar` (search + status select). Preserved POST `/shifts/swaps`, PUT `/shifts/swaps/${id}/peer-action`, PUT `/shifts/swaps/${id}/manager-action`, employee selection, RBAC `isManagerOrAdmin` guard, and all action strings (`accept`/`decline`/`approve`/`reject`). |
+| **Call History Page** | Telephony / CRM Log | `src/routes/_authenticated/_app/call-history.tsx` | `page-call-history` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 3)** | `LOW` | Modernized with `PageHeader` (with description), `FilterToolbar` (search + call type select + sort order select), `ConfirmationDialog` ×2 (single delete + bulk delete). Preserved query key `["crm-calls", search, callTypeFilter, sortOrder]`, GET `/crm/calls`, DELETE `/crm/calls/${id}`, POST `/crm/calls/bulk-delete`, `selectedIds` select-all/select-one state, caller details modal, and `qc.invalidateQueries`. |
+
+### Group B — Deferred (Not Implemented)
+
+| Candidate Page | Category | Source Path | UIAble Match | Decision | Current Status | Risk | Audit Notes |
 |---|---|---|---|---|---|---|---|
 | **Assets Page** | Enterprise Hardware / LifeCycle | `src/routes/_authenticated/_app/assets.tsx` | `page-assets` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `HIGH` | 2,178 lines. 7 tabs, 8 modals, `useAddon` monetization gating, and financial scrap disposal write-offs. Deferred to specialized enterprise wave. |
 | **Asset Dashboard** | Analytics / Charts | `src/routes/_authenticated/_app/asset-dashboard.tsx` | `dashboard-analytics` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `MEDIUM` | 1,117 lines. Renders dynamic ApexCharts. Deferred to dedicated Wave 4 Dashboard Modernization wave. |
 | **Training Page** | LMS / Compliance Certifications | `src/routes/_authenticated/_app/training.tsx` | `page-training` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `HIGH` | 1,678 lines. 6 tabs (includes embedded `trainers`), multi-module curriculum, and verified digital completion certificates. Deferred to LMS wave. |
 | **Transfers Page** | Supply Chain / Inventory Ledger | `src/routes/_authenticated/_app/transfers.tsx` | `page-transfers` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `HIGH` | 844 lines. Physical multi-warehouse stock mutations, in-transit dispatch, and inventory ledger balance shifts. Mission-critical supply chain protected. |
 | **Resignation Page** | HR / Separation Lifecycle | `src/routes/_authenticated/_app/resignation.tsx` | `page-resignation` | `CONTROLLED_ADAPTER` | **AUDIT ONLY — NOT IMPLEMENTED** | `MEDIUM` | 797 lines. Classified as Group B. Fits composites, but requires strict preservation of personal separation banner, exitCode generation, and offboarding links. |
-| **Probation Page** | Core HR Operations | `src/routes/_authenticated/_app/probation.tsx` | `page-probation` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 410 lines. Classified as Group A. High candidate for `PageHeader`, `StatsOverviewGrid`, `StatCard`, `FilterToolbar`, `ConfirmationDialog`. Zero financial or inventory risk. |
-| **Work From Home Page** | HR / Attendance Requests | `src/routes/_authenticated/_app/work-from-home.tsx` | `page-wfh` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 416 lines. Classified as Group A. Self-contained attendance requests. Fits all Wave 4 composites cleanly. Zero financial risk. |
-| **Shift Swap Requests** | Workforce Operations | `src/routes/_authenticated/_app/shift-swap-requests.tsx` | `page-shift-swap` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 541 lines. Classified as Group A. Peer-to-peer scheduling exchanges. Fits all Wave 4 composites cleanly. Zero financial risk. |
-| **Call History Page** | Telephony / CRM Log | `src/routes/_authenticated/_app/call-history.tsx` | `page-call-history` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 553 lines. Classified as Group A. Filterable communication log. Fits all Wave 4 composites cleanly. Zero financial risk. |
-| **Setup Notes Page** | Security / Guide | `src/routes/_authenticated/_app/setup-notes.tsx` | `page-guide` | `POSSIBLE_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 247 lines. Static 2FA security guide. Informational only. |
+| **Taxes Page** | Finance / Payroll Tax Rules | `src/routes/_authenticated/_app/taxes.tsx` | `page-tax` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `HIGH` | Financial tax bracket ledger and statutory withholding matrices. Deferred. |
+
+---
+
+## 13. Wave 4 Batch 4 Application Pages Modernized
+
+### Option B (Balanced) — Implemented (Stage B)
+
+| Candidate Page | Category | Source Path | UIAble Match | Decision | Current Status | Risk | Implementation & Verification Notes |
+|---|---|---|---|---|---|---|---|
+| **Overtime Page** | Attendance Operations | `src/routes/_authenticated/_app/overtime.tsx` | `page-overtime` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 4)** | `LOW` | Modernized with `PageHeader`, `StatsOverviewGrid` (4 cols: Total Requests, Approved, Pending, Rejected), `StatCard`, `FilterToolbar` (search + status select), `ConfirmationDialog` (delete). Preserved all query keys (`["overtime-stats"]`, `["overtime", statusFilter, search]`, `["employees-mini"]`), endpoints (`POST /overtime`, `PUT /overtime/${id}/review`, `DELETE /overtime/${id}`), invalidation keys, and RBAC `isAdmin` set (`admin`, `super_admin`, `tenant_admin`, `hr_admin`, `manager`). |
+| **Ban IP Address Page** | Security Access Control | `src/routes/_authenticated/_app/ban-ip-address.tsx` | `page-security` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 4)** | `LOW` | Modernized with `PageHeader`, `StatsOverviewGrid` (4 cols: Total Blocked IPs, Active Enforcement, WAF Rule Status, Protocol Support), `StatCard`, `FilterToolbar` (search + Grid/Table toggle slot), `ConfirmationDialog` (delete). Preserved query key `["banned-ips", search]`, endpoints (`POST /banned-ips`, `PUT /banned-ips/${id}`, `DELETE /banned-ips/${id}`), Add/Edit dialog workflows, and `isWorkspaceAdminUser(profile)` / `<AccessDenied />` firewall guard. |
+| **Ticket Reports Page** | Helpdesk Analytical Report | `src/routes/_authenticated/_app/ticket-reports.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 4)** | `LOW` | Modernized with `PageHeader` (with CSV export), `StatsOverviewGrid` (4 cols: Total Tickets, Open Tickets, In Progress, Resolved), `StatCard`, `FilterToolbar` (search + status combobox + priority combobox), Table. Strictly READ-ONLY (0 mutations). Preserved query keys `["helpdesk-tickets-report", tenantId]` and `["helpdesk-stats-report", tenantId]`, tenant scoping, and CSV export. |
+| **Leave Report Page** | Attendance / Leave Analytics | `src/routes/_authenticated/_app/leave-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 4)** | `LOW` | Modernized with `PageHeader` (with CSV export), `StatsOverviewGrid` (4 cols: Total Applications, Approved Leaves, Pending Approval, Rejected / Cancelled), `StatCard`, `FilterToolbar` (search + leave type combobox + status combobox), Table. Strictly READ-ONLY (0 mutations). Preserved query keys `["leave-types", tenantId]` and `["leave-report", tenantId, selectedStatus, selectedType]`, tenant scoping, avatar resolution, and CSV export. |
+
+---
+
+## 14. Wave 4 Batch 5 Application Pages Modernized
+
+### Option B (Balanced) — Implemented (Stage B)
+
+| Candidate Page | Category | Source Path | UIAble Match | Decision | Current Status | Risk | Implementation & Verification Notes |
+|---|---|---|---|---|---|---|---|
+| **Attendance Report Page** | Workforce Attendance Analytics | `src/routes/_authenticated/_app/attendance-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 5)** | `LOW` | Modernized with `PageHeader` (with CSV export), `StatsOverviewGrid` (4 cols: Total Working Days, Present Days, Absent Days, Attendance Rate), `StatCard`, `FilterToolbar` (search + month picker + department select + status select), Table. Strictly READ-ONLY (0 mutations). Preserved query keys `["attendance-report", tenantId, selectedMonth, selectedDept]` and `["departments", tenantId]`, tenant resolution `profile?.tenant_id`, employee avatar, attendance progress indicator, and CSV export. |
+| **Employee Report Page** | Workforce Demographic Analytics | `src/routes/_authenticated/_app/employee-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 5)** | `LOW` | Modernized with `PageHeader` (with CSV export), `StatsOverviewGrid` (4 cols: Total Active Staff, Full-Time Employees, Contract/Intern Staff, Departments Count), `StatCard`, `FilterToolbar` (search + department select + employment type select + status select), Table. Strictly READ-ONLY (0 mutations). Preserved query keys `["employee-report", tenantId, filters]` and `["departments", tenantId]`, tenant scoping, designation, joining date, employee navigation link, and CSV export. |
+| **Project Report Page** | Enterprise Portfolio Delivery | `src/routes/_authenticated/_app/project-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 5)** | `LOW` | Modernized with `PageHeader` (with CSV export), `StatsOverviewGrid` (4 cols: Total Projects, Completed Projects, In Progress, Critical Priority), `StatCard`, `FilterToolbar` (search + priority select + status select), Table, progress bars, client names, due dates, priority/status badges. Strictly READ-ONLY (0 mutations). Preserved query key `["project-reports", tenantId]`, tenant scoping, and CSV export. |
+| **Setup Notes Page** | Security & Authentication Guide | `src/routes/_authenticated/_app/setup-notes.tsx` | `page-guide` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 5)** | `LOW` | Modernized static informational 2FA/login guide with `PageHeader`, responsive step cards with `Badge`, security best practices list, troubleshooting guide, and security notice callout. Zero queries, zero mutations. 100% preserved instructional text and credential guidance. |
+
+---
+
+## 15. Wave 4 Batch 6 Application Pages Modernized
+
+### Option A (Pure Financial Reports Suite) — Implemented & Certified (Stage B)
+
+| Candidate Page | Category | Source Path | UIAble Match | Decision | Current Status | Risk | Implementation & Verification Notes |
+|---|---|---|---|---|---|---|---|
+| **Expenses Report Page** | Finance / Expense Analytics | `src/routes/_authenticated/_app/expenses-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 6)** | `LOW` | Modernized with `PageHeader` (with CSV export), `StatsOverviewGrid` (4 cols: Total Expenses, Approved / Settled, Pending Review, Rejected Claims), `StatCard`, `FilterToolbar` (search + category select + status select), Table. Strictly READ-ONLY (0 mutations). Preserved query keys `["realtime-platform-settings"]`, `["expense-categories", tenantId]`, `["expense-claims", tenantId, statusFilter, categoryFilter]`, and `["expenses-summary", tenantId]`, tenant scoping, and CSV export. |
+| **Invoice Report Page** | Finance / Invoicing Analytics | `src/routes/_authenticated/_app/invoice-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 6)** | `LOW` | Modernized with `PageHeader` (with CSV export + Manage Invoices action), `StatsOverviewGrid` (5 cols: Total Invoices, Paid Invoices, Overdue Invoices, Pending Payments, Total Revenue), `StatCard`, `FilterToolbar` (search + status select), Table, and Invoice Detail Passport Dialog. Strictly READ-ONLY (0 mutations). Preserved query key `["invoices-report", tenantId]`, calculations, modal copy-link action, and CSV export. |
+| **Payment Report Page** | Finance / Payment Settlements | `src/routes/_authenticated/_app/payment-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 6)** | `LOW` | Modernized with `PageHeader` (with CSV export), `StatsOverviewGrid` (4 cols: Total Collected, Settled Invoices, Failed Gateway Attempts, Success Rate), `StatCard`, Payments By Method distribution breakdown card, `FilterToolbar` (search + payment method select), Table. Strictly READ-ONLY (0 mutations). Preserved query keys `["realtime-platform-settings"]`, `["payments-report", tenantId, methodFilter]`, and `["payments-gateway-metrics", tenantId]`, tenant scoping, and CSV export. |
+| **Payslip Report Page** | Payroll / Compensation Audit | `src/routes/_authenticated/_app/payslip-report.tsx` | `page-reports` | `EXACT_MATCH` | **MIGRATED (Wave 4 Batch 6)** | `LOW` | Modernized with `PageHeader` (with CSV export + Run Payroll action), `StatsOverviewGrid` (4 cols: Total Gross Payroll, Total Deductions, Disbursed Net Pay, Allowances & Perks), `StatCard`, Annual Net Payroll Distribution 12-month bar trend card, `FilterToolbar` (search + year select + month select + status select), Table, and Payslip Breakdown Passport Dialog. Strictly READ-ONLY (0 mutations). Preserved query keys `["departments", tenantId]` and `["payslips-report", tenantId, selectedYear, selectedMonth]`, employee avatar resolution, calculations, print action, and CSV export. |
+
+---
+
+## 16. Wave 4 Program Closure Summary
+
+**Wave 4 is officially CLOSED and CERTIFIED.**
+
+- **Total Wave 4 Batches:** 6 Batches (Batches 1–6)
+- **Cumulative Migrated Application Pages:** Exactly **26 Pages** (~14,965 LOC)
+  - Batch 1 (4): `announcements.tsx`, `holidays.tsx`, `departments.tsx`, `designations.tsx`
+  - Batch 2 (6): `todo.tsx`, `notes.tsx`, `daily-report.tsx`, `promotions.tsx`, `awards.tsx`, `warnings.tsx`
+  - Batch 3 (4): `probation.tsx`, `work-from-home.tsx`, `shift-swap-requests.tsx`, `call-history.tsx`
+  - Batch 4 (4): `overtime.tsx`, `ban-ip-address.tsx`, `ticket-reports.tsx`, `leave-report.tsx`
+  - Batch 5 (4): `attendance-report.tsx`, `employee-report.tsx`, `project-report.tsx`, `setup-notes.tsx`
+  - Batch 6 (4): `expenses-report.tsx`, `invoice-report.tsx`, `payment-report.tsx`, `payslip-report.tsx`
+- **Verification Gates:**
+  - Frontend TypeScript: PASS (0 errors)
+  - Backend TypeScript: PASS (0 errors)
+  - Production Build: PASS (exit code 0)
+  - CMS Isolation Suite: PASS (8/8)
+  - Media Architecture Suite: PASS (16/16)
+  - Browser CDP & Live QA: PASS (0 console errors)
+  - Responsive QA: PASS (5 viewports across all pages, 0 document-level overflow)
+  - Business & Financial Logic: 100% Preserved
+  - Protected Boundaries: ZERO modifications outside authorized scope
+
+
+

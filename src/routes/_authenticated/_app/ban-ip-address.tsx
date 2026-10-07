@@ -15,6 +15,11 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   Plus, Search, Trash2, Edit2, ShieldAlert, ShieldX, Info,
   LayoutGrid, List, CheckCircle2, ShieldCheck, Globe
@@ -22,6 +27,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { AccessDenied } from "@/components/access-denied";
+import { isWorkspaceAdminUser } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/_app/ban-ip-address")({
   component: BanIpAddressPage,
@@ -32,9 +39,6 @@ function fmtDate(d: string | null | undefined) {
   if (!d) return "-";
   try { return format(new Date(d), "dd MMM yyyy, HH:mm"); } catch { return String(d); }
 }
-
-import { AccessDenied } from "@/components/access-denied";
-import { isWorkspaceAdminUser } from "@/lib/permissions";
 
 export function BanIpAddressPage() {
   const qc = useQueryClient();
@@ -107,102 +111,90 @@ export function BanIpAddressPage() {
   const activeCount = records.filter(r => r.isActive).length;
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-[1600px] mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* ─── Header ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <ShieldAlert className="size-6 text-destructive" />
-            <span>Ban IP Address — Security Access Control</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Restrict malicious IP ranges, prevent automated scraping, and mitigate brute-force authentication attempts.
-          </p>
-        </div>
+      <PageHeader
+        title="Ban IP Address"
+        description="Restrict malicious IP ranges, prevent automated scraping, and mitigate brute-force authentication attempts."
+        breadcrumbs={[
+          { label: "Home" },
+          { label: "Security" },
+          { label: "Ban IP Address" },
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border">
+              <Button
+                variant={viewMode === "grid" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                className="h-7 px-2.5 text-xs gap-1"
+              >
+                <LayoutGrid className="size-3.5" />
+                <span className="hidden sm:inline">Grid</span>
+              </Button>
+              <Button
+                variant={viewMode === "table" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+                className="h-7 px-2.5 text-xs gap-1"
+              >
+                <List className="size-3.5" />
+                <span className="hidden sm:inline">Table</span>
+              </Button>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border">
-            <Button
-              variant={viewMode === "grid" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("grid")}
-              className="h-7 px-2.5 text-xs gap-1"
-            >
-              <LayoutGrid className="size-3.5" />
-              <span className="hidden sm:inline">Grid</span>
-            </Button>
-            <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("table")}
-              className="h-7 px-2.5 text-xs gap-1"
-            >
-              <List className="size-3.5" />
-              <span className="hidden sm:inline">Table</span>
-            </Button>
+            {isAdmin && (
+              <Button size="sm" onClick={() => setAddOpen(true)} className="text-xs gap-1.5 h-8">
+                <Plus className="size-3.5" />
+                <span>Add IP Address</span>
+              </Button>
+            )}
           </div>
-
-          {isAdmin && (
-            <Button size="sm" onClick={() => setAddOpen(true)} className="text-xs gap-1.5 h-8">
-              <Plus className="size-3.5" />
-              <span>Add IP Address</span>
-            </Button>
-          )}
-        </div>
-      </div>
+        }
+      />
 
       {/* ─── Metric Cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border bg-card p-3.5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Total Blocked IPs</p>
-            <ShieldX className="size-4 text-destructive" />
-          </div>
-          <p className="text-2xl font-bold text-foreground mt-1">{records.length}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Configured firewall rules</p>
-        </Card>
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Blocked IPs"
+          value={records.length}
+          icon={<ShieldX className="size-5" />}
+          variant="rose"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Active Enforcement"
+          value={activeCount}
+          icon={<CheckCircle2 className="size-5" />}
+          variant="success"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="WAF Rule Status"
+          value="Strict"
+          icon={<ShieldCheck className="size-5" />}
+          variant="warning"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Protocol Support"
+          value="IPv4 / IPv6"
+          icon={<Globe className="size-5" />}
+          variant="info"
+          isLoading={isLoading}
+        />
+      </StatsOverviewGrid>
 
-        <Card className="border bg-card p-3.5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-emerald-600">Active Enforcement</p>
-            <CheckCircle2 className="size-4 text-emerald-500" />
-          </div>
-          <p className="text-2xl font-bold text-foreground mt-1">{activeCount}</p>
-          <p className="text-[11px] text-emerald-600 mt-0.5">Currently rejected requests</p>
-        </Card>
-
-        <Card className="border bg-card p-3.5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-amber-600">WAF Rule Status</p>
-            <ShieldCheck className="size-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-bold text-foreground mt-1">Strict</p>
-          <p className="text-[11px] text-amber-600 mt-0.5">Tenant boundary isolation</p>
-        </Card>
-
-        <Card className="border bg-card p-3.5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-blue-600">Protocol Support</p>
-            <Globe className="size-4 text-blue-500" />
-          </div>
-          <p className="text-2xl font-bold text-foreground mt-1">IPv4 / IPv6</p>
-          <p className="text-[11px] text-blue-600 mt-0.5">CIDR subnet matches</p>
-        </Card>
-      </div>
-
-      {/* ─── Search Bar ──────────────────────────────────────────────────── */}
-      <Card className="border bg-card p-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search IP address or reason..."
-            className="pl-8 text-xs h-9"
-          />
-        </div>
-      </Card>
+      {/* ─── Filter Toolbar ──────────────────────────────────────────────── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search IP address or reason...",
+        }}
+      />
 
       {/* ─── Content: Grid vs Table ───────────────────────────────────────── */}
       {isLoading ? (
@@ -222,7 +214,7 @@ export function BanIpAddressPage() {
           <p className="mt-1">Your application firewall is operational and no manual address restrictions are active.</p>
         </Card>
       ) : viewMode === "grid" ? (
-        /* ─── Grid View (Matches ui-2/ban-ip-address.html) ─────────────────── */
+        /* ─── Grid View ─────────────────── */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {records.map((r: any) => (
             <Card key={r.id} className="border bg-card shadow-2xs hover:border-destructive/40 transition-colors">
@@ -248,112 +240,118 @@ export function BanIpAddressPage() {
                       className={cn(
                         "text-[10px] px-2 py-0.5",
                         r.isActive
-                          ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300"
-                          : "bg-muted text-muted-foreground"
+                          ? "bg-destructive/10 text-destructive border-destructive/20"
+                          : "bg-muted text-muted-foreground border-border"
                       )}
                     >
-                      {r.isActive ? "Banned" : "Inactive"}
+                      {r.isActive ? "Blocked" : "Inactive"}
                     </Badge>
-
-                    {isAdmin && (
-                      <div className="flex items-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground hover:text-foreground"
-                          onClick={() => setEditItem({ id: r.id, ipAddress: r.ipAddress, reason: r.reason || "", isActive: r.isActive })}
-                        >
-                          <Edit2 className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteConfirmId(r.id)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <Info className="size-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                  <p className="leading-relaxed">
-                    {r.reason || "No explicit reason provided. Blocked via tenant security policy."}
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">Reason / Violation:</p>
+                  <p className="text-xs text-foreground bg-muted/30 p-2 rounded border border-border/50 italic">
+                    "{r.reason || "No explicit reason specified"}"
                   </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground border-t">
+                  <span>Enforcement: WAF Reject</span>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditItem(r)}
+                        className="h-6 px-2 text-[10px] gap-1 hover:text-foreground"
+                      >
+                        <Edit2 className="size-3" />
+                        <span>Edit</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteConfirmId(r.id)}
+                        className="h-6 px-2 text-[10px] gap-1 text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="size-3" />
+                        <span>Unban</span>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
-        /* ─── Table View ─────────────────────────────────────────────────── */
-        <Card className="border bg-card overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead className="text-xs font-semibold">IP Address</TableHead>
-                <TableHead className="text-xs font-semibold">Reason / Violation</TableHead>
-                <TableHead className="text-xs font-semibold">Added On</TableHead>
-                <TableHead className="text-xs font-semibold">Status</TableHead>
-                <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {records.map((r: any) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs font-bold text-foreground">
-                    <div className="flex items-center gap-2">
-                      <ShieldX className="size-3.5 text-destructive" />
-                      <span>{r.ipAddress}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-md">
-                    {r.reason || "Automatic firewall block"}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {fmtDate(r.createdAt)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] px-2 py-0.5",
-                        r.isActive
-                          ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {r.isActive ? "Banned" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7"
-                        onClick={() => setEditItem({ id: r.id, ipAddress: r.ipAddress, reason: r.reason || "", isActive: r.isActive })}
-                      >
-                        <Edit2 className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteConfirmId(r.id)}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
+        /* ─── Table View ─────────────────── */
+        <div className="rounded-xl border border-border/70 bg-card shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-48">IP Address</TableHead>
+                  <TableHead>Reason / Notes</TableHead>
+                  <TableHead className="w-40">Date Added</TableHead>
+                  <TableHead className="w-28">Status</TableHead>
+                  {isAdmin && <TableHead className="w-24 text-right">Actions</TableHead>}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+              </TableHeader>
+              <TableBody>
+                {records.map((r: any) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-mono text-xs font-semibold text-foreground">
+                      {r.ipAddress}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-md truncate" title={r.reason || ""}>
+                      {r.reason || "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {fmtDate(r.createdAt)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] px-2 py-0.5",
+                          r.isActive
+                            ? "bg-destructive/10 text-destructive border-destructive/20"
+                            : "bg-muted text-muted-foreground border-border"
+                        )}
+                      >
+                        {r.isActive ? "Blocked" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditItem(r)}
+                            className="size-7"
+                          >
+                            <Edit2 className="size-3.5 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteConfirmId(r.id)}
+                            className="size-7 text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       )}
 
       {/* ─── Add IP Modal ─────────────────────────────────────────────────── */}
@@ -362,28 +360,31 @@ export function BanIpAddressPage() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <ShieldAlert className="size-5 text-destructive" />
-              <span>Add New Banned IP Address</span>
+              <span>Ban IP Address from Accessing System</span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-xs">
             <div className="space-y-1.5">
-              <Label className="text-xs">IP Address / Host *</Label>
+              <Label className="text-xs">IP Address (IPv4 or IPv6) *</Label>
               <Input
+                placeholder="e.g. 192.168.1.100 or 10.0.0.1"
                 value={form.ipAddress}
-                onChange={(e) => setForm(f => ({ ...f, ipAddress: e.target.value }))}
-                placeholder="e.g. 198.162.1.20 or 10.0.0.0/24"
+                onChange={(e) => setForm(prev => ({ ...prev, ipAddress: e.target.value }))}
                 className="font-mono text-xs h-9"
               />
+              <p className="text-[10px] text-muted-foreground">
+                Matches incoming client connection headers (x-forwarded-for, cf-connecting-ip).
+              </p>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Reason / Violation Summary</Label>
+              <Label className="text-xs">Reason for Ban *</Label>
               <Textarea
+                placeholder="e.g. Repeated brute force authentication failures, scraping, or malicious API probe."
                 rows={3}
                 value={form.reason}
-                onChange={(e) => setForm(f => ({ ...f, reason: e.target.value }))}
-                placeholder="e.g. Repeated unauthorized login attempts from suspicious geolocation."
+                onChange={(e) => setForm(prev => ({ ...prev, reason: e.target.value }))}
                 className="text-xs resize-none"
               />
             </div>
@@ -396,7 +397,7 @@ export function BanIpAddressPage() {
             <Button
               variant="destructive"
               size="sm"
-              disabled={createMutation.isPending || !form.ipAddress.trim()}
+              disabled={!form.ipAddress.trim() || !form.reason.trim() || createMutation.isPending}
               onClick={() => createMutation.mutate(form)}
             >
               {createMutation.isPending ? "Blocking..." : "Ban IP Address"}
@@ -464,32 +465,20 @@ export function BanIpAddressPage() {
       </Dialog>
 
       {/* ─── Delete Confirmation Dialog ───────────────────────────────────── */}
-      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-destructive flex items-center gap-2">
-              <Trash2 className="size-5" />
-              <span>Unban / Remove IP Address</span>
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground">
-            Are you sure you want to remove this IP from the blacklist? Traffic originating from this address will no longer be rejected by the security layer.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)}
-            >
-              {deleteMutation.isPending ? "Removing..." : "Yes, Unban IP"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmationDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}
+        title="Unban / Remove IP Address"
+        description="Are you sure you want to remove this IP from the blacklist? Traffic originating from this address will no longer be rejected by the security layer."
+        confirmLabel="Yes, Unban IP"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteConfirmId) {
+            deleteMutation.mutate(deleteConfirmId);
+          }
+        }}
+      />
     </div>
   );
 }

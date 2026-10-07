@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import {
   Table,
@@ -27,18 +26,21 @@ import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
 import {
   Users,
-  Search,
   Download,
-  Calendar,
   Building2,
-  Briefcase,
-  ChevronRight,
   TrendingUp,
   Loader2,
   DollarSign,
   UserCheck,
   Eye,
+  Briefcase,
 } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { StatCard } from "@/components/ui/stat-card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/employee-report")({
   component: EmployeeReportPage,
@@ -134,10 +136,16 @@ export function EmployeeReportPage() {
 
   // KPIs
   const totalEmployees = employees.length;
-  const activeEmployees = employees.filter((e: any) => e.status === "active").length;
-  const totalPayrollLiability = employees.reduce((sum: number, e: any) => sum + e.salary, 0);
-  const avgSalary = totalEmployees > 0 ? totalPayrollLiability / totalEmployees : 0;
-  const fullTimeCount = employees.filter((e: any) => e.employment_type === "full_time").length;
+  const activeEmployees = employees.filter((e: any) => (e.status || "").toLowerCase() === "active").length;
+  const fullTimeCount = employees.filter((e: any) => {
+    const t = (e.employment_type || "").toLowerCase();
+    return t === "full_time" || t === "full-time";
+  }).length;
+  const contractInternCount = employees.filter((e: any) => {
+    const t = (e.employment_type || "").toLowerCase();
+    return t === "contract" || t === "intern";
+  }).length;
+  const departmentsCount = departments.length;
 
   function exportCSV() {
     if (filtered.length === 0) return toast.error("No employees to export");
@@ -178,26 +186,16 @@ export function EmployeeReportPage() {
 
   return (
     <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
-      {/* ── Breadcrumb & Top Bar ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Users className="size-6 text-primary" /> Employee Workforce Report
-          </h1>
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground transition-colors">
-              Dashboard
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <Link to="/employees" className="hover:text-foreground transition-colors">
-              Workforce
-            </Link>
-            <ChevronRight className="size-3 text-muted-foreground/60" />
-            <span className="font-semibold text-foreground">Employee Report</span>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
+      {/* ── PageHeader ──────────────────────────────────────────────────── */}
+      <PageHeader
+        title="Employee Workforce Report"
+        description="Workforce demographics, departmental headcount distribution, and employment status metrics."
+        breadcrumbs={[
+          { label: "Home", href: "/hrm-dashboard" },
+          { label: "Workforce", href: "/employees" },
+          { label: "Employee Report" },
+        ]}
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -206,96 +204,50 @@ export function EmployeeReportPage() {
           >
             <Download className="size-3.5" /> Export Report (CSV)
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── KPI Visual Progress Cards (matching ui-2/employee-report.html) ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Total Staff Strength</span>
-            <div className="size-8 rounded-lg bg-primary/10 grid place-items-center text-primary">
-              <Users className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight">{totalEmployees} Employees</div>
-            <div className="mt-2 p-1.5 rounded bg-muted/30 text-[11px] text-muted-foreground flex items-center justify-between">
-              <span>Active Roster:</span>
-              <strong className="text-emerald-600 font-mono">{activeEmployees} active</strong>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Full-Time Retention</span>
-            <div className="size-8 rounded-lg bg-emerald-500/10 grid place-items-center text-emerald-600">
-              <UserCheck className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-emerald-600">
-              {fullTimeCount} Core Staff
-            </div>
-            <div className="mt-2 p-1.5 rounded bg-emerald-500/10 text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center justify-between">
-              <span>Full-Time Ratio:</span>
-              <strong className="font-mono">
-                {totalEmployees > 0 ? ((fullTimeCount / totalEmployees) * 100).toFixed(0) : 100}%
-              </strong>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Total Monthly Payroll</span>
-            <div className="size-8 rounded-lg bg-blue-500/10 grid place-items-center text-blue-600">
-              <DollarSign className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-xl font-black font-mono tracking-tight text-blue-600 truncate">
-              {formatSystemAmount(totalPayrollLiability, sysConfig?.currency)}
-            </div>
-            <div className="mt-2 p-1.5 rounded bg-blue-500/10 text-[11px] text-blue-700 dark:text-blue-400 flex items-center justify-between">
-              <span>Total Gross Liability / mo</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4 border shadow-xs bg-card space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold">Average Compensation</span>
-            <div className="size-8 rounded-lg bg-purple-500/10 grid place-items-center text-purple-600">
-              <TrendingUp className="size-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-xl font-black font-mono tracking-tight text-purple-600 truncate">
-              {formatSystemAmount(avgSalary, sysConfig?.currency)}
-            </div>
-            <div className="mt-2 p-1.5 rounded bg-purple-500/10 text-[11px] text-purple-700 dark:text-purple-400 flex items-center justify-between">
-              <span>Average Salary Band</span>
-            </div>
-          </div>
-        </Card>
-      </div>
+      {/* ── KPI Visual Progress Cards ───────────────────────────────────── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Active Staff"
+          value={`${activeEmployees}`}
+          icon={<Users className="size-5" />}
+          description={`Out of ${totalEmployees} total staff roster`}
+          variant="primary"
+        />
+        <StatCard
+          label="Full-Time Employees"
+          value={`${fullTimeCount}`}
+          icon={<UserCheck className="size-5" />}
+          description={`Permanent workforce members`}
+          variant="success"
+        />
+        <StatCard
+          label="Contract/Intern Staff"
+          value={`${contractInternCount}`}
+          icon={<Briefcase className="size-5" />}
+          description="Contract and intern personnel"
+          variant="warning"
+        />
+        <StatCard
+          label="Departments Count"
+          value={`${departmentsCount}`}
+          icon={<Building2 className="size-5" />}
+          description="Active organizational divisions"
+          variant="purple"
+        />
+      </StatsOverviewGrid>
 
       {/* ── Filters Bar ─────────────────────────────────────────────────── */}
-      <Card className="p-4 border shadow-xs">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search employee name, code, email, or position..."
-              className="pl-9 text-xs h-9"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee name, code, email, or position...",
+        }}
+        filters={
+          <div className="flex items-center gap-2 flex-wrap">
             <Select value={selectedDept} onValueChange={setSelectedDept}>
               <SelectTrigger className="w-[150px] text-xs h-9">
                 <SelectValue placeholder="Department" />
@@ -336,8 +288,8 @@ export function EmployeeReportPage() {
               </SelectContent>
             </Select>
           </div>
-        </div>
-      </Card>
+        }
+      />
 
       {/* ── Employee Records Table ──────────────────────────────────────── */}
       <Card className="border shadow-xs overflow-hidden">
@@ -381,8 +333,12 @@ export function EmployeeReportPage() {
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-32 text-center text-xs text-muted-foreground">
-                    No employees found matching filter criteria.
+                  <TableCell colSpan={8} className="p-8">
+                    <EmptyState
+                      title="No employees found"
+                      description="No employee records match the specified search and filter criteria."
+                      icon={Users}
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

@@ -7,16 +7,14 @@ import {
   KeyRound,
   Mail,
   Clock,
-  AlertTriangle,
   HelpCircle,
-  ArrowRight,
   Shield,
   CheckCircle2,
   Lock,
-  ChevronRight,
-  UserCheck,
   Laptop,
 } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
 
 export const Route = createFileRoute("/_authenticated/_app/setup-notes")({
   component: SetupNotesPage,
@@ -89,35 +87,25 @@ function SetupNotesPage() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl mx-auto">
-      {/* Header Breadcrumb & Title */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <span>Security</span>
-          <ChevronRight className="size-3" />
-          <span className="text-primary font-bold">2FA Setup & Login Guide</span>
-        </div>
-        <div className="flex items-center justify-between flex-wrap gap-4 pt-1">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-2.5">
-              <ShieldCheck className="size-7 sm:size-8 text-primary" />
-              <span>2FA Setup & Login Guide</span>
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              Learn how Email OTP verification protects your enterprise account and data privacy.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Link to="/settings" search={{ tab: "security" }}>
-              <Button variant="outline" size="sm" className="text-xs font-bold gap-1.5">
-                <Lock className="size-3.5" />
-                <span>Security Settings</span>
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6 max-w-full pb-12 animate-in fade-in duration-200">
+      {/* ── PageHeader ──────────────────────────────────────────────────── */}
+      <PageHeader
+        title="2FA Setup & Login Guide"
+        description="Learn how Email OTP verification protects your enterprise account and data privacy."
+        breadcrumbs={[
+          { label: "Home", href: "/hrm-dashboard" },
+          { label: "Security" },
+          { label: "2FA Setup & Login Guide" },
+        ]}
+        actions={
+          <Link to="/settings" search={{ tab: "security" }}>
+            <Button variant="outline" size="sm" className="text-xs font-bold gap-1.5">
+              <Lock className="size-3.5" />
+              <span>Security Settings</span>
+            </Button>
+          </Link>
+        }
+      />
 
       {/* What is 2FA Hero Card */}
       <Card className="border shadow-xs bg-gradient-to-r from-primary/5 via-card to-background">
