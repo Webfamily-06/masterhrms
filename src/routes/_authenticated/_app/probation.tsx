@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +21,15 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, FileSpreadsheet, Download, Search, MoreVertical, Trash2, CheckCircle2 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import {
+  Plus, FileSpreadsheet, Download, MoreVertical, Trash2, CheckCircle2,
+  Users, Clock, TrendingUp, XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, differenceInCalendarDays } from "date-fns";
@@ -70,6 +77,7 @@ export function ProbationPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [selected, setSelected] = useState<any>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -105,6 +113,14 @@ export function ProbationPage() {
   });
   const employees: any[] = empData?.data ?? empData?.employees ?? [];
 
+  // ─── Derived stats ─────────────────────────────────────────────────────────
+
+  const totalCount     = records.length;
+  const activeCount    = records.filter((r: any) => r.status === "active").length;
+  const passedCount    = records.filter((r: any) => r.status === "passed").length;
+  const extendedCount  = records.filter((r: any) => r.status === "extended").length;
+  const terminatedCount = records.filter((r: any) => r.status === "terminated").length;
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
   const createMut = useMutation({
@@ -130,7 +146,11 @@ export function ProbationPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/probation/${id}`),
-    onSuccess: () => { toast.success("Deleted."); qc.invalidateQueries({ queryKey: ["probation"] }); },
+    onSuccess: () => {
+      toast.success("Deleted.");
+      qc.invalidateQueries({ queryKey: ["probation"] });
+      setDeleteTargetId(null);
+    },
     onError: (e: any) => toast.error(e.message ?? "Failed to delete."),
   });
 
@@ -157,63 +177,93 @@ export function ProbationPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Probation Management</h2>
-          <nav className="text-sm text-muted-foreground mt-1">
-            <span>Home</span> / <span>HRM</span> / <span className="text-foreground">Probation Management</span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1">
-                <FileSpreadsheet className="h-4 w-4" /> Export
+      {/* ── Page Header ── */}
+      <PageHeader
+        title="Probation Management"
+        breadcrumbs={[
+          { label: "Home" },
+          { label: "HRM" },
+          { label: "Probation Management" },
+        ]}
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1">
+                  <FileSpreadsheet className="h-4 w-4" /> Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as Excel</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {isAdmin && (
+              <Button size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
+                <Plus className="h-4 w-4" /> Add Probation
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as PDF</DropdownMenuItem>
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as Excel</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {isAdmin && (
-            <Button size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
-              <Plus className="h-4 w-4" /> Add Probation
-            </Button>
-          )}
-        </div>
-      </div>
+            )}
+          </>
+        }
+      />
 
-      {/* Table Card */}
-      <Card>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b">
-          <h5 className="font-semibold">Probation Records</h5>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employee..."
-                className="pl-8 h-9 w-56"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-36">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="passed">Passed</SelectItem>
-                <SelectItem value="extended">Extended</SelectItem>
-                <SelectItem value="terminated">Terminated</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+      {/* ── KPI Stats ── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Total Records"
+          value={totalCount}
+          icon={<Users className="h-5 w-5" />}
+          variant="default"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Active"
+          value={activeCount}
+          icon={<Clock className="h-5 w-5" />}
+          variant="info"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Passed"
+          value={passedCount}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          variant="success"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Extended"
+          value={extendedCount}
+          icon={<TrendingUp className="h-5 w-5" />}
+          variant="warning"
+          isLoading={isLoading}
+        />
+      </StatsOverviewGrid>
 
+      {/* ── Filter Toolbar ── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee...",
+        }}
+        filters={
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8.5 w-36 text-xs">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="passed">Passed</SelectItem>
+              <SelectItem value="extended">Extended</SelectItem>
+              <SelectItem value="terminated">Terminated</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
+
+      {/* ── Table ── */}
+      <div className="rounded-xl border border-border/70 bg-card shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -285,7 +335,7 @@ export function ProbationPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => { if (confirm("Delete this probation record?")) deleteMut.mutate(r.id); }}
+                                onClick={() => setDeleteTargetId(r.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" /> Delete
                               </DropdownMenuItem>
@@ -300,7 +350,7 @@ export function ProbationPage() {
             </TableBody>
           </Table>
         </div>
-      </Card>
+      </div>
 
       {/* ── Add Probation Modal ── */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -405,6 +455,18 @@ export function ProbationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete Confirmation ── */}
+      <ConfirmationDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+        title="Delete Probation Record"
+        description="Are you sure you want to delete this probation record? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={deleteMut.isPending}
+        onConfirm={() => { if (deleteTargetId) deleteMut.mutate(deleteTargetId); }}
+      />
     </div>
   );
 }

@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +27,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   Phone,
   PhoneIncoming,
@@ -36,12 +38,8 @@ import {
   Video,
   Eye,
   Trash2,
-  Calendar,
-  Search,
   MessageSquare,
-  AlertTriangle,
   RotateCw,
-  Home,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -131,72 +129,54 @@ export function CallHistoryPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-[1600px] mx-auto">
-      {/* ─── Breadcrumb & Top Bar ───────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/" className="hover:text-primary flex items-center gap-1">
-              <Home className="size-3" />
-              <span>Home</span>
-            </Link>
-            <span>/</span>
-            <span className="text-muted-foreground">Calls</span>
-            <span>/</span>
-            <span className="text-foreground font-medium">Call History</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Phone className="size-6 text-primary" />
-            <span>Call History</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Omnichannel call logs, voice/video interaction durations, and telephony activity.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {selectedIds.length > 0 && (
+    <div className="p-6 space-y-6">
+      {/* ── Page Header ── */}
+      <PageHeader
+        title="Call History"
+        description="Omnichannel call logs, voice/video interaction durations, and telephony activity."
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Calls" },
+          { label: "Call History" },
+        ]}
+        icon={<Phone className="size-5 text-primary" />}
+        actions={
+          <>
+            {selectedIds.length > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteOpen(true)}
+                className="text-xs gap-1.5 h-8"
+              >
+                <Trash2 className="size-3.5" />
+                <span>Delete Marked ({selectedIds.length})</span>
+              </Button>
+            )}
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
-              onClick={() => setBulkDeleteOpen(true)}
+              onClick={() => refetch()}
               className="text-xs gap-1.5 h-8"
             >
-              <Trash2 className="size-3.5" />
-              <span>Delete Marked ({selectedIds.length})</span>
+              <RotateCw className="size-3.5" />
+              <span>Refresh</span>
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            className="text-xs gap-1.5 h-8"
-          >
-            <RotateCw className="size-3.5" />
-            <span>Refresh</span>
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      {/* ─── Call History Card ──────────────────────────────────────────────── */}
-      <Card className="shadow-none border">
-        <CardHeader className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <CardTitle className="text-base font-semibold">Call History List</CardTitle>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Search Input */}
-            <div className="relative w-48 sm:w-60">
-              <Search className="size-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <Input
-                placeholder="Search name, phone..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-8 text-xs"
-              />
-            </div>
-
-            {/* Call Type Filter */}
+      {/* ── Filter Toolbar ── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search name, phone...",
+        }}
+        filters={
+          <>
             <Select value={callTypeFilter} onValueChange={setCallTypeFilter}>
-              <SelectTrigger className="h-8 text-xs w-32">
+              <SelectTrigger className="h-8.5 text-xs w-36">
                 <SelectValue placeholder="Call Type" />
               </SelectTrigger>
               <SelectContent>
@@ -208,9 +188,8 @@ export function CallHistoryPage() {
               </SelectContent>
             </Select>
 
-            {/* Sort Order */}
             <Select value={sortOrder} onValueChange={(v: "desc" | "asc") => setSortOrder(v)}>
-              <SelectTrigger className="h-8 text-xs w-36">
+              <SelectTrigger className="h-8.5 text-xs w-40">
                 <SelectValue placeholder="Sort Order" />
               </SelectTrigger>
               <SelectContent>
@@ -218,20 +197,23 @@ export function CallHistoryPage() {
                 <SelectItem value="asc">Sort By : Oldest</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-        </CardHeader>
+          </>
+        }
+      />
 
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              <RotateCw className="size-5 animate-spin mx-auto mb-2 text-primary" />
-              Loading call logs...
-            </div>
-          ) : calls.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              No call history records found.
-            </div>
-          ) : (
+      {/* ─── Call History Table ── */}
+      <div className="rounded-xl border border-border/70 bg-card shadow-2xs overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            <RotateCw className="size-5 animate-spin mx-auto mb-2 text-primary" />
+            Loading call logs...
+          </div>
+        ) : calls.length === 0 ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            No call history records found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30">
@@ -366,11 +348,11 @@ export function CallHistoryPage() {
                 })}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
 
-      {/* ─── Caller Details Modal (#call_history) ────────────────────────────── */}
+      {/* ─── Caller Details Modal ── */}
       {viewCaller && (
         <Dialog open={!!viewCaller} onOpenChange={() => setViewCaller(null)}>
           <DialogContent className="max-w-md">
@@ -479,75 +461,29 @@ export function CallHistoryPage() {
         </Dialog>
       )}
 
-      {/* ─── Delete Confirmation Modal ──────────────────────────────────────── */}
-      {deleteConfirmId && (
-        <Dialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
-          <DialogContent className="max-w-sm text-center">
-            <div className="mx-auto size-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-2">
-              <Trash2 className="size-6" />
-            </div>
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold text-center">
-                Confirm Delete
-              </DialogTitle>
-            </DialogHeader>
-            <p className="text-xs text-muted-foreground py-2">
-              Are you sure you want to delete this call history log? This cannot be undone once deleted.
-            </p>
-            <DialogFooter className="gap-2 sm:justify-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteConfirmId(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => deleteMutation.mutate(deleteConfirmId)}
-                disabled={deleteMutation.isPending}
-              >
-                Yes, Delete
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* ─── Delete Single Record Confirmation ── */}
+      <ConfirmationDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}
+        title="Confirm Delete"
+        description="Are you sure you want to delete this call history log? This cannot be undone once deleted."
+        confirmLabel="Yes, Delete"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => { if (deleteConfirmId) deleteMutation.mutate(deleteConfirmId); }}
+      />
 
-      {/* ─── Bulk Delete Confirmation Modal ─────────────────────────────────── */}
-      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <DialogContent className="max-w-sm text-center">
-          <div className="mx-auto size-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-2">
-            <Trash2 className="size-6" />
-          </div>
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-center">
-              Delete Marked Records
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground py-2">
-            Are you sure you want to delete all {selectedIds.length} marked call records?
-          </p>
-          <DialogFooter className="gap-2 sm:justify-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBulkDeleteOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => bulkDeleteMutation.mutate(selectedIds)}
-              disabled={bulkDeleteMutation.isPending}
-            >
-              Confirm Bulk Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ─── Bulk Delete Confirmation ── */}
+      <ConfirmationDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Delete Marked Records"
+        description={`Are you sure you want to delete all ${selectedIds.length} marked call records?`}
+        confirmLabel="Confirm Bulk Delete"
+        variant="destructive"
+        isLoading={bulkDeleteMutation.isPending}
+        onConfirm={() => bulkDeleteMutation.mutate(selectedIds)}
+      />
     </div>
   );
 }

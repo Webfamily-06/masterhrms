@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,9 +21,14 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   Home, CheckCircle2, XCircle, Clock, Plus, FileSpreadsheet,
-  Download, Search, MoreVertical, Trash2,
+  Download, MoreVertical, Trash2, ListTodo,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -63,6 +67,7 @@ export function WorkFromHomePage() {
   const [addOpen, setAddOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [selected, setSelected] = useState<any>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -121,6 +126,7 @@ export function WorkFromHomePage() {
     onSuccess: () => {
       toast.success("Deleted.");
       qc.invalidateQueries({ queryKey: ["wfh"] });
+      setDeleteTargetId(null);
     },
     onError: (e: any) => toast.error(e.message ?? "Failed to delete."),
   });
@@ -132,13 +138,6 @@ export function WorkFromHomePage() {
   const approved  = allForStats.filter((r: any) => r.status === "approved").length;
   const rejected  = allForStats.filter((r: any) => r.status === "rejected").length;
   const completed = allForStats.filter((r: any) => r.status === "completed").length;
-
-  const statCards = [
-    { label: "Pending",   value: pending,   icon: Clock,         color: "text-yellow-600 border-yellow-400 bg-yellow-50" },
-    { label: "Approved",  value: approved,  icon: CheckCircle2,  color: "text-green-600 border-green-400 bg-green-50" },
-    { label: "Rejected",  value: rejected,  icon: XCircle,       color: "text-red-600 border-red-400 bg-red-50" },
-    { label: "Completed", value: completed, icon: Home,          color: "text-blue-600 border-blue-400 bg-blue-50" },
-  ];
 
   function openReview(record: any, status: "approved" | "rejected" | "completed") {
     setSelected(record);
@@ -155,78 +154,91 @@ export function WorkFromHomePage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Work From Home Management</h2>
-          <nav className="text-sm text-muted-foreground mt-1">
-            <span>Home</span> / <span>Attendance</span> / <span className="text-foreground">Work From Home Management</span>
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1">
-                <FileSpreadsheet className="h-4 w-4" /> Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as PDF</DropdownMenuItem>
-              <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as Excel</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
-            <Plus className="h-4 w-4" /> Add New Request
-          </Button>
-        </div>
-      </div>
+      {/* ── Page Header ── */}
+      <PageHeader
+        title="Work From Home Management"
+        breadcrumbs={[
+          { label: "Home" },
+          { label: "Attendance" },
+          { label: "Work From Home Management" },
+        ]}
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1">
+                  <FileSpreadsheet className="h-4 w-4" /> Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem><Download className="h-4 w-4 mr-2" />Export as Excel</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" className="gap-1" onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4" /> Add New Request
+            </Button>
+          </>
+        }
+      />
 
-      {/* Stat Cards (derived from current page data) */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {statCards.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="pt-4 pb-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
-                <h4 className="text-2xl font-bold mt-0.5">{s.value}</h4>
-              </div>
-              <span className={cn("p-2 rounded-lg border flex items-center justify-center", s.color)}>
-                <s.icon className="h-5 w-5" />
-              </span>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* ── KPI Stats ── */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          label="Pending"
+          value={pending}
+          icon={<Clock className="h-5 w-5" />}
+          variant="warning"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Approved"
+          value={approved}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          variant="success"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Rejected"
+          value={rejected}
+          icon={<XCircle className="h-5 w-5" />}
+          variant="primary"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Completed"
+          value={completed}
+          icon={<Home className="h-5 w-5" />}
+          variant="info"
+          isLoading={isLoading}
+        />
+      </StatsOverviewGrid>
 
-      {/* Table Card */}
-      <Card>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b">
-          <h5 className="font-semibold">WFH Management</h5>
-          <div className="flex flex-wrap gap-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employee..."
-                className="pl-8 h-9 w-56"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-36">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+      {/* ── Filter Toolbar ── */}
+      <FilterToolbar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search employee...",
+        }}
+        filters={
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8.5 w-36 text-xs">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
 
+      {/* ── Table ── */}
+      <div className="rounded-xl border border-border/70 bg-card shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -312,9 +324,7 @@ export function WorkFromHomePage() {
                               )}
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => {
-                                  if (confirm("Delete this WFH request?")) deleteMut.mutate(r.id);
-                                }}
+                                onClick={() => setDeleteTargetId(r.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" /> Delete
                               </DropdownMenuItem>
@@ -329,7 +339,7 @@ export function WorkFromHomePage() {
             </TableBody>
           </Table>
         </div>
-      </Card>
+      </div>
 
       {/* ── Add WFH Modal ── */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -410,6 +420,18 @@ export function WorkFromHomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete Confirmation ── */}
+      <ConfirmationDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+        title="Delete WFH Request"
+        description="Are you sure you want to delete this WFH request? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={deleteMut.isPending}
+        onConfirm={() => { if (deleteTargetId) deleteMut.mutate(deleteTargetId); }}
+      />
     </div>
   );
 }

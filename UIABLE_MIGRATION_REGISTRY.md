@@ -137,3 +137,20 @@ This registry tracks every evaluated component across the MASTERHRMS frontend ar
 - **Backend Changes**: NONE.
 - **Dependencies Added**: NONE.
 - **Verification Gates**: 20/20 Automated Live Browser QA tests passed with full CDP visual screenshots across Waves 1–4 (including all 7 Batch 2 tests).
+
+---
+
+## 12. Wave 4 Batch 3 Evaluated Candidates (AUDIT ONLY — NOT IMPLEMENTED)
+
+| Candidate Page | Category | Source Path | UIAble Match | Decision | Current Status | Risk | Stage A Audit Notes |
+|---|---|---|---|---|---|---|---|
+| **Assets Page** | Enterprise Hardware / LifeCycle | `src/routes/_authenticated/_app/assets.tsx` | `page-assets` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `HIGH` | 2,178 lines. 7 tabs, 8 modals, `useAddon` monetization gating, and financial scrap disposal write-offs. Deferred to specialized enterprise wave. |
+| **Asset Dashboard** | Analytics / Charts | `src/routes/_authenticated/_app/asset-dashboard.tsx` | `dashboard-analytics` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `MEDIUM` | 1,117 lines. Renders dynamic ApexCharts. Deferred to dedicated Wave 4 Dashboard Modernization wave. |
+| **Training Page** | LMS / Compliance Certifications | `src/routes/_authenticated/_app/training.tsx` | `page-training` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `HIGH` | 1,678 lines. 6 tabs (includes embedded `trainers`), multi-module curriculum, and verified digital completion certificates. Deferred to LMS wave. |
+| **Transfers Page** | Supply Chain / Inventory Ledger | `src/routes/_authenticated/_app/transfers.tsx` | `page-transfers` | `DEFER` | **AUDIT ONLY — NOT IMPLEMENTED** | `HIGH` | 844 lines. Physical multi-warehouse stock mutations, in-transit dispatch, and inventory ledger balance shifts. Mission-critical supply chain protected. |
+| **Resignation Page** | HR / Separation Lifecycle | `src/routes/_authenticated/_app/resignation.tsx` | `page-resignation` | `CONTROLLED_ADAPTER` | **AUDIT ONLY — NOT IMPLEMENTED** | `MEDIUM` | 797 lines. Classified as Group B. Fits composites, but requires strict preservation of personal separation banner, exitCode generation, and offboarding links. |
+| **Probation Page** | Core HR Operations | `src/routes/_authenticated/_app/probation.tsx` | `page-probation` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 410 lines. Classified as Group A. High candidate for `PageHeader`, `StatsOverviewGrid`, `StatCard`, `FilterToolbar`, `ConfirmationDialog`. Zero financial or inventory risk. |
+| **Work From Home Page** | HR / Attendance Requests | `src/routes/_authenticated/_app/work-from-home.tsx` | `page-wfh` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 416 lines. Classified as Group A. Self-contained attendance requests. Fits all Wave 4 composites cleanly. Zero financial risk. |
+| **Shift Swap Requests** | Workforce Operations | `src/routes/_authenticated/_app/shift-swap-requests.tsx` | `page-shift-swap` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 541 lines. Classified as Group A. Peer-to-peer scheduling exchanges. Fits all Wave 4 composites cleanly. Zero financial risk. |
+| **Call History Page** | Telephony / CRM Log | `src/routes/_authenticated/_app/call-history.tsx` | `page-call-history` | `EXACT_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 553 lines. Classified as Group A. Filterable communication log. Fits all Wave 4 composites cleanly. Zero financial risk. |
+| **Setup Notes Page** | Security / Guide | `src/routes/_authenticated/_app/setup-notes.tsx` | `page-guide` | `POSSIBLE_MATCH` | **AUDIT ONLY — NOT IMPLEMENTED** | `LOW` | 247 lines. Static 2FA security guide. Informational only. |

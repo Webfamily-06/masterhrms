@@ -3,13 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +32,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatsOverviewGrid } from "@/components/ui/stats-overview-grid";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import {
   CalendarDays,
   Clock,
@@ -41,14 +44,8 @@ import {
   Plus,
   CheckCircle2,
   XCircle,
-  AlertCircle,
-  Filter,
-  Search,
   Check,
   X,
-  FileSpreadsheet,
-  Download,
-  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -174,113 +171,79 @@ export function ShiftSwapRequestsPage() {
   const approvedCount = swapRequests.filter((s: any) => s.status === "approved").length;
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-      {/* ── Page Header matching ui-2/shift-swap-requests.html ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground">Home</Link>
-            <span>/</span>
-            <Link to="/attendance" className="hover:text-foreground">Attendance</Link>
-            <span>/</span>
-            <span className="text-foreground font-semibold">Shift Swap Requests</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <ArrowLeftRight className="size-6 text-primary" />
-            <span>Shift Swap Requests</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Peer-to-peer shift swaps, colleague acceptance workflows, and manager authorizations.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
+    <div className="p-6 space-y-6">
+      {/* ── Page Header ── */}
+      <PageHeader
+        title="Shift Swap Requests"
+        description="Peer-to-peer shift swaps, colleague acceptance workflows, and manager authorizations."
+        breadcrumbs={[
+          { label: "Home", href: "/hrm-dashboard" },
+          { label: "Attendance", href: "/attendance" },
+          { label: "Shift Swap Requests" },
+        ]}
+        icon={<ArrowLeftRight className="size-5 text-primary" />}
+        actions={
           <Button
             onClick={() => setIsAddModalOpen(true)}
-            className="gap-1.5 h-9 font-bold bg-primary text-primary-foreground shadow-xs"
+            className="gap-1.5 h-9 font-bold"
           >
             <Plus className="size-4" />
             <span>Add New Request</span>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── Top Metrics Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-amber-500/20">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Pending Peer Review</p>
-              <h3 className="text-2xl font-bold text-amber-600 mt-1">{pendingPeerCount}</h3>
-            </div>
-            <div className="size-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
-              <Users className="size-5" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* ── KPI Stats ── */}
+      <StatsOverviewGrid columns={3}>
+        <StatCard
+          label="Pending Peer Review"
+          value={pendingPeerCount}
+          icon={<Users className="size-5" />}
+          variant="warning"
+          isLoading={swapsLoading}
+        />
+        <StatCard
+          label="Awaiting Manager Approval"
+          value={pendingMgrCount}
+          icon={<Clock className="size-5" />}
+          variant="info"
+          isLoading={swapsLoading}
+        />
+        <StatCard
+          label="Approved & Executed"
+          value={approvedCount}
+          icon={<CheckCircle2 className="size-5" />}
+          variant="success"
+          isLoading={swapsLoading}
+        />
+      </StatsOverviewGrid>
 
-        <Card className="bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent border-indigo-500/20">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Awaiting Manager Approval</p>
-              <h3 className="text-2xl font-bold text-indigo-600 mt-1">{pendingMgrCount}</h3>
-            </div>
-            <div className="size-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600">
-              <Clock className="size-5" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* ── Filter Toolbar ── */}
+      <FilterToolbar
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search employee or ID...",
+        }}
+        filters={
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8.5 text-xs w-40">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="pending_peer">Pending Peer</SelectItem>
+              <SelectItem value="pending_manager">Pending Manager</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
 
-        <Card className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Approved & Executed</p>
-              <h3 className="text-2xl font-bold text-emerald-600 mt-1">{approvedCount}</h3>
-            </div>
-            <div className="size-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-              <CheckCircle2 className="size-5" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Main Swap Table Card ── */}
-      <Card className="shadow-xs">
-        <CardHeader className="p-4 border-b bg-muted/20 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <CardTitle className="text-base font-bold">Shift Swap Requests List</CardTitle>
-            <CardDescription className="text-xs">
-              Review and manage incoming colleague shift transfer and cover requests.
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-48 sm:w-64">
-              <Search className="size-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
-              <Input
-                placeholder="Search employee or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-8 pl-8 text-xs bg-background"
-              />
-            </div>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 text-xs w-36 bg-background">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending_peer">Pending Peer</SelectItem>
-                <SelectItem value="pending_manager">Pending Manager</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-0">
+      {/* ── Main Swap Table ── */}
+      <div className="rounded-xl border border-border/70 bg-card shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
@@ -438,10 +401,10 @@ export function ShiftSwapRequestsPage() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* ── Dialog: Add New Shift Swap Request matching #add_modal in template ── */}
+      {/* ── Dialog: Add New Shift Swap Request ── */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -527,7 +490,7 @@ export function ShiftSwapRequestsPage() {
                 type="submit"
                 size="sm"
                 disabled={createSwapMut.isPending}
-                className="font-bold bg-primary text-primary-foreground"
+                className="font-bold"
               >
                 {createSwapMut.isPending ? "Submitting..." : "Submit Swap Request"}
               </Button>
