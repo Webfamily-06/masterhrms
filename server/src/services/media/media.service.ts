@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { prisma } from "../../prisma";
+import { rawPrisma, prisma as proxiedPrisma } from "../../prisma";
+const prisma = rawPrisma || proxiedPrisma;
 import { computeSha256 } from "../storage/integrity-hasher";
 
 export function getUploadsRoot(): string {
@@ -130,9 +131,10 @@ export class MediaService {
       tenantId?: string | null;
       uploadedBy?: string;
       tags?: string[];
+      mimeType?: string;
     } = {}
   ) {
-    const validation = this.validateImageBuffer(buffer);
+    const validation = this.validateImageBuffer(buffer, options.mimeType);
     if (!validation.isValid) {
       throw new Error(validation.error || "Invalid file");
     }

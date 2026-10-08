@@ -212,6 +212,7 @@ import { Route as AuthenticatedMeHelpdeskRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMeMediaRouteImport } from './routes/_authenticated/me/media'
 import { Route as AuthenticatedMeNotificationsRouteImport } from './routes/_authenticated/me/notifications'
 import { Route as AuthenticatedMeProfileRouteImport } from './routes/_authenticated/me/profile'
+import { Route as AuthenticatedMeTeamRouteImport } from './routes/_authenticated/me/team'
 import { Route as AuthenticatedMeTodoRouteImport } from './routes/_authenticated/me/todo'
 import { Route as AuthenticatedSuperIndexRouteImport } from './routes/_authenticated/super/index'
 import { Route as AuthenticatedSuperAgentsRouteImport } from './routes/_authenticated/super/agents'
@@ -1559,6 +1560,11 @@ const AuthenticatedMeNotificationsRoute =
 const AuthenticatedMeProfileRoute = AuthenticatedMeProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AuthenticatedMeRoute,
+} as any)
+const AuthenticatedMeTeamRoute = AuthenticatedMeTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
   getParentRoute: () => AuthenticatedMeRoute,
 } as any)
 const AuthenticatedMeTodoRoute = AuthenticatedMeTodoRouteImport.update({
@@ -3057,6 +3063,7 @@ export interface FileRoutesByFullPath {
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/me/profile': typeof AuthenticatedMeProfileRoute
+  '/me/team': typeof AuthenticatedMeTeamRoute
   '/me/todo': typeof AuthenticatedMeTodoRoute
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
@@ -3474,6 +3481,7 @@ export interface FileRoutesByTo {
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/me/profile': typeof AuthenticatedMeProfileRoute
+  '/me/team': typeof AuthenticatedMeTeamRoute
   '/me/todo': typeof AuthenticatedMeTodoRoute
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
@@ -3898,6 +3906,7 @@ export interface FileRoutesById {
   '/_authenticated/me/media': typeof AuthenticatedMeMediaRoute
   '/_authenticated/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/_authenticated/me/profile': typeof AuthenticatedMeProfileRoute
+  '/_authenticated/me/team': typeof AuthenticatedMeTeamRoute
   '/_authenticated/me/todo': typeof AuthenticatedMeTodoRoute
   '/_authenticated/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/_authenticated/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
@@ -4321,6 +4330,7 @@ export interface FileRouteTypes {
     | '/me/media'
     | '/me/notifications'
     | '/me/profile'
+    | '/me/team'
     | '/me/todo'
     | '/super/agents'
     | '/super/analytics'
@@ -4738,6 +4748,7 @@ export interface FileRouteTypes {
     | '/me/media'
     | '/me/notifications'
     | '/me/profile'
+    | '/me/team'
     | '/me/todo'
     | '/super/agents'
     | '/super/analytics'
@@ -5161,6 +5172,7 @@ export interface FileRouteTypes {
     | '/_authenticated/me/media'
     | '/_authenticated/me/notifications'
     | '/_authenticated/me/profile'
+    | '/_authenticated/me/team'
     | '/_authenticated/me/todo'
     | '/_authenticated/super/agents'
     | '/_authenticated/super/analytics'
@@ -6848,6 +6860,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/me/profile'
       preLoaderRoute: typeof AuthenticatedMeProfileRouteImport
+      parentRoute: typeof AuthenticatedMeRoute
+    }
+    '/_authenticated/me/team': {
+      id: '/_authenticated/me/team'
+      path: '/team'
+      fullPath: '/me/team'
+      preLoaderRoute: typeof AuthenticatedMeTeamRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
     '/_authenticated/me/todo': {
@@ -9105,6 +9124,7 @@ interface AuthenticatedMeRouteChildren {
   AuthenticatedMeMediaRoute: typeof AuthenticatedMeMediaRoute
   AuthenticatedMeNotificationsRoute: typeof AuthenticatedMeNotificationsRoute
   AuthenticatedMeProfileRoute: typeof AuthenticatedMeProfileRoute
+  AuthenticatedMeTeamRoute: typeof AuthenticatedMeTeamRoute
   AuthenticatedMeTodoRoute: typeof AuthenticatedMeTodoRoute
   AuthenticatedMeIndexRoute: typeof AuthenticatedMeIndexRoute
   AuthenticatedMeAssetsDashboardRoute: typeof AuthenticatedMeAssetsDashboardRoute
@@ -9179,6 +9199,7 @@ const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeMediaRoute: AuthenticatedMeMediaRoute,
   AuthenticatedMeNotificationsRoute: AuthenticatedMeNotificationsRoute,
   AuthenticatedMeProfileRoute: AuthenticatedMeProfileRoute,
+  AuthenticatedMeTeamRoute: AuthenticatedMeTeamRoute,
   AuthenticatedMeTodoRoute: AuthenticatedMeTodoRoute,
   AuthenticatedMeIndexRoute: AuthenticatedMeIndexRoute,
   AuthenticatedMeAssetsDashboardRoute: AuthenticatedMeAssetsDashboardRoute,

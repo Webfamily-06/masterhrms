@@ -165,24 +165,29 @@ export const ROUTES = {
     calendar: "/me/calendar",
     todo: "/me/todo",
     chat: "/me/chat",
+    notifications: "/me/notifications",
 
     // 2. Workspace Management
     employees: "/me/employees",
     organization: {
+      structure: "/me/organization/structure",
       holidays: "/me/organization/holidays",
       announcements: "/me/organization/announcements",
     },
     attendance: {
       records: "/me/attendance/records",
-      timesheets: "/me/attendance/timesheets",
+      timesheet: "/me/attendance/timesheet",
+      timesheets: "/me/attendance/timesheet",
       regularizations: "/me/attendance/regularizations",
       shifts: "/me/attendance/shifts",
       policies: "/me/attendance/policies",
+      requests: "/me/attendance/requests",
     },
     leave: {
       applications: "/me/leave/applications",
       balance: "/me/leave/balance",
       policies: "/me/leave/policies",
+      teamCalendar: "/me/leave/team-calendar",
     },
 
     // 3. Talent and Growth
@@ -192,8 +197,6 @@ export const ROUTES = {
       onboarding: "/me/recruitment/onboarding",
       assessments: "/me/recruitment/assessments",
       career: "/me/recruitment/career",
-      jobLocations: "/me/recruitment/job-locations",
-      interviewRounds: "/me/recruitment/interview-rounds",
     },
     lifecycle: {
       awards: "/me/lifecycle/awards",
@@ -201,7 +204,7 @@ export const ROUTES = {
       transfers: "/me/lifecycle/transfers",
       warnings: "/me/lifecycle/warnings",
       resignation: "/me/lifecycle/resignation",
-      terminations: "/me/lifecycle/terminations",
+      exit: "/me/lifecycle/exit",
       trips: "/me/lifecycle/trips",
       complaints: "/me/lifecycle/complaints",
     },
@@ -221,12 +224,14 @@ export const ROUTES = {
     payroll: {
       payslips: "/me/payroll/payslips",
       salary: "/me/payroll/salary",
+      tax: "/me/payroll/tax",
+      reimbursementsLoans: "/me/payroll/reimbursements-loans",
+      statutoryForms: "/me/payroll/statutory-forms",
     },
     assets: {
       dashboard: "/me/assets/dashboard",
       list: "/me/assets",
-      depreciation: "/me/assets/depreciation",
-      types: "/me/assets/types",
+      requests: "/me/assets/requests",
     },
 
     // 5. Communication and Content
@@ -238,9 +243,18 @@ export const ROUTES = {
       list: "/me/documents",
       contracts: "/me/documents/contracts",
       acknowledgements: "/me/documents/acknowledgements",
+      requests: "/me/documents/requests",
     },
     media: "/me/media",
+
+    // 6. My Account
     profile: "/me/profile",
+    helpdesk: "/me/helpdesk",
+    account: "/me/account",
+
+    // 7. Manager Only
+    team: "/me/team",
+    approvals: "/me/approvals",
   },
 
   // ── Super Admin Portal (/super/*) ──

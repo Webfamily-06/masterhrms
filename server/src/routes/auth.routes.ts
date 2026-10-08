@@ -663,7 +663,7 @@ authRouter.post("/forgot-password", async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
-      include: { profile: true },
+      include: { profile: true, roles: true },
     });
 
     if (!user) {
@@ -675,8 +675,8 @@ authRouter.post("/forgot-password", async (req, res) => {
     }
 
     let tenantName: string | undefined;
-    if (user.tenantId) {
-      const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId } });
+    if (user.profile?.tenantId) {
+      const tenant = await prisma.tenant.findUnique({ where: { id: user.profile.tenantId } });
       tenantName = tenant?.name;
     }
 
@@ -713,7 +713,8 @@ authRouter.post("/forgot-password", async (req, res) => {
       (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
       `http://${getEffectiveRequestHost(req)}`;
     const isSuperPortal = Boolean(
-      (req.headers.referer && req.headers.referer.includes("/super06")) || user.role === "SUPER_ADMIN"
+      (req.headers.referer && req.headers.referer.includes("/super06")) ||
+      user.roles?.some((r: any) => r.role === "super_admin" || r.role === "SUPER_ADMIN")
     );
     const resetBasePath = isSuperPortal ? "/super06" : "/auth";
     const resetUrl = `${origin}${resetBasePath}?mode=reset&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
@@ -724,9 +725,9 @@ authRouter.post("/forgot-password", async (req, res) => {
       userName: user.profile?.fullName || user.email.split("@")[0],
       resetUrl,
       expiryMinutes,
-      tenantId: user.tenantId,
+      tenantId: user.profile?.tenantId ?? undefined,
       companyName: tenantName,
-      scope: isSuperPortal ? "PLATFORM" : user.tenantId ? "TENANT" : "PLATFORM",
+      scope: isSuperPortal ? "PLATFORM" : user.profile?.tenantId ? "TENANT" : "PLATFORM",
     });
 
     console.log(`🔗 [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
