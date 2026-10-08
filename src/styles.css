@@ -863,6 +863,10 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   .main-wrapper.mini-sidebar:not(.expand-menu) .sidebar {
     width: var(--sidebar-mini-width) !important; /* 72px */
     overflow: hidden !important;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.22s ease !important;
   }
 
   /* Mini sidebar centered icon buttons */
@@ -945,7 +949,13 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   .main-wrapper.mini-sidebar.expand-menu .sidebar {
     width: var(--sidebar-width) !important;
     z-index: 1200 !important;
-    box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.3) !important;
+    overflow: hidden !important;
+    box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.3),
+                0 4px 12px -2px rgba(0, 0, 0, 0.12) !important;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.22s ease !important;
   }
   body.mini-sidebar.expand-menu .sidebar .sidebar-logo .brand-logo,
   body.mini-sidebar.expand-menu .sidebar .sidebar-logo .logo {
@@ -1275,17 +1285,18 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
    it must hold exactly --sidebar-width with no jump.
    ---------------------------------------------------------- */
 @media (min-width: 992px) {
-  /* Default full sidebar — stable 250px */
-  .sidebar:not(.mini-sidebar) {
+  /* Default full sidebar — stable 250px (when NOT in mini-sidebar state) */
+  body:not(.mini-sidebar):not(.full-view):not(.full-width) .sidebar,
+  .main-wrapper:not(.mini-sidebar):not(.full-view):not(.full-width) .sidebar {
     width: var(--sidebar-width, 250px) !important;
     min-width: var(--sidebar-width, 250px) !important;
     max-width: var(--sidebar-width, 250px) !important;
-    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-                max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-                margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-                opacity 0.25s ease,
-                box-shadow 0.25s ease !important;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.22s ease,
+                box-shadow 0.22s ease !important;
   }
 
   /* Mini rail — stable 72px */
@@ -1295,6 +1306,10 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     min-width: var(--sidebar-mini-width, 72px) !important;
     max-width: var(--sidebar-mini-width, 72px) !important;
     overflow: hidden !important;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.22s ease !important;
   }
 
   /* Hover-expand from mini — animate smoothly to 250px */
@@ -1303,10 +1318,14 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     width: var(--sidebar-width, 250px) !important;
     min-width: var(--sidebar-width, 250px) !important;
     max-width: var(--sidebar-width, 250px) !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     z-index: 1200 !important;
     box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.28),
                 0 4px 12px -2px rgba(0, 0, 0, 0.12) !important;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.22s ease !important;
   }
 
   /* Sidebar logo buttons row: ensure logo gets all remaining space */

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ProfileWithRoles } from "@/lib/session";
 import { isModuleAllowed, isWorkspaceAdminUser } from "@/lib/permissions";
 import { useTenantBranding } from "@/lib/useTenantBranding";
@@ -36,6 +36,8 @@ export function DreamsSidebar({
     setIsHovered(false);
     document.body.classList.remove("expand-menu");
     onToggleCollapse();
+    // Auto-reset ignoreHover so hover works again if cursor was already outside
+    setTimeout(() => setIgnoreHover(false), 600);
   };
 
   // Submenu toggle states
@@ -49,6 +51,18 @@ export function DreamsSidebar({
     talent: false,
     operations: false,
     extensions: false,
+    meOrg: true,
+    meAttendance: true,
+    meLeave: false,
+    meRecruitment: false,
+    meLifecycle: false,
+    mePerformance: false,
+    meTraining: false,
+    mePayroll: false,
+    meAssets: false,
+    meMeetings: false,
+    meDocs: false,
+    meMedia: false,
   });
 
   const toggleSubmenu = (menuKey: string) => {
@@ -57,6 +71,22 @@ export function DreamsSidebar({
       [menuKey]: !prev[menuKey],
     }));
   };
+
+  // Auto-expand matching employee submenu on route navigation
+  useEffect(() => {
+    if (currentPath.startsWith("/me/organization")) setOpenMenus((p) => ({ ...p, meOrg: true }));
+    if (currentPath.startsWith("/me/attendance")) setOpenMenus((p) => ({ ...p, meAttendance: true }));
+    if (currentPath.startsWith("/me/leave")) setOpenMenus((p) => ({ ...p, meLeave: true }));
+    if (currentPath.startsWith("/me/recruitment")) setOpenMenus((p) => ({ ...p, meRecruitment: true }));
+    if (currentPath.startsWith("/me/lifecycle")) setOpenMenus((p) => ({ ...p, meLifecycle: true }));
+    if (currentPath.startsWith("/me/performance")) setOpenMenus((p) => ({ ...p, mePerformance: true }));
+    if (currentPath.startsWith("/me/training")) setOpenMenus((p) => ({ ...p, meTraining: true }));
+    if (currentPath.startsWith("/me/payroll")) setOpenMenus((p) => ({ ...p, mePayroll: true }));
+    if (currentPath.startsWith("/me/assets")) setOpenMenus((p) => ({ ...p, meAssets: true }));
+    if (currentPath.startsWith("/me/meetings")) setOpenMenus((p) => ({ ...p, meMeetings: true }));
+    if (currentPath.startsWith("/me/documents")) setOpenMenus((p) => ({ ...p, meDocs: true }));
+    if (currentPath.startsWith("/me/media")) setOpenMenus((p) => ({ ...p, meMedia: true }));
+  }, [currentPath]);
 
   const userRoles = profile?.roles || [];
   const isSuperAdmin = userRoles.includes("super_admin");
@@ -67,6 +97,32 @@ export function DreamsSidebar({
   const isManager = userRoles.includes("manager");
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
+
+  const hasDirectReports = Boolean(
+    (profile as any)?.hasDirectReports ||
+    (profile as any)?.directReportsCount > 0 ||
+    userRoles.includes("manager")
+  );
+  const hasManagerDelegation = Boolean(
+    (profile as any)?.hasManagerDelegation ||
+    (profile?.permissions || []).some(
+      (p) => p.startsWith("manager.") || p === "approvals.manage" || p === "manager.delegation"
+    )
+  );
+  const showManagerSection = hasDirectReports || hasManagerDelegation;
+  const canApprovals =
+    showManagerSection || (profile?.permissions || []).some((p) => p.includes("approvals"));
+  const canInterviews =
+    (profile as any)?.isInterviewer !== false &&
+    (!profile?.permissions?.length ||
+      profile.permissions.some((p) => p.includes("interview") || p.includes("recruitment")));
+  const canAssessments =
+    (profile as any)?.hasAssessments !== false &&
+    (!profile?.permissions?.length ||
+      profile.permissions.some(
+        (p) => p.includes("assessment") || p.includes("recruitment") || p.includes("training")
+      ));
+
   const homeRoute = isSuperAdmin
     ? "/super"
     : isClientOnly
@@ -349,8 +405,9 @@ export function DreamsSidebar({
             </ul>
           ) : isEmployeeOnly ? (
             <ul>
+              {/* 1. OVERVIEW */}
               <li className="menu-title">
-                <span>EMPLOYEE WORKSPACE</span>
+                <span>OVERVIEW</span>
               </li>
               <li>
                 <Link
@@ -359,8 +416,759 @@ export function DreamsSidebar({
                   className={cn((currentPath === "/me/dashboard" || currentPath === "/me") && "active")}
                 >
                   <i className="ph-duotone ph-squares-four"></i>
-                  <span>My Dashboard</span>
+                  <span>Dashboard</span>
                 </Link>
+              </li>
+              <li>
+                <Link
+                  to="/me/calendar"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/me/calendar" && "active")}
+                >
+                  <i className="ph-duotone ph-calendar"></i>
+                  <span>Calendar</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/me/todo"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/me/todo" && "active")}
+                >
+                  <i className="ph-duotone ph-check-square"></i>
+                  <span>Todo</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/me/chat"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/me/chat" && "active")}
+                >
+                  <i className="ph-duotone ph-chat-circle-dots"></i>
+                  <span>Chat</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/me/notifications"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/me/notifications" && "active")}
+                >
+                  <i className="ph-duotone ph-bell"></i>
+                  <span>Notifications</span>
+                </Link>
+              </li>
+
+              {/* 2. WORKSPACE MANAGEMENT */}
+              <li className="menu-title">
+                <span>WORKSPACE MANAGEMENT</span>
+              </li>
+              <li>
+                <Link
+                  to="/me/employees"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/me/employees" && "active")}
+                >
+                  <i className="ph-duotone ph-users"></i>
+                  <span>Employee Directory</span>
+                </Link>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meOrg");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meOrg && "subdrop",
+                    currentPath.startsWith("/me/organization") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-buildings"></i>
+                  <span>Organization Structure</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meOrg ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/organization/holidays"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/organization/holidays" && "active")}
+                    >
+                      Holidays
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/organization/announcements"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/organization/announcements" && "active")}
+                    >
+                      Announcements
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meAttendance");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meAttendance && "subdrop",
+                    currentPath.startsWith("/me/attendance") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-clock"></i>
+                  <span>Attendance</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meAttendance ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/attendance/records"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/attendance/records" && "active")}
+                    >
+                      Attendance Records
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/attendance/timesheet"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/attendance/timesheet" && "active")}
+                    >
+                      Timesheet
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/attendance/regularizations"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/attendance/regularizations" && "active")}
+                    >
+                      Regularizations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/attendance/shifts"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/attendance/shifts" && "active")}
+                    >
+                      Shift
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/attendance/policies"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/attendance/policies" && "active")}
+                    >
+                      Attendance Policies
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/attendance/requests"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/attendance/requests" && "active")}
+                    >
+                      Requests
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meLeave");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meLeave && "subdrop",
+                    currentPath.startsWith("/me/leave") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-calendar-blank"></i>
+                  <span>Leave Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meLeave ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/leave/applications"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/leave/applications" && "active")}
+                    >
+                      Leave Applications
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/leave/balance"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/leave/balance" && "active")}
+                    >
+                      Leave Balance
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/leave/policies"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/leave/policies" && "active")}
+                    >
+                      Leave Policies
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/leave/team-calendar"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/leave/team-calendar" && "active")}
+                    >
+                      Team Calendar
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* 3. TALENT & GROWTH */}
+              <li className="menu-title">
+                <span>TALENT & GROWTH</span>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meRecruitment");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meRecruitment && "subdrop",
+                    currentPath.startsWith("/me/recruitment") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-briefcase"></i>
+                  <span>Recruitment</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meRecruitment ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/recruitment/job-postings"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/recruitment/job-postings" && "active")}
+                    >
+                      Job Postings
+                    </Link>
+                  </li>
+                  {canInterviews && (
+                    <li>
+                      <Link
+                        to="/me/recruitment/interviews"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/me/recruitment/interviews" && "active")}
+                      >
+                        Interviews
+                      </Link>
+                    </li>
+                  )}
+                  <li>
+                    <Link
+                      to="/me/recruitment/onboarding"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/recruitment/onboarding" && "active")}
+                    >
+                      My Onboarding
+                    </Link>
+                  </li>
+                  {canAssessments && (
+                    <li>
+                      <Link
+                        to="/me/recruitment/assessments"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/me/recruitment/assessments" && "active")}
+                      >
+                        My Assessments
+                      </Link>
+                    </li>
+                  )}
+                  <li>
+                    <Link
+                      to="/me/recruitment/career"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/recruitment/career" && "active")}
+                    >
+                      Career & Referrals
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meLifecycle");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meLifecycle && "subdrop",
+                    currentPath.startsWith("/me/lifecycle") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-arrows-clockwise"></i>
+                  <span>Employee Lifecycle</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meLifecycle ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/awards"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/awards" && "active")}
+                    >
+                      Awards
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/promotions"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/promotions" && "active")}
+                    >
+                      Promotions
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/transfers"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/transfers" && "active")}
+                    >
+                      Transfers
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/warnings"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/warnings" && "active")}
+                    >
+                      Warnings
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/resignation"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/resignation" && "active")}
+                    >
+                      Resignation
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/exit"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/exit" && "active")}
+                    >
+                      My Exit
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/trips"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/trips" && "active")}
+                    >
+                      Trips
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/lifecycle/complaints"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/lifecycle/complaints" && "active")}
+                    >
+                      Complaints
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("mePerformance");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.mePerformance && "subdrop",
+                    currentPath.startsWith("/me/performance") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-target"></i>
+                  <span>Performance Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.mePerformance ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/performance/reviews"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/performance/reviews" && "active")}
+                    >
+                      Reviews
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/performance/goals"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/performance/goals" && "active")}
+                    >
+                      Goals
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/performance/cycles"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/performance/cycles" && "active")}
+                    >
+                      Review Cycles
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/performance/indicators"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/performance/indicators" && "active")}
+                    >
+                      Indicators
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meTraining");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meTraining && "subdrop",
+                    currentPath.startsWith("/me/training") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-graduation-cap"></i>
+                  <span>Training & Development</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meTraining ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/training/trainings"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/training/trainings" && "active")}
+                    >
+                      My Trainings
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/training/sessions"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/training/sessions" && "active")}
+                    >
+                      Sessions
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/training/programs"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/training/programs" && "active")}
+                    >
+                      Programs
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* 4. FINANCE & ASSETS */}
+              <li className="menu-title">
+                <span>FINANCE & ASSETS</span>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("mePayroll");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.mePayroll && "subdrop",
+                    currentPath.startsWith("/me/payroll") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-money"></i>
+                  <span>Payroll Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.mePayroll ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/payroll/payslips"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/payroll/payslips" && "active")}
+                    >
+                      Payslips
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/payroll/salary"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/payroll/salary" && "active")}
+                    >
+                      My Salary
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/payroll/tax"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/payroll/tax" && "active")}
+                    >
+                      Tax
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/payroll/reimbursements-loans"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/payroll/reimbursements-loans" && "active")}
+                    >
+                      Reimbursements & Loans
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/payroll/statutory-forms"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/payroll/statutory-forms" && "active")}
+                    >
+                      PF/ESI & Forms
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meAssets");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meAssets && "subdrop",
+                    currentPath.startsWith("/me/assets") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-laptop"></i>
+                  <span>Assets</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meAssets ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/assets/dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/assets/dashboard" && "active")}
+                    >
+                      Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/assets"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/assets" && "active")}
+                    >
+                      My Assets
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/assets/requests"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/assets/requests" && "active")}
+                    >
+                      Requests
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* 5. COMMUNICATION & CONTENT */}
+              <li className="menu-title">
+                <span>COMMUNICATION & CONTENT</span>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meMeetings");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meMeetings && "subdrop",
+                    currentPath.startsWith("/me/meetings") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-video-camera"></i>
+                  <span>Meetings</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meMeetings ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/meetings"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/meetings" && "active")}
+                    >
+                      Meetings
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/meetings/action-items"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/meetings/action-items" && "active")}
+                    >
+                      Action Items
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meDocs");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meDocs && "subdrop",
+                    currentPath.startsWith("/me/documents") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-folder"></i>
+                  <span>Documents & Contracts</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meDocs ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/documents"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/documents" && "active")}
+                    >
+                      HR Documents
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/documents/contracts"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/documents/contracts" && "active")}
+                    >
+                      My Contracts
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/documents/acknowledgements"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/documents/acknowledgements" && "active")}
+                    >
+                      Acknowledgements
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/documents/requests"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/documents/requests" && "active")}
+                    >
+                      Document Requests
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("meMedia");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.meMedia && "subdrop",
+                    currentPath.startsWith("/me/media") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-image"></i>
+                  <span>Media Library</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.meMedia ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/me/media"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/media" && "active")}
+                    >
+                      Shared Files
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/media"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/me/media" && "active")}
+                    >
+                      My Files
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* 6. MY ACCOUNT */}
+              <li className="menu-title">
+                <span>MY ACCOUNT</span>
               </li>
               <li>
                 <Link
@@ -372,198 +1180,6 @@ export function DreamsSidebar({
                   <span>My Profile</span>
                 </Link>
               </li>
-
-              <li className="menu-title">
-                <span>TIME & ATTENDANCE</span>
-              </li>
-              <li>
-                <Link
-                  to="/me/attendance/records"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/attendance/records" && "active")}
-                >
-                  <i className="ph-duotone ph-clock"></i>
-                  <span>Attendance Records</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/attendance/timesheet"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/attendance/timesheet" && "active")}
-                >
-                  <i className="ph-duotone ph-calendar-dots"></i>
-                  <span>Timesheet</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/leave/applications"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/leave/applications" && "active")}
-                >
-                  <i className="ph-duotone ph-calendar-blank"></i>
-                  <span>Leave Applications</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/leave/balance"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/leave/balance" && "active")}
-                >
-                  <i className="ph-duotone ph-scale"></i>
-                  <span>Leave Balance</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/attendance/shifts"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/attendance/shifts" && "active")}
-                >
-                  <i className="ph-duotone ph-calendar-check"></i>
-                  <span>My Shifts</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/attendance/regularizations"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/attendance/regularizations" && "active")}
-                >
-                  <i className="ph-duotone ph-arrows-left-right"></i>
-                  <span>Regularizations</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/attendance/requests"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/attendance/requests" && "active")}
-                >
-                  <i className="ph-duotone ph-timer"></i>
-                  <span>Attendance Requests</span>
-                </Link>
-              </li>
-
-              <li className="menu-title">
-                <span>PAYROLL & CLAIMS</span>
-              </li>
-              <li>
-                <Link
-                  to="/me/payroll/payslips"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/payroll/payslips" && "active")}
-                >
-                  <i className="ph-duotone ph-money"></i>
-                  <span>My Payslips</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/payroll/salary"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/payroll/salary" && "active")}
-                >
-                  <i className="ph-duotone ph-receipt"></i>
-                  <span>My Salary</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/payroll/reimbursements-loans"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/payroll/reimbursements-loans" && "active")}
-                >
-                  <i className="ph-duotone ph-credit-card"></i>
-                  <span>Reimbursements & Loans</span>
-                </Link>
-              </li>
-
-              <li className="menu-title">
-                <span>WORK & COLLABORATION</span>
-              </li>
-              <li>
-                <Link
-                  to="/me/todo"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/todo" && "active")}
-                >
-                  <i className="ph-duotone ph-check-square"></i>
-                  <span>My Todo</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/training/trainings"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/training/trainings" && "active")}
-                >
-                  <i className="ph-duotone ph-graduation-cap"></i>
-                  <span>Training & Learning</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/lifecycle/awards"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/lifecycle/awards" && "active")}
-                >
-                  <i className="ph-duotone ph-trophy"></i>
-                  <span>Awards & Honors</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/performance/goals"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/performance/goals" && "active")}
-                >
-                  <i className="ph-duotone ph-target"></i>
-                  <span>Goals & OKRs</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/documents"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/documents" && "active")}
-                >
-                  <i className="ph-duotone ph-folder"></i>
-                  <span>My Documents</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/lifecycle/resignation"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/lifecycle/resignation" && "active")}
-                >
-                  <i className="ph-duotone ph-user-minus"></i>
-                  <span>Resignation</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/assets"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/assets" && "active")}
-                >
-                  <i className="ph-duotone ph-laptop"></i>
-                  <span>My Allocated Assets</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/me/organization/announcements"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/organization/announcements" && "active")}
-                >
-                  <i className="ph-duotone ph-megaphone"></i>
-                  <span>Announcements</span>
-                </Link>
-              </li>
               <li>
                 <Link
                   to="/me/helpdesk"
@@ -571,35 +1187,48 @@ export function DreamsSidebar({
                   className={cn(currentPath === "/me/helpdesk" && "active")}
                 >
                   <i className="ph-duotone ph-lifebuoy"></i>
-                  <span>Helpdesk Tickets</span>
+                  <span>Helpdesk</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/me/chat"
+                  to="/me/account"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/me/chat" && "active")}
+                  className={cn(currentPath === "/me/account" && "active")}
                 >
-                  <i className="ph-duotone ph-chat-circle-dots"></i>
-                  <span>Team Chat</span>
+                  <i className="ph-duotone ph-shield-check"></i>
+                  <span>Account & Security</span>
                 </Link>
               </li>
 
-              {profile?.roles?.some((r) => ["manager", "admin", "tenant_admin", "hr_admin"].includes(r)) && (
+              {/* 7. MANAGER ONLY */}
+              {showManagerSection && (
                 <>
                   <li className="menu-title">
-                    <span>MANAGER PORTAL</span>
+                    <span>MANAGER ONLY</span>
                   </li>
                   <li>
                     <Link
-                      to="/me/approvals"
+                      to="/me/team"
                       onClick={onCloseMobile}
-                      className={cn(currentPath === "/me/approvals" && "active")}
+                      className={cn(currentPath === "/me/team" && "active")}
                     >
-                      <i className="ph-duotone ph-user-check"></i>
-                      <span>Approvals & Decisions</span>
+                      <i className="ph-duotone ph-users-three"></i>
+                      <span>My Team</span>
                     </Link>
                   </li>
+                  {canApprovals && (
+                    <li>
+                      <Link
+                        to="/me/approvals"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/me/approvals" && "active")}
+                      >
+                        <i className="ph-duotone ph-user-check"></i>
+                        <span>Approvals</span>
+                      </Link>
+                    </li>
+                  )}
                 </>
               )}
             </ul>
