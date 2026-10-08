@@ -1,7 +1,8 @@
 import { usePermissions } from "@/lib/permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { Loader2 } from "lucide-react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { extractRolesFromToken } from "@/lib/auth-navigation";
 import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -12,6 +13,17 @@ import { cn } from "@/lib/utils";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export const Route = createFileRoute("/_authenticated/_app/hrm-dashboard")({
+  beforeLoad: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null;
+    const { roles } = extractRolesFromToken(token);
+    const isEmployee =
+      roles.includes("employee") &&
+      !roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin", "hr", "manager"].includes(r));
+    if (isEmployee) {
+      throw redirect({ to: "/me/dashboard", replace: true });
+    }
+    throw redirect({ to: "/hr/dashboard", replace: true });
+  },
   component: DashboardPage,
 });
 
@@ -256,7 +268,7 @@ export default function DashboardPage() {
           </div>
 
           <Link
-            to="/employees"
+            to="/hr/employees"
             className="btn-sm bg-dark text-white border border-dark flex items-center gap-2 hover:bg-primary-hover hover:border-primary-hover cursor-pointer transition-colors"
           >
             <i className="ph-duotone ph-plus-circle"></i> Add Employee
@@ -439,7 +451,7 @@ export default function DashboardPage() {
               <p className="text-xs text-blue-100 mb-0">Process Monthly Pay</p>
             </div>
             <Link
-              to="/payroll"
+              to="/hr/payroll/runs"
               className="btn-sm bg-white border border-border-color text-slate-900 hover:bg-slate-100 flex items-center justify-center gap-1.5 cursor-pointer shrink-0 font-semibold rounded-md px-3 py-2 shadow-xs transition-colors"
             >
               <i className="ph-duotone ph-currency-circle-dollar text-base"></i> Run Payroll
@@ -453,7 +465,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
               <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Attendance Summary</h3>
               <Link
-                to="/attendance"
+                to="/hr/attendance"
                 className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-title hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer transition-colors text-xs px-2.5 py-1 rounded"
               >
                 View Logs <i className="ph-bold ph-caret-right text-[10px]"></i>
@@ -510,7 +522,7 @@ export default function DashboardPage() {
                 <p className="text-[13px] text-blue-100 mb-0">March 2026 · 1,196 employees</p>
               </div>
               <Link
-                to="/payroll"
+                to="/hr/payroll/runs"
                 className="btn-sm bg-white border border-border-color text-slate-900 hover:bg-slate-100 flex items-center justify-center gap-1.5 cursor-pointer font-semibold rounded-md px-3 py-1.5 shadow-xs transition-colors text-xs"
               >
                 <i className="ph-duotone ph-download-simple"></i> Download Payslip
@@ -553,7 +565,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
             <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recruitment Pipeline</h3>
             <Link
-              to="/recruitment"
+              to="/hr/recruitment/job-postings"
               className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-title hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer transition-colors text-xs px-2.5 py-1 rounded"
             >
               <i className="ph-bold ph-plus text-xs"></i> Post New Job
@@ -661,7 +673,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
             <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Performance Tracking</h3>
             <Link
-              to="/performance-appraisal"
+              to="/hr/performance/reviews"
               className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-title hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer transition-colors text-xs px-2.5 py-1 rounded"
             >
               Full Report <i className="ph-bold ph-caret-right text-[10px]"></i>
@@ -755,7 +767,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
             <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recent Openings</h3>
             <Link
-              to="/recruitment"
+              to="/hr/recruitment/job-postings"
               className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-title hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer transition-colors text-xs px-2.5 py-1 rounded"
             >
               All Openings <i className="ph-bold ph-caret-right text-[10px]"></i>

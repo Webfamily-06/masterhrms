@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { extractRolesFromToken } from "@/lib/auth-navigation";
 import { useState, useMemo } from "react";
 import { useCurrentProfile, useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,12 @@ import { LoadingState } from "@/components/system-states/loading-state";
 import { EmptyState } from "@/components/system-states/empty-state";
 
 export const Route = createFileRoute("/_authenticated/_app/todo")({
+  beforeLoad: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null;
+    const { roles } = extractRolesFromToken(token);
+    const isHrOrAdmin = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin", "hr"].includes(r));
+    throw redirect({ to: isHrOrAdmin ? "/hr/todo" : "/me/todo" });
+  },
   component: TodoPage,
   head: () => ({ meta: [{ title: "Todo & Task Action Tracker — Master HRMS" }] }),
 });
@@ -272,7 +279,7 @@ export function TodoPage() {
         icon={<CheckSquare className="size-5 text-primary" />}
         breadcrumbs={[
           { label: "Home", href: "/" },
-          { label: "Workplace", href: "/todo" },
+          { label: "Workplace", href: "/hr/todo" },
           { label: "Todo & Tasks" },
         ]}
         badge={

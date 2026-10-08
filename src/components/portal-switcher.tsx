@@ -58,7 +58,7 @@ export function PortalSwitcher() {
   ) {
     availablePortals.push({
       id: "hr",
-      title: "HR Command Center",
+      title: "HR Management Portal",
       subtitle: "Operations & Workforce",
       route: "/hr/dashboard",
       icon: Building2,

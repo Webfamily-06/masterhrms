@@ -70,25 +70,25 @@ export function MeTrainingOverviewPage() {
         <StatCard
           title="Active Trainings"
           value={trainings.length || 2}
-          icon={GraduationCap}
+          icon={<GraduationCap className="h-5 w-5" />}
           description="Enrolled courses in progress"
         />
         <StatCard
           title="Upcoming Sessions"
           value="1 Webinar"
-          icon={Calendar}
+          icon={<Calendar className="h-5 w-5" />}
           description="Scheduled this week"
         />
         <StatCard
           title="Completed"
           value="5 Courses"
-          icon={CheckCircle2}
+          icon={<CheckCircle2 className="h-5 w-5" />}
           description="Certificates earned"
         />
         <StatCard
           title="Hours Completed"
           value="34 Hours"
-          icon={Clock}
+          icon={<Clock className="h-5 w-5" />}
           description="Learning credits accrued"
         />
       </StatsOverviewGrid>

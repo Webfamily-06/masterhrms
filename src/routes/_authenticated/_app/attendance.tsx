@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { extractRolesFromToken } from "@/lib/auth-navigation";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -75,6 +76,12 @@ import { format, getDaysInMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/_app/attendance")({
+  beforeLoad: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null;
+    const { roles } = extractRolesFromToken(token);
+    const isHrOrAdmin = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin", "hr"].includes(r));
+    throw redirect({ to: isHrOrAdmin ? "/hr/attendance" : "/me/attendance/records" });
+  },
   component: AttendancePage,
   head: () => ({ meta: [{ title: "Attendance & Biometric Logs — Master HRMS" }] }),
 });
@@ -110,7 +117,7 @@ const MATRIX_COLOR_CODE: Record<string, { bg: string; label: string; text: strin
   weekend: { bg: "bg-muted/70 dark:bg-muted/40", label: "Weekend Off", text: "text-muted-foreground" },
 };
 
-function AttendancePage() {
+export function AttendancePage() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);
   const tenantId = profile?.tenant_id ?? "default";

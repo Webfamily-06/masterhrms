@@ -50,6 +50,7 @@ export const ROUTES = {
     // 1. Overview
     dashboard: "/hr/dashboard",
     calendar: "/hr/calendar",
+    todo: "/hr/todo",
     chat: "/hr/chat",
 
     // 2. Workforce Management
@@ -64,6 +65,7 @@ export const ROUTES = {
       documentTypes: "/hr/organization/document-types",
     },
     attendance: {
+      root: "/hr/attendance",
       records: "/hr/attendance/records",
       timesheets: "/hr/attendance/timesheets",
       regularizations: "/hr/attendance/regularizations",
@@ -71,6 +73,7 @@ export const ROUTES = {
       policies: "/hr/attendance/policies",
     },
     leave: {
+      root: "/hr/leave",
       applications: "/hr/leave/applications",
       balances: "/hr/leave/balances",
       types: "/hr/leave/types",
@@ -281,7 +284,7 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/departments": ROUTES.hr.organization.departments,
   "/designations": ROUTES.hr.organization.designations,
   "/holidays": ROUTES.hr.organization.holidays,
-  "/attendance": ROUTES.hr.attendance.records,
+  "/attendance": ROUTES.hr.attendance.root,
   "/attendance-employee": ROUTES.me.attendance.records,
   "/leave": ROUTES.hr.leave.applications,
   "/payroll": ROUTES.hr.payroll.payslips,
@@ -292,3 +295,98 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   "/assets": ROUTES.hr.assets.list,
   "/documents": ROUTES.hr.documents.list,
 };
+
+export type RoleContext = "HR" | "EMPLOYEE" | "TENANT" | "SUPER";
+
+/**
+ * Returns the canonical route for a given module/submodule based on role context.
+ */
+export function getCanonicalRoute(options: {
+  roleContext: RoleContext;
+  module: string;
+  submodule?: string;
+}): string {
+  const { roleContext, module, submodule } = options;
+  if (roleContext === "HR") {
+    switch (module) {
+      case "attendance":
+        if (submodule === "records") return ROUTES.hr.attendance.records;
+        if (submodule === "timesheet" || submodule === "timesheets") return ROUTES.hr.attendance.timesheets;
+        if (submodule === "regularizations") return ROUTES.hr.attendance.regularizations;
+        if (submodule === "shifts") return ROUTES.hr.attendance.shifts;
+        if (submodule === "policies") return ROUTES.hr.attendance.policies;
+        return ROUTES.hr.attendance.root;
+      case "leave":
+        if (submodule === "balances") return ROUTES.hr.leave.balances;
+        if (submodule === "types") return ROUTES.hr.leave.types;
+        if (submodule === "policies") return ROUTES.hr.leave.policies;
+        return ROUTES.hr.leave.applications;
+      case "payroll":
+        if (submodule === "runs") return ROUTES.hr.payroll.runs;
+        if (submodule === "salaries") return ROUTES.hr.payroll.employeeSalaries;
+        if (submodule === "components") return ROUTES.hr.payroll.components;
+        return ROUTES.hr.payroll.runs;
+      case "recruitment":
+        if (submodule === "candidates") return ROUTES.hr.recruitment.candidates;
+        if (submodule === "interviews") return ROUTES.hr.recruitment.interviews;
+        return ROUTES.hr.recruitment.jobPostings;
+      case "training":
+        return ROUTES.hr.training.employeeTrainings;
+      case "assets":
+        return ROUTES.hr.assets.list;
+      case "documents":
+        return ROUTES.hr.documents.list;
+      case "dashboard":
+        return ROUTES.hr.dashboard;
+      case "calendar":
+        return ROUTES.hr.calendar;
+      case "todo":
+        return ROUTES.hr.todo;
+      case "chat":
+        return ROUTES.hr.chat;
+      case "employees":
+        return ROUTES.hr.employees;
+      default:
+        return `/hr/${module}`;
+    }
+  } else if (roleContext === "EMPLOYEE") {
+    switch (module) {
+      case "attendance":
+        if (submodule === "timesheet") return "/me/attendance/timesheet";
+        if (submodule === "regularizations") return ROUTES.me.attendance.regularizations;
+        if (submodule === "shifts") return ROUTES.me.attendance.shifts;
+        if (submodule === "policies") return ROUTES.me.attendance.policies;
+        if (submodule === "requests") return "/me/attendance/requests";
+        return ROUTES.me.attendance.records;
+      case "leave":
+        if (submodule === "balance") return ROUTES.me.leave.balance;
+        if (submodule === "policies") return ROUTES.me.leave.policies;
+        return ROUTES.me.leave.applications;
+      case "payroll":
+        if (submodule === "salary") return ROUTES.me.payroll.salary;
+        return ROUTES.me.payroll.payslips;
+      case "recruitment":
+        return ROUTES.me.recruitment.jobPostings;
+      case "training":
+        return ROUTES.me.training.trainings;
+      case "assets":
+        return ROUTES.me.assets.list;
+      case "documents":
+        return ROUTES.me.documents.list;
+      case "dashboard":
+        return ROUTES.me.dashboard;
+      case "calendar":
+        return ROUTES.me.calendar;
+      case "todo":
+        return ROUTES.me.todo;
+      case "chat":
+        return ROUTES.me.chat;
+      case "profile":
+        return ROUTES.me.profile;
+      default:
+        return `/me/${module}`;
+    }
+  }
+  return `/${module}`;
+}
+

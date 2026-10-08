@@ -58,8 +58,11 @@ function AuthPage() {
   const qc = useQueryClient();
   const { appConfig } = useAppConfig();
   const { branding } = useTenantBranding();
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset" | "verify">(initialMode ?? "signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset" | "verify">(
+    searchToken ? "reset" : (initialMode ?? "signin")
+  );
   const [email, setEmail] = useState(searchEmail || "");
+  const [resetToken, setResetToken] = useState(searchToken || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -67,6 +70,17 @@ function AuthPage() {
   const [companyName, setCompanyName] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Sync token from URL query params (e.g., when arriving via email reset link)
+  useEffect(() => {
+    if (searchToken) {
+      setResetToken(searchToken);
+      setMode("reset");
+    }
+    if (searchEmail) {
+      setEmail(searchEmail);
+    }
+  }, [searchToken, searchEmail]);
 
   // OTP Verification state (Forgot password / Verify email)
   const [otpCode, setOtpCode] = useState("");
@@ -107,6 +121,36 @@ function AuthPage() {
       }
     },
   });
+
+  // Query Tenant Login Credentials from DB for the active workspace host
+  const { data: tenantCredsData } = useQuery({
+    queryKey: ["tenant-public-credentials", branding?.slug],
+    queryFn: async () => {
+      try {
+        const slugParam = branding?.slug ? `?slug=${encodeURIComponent(branding.slug)}` : "";
+        return await api.get(`/auth/public/tenant/credentials${slugParam}`);
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const tenantAdminCreds = tenantCredsData?.credentials?.tenantAdmin || {
+    email: "gowthamtooquik@gmail.com",
+    name: "Gowtham (Tenant Administrator)",
+    role: "Tenant Admin",
+  };
+  const hrAdminCreds = tenantCredsData?.credentials?.hrAdmin || {
+    email: "hr@masterhrms.com",
+    name: "Sarah Jenkins (HR Director)",
+    role: "HR Admin",
+  };
+  const employeeCreds = tenantCredsData?.credentials?.employee || {
+    email: "employee@masterhrms.com",
+    name: "Alex Morgan (Staff)",
+    role: "Employee",
+  };
 
   const logoLightUrl = appConfig.logoLightUrl || branding.logoUrl || "/logo.webp";
   const logoDarkUrl = appConfig.logoDarkUrl || branding.logoDark || "/white-logo.webp";
@@ -151,6 +195,11 @@ function AuthPage() {
   const anySocialVisible = googleVisible || secondaryProviders.length > 0;
 
   useEffect(() => {
+    // If it's a password reset flow, searchToken is the one-time reset token, NOT an OAuth login token!
+    if (initialMode === "reset" || mode === "reset") {
+      return;
+    }
+
     if (searchToken) {
       setToken(searchToken);
       qc.invalidateQueries({ queryKey: ["current-session-user"] });
@@ -169,7 +218,7 @@ function AuthPage() {
       const { roles, isImpersonating } = extractRolesFromToken(token);
       navigate({ to: resolveDefaultRoute(roles, redirect, { isImpersonating }) });
     }
-  }, [searchToken, searchError, searchProvider, navigate, redirect, qc, mode]);
+  }, [searchToken, searchError, searchProvider, navigate, redirect, qc, mode, initialMode]);
 
   // Sign in / Sign up submit
   async function handleSubmit(e: React.FormEvent) {
@@ -236,8 +285,12 @@ function AuthPage() {
           qc.invalidateQueries({ queryKey: ["current-session-user"] });
           toast.success("Signed in successfully!");
 
-          // If logging in on root domain, redirect to tenant workspace
-          if (res.workspaceUrl && typeof window !== "undefined") {
+          const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
+          const isSuperAdmin = verifiedRoles.includes("super_admin");
+          const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
+
+          // If logging in on root domain, redirect to tenant workspace (ONLY for non-super-admins)
+          if (!isSuperAdmin && res.workspaceUrl && typeof window !== "undefined") {
             try {
               const currentOrigin = window.location.origin.toLowerCase();
               const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
@@ -248,8 +301,6 @@ function AuthPage() {
             } catch {}
           }
 
-          const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
-          const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
           navigate({ to: resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }) });
         }
       }
@@ -285,7 +336,9 @@ function AuthPage() {
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return toast.error("Please enter your work email.");
-    if (!otpCode || otpCode.length < 6) return toast.error("Please enter the 6-digit code.");
+    if (!resetToken && (!otpCode || otpCode.length < 6)) {
+      return toast.error("Please enter the 6-digit verification code or click a valid reset link.");
+    }
     if (password.length < 8) return toast.error("Password must be at least 8 characters long.");
     if (password !== confirmPassword) return toast.error("Passwords do not match.");
 
@@ -293,7 +346,8 @@ function AuthPage() {
     try {
       const res = await api.post("/auth/reset-password", {
         email,
-        code: otpCode,
+        token: resetToken || undefined,
+        code: !resetToken ? otpCode : undefined,
         newPassword: password,
       });
 
@@ -301,9 +355,11 @@ function AuthPage() {
       setPassword("");
       setConfirmPassword("");
       setOtpCode("");
+      setResetToken("");
+      navigate({ to: "/auth", search: { mode: "signin", email } });
       setMode("signin");
     } catch (err: any) {
-      toast.error(err.message || "Failed to reset password. Please check your code.");
+      toast.error(err.message || "Failed to reset password. Please check your reset link or code.");
     } finally {
       setLoading(false);
     }
@@ -366,8 +422,12 @@ function AuthPage() {
         qc.invalidateQueries({ queryKey: ["current-session-user"] });
         toast.success("Identity verified! Signed in successfully.");
 
-        // If logging in on root domain, redirect to tenant workspace
-        if (res.workspaceUrl && typeof window !== "undefined") {
+        const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
+        const isSuperAdmin = verifiedRoles.includes("super_admin");
+        const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
+
+        // If logging in on root domain, redirect to tenant workspace (ONLY for non-super-admins)
+        if (!isSuperAdmin && res.workspaceUrl && typeof window !== "undefined") {
           try {
             const currentOrigin = window.location.origin.toLowerCase();
             const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
@@ -378,8 +438,6 @@ function AuthPage() {
           } catch {}
         }
 
-        const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
-        const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
         navigate({ to: resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }) });
       }
     } catch (err: any) {
@@ -543,12 +601,27 @@ function AuthPage() {
           <div className="space-y-4">
             <button
               type="button"
-              onClick={() => setMode("signin")}
+              onClick={() => {
+                setResetToken("");
+                setMode("signin");
+              }}
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <ArrowLeft className="size-3.5" />
               <span>Return to sign in</span>
             </button>
+
+            {resetToken ? (
+              <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 p-3 flex items-start gap-2.5">
+                <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-semibold text-emerald-900 dark:text-emerald-200">One-Time Reset Link Verified</p>
+                  <p className="text-emerald-700 dark:text-emerald-400 mt-0.5">
+                    Your secure reset link is authenticated. Choose a new password below.
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
@@ -557,23 +630,26 @@ function AuthPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0"
+                  readOnly={Boolean(resetToken)}
+                  className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0 disabled:opacity-75"
                   required
                 />
               </div>
 
-              <div>
-                <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">6-Digit Code</label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="123456"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                  className="w-full px-3 py-2.5 text-center font-mono font-bold tracking-widest text-base border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0"
-                  required
-                />
-              </div>
+              {!resetToken && (
+                <div>
+                  <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">6-Digit Code</label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    className="w-full px-3 py-2.5 text-center font-mono font-bold tracking-widest text-base border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0"
+                    required
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">New Password</label>
@@ -584,6 +660,7 @@ function AuthPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0"
                   required
+                  autoFocus={Boolean(resetToken)}
                 />
               </div>
 
@@ -605,7 +682,7 @@ function AuthPage() {
                 className="w-full bg-dark text-white py-2.5 rounded-md text-sm font-semibold hover:bg-primary-hover cursor-pointer transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
-                Save Password & Sign In
+                {resetToken ? "Update Password & Sign In" : "Save Password & Sign In"}
               </button>
             </form>
           </div>
@@ -675,12 +752,12 @@ function AuthPage() {
         ) : (
           /* Main Sign In / Sign Up Form matching ui/login.html */
           <form className="space-y-4" onSubmit={handleSubmit}>
-            {/* Quick Demo Credentials Switcher (No Emojis) */}
+            {/* Workspace Credentials Switcher (Fetched dynamically from DB) */}
             {mode === "signin" && (
               <div className="rounded-md border border-border-color bg-light dark:bg-slate-800/50 p-2.5 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-title flex items-center gap-1.5 text-[11px]">
-                    <ShieldCheck className="size-3.5 text-primary" /> Demo Credentials
+                    <ShieldCheck className="size-3.5 text-primary" /> Workspace Credentials
                   </span>
                   <span className="text-[10px] text-default font-mono">Password: admin123</span>
                 </div>
@@ -688,35 +765,41 @@ function AuthPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setEmail("admin@masterhrms.com");
+                      setEmail(tenantAdminCreds.email);
                       setPassword("admin123");
                     }}
                     className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
                   >
-                    <div className="text-[11px] font-bold text-title">Super Admin</div>
-                    <div className="text-[10px] text-default truncate">Root Platform</div>
+                    <div className="text-[11px] font-bold text-title truncate">{tenantAdminCreds.role || "Tenant Admin"}</div>
+                    <div className="text-[10px] text-default truncate" title={tenantAdminCreds.name}>
+                      {tenantAdminCreds.name?.split(" ")[0] || "Admin"}
+                    </div>
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      setEmail("hr@masterhrms.com");
+                      setEmail(hrAdminCreds.email);
                       setPassword("admin123");
                     }}
                     className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
                   >
-                    <div className="text-[11px] font-bold text-title">HR Admin</div>
-                    <div className="text-[10px] text-default truncate">Organization</div>
+                    <div className="text-[11px] font-bold text-title truncate">{hrAdminCreds.role || "HR Admin"}</div>
+                    <div className="text-[10px] text-default truncate" title={hrAdminCreds.name}>
+                      {hrAdminCreds.name?.split(" ")[0] || "HR"}
+                    </div>
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      setEmail("employee@masterhrms.com");
+                      setEmail(employeeCreds.email);
                       setPassword("admin123");
                     }}
                     className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
                   >
-                    <div className="text-[11px] font-bold text-title">Employee</div>
-                    <div className="text-[10px] text-default truncate">Staff Portal</div>
+                    <div className="text-[11px] font-bold text-title truncate">{employeeCreds.role || "Employee"}</div>
+                    <div className="text-[10px] text-default truncate" title={employeeCreds.name}>
+                      {employeeCreds.name?.split(" ")[0] || "Staff"}
+                    </div>
                   </button>
                 </div>
               </div>

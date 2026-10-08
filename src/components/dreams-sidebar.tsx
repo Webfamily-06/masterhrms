@@ -60,13 +60,22 @@ export function DreamsSidebar({
 
   const userRoles = profile?.roles || [];
   const isSuperAdmin = userRoles.includes("super_admin");
+  const isHrAdmin = userRoles.some((r) => ["hr_admin", "hr"].includes(r));
   const isAdminOrSuper = userRoles.some((r) =>
     ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r)
   );
   const isManager = userRoles.includes("manager");
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
-  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/me/dashboard" : "/hrm-dashboard";
+  const homeRoute = isSuperAdmin
+    ? "/super"
+    : isClientOnly
+      ? "/client-dashboard"
+      : isEmployeeOnly
+        ? "/me/dashboard"
+        : isHrAdmin
+          ? "/hr/dashboard"
+          : "/hrm-dashboard";
 
   return (
     <aside
@@ -631,9 +640,9 @@ export function DreamsSidebar({
               <ul style={{ display: !isMini && openMenus.dashboards ? "block" : "none" }}>
                 {isModuleAllowed("hrm", profile) && (<li>
                   <Link
-                    to="/hrm-dashboard"
+                    to={isAdminOrSuper ? "/hr/dashboard" : "/hrm-dashboard"}
                     onClick={onCloseMobile}
-                    className={cn((currentPath === "/hrm-dashboard" || currentPath === "/dashboard") && "active")}
+                    className={cn((currentPath === "/hr/dashboard" || currentPath === "/hrm-dashboard" || currentPath === "/dashboard") && "active")}
                   >
                     HRM Admin Dashboard
                   </Link>
@@ -918,9 +927,9 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/chat"
+                    to={isAdminOrSuper ? "/hr/chat" : "/me/chat"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/chat" && "active")}
+                    className={cn((currentPath === "/hr/chat" || currentPath === "/me/chat" || currentPath === "/chat") && "active")}
                   >
                     Team Chat
                   </Link>
@@ -936,9 +945,9 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/calendar"
+                    to={isAdminOrSuper ? "/hr/calendar" : "/me/calendar"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/calendar" && "active")}
+                    className={cn((currentPath === "/hr/calendar" || currentPath === "/me/calendar" || currentPath === "/calendar") && "active")}
                   >
                     Calendar
                   </Link>
@@ -954,9 +963,9 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/todo"
+                    to={isAdminOrSuper ? "/hr/todo" : "/me/todo"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/todo" && "active")}
+                    className={cn((currentPath === "/hr/todo" || currentPath === "/me/todo" || currentPath === "/todo") && "active")}
                   >
                     Todo Action List
                   </Link>
@@ -1276,9 +1285,9 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
-                to="/hrm"
+                to={isAdminOrSuper ? "/hr/dashboard" : "/me/dashboard"}
                 onClick={onCloseMobile}
-                className={cn(currentPath === "/hrm" && "active")}
+                className={cn((currentPath === "/hr/dashboard" || currentPath === "/me/dashboard" || currentPath === "/hrm") && "active")}
               >
                 <i className="ph-duotone ph-squares-four"></i>
                 <span>HRM Hub</span>
@@ -1286,9 +1295,9 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
-                to="/employees"
+                to={isAdminOrSuper ? "/hr/employees" : "/me/employees"}
                 onClick={onCloseMobile}
-                className={cn(currentPath === "/employees" && "active")}
+                className={cn((currentPath === "/hr/employees" || currentPath === "/me/employees" || currentPath === "/employees") && "active")}
               >
                 <i className="ph-duotone ph-users"></i>
                 <span>Employee Directory</span>
@@ -1296,9 +1305,9 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
-                to="/manager-hub"
+                to={isAdminOrSuper ? "/hr/approvals" : "/me/approvals"}
                 onClick={onCloseMobile}
-                className={cn(currentPath === "/manager-hub" && "active")}
+                className={cn((currentPath === "/hr/approvals" || currentPath === "/me/approvals" || currentPath === "/manager-hub") && "active")}
               >
                 <i className="ph-duotone ph-user-check"></i>
                 <span>Manager Hub & Approvals</span>
@@ -1316,16 +1325,22 @@ export function DreamsSidebar({
                 className={cn(
                   "cursor-pointer",
                   openMenus.time && "subdrop",
-                  [
-                    "/attendance",
-                    "/leave",
-                    "/shifts",
-                    "/shift-swap-requests",
-                    "/overtime",
-                    "/work-from-home",
-                    "/biometric",
-                    "/biometric-sync",
-                  ].includes(currentPath) && "active"
+                  (
+                    currentPath.startsWith("/hr/attendance") ||
+                    currentPath.startsWith("/hr/leave") ||
+                    currentPath.startsWith("/me/attendance") ||
+                    currentPath.startsWith("/me/leave") ||
+                    [
+                      "/attendance",
+                      "/leave",
+                      "/shifts",
+                      "/shift-swap-requests",
+                      "/overtime",
+                      "/work-from-home",
+                      "/biometric",
+                      "/biometric-sync",
+                    ].includes(currentPath)
+                  ) && "active"
                 )}
               >
                 <i className="ph-duotone ph-clock"></i>
@@ -1335,43 +1350,43 @@ export function DreamsSidebar({
               <ul style={{ display: !isMini && openMenus.time ? "block" : "none" }}>
                 <li>
                   <Link
-                    to="/attendance"
+                    to={isAdminOrSuper ? "/hr/attendance" : "/me/attendance/records"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/attendance" && "active")}
+                    className={cn((currentPath === "/hr/attendance" || currentPath === "/me/attendance/records" || currentPath === "/attendance") && "active")}
                   >
                     Attendance Punching
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/leave"
+                    to={isAdminOrSuper ? "/hr/leave/applications" : "/me/leave/applications"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/leave" && "active")}
+                    className={cn((currentPath.startsWith("/hr/leave") || currentPath.startsWith("/me/leave") || currentPath === "/leave") && "active")}
                   >
                     Leave & PTO
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/shifts"
+                    to={isAdminOrSuper ? "/hr/attendance/shifts" : "/me/attendance/shifts"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/shifts" && "active")}
+                    className={cn((currentPath === "/hr/attendance/shifts" || currentPath === "/me/attendance/shifts" || currentPath === "/shifts") && "active")}
                   >
                     Shift Rostering
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/shift-swap-requests"
+                    to={isAdminOrSuper ? "/hr/attendance/shifts" : "/me/attendance/requests"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/shift-swap-requests" && "active")}
+                    className={cn((currentPath === "/hr/attendance/shifts" || currentPath === "/shift-swap-requests") && "active")}
                   >
                     Shift Swap Requests
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/overtime"
+                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/requests"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/overtime" && "active")}
                   >
@@ -1380,7 +1395,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/work-from-home"
+                    to={isAdminOrSuper ? "/hr/attendance/regularizations" : "/me/attendance/regularizations"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/work-from-home" && "active")}
                   >
@@ -1389,25 +1404,25 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/attendance-employee"
+                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/records"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/attendance-employee" && "active")}
+                    className={cn((currentPath === "/hr/attendance/records" || currentPath === "/attendance-employee") && "active")}
                   >
                     Attendance Matrix
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/daily-report"
+                    to={isAdminOrSuper ? "/hr/attendance/timesheets" : "/me/attendance/timesheet"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/daily-report" && "active")}
+                    className={cn((currentPath === "/hr/attendance/timesheets" || currentPath === "/daily-report") && "active")}
                   >
                     Daily Attendance Report
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/biometric"
+                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/records"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/biometric" && "active")}
                   >
@@ -1416,7 +1431,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/biometric-sync"
+                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/records"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/biometric-sync" && "active")}
                   >
@@ -1429,9 +1444,9 @@ export function DreamsSidebar({
             {/* Payroll Runs */}
             <li>
               <Link
-                to="/payroll"
+                to={isAdminOrSuper ? "/hr/payroll/runs" : "/me/payroll/payslips"}
                 onClick={onCloseMobile}
-                className={cn(currentPath === "/payroll" && "active")}
+                className={cn((currentPath.startsWith("/hr/payroll") || currentPath.startsWith("/me/payroll") || currentPath === "/payroll") && "active")}
               >
                 <i className="ph-duotone ph-coins"></i>
                 <span>Payroll Runs</span>
@@ -1449,7 +1464,19 @@ export function DreamsSidebar({
                 className={cn(
                   "cursor-pointer",
                   openMenus.talent && "subdrop",
-                  ["/recruitment", "/training", "/certification-tracking", "/campus-hiring", "/referrals"].includes(currentPath) && "active"
+                  (
+                    currentPath.startsWith("/hr/recruitment") ||
+                    currentPath.startsWith("/hr/training") ||
+                    currentPath.startsWith("/me/recruitment") ||
+                    currentPath.startsWith("/me/training") ||
+                    [
+                      "/recruitment",
+                      "/training",
+                      "/certification-tracking",
+                      "/campus-hiring",
+                      "/referrals",
+                    ].includes(currentPath)
+                  ) && "active"
                 )}
               >
                 <i className="ph-duotone ph-briefcase"></i>
@@ -1459,43 +1486,43 @@ export function DreamsSidebar({
               <ul style={{ display: !isMini && openMenus.talent ? "block" : "none" }}>
                 <li>
                   <Link
-                    to="/recruitment"
+                    to={isAdminOrSuper ? "/hr/recruitment/job-postings" : "/me/recruitment/job-postings"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/recruitment" && "active")}
+                    className={cn((currentPath === "/hr/recruitment/job-postings" || currentPath === "/me/recruitment/job-postings" || currentPath === "/recruitment") && "active")}
                   >
                     Recruitment ATS
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/campus-hiring"
+                    to={isAdminOrSuper ? "/hr/recruitment/candidates" : "/me/recruitment/job-postings"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/campus-hiring" && "active")}
+                    className={cn((currentPath === "/hr/recruitment/candidates" || currentPath === "/campus-hiring") && "active")}
                   >
                     Campus Hiring
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/referrals"
+                    to={isAdminOrSuper ? "/hr/recruitment/referrals" : "/me/recruitment/job-postings"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/referrals" && "active")}
+                    className={cn((currentPath === "/hr/recruitment/referrals" || currentPath === "/referrals") && "active")}
                   >
                     Employee Referrals
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/training"
+                    to={isAdminOrSuper ? "/hr/training/employee-trainings" : "/me/training/trainings"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/training" && "active")}
+                    className={cn((currentPath.startsWith("/hr/training") || currentPath.startsWith("/me/training") || currentPath === "/training") && "active")}
                   >
                     Training & LMS
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/certification-tracking"
+                    to={isAdminOrSuper ? "/hr/training/programs" : "/me/training/programs"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/certification-tracking" && "active")}
                   >
@@ -1516,23 +1543,34 @@ export function DreamsSidebar({
                 className={cn(
                   "cursor-pointer",
                   openMenus.operations && "subdrop",
-                  [
-                    "/helpdesk",
-                    "/documents",
-                    "/announcements",
-                    "/awards",
-                    "/warnings",
-                    "/promotions",
-                    "/probation",
-                    "/offboarding",
-                    "/resignation",
-                    "/termination",
-                    "/forms",
-                    "/workflows",
-                    "/okr",
-                    "/assets",
-                    "/provident-fund",
-                  ].includes(currentPath) && "active"
+                  (
+                    currentPath.startsWith("/hr/documents") ||
+                    currentPath.startsWith("/hr/assets") ||
+                    currentPath.startsWith("/hr/lifecycle") ||
+                    currentPath.startsWith("/hr/performance") ||
+                    currentPath.startsWith("/me/documents") ||
+                    currentPath.startsWith("/me/assets") ||
+                    currentPath.startsWith("/me/lifecycle") ||
+                    currentPath.startsWith("/me/performance") ||
+                    currentPath.startsWith("/me/helpdesk") ||
+                    [
+                      "/helpdesk",
+                      "/documents",
+                      "/announcements",
+                      "/awards",
+                      "/warnings",
+                      "/promotions",
+                      "/probation",
+                      "/offboarding",
+                      "/resignation",
+                      "/termination",
+                      "/forms",
+                      "/workflows",
+                      "/okr",
+                      "/assets",
+                      "/provident-fund",
+                    ].includes(currentPath)
+                  ) && "active"
                 )}
               >
                 <i className="ph-duotone ph-folder"></i>
@@ -1542,34 +1580,34 @@ export function DreamsSidebar({
               <ul style={{ display: !isMini && openMenus.operations ? "block" : "none" }}>
                 <li>
                   <Link
-                    to="/helpdesk"
+                    to={isAdminOrSuper ? "/hr/lifecycle/complaints" : "/me/helpdesk"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/helpdesk" && "active")}
+                    className={cn((currentPath === "/hr/lifecycle/complaints" || currentPath === "/me/helpdesk" || currentPath === "/helpdesk") && "active")}
                   >
                     Helpdesk Tickets
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/documents"
+                    to={isAdminOrSuper ? "/hr/documents" : "/me/documents"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/documents" && "active")}
+                    className={cn((currentPath.startsWith("/hr/documents") || currentPath.startsWith("/me/documents") || currentPath === "/documents") && "active")}
                   >
                     Document Vault
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/announcements"
+                    to={isAdminOrSuper ? "/hr/organization/announcements" : "/me/organization/announcements"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/announcements" && "active")}
+                    className={cn((currentPath === "/hr/organization/announcements" || currentPath === "/me/organization/announcements" || currentPath === "/announcements") && "active")}
                   >
                     Company News
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/forms"
+                    to={isAdminOrSuper ? "/hr/recruitment/assessments" : "/me/documents"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/forms" && "active")}
                   >
@@ -1578,7 +1616,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/workflows"
+                    to={isAdminOrSuper ? "/hr/settings" : "/me/dashboard"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/workflows" && "active")}
                   >
@@ -1587,25 +1625,25 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/okr"
+                    to={isAdminOrSuper ? "/hr/performance/goals" : "/me/performance/goals"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/okr" && "active")}
+                    className={cn((currentPath === "/hr/performance/goals" || currentPath === "/me/performance/goals" || currentPath === "/okr") && "active")}
                   >
                     OKR & Goals
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/assets"
+                    to={isAdminOrSuper ? "/hr/assets" : "/me/assets"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/assets" && "active")}
+                    className={cn((currentPath.startsWith("/hr/assets") || currentPath.startsWith("/me/assets") || currentPath === "/assets") && "active")}
                   >
                     Asset Management
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/offboarding"
+                    to={isAdminOrSuper ? "/hr/lifecycle/resignations" : "/me/lifecycle/resignation"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/offboarding" && "active")}
                   >
@@ -1614,7 +1652,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/notice-period-tracker"
+                    to={isAdminOrSuper ? "/hr/lifecycle/resignations" : "/me/lifecycle/resignation"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/notice-period-tracker" && "active")}
                   >
@@ -1623,52 +1661,52 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/resignation"
+                    to={isAdminOrSuper ? "/hr/lifecycle/resignations" : "/me/lifecycle/resignation"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/resignation" && "active")}
+                    className={cn((currentPath === "/hr/lifecycle/resignations" || currentPath === "/me/lifecycle/resignation" || currentPath === "/resignation") && "active")}
                   >
                     Resignations
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/termination"
+                    to={isAdminOrSuper ? "/hr/lifecycle/terminations" : "/me/lifecycle/terminations"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/termination" && "active")}
+                    className={cn((currentPath === "/hr/lifecycle/terminations" || currentPath === "/me/lifecycle/terminations" || currentPath === "/termination") && "active")}
                   >
                     Terminations
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/awards"
+                    to={isAdminOrSuper ? "/hr/lifecycle/awards" : "/me/lifecycle/awards"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/awards" && "active")}
+                    className={cn((currentPath === "/hr/lifecycle/awards" || currentPath === "/me/lifecycle/awards" || currentPath === "/awards") && "active")}
                   >
                     Awards & Honors
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/warnings"
+                    to={isAdminOrSuper ? "/hr/lifecycle/warnings" : "/me/lifecycle/warnings"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/warnings" && "active")}
+                    className={cn((currentPath === "/hr/lifecycle/warnings" || currentPath === "/me/lifecycle/warnings" || currentPath === "/warnings") && "active")}
                   >
                     Disciplinary Warnings
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/promotions"
+                    to={isAdminOrSuper ? "/hr/lifecycle/promotions" : "/me/lifecycle/promotions"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/promotions" && "active")}
+                    className={cn((currentPath === "/hr/lifecycle/promotions" || currentPath === "/me/lifecycle/promotions" || currentPath === "/promotions") && "active")}
                   >
                     Promotions & Transfers
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/probation"
+                    to={isAdminOrSuper ? "/hr/employees" : "/me/employees"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/probation" && "active")}
                   >
@@ -1677,7 +1715,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/provident-fund"
+                    to={isAdminOrSuper ? "/hr/payroll/components" : "/me/payroll/salary"}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/provident-fund" && "active")}
                   >
@@ -1788,9 +1826,9 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
-                to="/settings"
+                to={isAdminOrSuper ? "/hr/settings" : "/settings"}
                 onClick={onCloseMobile}
-                className={cn(currentPath === "/settings" && "active")}
+                className={cn((currentPath === "/hr/settings" || currentPath === "/settings") && "active")}
               >
                 <i className="ph-duotone ph-gear"></i>
                 <span>Settings</span>

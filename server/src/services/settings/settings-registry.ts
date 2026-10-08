@@ -75,7 +75,7 @@ export const SETTINGS_REGISTRY: Record<string, SettingDefinition> = {
     label: "Primary Accent Color",
     help: "Brand accent color used across buttons, active states, banners, and theme highlights.",
     type: "color",
-    default: "#FF6B00",
+    default: "#2563EB",
     scopes: ["PLATFORM", "TENANT"],
     validation: (val) => {
       if (typeof val !== "string" || !hexColorRegex.test(val)) {

@@ -12,7 +12,7 @@ export interface PageHeaderProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   title: string | React.ReactNode;
   description?: string | React.ReactNode;
-  icon?: React.ReactNode;
+  icon?: React.ReactNode | React.ComponentType<{ className?: string }>;
   badge?: React.ReactNode;
   breadcrumbs?: PageHeaderBreadcrumbItem[] | React.ReactNode;
   actions?: React.ReactNode;
@@ -78,7 +78,11 @@ export function PageHeader({
         <div className="flex items-center gap-2.5 flex-wrap">
           {icon && (
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-              {icon}
+              {React.isValidElement(icon)
+                ? icon
+                : typeof icon === "function" || (typeof icon === "object" && icon !== null && "$$typeof" in icon)
+                ? React.createElement(icon as any, { className: "size-4" })
+                : icon}
             </div>
           )}
           <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">

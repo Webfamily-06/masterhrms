@@ -27,7 +27,7 @@ import { resolveDefaultRoute } from "@/lib/auth-navigation";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
 import { NotFoundView } from "@/components/error-pages/not-found-view";
 import { isTenantWorkspaceHost } from "@/lib/platform-domain";
-import { SuperLoginPage } from "@/routes/super-login";
+import { Super06LoginPage } from "@/routes/super06";
 import { useAppConfig } from "@/lib/useAppConfig";
 import { useThemeMode } from "@/lib/theme";
 
@@ -465,7 +465,7 @@ function SuperShell() {
   const isSuperAdmin = profile?.roles?.includes("super_admin");
 
   if (!hasToken || (!isLoading && profile && !isSuperAdmin)) {
-    return <SuperLoginPage />;
+    return <Super06LoginPage />;
   }
 
   async function handleSignOut() {
@@ -474,7 +474,7 @@ function SuperShell() {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("hrms_auth_token");
     sessionStorage.removeItem("auth_token");
-    navigate({ to: "/super" });
+    navigate({ to: "/super06" });
   }
 
   if (profileError) {

@@ -173,7 +173,7 @@ export function HrmHubPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => navigate({ to: "/attendance" })}
+              onClick={() => navigate({ to: "/hr/attendance" })}
               className="gap-1.5 text-xs font-semibold h-8 shadow-2xs"
             >
               <Clock className="size-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -182,7 +182,7 @@ export function HrmHubPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => navigate({ to: "/payroll" })}
+              onClick={() => navigate({ to: "/hr/payroll/runs" })}
               className="gap-1.5 text-xs font-semibold h-8 shadow-2xs"
             >
               <Wallet className="size-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -190,7 +190,7 @@ export function HrmHubPage() {
             </Button>
             <Button
               size="sm"
-              onClick={() => navigate({ to: "/employees" })}
+              onClick={() => navigate({ to: "/hr/employees" })}
               className="gap-1.5 text-xs font-semibold h-8 shadow-2xs"
             >
               <Plus className="size-3.5" />
@@ -378,7 +378,7 @@ export function HrmHubPage() {
 
               <div className="pt-3 border-t border-border-color flex justify-end">
                 <Link
-                  to="/attendance"
+                  to="/hr/attendance"
                   className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
                 >
                   View Full Attendance Sheet <i className="ph ph-arrow-right text-[11px]"></i>
@@ -409,7 +409,7 @@ export function HrmHubPage() {
                 {/* Clickable Real Approval Rows */}
                 <div className="space-y-2">
                   <Link
-                    to="/leave"
+                    to="/hr/leave/applications"
                     className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-warning/50 hover:bg-warning/5 transition-all text-xs group"
                   >
                     <span className="flex items-center gap-2.5 text-gray-900 dark:text-white font-medium">
@@ -445,7 +445,7 @@ export function HrmHubPage() {
                   </Link>
 
                   <Link
-                    to="/attendance"
+                    to="/hr/attendance/regularizations"
                     className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-primary/50 hover:bg-primary/5 transition-all text-xs group"
                   >
                     <span className="flex items-center gap-2.5 text-gray-900 dark:text-white font-medium">
@@ -463,7 +463,7 @@ export function HrmHubPage() {
                   </Link>
 
                   <Link
-                    to="/documents"
+                    to="/hr/documents"
                     className="flex items-center justify-between p-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-purple/50 hover:bg-purple/5 transition-all text-xs group"
                   >
                     <span className="flex items-center gap-2.5 text-gray-900 dark:text-white font-medium">
@@ -484,7 +484,7 @@ export function HrmHubPage() {
 
               <div className="pt-3 border-t border-border-color flex justify-end">
                 <Link
-                  to="/leave"
+                  to="/hr/leave/applications"
                   className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
                 >
                   View All Approvals <i className="ph ph-arrow-right text-[11px]"></i>
@@ -543,7 +543,7 @@ export function HrmHubPage() {
 
               <div className="pt-3 border-t border-border-color flex justify-end">
                 <Link
-                  to="/payroll"
+                  to="/hr/payroll/runs"
                   className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
                 >
                   Open Payroll <i className="ph ph-arrow-right text-[11px]"></i>
@@ -616,7 +616,7 @@ export function HrmHubPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
               <button
                 type="button"
-                onClick={() => navigate({ to: "/employees" })}
+                onClick={() => navigate({ to: "/hr/employees" })}
                 className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-primary/50 hover:bg-primary/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
               >
                 <i className="ph-duotone ph-user-plus text-primary text-base shrink-0"></i>
@@ -624,7 +624,7 @@ export function HrmHubPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate({ to: "/attendance" })}
+                onClick={() => navigate({ to: "/hr/attendance" })}
                 className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-success/50 hover:bg-success/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
               >
                 <i className="ph-duotone ph-clock text-success text-base shrink-0"></i>
@@ -632,7 +632,7 @@ export function HrmHubPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate({ to: "/leave" })}
+                onClick={() => navigate({ to: "/hr/leave/applications" })}
                 className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-warning/50 hover:bg-warning/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
               >
                 <i className="ph-duotone ph-calendar-check text-warning text-base shrink-0"></i>
@@ -640,7 +640,7 @@ export function HrmHubPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate({ to: "/payroll" })}
+                onClick={() => navigate({ to: "/hr/payroll/runs" })}
                 className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-purple/50 hover:bg-purple/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
               >
                 <i className="ph-duotone ph-wallet text-purple text-base shrink-0"></i>
@@ -648,7 +648,7 @@ export function HrmHubPage() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate({ to: "/announcements" })}
+                onClick={() => navigate({ to: "/hr/organization/announcements" })}
                 className="h-10 px-3 text-xs justify-start gap-2.5 rounded-md border border-border-color bg-gray-50/70 dark:bg-muted/10 hover:border-pink/50 hover:bg-pink/5 transition-all font-medium flex items-center text-gray-900 dark:text-white cursor-pointer"
               >
                 <i className="ph-duotone ph-megaphone text-pink text-base shrink-0"></i>

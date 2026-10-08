@@ -585,6 +585,78 @@ export const LIFECYCLE_EMAIL_TEMPLATES: Record<string, { subject: string; htmlBo
   </table>
 </body></html>`,
   },
+  "PASSWORD_RESET": {
+    subject: "Reset Your Password — {{company_name}}",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 28px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{company_name}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Security & Account Authentication</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Hello {{user_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          We received a request to reset the password associated with your account on <strong>{{company_name}}</strong>.
+        </p>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          Click the secure button below to set a new password. This link is single-use and will expire in <strong>{{expiry_minutes}} minutes</strong>.
+        </p>
+        <div style="text-align: center; margin-bottom: 28px;">
+          <a href="{{reset_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block;">Reset Password →</a>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin-bottom: 24px;">
+          <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; font-weight: 600;">Button not working? Copy and paste this URL into your browser:</p>
+          <a href="{{reset_url}}" style="font-size: 12px; color: #2563eb; word-break: break-all; text-decoration: underline;">{{reset_url}}</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0 0 16px 0;">
+          If you did not request a password reset, you can safely ignore this email. Your existing credentials remain fully secure.
+        </p>
+        <p style="color: #64748b; font-size: 12px; margin: 0;">Need help? Contact <a href="mailto:{{support_email}}" style="color: #2563eb;">{{support_email}}</a>.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`,
+  },
+  "password-reset": {
+    subject: "Reset Your Password — {{company_name}}",
+    htmlBody: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 28px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{company_name}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Security & Account Authentication</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Hello {{user_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          We received a request to reset the password associated with your account on <strong>{{company_name}}</strong>.
+        </p>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          Click the secure button below to set a new password. This link is single-use and will expire in <strong>{{expiry_minutes}} minutes</strong>.
+        </p>
+        <div style="text-align: center; margin-bottom: 28px;">
+          <a href="{{reset_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block;">Reset Password →</a>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin-bottom: 24px;">
+          <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; font-weight: 600;">Button not working? Copy and paste this URL into your browser:</p>
+          <a href="{{reset_url}}" style="font-size: 12px; color: #2563eb; word-break: break-all; text-decoration: underline;">{{reset_url}}</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0 0 16px 0;">
+          If you did not request a password reset, you can safely ignore this email. Your existing credentials remain fully secure.
+        </p>
+        <p style="color: #64748b; font-size: 12px; margin: 0;">Need help? Contact <a href="mailto:{{support_email}}" style="color: #2563eb;">{{support_email}}</a>.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`,
+  },
 };
 
 function substituteTemplateVariables(text: string, vars: Record<string, string>): string {
@@ -721,6 +793,146 @@ export async function sendSubscriptionLifecycleEmail(options: LifecycleEmailOpti
     return {
       success: true,
       messageId: `dev-mock-${Date.now()}`,
+    };
+  }
+}
+
+/**
+ * Dispatch Password Reset Email with dynamic CMS template resolution (/super/email-templates) & variable substitution
+ */
+export async function sendPasswordResetEmail(options: {
+  toEmail: string;
+  userName: string;
+  resetUrl: string;
+  expiryMinutes?: number;
+  tenantId?: string | null;
+  companyName?: string;
+  scope?: "PLATFORM" | "TENANT";
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { toEmail, userName, resetUrl, expiryMinutes = 60, tenantId, companyName, scope } = options;
+  const resolvedScope = scope || (tenantId ? "TENANT" : "PLATFORM");
+  const config = await getDynamicEmailConfig({ scope: resolvedScope, tenantId });
+  const appName = companyName || config.appName || "Master HRMS";
+  const supportEmail = config.smtpFromEmail || `support@${getBaseDomain()}`;
+
+  const variables: Record<string, string> = {
+    user_name: userName,
+    company_name: appName,
+    reset_url: resetUrl,
+    resetUrl: resetUrl,
+    expiry_minutes: String(expiryMinutes),
+    support_email: supportEmail,
+    app_name: appName,
+    logo_url: config.logoUrl || "",
+  };
+
+  // 1. Try to find customized PASSWORD_RESET template from CMS (/super/email-templates)
+  let subject = "";
+  let htmlBody = "";
+
+  try {
+    const page = await prisma.cmsPage.findFirst({
+      where: { slug: "system-email-templates" },
+    });
+    if (page?.content) {
+      const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
+      if (Array.isArray(c.templates)) {
+        const found = c.templates.find(
+          (t: any) =>
+            t.id === "PASSWORD_RESET" ||
+            t.id === "password-reset" ||
+            t.name?.toLowerCase().includes("password reset")
+        );
+        if (found) {
+          subject = found.subject;
+          htmlBody = found.html_body;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[email.ts] CMS PASSWORD_RESET template lookup error: ${err.message}`);
+  }
+
+  // 2. Fallback to predefined template
+  if (!subject || !htmlBody) {
+    const fallback = LIFECYCLE_EMAIL_TEMPLATES["PASSWORD_RESET"];
+    subject = fallback.subject;
+    htmlBody = fallback.htmlBody;
+  }
+
+  // 3. Perform variable substitution
+  const renderedSubject = substituteTemplateVariables(subject, variables);
+  const renderedHtml = substituteTemplateVariables(htmlBody, variables);
+  const plainText = renderedHtml.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+
+  // 4. Send via Nodemailer if SMTP configured
+  const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+  const fromHeader = `"${config.smtpFromName}" <${config.smtpFromEmail}>`;
+
+  if (hasSmtp) {
+    try {
+      const isSSL = config.smtpPort === 465 || config.smtpEncryption === "ssl";
+      const isSTARTTLS = config.smtpPort === 587 || config.smtpEncryption === "tls";
+
+      const transportOptions: any = {
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: isSSL,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPass,
+        },
+        tls: {
+          rejectUnauthorized: false,
+          minVersion: "TLSv1.2",
+        },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 20000,
+      };
+
+      if (isSTARTTLS) {
+        transportOptions.requireTLS = true;
+      }
+      if (config.ignoreTls) {
+        transportOptions.ignoreTLS = true;
+        transportOptions.requireTLS = false;
+      }
+
+      const transporter = nodemailer.createTransport(transportOptions);
+      const info = await transporter.sendMail({
+        from: fromHeader,
+        to: toEmail,
+        subject: renderedSubject,
+        text: plainText,
+        html: renderedHtml,
+        headers: {
+          "X-Priority": "1",
+          "X-MSMail-Priority": "High",
+          "Importance": "high",
+          "X-Mailer": "Master HRMS Security Dispatcher",
+        },
+      });
+
+      console.log(`📨 Password reset email delivered to ${toEmail} via ${config.smtpHost} (ID: ${info.messageId})`);
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.error(`❌ SMTP delivery to ${toEmail} encountered an error: ${err.message}`);
+      console.log(`🔗 [DEV PASSWORD RESET LINK] ${resetUrl}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log("🔐 [DEV PASSWORD RESET EMAIL DISPATCH (No SMTP configured)]");
+    console.log(`   To: ${toEmail}`);
+    console.log(`   From: ${fromHeader}`);
+    console.log(`   Subject: ${renderedSubject}`);
+    console.log(`   👉 RESET URL: ${resetUrl}`);
+    console.log(`   Expires in: ${expiryMinutes} minutes`);
+    console.log("==================================================================");
+    return {
+      success: true,
+      messageId: `dev-reset-${Date.now()}`,
     };
   }
 }

@@ -38,7 +38,7 @@ export interface AppConfig {
 export const DEFAULT_APP_CONFIG: AppConfig = {
   appName: "Master HRMS",
   supportEmail: "support@masterhrms.com",
-  primaryColor: "#FF6B00",
+  primaryColor: "#2563EB",
   logoLightUrl: "/logo.webp",
   logoDarkUrl: "/white-logo.webp",
   faviconUrl: "/favicon.webp",

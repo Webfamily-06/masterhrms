@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { HrDashboardFoundation } from "./index";
+import DashboardPage from "../_app/hrm-dashboard";
 
 export const Route = createFileRoute("/_authenticated/hr/dashboard")({
-  component: HrDashboardFoundation,
+  component: DashboardPage,
   head: () => ({
-    meta: [{ title: "HR Command Center — Master HRMS" }],
+    meta: [{ title: "HRM Dashboard — Master HRMS" }],
   }),
 });
 
-export default HrDashboardFoundation;
+export default DashboardPage;

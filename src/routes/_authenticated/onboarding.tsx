@@ -38,6 +38,7 @@ import {
   COUNTRIES,
   findCountry,
 } from "@/lib/reference-data";
+import { extractRolesFromToken, resolveDefaultRoute } from "@/lib/auth-navigation";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   component: Onboarding,
@@ -112,7 +113,9 @@ function Onboarding() {
 
         const status = await api.get("/workspace/onboarding-status");
         if (status?.isOnboarded === true) {
-          navigate({ to: "/hrm-dashboard" });
+          const { roles } = extractRolesFromToken(token);
+          const target = resolveDefaultRoute(roles);
+          navigate({ to: target as any });
           return;
         }
       } catch {
@@ -247,7 +250,10 @@ function Onboarding() {
       qc.invalidateQueries({ queryKey: ["tenant-branding"] });
 
       toast.success("Workspace is live! Welcome to MasterHRMS 🎉");
-      navigate({ to: "/hrm-dashboard" });
+      const activeToken = localStorage.getItem("hrms_auth_token");
+      const { roles } = extractRolesFromToken(activeToken);
+      const target = resolveDefaultRoute(roles);
+      navigate({ to: target as any });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to complete workspace setup");
     } finally {

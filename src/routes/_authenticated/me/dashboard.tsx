@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmployeeDashboardFoundation } from "./index";
+import EmployeeDashboardPage from "../_app/employee-dashboard";
 
 export const Route = createFileRoute("/_authenticated/me/dashboard")({
-  component: EmployeeDashboardFoundation,
+  component: EmployeeDashboardPage,
   head: () => ({
     meta: [{ title: "Employee Dashboard — Master HRMS" }],
   }),
 });
 
-export default EmployeeDashboardFoundation;
+export default EmployeeDashboardPage;

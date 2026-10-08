@@ -119,22 +119,22 @@ export function EmployeeNotificationsPage() {
           title="All Notifications"
           value={isLoading ? "..." : totalCount}
           description="Total received"
-          icon={Bell}
+          icon={<Bell className="h-5 w-5" />}
           variant="primary"
         />
         <StatCard
           title="Unread Alerts"
           value={isLoading ? "..." : unreadCount}
           description="Needs attention"
-          icon={ShieldAlert}
-          variant={unreadCount > 0 ? "accent" : "secondary"}
+          icon={<ShieldAlert className="h-5 w-5" />}
+          variant={unreadCount > 0 ? "warning" : "default"}
         />
         <StatCard
           title="Acknowledged"
           value={isLoading ? "..." : totalCount - unreadCount}
           description="Read notifications"
-          icon={CheckCircle2}
-          variant="secondary"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          variant="default"
         />
       </StatsOverviewGrid>
 

@@ -228,7 +228,7 @@ export function PayslipReportPage() {
         title="Payroll & Payslip Report"
         description="Comprehensive audit of salary disbursements, deductions, statutory contributions, and net payouts."
         breadcrumbs={[
-          { label: "HRM & Payroll", href: "/payroll" },
+          { label: "HRM & Payroll", href: "/hr/payroll/runs" },
           { label: "Reports", href: "/payslip-report" },
           { label: "Payslip Report" },
         ]}
@@ -244,7 +244,7 @@ export function PayslipReportPage() {
               Export CSV
             </Button>
             <Button asChild size="sm" className="h-9 gap-1.5 text-xs font-semibold shadow-2xs">
-              <Link to="/payroll">
+              <Link to="/hr/payroll/runs">
                 <CreditCard className="size-3.5" />
                 Run Payroll
               </Link>

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, notFound, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, setToken } from "@/lib/api";
@@ -35,6 +35,7 @@ export const Route = createFileRoute("/super-login")({
     if (typeof window !== "undefined" && isTenantWorkspaceHost()) {
       throw notFound();
     }
+    throw redirect({ to: "/super06" });
   },
   component: SuperLoginPage,
   notFoundComponent: () => <NotFoundView />,

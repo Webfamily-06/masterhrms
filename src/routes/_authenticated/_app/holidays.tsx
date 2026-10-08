@@ -272,7 +272,7 @@ export function HolidaysPage() {
       <PageHeader
         breadcrumbs={[
           { label: "Dashboard", href: "/hrm-dashboard" },
-          { label: "Attendance", href: "/attendance" },
+          { label: "Attendance", href: "/hr/attendance" },
           { label: "Holidays" },
         ]}
         icon={<CalendarDays className="size-5" />}

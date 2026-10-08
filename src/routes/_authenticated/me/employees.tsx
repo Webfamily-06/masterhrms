@@ -59,13 +59,15 @@ export function MyColleaguesPage() {
       <PageHeader
         title="Company Directory"
         description="Find and connect with fellow team members and department colleagues across the workspace."
-        icon={Users}
+        icon={<Users className="h-5 w-5" />}
       />
 
       <FilterToolbar
-        searchQuery={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search colleagues by name, code, department, or job title..."
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Search colleagues by name, code, department, or job title...",
+        }}
       />
 
       {isLoading ? (

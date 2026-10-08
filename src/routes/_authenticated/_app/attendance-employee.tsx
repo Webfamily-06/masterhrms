@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { api } from "@/lib/api";
@@ -53,6 +53,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/_app/attendance-employee")({
+  beforeLoad: () => {
+    throw redirect({ to: "/me/attendance/records" });
+  },
   component: EmployeeAttendancePage,
   head: () => ({ meta: [{ title: "My Attendance Matrix — Master HRMS" }] }),
 });
@@ -196,9 +199,9 @@ export function EmployeeAttendancePage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/hrm-dashboard" className="hover:text-foreground">Home</Link>
+            <Link to="/hr/dashboard" className="hover:text-foreground">Home</Link>
             <span>/</span>
-            <Link to="/attendance" className="hover:text-foreground">Attendance</Link>
+            <Link to="/hr/attendance" className="hover:text-foreground">Attendance</Link>
             <span>/</span>
             <span className="text-foreground font-semibold">Employee Attendance Matrix</span>
           </div>

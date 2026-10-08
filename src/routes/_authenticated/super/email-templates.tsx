@@ -60,6 +60,8 @@ const SAMPLE_VARS: Record<string, string> = {
   SUBTOTAL: "₹3,990.00",
   TAX_AMOUNT: "₹718.20",
   TOTAL_AMOUNT: "₹4,708.20",
+  reset_url: "https://example.com/auth?mode=reset&token=sec_tok_9918bc42",
+  expiry_minutes: "60",
 };
 
 const DEFAULT_TEMPLATES: EmailTemplate[] = [
@@ -405,6 +407,52 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
     </div>
     <a href="{{payslip_url}}" style="background: #0f172a; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-size: 13px; font-weight: bold; display: inline-block;">Download PDF Payslip</a>
   </div>
+</body></html>`,
+  },
+  {
+    id: "PASSWORD_RESET",
+    name: "Password Reset Request",
+    subject: "Reset Your Password — {{company_name}}",
+    category: "Security",
+    variables: [
+      "{{user_name}}",
+      "{{company_name}}",
+      "{{reset_url}}",
+      "{{expiry_minutes}}",
+      "{{support_email}}",
+    ],
+    html_body: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 28px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{company_name}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Security & Account Authentication</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 18px;">Hello {{user_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          We received a request to reset the password associated with your account on <strong>{{company_name}}</strong>.
+        </p>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          Click the secure button below to set a new password. This link is single-use and will expire in <strong>{{expiry_minutes}} minutes</strong>.
+        </p>
+        <div style="text-align: center; margin-bottom: 28px;">
+          <a href="{{reset_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block;">Reset Password →</a>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin-bottom: 24px;">
+          <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; font-weight: 600;">Button not working? Copy and paste this URL into your browser:</p>
+          <a href="{{reset_url}}" style="font-size: 12px; color: #2563eb; word-break: break-all; text-decoration: underline;">{{reset_url}}</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0 0 16px 0;">
+          If you did not request a password reset, you can safely ignore this email. Your existing credentials remain fully secure.
+        </p>
+        <p style="color: #64748b; font-size: 12px; margin: 0;">Need help? Contact <a href="mailto:{{support_email}}" style="color: #2563eb;">{{support_email}}</a>.</p>
+      </td>
+    </tr>
+  </table>
 </body></html>`,
   },
   {

@@ -1,7 +1,8 @@
-import { sendTwoFactorOtpEmail } from "../lib/email";
+import { sendTwoFactorOtpEmail, sendPasswordResetEmail } from "../lib/email";
 import { createOrReplaceOtp, verifyOtpCode, checkResendEligibility, maskEmail } from "../lib/otp";
 import { ERP_MODULES } from "../lib/erp-modules";
 import { Router, Response } from "express";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import speakeasy from "speakeasy";
@@ -53,8 +54,11 @@ const forgotPasswordSchema = z.object({
 
 const resetPasswordSchema = z.object({
   email: z.string().email(),
-  code: z.string().min(4).max(10),
+  code: z.string().optional(),
+  token: z.string().optional(),
   newPassword: z.string().min(6),
+}).refine((data) => Boolean(data.code || data.token), {
+  message: "Either verification code or reset token is required",
 });
 
 const verifyEmailSchema = z.object({
@@ -122,6 +126,157 @@ authRouter.get("/public/tenant/resolve", async (req, res) => {
 // GET /api/auth/public/tenant-branding (alias for convenience)
 authRouter.get("/public/tenant-branding", async (req, res) => {
   return res.redirect("/api/auth/public/tenant/resolve");
+});
+
+// GET /api/auth/public/tenant/credentials - Fetch tenant-specific login credentials from DB
+authRouter.get("/public/tenant/credentials", async (req, res) => {
+  try {
+    const rawHost = getEffectiveRequestHost(req.headers);
+    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
+    const requestedSlug = (req.query.slug as string) || (req.headers["x-tenant-slug"] as string) || (req.headers["x-tenant-id"] as string);
+
+    let tenant: any = null;
+    if (hostContext.type === "tenant") {
+      tenant = (req as any).resolvedTenant || await prisma.tenant.findUnique({
+        where: { slug: hostContext.slug.toLowerCase() },
+        select: { id: true, name: true, slug: true },
+      });
+    } else if (requestedSlug) {
+      tenant = await prisma.tenant.findFirst({
+        where: {
+          OR: [{ slug: requestedSlug.toLowerCase() }, { id: requestedSlug }],
+        },
+        select: { id: true, name: true, slug: true },
+      });
+    }
+
+    if (!tenant) {
+      tenant = await prisma.tenant.findFirst({
+        where: { slug: "master" },
+        select: { id: true, name: true, slug: true },
+      });
+    }
+
+    const tenantId = tenant?.id;
+
+    // 1. Fetch Tenant Administrator (excluding root admin@masterhrms.com)
+    let tenantAdmin = {
+      email: "gowthamtooquik@gmail.com",
+      name: "Gowtham (Tenant Administrator)",
+      role: "Tenant Admin",
+    };
+
+    if (tenantId) {
+      const adminRole = await prisma.userRole.findFirst({
+        where: {
+          tenantId,
+          role: "hr_admin",
+          user: {
+            email: { not: "admin@masterhrms.com" },
+          },
+        },
+        include: {
+          user: {
+            select: {
+              email: true,
+              profile: { select: { fullName: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (adminRole?.user?.email) {
+        tenantAdmin = {
+          email: adminRole.user.email,
+          name: adminRole.user.profile?.fullName || "Tenant Administrator",
+          role: "Tenant Admin",
+        };
+      }
+    }
+
+    // 2. Fetch HR Admin
+    let hrAdmin = {
+      email: "hr@masterhrms.com",
+      name: "Sarah Jenkins (HR Director)",
+      role: "HR Admin",
+    };
+
+    if (tenantId) {
+      const hrRole = await prisma.userRole.findFirst({
+        where: {
+          tenantId,
+          role: "hr_admin",
+          user: {
+            email: { notIn: ["admin@masterhrms.com", tenantAdmin.email] },
+          },
+        },
+        include: {
+          user: {
+            select: {
+              email: true,
+              profile: { select: { fullName: true } },
+            },
+          },
+        },
+      });
+
+      if (hrRole?.user?.email) {
+        hrAdmin = {
+          email: hrRole.user.email,
+          name: hrRole.user.profile?.fullName || "HR Director",
+          role: "HR Admin",
+        };
+      }
+    }
+
+    // 3. Fetch Employee
+    let employee = {
+      email: "employee@masterhrms.com",
+      name: "Alex Morgan (Staff)",
+      role: "Employee",
+    };
+
+    if (tenantId) {
+      const empRole = await prisma.userRole.findFirst({
+        where: {
+          tenantId,
+          role: "employee",
+        },
+        include: {
+          user: {
+            select: {
+              email: true,
+              profile: { select: { fullName: true } },
+            },
+          },
+        },
+      });
+
+      if (empRole?.user?.email) {
+        employee = {
+          email: empRole.user.email,
+          name: empRole.user.profile?.fullName || "Staff",
+          role: "Employee",
+        };
+      }
+    }
+
+    return res.json({
+      tenant: {
+        id: tenant?.id,
+        name: tenant?.name,
+        slug: tenant?.slug,
+      },
+      credentials: {
+        tenantAdmin,
+        hrAdmin,
+        employee,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 // POST /api/auth/register
@@ -408,9 +563,11 @@ authRouter.post("/login", async (req, res) => {
       await recordLoginHistory(req, user.id, user.id);
 
       // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
+      // Super admin users MUST stay on root platform domain and never be redirected to tenant subdomains
       let workspaceUrl: string | undefined;
       let tenantSlug: string | undefined;
-      const effectiveTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId;
+      const isSuperAdminUser = roles.includes("super_admin") || Boolean(isSuperPortal);
+      const effectiveTenantId = !isSuperAdminUser ? (user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId) : undefined;
       if (effectiveTenantId) {
         const tenant = await prisma.tenant.findUnique({
           where: { id: effectiveTenantId },
@@ -512,28 +669,77 @@ authRouter.post("/forgot-password", async (req, res) => {
     if (!user) {
       return res.json({
         success: true,
-        message: "If an account exists with this email, a password reset code has been sent.",
+        message: "If an account exists with this email, a password reset link has been dispatched.",
         maskedEmail: maskEmail(normalizedEmail),
       });
     }
 
+    let tenantName: string | undefined;
+    if (user.tenantId) {
+      const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId } });
+      tenantName = tenant?.name;
+    }
+
+    // Generate secure cryptographically random one-time token
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const tokenId = crypto.randomUUID();
+    const expiryMinutes = 60;
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+
+    // Invalidate existing unused tokens for this user and store new token in DB
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
+        user.id
+      );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`,
+        tokenId,
+        user.id,
+        tokenHash,
+        expiresAt
+      );
+    } catch (dbErr: any) {
+      console.error("⚠️ Failed to store reset token in password_reset_tokens table:", dbErr);
+    }
+
+    // Also generate backup OTP for backward compatibility with 6-digit code UI
     const { otp } = await createOrReplaceOtp(user.id);
-    const emailResult = await sendTwoFactorOtpEmail({
+
+    // Determine reset link destination based on portal context and role
+    const origin =
+      req.headers.origin ||
+      (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+      `http://${getEffectiveRequestHost(req)}`;
+    const isSuperPortal = Boolean(
+      (req.headers.referer && req.headers.referer.includes("/super06")) || user.role === "SUPER_ADMIN"
+    );
+    const resetBasePath = isSuperPortal ? "/super06" : "/auth";
+    const resetUrl = `${origin}${resetBasePath}?mode=reset&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+
+    // Dispatch email loading PASSWORD_RESET template from /super/email-templates (CMS system-email-templates)
+    const emailResult = await sendPasswordResetEmail({
       toEmail: user.email,
-      otp,
-      fullName: user.profile?.fullName || undefined,
-      isSetup: false,
+      userName: user.profile?.fullName || user.email.split("@")[0],
+      resetUrl,
+      expiryMinutes,
+      tenantId: user.tenantId,
+      companyName: tenantName,
+      scope: isSuperPortal ? "PLATFORM" : user.tenantId ? "TENANT" : "PLATFORM",
     });
 
+    console.log(`🔗 [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
     if (!emailResult.success) {
-      console.log(`🔑 [PASSWORD RESET CODE] Reset OTP for ${user.email}: [${otp}]`);
+      console.log(`🔑 [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
     }
 
     return res.json({
       success: true,
-      message: "Password reset code sent to your email.",
+      message: "Password reset link sent to your registered email.",
       maskedEmail: maskEmail(user.email),
-      ...(process.env.NODE_ENV === "development" || !emailResult.success ? { previewCode: otp } : {}),
+      resetUrl: process.env.NODE_ENV !== "production" ? resetUrl : undefined,
+      previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -546,7 +752,7 @@ authRouter.post("/forgot-password", async (req, res) => {
 // POST /api/auth/reset-password
 authRouter.post("/reset-password", async (req, res) => {
   try {
-    const { email, code, newPassword } = resetPasswordSchema.parse(req.body);
+    const { email, code, token, newPassword } = resetPasswordSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -556,11 +762,42 @@ authRouter.post("/reset-password", async (req, res) => {
       return res.status(400).json({ error: "Invalid password reset request." });
     }
 
-    const verification = await verifyOtpCode(user.id, code);
-    if (!verification.valid) {
-      return res.status(400).json({ error: verification.error || "Invalid or expired reset code." });
+    // Token-based validation (primary) or OTP code validation (fallback)
+    if (token) {
+      const tokenHash = crypto.createHash("sha256").update(token.trim()).digest("hex");
+      const tokenRecords: any[] = await prisma.$queryRawUnsafe(
+        `SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > NOW() LIMIT 1`,
+        tokenHash,
+        user.id
+      );
+
+      if (!tokenRecords || tokenRecords.length === 0) {
+        return res.status(400).json({
+          error: "This password reset link is invalid, expired, or has already been used. Please request a new link.",
+        });
+      }
+
+      // Consume token immediately (one-time use)
+      await prisma.$executeRawUnsafe(
+        `UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1`,
+        tokenRecords[0].id
+      );
+    } else if (code) {
+      const verification = await verifyOtpCode(user.id, code);
+      if (!verification.valid) {
+        return res.status(400).json({ error: verification.error || "Invalid or expired reset code." });
+      }
+    } else {
+      return res.status(400).json({ error: "Either a valid reset token or verification code is required." });
     }
 
+    // Invalidate any other active reset tokens for this user
+    await prisma.$executeRawUnsafe(
+      `UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
+      user.id
+    ).catch(() => {});
+
+    // Update password hash
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
       where: { id: user.id },
@@ -777,9 +1014,11 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
     await recordLoginHistory(req, user.id, user.id);
 
     // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
+    // Super admin users MUST stay on root platform domain and never be redirected to tenant subdomains
     let workspaceUrl: string | undefined;
     let tenantSlug: string | undefined;
-    const effectiveTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId;
+    const isSuperAdminUser = roles.includes("super_admin") || Boolean(isSuperPortal);
+    const effectiveTenantId = !isSuperAdminUser ? (user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId) : undefined;
     if (effectiveTenantId) {
       const tenant = await prisma.tenant.findUnique({
         where: { id: effectiveTenantId },

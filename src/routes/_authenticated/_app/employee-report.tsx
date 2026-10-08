@@ -192,7 +192,7 @@ export function EmployeeReportPage() {
         description="Workforce demographics, departmental headcount distribution, and employment status metrics."
         breadcrumbs={[
           { label: "Home", href: "/hrm-dashboard" },
-          { label: "Workforce", href: "/employees" },
+          { label: "Workforce", href: "/hr/employees" },
           { label: "Employee Report" },
         ]}
         actions={

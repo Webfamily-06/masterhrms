@@ -99,25 +99,25 @@ export default function MeReimbursementsLoansPage() {
           title="Active Loans"
           value={loans.filter((l: any) => l.status === "active").length}
           description="In monthly repayment"
-          icon={CreditCard}
+          icon={<CreditCard className="h-5 w-5" />}
         />
         <StatCard
           title="Outstanding Balance"
           value={`₹${totalOutstanding.toLocaleString("en-IN")}`}
           description="Principal remaining"
-          icon={DollarSign}
+          icon={<DollarSign className="h-5 w-5" />}
         />
         <StatCard
           title="Monthly EMI Deducted"
           value={`₹${monthlyEmiTotal.toLocaleString("en-IN")}`}
           description="Automated payroll recovery"
-          icon={Clock}
+          icon={<Clock className="h-5 w-5" />}
         />
         <StatCard
           title="Expense Claims"
           value={claims.length}
           description="Submitted for reimbursement"
-          icon={FileCheck}
+          icon={<FileCheck className="h-5 w-5" />}
         />
       </div>
 

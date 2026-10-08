@@ -118,7 +118,7 @@ export function DepartmentsPage() {
     setIsDialogOpen(true);
   };
 
-  const activeCount = departments.filter((d) => d.status === "active").length;
+  const activeCount = departments.filter((d: any) => d.status === "active").length;
   const inactiveCount = departments.length - activeCount;
 
   return (
@@ -187,7 +187,7 @@ export function DepartmentsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              departments.map((dept) => (
+              departments.map((dept: any) => (
                 <TableRow key={dept.id || dept.name}>
                   <TableCell className="font-semibold text-foreground">
                     {dept.name}

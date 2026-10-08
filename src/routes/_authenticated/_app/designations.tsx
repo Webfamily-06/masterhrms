@@ -293,7 +293,7 @@ export function DesignationsPage() {
       <PageHeader
         breadcrumbs={[
           { label: "Dashboard", href: "/hrm-dashboard" },
-          { label: "Workforce", href: "/employees" },
+          { label: "Workforce", href: "/hr/employees" },
           { label: "Designations" },
         ]}
         icon={<Briefcase className="size-5" />}
@@ -498,7 +498,7 @@ export function DesignationsPage() {
                       <TableCell>
                         <button
                           type="button"
-                          onClick={() => navigate({ to: "/employees" })}
+                          onClick={() => navigate({ to: "/hr/employees" })}
                           className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-secondary/80 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
                         >
                           <Users className="size-3 text-muted-foreground" />

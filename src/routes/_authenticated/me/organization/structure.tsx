@@ -135,13 +135,15 @@ export function MyOrgStructurePage() {
       <PageHeader
         title="Organization Chart"
         description="Explore leadership pathways and company-wide reporting relationships."
-        icon={Network}
+        icon={<Network className="h-5 w-5" />}
       />
 
       <FilterToolbar
-        searchQuery={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Find team members in hierarchy..."
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Find team members in hierarchy...",
+        }}
       />
 
       <div className="rounded-lg border bg-card p-6">

@@ -12,6 +12,9 @@ export interface FilterToolbarSearchProps {
 
 export interface FilterToolbarProps extends React.HTMLAttributes<HTMLDivElement> {
   search?: FilterToolbarSearchProps;
+  searchQuery?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
   filters?: React.ReactNode;
   viewToggle?: React.ReactNode;
   actions?: React.ReactNode;
@@ -20,6 +23,9 @@ export interface FilterToolbarProps extends React.HTMLAttributes<HTMLDivElement>
 
 export function FilterToolbar({
   search,
+  searchQuery,
+  onSearchChange,
+  searchPlaceholder,
   filters,
   viewToggle,
   actions,
@@ -27,6 +33,16 @@ export function FilterToolbar({
   className,
   ...props
 }: FilterToolbarProps) {
+  const effectiveSearch: FilterToolbarSearchProps | undefined =
+    search ||
+    (onSearchChange
+      ? {
+          value: searchQuery || "",
+          onChange: onSearchChange,
+          placeholder: searchPlaceholder,
+        }
+      : undefined);
+
   return (
     <div
       className={cn(
@@ -37,16 +53,16 @@ export function FilterToolbar({
     >
       {/* Left side: Search & Filter selects */}
       <div className="flex flex-1 flex-col gap-2.5 sm:flex-row sm:items-center flex-wrap min-w-0">
-        {search && (
+        {effectiveSearch && (
           <div className="relative w-full sm:w-auto sm:min-w-[220px] lg:min-w-[280px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              value={search.value}
-              onChange={(e) => search.onChange(e.target.value)}
-              placeholder={search.placeholder || "Search..."}
+              value={effectiveSearch.value}
+              onChange={(e) => effectiveSearch.onChange(e.target.value)}
+              placeholder={effectiveSearch.placeholder || "Search..."}
               className={cn(
                 "h-8.5 text-xs pl-8.5 bg-background border-border/80 w-full",
-                search.className,
+                effectiveSearch.className,
               )}
             />
           </div>

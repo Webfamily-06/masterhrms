@@ -38,7 +38,7 @@ export default function RecruitmentDashboardPage() {
           <div className="flex items-center gap-2 text-sm text-default mb-1">
             <span>HRM</span>
             <i className="ph ph-caret-right text-[10px]"></i>
-            <Link to="/recruitment" className="hover:text-primary transition-colors">
+            <Link to="/hr/recruitment/job-postings" className="hover:text-primary transition-colors">
               Recruitment
             </Link>
             <i className="ph ph-caret-right text-[10px]"></i>
@@ -346,7 +346,7 @@ export default function RecruitmentDashboardPage() {
       <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 mt-3 shadow-xs">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold text-title">Recent Database Candidate Pipeline</h3>
-          <Link to="/recruitment" className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+          <Link to="/hr/recruitment/candidates" className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
             <span>View All Candidates</span>
             <i className="ph ph-arrow-right"></i>
           </Link>

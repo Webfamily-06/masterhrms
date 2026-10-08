@@ -171,29 +171,29 @@ export function EmployeeTodoPage() {
           title="All My Tasks"
           value={isLoading ? "..." : items.length}
           description="Assigned & personal items"
-          icon={CheckSquare}
+          icon={<CheckSquare className="h-5 w-5" />}
           variant="primary"
         />
         <StatCard
           title="Pending Attention"
           value={isLoading ? "..." : pendingCount}
           description="Awaiting your action"
-          icon={Clock}
-          variant="secondary"
+          icon={<Clock className="h-5 w-5" />}
+          variant="warning"
         />
         <StatCard
           title="Completed"
           value={isLoading ? "..." : completedCount}
           description="Completed deliverables"
-          icon={CheckCircle2}
-          variant="secondary"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          variant="default"
         />
         <StatCard
           title="High Priority"
           value={isLoading ? "..." : urgentCount}
           description="Important or overdue"
-          icon={AlertCircle}
-          variant="secondary"
+          icon={<AlertCircle className="h-5 w-5" />}
+          variant="rose"
         />
       </StatsOverviewGrid>
 

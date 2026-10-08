@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect, notFound } from "@tanstack/react-router";
 import { isTenantWorkspaceHost } from "@/lib/platform-domain";
+import { extractRolesFromToken } from "@/lib/auth-navigation";
 
 /**
  * /_authenticated layout guard.
@@ -8,11 +9,8 @@ import { isTenantWorkspaceHost } from "@/lib/platform-domain";
  *  1. Block super-admin routes on tenant subdomains.
  *  2. Redirect unauthenticated users to /auth.
  *  3. After authentication, check server-authoritative onboarding state:
- *     - Tenant user with no completed onboarding  → redirect to /onboarding
- *     - Tenant user already onboarded on /onboarding → redirect to /hrm-dashboard
- *
- * NOTE: The onboarding status check is intentionally lightweight (GET) and
- * only runs on pages other than /auth and /onboarding to avoid loops.
+ *     - Tenant admin with no completed onboarding → redirect to /onboarding
+ *     - Employees and non-admins NEVER get forced to onboarding wizard
  */
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -30,14 +28,14 @@ export const Route = createFileRoute("/_authenticated")({
     // Rule 2: Token gate
     const token = localStorage.getItem("hrms_auth_token");
     if (!token) {
-      // Root domain /super renders the Super Admin Login UI directly — do not redirect
-      if (!isTenant && path.startsWith("/super")) return;
+      // Root domain /super redirects to dedicated /super06 login
+      if (!isTenant && path.startsWith("/super")) {
+        throw redirect({ to: "/super06" });
+      }
       throw redirect({ to: "/auth" });
     }
 
-    // Rule 3: Onboarding state (only for tenant sessions, skip the check on /onboarding itself)
-    // The /onboarding page does its own server check and handles the already-onboarded case.
-    // Here we only enforce the forward-guard: tenant + no onboarding → send to wizard.
+    // Rule 3: Onboarding state (only for tenant admin sessions, skip the check on /onboarding itself)
     if (isTenant && !path.startsWith("/onboarding")) {
       try {
         const res = await fetch("/api/workspace/onboarding-status", {
@@ -45,9 +43,15 @@ export const Route = createFileRoute("/_authenticated")({
         });
         if (res.ok) {
           const data = await res.json();
-          // hasTenant && not yet onboarded → send to wizard
+          // hasTenant && not yet onboarded → send to wizard ONLY if user is a tenant admin
           if (data.hasTenant === true && data.isOnboarded === false) {
-            throw redirect({ to: "/onboarding" });
+            const { roles } = extractRolesFromToken(token);
+            const isTenantAdmin = roles.some((r) =>
+              ["admin", "tenant_admin", "workspace_admin", "super_admin"].includes(r)
+            );
+            if (isTenantAdmin) {
+              throw redirect({ to: "/onboarding" });
+            }
           }
         }
       } catch (err: any) {

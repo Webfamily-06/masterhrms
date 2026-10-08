@@ -118,7 +118,7 @@ export function DesignationsPage() {
     setIsDialogOpen(true);
   };
 
-  const activeCount = designations.filter((d) => d.status === "active").length;
+  const activeCount = designations.filter((d: any) => d.status === "active").length;
   const inactiveCount = designations.length - activeCount;
 
   return (
@@ -187,7 +187,7 @@ export function DesignationsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              designations.map((desig) => (
+              designations.map((desig: any) => (
                 <TableRow key={desig.id || desig.name}>
                   <TableCell className="font-semibold text-foreground">
                     {desig.name}

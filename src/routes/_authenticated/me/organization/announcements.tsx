@@ -73,7 +73,7 @@ export function MyAnnouncementsPage() {
       <PageHeader
         title="Company Broadcasts & Announcements"
         description="Official notices, executive memos, and compliance policies requiring employee review."
-        icon={Megaphone}
+        icon={<Megaphone className="h-5 w-5" />}
       />
 
       {isLoading ? (

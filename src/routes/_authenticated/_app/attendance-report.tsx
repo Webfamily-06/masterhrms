@@ -175,7 +175,7 @@ export function AttendanceReportPage() {
         description="Workforce attendance analytics, punctuality metrics, and work duration records."
         breadcrumbs={[
           { label: "Home", href: "/hrm-dashboard" },
-          { label: "Attendance", href: "/attendance" },
+          { label: "Attendance", href: "/hr/attendance" },
           { label: "Attendance Report" },
         ]}
         actions={

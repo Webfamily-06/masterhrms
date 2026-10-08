@@ -86,25 +86,25 @@ export function MeRecruitmentOverviewPage() {
         <StatCard
           title="Open Postings"
           value={jobs.length || 6}
-          icon={Briefcase}
+          icon={<Briefcase className="h-5 w-5" />}
           description="Active internal requisitions"
         />
         <StatCard
           title="Panel Interviews"
           value="2 Assigned"
-          icon={Calendar}
+          icon={<Calendar className="h-5 w-5" />}
           description="Upcoming candidate reviews"
         />
         <StatCard
           title="Referral Bonus"
           value="$1,500.00"
-          icon={TrendingUp}
+          icon={<TrendingUp className="h-5 w-5" />}
           description="Eligible successful hires"
         />
         <StatCard
           title="Active Hubs"
           value="4 Offices"
-          icon={MapPin}
+          icon={<MapPin className="h-5 w-5" />}
           description="Global hiring locations"
         />
       </StatsOverviewGrid>

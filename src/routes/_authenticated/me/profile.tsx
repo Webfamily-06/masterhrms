@@ -155,7 +155,7 @@ export function MyProfilePage() {
       <PageHeader
         title="My Profile"
         description="View personal employment records, contact channels, and submit official change requests."
-        icon={User}
+        icon={<User className="h-5 w-5" />}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleOpenDirectEdit} className="gap-1.5">

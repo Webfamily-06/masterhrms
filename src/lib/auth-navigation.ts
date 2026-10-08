@@ -63,7 +63,12 @@ export function resolveDefaultRoute(
     return "/client-dashboard";
   }
 
-  // Employee Self-Service (Workforce)
+  // HR Admin Portal (Canonical HR Namespace)
+  if (roles.includes("hr_admin") || roles.includes("hr")) {
+    return "/hr/dashboard";
+  }
+
+  // Employee Self-Service (Workforce Canonical /me Namespace)
   if (roles.includes("employee")) {
     return "/me/dashboard";
   }

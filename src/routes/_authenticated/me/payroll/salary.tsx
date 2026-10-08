@@ -64,25 +64,25 @@ export default function MeSalaryPage() {
           title="Annual CTC"
           value={revealed && currentSalary ? `₹${Number(currentSalary.ctcAnnual).toLocaleString("en-IN")}` : "₹ ••••••"}
           description="Total cost to company"
-          icon={DollarSign}
+          icon={<DollarSign className="h-5 w-5" />}
         />
         <StatCard
           title="Monthly Gross"
           value={revealed && currentSalary ? `₹${Number(currentSalary.ctcMonthly).toLocaleString("en-IN")}` : "₹ ••••••"}
           description="Base monthly compensation"
-          icon={TrendingUp}
+          icon={<TrendingUp className="h-5 w-5" />}
         />
         <StatCard
           title="Tax Regime"
           value={currentSalary ? `${currentSalary.taxRegime.toUpperCase()} Regime` : "Default"}
           description="Applicable TDS schedule"
-          icon={ShieldCheck}
+          icon={<ShieldCheck className="h-5 w-5" />}
         />
         <StatCard
           title="Revisions Count"
           value={revisions.length}
           description="Career salary changes"
-          icon={History}
+          icon={<History className="h-5 w-5" />}
         />
       </div>
 

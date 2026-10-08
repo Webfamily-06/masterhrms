@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { extractRolesFromToken } from "@/lib/auth-navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useCurrentProfile, useSession, hasRole } from "@/lib/session";
@@ -63,6 +64,12 @@ import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/_app/leave")({
+  beforeLoad: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null;
+    const { roles } = extractRolesFromToken(token);
+    const isHrOrAdmin = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin", "hr"].includes(r));
+    throw redirect({ to: isHrOrAdmin ? "/hr/leave/applications" : "/me/leave/applications" });
+  },
   component: Leave,
   head: () => ({ meta: [{ title: "Leave & Holiday Management — Master HRMS" }] }),
 });

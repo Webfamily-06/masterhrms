@@ -175,29 +175,29 @@ export function HrTodoPage() {
           title="All Actionable Items"
           value={isLoading ? "..." : items.length}
           description="In this workspace"
-          icon={CheckSquare}
+          icon={<CheckSquare className="h-5 w-5" />}
           variant="primary"
         />
         <StatCard
           title="Pending Attention"
           value={isLoading ? "..." : pendingCount}
           description="Awaiting action"
-          icon={Clock}
-          variant="secondary"
+          icon={<Clock className="h-5 w-5" />}
+          variant="warning"
         />
         <StatCard
           title="Completed"
           value={isLoading ? "..." : completedCount}
           description="Actioned deliverables"
-          icon={CheckCircle2}
-          variant="secondary"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          variant="default"
         />
         <StatCard
           title="High & Urgent Priority"
           value={isLoading ? "..." : urgentCount}
           description="Requires immediate action"
-          icon={AlertCircle}
-          variant="secondary"
+          icon={<AlertCircle className="h-5 w-5" />}
+          variant="rose"
         />
       </StatsOverviewGrid>
 
@@ -378,7 +378,6 @@ export function HrTodoPage() {
                 <Label>Priority</Label>
                 <Select
                   value={form.priority}
-                  onChange={(e: any) => setForm({ ...form, priority: e.target.value })}
                   onValueChange={(val) => setForm({ ...form, priority: val })}
                 >
                   <SelectTrigger className="h-9">

@@ -104,9 +104,9 @@ export function EmployeesDirectoryPage() {
     },
   });
 
-  const activeCount = employees.filter((e) => e.status === "active").length;
-  const leaveCount = employees.filter((e) => e.status === "on_leave").length;
-  const termCount = employees.filter((e) => e.status === "terminated").length;
+  const activeCount = employees.filter((e: any) => e.status === "active").length;
+  const leaveCount = employees.filter((e: any) => e.status === "on_leave").length;
+  const termCount = employees.filter((e: any) => e.status === "terminated").length;
 
   return (
     <div className="space-y-6">
@@ -238,7 +238,7 @@ export function EmployeesDirectoryPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              employees.map((emp) => (
+              employees.map((emp: any) => (
                 <TableRow key={emp.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">

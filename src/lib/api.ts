@@ -10,11 +10,39 @@ function getToken(): string | null {
 
 export function setToken(token: string) {
   localStorage.setItem("hrms_auth_token", token);
+  try {
+    const parts = token.split(".");
+    if (parts.length >= 2) {
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      const payload = JSON.parse(jsonPayload);
+      const existingRaw = localStorage.getItem("hrms_user");
+      let userObj = existingRaw ? JSON.parse(existingRaw) : {};
+      userObj = {
+        ...userObj,
+        id: payload.userId || payload.id || userObj.id,
+        userId: payload.userId || payload.id || userObj.userId,
+        email: payload.email || userObj.email,
+        tenantId: payload.tenantId || userObj.tenantId,
+        roles: Array.isArray(payload.roles) ? payload.roles : userObj.roles || [],
+        permissions: Array.isArray(payload.permissions) ? payload.permissions : userObj.permissions || [],
+      };
+      localStorage.setItem("hrms_user", JSON.stringify(userObj));
+    }
+  } catch {}
   window.dispatchEvent(new Event("auth-token-changed"));
 }
 
 export function clearToken() {
   localStorage.removeItem("hrms_auth_token");
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("hrms_user");
   window.dispatchEvent(new Event("auth-token-changed"));
 }
 

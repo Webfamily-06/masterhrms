@@ -65,7 +65,7 @@ export function MyHolidaysPage() {
       <PageHeader
         title="Company Holidays Schedule"
         description="Official list of national holidays, corporate festivals, and scheduled non-working days."
-        icon={CalendarDays}
+        icon={<CalendarDays className="h-5 w-5" />}
         actions={
           <Select
             value={String(selectedYear)}
@@ -89,19 +89,19 @@ export function MyHolidaysPage() {
         <StatCard
           title={`Scheduled Holidays (${selectedYear})`}
           value={holidays.length}
-          icon={CalendarDays}
+          icon={<CalendarDays className="h-5 w-5" />}
           description="Total company holidays"
         />
         <StatCard
           title="Mandatory Closures"
           value={publicCount}
-          icon={CheckCircle}
+          icon={<CheckCircle className="h-5 w-5" />}
           description="All-hands public holidays"
         />
         <StatCard
           title="Floating / Optional"
           value={optionalCount}
-          icon={Sun}
+          icon={<Sun className="h-5 w-5" />}
           description="Eligible optional festivals"
         />
       </StatsOverviewGrid>

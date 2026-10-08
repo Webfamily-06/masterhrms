@@ -103,7 +103,7 @@ export function BranchesPage() {
     setIsDialogOpen(true);
   };
 
-  const activeCount = branches.filter((b) => b.status === "active").length;
+  const activeCount = branches.filter((b: any) => b.status === "active").length;
   const inactiveCount = branches.length - activeCount;
 
   return (
@@ -172,7 +172,7 @@ export function BranchesPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              branches.map((b) => (
+              branches.map((b: any) => (
                 <TableRow key={b.id || b.code}>
                   <TableCell>
                     <div className="font-semibold text-foreground">{b.name}</div>

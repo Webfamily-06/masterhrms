@@ -13,6 +13,8 @@ export interface StatCardTrend {
 export type StatCardVariant =
   | "default"
   | "primary"
+  | "secondary"
+  | "accent"
   | "success"
   | "warning"
   | "info"
@@ -23,7 +25,7 @@ export interface StatCardProps extends React.HTMLAttributes<HTMLDivElement> {
   label?: string;
   title?: string;
   value: string | number | React.ReactNode;
-  icon?: React.ReactNode;
+  icon?: React.ReactNode | React.ComponentType<{ className?: string }>;
   description?: string | React.ReactNode;
   trend?: StatCardTrend | React.ReactNode;
   badge?: React.ReactNode;
@@ -44,6 +46,14 @@ const variantStyles: Record<
   default: {
     iconBg: "bg-muted text-muted-foreground",
     iconText: "text-muted-foreground",
+  },
+  secondary: {
+    iconBg: "bg-muted text-muted-foreground",
+    iconText: "text-muted-foreground",
+  },
+  accent: {
+    iconBg: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    iconText: "text-amber-600 dark:text-amber-400",
   },
   primary: {
     iconBg: "bg-primary/10 text-primary",
@@ -170,7 +180,11 @@ export function StatCard({
               vStyle.iconBg,
             )}
           >
-            {icon}
+            {React.isValidElement(icon)
+              ? icon
+              : typeof icon === "function" || (typeof icon === "object" && icon !== null && "$$typeof" in icon)
+              ? React.createElement(icon as any, { className: "h-5 w-5" })
+              : icon}
           </div>
         )}
       </div>

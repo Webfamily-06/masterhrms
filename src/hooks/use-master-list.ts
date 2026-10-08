@@ -64,6 +64,7 @@ export function useMasterList<T = any>({
 
   return {
     items: data?.data || [],
+    data: data?.data || [],
     total: data?.total || 0,
     totalPages: data?.totalPages || 1,
     page,

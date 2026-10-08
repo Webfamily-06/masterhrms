@@ -118,8 +118,8 @@ export function HolidaysPage() {
     setIsDialogOpen(true);
   };
 
-  const publicCount = holidays.filter((h) => h.type === "public" || h.type === "national").length;
-  const optionalCount = holidays.filter((h) => h.type === "optional").length;
+  const publicCount = holidays.filter((h: any) => h.type === "public" || h.type === "national").length;
+  const optionalCount = holidays.filter((h: any) => h.type === "optional").length;
 
   return (
     <div className="space-y-6">
@@ -205,7 +205,7 @@ export function HolidaysPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              holidays.map((h) => {
+              holidays.map((h: any) => {
                 const dateObj = new Date(h.date);
                 const isValidDate = !isNaN(dateObj.getTime());
                 const formattedDate = isValidDate ? format(dateObj, "dd MMM yyyy") : h.date;

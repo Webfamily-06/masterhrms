@@ -89,25 +89,25 @@ export function MeLeaveOverviewPage() {
         <StatCard
           title="Available Balance"
           value="18 Days"
-          icon={Calendar}
+          icon={<Calendar className="h-5 w-5" />}
           description="Paid time-off remaining"
         />
         <StatCard
           title="Pending Requests"
           value={pendingCount}
-          icon={Clock}
+          icon={<Clock className="h-5 w-5" />}
           description="Awaiting manager sign-off"
         />
         <StatCard
           title="Approved This Year"
           value={approvedCount || 4}
-          icon={CheckCircle2}
+          icon={<CheckCircle2 className="h-5 w-5" />}
           description="Total taken days"
         />
         <StatCard
           title="Sick Leave Quota"
           value="10 Days"
-          icon={PieChart}
+          icon={<PieChart className="h-5 w-5" />}
           description="Available for use"
         />
       </StatsOverviewGrid>

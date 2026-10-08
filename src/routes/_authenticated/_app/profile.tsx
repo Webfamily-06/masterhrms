@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { extractRolesFromToken } from "@/lib/auth-navigation";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -48,6 +49,12 @@ import {
 } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/_app/profile")({
+  beforeLoad: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null;
+    const { roles } = extractRolesFromToken(token);
+    const isHrOrAdmin = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin", "hr"].includes(r));
+    throw redirect({ to: isHrOrAdmin ? "/hr/profile" : "/me/profile" });
+  },
   component: EmployeeProfilePage,
 });
 

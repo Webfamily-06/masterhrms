@@ -97,25 +97,25 @@ export function MeAttendanceOverviewPage() {
         <StatCard
           title="Days Present"
           value={presentCount || 22}
-          icon={CheckCircle2}
+          icon={<CheckCircle2 className="h-5 w-5" />}
           description="Recorded this month"
         />
         <StatCard
           title="On-Time Rate"
           value="96.4%"
-          icon={Clock}
+          icon={<Clock className="h-5 w-5" />}
           description="Punctuality score"
         />
         <StatCard
           title="Late Marks"
           value={lateCount || 1}
-          icon={AlertCircle}
+          icon={<AlertCircle className="h-5 w-5" />}
           description="Within allowable grace"
         />
         <StatCard
           title="Avg. Daily Hours"
           value="8.2 hrs"
-          icon={FileSpreadsheet}
+          icon={<FileSpreadsheet className="h-5 w-5" />}
           description="Standard 8-hour shift"
         />
       </StatsOverviewGrid>

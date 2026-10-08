@@ -46,18 +46,18 @@ export default function MeAssetsDashboardPage() {
         <StatCard
           title="Assigned Devices"
           value={dashboard?.totalAssigned ?? 0}
-          icon={Laptop}
+          icon={<Laptop className="h-5 w-5" />}
         />
         <StatCard
           title="Pending Acknowledgements"
           value={dashboard?.pendingAcknowledgement ?? 0}
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="h-5 w-5" />}
           className={dashboard?.pendingAcknowledgement > 0 ? "border-amber-400 bg-amber-50/20" : ""}
         />
         <StatCard
           title="Equipment Requests"
           value={dashboard?.requestsCount ?? 0}
-          icon={Send}
+          icon={<Send className="h-5 w-5" />}
         />
       </div>
 

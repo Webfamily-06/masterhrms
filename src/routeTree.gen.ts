@@ -38,6 +38,7 @@ import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as SolutionsRouteImport } from './routes/solutions'
 import { Route as StoreRouteImport } from './routes/store'
 import { Route as SuperLoginRouteImport } from './routes/super-login'
+import { Route as Super06RouteImport } from './routes/super06'
 import { Route as Verify2faRouteImport } from './routes/verify-2fa'
 import { Route as AuthenticatedAppRouteRouteImport } from './routes/_authenticated/_app/route'
 import { Route as AuthenticatedHrRouteImport } from './routes/_authenticated/hr'
@@ -572,6 +573,11 @@ const StoreRoute = StoreRouteImport.update({
 const SuperLoginRoute = SuperLoginRouteImport.update({
   id: '/super-login',
   path: '/super-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Super06Route = Super06RouteImport.update({
+  id: '/super06',
+  path: '/super06',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Verify2faRoute = Verify2faRouteImport.update({
@@ -2882,6 +2888,7 @@ export interface FileRoutesByFullPath {
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
+  '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
   '/super': typeof AuthenticatedSuperRouteRouteWithChildren
   '/hr': typeof AuthenticatedHrRouteWithChildren
@@ -3302,6 +3309,7 @@ export interface FileRoutesByTo {
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
+  '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/a/$tag': typeof ATagRoute
@@ -3720,6 +3728,7 @@ export interface FileRoutesById {
   '/solutions': typeof SolutionsRoute
   '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
+  '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
   '/_authenticated/_app': typeof AuthenticatedAppRouteRouteWithChildren
   '/_authenticated/super': typeof AuthenticatedSuperRouteRouteWithChildren
@@ -4143,6 +4152,7 @@ export interface FileRouteTypes {
     | '/solutions'
     | '/store'
     | '/super-login'
+    | '/super06'
     | '/verify-2fa'
     | '/super'
     | '/hr'
@@ -4563,6 +4573,7 @@ export interface FileRouteTypes {
     | '/solutions'
     | '/store'
     | '/super-login'
+    | '/super06'
     | '/verify-2fa'
     | '/onboarding'
     | '/a/$tag'
@@ -4980,6 +4991,7 @@ export interface FileRouteTypes {
     | '/solutions'
     | '/store'
     | '/super-login'
+    | '/super06'
     | '/verify-2fa'
     | '/_authenticated/_app'
     | '/_authenticated/super'
@@ -5403,6 +5415,7 @@ export interface RootRouteChildren {
   SolutionsRoute: typeof SolutionsRoute
   StoreRoute: typeof StoreRoute
   SuperLoginRoute: typeof SuperLoginRoute
+  Super06Route: typeof Super06Route
   Verify2faRoute: typeof Verify2faRoute
   ATagRoute: typeof ATagRoute
   CmsSplatRoute: typeof CmsSplatRoute
@@ -5617,6 +5630,13 @@ declare module '@tanstack/react-router' {
       path: '/super-login'
       fullPath: '/super-login'
       preLoaderRoute: typeof SuperLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/super06': {
+      id: '/super06'
+      path: '/super06'
+      fullPath: '/super06'
+      preLoaderRoute: typeof Super06RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-2fa': {
@@ -9375,6 +9395,7 @@ const rootRouteChildren: RootRouteChildren = {
   SolutionsRoute: SolutionsRoute,
   StoreRoute: StoreRoute,
   SuperLoginRoute: SuperLoginRoute,
+  Super06Route: Super06Route,
   Verify2faRoute: Verify2faRoute,
   ATagRoute: ATagRoute,
   CmsSplatRoute: CmsSplatRoute,

@@ -178,7 +178,7 @@ export function ShiftSwapRequestsPage() {
         description="Peer-to-peer shift swaps, colleague acceptance workflows, and manager authorizations."
         breadcrumbs={[
           { label: "Home", href: "/hrm-dashboard" },
-          { label: "Attendance", href: "/attendance" },
+          { label: "Attendance", href: "/hr/attendance" },
           { label: "Shift Swap Requests" },
         ]}
         icon={<ArrowLeftRight className="size-5 text-primary" />}

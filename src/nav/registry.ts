@@ -157,7 +157,7 @@ export const HR_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     portal: "hr",
     heading: "2. Workforce Management",
     label: "Attendance",
-    path: ROUTES.hr.attendance.records,
+    path: ROUTES.hr.attendance.root,
     icon: "Clock",
     order: 60,
     children: [

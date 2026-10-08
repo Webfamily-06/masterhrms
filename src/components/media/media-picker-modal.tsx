@@ -93,9 +93,7 @@ export function MediaPickerModal({
 
     setIsUploading(true);
     try {
-      const res = await api.post("/api/v1/media/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.upload("/api/v1/media/upload", formData);
       toast.success("File uploaded successfully");
       queryClient.invalidateQueries({ queryKey: ["media-files"] });
       setSelectedFile(res.data);

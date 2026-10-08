@@ -112,25 +112,25 @@ export function HrRecruitmentOverviewPage() {
         <StatCard
           title="Active Requisitions"
           value={jobs.length || 14}
-          icon={Briefcase}
+          icon={<Briefcase className="h-5 w-5" />}
           description="Open job vacancies"
         />
         <StatCard
           title="Candidates in Pipeline"
           value="182 Total"
-          icon={Users}
+          icon={<Users className="h-5 w-5" />}
           description="Across screening & interview"
         />
         <StatCard
           title="Offer Acceptance"
           value="91.2%"
-          icon={TrendingUp}
+          icon={<TrendingUp className="h-5 w-5" />}
           description="High conversion rate"
         />
         <StatCard
           title="Time to Hire"
           value="24 Days"
-          icon={Calendar}
+          icon={<Calendar className="h-5 w-5" />}
           description="Industry benchmark: 35 days"
         />
       </StatsOverviewGrid>

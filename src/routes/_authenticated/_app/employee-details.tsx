@@ -269,7 +269,7 @@ export function EmployeeDetailsPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate({ to: "/employees" })}
+            onClick={() => navigate({ to: "/hr/employees" })}
             className="gap-2 text-xs font-bold"
           >
             <ArrowLeft className="size-4" /> Back to Employee Directory
@@ -281,7 +281,7 @@ export function EmployeeDetailsPage() {
           <p className="text-xs text-muted-foreground mt-1 mb-4">
             No employee record was found with ID "{targetEmployeeId}" in this workspace.
           </p>
-          <Button size="sm" onClick={() => navigate({ to: "/employees" })} className="gap-2 text-xs font-semibold">
+          <Button size="sm" onClick={() => navigate({ to: "/hr/employees" })} className="gap-2 text-xs font-semibold">
             Return to Employees
           </Button>
         </Card>
@@ -299,7 +299,7 @@ export function EmployeeDetailsPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate({ to: "/employees" })}
+            onClick={() => navigate({ to: "/hr/employees" })}
             className="gap-2 text-xs font-bold hover:bg-secondary/80 pl-2 pr-3 h-8"
           >
             <ArrowLeft className="size-3.5 text-primary" />

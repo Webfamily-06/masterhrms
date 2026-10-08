@@ -509,7 +509,7 @@ export function AiHiringForecastPage() {
                   Real-time pipeline fill percentage for high-priority requisitions.
                 </p>
               </div>
-              <Link to="/recruitment">
+              <Link to="/hr/recruitment/job-postings">
                 <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
                   <span>View All Roles</span>
                   <ArrowUpRight className="size-3.5" />

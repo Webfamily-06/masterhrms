@@ -193,29 +193,29 @@ export function EmployeeCalendarPage() {
           title="My Schedule"
           value={isLoading ? "..." : events.length}
           description="Total items this month"
-          icon={CalendarIcon}
+          icon={<CalendarIcon className="h-5 w-5" />}
           variant="primary"
         />
         <StatCard
           title="My Meetings"
           value={isLoading ? "..." : meetingCount}
           description="Invites & hosted sessions"
-          icon={Video}
-          variant="secondary"
+          icon={<Video className="h-5 w-5" />}
+          variant="info"
         />
         <StatCard
           title="Training Cohorts"
           value={isLoading ? "..." : trainingCount}
           description="Live learning sessions"
-          icon={GraduationCap}
-          variant="secondary"
+          icon={<GraduationCap className="h-5 w-5" />}
+          variant="purple"
         />
         <StatCard
           title="My Approved Leave"
           value={isLoading ? "..." : leaveCount}
           description="Scheduled time-off"
-          icon={Palmtree}
-          variant="secondary"
+          icon={<Palmtree className="h-5 w-5" />}
+          variant="success"
         />
       </StatsOverviewGrid>
 

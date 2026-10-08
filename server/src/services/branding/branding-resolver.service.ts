@@ -227,7 +227,7 @@ export class BrandingResolverService {
 
     const primaryColor =
       brandingData.values["branding.primary_color"] ||
-      "#FF6B00";
+      "#2563EB";
 
     const logoLightUrl =
       brandingData.mediaUrls["branding.logo_light_id"] ||

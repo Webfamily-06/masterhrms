@@ -617,7 +617,7 @@ export function Settings() {
     {
       title: "Shift & Rostering Policies",
       description: "Define General, Morning, Night differential shifts, break allowances & overtime eligibility.",
-      url: "/shifts",
+      url: "/hr/attendance/shifts",
       icon: Layers,
       badge: "Workforce Shifts",
       badgeColor: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -625,7 +625,7 @@ export function Settings() {
     {
       title: "Leave Policy & Types",
       description: "Configure Paid Leave, Sick Leave, Casual Leave quotas, accruals, and approval hierarchies.",
-      url: "/leave",
+      url: "/hr/leave/policies",
       icon: CalendarCheck,
       badge: "PTO Rules",
       badgeColor: "bg-amber-500/10 text-amber-600 border-amber-500/20",
@@ -649,7 +649,7 @@ export function Settings() {
     {
       title: "Document Vault & Categories",
       description: "Organize Offer Letters, NDAs, Identity Proofs, Experience Certificates with e-sign off.",
-      url: "/documents",
+      url: "/hr/documents",
       icon: FolderLock,
       badge: "Digital Vault",
       badgeColor: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20",
@@ -657,7 +657,7 @@ export function Settings() {
     {
       title: "Workplace Announcements",
       description: "Broadcast company-wide policies, holiday calendars, emergency notices & events.",
-      url: "/announcements",
+      url: "/hr/organization/announcements",
       icon: Sparkles,
       badge: "Broadcast Feed",
       badgeColor: "bg-cyan-500/10 text-cyan-600 border-cyan-500/20",

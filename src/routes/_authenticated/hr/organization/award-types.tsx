@@ -154,7 +154,7 @@ export function AwardTypesPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              awardTypes.map((at) => (
+              awardTypes.map((at: any) => (
                 <TableRow key={at.id || at.name}>
                   <TableCell className="font-semibold text-foreground">
                     <div className="flex items-center gap-2">

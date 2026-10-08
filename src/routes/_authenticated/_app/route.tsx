@@ -94,43 +94,43 @@ const ALL_SEARCH_ITEMS = [
   { title: "Recurring Invoices", url: "/recurring-invoices", group: "Sales & Finance", icon: Repeat },
   { title: "Proposals & Quotes", url: "/proposals", group: "Sales & Finance", icon: FileText },
   { title: "Expense Claims", url: "/expenses", group: "Sales & Finance", icon: Wallet },
-  { title: "Team Chat", url: "/chat", group: "Collaboration", icon: MessageSquare },
+  { title: "Team Chat", url: "/hr/chat", group: "Collaboration", icon: MessageSquare },
   { title: "Call History", url: "/call-history", group: "Collaboration", icon: Phone },
   { title: "AI Document OCR", url: "/ai-ocr", group: "Collaboration", icon: ScanLine },
   { title: "AI Copywriter", url: "/ai-writer", group: "Collaboration", icon: Sparkles },
-  { title: "HRM Hub & Overview", url: "/hrm", group: "HRM Suite", icon: Users },
-  { title: "Employee Directory", url: "/employees", group: "HRM Suite", icon: Users },
-  { title: "Attendance & Clock", url: "/attendance", group: "HRM Suite", icon: Clock },
-  { title: "Employee Attendance Matrix", url: "/attendance-employee", group: "HRM Suite", icon: CalendarDays },
-  { title: "Daily Attendance Report", url: "/daily-report", group: "HRM Suite", icon: FileText },
-  { title: "Leave Management", url: "/leave", group: "HRM Suite", icon: CalendarCheck },
-  { title: "Shift Rostering", url: "/shifts", group: "HRM Suite", icon: Layers },
-  { title: "Shift Swap Requests", url: "/shift-swap-requests", group: "HRM Suite", icon: ArrowRightLeft },
-  { title: "Overtime Requests", url: "/overtime", group: "HRM Suite", icon: Timer },
-  { title: "Work From Home (WFH)", url: "/work-from-home", group: "HRM Suite", icon: Home },
-  { title: "Promotions & Transfers", url: "/promotions", group: "HRM Suite", icon: TrendingUp },
-  { title: "Probation Management", url: "/probation", group: "HRM Suite", icon: UserCheck },
-  { title: "Provident Fund Administration", url: "/provident-fund", group: "HRM Suite", icon: Landmark },
+  { title: "HRM Hub & Overview", url: "/hr/dashboard", group: "HRM Suite", icon: Users },
+  { title: "Employee Directory", url: "/hr/employees", group: "HRM Suite", icon: Users },
+  { title: "Attendance & Clock", url: "/hr/attendance", group: "HRM Suite", icon: Clock },
+  { title: "Employee Attendance Matrix", url: "/hr/attendance/records", group: "HRM Suite", icon: CalendarDays },
+  { title: "Daily Attendance Report", url: "/hr/attendance/timesheets", group: "HRM Suite", icon: FileText },
+  { title: "Leave Management", url: "/hr/leave/applications", group: "HRM Suite", icon: CalendarCheck },
+  { title: "Shift Rostering", url: "/hr/attendance/shifts", group: "HRM Suite", icon: Layers },
+  { title: "Shift Swap Requests", url: "/hr/attendance/shifts", group: "HRM Suite", icon: ArrowRightLeft },
+  { title: "Overtime Requests", url: "/hr/attendance/records", group: "HRM Suite", icon: Timer },
+  { title: "Work From Home (WFH)", url: "/hr/attendance/regularizations", group: "HRM Suite", icon: Home },
+  { title: "Promotions & Transfers", url: "/hr/lifecycle/promotions", group: "HRM Suite", icon: TrendingUp },
+  { title: "Probation Management", url: "/hr/employees", group: "HRM Suite", icon: UserCheck },
+  { title: "Provident Fund Administration", url: "/hr/payroll/components", group: "HRM Suite", icon: Landmark },
   { title: "Personal Tasks Board", url: "/tasks", group: "Platform", icon: Kanban },
   { title: "Global Task Board", url: "/task-board", group: "Platform", icon: Kanban },
-  { title: "Payroll Runs", url: "/payroll", group: "HRM Suite", icon: Wallet },
-  { title: "Recruitment (ATS)", url: "/recruitment", group: "HRM Suite", icon: Briefcase },
-  { title: "Campus Hiring", url: "/campus-hiring", group: "HRM Suite", icon: GraduationCap },
-  { title: "Employee Referrals", url: "/referrals", group: "HRM Suite", icon: Gift },
-  { title: "Training & LMS", url: "/training", group: "HRM Suite", icon: GraduationCap },
-  { title: "Certification Tracking", url: "/certification-tracking", group: "HRM Suite", icon: Award },
-  { title: "Helpdesk & Tickets", url: "/helpdesk", group: "HRM Suite", icon: HelpCircle },
-  { title: "Document Vault", url: "/documents", group: "HRM Suite", icon: FolderLock },
-  { title: "OKR & Goals", url: "/okr", group: "HRM Suite", icon: Target },
-  { title: "Asset Management", url: "/assets", group: "HRM Suite", icon: HardDrive },
-  { title: "Offboarding & Exit", url: "/offboarding", group: "HRM Suite", icon: LogOut },
-  { title: "Notice Period Tracker", url: "/notice-period-tracker", group: "HRM Suite", icon: LogOut },
-  { title: "Resignations", url: "/resignation", group: "HRM Suite", icon: UserX },
-  { title: "Terminations", url: "/termination", group: "HRM Suite", icon: ShieldAlert },
-  { title: "Awards & Recognitions", url: "/awards", group: "HRM Suite", icon: Trophy },
-  { title: "Disciplinary Warnings", url: "/warnings", group: "HRM Suite", icon: ShieldAlert },
-  { title: "Biometric Hardware", url: "/biometric", group: "HRM Suite", icon: Fingerprint },
-  { title: "Biometric Device Agent", url: "/biometric-sync", group: "HRM Suite", icon: Fingerprint },
+  { title: "Payroll Runs", url: "/hr/payroll/runs", group: "HRM Suite", icon: Wallet },
+  { title: "Recruitment (ATS)", url: "/hr/recruitment/job-postings", group: "HRM Suite", icon: Briefcase },
+  { title: "Campus Hiring", url: "/hr/recruitment/candidates", group: "HRM Suite", icon: GraduationCap },
+  { title: "Employee Referrals", url: "/hr/recruitment/referrals", group: "HRM Suite", icon: Gift },
+  { title: "Training & LMS", url: "/hr/training/employee-trainings", group: "HRM Suite", icon: GraduationCap },
+  { title: "Certification Tracking", url: "/hr/training/programs", group: "HRM Suite", icon: Award },
+  { title: "Helpdesk & Tickets", url: "/me/helpdesk", group: "HRM Suite", icon: HelpCircle },
+  { title: "Document Vault", url: "/hr/documents", group: "HRM Suite", icon: FolderLock },
+  { title: "OKR & Goals", url: "/hr/performance/goals", group: "HRM Suite", icon: Target },
+  { title: "Asset Management", url: "/hr/assets", group: "HRM Suite", icon: HardDrive },
+  { title: "Offboarding & Exit", url: "/hr/lifecycle/resignations", group: "HRM Suite", icon: LogOut },
+  { title: "Notice Period Tracker", url: "/hr/lifecycle/resignations", group: "HRM Suite", icon: LogOut },
+  { title: "Resignations", url: "/hr/lifecycle/resignations", group: "HRM Suite", icon: UserX },
+  { title: "Terminations", url: "/hr/lifecycle/terminations", group: "HRM Suite", icon: ShieldAlert },
+  { title: "Awards & Recognitions", url: "/hr/lifecycle/awards", group: "HRM Suite", icon: Trophy },
+  { title: "Disciplinary Warnings", url: "/hr/lifecycle/warnings", group: "HRM Suite", icon: ShieldAlert },
+  { title: "Biometric Hardware", url: "/hr/attendance/records", group: "HRM Suite", icon: Fingerprint },
+  { title: "Biometric Device Agent", url: "/hr/attendance/records", group: "HRM Suite", icon: Fingerprint },
   { title: "Form Builder", url: "/forms", group: "HRM Suite", icon: FileSpreadsheet },
   { title: "Automation Rules", url: "/workflows", group: "HRM Suite", icon: Workflow },
   { title: "People Analytics", url: "/analytics", group: "HRM Suite", icon: BarChart3 },
@@ -152,7 +152,7 @@ const ALL_SEARCH_ITEMS = [
   { title: "Super Admin Console", url: "/super", group: "Platform", icon: ShieldCheck },
 ];
 
-function AppShell() {
+export function AppShell() {
   const { data: profile, isLoading, error: profileError, refetch: reloadProfile } = useCurrentProfile();
   const { loading } = useSession();
   const { branding, isDark } = useTenantBranding();
@@ -170,7 +170,16 @@ function AppShell() {
   const canAccessPos = isModuleAllowed("pos", profile) || hasPermission("pos.terminal.view", profile) || hasPermission("pos.dashboard.view", profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
-  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/me/dashboard" : "/hrm-dashboard";
+  const isHrAdmin = userRoles.some((r) => ["hr_admin", "hr"].includes(r));
+  const homeRoute = isSuperAdmin
+    ? "/super"
+    : isClientOnly
+      ? "/client-dashboard"
+      : isEmployeeOnly
+        ? "/me/dashboard"
+        : isHrAdmin
+          ? "/hr/dashboard"
+          : "/hrm-dashboard";
   const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
   const { data: subscription, isLoading: isSubLoading, refetch: reloadSubscription } = useQuery({
@@ -201,6 +210,7 @@ function AppShell() {
     (maintenanceStatus?.active === true || maintenanceStatus?.status === "active");
 
   const EMPLOYEE_ALLOWED_PREFIXES = [
+    "/me",
     "/employee-dashboard",
     "/attendance",
     "/attendance-employee",
@@ -761,7 +771,7 @@ function AppShell() {
             {/* Chat Quick Link */}
             <div className="header-item hidden sm:flex">
               <Link
-                to="/chat"
+                to={isAdminOrSuper ? "/hr/chat" : "/me/chat"}
                 className="topbar-link flex items-center justify-center size-8.5 rounded-xl border border-border/70 bg-card hover:bg-muted/70 text-foreground shadow-2xs transition-colors"
                 title="Team Chat"
               >

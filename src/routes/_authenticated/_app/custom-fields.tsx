@@ -281,7 +281,7 @@ export function CustomFieldsPage() {
                   <span>Invoice Settings</span>
                 </Link>
                 <Link
-                  to="/leave"
+                  to="/hr/leave/types"
                   className="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                 >
                   <span>Leave Type</span>

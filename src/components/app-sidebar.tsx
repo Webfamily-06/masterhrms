@@ -130,33 +130,33 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
 
   const paidAddonItems: NavItem[] = [];
   if (isOkrUnlocked) paidAddonItems.push({ title: "OKR & Performance", url: "/okr", icon: Target });
-  if (isAssetsUnlocked) paidAddonItems.push({ title: "Asset Management", url: "/assets", icon: HardDrive });
+  if (isAssetsUnlocked) paidAddonItems.push({ title: "Asset Management", url: "/hr/assets", icon: HardDrive });
 
   const HRM_NAV_GROUPS: NavGroup[] = [
-    { category: "Overview", items: [{ title: "HRM Hub", url: "/hrm", icon: Users }] },
-    { category: "People", items: [{ title: "Employees", url: "/employees", icon: Users }] },
+    { category: "Overview", items: [{ title: "HRM Hub", url: "/hr/dashboard", icon: Users }] },
+    { category: "People", items: [{ title: "Employees", url: "/hr/employees", icon: Users }] },
     {
       category: "Time & Attendance", items: [
-        { title: "Attendance", url: "/attendance", icon: Clock },
-        { title: "Leave & PTO", url: "/leave", icon: CalendarCheck },
-        { title: "Shift Rostering", url: "/shifts", icon: Layers },
+        { title: "Attendance", url: "/hr/attendance", icon: Clock },
+        { title: "Leave & PTO", url: "/hr/leave/applications", icon: CalendarCheck },
+        { title: "Shift Rostering", url: "/hr/attendance/shifts", icon: Layers },
       ],
     },
-    { category: "Payroll", items: [{ title: "Payroll Runs", url: "/payroll", icon: Wallet }] },
+    { category: "Payroll", items: [{ title: "Payroll Runs", url: "/hr/payroll/runs", icon: Wallet }] },
     {
       category: "Talent", items: [
-        { title: "Recruitment (ATS)", url: "/recruitment", icon: Briefcase },
-        { title: "Training / LMS", url: "/training", icon: GraduationCap },
+        { title: "Recruitment (ATS)", url: "/hr/recruitment/job-postings", icon: Briefcase },
+        { title: "Training / LMS", url: "/hr/training/employee-trainings", icon: GraduationCap },
       ],
     },
     {
       category: "Employee Services", items: [
         { title: "Expense Claims", url: "/expenses", icon: Receipt },
-        { title: "Helpdesk", url: "/helpdesk", icon: HelpCircle },
-        { title: "Document Vault", url: "/documents", icon: FolderLock },
+        { title: "Helpdesk", url: "/hr/lifecycle/complaints", icon: HelpCircle },
+        { title: "Document Vault", url: "/hr/documents", icon: FolderLock },
       ],
     },
-    { category: "Lifecycle", items: [{ title: "Offboarding / Exit", url: "/offboarding", icon: LogOut }] },
+    { category: "Lifecycle", items: [{ title: "Offboarding / Exit", url: "/hr/lifecycle/resignations", icon: LogOut }] },
     ...(paidAddonItems.length > 0 ? [{ category: "Paid Add-ons", items: paidAddonItems }] : []),
     {
       category: "Analytics & Automation", items: [

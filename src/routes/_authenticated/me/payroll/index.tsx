@@ -86,25 +86,25 @@ export function MePayrollOverviewPage() {
         <StatCard
           title="Latest Net Salary"
           value="$6,450.00"
-          icon={DollarSign}
+          icon={<DollarSign className="h-5 w-5" />}
           description="Disbursed for last cycle"
         />
         <StatCard
           title="YTD Total Earnings"
           value="$77,400.00"
-          icon={TrendingUp}
+          icon={<TrendingUp className="h-5 w-5" />}
           description="Fiscal year to date"
         />
         <StatCard
           title="Tax Withholding"
           value="$1,120.00 / mo"
-          icon={CreditCard}
+          icon={<CreditCard className="h-5 w-5" />}
           description="Standard federal & state tax"
         />
         <StatCard
           title="Total Payslips"
           value={payslips.length || 12}
-          icon={Receipt}
+          icon={<Receipt className="h-5 w-5" />}
           description="Available for download"
         />
       </StatsOverviewGrid>

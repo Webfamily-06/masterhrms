@@ -185,8 +185,12 @@ function Verify2faPage() {
             : "Identity verified! Welcome back."
         );
 
-        // If logging in on root domain, redirect to tenant workspace
-        if (res.workspaceUrl && typeof window !== "undefined") {
+        const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
+        const isSuperAdmin = verifiedRoles.includes("super_admin");
+        const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
+
+        // If logging in on root domain, redirect to tenant workspace (ONLY for non-super-admins)
+        if (!isSuperAdmin && res.workspaceUrl && typeof window !== "undefined") {
           try {
             const currentOrigin = window.location.origin.toLowerCase();
             const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
@@ -197,8 +201,6 @@ function Verify2faPage() {
           } catch {}
         }
 
-        const verifiedRoles = res.roles || res.user?.roles || extractRolesFromToken(res.token).roles;
-        const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
         navigate({ to: resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }) });
       } else {
         throw new Error(res.error || "Failed to verify 2FA code.");

@@ -78,25 +78,25 @@ export function HrTrainingOverviewPage() {
         <StatCard
           title="Active Programs"
           value={trainings.length || 8}
-          icon={Layers}
+          icon={<Layers className="h-5 w-5" />}
           description="Corporate learning tracks"
         />
         <StatCard
           title="Employees Enrolled"
           value="84 Staff"
-          icon={Users}
+          icon={<Users className="h-5 w-5" />}
           description="Across all departments"
         />
         <StatCard
           title="Avg. Completion Rate"
           value="88.2%"
-          icon={CheckCircle2}
+          icon={<CheckCircle2 className="h-5 w-5" />}
           description="High engagement score"
         />
         <StatCard
           title="Sessions Scheduled"
           value="12 Sessions"
-          icon={Calendar}
+          icon={<Calendar className="h-5 w-5" />}
           description="Upcoming calendar events"
         />
       </StatsOverviewGrid>

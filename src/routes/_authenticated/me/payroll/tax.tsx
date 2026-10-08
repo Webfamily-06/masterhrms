@@ -94,25 +94,25 @@ export default function MeTaxPage() {
           title="Active Financial Year"
           value={financialYear}
           description="Current tax assessment period"
-          icon={FileText}
+          icon={<FileText className="h-5 w-5" />}
         />
         <StatCard
           title="Selected Tax Regime"
           value={`${formState.taxRegime.toUpperCase()} Regime`}
           description={formState.taxRegime === "new" ? "Standard ₹75K deduction" : "Old deduction slabs"}
-          icon={Percent}
+          icon={<Percent className="h-5 w-5" />}
         />
         <StatCard
           title="Total Claimed"
           value={`₹${(Number(formState.section80C) + Number(formState.section80D) + Number(formState.homeLoanInterest)).toLocaleString("en-IN")}`}
           description="Gross tax exemptions claimed"
-          icon={ShieldCheck}
+          icon={<ShieldCheck className="h-5 w-5" />}
         />
         <StatCard
           title="Declaration Status"
           value={declaration?.status ? declaration.status.toUpperCase() : "DRAFT"}
           description="HR verification status"
-          icon={CheckCircle2}
+          icon={<CheckCircle2 className="h-5 w-5" />}
         />
       </div>
 

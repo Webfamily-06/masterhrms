@@ -194,25 +194,25 @@ export function MeApprovalsPage() {
         <StatCard
           title="Pending My Action"
           value={totalPending}
-          icon={Clock}
+          icon={<Clock className="h-5 w-5" />}
           description="Requests awaiting your review"
         />
         <StatCard
           title="Leave Requests"
           value={leaves.length}
-          icon={Calendar}
+          icon={<Calendar className="h-5 w-5" />}
           description="Pending team time-off"
         />
         <StatCard
           title="Attendance Regularizations"
           value={regularizations.length}
-          icon={UserCheck}
+          icon={<UserCheck className="h-5 w-5" />}
           description="Pending clock-in corrections"
         />
         <StatCard
           title="Profile Changes"
           value={changeRequests.length}
-          icon={FileText}
+          icon={<FileText className="h-5 w-5" />}
           description="Pending employee updates"
         />
       </StatsOverviewGrid>
