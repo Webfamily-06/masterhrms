@@ -29,6 +29,32 @@ export function getWorkspaceHost(slug: string, baseDomain = getPlatformBaseDomai
   return `${slug}.${baseDomain}`;
 }
 
+/**
+ * Resolves the display base domain for previewing workspace URLs, preserving
+ * the active port in development (e.g. "master.localhost:5173" or "localhost:5173")
+ * and production ("masterhrms.com").
+ */
+export function getPlatformDisplayBaseDomain(): string {
+  const configured = (import.meta as any).env?.VITE_BASE_DOMAIN as string | undefined;
+  if (configured && configured.trim()) return configured.trim().toLowerCase();
+
+  if (typeof window === "undefined") return "masterhrms.com";
+  const hostname = window.location.hostname.toLowerCase();
+  const port = window.location.port ? `:${window.location.port}` : "";
+
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return `localhost${port}`;
+  }
+  if (hostname.endsWith(".localhost")) {
+    return `${hostname}${port}`;
+  }
+  const parts = hostname.split(".");
+  if (parts.length >= 3) {
+    return `${parts.slice(1).join(".")}${port}`;
+  }
+  return `${hostname}${port}`;
+}
+
 /** Default platform support mailbox derived from configuration. */
 export function getDefaultSupportEmail(baseDomain = getPlatformBaseDomain()): string {
   return `support@${baseDomain}`;

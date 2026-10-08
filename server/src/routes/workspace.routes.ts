@@ -38,53 +38,155 @@ workspaceRouter.get("/holidays", async (req: AuthRequest, res: Response) => {
   } catch (error: any) { return res.status(500).json({ error: error.message }); }
 });
 
+// GET /api/workspace/onboarding-status - Server-authoritative onboarding completion check
+workspaceRouter.get("/onboarding-status", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.json({ isOnboarded: false, hasTenant: false });
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, name: true, slug: true, isOnboarded: true },
+    });
+    if (!tenant) return res.json({ isOnboarded: false, hasTenant: false });
+    return res.json({ isOnboarded: tenant.isOnboarded, hasTenant: true, tenantName: tenant.name, slug: tenant.slug });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // POST /api/workspace/onboarding - Complete organization initial setup
 workspaceRouter.post("/onboarding", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(403).json({ error: "Tenant context missing" });
-    const { orgName, timezone, branchName, phone, address } = req.body;
 
-    if (orgName) {
-      await prisma.tenant.update({
+    const {
+      orgName, timezone, currency, industry, companySize,
+      phone, address, branchName, branchPhone, branchAddress,
+      country, state, postalCode, email,
+      logoLight, logoDark, favicon, logoUrl,
+    } = req.body;
+
+    const effectiveLogo = logoLight || logoDark || logoUrl;
+
+    // Persist all tenant-level fields + mark as onboarded
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...(orgName   ? { name: orgName }           : {}),
+        ...(timezone  ? { timezone }                : {}),
+        ...(currency  ? { currency }                : {}),
+        ...(industry  ? { industry }                : {}),
+        ...(companySize ? { companySize }           : {}),
+        ...(phone     ? { phone }                   : {}),
+        ...(address   ? { address }                 : {}),
+        ...(effectiveLogo ? { logoUrl: effectiveLogo } : {}),
+        isOnboarded: true,
+      },
+    });
+
+    // Persist company profile legal identity & address
+    try {
+      const existingTenant = await prisma.tenant.findUnique({
         where: { id: tenantId },
-        data: {
-          name: orgName,
-          ...(timezone ? { timezone } : {}),
-        },
+        select: { name: true, slug: true },
       });
+      const effectiveName = orgName || existingTenant?.name || "Company";
+      const effectiveEmail = email || req.user?.email || `admin@${existingTenant?.slug || "masterhrms.com"}`;
+      await CompanyProfileService.upsertProfile(tenantId, {
+        legalName: effectiveName,
+        email: effectiveEmail,
+        phone: phone || null,
+        registeredAddress: address || null,
+        registeredAddressLine1: address || null,
+        registeredCity: null,
+        registeredState: state || null,
+        registeredPostalCode: postalCode || null,
+        registeredCountry: country || "India",
+        billingCountry: country || "India",
+        sameAsRegistered: true,
+      }, {
+        userId: req.user?.userId,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+    } catch (cpErr: any) {
+      console.warn("[WorkspaceOnboarding] Company profile upsert warning:", cpErr?.message);
     }
 
-    if (branchName) {
-      const existingWh = await prisma.warehouse.findFirst({
-        where: { tenantId },
-      });
-      if (existingWh) {
-        await prisma.warehouse.update({
-          where: { id: existingWh.id },
-          data: {
-            name: branchName,
-            location: address || existingWh.location,
-            phone: phone || existingWh.phone,
+    // Persist branding assets to settings CMS page
+    if (logoLight || logoDark || favicon || effectiveLogo) {
+      try {
+        const pageSlug = `tenant-${tenantId}-settings`;
+        const previous = await prisma.cmsPage.findUnique({
+          where: { slug: pageSlug },
+        });
+        const prevContent = (previous?.content && typeof previous.content === "object" && !Array.isArray(previous.content))
+          ? (previous.content as Record<string, any>)
+          : {};
+
+        await prisma.cmsPage.upsert({
+          where: { slug: pageSlug },
+          create: {
+            slug: pageSlug,
+            title: `${orgName || "Tenant"} Settings`,
+            content: {
+              ...prevContent,
+              ...(logoLight ? { logoLight } : {}),
+              ...(logoDark ? { logoDark } : {}),
+              ...(favicon ? { favicon } : {}),
+              ...(effectiveLogo ? { logoUrl: effectiveLogo } : {}),
+              titleText: orgName || prevContent.titleText,
+            },
+          },
+          update: {
+            content: {
+              ...prevContent,
+              ...(logoLight ? { logoLight } : {}),
+              ...(logoDark ? { logoDark } : {}),
+              ...(favicon ? { favicon } : {}),
+              ...(effectiveLogo ? { logoUrl: effectiveLogo } : {}),
+              titleText: orgName || prevContent.titleText,
+            },
           },
         });
-      } else {
-        await prisma.warehouse.create({
-          data: {
-            tenantId,
-            name: branchName,
-            location: address || "Main Branch",
-            phone: phone || "",
-            email: "",
-            isDefault: true,
-          },
-        });
+      } catch (brandErr: any) {
+        console.warn("[WorkspaceOnboarding] Brand settings sync warning:", brandErr?.message);
       }
+    }
+
+    // Create or update the first warehouse/branch
+    const effectiveBranchName    = branchName    || "Headquarters";
+    const effectiveBranchAddress = branchAddress || address || "Main Branch";
+    const effectiveBranchPhone   = branchPhone   || phone   || "";
+
+    const existingWh = await prisma.warehouse.findFirst({ where: { tenantId } });
+    if (existingWh) {
+      await prisma.warehouse.update({
+        where: { id: existingWh.id },
+        data: {
+          name:     effectiveBranchName,
+          location: effectiveBranchAddress,
+          phone:    effectiveBranchPhone,
+        },
+      });
+    } else {
+      await prisma.warehouse.create({
+        data: {
+          tenantId,
+          name:     effectiveBranchName,
+          location: effectiveBranchAddress,
+          phone:    effectiveBranchPhone,
+          email:    "",
+          isDefault: true,
+        },
+      });
     }
 
     return res.json({
       success: true,
       message: "Workspace onboarding successfully completed!",
+      isOnboarded: true,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });

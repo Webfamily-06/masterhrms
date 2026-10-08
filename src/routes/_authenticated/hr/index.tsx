@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/hr/")({
   component: HrDashboardFoundation,
 });
 
-function HrDashboardFoundation() {
+export function HrDashboardFoundation() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

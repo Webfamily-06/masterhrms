@@ -78,7 +78,7 @@ export const Route = createFileRoute("/_authenticated/_app/accounting")({
         ["admin", "super_admin", "tenant_admin", "hr_admin", "manager", "accountant"].includes(r)
       );
       if (roles.includes("employee") && !isAdminOrElevated) {
-        throw redirect({ to: "/employee-dashboard" });
+        throw redirect({ to: "/me/dashboard" });
       }
       if (roles.includes("client") && !isAdminOrElevated) {
         throw redirect({ to: "/client-dashboard" });

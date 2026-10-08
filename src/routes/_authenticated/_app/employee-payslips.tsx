@@ -205,7 +205,7 @@ export function EmployeePayslipsPage() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
             <Link to="/hrm-dashboard" className="hover:text-foreground">Home</Link>
             <span>/</span>
-            <Link to="/employee-dashboard" className="hover:text-foreground">Employee Portal</Link>
+            <Link to="/me/dashboard" className="hover:text-foreground">Employee Portal</Link>
             <span>/</span>
             <span className="text-foreground font-semibold">My Payslips & Tax Compliance</span>
           </div>

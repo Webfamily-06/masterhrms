@@ -170,7 +170,7 @@ function AppShell() {
   const canAccessPos = isModuleAllowed("pos", profile) || hasPermission("pos.terminal.view", profile) || hasPermission("pos.dashboard.view", profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
-  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/hrm-dashboard";
+  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/me/dashboard" : "/hrm-dashboard";
   const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
   const { data: subscription, isLoading: isSubLoading, refetch: reloadSubscription } = useQuery({
@@ -267,7 +267,7 @@ function AppShell() {
           (p) => path === p || path.startsWith(p + "/")
         );
         if (!isAllowed) {
-          navigate({ to: "/employee-dashboard" });
+          navigate({ to: "/me/dashboard" });
           return;
         }
       }

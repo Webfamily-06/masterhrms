@@ -17,6 +17,20 @@ import { hrPayrollRouter } from "./hr-payroll.routes";
 import { mePayrollRouter } from "./me-payroll.routes";
 import { hrRecruitmentRouter } from "./hr-recruitment.routes";
 import { meRecruitmentRouter } from "./me-recruitment.routes";
+import { hrLifecycleRouter } from "./hr-lifecycle.routes";
+import { hrPerformanceRouter } from "./hr-performance.routes";
+import { meLifecycleRouter } from "./me-lifecycle.routes";
+import { mePerformanceRouter } from "./me-performance.routes";
+import { hrTrainingRouter } from "./hr-training.routes";
+import { meTrainingRouter } from "./me-training.routes";
+import { hrAssetsRouter } from "./hr-assets.routes";
+import { meAssetsRouter } from "./me-assets.routes";
+import { hrMeetingsRouter } from "./hr-meetings.routes";
+import { meMeetingsRouter } from "./me-meetings.routes";
+import { hrDocumentsRouter } from "./hr-documents.routes";
+import { meDocumentsRouter } from "./me-documents.routes";
+import { hrCollaborationRouter } from "./hr-collaboration.routes";
+import { meCollaborationRouter } from "./me-collaboration.routes";
 
 export const platformFoundationRouter = Router();
 
@@ -45,6 +59,33 @@ platformFoundationRouter.use("/me/payroll", mePayrollRouter);
 // =========================================================================
 platformFoundationRouter.use("/hr/recruitment", hrRecruitmentRouter);
 platformFoundationRouter.use("/me/recruitment", meRecruitmentRouter);
+
+// =========================================================================
+// P6. LIFECYCLE & PERFORMANCE BUSINESS LAYER
+// =========================================================================
+platformFoundationRouter.use("/hr/lifecycle", hrLifecycleRouter);
+platformFoundationRouter.use("/hr/performance", hrPerformanceRouter);
+platformFoundationRouter.use("/me/lifecycle", meLifecycleRouter);
+platformFoundationRouter.use("/me/performance", mePerformanceRouter);
+
+// =========================================================================
+// P7. TRAINING, ASSETS, MEETINGS, DOCUMENTS BUSINESS LAYER
+// =========================================================================
+platformFoundationRouter.use("/hr/training", hrTrainingRouter);
+platformFoundationRouter.use("/me/training", meTrainingRouter);
+platformFoundationRouter.use("/hr/assets", hrAssetsRouter);
+platformFoundationRouter.use("/me/assets", meAssetsRouter);
+platformFoundationRouter.use("/hr/meetings", hrMeetingsRouter);
+platformFoundationRouter.use("/me/meetings", meMeetingsRouter);
+platformFoundationRouter.use("/hr/documents", hrDocumentsRouter);
+platformFoundationRouter.use("/me/documents", meDocumentsRouter);
+
+// =========================================================================
+// P8. COLLABORATION & FINAL POLISH BUSINESS LAYER
+// =========================================================================
+platformFoundationRouter.use("/hr", hrCollaborationRouter);
+platformFoundationRouter.use("/me", meCollaborationRouter);
+
 
 // =========================================================================
 // 0. MASTER DATA BLUEPRINTS

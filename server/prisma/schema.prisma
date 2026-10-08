@@ -80,9 +80,15 @@ model Tenant {
   id        String   @id @default(uuid()) @db.VarChar(36)
   name      String   @db.VarChar(255)
   slug      String   @unique @db.VarChar(100)
-  logoUrl   String?  @map("logo_url") @db.VarChar(500)
-  timezone  String   @default("Asia/Kolkata") @db.VarChar(100)
-  createdAt DateTime @default(now()) @map("created_at")
+  logoUrl      String?  @map("logo_url") @db.VarChar(500)
+  timezone     String   @default("Asia/Kolkata") @db.VarChar(100)
+  currency     String   @default("INR") @db.VarChar(10)
+  industry     String?  @db.VarChar(100)
+  companySize  String?  @map("company_size") @db.VarChar(30)
+  phone        String?  @db.VarChar(50)
+  address      String?  @db.VarChar(500)
+  isOnboarded  Boolean  @default(false) @map("is_onboarded")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   profiles      Profile[]
   userRoles     UserRole[]
@@ -249,6 +255,28 @@ model Tenant {
   leaveEncashmentRequests LeaveEncashmentRequest[]
   employeeLoans          EmployeeLoan[]
   loanInstallments       LoanInstallment[]
+  employeeEvents         EmployeeEvent[]
+  employeeTrips          EmployeeTrip[]
+  tripExpenseItems       TripExpenseItem[]
+  employeeComplaints     EmployeeComplaint[]
+  complaintCaseNotes     ComplaintCaseNote[]
+  goalTypeMasters        GoalTypeMaster[]
+  indicatorCategories    IndicatorCategory[]
+  performanceIndicators  PerformanceIndicator[]
+  reviewIndicatorRatings ReviewIndicatorRating[]
+  pips                   PerformanceImprovementPlan[]
+  trainingTypeMasters    TrainingTypeMaster[]
+  trainingSessions       TrainingSession[]
+  sessionAttendances     SessionAttendance[]
+  assetDepreciationSchedules AssetDepreciationSchedule[]
+  meetingRooms           MeetingRoom[]
+  meetingTypes           MeetingTypeMaster[]
+  meetings               Meeting[]
+  meetingActionItems     MeetingActionItem[]
+  documentCategories     DocumentCategory[]
+  documentTemplates      DocumentTemplate[]
+  documentAcknowledgements DocumentAcknowledgement[]
+  generatedLetters       GeneratedLetter[]
   @@map("tenants")
 }
 
@@ -411,6 +439,15 @@ model Employee {
   assessmentsEvaluated        CandidateAssessment[]
   onboardingBuddied           CandidateOnboarding[]         @relation("OnboardingBuddy")
   onboardingsHrOwned          CandidateOnboarding[]         @relation("OnboardingHrOwner")
+  events                      EmployeeEvent[]
+  trips                       EmployeeTrip[]
+  pips                        PerformanceImprovementPlan[]
+  sessionAttendances          SessionAttendance[]
+  organizedMeetings           Meeting[]                     @relation("MeetingOrganizer")
+  attendedMeetings            MeetingAttendee[]
+  assignedActionItems         MeetingActionItem[]           @relation("ActionItemAssignee")
+  documentAcknowledgements    DocumentAcknowledgement[]
+  generatedLetters            GeneratedLetter[]
 
   @@index([tenantId, status])  // Perf: list active employees by tenant
   @@index([tenantId, departmentId]) // Perf: filter by department
@@ -1361,17 +1398,21 @@ model Asset {
   status             String    @default("available") @db.VarChar(50) // available, assigned, maintenance, retired, lost, disposed
   assignedEmployeeId String?   @map("assigned_employee_id") @db.VarChar(36)
   assignedAt         DateTime? @map("assigned_at")
+  usefulLifeMonths   Int       @default(36) @map("useful_life_months")
+  salvageValue       Decimal   @default(0.00) @map("salvage_value") @db.Decimal(12, 2)
+  depreciationMethod String    @default("straight_line") @map("depreciation_method") @db.VarChar(50)
   notes              String?   @db.Text
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  categoryRel      AssetCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  assignedEmployee Employee?           @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  tenant           Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryRel      AssetCategory?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedEmployee Employee?                   @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
   assignments      AssetAssignment[]
   maintenanceLogs  AssetMaintenance[]
   disposalItems    AssetDisposalItem[]
   activityLogs     AssetActivityLog[]
+  depreciationSchedules AssetDepreciationSchedule[]
 
   @@unique([tenantId, assetTag])
   @@index([tenantId, status])
@@ -1392,6 +1433,8 @@ model AssetAssignment {
   returnedAt         DateTime? @map("returned_at")
   conditionOnAssign  String    @default("good") @map("condition_on_assign") @db.VarChar(50)
   conditionOnReturn  String?   @map("condition_on_return") @db.VarChar(50)
+  acknowledgedAt     DateTime? @map("acknowledged_at")
+  acknowledgementSignature String? @map("acknowledgement_signature") @db.VarChar(255)
   status             String    @default("active") @db.VarChar(50) // active, returned, damaged, lost, repair
   notes              String?   @db.Text
   createdAt          DateTime  @default(now()) @map("created_at")
@@ -2180,6 +2223,7 @@ model TrainingCourse {
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   modules     CourseModule[]
   enrollments CourseEnrollment[]
+  sessions    TrainingSession[]
 
   @@index([tenantId, category])
   @@map("training_courses")
@@ -2314,8 +2358,9 @@ model CompanyDocument {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  tenant           Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee         Employee?                  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  acknowledgements DocumentAcknowledgement[]
 
   @@index([tenantId, category])
   @@index([tenantId, status])
@@ -5325,3 +5370,519 @@ model Holiday {
   @@index([tenantId, year])
   @@map("holidays")
 }
+
+// ============================================================================
+// PHASE P6 — EMPLOYEE LIFECYCLE & PERFORMANCE MANAGEMENT MODELS
+// ============================================================================
+
+// ─── Immutable Append-Only Employee Event Timeline (P6) ─────────────────────
+model EmployeeEvent {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  tenantId       String    @map("tenant_id") @db.VarChar(36)
+  employeeId     String    @map("employee_id") @db.VarChar(36)
+  eventType      String    @map("event_type") @db.VarChar(50) // JOINED, PROBATION_EXTENDED, CONFIRMED, PROMOTED, TRANSFERRED, ROLE_CHANGED, DEPARTMENT_CHANGED, MANAGER_CHANGED, WARNING_ISSUED, RESIGNED, RESIGNATION_WITHDRAWN, EXIT_STARTED, EXITED, TERMINATED, REHIRED
+  effectiveDate  DateTime  @map("effective_date") @db.Date
+  previousState  Json?     @map("previous_state")
+  newState       Json?     @map("new_state")
+  changedFields  String[]  @default([]) @map("changed_fields")
+  actorId        String?   @map("actor_id") @db.VarChar(36)
+  source         String    @default("system") @db.VarChar(50) // hr_admin, manager, self, system
+  reason         String?   @db.Text
+  referenceId    String?   @map("reference_id") @db.VarChar(100) // ID of promotion, transfer, warning, exit, etc.
+  auditMetadata  Json?     @map("audit_metadata")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId, effectiveDate])
+  @@index([tenantId, eventType])
+  @@map("employee_events")
+}
+
+// ─── Business Travel & Settlements (P6) ────────────────────────────────────
+model EmployeeTrip {
+  id               String            @id @default(uuid()) @db.VarChar(36)
+  tenantId         String            @map("tenant_id") @db.VarChar(36)
+  employeeId       String            @map("employee_id") @db.VarChar(36)
+  tripCode         String            @map("trip_code") @db.VarChar(50)
+  purpose          String            @db.VarChar(255)
+  destination      String            @db.VarChar(255)
+  fromDate         DateTime          @map("from_date") @db.Date
+  toDate           DateTime          @map("to_date") @db.Date
+  travelMode       String            @default("flight") @map("travel_mode") @db.VarChar(50) // flight, train, cab, personal
+  itinerary        Json?
+  advanceAmount    Decimal           @default(0.00) @map("advance_amount") @db.Decimal(12, 2)
+  estimatedCost    Decimal           @default(0.00) @map("estimated_cost") @db.Decimal(12, 2)
+  status           String            @default("pending") @db.VarChar(30) // pending, approved, rejected, completed, cancelled
+  approvedBy       String?           @map("approved_by") @db.VarChar(36)
+  approvedAt       DateTime?         @map("approved_at")
+  approvalRemarks  String?           @map("approval_remarks") @db.Text
+  settlementStatus String            @default("pending") @map("settlement_status") @db.VarChar(30) // pending, submitted, settled, rejected
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  expenses TripExpenseItem[]
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
+  @@map("employee_trips")
+}
+
+model TripExpenseItem {
+  id          String       @id @default(uuid()) @db.VarChar(36)
+  tenantId    String       @map("tenant_id") @db.VarChar(36)
+  tripId      String       @map("trip_id") @db.VarChar(36)
+  category    String       @db.VarChar(50) // flight, hotel, meals, local_conveyance, other
+  amount      Decimal      @db.Decimal(12, 2)
+  receiptUrl  String?      @map("receipt_url") @db.VarChar(500)
+  receiptDate DateTime?    @map("receipt_date") @db.Date
+  description String?      @db.Text
+  isApproved  Boolean      @default(false) @map("is_approved")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trip   EmployeeTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, tripId])
+  @@map("trip_expense_items")
+}
+
+// ─── Grievance & Confidential Workplace Complaints (P6) ───────────────────
+model EmployeeComplaint {
+  id                     String              @id @default(uuid()) @db.VarChar(36)
+  tenantId               String              @map("tenant_id") @db.VarChar(36)
+  ticketCode             String              @map("ticket_code") @db.VarChar(50)
+  complainantId          String?             @map("complainant_id") @db.VarChar(36) // Nullable if anonymous
+  isAnonymous            Boolean             @default(false) @map("is_anonymous")
+  accusedEmployeeId      String?             @map("accused_employee_id") @db.VarChar(36)
+  category               String              @db.VarChar(100) // Harassment, Discrimination, Wage/Overtime, Misconduct, Health & Safety, Other
+  severity               String              @default("medium") @db.VarChar(30) // low, medium, high, critical
+  incidentDate           DateTime?           @map("incident_date") @db.Date
+  subject                String              @db.VarChar(255)
+  description            String              @db.Text
+  evidenceUrl            String?             @map("evidence_url") @db.VarChar(500)
+  assignedInvestigatorId String?             @map("assigned_investigator_id") @db.VarChar(36)
+  status                 String              @default("new") @db.VarChar(30) // new, under_review, investigating, resolved, closed
+  resolutionNotes        String?             @map("resolution_notes") @db.Text
+  actionTaken            String?             @map("action_taken") @db.VarChar(100) // none, warning_issued, transfer, termination, counselling
+  resolvedAt             DateTime?           @map("resolved_at")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caseNotes ComplaintCaseNote[]
+
+  @@index([tenantId, complainantId])
+  @@index([tenantId, status])
+  @@map("employee_complaints")
+}
+
+model ComplaintCaseNote {
+  id             String            @id @default(uuid()) @db.VarChar(36)
+  tenantId       String            @map("tenant_id") @db.VarChar(36)
+  complaintId    String            @map("complaint_id") @db.VarChar(36)
+  authorId       String            @map("author_id") @db.VarChar(36)
+  noteText       String            @map("note_text") @db.Text
+  isConfidential Boolean           @default(true) @map("is_confidential")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  complaint EmployeeComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, complaintId])
+  @@map("complaint_case_notes")
+}
+
+// ─── Performance Framework & Rubrics (P6) ─────────────────────────────────
+model GoalTypeMaster {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  tenantId        String   @map("tenant_id") @db.VarChar(36)
+  name            String   @db.VarChar(100)
+  code            String   @db.VarChar(50)
+  measurementType String   @default("percentage") @map("measurement_type") @db.VarChar(50) // numeric, percentage, currency, milestone, boolean
+  unit            String?  @db.VarChar(50)
+  description     String?  @db.Text
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("goal_type_masters")
+}
+
+model IndicatorCategory {
+  id            String                 @id @default(uuid()) @db.VarChar(36)
+  tenantId      String                 @map("tenant_id") @db.VarChar(36)
+  name          String                 @db.VarChar(100)
+  code          String                 @db.VarChar(50)
+  description   String?                @db.Text
+  defaultWeight Decimal                @default(25.00) @map("default_weight") @db.Decimal(5, 2)
+  isActive      Boolean                @default(true) @map("is_active")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  indicators PerformanceIndicator[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("indicator_categories")
+}
+
+model PerformanceIndicator {
+  id                      String                  @id @default(uuid()) @db.VarChar(36)
+  tenantId                String                  @map("tenant_id") @db.VarChar(36)
+  categoryId              String                  @map("category_id") @db.VarChar(36)
+  name                    String                  @db.VarChar(150)
+  code                    String                  @db.VarChar(50)
+  description             String?                 @db.Text
+  weight                  Decimal                 @default(20.00) @db.Decimal(5, 2)
+  level1Desc              String?                 @map("level_1_desc") @db.Text
+  level2Desc              String?                 @map("level_2_desc") @db.Text
+  level3Desc              String?                 @map("level_3_desc") @db.Text
+  level4Desc              String?                 @map("level_4_desc") @db.Text
+  level5Desc              String?                 @map("level_5_desc") @db.Text
+  applicableDepartmentId  String?                 @map("applicable_department_id") @db.VarChar(36)
+  applicableDesignationId String?                 @map("applicable_designation_id") @db.VarChar(36)
+  isActive                Boolean                 @default(true) @map("is_active")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  updatedAt               DateTime                @updatedAt @map("updated_at")
+
+  tenant   Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category IndicatorCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  ratings  ReviewIndicatorRating[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, categoryId])
+  @@map("performance_indicators")
+}
+
+model ReviewIndicatorRating {
+  id              String               @id @default(uuid()) @db.VarChar(36)
+  tenantId        String               @map("tenant_id") @db.VarChar(36)
+  reviewId        String               @map("review_id") @db.VarChar(36)
+  indicatorId     String               @map("indicator_id") @db.VarChar(36)
+  selfRating      Decimal?             @map("self_rating") @db.Decimal(3, 1)
+  selfComments    String?              @map("self_comments") @db.Text
+  managerRating   Decimal?             @map("manager_rating") @db.Decimal(3, 1)
+  managerComments String?              @map("manager_comments") @db.Text
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  indicator PerformanceIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, reviewId])
+  @@index([tenantId, indicatorId])
+  @@map("review_indicator_ratings")
+}
+
+model PerformanceImprovementPlan {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  tenantId         String    @map("tenant_id") @db.VarChar(36)
+  employeeId       String    @map("employee_id") @db.VarChar(36)
+  supervisorId     String    @map("supervisor_id") @db.VarChar(36)
+  reason           String    @db.Text
+  startDate        DateTime  @map("start_date") @db.Date
+  endDate          DateTime  @map("end_date") @db.Date
+  checkpoints      Json?
+  expectedOutcomes String    @map("expected_outcomes") @db.Text
+  status           String    @default("active") @db.VarChar(30) // active, extended, successful, failed
+  finalRemarks     String?   @map("final_remarks") @db.Text
+  concludedAt      DateTime? @map("concluded_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
+  @@map("performance_improvement_plans")
+}
+
+// =============================================================
+// PHASE P7: TRAINING, ASSETS, MEETINGS & DOCUMENTS
+// =============================================================
+
+// ─── P7.1 Training Masters & Sessions ────────────────────────
+
+model TrainingTypeMaster {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("training_type_masters")
+}
+
+model TrainingSession {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  courseId    String   @map("course_id") @db.VarChar(36)
+  sessionCode String   @map("session_code") @db.VarChar(50)
+  title       String   @db.VarChar(200)
+  trainer     String   @db.VarChar(150)
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  location    String?  @db.VarChar(200)
+  capacity    Int      @default(20)
+  status      String   @default("scheduled") @db.VarChar(50) // scheduled, in_progress, completed, cancelled
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  course      TrainingCourse      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attendances SessionAttendance[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, courseId])
+  @@map("training_sessions")
+}
+
+model SessionAttendance {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  tenantId     String    @map("tenant_id") @db.VarChar(36)
+  sessionId    String    @map("session_id") @db.VarChar(36)
+  employeeId   String    @map("employee_id") @db.VarChar(36)
+  status       String    @default("registered") @db.VarChar(50) // registered, attended, absent, cancelled
+  registeredAt DateTime  @default(now()) @map("registered_at")
+  attendedAt   DateTime? @map("attended_at")
+  feedback     String?   @db.Text
+  rating       Int?
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session  TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employee Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sessionId, employeeId])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, employeeId])
+  @@map("session_attendances")
+}
+
+// ─── P7.2 Asset Depreciation Schedules ───────────────────────
+
+model AssetDepreciationSchedule {
+  id                 String   @id @default(uuid()) @db.VarChar(36)
+  tenantId           String   @map("tenant_id") @db.VarChar(36)
+  assetId            String   @map("asset_id") @db.VarChar(36)
+  fiscalYear         Int      @map("fiscal_year")
+  period             String   @db.VarChar(20) // e.g. "2026-Q1", "2026-03"
+  startingBookValue  Decimal  @map("starting_book_value") @db.Decimal(12, 2)
+  depreciationAmount Decimal  @map("depreciation_amount") @db.Decimal(12, 2)
+  endingBookValue    Decimal  @map("ending_book_value") @db.Decimal(12, 2)
+  calculationDate    DateTime @default(now()) @map("calculation_date")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, assetId])
+  @@index([tenantId, fiscalYear])
+  @@map("asset_depreciation_schedules")
+}
+
+// ─── P7.3 Meetings & Corporate Collaboration ─────────────────
+
+model MeetingRoom {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  tenantId  String   @map("tenant_id") @db.VarChar(36)
+  name      String   @db.VarChar(100)
+  location  String?  @db.VarChar(150)
+  capacity  Int      @default(10)
+  amenities String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meetings Meeting[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("meeting_rooms")
+}
+
+model MeetingTypeMaster {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  color       String?  @default("#6366f1") @db.VarChar(30)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meetings Meeting[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("meeting_types")
+}
+
+model Meeting {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  title       String   @db.VarChar(200)
+  typeId      String?  @map("type_id") @db.VarChar(36)
+  roomId      String?  @map("room_id") @db.VarChar(36)
+  organizerId String   @map("organizer_id") @db.VarChar(36)
+  startTime   DateTime @map("start_time")
+  endTime     DateTime @map("end_time")
+  location    String?  @db.VarChar(200)
+  meetingUrl  String?  @map("meeting_url") @db.VarChar(500)
+  agenda      String?  @db.Text
+  status      String   @default("scheduled") @db.VarChar(50) // scheduled, in_progress, completed, cancelled
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        MeetingTypeMaster?  @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  room        MeetingRoom?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  organizer   Employee            @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  attendees   MeetingAttendee[]
+  actionItems MeetingActionItem[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, startTime])
+  @@index([tenantId, roomId])
+  @@map("meetings")
+}
+
+model MeetingAttendee {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  meetingId   String    @map("meeting_id") @db.VarChar(36)
+  employeeId  String    @map("employee_id") @db.VarChar(36)
+  rsvpStatus  String    @default("pending") @map("rsvp_status") @db.VarChar(50) // pending, accepted, declined, tentative
+  respondedAt DateTime? @map("responded_at")
+  notes       String?   @db.Text
+
+  meeting  Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, employeeId])
+  @@index([meetingId])
+  @@index([employeeId])
+  @@map("meeting_attendees")
+}
+
+model MeetingActionItem {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  tenantId    String    @map("tenant_id") @db.VarChar(36)
+  meetingId   String?   @map("meeting_id") @db.VarChar(36)
+  title       String    @db.VarChar(200)
+  description String?   @db.Text
+  assigneeId  String    @map("assignee_id") @db.VarChar(36)
+  creatorId   String?   @map("creator_id") @db.VarChar(36)
+  dueDate     DateTime? @map("due_date") @db.Date
+  priority    String    @default("medium") @db.VarChar(20) // low, medium, high, urgent
+  status      String    @default("open") @db.VarChar(30) // open, in_progress, completed, cancelled
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meeting  Meeting?  @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  assignee Employee  @relation("ActionItemAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, assigneeId])
+  @@map("meeting_action_items")
+}
+
+// ─── P7.4 Document Vault & Letters Center ───────────────────
+
+model DocumentCategory {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  code        String   @db.VarChar(50)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("document_categories")
+}
+
+model DocumentTemplate {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  title       String   @db.VarChar(200)
+  code        String   @db.VarChar(50)
+  category    String   @default("General") @db.VarChar(100)
+  type        String   @default("letter") @db.VarChar(50) // letter, contract, policy
+  content     String   @db.Text
+  tokens      Json?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  generatedLetters GeneratedLetter[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("document_templates")
+}
+
+model DocumentAcknowledgement {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  tenantId       String    @map("tenant_id") @db.VarChar(36)
+  documentId     String    @map("document_id") @db.VarChar(36)
+  employeeId     String    @map("employee_id") @db.VarChar(36)
+  status         String    @default("pending") @db.VarChar(30) // pending, acknowledged
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  ipAddress      String?   @map("ip_address") @db.VarChar(50)
+  comments       String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document CompanyDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  employee Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, documentId, employeeId])
+  @@index([tenantId, documentId])
+  @@index([tenantId, employeeId])
+  @@map("document_acknowledgements")
+}
+
+model GeneratedLetter {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  employeeId  String   @map("employee_id") @db.VarChar(36)
+  templateId  String?  @map("template_id") @db.VarChar(36)
+  letterType  String   @map("letter_type") @db.VarChar(50) // Appointment, Confirmation, Experience, Relieving, Bonafide
+  title       String   @db.VarChar(200)
+  contentHtml String   @map("content_html") @db.Text
+  issuedById  String?  @map("issued_by_id") @db.VarChar(36)
+  issuedAt    DateTime @default(now()) @map("issued_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  template DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, letterType])
+  @@map("generated_letters")
+}
+

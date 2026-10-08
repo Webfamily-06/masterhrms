@@ -1,9 +1,12 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, Link } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { HrSidebar } from "@/components/navigation/portal-sidebar";
-import { evaluateRouteAccess } from "@/lib/route-guards";
+import { evaluateRouteAccess, getClientAuthState } from "@/lib/route-guards";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RealtimeNotificationDrawer } from "@/components/realtime-notification-drawer";
+import { PortalSwitcher } from "@/components/portal-switcher";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/hr")({
   beforeLoad: async () => {
@@ -16,6 +19,8 @@ export const Route = createFileRoute("/_authenticated/hr")({
 });
 
 function HrPortalLayout() {
+  const auth = getClientAuthState();
+
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="flex min-h-screen w-full bg-background text-foreground">
@@ -29,8 +34,17 @@ function HrPortalLayout() {
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 HR Command Center
               </span>
+              {auth.isTenantAdmin && (
+                <Link to="/tenant/dashboard">
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 ml-2 border-primary/40 text-primary hover:bg-primary/10">
+                    <ArrowLeft className="h-3 w-3" />
+                    Back to Tenant
+                  </Button>
+                </Link>
+              )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <PortalSwitcher />
               <ThemeToggle />
               <RealtimeNotificationDrawer />
             </div>

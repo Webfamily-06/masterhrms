@@ -50,6 +50,28 @@ export class AuditService {
     }
   }
 
+  public static async record(params: {
+    tenantId: string;
+    actorId?: string | null;
+    action: string;
+    entityType: string;
+    entityId: string;
+    oldValues?: any;
+    newValues?: any;
+    details?: any;
+  }) {
+    return this.logMutation({
+      tenantId: params.tenantId,
+      actorId: params.actorId,
+      action: params.action,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      oldState: params.oldValues,
+      newState: params.newValues,
+      metadata: params.details,
+    });
+  }
+
   public static async log(params: {
     tenantId: string;
     actorId?: string | null;
@@ -58,6 +80,7 @@ export class AuditService {
     entity?: string;
     entityType?: string;
     resourceType?: string;
+
     entityId?: string;
     resourceId?: string;
     details?: any;

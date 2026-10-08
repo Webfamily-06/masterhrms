@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 export interface PortalConfig {
-  id: "hr" | "me" | "sa" | "client";
+  id: "tenant" | "hr" | "me" | "sa" | "client";
   title: string;
   subtitle: string;
   route: string;
@@ -38,7 +38,19 @@ export function PortalSwitcher() {
   // Determine authorized portals
   const availablePortals: PortalConfig[] = [];
 
-  // 1. HR Portal
+  // 1. Tenant Admin Portal
+  if (auth.isTenantAdmin) {
+    availablePortals.push({
+      id: "tenant",
+      title: "Tenant Admin",
+      subtitle: "Workspace & Billing",
+      route: "/tenant/dashboard",
+      icon: ShieldCheck,
+      badge: "Owner",
+    });
+  }
+
+  // 2. HR Portal
   if (
     auth.isTenantAdmin ||
     auth.roles.includes("manager") ||
@@ -48,26 +60,26 @@ export function PortalSwitcher() {
       id: "hr",
       title: "HR Command Center",
       subtitle: "Operations & Workforce",
-      route: "/hr",
+      route: "/hr/dashboard",
       icon: Building2,
       badge: "Admin",
     });
   }
 
-  // 2. Employee Self-Service Portal
+  // 3. Employee Self-Service Portal
   // Available to all users belonging to a tenant
   if (auth.tenantId) {
     availablePortals.push({
       id: "me",
       title: "Employee Portal",
       subtitle: "Personal Hub & Requests",
-      route: "/me",
+      route: "/me/dashboard",
       icon: User,
       badge: "Self",
     });
   }
 
-  // 3. Super Admin Portal
+  // 4. Super Admin Portal
   if (auth.isSuperAdmin) {
     availablePortals.push({
       id: "sa",
@@ -79,7 +91,7 @@ export function PortalSwitcher() {
     });
   }
 
-  // 4. Client Portal
+  // 5. Client Portal
   if (auth.roles.includes("client") || auth.roles.includes("client_admin")) {
     availablePortals.push({
       id: "client",
@@ -91,8 +103,10 @@ export function PortalSwitcher() {
   }
 
   // Determine current active portal
-  let activePortalId: "hr" | "me" | "sa" | "client" = "me";
-  if (currentPath.startsWith("/hr")) {
+  let activePortalId: "tenant" | "hr" | "me" | "sa" | "client" = "me";
+  if (currentPath.startsWith("/tenant")) {
+    activePortalId = "tenant";
+  } else if (currentPath.startsWith("/hr")) {
     activePortalId = "hr";
   } else if (currentPath.startsWith("/super")) {
     activePortalId = "sa";

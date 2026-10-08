@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   Sidebar,
@@ -33,6 +33,8 @@ import { getClientAuthState } from "@/lib/route-guards";
 import { NavIcon } from "./nav-icon";
 import { PortalSwitcher } from "@/components/portal-switcher";
 
+import { useTenantBranding } from "@/lib/useTenantBranding";
+
 interface PortalSidebarProps {
   portal: PortalId;
 }
@@ -42,6 +44,7 @@ export function PortalSidebar({ portal }: PortalSidebarProps) {
   const currentPath = routerState.location.pathname;
   const navigate = useNavigate();
   const auth = getClientAuthState();
+  const { branding } = useTenantBranding();
 
   // Navigation items for this portal
   const navItems = getNavigationForPortal(portal, {
@@ -87,6 +90,20 @@ export function PortalSidebar({ portal }: PortalSidebarProps) {
     setOpenParents((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Synchronize expanded parent state whenever path changes to contain an active child
+  useEffect(() => {
+    for (const item of navItems) {
+      if (item.children) {
+        const hasActiveChild = item.children.some((child) =>
+          isRouteActive(currentPath, child)
+        );
+        if (hasActiveChild) {
+          setOpenParents((prev) => ({ ...prev, [item.id]: true }));
+        }
+      }
+    }
+  }, [currentPath, navItems]);
+
   const handleLogout = () => {
     localStorage.removeItem("hrms_auth_token");
     localStorage.removeItem("hrms_user");
@@ -97,14 +114,20 @@ export function PortalSidebar({ portal }: PortalSidebarProps) {
     <Sidebar className="border-r border-border/80 bg-card">
       <SidebarHeader className="p-4 border-b border-border/60 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <Link to={portal === "hr" ? "/hr" : "/me"} className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm shadow-sm">
-              M
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-sm leading-tight tracking-tight">MASTERHRMS</span>
+          <Link to={portal === "tenant" ? "/tenant/dashboard" : portal === "hr" ? "/hr" : "/me"} className="flex items-center gap-2.5">
+            {branding.logoUrl && branding.logoUrl !== "/logo.webp" ? (
+              <img src={branding.logoUrl} alt={branding.name} className="h-8 w-8 rounded-lg object-contain" />
+            ) : (
+              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm shadow-sm">
+                {branding.name ? branding.name.charAt(0).toUpperCase() : "M"}
+              </div>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="font-bold text-sm leading-tight tracking-tight truncate">
+                {branding.name || "MASTERHRMS"}
+              </span>
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                {portal === "hr" ? "HR Management" : "Employee Portal"}
+                {portal === "tenant" ? "Tenant Administration" : portal === "hr" ? "HR Management" : "Employee Portal"}
               </span>
             </div>
           </Link>
@@ -255,4 +278,8 @@ export function HrSidebar() {
 
 export function EmployeeSidebar() {
   return <PortalSidebar portal="me" />;
+}
+
+export function TenantSidebar() {
+  return <PortalSidebar portal="tenant" />;
 }

@@ -10,7 +10,7 @@ export interface GuardEvaluationOptions {
   requiredModule?: string;
   requiredRole?: string;
   requiredDataScope?: string;
-  targetPortal?: "hr" | "me" | "sa" | "client";
+  targetPortal?: "tenant" | "hr" | "me" | "sa" | "client";
 }
 
 export interface GuardEvaluationResult {
@@ -64,7 +64,8 @@ export function getClientAuthState(): AuthUserState {
   const isTenantAdmin =
     isSuperAdmin ||
     roles.includes("admin") ||
-    roles.includes("hr_admin") ||
+    roles.includes("workspace_admin") ||
+    roles.includes("tenant_admin") ||
     roles.includes("Workspace Admin");
 
   return {
@@ -82,7 +83,7 @@ export function getClientAuthState(): AuthUserState {
 
 /**
  * Executes the complete Route Guard Chain:
- * Authenticated -> Tenant Resolved -> Module Enabled -> Permission -> Data Scope
+ * Authenticated -> Tenant Resolved -> Portal Guard -> Module Enabled -> Permission -> Data Scope
  */
 export function evaluateRouteAccess(
   options: GuardEvaluationOptions = {}
@@ -116,7 +117,28 @@ export function evaluateRouteAccess(
     };
   }
 
-  // 3. Module Enabled Guard
+  // 3. Portal Isolation Guards
+  if (options.targetPortal === "tenant" && !auth.isTenantAdmin && !auth.isSuperAdmin) {
+    return {
+      allowed: false,
+      redirectUrl: "/403",
+      reason: "Tenant Administrator privileges required",
+    };
+  }
+
+  if (options.targetPortal === "hr" && !auth.isTenantAdmin && !auth.isSuperAdmin) {
+    const hasHrRole = auth.roles.some((r) => r === "hr_admin" || r === "hr_manager" || r === "manager");
+    const hasHrPerm = auth.permissions.some((p) => p.startsWith("hr.") || p.startsWith("employees.") || p.startsWith("attendance."));
+    if (!hasHrRole && !hasHrPerm) {
+      return {
+        allowed: false,
+        redirectUrl: "/403",
+        reason: "HR Management privileges required",
+      };
+    }
+  }
+
+  // 4. Module Enabled Guard
   if (options.requiredModule && auth.enabledModules.length > 0) {
     if (!auth.enabledModules.includes(options.requiredModule) && !auth.isSuperAdmin) {
       return {
@@ -127,7 +149,7 @@ export function evaluateRouteAccess(
     }
   }
 
-  // 4. Role Guard
+  // 5. Role Guard
   if (options.requiredRole && !auth.isSuperAdmin) {
     if (!auth.roles.includes(options.requiredRole) && !auth.isTenantAdmin) {
       return {
@@ -138,7 +160,7 @@ export function evaluateRouteAccess(
     }
   }
 
-  // 5. Permission Guard
+  // 6. Permission Guard (Tenant Admin has all permissions automatically)
   if (options.requiredPermission && !auth.isSuperAdmin && !auth.isTenantAdmin) {
     if (!auth.permissions.includes(options.requiredPermission)) {
       return {

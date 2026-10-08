@@ -65,7 +65,7 @@ export function resolveDefaultRoute(
 
   // Employee Self-Service (Workforce)
   if (roles.includes("employee")) {
-    return "/employee-dashboard";
+    return "/me/dashboard";
   }
 
   // Tenant / Vendor Admin (Default ERP Command Center)

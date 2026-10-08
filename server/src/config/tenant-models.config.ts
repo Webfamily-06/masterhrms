@@ -59,6 +59,7 @@ export const CHILD_DEPENDENT_MODELS = new Map<string, ChildModelRelation>([
   ["MediaUsage", { parentRelation: "media", parentModel: "MediaFile" }],
   ["WorkflowStep", { parentRelation: "workflow", parentModel: "WorkflowDefinition" }],
   ["SettingSecret", { parentRelation: "setting", parentModel: "Setting" }],
+  ["MeetingAttendee", { parentRelation: "meeting", parentModel: "Meeting" }],
 ]);
 
 // Special Scoped Models (Scoped by scope/scopeId where scopeId is tenantId when scope=TENANT)
@@ -237,6 +238,28 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "LeaveEncashmentRequest",
   "EmployeeLoan",
   "LoanInstallment",
+  "EmployeeEvent",
+  "EmployeeTrip",
+  "TripExpenseItem",
+  "EmployeeComplaint",
+  "ComplaintCaseNote",
+  "GoalTypeMaster",
+  "IndicatorCategory",
+  "PerformanceIndicator",
+  "ReviewIndicatorRating",
+  "PerformanceImprovementPlan",
+  "TrainingTypeMaster",
+  "TrainingSession",
+  "SessionAttendance",
+  "AssetDepreciationSchedule",
+  "MeetingRoom",
+  "MeetingTypeMaster",
+  "Meeting",
+  "MeetingActionItem",
+  "DocumentCategory",
+  "DocumentTemplate",
+  "DocumentAcknowledgement",
+  "GeneratedLetter",
 ]);
 
 export type ModelClassification =

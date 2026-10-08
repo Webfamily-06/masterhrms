@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/me/")({
   component: EmployeeDashboardFoundation,
 });
 
-function EmployeeDashboardFoundation() {
+export function EmployeeDashboardFoundation() {
   const queryClient = useQueryClient();
   const [seconds, setSeconds] = useState(0);
 

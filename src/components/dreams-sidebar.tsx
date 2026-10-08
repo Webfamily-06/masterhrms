@@ -66,7 +66,7 @@ export function DreamsSidebar({
   const isManager = userRoles.includes("manager");
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
-  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/employee-dashboard" : "/hrm-dashboard";
+  const homeRoute = isSuperAdmin ? "/super" : isClientOnly ? "/client-dashboard" : isEmployeeOnly ? "/me/dashboard" : "/hrm-dashboard";
 
   return (
     <aside
@@ -345,9 +345,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/employee-dashboard"
+                  to="/me/dashboard"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/employee-dashboard" && "active")}
+                  className={cn((currentPath === "/me/dashboard" || currentPath === "/me") && "active")}
                 >
                   <i className="ph-duotone ph-squares-four"></i>
                   <span>My Dashboard</span>
@@ -355,9 +355,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/profile"
+                  to="/me/profile"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/profile" && "active")}
+                  className={cn(currentPath === "/me/profile" && "active")}
                 >
                   <i className="ph-duotone ph-user"></i>
                   <span>My Profile</span>
@@ -369,39 +369,49 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/attendance"
+                  to="/me/attendance/records"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/attendance" && "active")}
+                  className={cn(currentPath === "/me/attendance/records" && "active")}
                 >
                   <i className="ph-duotone ph-clock"></i>
-                  <span>Attendance & Punch</span>
+                  <span>Attendance Records</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/attendance-employee"
+                  to="/me/attendance/timesheet"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/attendance-employee" && "active")}
+                  className={cn(currentPath === "/me/attendance/timesheet" && "active")}
                 >
                   <i className="ph-duotone ph-calendar-dots"></i>
-                  <span>Monthly Attendance Matrix</span>
+                  <span>Timesheet</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/leave"
+                  to="/me/leave/applications"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/leave" && "active")}
+                  className={cn(currentPath === "/me/leave/applications" && "active")}
                 >
                   <i className="ph-duotone ph-calendar-blank"></i>
-                  <span>Leave Requests</span>
+                  <span>Leave Applications</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/shifts"
+                  to="/me/leave/balance"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/shifts" && "active")}
+                  className={cn(currentPath === "/me/leave/balance" && "active")}
+                >
+                  <i className="ph-duotone ph-scale"></i>
+                  <span>Leave Balance</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/me/attendance/shifts"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/me/attendance/shifts" && "active")}
                 >
                   <i className="ph-duotone ph-calendar-check"></i>
                   <span>My Shifts</span>
@@ -409,42 +419,22 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/shift-swap-requests"
+                  to="/me/attendance/regularizations"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/shift-swap-requests" && "active")}
+                  className={cn(currentPath === "/me/attendance/regularizations" && "active")}
                 >
                   <i className="ph-duotone ph-arrows-left-right"></i>
-                  <span>Shift Swap Requests</span>
+                  <span>Regularizations</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/overtime"
+                  to="/me/attendance/requests"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/overtime" && "active")}
+                  className={cn(currentPath === "/me/attendance/requests" && "active")}
                 >
                   <i className="ph-duotone ph-timer"></i>
-                  <span>Overtime Requests</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/work-from-home"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/work-from-home" && "active")}
-                >
-                  <i className="ph-duotone ph-house-line"></i>
-                  <span>Work From Home</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/tasks"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/tasks" && "active")}
-                >
-                  <i className="ph-duotone ph-kanban"></i>
-                  <span>My Tasks Board</span>
+                  <span>Attendance Requests</span>
                 </Link>
               </li>
 
@@ -453,9 +443,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/employee-payslips"
+                  to="/me/payroll/payslips"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/employee-payslips" && "active")}
+                  className={cn(currentPath === "/me/payroll/payslips" && "active")}
                 >
                   <i className="ph-duotone ph-money"></i>
                   <span>My Payslips</span>
@@ -463,12 +453,22 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/expenses"
+                  to="/me/payroll/salary"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/expenses" && "active")}
+                  className={cn(currentPath === "/me/payroll/salary" && "active")}
                 >
                   <i className="ph-duotone ph-receipt"></i>
-                  <span>Expense Claims</span>
+                  <span>My Salary</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/me/payroll/reimbursements-loans"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/me/payroll/reimbursements-loans" && "active")}
+                >
+                  <i className="ph-duotone ph-credit-card"></i>
+                  <span>Reimbursements & Loans</span>
                 </Link>
               </li>
 
@@ -477,19 +477,19 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/todo"
+                  to="/me/todo"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/todo" && "active")}
+                  className={cn(currentPath === "/me/todo" && "active")}
                 >
                   <i className="ph-duotone ph-check-square"></i>
-                  <span>My Tasks</span>
+                  <span>My Todo</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/training"
+                  to="/me/training/trainings"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/training" && "active")}
+                  className={cn(currentPath === "/me/training/trainings" && "active")}
                 >
                   <i className="ph-duotone ph-graduation-cap"></i>
                   <span>Training & Learning</span>
@@ -497,9 +497,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/awards"
+                  to="/me/lifecycle/awards"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/awards" && "active")}
+                  className={cn(currentPath === "/me/lifecycle/awards" && "active")}
                 >
                   <i className="ph-duotone ph-trophy"></i>
                   <span>Awards & Honors</span>
@@ -507,9 +507,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/okr"
+                  to="/me/performance/goals"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/okr" && "active")}
+                  className={cn(currentPath === "/me/performance/goals" && "active")}
                 >
                   <i className="ph-duotone ph-target"></i>
                   <span>Goals & OKRs</span>
@@ -517,39 +517,29 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/forms"
+                  to="/me/documents"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/forms" && "active")}
-                >
-                  <i className="ph-duotone ph-files"></i>
-                  <span>Company Forms</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/documents"
-                  onClick={onCloseMobile}
-                  className={cn(currentPath === "/documents" && "active")}
+                  className={cn(currentPath === "/me/documents" && "active")}
                 >
                   <i className="ph-duotone ph-folder"></i>
-                  <span>My Documents & Letters</span>
+                  <span>My Documents</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/resignation"
+                  to="/me/lifecycle/resignation"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/resignation" && "active")}
+                  className={cn(currentPath === "/me/lifecycle/resignation" && "active")}
                 >
                   <i className="ph-duotone ph-user-minus"></i>
-                  <span>Resignation & Notice</span>
+                  <span>Resignation</span>
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/assets"
+                  to="/me/assets"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/assets" && "active")}
+                  className={cn(currentPath === "/me/assets" && "active")}
                 >
                   <i className="ph-duotone ph-laptop"></i>
                   <span>My Allocated Assets</span>
@@ -557,9 +547,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/announcements"
+                  to="/me/organization/announcements"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/announcements" && "active")}
+                  className={cn(currentPath === "/me/organization/announcements" && "active")}
                 >
                   <i className="ph-duotone ph-megaphone"></i>
                   <span>Announcements</span>
@@ -567,9 +557,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/helpdesk"
+                  to="/me/helpdesk"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/helpdesk" && "active")}
+                  className={cn(currentPath === "/me/helpdesk" && "active")}
                 >
                   <i className="ph-duotone ph-lifebuoy"></i>
                   <span>Helpdesk Tickets</span>
@@ -577,9 +567,9 @@ export function DreamsSidebar({
               </li>
               <li>
                 <Link
-                  to="/chat"
+                  to="/me/chat"
                   onClick={onCloseMobile}
-                  className={cn(currentPath === "/chat" && "active")}
+                  className={cn(currentPath === "/me/chat" && "active")}
                 >
                   <i className="ph-duotone ph-chat-circle-dots"></i>
                   <span>Team Chat</span>
@@ -593,34 +583,12 @@ export function DreamsSidebar({
                   </li>
                   <li>
                     <Link
-                      to="/manager-hub"
+                      to="/me/approvals"
                       onClick={onCloseMobile}
-                      className={cn(currentPath === "/manager-hub" && "active")}
+                      className={cn(currentPath === "/me/approvals" && "active")}
                     >
                       <i className="ph-duotone ph-user-check"></i>
-                      <span>Manager Hub & Approvals</span>
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/manager-hub"
-                      search={{ tab: "team" }}
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/manager-hub" && "active")}
-                    >
-                      <i className="ph-duotone ph-users-three"></i>
-                      <span>Team Roster</span>
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/manager-hub"
-                      search={{ tab: "approvals" }}
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/manager-hub" && "active")}
-                    >
-                      <i className="ph-duotone ph-check-circle"></i>
-                      <span>Pending Approvals</span>
+                      <span>Approvals & Decisions</span>
                     </Link>
                   </li>
                 </>
@@ -672,9 +640,9 @@ export function DreamsSidebar({
                 </li>)}
                 <li>
                   <Link
-                    to="/employee-dashboard"
+                    to="/me/dashboard"
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/employee-dashboard" && "active")}
+                    className={cn((currentPath === "/me/dashboard" || currentPath === "/me" || currentPath === "/employee-dashboard") && "active")}
                   >
                     Employee Portal
                   </Link>
