@@ -87,6 +87,8 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: "/super/languages", label: "Localization (i18n)", iconClass: "ph-globe", group: "System Controls" },
   { to: "/super/backup", label: "Database Backups", iconClass: "ph-database", group: "System Controls" },
   { to: "/super/api-docs", label: "API Reference", iconClass: "ph-code", group: "System Controls" },
+  { to: "/super/developer", label: "Developer & Web APIs", iconClass: "ph-terminal-window", group: "System Controls" },
+  { to: "/super/docs", label: "Documentation Portal", iconClass: "ph-book-open", group: "System Controls" },
 ];
 
 function SuperSidebar({

@@ -247,7 +247,7 @@ function EndpointCard({ ep, onTest }: { ep: any; onTest: (ep: any) => void }) {
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
-export function DocsPortalPage() {
+export function DocsPortalPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeSection, setActiveSection] = useState<string>("overview");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -286,18 +286,40 @@ export function DocsPortalPage() {
   const knownIssues = metadata?.knownIssues || [];
   const phase2Backlog = metadata?.phase2Backlog || [];
   const portals = metadata?.portals || {};
-  const apiBreakdown = metadata?.apiBreakdown || { total: 421, methods: { GET: 169, POST: 170, PUT: 38, DELETE: 37, PATCH: 7 } };
+  const apiBreakdown = metadata?.apiBreakdown || { total: 1627, methods: { GET: 700, POST: 594, PUT: 159, DELETE: 131, PATCH: 43 } };
 
   const system = metadata?.system || {
     name: "Master ERP / HRMS Enterprise SaaS Platform",
-    databaseModelsCount: 106, backendEndpointsCount: 433, frontendRoutesCount: 117,
+    databaseModelsCount: 236, backendEndpointsCount: 1627, frontendRoutesCount: 117,
     totalModulesCount: 24, workingModulesCount: 24, partialModulesCount: 0,
     totalFunctionsCount: 64, workingFunctionsCount: 64, partialFunctionsCount: 0,
     missingFunctionsCount: 0, brokenFunctionsCount: 0, functionCompletionPct: 100,
-    moduleCompletionPct: 100, version: "2.5.0-Production", lastAuditDate: "2026-09-26",
+    moduleCompletionPct: 100, version: "2.5.0-Production", lastAuditDate: "2026-10-09",
   };
 
   const [selectedRole, setSelectedRole] = useState<string>("all");
+
+  const roleCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: endpoints.length,
+      super_admin: 0,
+      tenant_admin: 0,
+      hr_manager: 0,
+      accountant: 0,
+      cashier: 0,
+      employee: 0,
+    };
+    endpoints.forEach((ep: any) => {
+      const roles = ep.requiredRoles || [];
+      if (roles.includes("super_admin") || ep.fullPath.includes("/super")) counts.super_admin++;
+      if (roles.includes("tenant_admin") || ep.tenantScoped) counts.tenant_admin++;
+      if (roles.includes("hr_manager") || ep.module?.toLowerCase().includes("hr") || ep.module?.toLowerCase().includes("employee")) counts.hr_manager++;
+      if (roles.includes("accountant") || ep.module?.toLowerCase().includes("accounting") || ep.module?.toLowerCase().includes("invoice")) counts.accountant++;
+      if (roles.includes("cashier") || ep.fullPath.includes("/pos") || ep.fullPath.includes("/sales")) counts.cashier++;
+      if (roles.includes("employee") || ep.fullPath.startsWith("/api/v1/me") || ep.fullPath.startsWith("/api/me")) counts.employee++;
+    });
+    return counts;
+  }, [endpoints]);
 
   const superAdminEndpoints = useMemo(() => {
     return endpoints.filter((e: any) => 
@@ -402,21 +424,27 @@ export function DocsPortalPage() {
       ],
     },
     {
-      title: "3. Enterprise Modules (24)",
+      title: `3. REST APIs (${system.backendEndpointsCount || endpoints.length})`,
+      items: [
+        { id: "rest-api", label: "REST API Directory", icon: Code, count: system.backendEndpointsCount || endpoints.length },
+      ],
+    },
+    {
+      title: "4. Enterprise Modules (24)",
       items: [
         { id: "modules", label: "Module Master Matrix", icon: ListFilter, count: system.totalFunctionsCount || 64 },
       ],
     },
     {
-      title: "4. Business Workflows (12)",
+      title: "5. Business Workflows (12)",
       items: [
         { id: "workflows", label: "Enterprise Workflows", icon: Workflow, count: workflows.length || 12 },
       ],
     },
     {
-      title: "5. Database Schema (106)",
+      title: `6. Database Schema (${system.databaseModelsCount || models.length})`,
       items: [
-        { id: "database", label: "Database Models & Schema", icon: Database, count: system.databaseModelsCount || 106 },
+        { id: "database", label: "Database Models & Schema", icon: Database, count: system.databaseModelsCount || models.length },
       ],
     },
     {
@@ -453,69 +481,111 @@ export function DocsPortalPage() {
   const nextNavItem = currentNavIndex < allNavItems.length - 1 ? allNavItems[currentNavIndex + 1] : null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans transition-colors duration-200">
-      {/* ── Top Header ── */}
-      <header className="sticky top-0 z-50 bg-card border-b border-border px-4 py-2.5 flex items-center justify-between gap-4 shadow-xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
-            <BookOpen className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Link to="/hrm-dashboard" className="hover:text-foreground flex items-center gap-1">
-                <Home className="h-3 w-3" /> Dashboard
-              </Link>
-              <span>/</span>
-              <span className="font-semibold text-foreground truncate">Documentation Portal</span>
-              <Badge variant="secondary" className="text-[10px] uppercase font-mono ml-1 shrink-0">v{system.version || "2.5.0"}</Badge>
+    <div className={embedded ? "space-y-4" : "min-h-screen bg-background text-foreground flex flex-col font-sans transition-colors duration-200"}>
+      {embedded ? (
+        /* ── Super Admin Page Header matching Super Admin format ── */
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                <BookOpen className="size-6 text-primary" /> Enterprise Documentation Portal
+              </h1>
+              <Badge variant="secondary" className="gap-1 text-xs font-mono">
+                v{system.version || "2.5.0"}
+              </Badge>
+              <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs">
+                Super Admin Scope
+              </Badge>
             </div>
-            <p className="text-[11px] text-muted-foreground truncate hidden sm:block">Complete Enterprise Architecture, Portals, Workflows & Schema Reference</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 border border-border text-xs text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-foreground font-medium">{system.backendEndpointsCount} Endpoints</span>
-            <span className="text-muted-foreground">•</span>
-            <span>{system.databaseModelsCount} Models</span>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">{system.functionCompletionPct}% Ready</span>
+            <p className="text-muted-foreground text-sm mt-1">
+              Complete Enterprise Architecture, Database Models ({system.databaseModelsCount}), Backend Endpoints ({system.backendEndpointsCount}), Portals & Workflows.
+            </p>
           </div>
 
-          <Link to="/hrm-dashboard">
-            <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5">
-              <Home className="h-3.5 w-3.5 text-primary" /> ERP Dashboard
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5"
+              onClick={() => exportCSV(functionsList.map((fn: any) => [
+                `"${fn.module || ""}"`, `"${fn.submodule || ""}"`, `"${fn.functionName || ""}"`,
+                `"${fn.frontendPage || ""}"`, `"${fn.backendApi || ""}"`, `"${fn.httpMethod || ""}"`,
+                fn.overallStatus || "",
+              ]), ["Module", "Submodule", "Function", "Page", "API", "Method", "Status"],
+                `MasterERP_Matrix_${new Date().toISOString().split("T")[0]}.csv`)}>
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" /> Export Matrix CSV
             </Button>
-          </Link>
-
-          <Link to="/super">
-            <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-amber-500" /> Super Admin
-            </Button>
-          </Link>
-
-          <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5"
-            onClick={() => exportCSV(functionsList.map((fn: any) => [
-              `"${fn.module || ""}"`, `"${fn.submodule || ""}"`, `"${fn.functionName || ""}"`,
-              `"${fn.frontendPage || ""}"`, `"${fn.backendApi || ""}"`, `"${fn.httpMethod || ""}"`,
-              fn.overallStatus || "",
-            ]), ["Module", "Submodule", "Function", "Page", "API", "Method", "Status"],
-              `MasterERP_Matrix_${new Date().toISOString().split("T")[0]}.csv`)}>
-            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" /> CSV
-          </Button>
-
-          <Link to="/developer">
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 shadow-xs gap-1.5">
-              <Terminal className="h-3.5 w-3.5" /> Developer Console
-            </Button>
-          </Link>
-
-          <ThemeToggle />
+            <Link to="/super/developer">
+              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 shadow-xs gap-1.5">
+                <Terminal className="h-3.5 w-3.5" /> Developer Console
+              </Button>
+            </Link>
+          </div>
         </div>
-      </header>
+      ) : (
+        /* ── Standalone Top Header ── */
+        <header className="sticky top-0 z-50 bg-card border-b border-border px-4 py-2.5 flex items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
+              <BookOpen className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Link to="/hrm-dashboard" className="hover:text-foreground flex items-center gap-1">
+                  <Home className="h-3 w-3" /> Dashboard
+                </Link>
+                <span>/</span>
+                <span className="font-semibold text-foreground truncate">Documentation Portal</span>
+                <Badge variant="secondary" className="text-[10px] uppercase font-mono ml-1 shrink-0">v{system.version || "2.5.0"}</Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground truncate hidden sm:block">Complete Enterprise Architecture, Portals, Workflows & Schema Reference</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 border border-border text-xs text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-foreground font-medium">{system.backendEndpointsCount} Endpoints</span>
+              <span className="text-muted-foreground">•</span>
+              <span>{system.databaseModelsCount} Models</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">{system.functionCompletionPct}% Ready</span>
+            </div>
+
+            <Link to="/hrm-dashboard">
+              <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5">
+                <Home className="h-3.5 w-3.5 text-primary" /> ERP Dashboard
+              </Button>
+            </Link>
+
+            <Link to="/super/docs">
+              <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-amber-500" /> Super Admin
+              </Button>
+            </Link>
+
+            <Button size="sm" variant="outline" className="border-border text-xs h-8 gap-1.5"
+              onClick={() => exportCSV(functionsList.map((fn: any) => [
+                `"${fn.module || ""}"`, `"${fn.submodule || ""}"`, `"${fn.functionName || ""}"`,
+                `"${fn.frontendPage || ""}"`, `"${fn.backendApi || ""}"`, `"${fn.httpMethod || ""}"`,
+                fn.overallStatus || "",
+              ]), ["Module", "Submodule", "Function", "Page", "API", "Method", "Status"],
+                `MasterERP_Matrix_${new Date().toISOString().split("T")[0]}.csv`)}>
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" /> CSV
+            </Button>
+
+            <Link to="/super/developer">
+              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8 shadow-xs gap-1.5">
+                <Terminal className="h-3.5 w-3.5" /> Developer Console
+              </Button>
+            </Link>
+
+            <ThemeToggle />
+          </div>
+        </header>
+      )}
 
       {/* ── Body ── */}
-      <div className="flex-1 flex overflow-hidden" style={{ height: "calc(100vh - 56px)" }}>
+      <div
+        className={embedded ? "rounded-xl border border-border bg-card flex overflow-hidden shadow-xs" : "flex-1 flex overflow-hidden"}
+        style={{ height: embedded ? "calc(100vh - 180px)" : "calc(100vh - 56px)", minHeight: embedded ? "680px" : undefined }}
+      >
         {/* ── Sidebar ── */}
         <aside className="w-68 bg-card border-r border-border flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
           <div className="p-3 border-b border-border sticky top-0 bg-card z-10">
@@ -589,18 +659,21 @@ export function DocsPortalPage() {
           {activeSection === "overview" && (
             <div className="space-y-6">
               <SectionHeader num="1" title="System Overview & Executive Metrics"
-                subtitle="Live counts derived from source code and forensic audit pass 2 (September 26, 2026)." />
+                subtitle="Live counts dynamically verified against 94 active Express router modules and PostgreSQL/MySQL Prisma schema." />
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: "Working Modules", val: `${system.workingModulesCount}/${system.totalModulesCount}`, sub: `${system.partialModulesCount} partial/gaps`, color: "emerald" },
-                  { label: "Function Health", val: `${system.workingFunctionsCount}/${system.totalFunctionsCount}`, sub: `${system.functionCompletionPct}% functional`, color: "blue" },
-                  { label: "REST Endpoints", val: system.backendEndpointsCount, sub: "43 Express router files", color: "purple" },
-                  { label: "Prisma Models", val: system.databaseModelsCount, sub: "Strict tenant_id isolation", color: "amber" },
-                ].map(({ label, val, sub, color }) => (
-                  <Card key={label} className="bg-card border-border shadow-xs">
+                  { id: "modules", label: "Working Modules", val: `${system.workingModulesCount}/${system.totalModulesCount}`, sub: `${system.partialModulesCount} partial/gaps`, color: "emerald" },
+                  { id: "modules", label: "Function Health", val: `${system.workingFunctionsCount}/${system.totalFunctionsCount}`, sub: `${system.functionCompletionPct}% functional`, color: "blue" },
+                  { id: "rest-api", label: "REST Endpoints", val: system.backendEndpointsCount, sub: "94 Express router files", color: "purple" },
+                  { id: "database", label: "Prisma Models", val: system.databaseModelsCount, sub: "Strict tenant_id isolation", color: "amber" },
+                ].map(({ id, label, val, sub, color }) => (
+                  <Card key={label} onClick={() => setActiveSection(id)} className="bg-card border-border shadow-xs cursor-pointer hover:border-primary/50 transition-all">
                     <CardContent className="p-4">
-                      <div className={`text-xs text-${color}-600 dark:text-${color}-400 font-semibold uppercase tracking-wider`}>{label}</div>
+                      <div className={`text-xs text-${color}-600 dark:text-${color}-400 font-semibold uppercase tracking-wider flex items-center justify-between`}>
+                        <span>{label}</span>
+                        <ChevronRight className="h-3 w-3 opacity-60" />
+                      </div>
                       <div className="text-2xl font-bold text-foreground mt-1">{val}</div>
                       <div className={`text-[11px] text-${color}-600/80 dark:text-${color}-400/70 mt-1`}>{sub}</div>
                     </CardContent>
@@ -622,13 +695,13 @@ export function DocsPortalPage() {
                     </div>
                     <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-lg">
                       {[
-                        { id: "all", label: "All Roles", count: endpoints.length || 433 },
-                        { id: "super_admin", label: "Super Admin", count: 13 },
-                        { id: "tenant_admin", label: "Tenant Admin", count: 420 },
-                        { id: "hr_manager", label: "HR Manager", count: 82 },
-                        { id: "accountant", label: "Accountant", count: 37 },
-                        { id: "cashier", label: "Cashier", count: 36 },
-                        { id: "employee", label: "Employee ESS", count: 4 },
+                        { id: "all", label: "All Roles", count: roleCounts.all },
+                        { id: "super_admin", label: "Super Admin", count: roleCounts.super_admin },
+                        { id: "tenant_admin", label: "Tenant Admin", count: roleCounts.tenant_admin },
+                        { id: "hr_manager", label: "HR Manager", count: roleCounts.hr_manager },
+                        { id: "accountant", label: "Accountant", count: roleCounts.accountant },
+                        { id: "cashier", label: "Cashier", count: roleCounts.cashier },
+                        { id: "employee", label: "Employee ESS", count: roleCounts.employee },
                       ].map(r => (
                         <button
                           key={r.id}
@@ -2369,11 +2442,11 @@ pm2 start server/dist/index.js --name "master-hrms-api" -i max
           {/* ──────────────────────────────────────── 21. MISSING */}
           {activeSection === "missing-features" && (
             <div className="space-y-5">
-              <SectionHeader num="21" title="Missing Functionality & Gap Resolution Ledger"
-                subtitle="All previously identified missing functions have been implemented, connected to real Prisma MySQL transactions, and verified." />
-              <div className="p-3 rounded-lg border bg-emerald-950/20 border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                <span><strong>100% Core Completion:</strong> 0 missing functions remaining. All 5 critical audited feature gaps have been built, isolated with <code>tenantId</code>, and locked in production.</span>
+              <SectionHeader num="21" title="Feature Implementation Status & Verification Ledger"
+                subtitle="Core enterprise engines audited against PostgreSQL multi-tenant isolation, statutory rules, and security guards." />
+              <div className="p-3 rounded-lg border bg-blue-950/20 border-blue-500/30 text-blue-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0" />
+                <span><strong>Core Engines Verified:</strong> Previously identified internal feature gaps implemented and secured. Multi-tenant SaaS platform controls (Host binding, docs protection, product entitlements) active.</span>
               </div>
               <div className="space-y-3">
                 {[

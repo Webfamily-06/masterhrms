@@ -125,6 +125,26 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
   const isOkrUnlocked = isAddonUnlocked("okr-performance") || isAddonUnlocked("okr");
   const isAssetsUnlocked = isAddonUnlocked("asset-management") || isAddonUnlocked("assets");
 
+  const isPosUnlocked = Boolean(
+    profile?.roles?.includes("super_admin") ||
+    profile?.enabledModules?.includes("pos") ||
+    profile?.enabledModules?.includes("product_pos") ||
+    profile?.enabledModules?.includes("inventory")
+  );
+
+  const isFinanceUnlocked = Boolean(
+    profile?.roles?.includes("super_admin") ||
+    profile?.enabledModules?.includes("accounting") ||
+    profile?.enabledModules?.includes("finance") ||
+    profile?.enabledModules?.includes("product_finance")
+  );
+
+  const isCrmUnlocked = Boolean(
+    profile?.roles?.includes("super_admin") ||
+    profile?.enabledModules?.includes("crm") ||
+    profile?.enabledModules?.includes("product_crm")
+  );
+
   type NavItem = { title: string; url: string; icon: any };
   type NavGroup = { category: string; items: NavItem[] };
 
@@ -321,9 +341,9 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
                 </SidebarMenuItem>
               </Collapsible>
 
-              <SimpleNavItem item={{ title: "Point of Sale", url: "/pos", icon: ShoppingCart }} />
-              <SimpleNavItem item={{ title: "Accounting & Ledgers", url: "/accounting", icon: Landmark }} />
-              <SimpleNavItem item={{ title: "Products & Catalog", url: "/products", icon: Package }} />
+              {isPosUnlocked && <SimpleNavItem item={{ title: "Point of Sale", url: "/pos", icon: ShoppingCart }} />}
+              {isFinanceUnlocked && <SimpleNavItem item={{ title: "Accounting & Ledgers", url: "/accounting", icon: Landmark }} />}
+              {isPosUnlocked && <SimpleNavItem item={{ title: "Products & Catalog", url: "/products", icon: Package }} />}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -333,15 +353,13 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         <SidebarGroup className="p-0">
           <SidebarGroupContent>
             <SidebarMenu>
-              {[
-                { title: "Contacts CRM", url: "/contacts", icon: Users },
-                { title: "CRM Pipelines", url: "/crm", icon: Target },
-                { title: "Proposals", url: "/proposals", icon: FileText },
-                { title: "Invoices & Billing", url: "/invoices", icon: Receipt },
-                { title: "Returns & Notes", url: "/returns", icon: RotateCcw },
-                { title: "Projects & Tasks", url: "/projects", icon: Kanban },
-                { title: "Team Chat", url: "/chat", icon: MessageSquare },
-              ].map((item) => <SimpleNavItem key={item.url} item={item} />)}
+              {isCrmUnlocked && <SimpleNavItem item={{ title: "Contacts CRM", url: "/contacts", icon: Users }} />}
+              {isCrmUnlocked && <SimpleNavItem item={{ title: "CRM Pipelines", url: "/crm", icon: Target }} />}
+              {isCrmUnlocked && <SimpleNavItem item={{ title: "Proposals", url: "/proposals", icon: FileText }} />}
+              {isFinanceUnlocked && <SimpleNavItem item={{ title: "Invoices & Billing", url: "/invoices", icon: Receipt }} />}
+              {isPosUnlocked && <SimpleNavItem item={{ title: "Returns & Notes", url: "/returns", icon: RotateCcw }} />}
+              <SimpleNavItem item={{ title: "Projects & Tasks", url: "/projects", icon: Kanban }} />
+              <SimpleNavItem item={{ title: "Team Chat", url: "/chat", icon: MessageSquare }} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

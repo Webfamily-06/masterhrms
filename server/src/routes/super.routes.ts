@@ -194,6 +194,28 @@ superRouter.post("/impersonate/:tenantId", requireAuth, requireSuperAdmin, async
       impersonatorEmail: req.user!.email,
     });
 
+    // Record explicit audit log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          actorId: req.user!.userId,
+          actorEmail: req.user!.email,
+          action: "SUPER_ADMIN_IMPERSONATION_STARTED",
+          entityType: "Tenant",
+          entityId: tenant.id,
+          ipAddress: req.ip || null,
+          afterJson: {
+            impersonatedTenantSlug: tenant.slug,
+            impersonatedTenantName: tenant.name,
+            host: req.headers.host,
+          },
+        },
+      });
+    } catch (auditErr: any) {
+      console.warn("[SuperImpersonate] Audit log warning:", auditErr?.message);
+    }
+
     return res.json({
       success: true,
       message: `Entering ${tenant.name} workspace as impersonator`,
@@ -260,6 +282,28 @@ superRouter.post("/leave-impersonation", requireAuth, requireSuperAdmin, async (
       tenantId: null,
       roles: roles.length ? roles : ["super_admin"],
     });
+
+    // Record explicit audit log
+    try {
+      if (req.user.tenantId) {
+        await prisma.auditLog.create({
+          data: {
+            tenantId: req.user.tenantId,
+            actorId: superAdminUser.id,
+            actorEmail: superAdminUser.email,
+            action: "SUPER_ADMIN_IMPERSONATION_ENDED",
+            entityType: "Tenant",
+            entityId: req.user.tenantId,
+            ipAddress: req.ip || null,
+            afterJson: {
+              host: req.headers.host,
+            },
+          },
+        });
+      }
+    } catch (auditErr: any) {
+      console.warn("[SuperLeaveImpersonation] Audit log warning:", auditErr?.message);
+    }
 
     return res.json({
       success: true,

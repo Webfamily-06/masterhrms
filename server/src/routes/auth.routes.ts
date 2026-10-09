@@ -296,8 +296,10 @@ authRouter.post("/register", async (req, res) => {
       const validation = validateWorkspaceSlug(trimmedSlug);
       if (!validation.valid) {
         return res.status(400).json({
-          error: `Invalid workspace name: ${validation.reason}`,
-          code: "INVALID_SLUG",
+          error: validation.reason === "reserved"
+            ? `Workspace name '${trimmedSlug}' is reserved by the platform. Please choose another.`
+            : `Invalid workspace name: ${validation.reason}`,
+          code: validation.reason === "reserved" ? "RESERVED_SLUG" : "INVALID_SLUG",
           reason: validation.reason,
         });
       }
@@ -1273,29 +1275,96 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
     let enabledModules: string[] = [];
     let allowedDashboards: string[] = [];
 
-    if (tenantId) {
-      const tenantMods = await db.tenantModule.findMany({
-        where: { tenantId },
-      });
-      const disabledKeySet = new Set(
-        tenantMods.filter((m) => !m.isEnabled).map((m) => m.moduleKey)
-      );
-      enabledModules = ERP_MODULES.filter((m) => !disabledKeySet.has(m.key)).map((m) => m.key);
+    const isSuper = roles.includes("super_admin");
 
-      const isSuper = roles.includes("super_admin");
+    if (isSuper) {
+      const allPerms = await db.permission.findMany({ select: { code: true } });
+      permissions = allPerms.map((p) => p.code);
+      workspaceRole = {
+        id: "super_admin_role",
+        name: "Super Administrator",
+        description: "Global Platform Administrator with full system control",
+        isActive: true,
+        isSystem: true,
+      };
+      allowedDashboards = ERP_MODULES.map((m) => m.key);
+      enabledModules = ERP_MODULES.map((m) => m.key);
+    } else if (tenantId) {
+        const tenantMods = await db.tenantModule.findMany({
+          where: { tenantId },
+        });
+        const disabledKeySet = new Set(
+          tenantMods.filter((m) => !m.isEnabled).map((m) => m.moduleKey)
+        );
+        const explicitlyEnabledSet = new Set(
+          tenantMods.filter((m) => m.isEnabled).map((m) => m.moduleKey)
+        );
 
-      if (isSuper) {
-        const allPerms = await db.permission.findMany({ select: { code: true } });
-        permissions = allPerms.map((p) => p.code);
-        workspaceRole = {
-          id: "super_admin_role",
-          name: "Super Administrator",
-          description: "Global Platform Administrator with full system control",
-          isActive: true,
-          isSystem: true,
+        // Active subscription & plan feature entitlement resolution
+        const sub = await db.tenantSubscription.findFirst({
+          where: {
+            tenantId,
+            status: { in: ["active", "trialing", "trial"] },
+          },
+          orderBy: { createdAt: "desc" },
+          include: { plan: true },
+        });
+
+        const isSubActive = Boolean(sub && (!sub.expiresAt || new Date(sub.expiresAt) > new Date()));
+        const isSovereignOrGrowth = isSubActive && Boolean(
+          sub?.plan && (
+            sub.plan.id === "sovereign" ||
+            sub.plan.id === "growth" ||
+            (sub.plan.name || "").toLowerCase().includes("sovereign") ||
+            (sub.plan.name || "").toLowerCase().includes("growth enterprise")
+          )
+        );
+
+        const planFeatures: string[] = (isSubActive && sub?.plan && Array.isArray(sub.plan.features))
+          ? (sub.plan.features as any[]).map((f) => String(f).toLowerCase())
+          : [];
+        const includedAddonIds: string[] = (isSubActive && sub?.plan && Array.isArray(sub.plan.includedAddonIds))
+          ? (sub.plan.includedAddonIds as any[]).map((a) => String(a).toLowerCase())
+          : [];
+
+        const tenantAddons = await db.tenantAddon.findMany({
+          where: {
+            tenantId,
+            status: { in: ["active", "trial"] },
+          },
+        });
+        const activeAddonSlugs = new Set(
+          tenantAddons
+            .filter((a) => !a.trialEndsAt || new Date(a.trialEndsAt) > new Date())
+            .map((a) => a.addonSlug.toLowerCase())
+        );
+
+        const isPlanEntitled = (modKey: string): boolean => {
+          if (isSovereignOrGrowth) return true;
+          if (activeAddonSlugs.has(modKey) || activeAddonSlugs.has(`product_${modKey}`)) return true;
+          if (includedAddonIds.includes(modKey) || includedAddonIds.includes(`product_${modKey}`)) return true;
+
+          if (modKey === "pos") return planFeatures.some((f) => f.includes("pos"));
+          if (modKey === "inventory") return planFeatures.some((f) => f.includes("inventory") || f.includes("pos"));
+          if (modKey === "crm") return planFeatures.some((f) => f.includes("crm"));
+          if (modKey === "finance") return planFeatures.some((f) => f.includes("financial") || f.includes("ledger") || f.includes("accounting") || f.includes("finance"));
+          if (modKey === "procurement") return planFeatures.some((f) => f.includes("procurement") || f.includes("purchase") || f.includes("inventory") || f.includes("pos"));
+          if (modKey === "project") return planFeatures.some((f) => f.includes("project"));
+          if (modKey === "support") return planFeatures.some((f) => f.includes("support"));
+          if (modKey === "analytics") return planFeatures.some((f) => f.includes("analytics") || f.includes("bi") || f.includes("report"));
+
+          return false;
         };
-        allowedDashboards = ERP_MODULES.map((m) => m.key);
-      } else {
+
+        const CORE_PLATFORM_MODULES = new Set(["hrm", "project", "support", "analytics"]);
+
+        enabledModules = ERP_MODULES.filter((m) => {
+          if (disabledKeySet.has(m.key) || disabledKeySet.has(`product_${m.key}`)) return false;
+          if (explicitlyEnabledSet.has(m.key) || explicitlyEnabledSet.has(`product_${m.key}`)) return true;
+          if (isPlanEntitled(m.key)) return true;
+          if (CORE_PLATFORM_MODULES.has(m.key)) return true;
+          return false;
+        }).map((m) => m.key);
         let assignment = await db.userRoleAssignment.findUnique({
           where: {
             userId_tenantId: {
@@ -1382,7 +1451,6 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
           return isModEnabled && hasDashboardPerm;
         }).map((m) => m.key);
       }
-    }
 
     return res.json({
       id: user!.id,

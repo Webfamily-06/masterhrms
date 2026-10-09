@@ -2,10 +2,23 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { requireEntitlement } from "../middleware/entitlements";
 import { broadcastToTenant } from "../socket";
 import { parsePaginationParams, formatPaginatedResponse, parsePagination, paginate } from "../lib/pagination";
 
 export const crmRouter = Router();
+
+// Enforce Product CRM Entitlement on all authenticated workspace CRM operations
+crmRouter.use((req, res, next) => {
+  const p = req.path || req.url || "";
+  if (p.startsWith("/proposals/public")) {
+    return next();
+  }
+  return requireAuth(req as any, res, (err?: any) => {
+    if (err) return next(err);
+    return requireEntitlement("product_crm")(req as any, res, next);
+  });
+});
 
 // ==========================================
 // CRM LEADS (Relational MySQL backed)

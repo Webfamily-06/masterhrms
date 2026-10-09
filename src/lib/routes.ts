@@ -266,6 +266,8 @@ export const ROUTES = {
     invoices: "/super/invoices",
     domains: "/super/domains",
     settings: "/super/settings",
+    developer: "/super/developer",
+    docs: "/super/docs",
   },
 } as const;
 

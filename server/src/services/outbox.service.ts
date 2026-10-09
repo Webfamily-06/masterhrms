@@ -107,6 +107,7 @@ export class OutboxService {
         where: {
           status: "PENDING",
           retryCount: { lt: 5 },
+          eventType: { notIn: ["COMMERCE_ORDER_PAID"] },
         },
         orderBy: { createdAt: "asc" },
         take: batchSize,

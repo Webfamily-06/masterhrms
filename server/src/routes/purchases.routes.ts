@@ -9,6 +9,7 @@ import { parsePaginationParams, formatPaginatedResponse } from "../lib/paginatio
 import { InventoryMovementService } from "../services/inventory-movement.service";
 import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
 import { InsufficientStockError } from "../services/inventory-movement.errors";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const purchasesRouter = Router();
 
@@ -27,8 +28,8 @@ class PurchaseStatusRaceError extends Error {
   }
 }
 
-// Enforce Request-Scoped Tenant Context on all purchase endpoints
-purchasesRouter.use(requireAuth, resolveTenantContext);
+// Enforce Request-Scoped Tenant Context and Product POS Entitlement on all purchase endpoints
+purchasesRouter.use(requireAuth, resolveTenantContext, requireEntitlement("product_pos"));
 
 /**
  * GET /api/purchases

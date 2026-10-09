@@ -5,11 +5,12 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { resolveTenantId } from "../lib/tenant";
 
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const suppliersRouter = Router();
 
-// Enforce Request-Scoped Tenant Context on all supplier endpoints
-suppliersRouter.use(requireAuth, resolveTenantContext);
+// Enforce Request-Scoped Tenant Context and Product POS Entitlement on all supplier endpoints
+suppliersRouter.use(requireAuth, resolveTenantContext, requireEntitlement("product_pos"));
 
 /**
  * GET /api/suppliers

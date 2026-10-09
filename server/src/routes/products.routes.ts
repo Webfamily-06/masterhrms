@@ -7,11 +7,12 @@ import { parsePaginationParams, formatPaginatedResponse } from "../lib/paginatio
 import { InventoryMovementService } from "../services/inventory-movement.service";
 import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
 import { requireWithinLimit } from "../middleware/limits";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const productsRouter = Router();
 
-// Enforce Request-Scoped Tenant Context on all product catalog & inventory endpoints
-productsRouter.use(requireAuth, resolveTenantContext);
+// Enforce Request-Scoped Tenant Context and Product POS Entitlement on all product catalog & inventory endpoints
+productsRouter.use(requireAuth, resolveTenantContext, requireEntitlement("product_pos"));
 
 // Helper to ensure default warehouse exists
 async function ensureDefaultWarehouse(tenantId: string) {

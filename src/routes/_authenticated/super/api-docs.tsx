@@ -79,7 +79,10 @@ export function ApiDocsAdminStudio() {
   const { data: metadata, isLoading: isMetadataLoading, refetch: refetchMetadata } = useQuery({
     queryKey: ["super-api-docs-metadata"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/docs/metadata`);
+      const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/docs/metadata`, { headers });
       if (!res.ok) throw new Error("Failed to load metadata");
       return res.json();
     },

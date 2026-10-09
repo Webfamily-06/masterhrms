@@ -76,6 +76,7 @@ import { calendarRouter } from "./routes/calendar.routes";
 import { requireActiveSubscription } from "./middleware/subscription";
 import { maintenanceMiddleware } from "./middleware/maintenance";
 import { billingRouter, handleRazorpayWebhook } from "./routes/billing.routes";
+import { commerceRouter } from "./routes/commerce.routes";
 import { timesheetsRouter } from "./routes/timesheets.routes";
 import { settingsRouter } from "./routes/settings.routes";
 import { mediaRouter } from "./routes/media.routes";
@@ -188,6 +189,7 @@ app.use("/api/company-profile", companyProfileRouter);
 
 // Mount Routes
 app.use("/api/billing", billingRouter);
+app.use("/api/commerce", commerceRouter);
 app.post("/api/webhooks/razorpay", handleRazorpayWebhook);
 app.use("/api/auth", authRouter);
 app.use("/api/workspace/custom-domain", tenantDomainRouter);

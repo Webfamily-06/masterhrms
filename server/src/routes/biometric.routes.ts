@@ -2,6 +2,8 @@ import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Request, Response } from "express";
 import { prisma, rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireEntitlement } from "../middleware/entitlements";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { broadcastToTenant } from "../socket";
 import crypto from "crypto";
 import net from "net";
@@ -296,6 +298,9 @@ export async function processBiometricPunch({
 
   return Object.assign(punchLog, { isDuplicate: false });
 }
+// Enforce Biometric Cloud Sync Add-on Entitlement on all management endpoints
+biometricRouter.use(requireAuth, resolveTenantContext, requireEntitlement("biometric-sync"));
+
 /**
  * GET /api/biometric/devices
  * List all real biometric terminals registered for tenant

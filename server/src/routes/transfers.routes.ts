@@ -6,11 +6,12 @@ import { InventoryMovementService } from "../services/inventory-movement.service
 import { InsufficientStockError } from "../services/inventory-movement.errors";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const transfersRouter = Router();
 
-// Enforce Request-Scoped Tenant Context on all stock transfer endpoints
-transfersRouter.use(requireAuth, resolveTenantContext);
+// Enforce Request-Scoped Tenant Context and Product POS Entitlement on all stock transfer endpoints
+transfersRouter.use(requireAuth, resolveTenantContext, requireEntitlement("product_pos"));
 
 /**
  * GET /api/transfers

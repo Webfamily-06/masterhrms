@@ -5,11 +5,12 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { assertOpenPeriodForPosting, PeriodPostingError, parseAccountingDate } from "../services/fiscal-period.service";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const accountingRouter = Router();
 
-// Enforce Request-Scoped Tenant Context on all accounting endpoints
-accountingRouter.use(requireAuth, resolveTenantContext);
+// Enforce Request-Scoped Tenant Context and Product Finance Entitlement on all accounting endpoints
+accountingRouter.use(requireAuth, resolveTenantContext, requireEntitlement("product_finance"));
 
 // Standard 17 Seed Accounts
 const DEFAULT_ACCOUNTS = [

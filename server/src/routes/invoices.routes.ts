@@ -13,16 +13,20 @@ import {
   calculateNextBillingDate,
 } from "../services/recurring-invoice.service";
 import { CompanyProfileService } from "../services/company-profile/company-profile.service";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const invoicesRouter = Router();
 
-// Enforce requireAuth and resolveTenantContext on all non-public invoice routes
+// Enforce requireAuth, resolveTenantContext, and product_finance entitlement on all non-public invoice routes
 invoicesRouter.use((req, res, next) => {
   if (req.path.startsWith("/public")) {
     return next();
   }
   return requireAuth(req as AuthRequest, res, () => {
-    return resolveTenantContext(req as any, res, next);
+    return resolveTenantContext(req as any, res, (err?: any) => {
+      if (err) return next(err);
+      return requireEntitlement("product_finance")(req as any, res, next);
+    });
   });
 });
 

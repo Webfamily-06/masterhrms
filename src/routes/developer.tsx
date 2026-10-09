@@ -17,6 +17,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { WebApisRuntimePanel } from "@/components/web-apis/web-apis-panel";
 import {
   Terminal, Code, Layers, Database, ShieldCheck, Activity, Play, Copy,
   CheckCircle2, AlertTriangle, XCircle, Search, Server, Workflow, Radio, Download,
@@ -376,6 +377,7 @@ export function DeveloperPanelPage() {
             { id: "auth-guide", label: "Auth Guide", icon: Key },
             { id: "permissions", label: "Permissions & RBAC", icon: ShieldCheck },
             { id: "integrations", label: "Integration Explorer", icon: Network },
+            { id: "web-apis", label: "Web APIs Runtime", icon: Sparkles, count: 8 },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1484,6 +1486,15 @@ Content-Type: application/json`}
                     </Card>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════
+                TAB 9: WEB APIS RUNTIME
+            ══════════════════════════════════════════════ */}
+            {activeTab === "web-apis" && (
+              <div className="max-w-7xl mx-auto">
+                <WebApisRuntimePanel />
               </div>
             )}
           </>

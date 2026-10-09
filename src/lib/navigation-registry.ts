@@ -1629,10 +1629,19 @@ export function getNavigationForPortal(
     // 1. Portal match
     if (item.portal !== portal) return false;
 
-    // 2. Tenant Module enablement
-    if (item.moduleKey && enabledModules.length > 0) {
-      if (!enabledModules.includes(item.moduleKey)) {
-        return false;
+    // 2. Tenant Module / Entitlement enablement
+    const modKey = item.moduleKey || item.module;
+    if (modKey && !isSuperAdmin) {
+      const isCore = ["core", "overview", "settings"].includes(modKey);
+      if (!isCore && enabledModules && enabledModules.length > 0) {
+        const isEnabled =
+          enabledModules.includes(modKey) ||
+          (modKey === "crm" && enabledModules.includes("product_crm")) ||
+          (modKey === "pos" && (enabledModules.includes("product_pos") || enabledModules.includes("inventory"))) ||
+          (modKey === "accounting" && (enabledModules.includes("finance") || enabledModules.includes("product_finance")));
+        if (!isEnabled) {
+          return false;
+        }
       }
     }
 
@@ -1662,8 +1671,17 @@ export function getNavigationForPortal(
 
     // Filter child items
     const visibleChildren = item.children.filter((child) => {
-      if (child.moduleKey && enabledModules.length > 0) {
-        if (!enabledModules.includes(child.moduleKey)) return false;
+      const childModKey = child.moduleKey || child.module;
+      if (childModKey && !isSuperAdmin) {
+        const isCore = ["core", "overview", "settings"].includes(childModKey);
+        if (!isCore && enabledModules && enabledModules.length > 0) {
+          const isEnabled =
+            enabledModules.includes(childModKey) ||
+            (childModKey === "crm" && enabledModules.includes("product_crm")) ||
+            (childModKey === "pos" && (enabledModules.includes("product_pos") || enabledModules.includes("inventory"))) ||
+            (childModKey === "accounting" && (enabledModules.includes("finance") || enabledModules.includes("product_finance")));
+          if (!isEnabled) return false;
+        }
       }
       if (child.roles && child.roles.length > 0 && !isSuperAdmin && !isTenantAdmin) {
         if (!child.roles.some((r) => roles.includes(r))) return false;

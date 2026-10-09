@@ -45,10 +45,63 @@ import { SuspendedAccountView } from "@/components/subscription/suspended-accoun
 import { ExpiredSubscriptionView } from "@/components/subscription/expired-subscription-view";
 import { SubscriptionWarningPopup } from "@/components/subscription/subscription-warning-popup";
 import { SubscriptionFooterBar } from "@/components/subscription/subscription-footer-bar";
+import { ProductNotSubscribed } from "@/components/product-not-subscribed";
 
 export const Route = createFileRoute("/_authenticated/_app")({
   component: AppShell,
 });
+
+const CRM_ROUTE_PREFIXES = [
+  "/crm",
+  "/crm-dashboard",
+  "/deals-dashboard",
+  "/leads-dashboard",
+  "/contacts",
+  "/companies",
+  "/proposals",
+  "/pipeline",
+  "/campaigns",
+];
+
+const POS_ROUTE_PREFIXES = [
+  "/pos",
+  "/pos-dashboard",
+  "/inventory-dashboard",
+  "/products",
+  "/purchases",
+  "/transfers",
+  "/adjustments",
+  "/suppliers",
+  "/store",
+  "/returns",
+];
+
+const FINANCE_ROUTE_PREFIXES = [
+  "/accounting",
+  "/finance-dashboard",
+  "/invoices",
+  "/recurring-invoices",
+  "/budgets",
+  "/taxes",
+  "/currencies",
+];
+
+const HRMS_ADMIN_ROUTE_PREFIXES = [
+  "/hr",
+  "/hrm-dashboard",
+  "/payroll-dashboard",
+  "/recruitment-dashboard",
+  "/learning-analytics",
+  "/asset-dashboard",
+  "/it-admin-dashboard",
+  "/help-desk-dashboard",
+  "/biometric",
+  "/biometric-sync",
+];
+
+function isPathMatchingPrefixes(pathname: string, prefixes: string[]) {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 
 const ALL_SEARCH_ITEMS = [
   { title: "HRM Dashboard", url: "/hrm-dashboard", group: "ERP Core", icon: Home },
@@ -171,15 +224,49 @@ export function AppShell() {
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
   const isHrAdmin = userRoles.some((r) => ["hr_admin", "hr"].includes(r));
+
+  const enabledModules = profile?.enabledModules || (profile as any)?.tenant?.enabledModules || [];
+
+  const isPosEntitled = isSuperAdmin ||
+    enabledModules.includes("pos") ||
+    enabledModules.includes("product_pos") ||
+    enabledModules.includes("inventory");
+
+  const isFinanceEntitled = isSuperAdmin ||
+    enabledModules.includes("accounting") ||
+    enabledModules.includes("finance") ||
+    enabledModules.includes("product_finance");
+
+  const isCrmEntitled = isSuperAdmin ||
+    enabledModules.includes("crm") ||
+    enabledModules.includes("product_crm");
+
+  const isHrmsEntitled = isSuperAdmin ||
+    enabledModules.length === 0 ||
+    enabledModules.includes("hrm") ||
+    enabledModules.includes("hrms") ||
+    enabledModules.includes("product_hrms");
+
+  const isCrmRoute = isPathMatchingPrefixes(path, CRM_ROUTE_PREFIXES);
+  const isPosRoute = isPathMatchingPrefixes(path, POS_ROUTE_PREFIXES);
+  const isFinanceRoute = isPathMatchingPrefixes(path, FINANCE_ROUTE_PREFIXES);
+  const isHrmsAdminRoute = isPathMatchingPrefixes(path, HRMS_ADMIN_ROUTE_PREFIXES);
+
   const homeRoute = isSuperAdmin
     ? "/super"
     : isClientOnly
       ? "/client-dashboard"
       : isEmployeeOnly
         ? "/me/dashboard"
-        : isHrAdmin
-          ? "/hr/dashboard"
-          : "/hrm-dashboard";
+        : isHrmsEntitled
+          ? (isHrAdmin ? "/hr/dashboard" : "/hrm-dashboard")
+          : isPosEntitled
+            ? "/pos-dashboard"
+            : isCrmEntitled
+              ? "/crm-dashboard"
+              : isFinanceEntitled
+                ? "/finance-dashboard"
+                : "/hrm-dashboard";
   const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
   const { data: subscription, isLoading: isSubLoading, refetch: reloadSubscription } = useQuery({
@@ -945,6 +1032,30 @@ export function AppShell() {
             <AccessDenied
               moduleName="Tenant Workspace"
               message="Platform Super Administrators are restricted from accessing tenant-only workspaces. Please switch to the Platform Super Admin Console or sign in with authorized tenant credentials."
+            />
+          ) : isCrmRoute && !isCrmEntitled ? (
+            <ProductNotSubscribed
+              productName="Sales CRM & Pipeline Suite"
+              moduleKey="crm"
+              description="Your workspace does not have an active subscription for the Sales CRM product suite. Please upgrade your plan or activate product_crm to unlock Deals, Pipelines, Contacts, and Campaigns."
+            />
+          ) : isPosRoute && !isPosEntitled ? (
+            <ProductNotSubscribed
+              productName="Point of Sale & Inventory"
+              moduleKey="pos"
+              description="Your workspace does not have an active subscription for Point of Sale & Inventory. Please upgrade your plan or activate product_pos to unlock the POS terminal, Stock Management, and Procurement."
+            />
+          ) : isFinanceRoute && !isFinanceEntitled ? (
+            <ProductNotSubscribed
+              productName="Accounting & Financial Ledgers"
+              moduleKey="finance"
+              description="Your workspace does not have an active subscription for Financial Accounting. Please upgrade your plan or activate product_finance to unlock General Ledgers, Invoices, and Budgets."
+            />
+          ) : isHrmsAdminRoute && !isHrmsEntitled ? (
+            <ProductNotSubscribed
+              productName="HRMS Administration Suite"
+              moduleKey="hrms"
+              description="Your workspace does not have an active subscription for the Human Resource Management suite. Please upgrade your plan or activate product_hrms to access HR management."
             />
           ) : (
             <Outlet />

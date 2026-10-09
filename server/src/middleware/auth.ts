@@ -25,11 +25,68 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     const account = await (rawPrisma || prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
     if (!account) return res.status(401).json({ error: "Account no longer exists." });
     const isSuper = account.roles.some((r) => r.role === "super_admin");
-    // Constitutional Security: Tenant context must NEVER be overridable through untrusted client headers or query parameters
-    const tenantId = account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
+    const isImpersonating = Boolean((decoded as any).isImpersonating);
+
+    // Host-to-JWT Tenant Binding Enforcement
+    const resolvedTenant = (req as any).resolvedTenant;
+    let tenantId = account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
+
+    if (resolvedTenant) {
+      if (!isSuper && !isImpersonating) {
+        // Strict isolation: non-super-admin tokens cannot access a foreign host workspace
+        if (tenantId && tenantId !== resolvedTenant.id) {
+          return res.status(403).json({
+            error: "Tenant host mismatch: Authenticated workspace does not match the requested host workspace.",
+            code: "TENANT_HOST_MISMATCH",
+            hostTenantId: resolvedTenant.id,
+            hostSlug: resolvedTenant.slug,
+            tokenTenantId: tenantId,
+          });
+        }
+      } else if (isImpersonating) {
+        // Impersonated tokens must match the target host workspace
+        const targetTenantId = decoded.tenantId || tenantId;
+        if (targetTenantId && targetTenantId !== resolvedTenant.id) {
+          return res.status(403).json({
+            error: "Tenant host mismatch: Impersonation token is not valid for this host workspace.",
+            code: "TENANT_HOST_MISMATCH",
+            hostTenantId: resolvedTenant.id,
+            hostSlug: resolvedTenant.slug,
+            tokenTenantId: targetTenantId,
+          });
+        }
+      } else if (isSuper) {
+        // Explicit audited Super Admin access to tenant workspace
+        tenantId = resolvedTenant.id;
+        try {
+          const db = rawPrisma || prisma;
+          await db.auditLog.create({
+            data: {
+              tenantId: resolvedTenant.id,
+              actorId: userId,
+              actorEmail: account.email,
+              action: "SUPER_ADMIN_WORKSPACE_ACCESS",
+              entityType: "Tenant",
+              entityId: resolvedTenant.id,
+              ipAddress: req.ip || null,
+              afterJson: {
+                host: req.headers.host,
+                path: req.originalUrl,
+                method: req.method,
+                accessType: "direct_super_admin",
+              },
+            },
+          });
+        } catch (auditErr: any) {
+          console.warn("[requireAuth] Super admin host audit record error:", auditErr?.message);
+        }
+      }
+    }
+
     const roles = account.roles.filter((r) => r.role === "super_admin" || r.tenantId === tenantId).map((r) => r.role);
     const isSafeRoute =
       req.originalUrl?.startsWith("/api/billing") ||
+      req.originalUrl?.startsWith("/api/commerce") ||
       req.originalUrl?.startsWith("/api/auth") ||
       req.originalUrl?.startsWith("/api/webhooks") ||
       req.originalUrl?.startsWith("/api/workspace/subscription");
@@ -55,6 +112,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       userId,
       tenantId: tenantId ?? null,
       roles,
+      isImpersonating,
     };
     (req.user as any).id = userId;
     next();

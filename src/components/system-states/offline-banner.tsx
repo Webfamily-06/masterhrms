@@ -3,10 +3,13 @@ import { WifiOff, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+import { useOfflineQueue } from "@/hooks/web-apis";
+
 export function OfflineBanner() {
   const [isOffline, setIsOffline] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [checking, setChecking] = useState(false);
+  const { queueCount, isReplaying, replay } = useOfflineQueue();
 
   useEffect(() => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -39,6 +42,9 @@ export function OfflineBanner() {
       const res = await fetch("/api/health", { cache: "no-store" });
       if (res.ok) {
         setIsOffline(false);
+        if (queueCount > 0) {
+          await replay();
+        }
         toast.success("Connected to server successfully!");
         return;
       }
@@ -55,7 +61,14 @@ export function OfflineBanner() {
         <WifiOff className="size-4 shrink-0 animate-pulse text-amber-900" />
         <span>
           <strong>Offline Mode Active:</strong> You are currently disconnected from the server.
-          Changes are queued locally and will automatically sync when connection returns.
+          {queueCount > 0 ? (
+            <span className="ml-1 bg-amber-600/30 text-amber-950 font-bold px-1.5 py-0.5 rounded">
+              {queueCount} mutation{queueCount > 1 ? "s" : ""} queued locally
+            </span>
+          ) : (
+            " Changes are queued locally and will automatically sync when connection returns."
+          )}
+          {isReplaying && <span className="ml-1 font-bold animate-pulse text-amber-900"> (Syncing now...)</span>}
         </span>
       </div>
       <div className="flex items-center gap-2">

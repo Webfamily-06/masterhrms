@@ -123,6 +123,28 @@ export function DreamsSidebar({
         (p) => p.includes("assessment") || p.includes("recruitment") || p.includes("training")
       ));
 
+  const enabledModules = profile?.enabledModules || (profile as any)?.tenant?.enabledModules || [];
+
+  const isPosUnlocked = isSuperAdmin ||
+    enabledModules.includes("pos") ||
+    enabledModules.includes("product_pos") ||
+    enabledModules.includes("inventory");
+
+  const isFinanceUnlocked = isSuperAdmin ||
+    enabledModules.includes("accounting") ||
+    enabledModules.includes("finance") ||
+    enabledModules.includes("product_finance");
+
+  const isCrmUnlocked = isSuperAdmin ||
+    enabledModules.includes("crm") ||
+    enabledModules.includes("product_crm");
+
+  const isHrmsUnlocked = isSuperAdmin ||
+    enabledModules.length === 0 ||
+    enabledModules.includes("hrm") ||
+    enabledModules.includes("hrms") ||
+    enabledModules.includes("product_hrms");
+
   const homeRoute = isSuperAdmin
     ? "/super"
     : isClientOnly
@@ -1650,268 +1672,286 @@ export function DreamsSidebar({
             </li>
 
             {/* ===================== INVENTORY & PURCHASES ===================== */}
-            <li className="menu-title">
-              <span>POINT OF SALE & INVENTORY</span>
-            </li>
-            <li>
-              <Link
-                to="/pos"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/pos" && "active")}
-                title="POS Billing Terminal"
-                aria-label="POS Billing Terminal"
-              >
-                <i className="ph-duotone ph-shopping-cart" aria-hidden="true"></i>
-                <span>POS Terminal</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/products"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/products" && "active")}
-                title="Products & Warehouse Stock"
-                aria-label="Products and Warehouse Stock"
-              >
-                <i className="ph-duotone ph-cube" aria-hidden="true"></i>
-                <span>Products & Stock</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/transfers"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/transfers" && "active")}
-                title="Stock Transfers & In-Transit"
-                aria-label="Stock Transfers and In-Transit"
-              >
-                <i className="ph-duotone ph-arrows-left-right" aria-hidden="true"></i>
-                <span>Stock Transfers</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/adjustments"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/adjustments" && "active")}
-                title="Stock Adjustments & Audit"
-                aria-label="Stock Adjustments and Audit"
-              >
-                <i className="ph-duotone ph-sliders-horizontal" aria-hidden="true"></i>
-                <span>Stock Adjustments</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/store"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/store" && "active")}
-                title="Online Storefront Catalog"
-                aria-label="Online Storefront Catalog"
-              >
-                <i className="ph-duotone ph-storefront" aria-hidden="true"></i>
-                <span>Storefront Catalog</span>
-              </Link>
-            </li>
+            {isPosUnlocked && (
+              <>
+                <li className="menu-title">
+                  <span>POINT OF SALE & INVENTORY</span>
+                </li>
+                <li>
+                  <Link
+                    to="/pos"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/pos" && "active")}
+                    title="POS Billing Terminal"
+                    aria-label="POS Billing Terminal"
+                  >
+                    <i className="ph-duotone ph-shopping-cart" aria-hidden="true"></i>
+                    <span>POS Terminal</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/products"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/products" && "active")}
+                    title="Products & Warehouse Stock"
+                    aria-label="Products and Warehouse Stock"
+                  >
+                    <i className="ph-duotone ph-cube" aria-hidden="true"></i>
+                    <span>Products & Stock</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/transfers"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/transfers" && "active")}
+                    title="Stock Transfers & In-Transit"
+                    aria-label="Stock Transfers and In-Transit"
+                  >
+                    <i className="ph-duotone ph-arrows-left-right" aria-hidden="true"></i>
+                    <span>Stock Transfers</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/adjustments"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/adjustments" && "active")}
+                    title="Stock Adjustments & Audit"
+                    aria-label="Stock Adjustments and Audit"
+                  >
+                    <i className="ph-duotone ph-sliders-horizontal" aria-hidden="true"></i>
+                    <span>Stock Adjustments</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/store"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/store" && "active")}
+                    title="Online Storefront Catalog"
+                    aria-label="Online Storefront Catalog"
+                  >
+                    <i className="ph-duotone ph-storefront" aria-hidden="true"></i>
+                    <span>Storefront Catalog</span>
+                  </Link>
+                </li>
 
-            {/* ===================== PURCHASES & PROCUREMENT ===================== */}
-            <li className="menu-title">
-              <span>PROCUREMENT</span>
-            </li>
-            <li>
-              <Link
-                to="/purchases"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/purchases" && "active")}
-                title="Purchase Orders & Inward"
-                aria-label="Purchase Orders and Inward"
-              >
-                <i className="ph-duotone ph-truck" aria-hidden="true"></i>
-                <span>Purchase Orders</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/suppliers"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/suppliers" && "active")}
-              >
-                <i className="ph-duotone ph-buildings"></i>
-                <span>Supplier Master Directory</span>
-              </Link>
-            </li>
+                {/* ===================== PURCHASES & PROCUREMENT ===================== */}
+                <li className="menu-title">
+                  <span>PROCUREMENT</span>
+                </li>
+                <li>
+                  <Link
+                    to="/purchases"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/purchases" && "active")}
+                    title="Purchase Orders & Inward"
+                    aria-label="Purchase Orders and Inward"
+                  >
+                    <i className="ph-duotone ph-truck" aria-hidden="true"></i>
+                    <span>Purchase Orders</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/suppliers"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/suppliers" && "active")}
+                  >
+                    <i className="ph-duotone ph-buildings"></i>
+                    <span>Supplier Master Directory</span>
+                  </Link>
+                </li>
+              </>
+            )}
 
             {/* ===================== SALES & BILLING ===================== */}
-            <li className="menu-title">
-              <span>SALES & BILLING</span>
-            </li>
-            <li>
-              <Link
-                to="/contacts"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/contacts" && "active")}
-              >
-                <i className="ph-duotone ph-identification-badge"></i>
-                <span>Contacts CRM</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/companies"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/companies" && "active")}
-              >
-                <i className="ph-duotone ph-buildings"></i>
-                <span>CRM Companies</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/pipeline"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/pipeline" && "active")}
-              >
-                <i className="ph-duotone ph-git-branch"></i>
-                <span>Sales Pipelines</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/clients"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/clients" && "active")}
-              >
-                <i className="ph-duotone ph-users-three"></i>
-                <span>Clients Directory</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/crm"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/crm" && "active")}
-              >
-                <i className="ph-duotone ph-address-book"></i>
-                <span>Customers & CRM</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to={"/campaigns" as any}
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/campaigns" && "active")}
-              >
-                <i className="ph-duotone ph-megaphone"></i>
-                <span>Marketing Campaigns</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/invoices"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/invoices" && "active")}
-              >
-                <i className="ph-duotone ph-receipt"></i>
-                <span>Invoices & Billing</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to={"/recurring-invoices" as any}
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/recurring-invoices" && "active")}
-              >
-                <i className="ph-duotone ph-arrows-clockwise"></i>
-                <span>Recurring Invoices</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to={"/portal/invoices/INV-2026-001" as any}
-                onClick={onCloseMobile}
-                className={cn(currentPath.startsWith("/portal/invoices") && "active")}
-                title="Client Invoice Portal (B2B)"
-                aria-label="Client Invoice Portal B2B"
-              >
-                <i className="ph-duotone ph-arrow-square-out" aria-hidden="true"></i>
-                <span>Client Portal (B2B)</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/proposals"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/proposals" && "active")}
-              >
-                <i className="ph-duotone ph-notification"></i>
-                <span>Proposals & Quotes</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/accounting"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/accounting" && "active")}
-              >
-                <i className="ph-duotone ph-bank"></i>
-                <span>Ledgers & Accounting</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/budgets"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/budgets" && "active")}
-              >
-                <i className="ph-duotone ph-piggy-bank"></i>
-                <span>Budgets & Financial Plans</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/taxes"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/taxes" && "active")}
-              >
-                <i className="ph-duotone ph-percent"></i>
-                <span>Tax Rates & GST Slabs</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/currencies"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/currencies" && "active")}
-              >
-                <i className="ph-duotone ph-coins"></i>
-                <span>Currencies & FX</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/expenses"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/expenses" && "active")}
-              >
-                <i className="ph-duotone ph-wallet"></i>
-                <span>Expense Claims</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/suppliers"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/suppliers" && "active")}
-              >
-                <i className="ph-duotone ph-truck"></i>
-                <span>Suppliers & Vendors</span>
-              </Link>
-            </li>
+            {(isCrmUnlocked || isFinanceUnlocked) && (
+              <>
+                <li className="menu-title">
+                  <span>SALES & BILLING</span>
+                </li>
+                {isCrmUnlocked && (
+                  <>
+                    <li>
+                      <Link
+                        to="/contacts"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/contacts" && "active")}
+                      >
+                        <i className="ph-duotone ph-identification-badge"></i>
+                        <span>Contacts CRM</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/companies"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/companies" && "active")}
+                      >
+                        <i className="ph-duotone ph-buildings"></i>
+                        <span>CRM Companies</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/pipeline"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/pipeline" && "active")}
+                      >
+                        <i className="ph-duotone ph-git-branch"></i>
+                        <span>Sales Pipelines</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/clients"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/clients" && "active")}
+                      >
+                        <i className="ph-duotone ph-users-three"></i>
+                        <span>Clients Directory</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/crm"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/crm" && "active")}
+                      >
+                        <i className="ph-duotone ph-address-book"></i>
+                        <span>Customers & CRM</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to={"/campaigns" as any}
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/campaigns" && "active")}
+                      >
+                        <i className="ph-duotone ph-megaphone"></i>
+                        <span>Marketing Campaigns</span>
+                      </Link>
+                    </li>
+                  </>
+                )}
+                {isFinanceUnlocked && (
+                  <>
+                    <li>
+                      <Link
+                        to="/invoices"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/invoices" && "active")}
+                      >
+                        <i className="ph-duotone ph-receipt"></i>
+                        <span>Invoices & Billing</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to={"/recurring-invoices" as any}
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/recurring-invoices" && "active")}
+                      >
+                        <i className="ph-duotone ph-arrows-clockwise"></i>
+                        <span>Recurring Invoices</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to={"/portal/invoices/INV-2026-001" as any}
+                        onClick={onCloseMobile}
+                        className={cn(currentPath.startsWith("/portal/invoices") && "active")}
+                        title="Client Invoice Portal (B2B)"
+                        aria-label="Client Invoice Portal B2B"
+                      >
+                        <i className="ph-duotone ph-arrow-square-out" aria-hidden="true"></i>
+                        <span>Client Portal (B2B)</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/proposals"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/proposals" && "active")}
+                      >
+                        <i className="ph-duotone ph-notification"></i>
+                        <span>Proposals & Quotes</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/accounting"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/accounting" && "active")}
+                      >
+                        <i className="ph-duotone ph-bank"></i>
+                        <span>Ledgers & Accounting</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/budgets"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/budgets" && "active")}
+                      >
+                        <i className="ph-duotone ph-piggy-bank"></i>
+                        <span>Budgets & Financial Plans</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/taxes"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/taxes" && "active")}
+                      >
+                        <i className="ph-duotone ph-percent"></i>
+                        <span>Tax Rates & GST Slabs</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/currencies"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/currencies" && "active")}
+                      >
+                        <i className="ph-duotone ph-coins"></i>
+                        <span>Currencies & FX</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/expenses"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/expenses" && "active")}
+                      >
+                        <i className="ph-duotone ph-wallet"></i>
+                        <span>Expense Claims</span>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/suppliers"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/suppliers" && "active")}
+                      >
+                        <i className="ph-duotone ph-truck"></i>
+                        <span>Suppliers & Vendors</span>
+                      </Link>
+                    </li>
+                  </>
+                )}
+              </>
+            )}
 
             {/* ===================== HRM SUITE ===================== */}
-            <li className="menu-title">
-              <span>HRM SUITE</span>
-            </li>
+            {isHrmsUnlocked && (
+              <>
+                <li className="menu-title">
+                  <span>HRM SUITE</span>
+                </li>
             <li>
               <Link
                 to={isAdminOrSuper ? "/hr/dashboard" : "/me/dashboard"}
@@ -2353,6 +2393,8 @@ export function DreamsSidebar({
                 </li>
               </ul>
             </li>
+          </>
+        )}
 
             {/* ===================== EXTENSIONS ===================== */}
             <li className="menu-title">

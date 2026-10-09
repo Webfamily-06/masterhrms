@@ -84,6 +84,15 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
       });
     }
 
+    // Provision accounting entitlement for both test tenants
+    for (const tId of [tenantAlphaId, tenantBetaId]) {
+      await prisma.tenantModule.upsert({
+        where: { tenantId_moduleKey: { tenantId: tId, moduleKey: "accounting" } },
+        create: { tenantId: tId, moduleKey: "accounting", isEnabled: true },
+        update: { isEnabled: true },
+      });
+    }
+
     // Clean previous test data
     await prisma.journalItem.deleteMany({
       where: { journalEntry: { tenantId: { in: [tenantAlphaId, tenantBetaId] } } },

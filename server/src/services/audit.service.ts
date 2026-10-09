@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getTenantDb } from "../context/tenant-context";
+import { prisma, rawPrisma } from "../prisma";
 
 export interface CreateAuditLogParams {
   tenantId: string;
@@ -25,7 +26,14 @@ export class AuditService {
     params: CreateAuditLogParams,
     tx?: PrismaClient | any
   ): Promise<any> {
-    const db = tx || getTenantDb();
+    let db: any = tx;
+    if (!db) {
+      try {
+        db = getTenantDb();
+      } catch {
+        db = rawPrisma || prisma;
+      }
+    }
 
     try {
       return await db.auditLog.create({
@@ -36,14 +44,34 @@ export class AuditService {
           action: params.action,
           entityType: params.entityType,
           entityId: params.entityId,
-          oldState: params.oldState ?? null,
-          newState: params.newState ?? null,
+          beforeJson: params.oldState ?? null,
+          afterJson: params.newState ?? params.metadata ?? null,
           ipAddress: params.ipAddress ?? null,
           userAgent: params.userAgent ?? null,
-          metadata: params.metadata ?? null,
         },
       });
     } catch (err: any) {
+      if (err.message?.includes("TENANT_CONTEXT_REQUIRED")) {
+        try {
+          const fallbackDb = rawPrisma || prisma;
+          return await fallbackDb.auditLog.create({
+            data: {
+              tenantId: params.tenantId,
+              actorId: params.actorId ?? null,
+              actorEmail: params.actorEmail ?? null,
+              action: params.action,
+              entityType: params.entityType,
+              entityId: params.entityId,
+              beforeJson: params.oldState ?? null,
+              afterJson: params.newState ?? params.metadata ?? null,
+              ipAddress: params.ipAddress ?? null,
+              userAgent: params.userAgent ?? null,
+            },
+          });
+        } catch (innerErr: any) {
+          console.error("[AuditService] Failed to create audit log entry with fallback:", innerErr.message);
+        }
+      }
       console.error("[AuditService] Failed to create audit log entry:", err.message);
       // Audit failure should not crash transaction unless strict audit mode is enforced
       return null;

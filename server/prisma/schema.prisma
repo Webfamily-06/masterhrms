@@ -72,6 +72,7 @@ model User {
   workspaceNotes           WorkspaceNote[]
   calendarEvents           CalendarEvent[]
   notifications            Notification[]
+  commerceOrders           CommerceOrder[]
 
   @@map("users")
 }
@@ -109,6 +110,7 @@ model Tenant {
   couponRedemptions        CouponRedemption[]
   gatewayTransactions PaymentGatewayTransaction[]
   paymentWebhookEvents PaymentWebhookEvent[]
+  commerceOrders       CommerceOrder[]
   okrCycles            OkrCycle[]
   okrObjectives        OkrObjective[]
   assets               Asset[]
@@ -1143,6 +1145,60 @@ model BillingInvoice {
 
   @@index([tenantId, status])
   @@map("billing_invoices")
+}
+
+enum CommerceOrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum CommerceFulfillmentStatus {
+  UNFULFILLED
+  FULFILLED
+  FAILED
+  REVERSED
+}
+
+model CommerceOrder {
+  id                     String                    @id @default(uuid()) @db.VarChar(36)
+  orderNumber            String                    @unique @map("order_number") @db.VarChar(50)
+  tenantId               String                    @map("tenant_id") @db.VarChar(36)
+  userId                 String?                   @map("user_id") @db.VarChar(36)
+  status                 CommerceOrderStatus       @default(DRAFT)
+  fulfillmentStatus      CommerceFulfillmentStatus @default(UNFULFILLED) @map("fulfillment_status")
+  currency               String                    @default("INR") @db.VarChar(10)
+  subtotal               Decimal                   @db.Decimal(12, 2)
+  discountAmount         Decimal                   @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  taxableAmount          Decimal                   @map("taxable_amount") @db.Decimal(12, 2)
+  totalTax               Decimal                   @default(0) @map("total_tax") @db.Decimal(12, 2)
+  totalAmount            Decimal                   @map("total_amount") @db.Decimal(12, 2)
+  amountInPaise          Int                       @map("amount_in_paise")
+  priceSnapshot          Json                      @map("price_snapshot")
+  couponCode             String?                   @map("coupon_code") @db.VarChar(50)
+  idempotencyKey         String?                   @map("idempotency_key") @db.VarChar(100)
+  idempotencyPayloadHash String?                   @map("idempotency_payload_hash") @db.VarChar(64)
+  version                Int                       @default(1)
+  isSimulated            Boolean                   @default(false) @map("is_simulated")
+  simulationNotes        String?                   @map("simulation_notes") @db.VarChar(255)
+  paidAt                 DateTime?                 @map("paid_at")
+  fulfilledAt            DateTime?                 @map("fulfilled_at")
+  cancelledAt            DateTime?                 @map("cancelled_at")
+  expiresAt              DateTime?                 @map("expires_at")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, expiresAt])
+  @@index([userId])
+  @@map("commerce_orders")
 }
 
 model Coupon {

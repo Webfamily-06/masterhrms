@@ -9,11 +9,12 @@ import { broadcastToTenant } from "../socket";
 import { resolveTenantId } from "../lib/tenant";
 
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const adjustmentsRouter = Router();
 
-// Enforce Request-Scoped Tenant Context on all stock adjustment endpoints
-adjustmentsRouter.use(requireAuth, resolveTenantContext);
+// Enforce Request-Scoped Tenant Context and Product POS Entitlement on all stock adjustment endpoints
+adjustmentsRouter.use(requireAuth, resolveTenantContext, requireEntitlement("product_pos"));
 
 /**
  * GET /api/adjustments

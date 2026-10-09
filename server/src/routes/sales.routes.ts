@@ -11,6 +11,7 @@ import { parsePaginationParams, formatPaginatedResponse } from "../lib/paginatio
 import { InventoryMovementService } from "../services/inventory-movement.service";
 import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
 import { InsufficientStockError, StockConcurrencyError } from "../services/inventory-movement.errors";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const salesRouter = Router();
 
@@ -32,8 +33,8 @@ export class OfflineSaleReplayError extends Error {
   }
 }
 
-// Enforce Request-Scoped Tenant Context on all sales & POS endpoints
-salesRouter.use(requireAuth, resolveTenantContext);
+// Enforce Request-Scoped Tenant Context & Product POS Entitlement on all sales & POS endpoints
+salesRouter.use(requireAuth, resolveTenantContext, requireEntitlement("product_pos"));
 
 // GET /api/sales - List sales & POS receipts (Stocky Rule 0: Universal Query Contract)
 salesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {

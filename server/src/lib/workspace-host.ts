@@ -67,6 +67,8 @@ export const RESERVED_WORKSPACE_SLUGS = new Set([
   "help",
   "blog",
   "portal",
+  "dashboard",
+  "developer",
   // Auth-related
   "login",
   "auth",

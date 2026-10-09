@@ -158,21 +158,29 @@ export async function validateCoupon(
   };
 }
 
+export interface RecordCouponRedemptionParams {
+  couponId: string;
+  tenantId: string;
+  orderId?: string;
+  invoiceId?: string;
+  discountApplied: number;
+  tx?: any;
+}
+
 /**
- * Records coupon redemption idempotently.
+ * Records coupon redemption idempotently adhering to the Universal Lock Order Hierarchy:
+ * 1. Lock Coupon row FOR UPDATE
+ * 2. Validate status, active time window (statement_timestamp), and global quota
+ * 3. Validate per-tenant redemption limit
+ * 4. Create CouponRedemption and increment redemptionCount
  */
 export async function recordCouponRedemption(
-  paramsOrCouponId: {
-    couponId: string;
-    tenantId: string;
-    orderId?: string;
-    invoiceId?: string;
-    discountApplied: number;
-  } | string,
+  paramsOrCouponId: RecordCouponRedemptionParams | string,
   argTenantId?: string,
   argInvoiceId?: string,
   argDiscountApplied?: number,
-  argOrderId?: string
+  argOrderId?: string,
+  argTx?: any
 ): Promise<any> {
   const db = rawPrisma || prisma;
 
@@ -181,6 +189,7 @@ export async function recordCouponRedemption(
   let orderId: string | undefined;
   let invoiceId: string | undefined;
   let discountApplied: number;
+  let txClient: any;
 
   if (typeof paramsOrCouponId === "string") {
     couponId = paramsOrCouponId;
@@ -188,24 +197,78 @@ export async function recordCouponRedemption(
     invoiceId = argInvoiceId;
     discountApplied = Number(argDiscountApplied) || 0;
     orderId = argOrderId;
+    txClient = argTx;
   } else {
     couponId = paramsOrCouponId.couponId;
     tenantId = paramsOrCouponId.tenantId;
     orderId = paramsOrCouponId.orderId;
     invoiceId = paramsOrCouponId.invoiceId;
     discountApplied = Number(paramsOrCouponId.discountApplied) || 0;
+    txClient = paramsOrCouponId.tx;
   }
 
-  return await db.$transaction(async (tx) => {
-    // Check if already redeemed for this invoice
+  const executeAtomic = async (client: any) => {
+    // Idempotency: check if already redeemed for this order or invoice
+    if (orderId) {
+      const existing = await client.couponRedemption.findFirst({
+        where: { couponId, orderId },
+      });
+      if (existing) return existing;
+    }
+
     if (invoiceId) {
-      const existing = await tx.couponRedemption.findFirst({
+      const existing = await client.couponRedemption.findFirst({
         where: { couponId, invoiceId },
       });
       if (existing) return existing;
     }
 
-    const redemption = await tx.couponRedemption.create({
+    // Step 1: Universal Row Lock on Coupon
+    const lockedCoupons: any[] = await client.$queryRawUnsafe(
+      `SELECT id, status, redemption_count, max_redemptions, per_tenant_limit, starts_at, expires_at 
+       FROM coupons 
+       WHERE id = $1 
+       FOR UPDATE`,
+      couponId
+    );
+
+    if (!lockedCoupons || lockedCoupons.length === 0) {
+      throw new Error("COUPON_NOT_FOUND");
+    }
+    const coupon = lockedCoupons[0];
+
+    // Step 2: In-Transaction Validation
+    if (coupon.status !== "active") {
+      throw new Error("COUPON_INACTIVE");
+    }
+
+    const timeCheck: any[] = await client.$queryRawUnsafe(
+      `SELECT 
+        ($1::timestamptz IS NULL OR $1::timestamptz <= statement_timestamp()) AS is_started,
+        ($2::timestamptz IS NULL OR $2::timestamptz > statement_timestamp()) AS not_expired`,
+      coupon.starts_at,
+      coupon.expires_at
+    );
+
+    if (!timeCheck[0]?.is_started || !timeCheck[0]?.not_expired) {
+      throw new Error("COUPON_EXPIRED");
+    }
+
+    if (coupon.max_redemptions !== null && coupon.redemption_count >= coupon.max_redemptions) {
+      throw new Error("COUPON_MAX_REDEMPTIONS_REACHED");
+    }
+
+    // Step 3: Per-Tenant Limit Validation
+    const tenantCount = await client.couponRedemption.count({
+      where: { couponId, tenantId },
+    });
+    const perTenantLimit = coupon.per_tenant_limit ?? 1;
+    if (tenantCount >= perTenantLimit) {
+      throw new Error("COUPON_PER_TENANT_LIMIT_EXCEEDED");
+    }
+
+    // Step 4: Atomic Execution
+    const redemption = await client.couponRedemption.create({
       data: {
         couponId,
         tenantId,
@@ -215,7 +278,7 @@ export async function recordCouponRedemption(
       },
     });
 
-    await tx.coupon.update({
+    await client.coupon.update({
       where: { id: couponId },
       data: {
         redemptionCount: { increment: 1 },
@@ -223,5 +286,14 @@ export async function recordCouponRedemption(
     });
 
     return redemption;
+  };
+
+  if (txClient) {
+    return await executeAtomic(txClient);
+  }
+
+  return await db.$transaction(async (innerTx) => {
+    return await executeAtomic(innerTx);
   });
 }
+

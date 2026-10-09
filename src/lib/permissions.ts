@@ -59,13 +59,23 @@ export function isModuleAllowed(
   profile: ProfileWithRoles | null | undefined
 ): boolean {
   if (!profile) return false;
+  if (isSuperAdminUser(profile)) return true;
 
   const mod = ERP_MODULES.find((m) => m.key === moduleKey);
   if (!mod) return false;
 
-  // Check workspace enabled
-  if (profile.enabledModules && !profile.enabledModules.includes(moduleKey)) {
-    return false;
+  // Check workspace entitlement (supporting product aliases)
+  if (profile.enabledModules && profile.enabledModules.length > 0) {
+    const isEnabled =
+      profile.enabledModules.includes(moduleKey) ||
+      (moduleKey === "crm" && profile.enabledModules.includes("product_crm")) ||
+      ((moduleKey === "pos" || moduleKey === "inventory") &&
+        (profile.enabledModules.includes("pos") || profile.enabledModules.includes("product_pos") || profile.enabledModules.includes("inventory"))) ||
+      ((moduleKey === "accounting" || moduleKey === "finance") &&
+        (profile.enabledModules.includes("accounting") || profile.enabledModules.includes("finance") || profile.enabledModules.includes("product_finance")));
+    if (!isEnabled) {
+      return false;
+    }
   }
 
   // Check role permission
