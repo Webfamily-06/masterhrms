@@ -21,6 +21,7 @@ import {
 import { UnifiedCatalogService, CatalogProductDefinition } from "./unified-catalog.service";
 import { validateCoupon } from "./coupon.service";
 import { CompanyProfileService } from "./company-profile/company-profile.service";
+import { DynamicPricingService } from "./dynamic-pricing.service";
 
 // Set global Decimal rounding to ROUND_HALF_UP (standard financial rounding)
 Decimal.set({ rounding: Decimal.ROUND_HALF_UP });
@@ -252,8 +253,9 @@ export class CartCalculatorService {
         throw new Error(`Invalid quantity '${rawQty}' for '${slug}'. Quantity must be a whole integer between 1 and 99,999.`);
       }
 
-      // Resolve Price Configuration
-      const priceConfig = config.products[slug];
+      // Resolve Price Configuration (OD-1 Dynamic & Configured Pricing)
+      const dynamicPrice = await DynamicPricingService.resolveProductPricing(slug);
+      const priceConfig = dynamicPrice || config.products[slug];
       if (!priceConfig) {
         throw new Error(`Price configuration missing for product '${slug}'. OD-1 pricing decision is required.`);
       }

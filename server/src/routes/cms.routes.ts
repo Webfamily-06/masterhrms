@@ -188,6 +188,38 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
       }
     }
 
+    if (slug === "system-addons-catalog") {
+      const activeAddons = await prisma.addon.findMany({
+        where: { status: "active" },
+        orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+      });
+      const formatted = activeAddons.map((a) => {
+        const price = a.priceMonthly != null ? Number(a.priceMonthly) : 0;
+        return {
+          ...a,
+          priceMonthly: price,
+          price_monthly: price,
+          longDescription: a.longDescription ?? null,
+          long_description: a.longDescription ?? null,
+          installUrl: a.installUrl ?? null,
+          install_url: a.installUrl ?? null,
+          docsUrl: a.docsUrl ?? null,
+          docs_url: a.docsUrl ?? null,
+          features: Array.isArray(a.features) ? a.features : [],
+          screenshots: Array.isArray(a.screenshots) ? a.screenshots : [],
+        };
+      });
+      return res.json({
+        id: "system-addons-catalog",
+        slug: "system-addons-catalog",
+        title: "System Addons Catalog",
+        content: formatted,
+        published: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
     let page = await prisma.cmsPage.findUnique({
       where: { slug },
     });
@@ -400,15 +432,141 @@ cmsRouter.delete("/pages/:slug", requireAuth, async (req: AuthRequest, res: Resp
   }
 });
 
+// GET /api/cms/addons/categories
+cmsRouter.get("/addons/categories", async (_req, res) => {
+  try {
+    const distinct = await prisma.addon.findMany({
+      where: { status: "active" },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" },
+    });
+    const categories = distinct.map((d) => d.category).filter(Boolean);
+    return res.json(categories);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch addon categories" });
+  }
+});
+
 // GET /api/cms/addons
 cmsRouter.get("/addons", async (req, res) => {
   try {
+    const category = req.query.category as string | undefined;
+    const search = req.query.search as string | undefined;
+
+    const where: any = { status: "active" };
+    if (category && category !== "All") {
+      where.category = category;
+    }
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { slug: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+        { tagline: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
     const addons = await prisma.addon.findMany({
-      orderBy: { createdAt: "desc" },
+      where,
+      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
     });
-    return res.json(addons);
+
+    const formatted = addons.map((a) => {
+      const price = a.priceMonthly != null ? Number(a.priceMonthly) : 0;
+      return {
+        ...a,
+        priceMonthly: price,
+        price_monthly: price,
+        longDescription: a.longDescription ?? null,
+        long_description: a.longDescription ?? null,
+        installUrl: a.installUrl ?? null,
+        install_url: a.installUrl ?? null,
+        docsUrl: a.docsUrl ?? null,
+        docs_url: a.docsUrl ?? null,
+        features: Array.isArray(a.features) ? a.features : [],
+        screenshots: Array.isArray(a.screenshots) ? a.screenshots : [],
+      };
+    });
+
+    return res.json(formatted);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// GET /api/cms/addons/:slug
+cmsRouter.get("/addons/:slug", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const addon = await prisma.addon.findFirst({
+      where: { slug, status: "active" },
+    });
+    if (!addon) {
+      return res.status(404).json({ error: "Addon not found", code: "NOT_FOUND" });
+    }
+
+    const price = addon.priceMonthly != null ? Number(addon.priceMonthly) : 0;
+    const formatted = {
+      ...addon,
+      priceMonthly: price,
+      price_monthly: price,
+      longDescription: addon.longDescription ?? null,
+      long_description: addon.longDescription ?? null,
+      installUrl: addon.installUrl ?? null,
+      install_url: addon.installUrl ?? null,
+      docsUrl: addon.docsUrl ?? null,
+      docs_url: addon.docsUrl ?? null,
+      features: Array.isArray(addon.features) ? addon.features : [],
+      screenshots: Array.isArray(addon.screenshots) ? addon.screenshots : [],
+    };
+
+    return res.json(formatted);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch addon" });
+  }
+});
+
+// GET /api/cms/addons/:slug/releases (Public Addon Changelog & Version History)
+cmsRouter.get("/addons/:slug/releases", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const addon = await prisma.addon.findFirst({
+      where: { slug, status: "active" },
+    });
+    if (!addon) {
+      return res.status(404).json({ error: "Addon not found", code: "NOT_FOUND" });
+    }
+
+    const page = await prisma.cmsPage.findUnique({
+      where: { slug: `system-addon-releases-${addon.slug}` },
+    });
+
+    let releases: any[] = [];
+    if (page?.content && Array.isArray((page.content as any).releases)) {
+      // Filter only public releases, strip internal actorEmail and metadataDiff
+      releases = ((page.content as any).releases as any[])
+        .filter((r) => r.isPublic !== false)
+        .map((r) => ({
+          id: r.id,
+          version: r.version,
+          previousVersion: r.previousVersion || null,
+          changeSummary: r.changeSummary,
+          releaseNotes: r.releaseNotes || null,
+          createdAt: r.createdAt,
+        }))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    return res.json({
+      addonSlug: addon.slug,
+      addonName: addon.name,
+      currentVersion: addon.version || "1.0.0",
+      totalReleases: releases.length,
+      releases,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch addon releases" });
   }
 });
 

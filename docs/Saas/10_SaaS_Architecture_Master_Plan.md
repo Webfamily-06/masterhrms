@@ -242,7 +242,7 @@ Every tenant table: `tenant_id` + composite indexes starting with it; commerce a
 | A0 | Audit and decisions | Reconcile `docs.tsx` claims with reality (page-by-page status), confirm decisions in section 11, produce gap list and estimates | Owner approves plan | **Complete (Approved)** |
 | A1 | Platform core | Host/subdomain resolution, token binding, refresh sessions, tenant status pages, app launcher, Navigation/Permission/Manifest registries, entitlement service wrapping `TenantAddon`, reserved slugs, signup + workspace creation, tenant login | Two-tenant isolation tests pass; each host resolves correctly | **Complete (Approved)** |
 | A2 | Portals re-homing | Move existing pages into `/tenant`, `/hr`, `/me`, `/crm`, `/finance`, `/inventory`, `/pos`, `/projects`, `/support`, `/it`, `/client` (see `hrms-plan/04`); sidebars from registry; legacy redirects | Every sidebar link opens a real page | **Complete (Approved — 26/26 tests passed)** |
-| A3 | Commerce core | Catalog models, add-on manager (super admin), cart, coupons, orders, Razorpay + webhooks, invoices, entitlement activation, subscription lifecycle | Buy an add-on end to end; entitlement toggles menu live | **Complete (Approved — 67/67 tests passed; A3.6 policy aligned)** |
+| A3 | Commerce core | Catalog models, add-on manager (super admin), cart, coupons, orders, Razorpay + webhooks, invoices, entitlement activation, subscription lifecycle | Buy an add-on end to end; entitlement toggles menu live | **Complete (Formally Accepted by Product Owner; 93/93 tests passing including A3.6 governance & A3.7 Razorpay sandbox)** |
 | A4 | Marketplace UIs | Public CMS `/addons`, detail page, cart, checkout; tenant marketplace and My Add-ons; reviews/comments/support tabs | Guest-to-purchase and in-tenant purchase both pass | **In Progress (Current Flow)** |
 | A5 | Domains | Custom domain add/verify/certificate/primary/redirect; central OAuth callback | Custom domain works with login and OAuth | **Partial / In Progress** |
 | A6 | Add-on engines | Integration Hub, SMS gateway, AI service, Strategy Studio, social login, storage connectors, backup/restore (file 12) | Each engine ships with at least 2 add-ons using it | Not started |
@@ -261,6 +261,16 @@ Each phase updates `docs/Saas/worklog.md` ("SaaS Platform Track") and has accept
 - **CRM:** treated as standalone candidate; dependencies on HRMS documented, independence not assumed.
 - **Domains:** subdomains first (`{workspace}.{BASE_DOMAIN}`, tenant-bound auth in A1). Custom domains are a later phase (A5); no domain provisioning in A0.
 - Still open: questions 4 to 10 below (payments and tax regions, trials, marketplace reviews, `admin.` host, merges, white label, hosting).
+
+### 11.1 Phase A3.6 & A3.7 Confirmed Commercial Policies (2026-10-09)
+- **OD-1 / Pricing Versioning (Accepted):** Dynamic, versioned commercial pricing via `CommercialPriceSchedule` and `DynamicPricingService`. Proposed plan baseline: Starter ₹199/mo, Growth ₹499/mo, Sovereign ₹1,000/mo (status: *Proposal only — not approved for production publication*).
+- **OD-3 / Standalone Add-ons (Accepted):** Standalone workspace-bound add-ons supported without requiring an active base plan; Option 3A consolidated/standalone invoicing implemented (`BillingInvoice.subscriptionId` nullable) with full GST compliance.
+- **OD-10 / Plan Lifecycle (Accepted):** Renewal-based plan changes default; downgrade capacity check enforced against target seat cap; audited Super Admin emergency overrides under dual-control justification and ticket logging.
+- **CP-01 / Annual Billing (Confirmed):** Option B confirmed — annual price equals 12 standard monthly payments (Starter ₹2,388/yr, Growth ₹5,988/yr, Sovereign ₹12,000/yr). Flat 12-month standard pricing, illustrative and unpublished until live release authorization.
+- **CP-02 / Sovereign Capacity (Confirmed):** Sovereign plan capacity capped at 100 employees per tenant workspace. Overage billing is strictly prohibited.
+- **CP-03 / Standalone Add-on Pricing (Confirmed):** Standalone pricing schedules for POS, CRM, Finance, Biometric Sync, and WhatsApp Alerts deferred; Option 3A architecture preserved.
+- **CP-04 / Existing Subscriber Repricing (Confirmed):** Perpetual grandfathering at the agreed price while subscription remains continuously active.
+- **TR-01 / Razorpay Sandbox Technical Readiness (Verified):** Non-production Razorpay sandbox integration verified with 18/18 passing tests (server-authoritative checkout initiation, webhook timing-safe HMAC SHA-256 verification, transactional outbox fulfillment, live key fail-closed guard). **Production release, VPS deployment, and live payment capture remain STRICTLY NOT AUTHORIZED.**
 
 ### Original list
 (questions) (also in worklog Open Questions)

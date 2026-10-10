@@ -21,6 +21,7 @@ import {
 import { recordCouponRedemption } from "./coupon.service";
 import { AuditService } from "./audit.service";
 import { OutboxService } from "./outbox.service";
+import { RazorpaySandboxService, RazorpaySandboxError } from "./razorpay-sandbox.service";
 
 export class CommerceOrderError extends Error {
   public statusCode: number;
@@ -215,15 +216,24 @@ export class CommerceOrderService {
 
     if (!order) return null;
 
+    const snapshot = typeof order.priceSnapshot === "string"
+      ? JSON.parse(order.priceSnapshot)
+      : (order.priceSnapshot || {});
+    const metadata = snapshot.metadata || snapshot.gatewayMetadata || {};
+
     // Virtual presentation of expiry on read
     if (order.status === "PENDING_PAYMENT" && order.expiresAt && order.expiresAt.getTime() <= Date.now()) {
       return {
         ...order,
         status: "EXPIRED",
+        metadata,
       };
     }
 
-    return order;
+    return {
+      ...order,
+      metadata,
+    };
   }
 
   /**
@@ -523,6 +533,391 @@ export class CommerceOrderService {
     } catch (phase2Err: any) {
       console.warn("[CommerceOrderService] Phase 2 failure logging error:", phase2Err.message);
     }
+  }
+
+  /**
+   * Initiates Razorpay sandbox checkout for a CommerceOrder.
+   * Gated strictly to test credentials (rzp_test_*). Live credentials fail closed.
+   */
+  public static async initiateRazorpayCheckout(
+    tenantId: string,
+    orderId: string,
+    customer?: { name?: string; email?: string }
+  ): Promise<{
+    orderId: string;
+    gatewayOrderId: string;
+    amount: number;
+    currency: string;
+    keyId: string;
+    orderNumber: string;
+    customer: { name: string; email: string };
+    isReplay: boolean;
+  }> {
+    const db = rawPrisma || prisma;
+
+    const order = await db.commerceOrder.findFirst({
+      where: { id: orderId, tenantId },
+    });
+
+    if (!order) {
+      throw new CommerceOrderError("ORDER_NOT_FOUND", "Order not found.", 404);
+    }
+
+    if (order.status === "PAID") {
+      throw new CommerceOrderError("ALREADY_PAID", "Order is already paid.", 409);
+    }
+
+    if (order.status === "EXPIRED") {
+      throw new CommerceOrderError("ORDER_EXPIRED", "Order has expired.", 400);
+    }
+
+    if (order.status === "CANCELLED") {
+      throw new CommerceOrderError("ORDER_NOT_PAYABLE", "Cancelled orders cannot be paid.", 400);
+    }
+
+    if (order.expiresAt && order.expiresAt.getTime() <= Date.now()) {
+      throw new CommerceOrderError("ORDER_EXPIRED", "Order has expired.", 400);
+    }
+
+    if (order.status !== "PENDING_PAYMENT") {
+      throw new CommerceOrderError("ORDER_NOT_PAYABLE", "Order is not in payable state.", 400);
+    }
+
+    const amountInPaise = Math.round(Number(order.totalAmount) * 100);
+    const keyId = RazorpaySandboxService.getKeyId();
+
+    const snapshot = typeof order.priceSnapshot === "string"
+      ? JSON.parse(order.priceSnapshot)
+      : (order.priceSnapshot || {});
+    const existingMeta = snapshot.metadata || snapshot.gatewayMetadata || {};
+
+    // Idempotency: If gateway order is already recorded, return existing gateway order
+    if (existingMeta.gatewayOrderId && existingMeta.gatewayProvider === "RAZORPAY_SANDBOX") {
+      return {
+        orderId: order.id,
+        gatewayOrderId: existingMeta.gatewayOrderId,
+        amount: amountInPaise,
+        currency: order.currency,
+        keyId,
+        orderNumber: order.orderNumber,
+        customer: {
+          name: customer?.name || "Workspace Admin",
+          email: customer?.email || "admin@workspace.local",
+        },
+        isReplay: true,
+      };
+    }
+
+    // Create order on Razorpay Sandbox API
+    const rzpOrder = await RazorpaySandboxService.createOrder({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      amountInPaise,
+      currency: order.currency,
+      tenantId: order.tenantId,
+    });
+
+    // Persist gateway order ID into priceSnapshot.metadata
+    const updatedSnapshot = {
+      ...snapshot,
+      metadata: {
+        ...existingMeta,
+        gatewayOrderId: rzpOrder.id,
+        gatewayProvider: "RAZORPAY_SANDBOX",
+        initiatedAt: new Date().toISOString(),
+      },
+    };
+
+    await db.commerceOrder.update({
+      where: { id: order.id },
+      data: {
+        priceSnapshot: updatedSnapshot as any,
+      },
+    });
+
+    return {
+      orderId: order.id,
+      gatewayOrderId: rzpOrder.id,
+      amount: amountInPaise,
+      currency: order.currency,
+      keyId,
+      orderNumber: order.orderNumber,
+      customer: {
+        name: customer?.name || "Workspace Admin",
+        email: customer?.email || "admin@workspace.local",
+      },
+      isReplay: false,
+    };
+  }
+
+  /**
+   * Settles a Razorpay webhook event transactionally.
+   * Enforces timing-safe verification, amount/currency matching, replay protection,
+   * atomic transition to PAID, audit logging, and outbox event publishing.
+   */
+  public static async settleRazorpayWebhook(eventPayload: any): Promise<{
+    success: boolean;
+    isReplay: boolean;
+    orderId?: string;
+    message?: string;
+    ignored?: boolean;
+  }> {
+    const db = rawPrisma || prisma;
+
+    const event = eventPayload.event;
+    if (event !== "payment.captured" && event !== "order.paid") {
+      return {
+        success: true,
+        isReplay: false,
+        ignored: true,
+        message: `Ignored unhandled webhook event: ${event}`,
+      };
+    }
+
+    const payment =
+      eventPayload.payload?.payment?.entity ||
+      eventPayload.payment?.entity;
+
+    if (!payment) {
+      throw new CommerceOrderError(
+        "MALFORMED_WEBHOOK_PAYLOAD",
+        "Payment entity missing from webhook payload.",
+        400
+      );
+    }
+
+    const orderId = payment.notes?.orderId;
+    let order: any = null;
+
+    if (orderId) {
+      order = await db.commerceOrder.findUnique({
+        where: { id: orderId },
+      });
+    }
+
+    // Fallback: Lookup by gateway order reference inside price_snapshot JSON
+    if (!order && payment.order_id) {
+      const candidates: any[] = await db.$queryRawUnsafe(
+        `SELECT id FROM commerce_orders 
+         WHERE price_snapshot->'metadata'->>'gatewayOrderId' = $1 
+         LIMIT 1;`,
+        payment.order_id
+      );
+      if (candidates && candidates.length > 0) {
+        order = await db.commerceOrder.findUnique({
+          where: { id: candidates[0].id },
+        });
+      }
+    }
+
+    if (!order) {
+      throw new CommerceOrderError(
+        "ORDER_NOT_FOUND",
+        "Order referenced in webhook was not found.",
+        404
+      );
+    }
+
+    // Currency verification
+    if (payment.currency && payment.currency.toUpperCase() !== order.currency.toUpperCase()) {
+      throw new CommerceOrderError(
+        "CURRENCY_MISMATCH",
+        `Currency mismatch: order expects ${order.currency}, gateway reported ${payment.currency}.`,
+        400
+      );
+    }
+
+    // Authoritative amount verification in paise
+    const expectedPaise = Math.round(Number(order.totalAmount) * 100);
+    const receivedPaise = Number(payment.amount);
+
+    if (receivedPaise !== expectedPaise) {
+      // Forensic record of failed payment attempt
+      const snapshot = typeof order.priceSnapshot === "string"
+        ? JSON.parse(order.priceSnapshot)
+        : (order.priceSnapshot || {});
+      const updatedSnapshot = {
+        ...snapshot,
+        metadata: {
+          ...(snapshot.metadata || {}),
+          failureReason: "AMOUNT_MISMATCH_DETECTED",
+          expectedPaise,
+          receivedPaise,
+          gatewayPaymentId: payment.id,
+        },
+      };
+
+      await db.commerceOrder.update({
+        where: { id: order.id },
+        data: {
+          status: "FAILED",
+          simulationNotes: "AMOUNT_MISMATCH_DETECTED",
+          priceSnapshot: updatedSnapshot as any,
+        },
+      });
+
+      throw new CommerceOrderError(
+        "AMOUNT_MISMATCH_DETECTED",
+        `Amount mismatch: expected ${expectedPaise} paise, gateway received ${receivedPaise} paise.`,
+        400
+      );
+    }
+
+    // Idempotent replay check: If order is already PAID
+    if (order.status === "PAID") {
+      return {
+        success: true,
+        isReplay: true,
+        orderId: order.id,
+        message: "Order is already marked as PAID. Replay ignored.",
+      };
+    }
+
+    // Transactional settlement
+    const settled = await db.$transaction(async (tx: any) => {
+      // Step 1: Statement-timestamp atomic update
+      const updatedRows: any[] = await tx.$queryRawUnsafe(
+        `UPDATE commerce_orders
+         SET status = 'PAID',
+             paid_at = statement_timestamp(),
+             version = version + 1,
+             updated_at = statement_timestamp()
+         WHERE id = $1
+           AND tenant_id = $2
+           AND status = 'PENDING_PAYMENT'
+           AND version = $3
+           AND (expires_at IS NULL OR expires_at > statement_timestamp())
+         RETURNING *;`,
+        order.id,
+        order.tenantId,
+        order.version
+      );
+
+      if (!updatedRows || updatedRows.length === 0) {
+        const current: any[] = await tx.$queryRawUnsafe(
+          `SELECT status, version, expires_at FROM commerce_orders WHERE id = $1 AND tenant_id = $2;`,
+          order.id,
+          order.tenantId
+        );
+
+        if (!current || current.length === 0) {
+          throw new CommerceOrderError("ORDER_NOT_FOUND", "Order not found.", 404);
+        }
+
+        const currRow = current[0];
+        if (currRow.status === "PAID") {
+          return { __isReplay: true };
+        }
+        if (currRow.status === "EXPIRED") {
+          throw new CommerceOrderError("ORDER_EXPIRED", "Order has expired.", 400);
+        }
+
+        const expCheck: any[] = await tx.$queryRawUnsafe(
+          `SELECT ($1::timestamptz <= statement_timestamp()) AS is_expired;`,
+          currRow.expires_at
+        );
+        if (expCheck[0]?.is_expired) {
+          throw new CommerceOrderError("ORDER_EXPIRED", "Order has expired.", 400);
+        }
+
+        throw new CommerceOrderError("ORDER_STATE_CONFLICT", "Order state does not allow payment.", 409);
+      }
+
+      // Step 2: Persist payment metadata into priceSnapshot
+      const snapshot = typeof order.priceSnapshot === "string"
+        ? JSON.parse(order.priceSnapshot)
+        : (order.priceSnapshot || {});
+      const updatedSnapshot = {
+        ...snapshot,
+        metadata: {
+          ...(snapshot.metadata || {}),
+          gatewayProvider: "RAZORPAY_SANDBOX",
+          gatewayOrderId: payment.order_id,
+          gatewayPaymentId: payment.id,
+          gatewayMethod: payment.method || "card",
+          gatewayEventId: eventPayload.id || eventPayload.event_id || null,
+        },
+      };
+
+      await tx.commerceOrder.update({
+        where: { id: order.id },
+        data: {
+          priceSnapshot: updatedSnapshot as any,
+        },
+      });
+
+      // Step 3: Coupon redemption if coupon applied
+      if (order.couponCode) {
+        const coupon = await tx.coupon.findUnique({
+          where: { code: order.couponCode },
+        });
+
+        if (coupon) {
+          await recordCouponRedemption({
+            couponId: coupon.id,
+            tenantId: order.tenantId,
+            orderId: order.id,
+            discountApplied: Number(order.discountAmount) || 0,
+            tx,
+          });
+        }
+      }
+
+      // Step 4: AuditLog mutation
+      await AuditService.logMutation(
+        {
+          tenantId: order.tenantId,
+          actorId: order.userId || "RAZORPAY_WEBHOOK",
+          action: "ORDER_PAID",
+          entityType: "CommerceOrder",
+          entityId: order.id,
+          metadata: {
+            orderNumber: order.orderNumber,
+            totalAmount: Number(order.totalAmount),
+            currency: order.currency,
+            gatewayProvider: "RAZORPAY_SANDBOX",
+            gatewayPaymentId: payment.id,
+            gatewayOrderId: payment.order_id,
+          },
+        },
+        tx
+      );
+
+      // Step 5: Atomically insert OutboxEvent
+      await OutboxService.createOutboxEvent(
+        {
+          tenantId: order.tenantId,
+          eventType: "COMMERCE_ORDER_PAID",
+          entityType: "CommerceOrder",
+          entityId: order.id,
+          actorId: order.userId || "RAZORPAY_WEBHOOK",
+          payload: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            tenantId: order.tenantId,
+            amountInPaise: receivedPaise,
+            currency: order.currency,
+            items: (order.priceSnapshot as any)?.items || (order.priceSnapshot as any)?.lineItems || [],
+            paidAt: new Date(payment.created_at ? payment.created_at * 1000 : Date.now()).toISOString(),
+            gatewayPaymentId: payment.id,
+            gatewayOrderId: payment.order_id,
+          },
+          metadata: {
+            gatewayProvider: "RAZORPAY_SANDBOX",
+            gatewayPaymentId: payment.id,
+          },
+        },
+        tx
+      );
+
+      return { __isReplay: false };
+    });
+
+    return {
+      success: true,
+      isReplay: Boolean(settled?.__isReplay),
+      orderId: order.id,
+    };
   }
 }
 

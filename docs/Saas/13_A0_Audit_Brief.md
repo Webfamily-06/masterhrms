@@ -1,6 +1,6 @@
 # 13. A0 Audit Brief (read-only)
 
-Phase A0 of `10_SaaS_Architecture_Master_Plan.md`. Mode: **COMPLETED & APPROVED.** Audit completed; findings and owner decisions (D-017 through D-020) recorded in `worklog.md`. Predecessor gates for A1, A2, and A3 executed.
+Phase A0 of `10_SaaS_Architecture_Master_Plan.md`. Mode: **COMPLETED & APPROVED.** Audit completed; findings and owner decisions (D-017 through D-020) recorded in `worklog.md`. Predecessor gates for A1, A2, A3, and A3.6 executed and formally accepted by Product Owner; Phase A3.7 Razorpay Sandbox payment integration verified (93/93 tests passing). Production deployment and live payment capture remain strictly gated/unauthorized.
 
 Owner directives that shape A0 (2026-10-09):
 

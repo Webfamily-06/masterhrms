@@ -1,6 +1,6 @@
 # 12. Add-on Catalog, Shared Engines and Build Waves
 
-Status: **CATALOG & COMMERCE FULFILLMENT FOUNDATION IMPLEMENTED (PHASE A3).** The add-on catalog, pricing, orders, and transactional entitlement fulfillment engine are implemented and verified (67/67 tests passing). Context: `10_SaaS_Architecture_Master_Plan.md`; commerce spec: `docs/architecture/PHASE_A3_COMMERCE_ARCHITECTURE_SPEC.md`.
+Status: **CATALOG & COMMERCE FULFILLMENT FOUNDATION FORMALLY ACCEPTED (PHASE A3 & A3.6); A3.7 RAZORPAY SANDBOX VERIFIED (93/93 TESTS PASSING).** The unified add-on catalog, dynamic pricing engine, transactional entitlement fulfillment, standalone add-on billing (Option 3A), Sovereign capacity enforcement (100 employee cap, no overages per CP-02), and Razorpay sandbox payments are implemented and verified. Context: `10_SaaS_Architecture_Master_Plan.md`; commerce spec: `docs/architecture/PHASE_A3_COMMERCE_ARCHITECTURE_SPEC.md` and `docs/architecture/MASTERHRMS_A3_7_RAZORPAY_SANDBOX_SPEC.md`.
 
 ---
 
@@ -231,6 +231,12 @@ Wave: **1** = foundation/revenue, **2** = growth, **3** = long tail. "Decide" = 
 5. **Region gating:** ZATCA (Saudi) and E-Invoice (EU) only visible/purchasable for supported countries.
 6. **Naming fixes in the catalog:** Reminder (not "Remainder"), Warranty, Bio-metric, Sendinblue is now called Brevo, Twitter is now X.
 7. **Overall count:** after merges the catalog is about 95 add-ons built on 12 engines.
+
+### 5.1 Confirmed Product Owner Packaging & Capacity Decisions (Phase A3.6 & A3.7)
+- **OD-3 (Accepted):** Standalone workspace-bound add-ons supported without requiring a base plan. Option 3A standalone billing implemented (`BillingInvoice.subscriptionId = null`).
+- **CP-02 (Confirmed):** Sovereign tier capacity confirmed at 100 employees per tenant workspace. Overage billing is strictly prohibited.
+- **CP-03 (Confirmed):** Standalone pricing schedules for POS, CRM, Finance, Biometric Sync, and WhatsApp Alerts deferred; Option 3A architecture preserved.
+- **CP-04 (Confirmed):** Grandfathering confirmed — active subscriptions preserve existing agreed rates perpetually.
 
 ---
 

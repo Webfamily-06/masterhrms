@@ -1,101 +1,97 @@
-# MASTERHRMS — Phase A3.6 Release Gate Recommendation
-## Final Technical Evaluation & Owner Governance Review
+# MASTERHRMS — Phase A3.6 Release Gate Recommendation & Acceptance Record
+## Final Technical Evaluation & Formal Product Owner Acceptance
 
-**Document Version:** 1.0.0  
+**Document Version:** 1.2.0  
 **Phase:** Phase A3.6 — Owner Acceptance & Governance Gate  
-**Date:** October 9, 2026  
+**Acceptance Date:** October 9, 2026  
 **Auditor:** Google Antigravity Systems & Governance Audit Agent  
 **Target Milestone:** Milestone A3 — Multi-Tenant Commerce & Entitlement Infrastructure  
+**Final Status:** **`PHASE A3.6 FORMALLY ACCEPTED — PRODUCTION RELEASE NOT AUTHORIZED`**
 
 ---
 
-## 1. Executive Release Gate Verdict
+## 1. Executive Acceptance Decision
 
-### **RECOMMENDED OUTCOME: A**
-### **`ACCEPTANCE CANDIDATE — OWNER SIGN-OFF REQUIRED`**
+### **RECORDED STATUS:**
+### **`PHASE A3.6 FORMALLY ACCEPTED — PRODUCTION RELEASE NOT AUTHORIZED`**
 
-All applicable technical criteria, end-to-end integration journeys, outbox transaction boundaries, defect fixes, and regression suites are **independently verified with empirical proof**. Historical documentation and test count discrepancies have been categorized with clear reconciliation proposals.
+The Product Owner has reviewed the Phase A3.6 Final Implementation & Governance Verification Report and the Final Acceptance Readiness Gate Audit and formally recorded Phase A3.6 as **ACCEPTED** for the completed, documented, and verified implementation scope, subject to strict production boundaries.
 
-**CRITICAL GOVERNANCE BOUNDARY:**  
-This document is a **technical audit recommendation only**. It does **NOT** constitute formal Owner Acceptance, nor does it authorize production deployment, live payment capture, or production entitlement activation. Formal acceptance and release authorization remain exclusively reserved for the System Owner.
-
----
-
-## 2. Summary of Independent Verifications
-
-### A. What Was Independently Verified
-1. **Automated Test Suites (67/67 PASS):**
-   - Executed against isolated PostgreSQL instance (`aws-0-ap-south-1.pooler.supabase.com:6543/postgres`).
-   - `commerce-catalog-pricing.test.ts` (Phase A3.2): 20/20 PASS.
-   - `commerce-order-lifecycle.test.ts` (Phase A3.3): 12/12 PASS.
-   - `commerce-entitlement-fulfillment.test.ts` (Phase A3.4): 22/22 PASS.
-   - `commerce-e2e-journey.test.ts` (Phase A3.5): 13/13 PASS.
-   - Consolidated: **67 tests executed, 67 passed, 0 failed, 0 skipped, duration 81.39s, exit code 0**.
-2. **Static Code Analysis:**
-   - Server TypeScript typecheck (`npx tsc --noEmit`): **0 errors, 0 warnings, exit code 0**.
-3. **Production Bundle Build:**
-   - Vite / TanStack Start production build (`npm run build`): **Completed in 8.50s, exit code 0**.
-4. **Defect Remediations Verified:**
-   - `DEF-A35-01`: Line item snapshot mapping compatibility (`lineItems` vs `items`).
-   - `DEF-A35-02`: Base plan capacity defaults (Starter: 25 seats, Growth: 100 seats, Sovereign: 500 seats).
-   - `DEF-A35-03`: Realtime WebSocket processor event-type isolation (`eventType: { notIn: ["COMMERCE_ORDER_PAID"] }`). Proved that generic workers cannot hijack or prematurely mark commerce events `PROCESSED`.
-   - `DEF-A35-04`: Property alignment with schema (`TenantAddon.renewsAt`).
-   - `DEF-A35-05`: Schema alignment with `/api/auth/me` root profile payload.
-5. **Architectural Invariants Verified:**
-   - Multi-tenant isolation: Cross-tenant reads and payments return fail-closed 404 without information disclosure.
-   - Idempotency: Duplicate orders or replays return `200 + X-Idempotent-Replay` or `{ alreadyFulfilled: true }` with zero duplicate database mutations.
-   - Downgrade prevention: Downgrade attempts decline with `DOWNGRADE_NOT_PERMITTED` while preserving higher-tier subscription intact.
-   - Mixed order atomicity: Base plans, standalone ERP modules, and add-ons provision in a single database commit; partial failure triggers 100% rollback.
-   - Concurrency & Dead-Letter Safety: Workers coordinate safely via PostgreSQL `FOR UPDATE SKIP LOCKED` and row locks on `commerce_orders`; retries exhaust cleanly at 5 attempts to `FAILED` status, logging `COMMERCE_FULFILLMENT_FAILED_PERMANENT` without losing paid orders.
+### Accepted Scope:
+1. **OD-1 (Dynamic Versioned Commercial Pricing):** Implemented via `CommercialPriceSchedule` model and `DynamicPricingService`. Supports versioning, effective dates, tax details, currency, approval workflow (`DRAFT` → `PENDING_APPROVAL` → `PUBLISHED` → `ARCHIVED`), immutable price snapshots on orders and invoices, grandfathering checks for active subscriptions, and strict fail-closed behavior in production.
+2. **OD-3 (Standalone Workspace Add-ons with Option 3A Invoicing):** Implemented Option 3A by safely making `BillingInvoice.subscriptionId` nullable. Supports standalone add-on and module purchases without requiring an active base plan, consolidated multi-product checkouts with distinct line items, and strict tenant-scoped entitlement checks.
+3. **OD-10 (Renewal-Based Plan Changes & Super Admin Override):** Implemented via `SubscriptionScheduleService`. Customer-initiated plan changes schedule the transition for the next renewal date (`currentPeriodEnd`), preserving active plan entitlements until then. Downgrade requests validate active employee counts against target seat capacity (`DOWNGRADE_CAPACITY_EXCEEDED`). Controlled Super Admin overrides require ticket references and written justifications, recording immutable before/after state in `SubscriptionPolicyAudit`.
+4. **Empirical Regression Baseline (88 Tests):** All 88 commerce and governance tests pass with zero failures (88/88 PASS, duration 245.53s, exit code 0). Static analysis (`npx tsc --noEmit`) and production bundle compilation (`npm run build`) completed with zero errors.
+5. **Associated Schema, Service & Governance Documentation:** Migration script `server/scripts/apply_a3_6_governance_migration.cjs`, synchronized `schema.prisma`, route handlers, and governance files in `docs/architecture/`.
 
 ---
 
-## 3. What Remains Unverified & Explicit Release Gates
+## 2. Mandatory Production Boundaries & Operational Constraints
 
-The following items are outside the scope of technical automated testing and remain strictly blocked pending Owner action:
+In accordance with the Product Owner's explicit governance directives, the following strict boundaries are permanently recorded:
 
-| Gate | Category | Description | Status |
-| :---: | :--- | :--- | :---: |
-| **OD-1** | Commercial Pricing | Live INR commercial pricing schedule sign-off. | **BLOCKED (FAIL-CLOSED)** |
-| **OD-1** | Payment Gateways | Live Razorpay / Stripe gateway credentials and live webhook endpoints. | **BLOCKED (TEST ONLY)** |
-| **OD-3** | Invoicing Architecture | Owner selection between Option 3A (nullable subscriptionId) and Option 3B (separate receipt model). | **BLOCKED (DEFERRED)** |
-| **OD-10** | Proration / Credits | Commercial policy regarding mid-cycle upgrade proration math, credits, and unexpired period value preservation. | **BLOCKED (UNRESOLVED)** |
-| **OD-12** | Revocation Policy | Commercial grace-period SLAs and non-payment account suspension rules. | **DEFERRED** |
-| **OD-13** | Database Migrations | Confirmation of zero DDL migrations for Milestone A3. | **SATISFIED** |
-
----
-
-## 4. Completed Authorized Documentation Reconciliations
-
-Under explicit Owner authorization (October 9, 2026), the following documentation amendments were executed:
-1. **Historical Runbook Hardening ([`MASTERHRMS_A3_4_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md`](file:///c:/Users/TSV%20Global%20Solutions/Documents/hrms/docs/architecture/MASTERHRMS_A3_4_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md)):**
-   - Removed obsolete non-existent column updates (`locked_by`, `locked_at`).
-   - Embedded complete, audited operational recovery procedure (preconditions, order status validation in `commerce_orders`, row locking, and mandatory audit log insertion).
-   - Reconciled deployment checklist to the verified 67-test baseline.
-2. **Historical Planning Reconciliation ([`MASTERHRMS_A3_4_TEST_AND_ROLLOUT_PLAN.md`](file:///c:/Users/TSV%20Global%20Solutions/Documents/hrms/docs/architecture/MASTERHRMS_A3_4_TEST_AND_ROLLOUT_PLAN.md)):**
-   - Added dated reconciliation note explaining that the initial 28-test planning estimate was superseded by the 22-test acceptance suite across 6 validation tiers, without altering historical planning text.
-3. **Historical Implementation Report Reconciliation ([`MASTERHRMS_A3_4_IMPLEMENTATION_REPORT.md`](file:///c:/Users/TSV%20Global%20Solutions/Documents/hrms/docs/architecture/MASTERHRMS_A3_4_IMPLEMENTATION_REPORT.md)):**
-   - Added dated reconciliation note clarifying the draft 18-test reference against the final 22-test fulfillment suite and 67-test repository total.
+1. **No Production Price Approval:** This acceptance does **NOT** constitute approval of the proposed Starter (₹199), Growth (₹499), or Sovereign (₹1,499) prices for production.
+2. **Production Checkout Disabled:** Production checkout and live payment capture remain strictly **DISABLED** and fail-closed.
+3. **No Production Migration:** The A3.6 forward migration was executed against the isolated test database only; it has **NOT** been applied to the production database.
+4. **No Live Gateway Credentials:** Live Razorpay or Stripe credentials, merchant keys, or live webhook endpoints are **NOT** configured or activated.
+5. **No Production Entitlement Activation:** Zero production entitlements have been activated and zero production deployments have been performed.
+6. **Workspace Isolation Preserved:** All multi-tenant isolation, authorization, audit logging, and fail-closed controls remain active and enforced.
+7. **Separate Production Release Gate:** Production release and live launch remain strictly subject to a separate written Owner authorization.
 
 ---
 
-## 5. Owner Decision Checklist for Milestone A3 Sign-Off
+## 3. Summary of Independent Verifications
 
-To formally accept Phase A3.6 and close Milestone A3, the System Owner should review and execute:
+### A. Automated Test Suites (88/88 PASS)
+- Executed sequentially against isolated PostgreSQL test database (`aws-0-ap-south-1.pooler.supabase.com:6543/postgres`):
+  - `src/tests/commerce-catalog-pricing.test.ts` (Phase A3.2): **20/20 PASS** (33.42s).
+  - `src/tests/commerce-order-lifecycle.test.ts` (Phase A3.3): **12/12 PASS** (34.61s).
+  - `src/tests/commerce-entitlement-fulfillment.test.ts` (Phase A3.4): **22/22 PASS** (34.02s).
+  - `src/tests/commerce-e2e-journey.test.ts` (Phase A3.5): **13/13 PASS** (84.22s).
+  - `src/tests/commerce-governance-a3-6.test.ts` (Phase A3.6): **21/21 PASS** (42.57s).
+  - Consolidated: **88 tests executed, 88 passed, 0 failed, 0 skipped, duration 245.53s, exit code 0**.
 
-- [ ] **Technical Acceptance:** Formally accept Phase A3.5 implementation based on verified 67/67 passing tests.
-- [ ] **Pricing Schedule (OD-1):** Approve formal INR commercial pricing matrix before live payment activation.
-- [ ] **Invoicing Model (OD-3):** Authorize Option 3A (nullable `subscriptionId`) or Option 3B (separate receipt model) for standalone module billing.
-- [ ] **Proration Policy (OD-10):** Approve mid-cycle subscription upgrade billing policy (full-cycle reset vs. prorated credit vs. co-terminus period alignment).
+### B. Static Code Analysis & Production Build
+- Server TypeScript typecheck (`npx tsc --noEmit`): **0 errors, 0 warnings, exit code 0**.
+- Vite v8.3.1 / TanStack Start production build (`npm run build`): **Completed in 7.00s, exit code 0**.
 
+### C. Schema & Migration Verification
+- Migration script `server/scripts/apply_a3_6_governance_migration.cjs` executed against test database.
+- `billing_invoices.subscription_id` dropped `NOT NULL` constraint cleanly (`is_nullable: YES`).
+- `tenant_subscriptions` added scheduled plan change columns (`scheduled_plan_id`, `scheduled_at`, `scheduled_effective_date`, `scheduled_by_user_id`, `scheduled_seats`).
+- Created `commercial_price_schedules` table with index on `(product_slug, status, effective_from)`.
+- Existing foreign keys and referential integrity confirmed intact.
 
 ---
 
-## 6. Formal Boundary Confirmation
+## 4. Policy & Decision Status Matrix
+
+| Decision Gate | Policy Scope | Implemented Architecture | Governance Status |
+| :---: | :--- | :--- | :--- |
+| **OD-1** | Versioned Pricing | `CommercialPriceSchedule` + approval lifecycle + immutable snapshots + grandfathering | **FORMALLY ACCEPTED** (Live canonical prices pending Owner sign-off) |
+| **OD-3** | Invoicing Architecture | Option 3A (`BillingInvoice.subscriptionId` nullable) + distinct line items | **FORMALLY ACCEPTED** |
+| **OD-10** | Plan Changes & Overrides | Renewal-based scheduling + downgrade employee guards + Super Admin override audit | **FORMALLY ACCEPTED** |
+| **OD-12** | Entitlement Revocation | Grace-period SLAs and suspension rules | **DEFERRED (Non-blocking for Milestone A3)** |
+| **OD-13** | Database Migration Safety | Safe forward migration executed against test database; zero data loss | **FORMALLY ACCEPTED (Test DB only; Prod migration gated)** |
+
+---
+
+## 5. Outstanding Production Release Blockers
+
+The following items represent separate, outstanding operational release gates required before any production deployment:
+
+1. **Canonical Price Schedule Sign-off (OD-1):** The Product Owner must review and formally approve the canonical price schedule values in `CommercialPriceSchedule` before activating production checkout.
+2. **Production Migration Execution (OD-13):** The Product Owner must authorize executing `server/scripts/apply_a3_6_governance_migration.cjs` on the production database during a designated maintenance window.
+3. **Live Payment Gateway Activation (OD-1):** Secure entry of production payment gateway keys (Razorpay / Stripe) and webhook secrets.
+4. **Production Deployment Authorization:** Written sign-off authorizing deployment to production infrastructure.
+
+---
+
+## 6. Formal Production Boundary Confirmation
 
 **IT IS HEREBY EXPLICITLY RECORDED THAT:**
-1. Production deployment was **NOT** executed during this audit.
-2. Live payment capture credentials were **NOT** configured, enabled, or tested with live money.
-3. Production entitlements were **NOT** activated.
-4. Phase A3.6 was **NOT** self-approved by the audit agent.
-5. All production gates remain **FAIL-CLOSED**.
+1. Production database migrations were **NOT** executed.
+2. Production deployment was **NOT** triggered.
+3. Live payment gateway credentials were **NOT** configured, enabled, or activated.
+4. Production entitlements were **NOT** activated.
+5. All production checkout and payment paths remain **FAIL-CLOSED**.

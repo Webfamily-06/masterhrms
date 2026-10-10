@@ -24,7 +24,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-export const Route = createFileRoute("/addons")({
+export const Route = createFileRoute("/addons/")({
   component: AddonsPage,
   head: () => ({
     meta: [
@@ -92,43 +92,38 @@ function AddonsPage() {
     },
   });
 
-  const { data: addons = [], isLoading } = useQuery({
+  const {
+    data: addons = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["public-addons"],
     queryFn: async () => {
-      try {
-        const page = await api.get("/cms/pages/system-addons-catalog");
-        if (Array.isArray(page?.content) && page.content.length > 0) {
-          return page.content as Addon[];
-        }
-        return [
-          { id: "a1", slug: "whatsapp-alerts", name: "WhatsApp Instant Alerts", tagline: "Automated SMS & WhatsApp alerts for shifts, payroll & leaves", description: "Seamless WhatsApp Business Cloud API integration.", category: "Communication", icon: "message-square", price_monthly: 999, status: "active", featured: true },
-          { id: "a2", slug: "biometric-sync", name: "Biometric Hardware Sync", tagline: "Realtime ZKTeco and Essl fingerprint and face scanner sync", description: "Direct TCP/IP and cloud webhook listener.", category: "Hardware", icon: "cpu", price_monthly: 1499, status: "active", featured: true },
-          { id: "a3", slug: "ai-content-generator", name: "AI Content Generation Studio", tagline: "Generate marketing copy, job descriptions, HR circulars with 20+ AI models", description: "Multi-model AI studio supporting ChatGPT, Google Gemini, Claude & Groq.", category: "AI & ML", icon: "sparkles", price_monthly: 1499, status: "active", featured: true },
-          { id: "a4", slug: "ai-ocr", name: "AI Invoice OCR Reader", tagline: "Smart machine vision document extractor for vendor bills", description: "Extract GSTIN, line items, and totals in seconds.", category: "AI & ML", icon: "zap", price_monthly: 1999, status: "active", featured: true },
-          { id: "a5", slug: "okr-performance", name: "OKR & 360° Performance Management", tagline: "Cascading company goals, check-ins & 360° appraisals", description: "Align enterprise goals with multi-rater feedback.", category: "Talent & Strategy", icon: "target", price_monthly: 1999, status: "active", featured: true },
-          { id: "a6", slug: "asset-management", name: "Hardware & IT Asset Lifecycle", tagline: "Track company laptops, monitors & warranties", description: "Device registry and HR onboarding assignments.", category: "Hardware", icon: "laptop", price_monthly: 1499, status: "active", featured: true },
-          { id: "a7", slug: "double-entry-accounting", name: "Double-Entry General Ledger", tagline: "Standard 5-tier Chart of Accounts & balanced journals", description: "Manage 17 chart of accounts, balanced journals & live balance sheets.", category: "Finance", icon: "bar-chart", price_monthly: 1499, status: "active", featured: true },
-          { id: "a8", slug: "form-builder", name: "Dynamic Form Builder", tagline: "Drag-and-drop custom feedback & onboarding forms", description: "Build multi-step surveys and exit checklists.", category: "Productivity", icon: "file-text", price_monthly: 999, status: "active", featured: false },
-          { id: "a9", slug: "tally-importer", name: "Tally ERP 9 / Prime Bridge", tagline: "2-way automated voucher & ledger sync for accounts", description: "Direct XML/ODBC sync with Tally accounting software.", category: "Finance", icon: "trending-up", price_monthly: 1299, status: "active", featured: false },
-          { id: "a10", slug: "razorpay-gateway", name: "Razorpay Payment Gateway", tagline: "Accept UPI, Credit Cards, NetBanking with auto invoice matching", description: "Seamless checkout modal for client portals.", category: "Payments", icon: "credit-card", price_monthly: 799, status: "active", featured: true },
-          { id: "a11", slug: "google-workspace", name: "Google Workspace & Drive", tagline: "Sync calendars, Gmail invitations, and Drive backups", description: "Direct Google OAuth 2.0 calendar and file backup.", category: "Productivity", icon: "folder", price_monthly: 499, status: "active", featured: false },
-          { id: "a12", slug: "workflow-automation", name: "Workflow Automation Engine", tagline: "Custom IF-THEN triggers & auto-notifications", description: "Automate repetitive company tasks with custom triggers.", category: "Productivity", icon: "zap", price_monthly: 899, status: "active", featured: false },
-          { id: "a13", slug: "crm-pipeline", name: "Sales CRM Pipeline & Deals", tagline: "Lead tracking, visual deal stages Kanban & accounts", description: "Manage sales pipelines from lead to contract won.", category: "Sales & CRM", icon: "briefcase", price_monthly: 1299, status: "active", featured: true },
-          { id: "a14", slug: "hrm-suite", name: "Core HRM 16 Suite", tagline: "Workforce management, payroll runs, biometric sync & leaves", description: "All-in-one Human Resource Management suite.", category: "Talent & Strategy", icon: "users", price_monthly: 1999, status: "active", featured: true },
-          { id: "a15", slug: "pos-billing", name: "Point of Sale (POS) & Barcode Billing", tagline: "Retail counter, barcode scanning & thermal receipt printing", description: "Full retail POS counter terminal with offline sync.", category: "Retail & POS", icon: "shopping-cart", price_monthly: 1499, status: "active", featured: true },
-          { id: "a16", slug: "product-service-catalog", name: "Products, Services & Multi-Warehouse Catalog", tagline: "Items catalog, multi-warehouse stock, taxes & multi-step wizard", description: "Enterprise product catalog with custom categories, taxes, units and warehouse stock.", category: "Retail & POS", icon: "package", price_monthly: 1499, status: "active", featured: true },
-        ] as Addon[];
-      } catch {
-        return [];
-      }
+      const data = await api.get<Addon[]>("/cms/addons");
+      return Array.isArray(data) ? data : [];
+    },
+  });
+
+  const { data: serverCategories = [] } = useQuery({
+    queryKey: ["public-addon-categories"],
+    queryFn: async () => {
+      const data = await api.get<string[]>("/cms/addons/categories");
+      return Array.isArray(data) ? data : [];
     },
   });
 
   const categories = useMemo(() => {
     const set = new Set<string>();
-    (addons ?? []).forEach((a) => set.add(a.category));
+    (serverCategories ?? []).forEach((c) => {
+      if (c) set.add(c);
+    });
+    (addons ?? []).forEach((a) => {
+      if (a.category) set.add(a.category);
+    });
     return ["All", ...Array.from(set).sort()];
-  }, [addons]);
+  }, [addons, serverCategories]);
 
   const filtered = useMemo(() => {
     return (addons ?? []).filter(
@@ -187,6 +182,17 @@ function AddonsPage() {
                 Loading marketplace addons catalog...
               </p>
             </div>
+          ) : isError ? (
+            <div className="py-16 text-center text-muted-foreground space-y-4">
+              <Puzzle className="size-12 mx-auto text-destructive/60" />
+              <div className="font-bold text-base text-foreground">Failed to load addons catalog</div>
+              <p className="text-xs max-w-md mx-auto">
+                {(error as any)?.message || "A network error occurred while retrieving extensions."}
+              </p>
+              <Button size="sm" onClick={() => refetch()} variant="outline">
+                Retry loading
+              </Button>
+            </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filtered.map((a) => {
@@ -195,7 +201,8 @@ function AddonsPage() {
                   a.icon &&
                   (a.icon.startsWith("http") ||
                     a.icon.startsWith("data:") ||
-                    a.icon.startsWith("blob:"))
+                    a.icon.startsWith("blob:") ||
+                    a.icon.startsWith("/"))
                 );
 
                 const currCode = sysConfig?.defaultCurrency || "INR";

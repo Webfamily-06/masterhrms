@@ -1,12 +1,12 @@
 # MASTERHRMS — Phase A3.6 Owner Acceptance & Governance Gate
 ## Comprehensive Technical Audit & Acceptance Evaluation
 
-**Document Version:** 1.0.0  
+**Document Version:** 1.2.0  
 **Phase:** Phase A3.6 — Owner Acceptance & Governance Gate  
 **Predecessor Phases:** Phase A3.1 (Catalog Spec), Phase A3.2 (Pricing Engine), Phase A3.3 (Order Lifecycle), Phase A3.4 (Atomic Fulfillment), Phase A3.5 (E2E Integration & Regression Gate)  
-**Execution Date:** October 9, 2026  
+**Execution & Acceptance Date:** October 9, 2026  
 **Auditor:** Google Antigravity Systems & Governance Audit Agent  
-**Authorization Mode:** Read-Only Technical Audit (Production Release, Live Payment Capture & Production Entitlements Strictly Blocked)  
+**Final Recorded Status:** `PHASE A3.6 FORMALLY ACCEPTED — PRODUCTION RELEASE NOT AUTHORIZED`  
 
 ---
 
@@ -235,3 +235,25 @@ Based on empirical evidence from test suites, static analysis, build verificatio
 **A. ACCEPTANCE CANDIDATE — OWNER SIGN-OFF REQUIRED**
 
 All applicable technical criteria for Phase A3.5 and its predecessors are independently verified. Historical documentation discrepancies and stale runbooks have been categorized with proposed reconciliations. Unresolved commercial business decisions (**OD-1, OD-3, and OD-10**) remain explicit, blocking release gates. Production deployment, live payment credentials, and production entitlement activation remain strictly blocked pending Owner commercial sign-off.
+
+---
+
+## 9. Formal Product Owner Acceptance Decision (October 9, 2026)
+
+On October 9, 2026, the Product Owner formally reviewed the submitted technical audit, implementation evidence, and readiness gate audit, and recorded the following authoritative decision:
+
+**FINAL STATUS: `PHASE A3.6 FORMALLY ACCEPTED — PRODUCTION RELEASE NOT AUTHORIZED`**
+
+### Accepted Scope:
+- OD-1: Dynamic, versioned commercial pricing implementation (`CommercialPriceSchedule`, `DynamicPricingService`).
+- OD-3: Standalone workspace-bound add-ons and Option 3A invoice support (`BillingInvoice.subscriptionId` nullable).
+- OD-10: Renewal-based plan changes and audited Super Admin overrides (`SubscriptionScheduleService`, `SubscriptionPolicyAudit`).
+- The verified 88-test regression baseline across all 5 commerce suites (100% PASS, 245.53s, exit code 0).
+- The associated schema, service, route, and governance documentation changes.
+
+### Mandatory Boundaries & Outstanding Blockers:
+- Proposed pricing values (Starter ₹199, Growth ₹499, Sovereign ₹1,499) are **NOT** approved for production.
+- Production checkout and live payment capture remain **DISABLED**.
+- Production database migration has **NOT** been performed.
+- Live Razorpay/Stripe credentials and webhooks are **NOT** configured.
+- Production deployment requires a separate written Owner authorization.

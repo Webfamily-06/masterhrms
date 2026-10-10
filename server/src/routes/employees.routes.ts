@@ -295,7 +295,10 @@ employeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create")
 
     return res.status(201).json(employee);
   } catch (err: any) {
-    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+      code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
+    });
   }
 });
 
@@ -488,7 +491,10 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
 
     return res.json(employee);
   } catch (err: any) {
-    return res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error",
+      code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
+    });
   }
 });
 
@@ -949,7 +955,7 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
 });
 
 // POST /api/employees/bulk-import
-// Imports multiple employees in batch with auto department resolution & KYC ingestion
+// Atomically imports multiple employees in batch with upfront capacity enforcement & auto department resolution
 employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = await getTenantId(req);
@@ -959,16 +965,29 @@ employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: 
       return res.status(400).json({ error: "An array of employee records is required in 'employees'." });
     }
 
-    const importedEmployees: any[] = [];
     const errors: Array<{ index: number; email?: string; error: string }> = [];
     let skippedCount = 0;
 
-    // Cache departments to avoid repeated queries
-    const existingDepts = await prisma.department.findMany({ where: { tenantId } });
-    const deptMap = new Map<string, string>();
-    for (const d of existingDepts) {
-      deptMap.set(d.name.toLowerCase().trim(), d.id);
-    }
+    // 1. Identify existing employees in this tenant to deduplicate before capacity check
+    const candidateEmails = rawList
+      .map((r: any) => (r.email || "").trim().toLowerCase())
+      .filter(Boolean);
+
+    const existingEmps = await prisma.employee.findMany({
+      where: { tenantId, email: { in: candidateEmails } },
+      select: { email: true },
+    });
+    const existingEmailSet = new Set(existingEmps.map((e) => e.email.toLowerCase()));
+
+    const validNewRows: Array<{
+      row: any;
+      index: number;
+      email: string;
+      firstName: string;
+      lastName: string;
+    }> = [];
+
+    const batchSeenEmails = new Set<string>();
 
     for (let i = 0; i < rawList.length; i++) {
       const row = rawList[i];
@@ -981,87 +1000,117 @@ employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: 
         continue;
       }
 
-      // Check if employee already exists in this tenant
-      const existing = await prisma.employee.findFirst({
-        where: { tenantId, email: rawEmail },
-      });
-
-      if (existing) {
+      if (existingEmailSet.has(rawEmail) || batchSeenEmails.has(rawEmail)) {
         skippedCount++;
         continue;
       }
 
-      // Resolve department
-      let departmentId = row.departmentId || row.department_id || null;
-      const deptName = (row.department || row.departmentName || "").trim();
-      if (!departmentId && deptName) {
-        const lowerDept = deptName.toLowerCase();
-        if (deptMap.has(lowerDept)) {
-          departmentId = deptMap.get(lowerDept);
-        } else {
-          try {
-            const newDept = await prisma.department.create({
+      batchSeenEmails.add(rawEmail);
+      validNewRows.push({ row, index: i, email: rawEmail, firstName, lastName });
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        error: "Validation failed for one or more records. Entire import aborted.",
+        code: "VALIDATION_FAILED",
+        errors,
+      });
+    }
+
+    if (validNewRows.length === 0) {
+      return res.json({
+        success: true,
+        total: rawList.length,
+        imported: 0,
+        skipped: skippedCount,
+        failed: 0,
+        employees: [],
+      });
+    }
+
+    // Cache departments to avoid repeated queries
+    const existingDepts = await prisma.department.findMany({ where: { tenantId } });
+    const deptMap = new Map<string, string>();
+    for (const d of existingDepts) {
+      deptMap.set(d.name.toLowerCase().trim(), d.id);
+    }
+
+    // 2. Execute entire batch atomically inside a transaction with pessimistic capacity lock
+    const importedEmployees = await prisma.$transaction(async (tx) => {
+      // Upfront capacity lock: validate active count + batch size <= plan limit
+      await lockWorkspaceCapacity(tx, tenantId, "employees", validNewRows.length);
+
+      const createdList: any[] = [];
+
+      for (const item of validNewRows) {
+        const { row, index: i, email: rawEmail, firstName, lastName } = item;
+
+        // Resolve department
+        let departmentId = row.departmentId || row.department_id || null;
+        const deptName = (row.department || row.departmentName || "").trim();
+        if (!departmentId && deptName) {
+          const lowerDept = deptName.toLowerCase();
+          if (deptMap.has(lowerDept)) {
+            departmentId = deptMap.get(lowerDept);
+          } else {
+            const newDept = await tx.department.create({
               data: { tenantId, name: deptName },
             });
             deptMap.set(lowerDept, newDept.id);
             departmentId = newDept.id;
-          } catch {}
+          }
         }
-      }
 
-      try {
-        const created = await prisma.$transaction(async (tx) => {
-          let userId: string | undefined;
-          try {
-            userId = await provisionEmployeeUser(tx, {
-              tenantId,
-              email: rawEmail,
-              firstName,
-              lastName: lastName || "-",
-              phone: row.phone || null,
-              password: row.password || "Password@123",
-            });
-          } catch {}
-
-          const empCode = row.employeeCode || row.employee_code || `EMP-${Date.now().toString().slice(-4)}${i}`;
-
-          return await tx.employee.create({
-            data: {
-              tenantId,
-              userId: userId || null,
-              firstName,
-              lastName: lastName || "-",
-              email: rawEmail,
-              phone: row.phone || null,
-              position: row.position || row.designation || "Team Member",
-              employeeCode: empCode,
-              departmentId,
-              employmentType: parseEmploymentType(row.employmentType || row.employment_type),
-              status: parseEmployeeStatus(row.status),
-              salary: row.salary ? Number(row.salary) : null,
-              joinedAt: row.joinedAt ? new Date(row.joinedAt) : new Date(),
-              pan: row.pan ? String(row.pan).toUpperCase().trim() : null,
-              aadhaar: row.aadhaar ? String(row.aadhaar).trim() : null,
-              uan: row.uan ? String(row.uan).trim() : null,
-              esiNumber: row.esiNumber || row.esi_number ? String(row.esiNumber || row.esi_number).trim() : null,
-              bankName: row.bankName || row.bank_name || null,
-              bankAccount: row.bankAccount || row.bank_account || null,
-              bankIfsc: row.bankIfsc || row.bank_ifsc ? String(row.bankIfsc || row.bank_ifsc).toUpperCase().trim() : null,
-              bankBranch: row.bankBranch || row.bank_branch || null,
-              taxRegime: row.taxRegime === "old" ? "old" : "new",
-              state: row.state || "MH",
-            },
-            include: {
-              department: true,
-            },
+        let userId: string | undefined;
+        try {
+          userId = await provisionEmployeeUser(tx, {
+            tenantId,
+            email: rawEmail,
+            firstName,
+            lastName: lastName || "-",
+            phone: row.phone || null,
+            password: row.password || "Password@123",
           });
+        } catch {}
+
+        const empCode = row.employeeCode || row.employee_code || `EMP-${Date.now().toString().slice(-4)}${i}`;
+
+        const created = await tx.employee.create({
+          data: {
+            tenantId,
+            userId: userId || null,
+            firstName,
+            lastName: lastName || "-",
+            email: rawEmail,
+            phone: row.phone || null,
+            position: row.position || row.designation || "Team Member",
+            employeeCode: empCode,
+            departmentId,
+            employmentType: parseEmploymentType(row.employmentType || row.employment_type),
+            status: parseEmployeeStatus(row.status),
+            salary: row.salary ? Number(row.salary) : null,
+            joinedAt: row.joinedAt ? new Date(row.joinedAt) : new Date(),
+            pan: row.pan ? String(row.pan).toUpperCase().trim() : null,
+            aadhaar: row.aadhaar ? String(row.aadhaar).trim() : null,
+            uan: row.uan ? String(row.uan).trim() : null,
+            esiNumber: row.esiNumber || row.esi_number ? String(row.esiNumber || row.esi_number).trim() : null,
+            bankName: row.bankName || row.bank_name || null,
+            bankAccount: row.bankAccount || row.bank_account || null,
+            bankIfsc: row.bankIfsc || row.bank_ifsc ? String(row.bankIfsc || row.bank_ifsc).toUpperCase().trim() : null,
+            bankBranch: row.bankBranch || row.bank_branch || null,
+            taxRegime: row.taxRegime === "old" ? "old" : "new",
+            state: row.state || "MH",
+          },
+          include: {
+            department: true,
+          },
         });
 
-        importedEmployees.push(created);
-      } catch (insertErr: any) {
-        errors.push({ index: i, email: rawEmail, error: insertErr.message || "Failed to create employee" });
+        createdList.push(created);
       }
-    }
+
+      return createdList;
+    }, { timeout: 60000, maxWait: 15000 });
 
     // Log bulk audit activity
     try {
@@ -1077,7 +1126,7 @@ employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: 
       });
     } catch {}
 
-    return res.json({
+    return res.status(201).json({
       success: true,
       total: rawList.length,
       imported: importedEmployees.length,
@@ -1087,7 +1136,10 @@ employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: 
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (err: any) {
-    return res.status(err.status || 500).json({ error: err.message || "Internal server error during bulk import" });
+    return res.status(err.status || 500).json({
+      error: err.message || "Internal server error during bulk import",
+      code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
+    });
   }
 });
 

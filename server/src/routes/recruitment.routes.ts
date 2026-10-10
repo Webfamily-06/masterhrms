@@ -2,6 +2,7 @@ import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
@@ -424,7 +425,7 @@ recruitmentRouter.put("/candidates/:id/scorecard", requireAuth, async (req: Auth
 });
 
 // POST /api/recruitment/candidates/:id/convert-to-employee (1-Click Hired to Staff Onboarding)
-recruitmentRouter.post("/candidates/:id/convert-to-employee", requireAuth, async (req: AuthRequest, res: Response) => {
+recruitmentRouter.post("/candidates/:id/convert-to-employee", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
@@ -511,7 +512,10 @@ recruitmentRouter.post("/candidates/:id/convert-to-employee", requireAuth, async
     });
   } catch (err: any) {
     console.error("[convert-to-employee] error:", err);
-    return res.status(err.status || 500).json({ error: err.message || "Failed to convert candidate to employee." });
+    return res.status(err.status || 500).json({
+      error: err.message || "Failed to convert candidate to employee.",
+      code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
+    });
   }
 });
 

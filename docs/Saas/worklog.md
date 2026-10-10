@@ -371,7 +371,7 @@ Spec files: `../saas-architecture/10_SaaS_Architecture_Master_Plan.md`, `11_Mark
 | A0 | Audit docs.tsx claims vs reality; confirm decisions | Owner approves plan | **Complete (Approved)** |
 | A1 | Platform core: host/subdomain resolution, token binding, refresh sessions, app launcher, registries, entitlement service, signup and workspace creation, tenant login | Two-tenant isolation tests pass | **Complete (Approved)** |
 | A2 | Portals re-homing to /tenant, /hr, /me, /crm, /finance, /inventory, /pos, /projects, /support, /it, /client | Every sidebar link opens a real page | **Complete (Approved)** |
-| A3 | Commerce core: catalog, add-on manager, cart, coupons, orders, Razorpay + webhooks, invoices, subscriptions | Buy add-on end to end; 67/67 tests passing | **Complete (Approved / Gate Sign-off Pending)** |
+| A3 | Commerce core: catalog, add-on manager, cart, coupons, orders, Razorpay + webhooks, invoices, subscriptions | Buy add-on end to end; 93/93 tests passing | **Complete (Formally Accepted by Product Owner; A3.7 Sandbox Verified)** |
 | A4 | Marketplace UIs: public /addons, detail, cart, checkout; tenant marketplace and My Add-ons | Guest and in-tenant purchase pass | **In Progress (Current Flow)** |
 | A5 | Custom domains and central OAuth callback | Custom domain login works | **Partial / In Progress** |
 | A6 | Add-on engines E1 to E12 | 2 add-ons per engine | Not started |
@@ -391,9 +391,14 @@ Spec files: `../saas-architecture/10_SaaS_Architecture_Master_Plan.md`, `11_Mark
 | D-018 | 2026-10-09 | HRMS is hybrid; capability inventory produced; proposal of core vs add-on | Confirmed |
 | D-019 | 2026-10-09 | CRM treated as standalone candidate with documented HRMS dependencies | Confirmed |
 | D-020 | 2026-10-09 | Subdomains first: `{workspace}.{BASE_DOMAIN}` with tenant-bound auth is A1 priority | Implemented (A1) |
-| D-021 | 2026-10-09 | OD-1: Dynamic, versioned, administrator-configurable commercial pricing; existing subscriptions grandfathered at renewal | Proposed / Aligned (A3.6) |
-| D-022 | 2026-10-09 | OD-3: Workspace-bound standalone add-ons; Option 3A (nullable `subscriptionId` on `BillingInvoice`) recommended for GST compliance | Proposed / Aligned (A3.6) |
-| D-023 | 2026-10-09 | OD-10: Renewal-based plan changes default; audited Super Admin emergency overrides under explicit controls | Proposed / Aligned (A3.6) |
+| D-021 | 2026-10-09 | OD-1: Dynamic, versioned, administrator-configurable commercial pricing; existing subscriptions grandfathered at renewal | Formally Accepted (A3.6) |
+| D-022 | 2026-10-09 | OD-3: Workspace-bound standalone add-ons; Option 3A (nullable `subscriptionId` on `BillingInvoice`) implemented for GST compliance | Formally Accepted (A3.6) |
+| D-023 | 2026-10-09 | OD-10: Renewal-based plan changes default; audited Super Admin emergency overrides under explicit controls | Formally Accepted (A3.6) |
+| D-024 | 2026-10-09 | CP-01: Confirm Option B — annual pricing equal to 12 standard monthly payments (Starter ₹2,388/yr, Growth ₹5,988/yr, Sovereign ₹12,000/yr) | Confirmed (Product Owner) |
+| D-025 | 2026-10-09 | CP-02: Confirm Sovereign capacity of 100 employees per tenant workspace and prohibit overage billing | Confirmed (Product Owner) |
+| D-026 | 2026-10-09 | CP-03: Defer standalone POS, CRM, Finance, Biometric Sync, and WhatsApp Alerts price schedules; Option 3A architecture preserved | Confirmed (Product Owner) |
+| D-027 | 2026-10-09 | CP-04: Perpetual grandfathering at agreed price while subscription remains continuously active | Confirmed (Product Owner) |
+| D-028 | 2026-10-09 | TR-01: Razorpay Sandbox payment integration implemented and verified (18/18 tests in `commerce-razorpay-sandbox.test.ts`); live payments fail-closed | Verified (A3.7 Sandbox) |
 
 ### 11.3 Open Questions
 | ID | Question | Answer |
@@ -401,7 +406,7 @@ Spec files: `../saas-architecture/10_SaaS_Architecture_Master_Plan.md`, `11_Mark
 | Q-19 | Pricing model: subscription, one-time, per-user, mix? | **Mixed pricing.** A0 inventories supported billing intervals and price calculation paths; monthly/yearly, one-time, per-user and usage-based are marked separately (see file 13 section 3) |
 | Q-20 | Which HRMS capabilities are core vs paid add-ons (Recruitment, Training, Performance, Biometric, Timesheet, Assets, Double Entry, Notice Board)? | **Hybrid HRMS.** Build a capability inventory and propose CORE / OPTIONAL ADD-ON / UNDECIDED per capability. Do not enforce new packaging during A0 (file 13 section 4) |
 | Q-21 | Is CRM a separate product (own plan) and can it be bought without HRMS? | **Standalone CRM (to be verified).** Determine whether CRM routes, APIs and data can operate without an HRMS entitlement; document dependencies instead of assuming independence is implemented (file 13 section 5) |
-| Q-22 | Payment gateways, currencies and tax regions beyond Razorpay/GST? | |
+| Q-22 | Payment gateways, currencies and tax regions beyond Razorpay/GST? | Razorpay Sandbox verified for India INR/GST. Other gateways/currencies deferred |
 | Q-23 | Trial rules (length, card required, which add-ons)? | |
 | Q-24 | Reviews/comments only from verified buyers? Moderation owner? | |
 | Q-25 | `admin.{BASE}` for Super Admin acceptable? Custom domains in launch scope? | **Subdomains first.** Prioritize `{workspace}.{BASE_DOMAIN}` and tenant-bound authentication. Custom-domain support is documented as a later phase (A5); no domain provisioning during A0 (file 13 section 6). `admin.{BASE}` still to confirm |
@@ -417,7 +422,9 @@ Spec files: `../saas-architecture/10_SaaS_Architecture_Master_Plan.md`, `11_Mark
 | 2026-10-09 | Phase A1 Execution | Implemented and verified Platform Core: host/subdomain resolution middleware, tenant token binding, workspace creation, and platform entitlement service | Phase A2 portal re-homing |
 | 2026-10-09 | Phase A2 Execution | Re-homed portals and shell guards; verified with 26/26 tests passing in `phase-a2-portal-shells-entitlements.test.ts` | Phase A3 commerce core |
 | 2026-10-09 | Phase A3.1–A3.5 Execution | Implemented unified commerce engine: catalog, pricing engine, order lifecycle, transactional fulfillment, outbox worker, and GST tax calculation. Consolidated suite of 67/67 tests passing in 81.39s | Phase A3.6 audit & governance |
-| 2026-10-09 | Phase A3.6 Governance | Completed forensic owner acceptance audit, documentation reconciliation, runbook corrections, and full business policy alignment (OD-1, OD-3, OD-10). Authored `MASTERHRMS_A3_6_BUSINESS_POLICY_ALIGNMENT.md` | Phase A4 Marketplace UIs & Owner Commercial Policy Sign-Off |
+| 2026-10-09 | Phase A3.6 Governance | Completed forensic owner acceptance audit, documentation reconciliation, runbook corrections, and full business policy alignment (OD-1, OD-3, OD-10). Authored `MASTERHRMS_A3_6_BUSINESS_POLICY_ALIGNMENT.md` | Phase A3.6 Formal Owner Acceptance |
+| 2026-10-09 | Phase A3.6 Formal PO Acceptance | Formal Product Owner Acceptance recorded for OD-1, OD-3, OD-10, 88-test regression baseline, and governance boundaries (no production VPS / live payment release) | Phase A3.7 Production Readiness Audit |
+| 2026-10-09 | Phase A3.7 Commercial Policy & Sandbox | Confirmed Product Owner policies CP-01 (Option B 12-month annual), CP-02 (Sovereign 100 seats, no overages), CP-03 (defer standalone add-on pricing), CP-04 (perpetual grandfathering). Implemented and verified Razorpay Sandbox payment integration with 18/18 passing tests (93/93 commerce regression tests passing) | Phase A4 Marketplace UIs |
 
 ### 11.5 Owner answers received 2026-10-09 (decisions)
 | ID | Date | Decision | Status |
@@ -427,4 +434,4 @@ Spec files: `../saas-architecture/10_SaaS_Architecture_Master_Plan.md`, `11_Mark
 | D-019 | 2026-10-09 | CRM may be sold standalone, but independence is unverified; A0 documents real dependencies on HRMS (routes, APIs, data, identity, seed, navigation) | Confirmed |
 | D-020 | 2026-10-09 | Subdomains first: `{workspace}.{BASE_DOMAIN}` with tenant-bound auth is A1 priority. Custom domains are a later phase (A5); no domain provisioning (DNS verification, certificates, TenantDomain) in A0 | Confirmed |
 
-A0 detail, templates and report format: `../saas-architecture/13_A0_Audit_Brief.md`. All predecessor milestones A0, A1, A2, and A3 verified and documented. Current Flow active in Phase A4 (Marketplace UIs) and Phase A3.6 Owner Acceptance Gate.
+A0 detail, templates and report format: `../saas-architecture/13_A0_Audit_Brief.md`. All predecessor milestones A0, A1, A2, A3, and A3.6 verified and formally accepted by Product Owner; Phase A3.7 Razorpay Sandbox verified (93/93 tests passing). Current Flow active in Phase A4 (Marketplace UIs).

@@ -1838,13 +1838,257 @@ superRouter.delete("/coupons/:id", requireAuth, requireSuperAdmin, async (req: A
 // 2. ADDON MARKETPLACE CATALOG CRUD
 // ==========================================
 
-// GET /api/super/addons
-superRouter.get("/addons", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+// Helper to get or create system-addons-categories CMS storage
+async function getCustomCategories(): Promise<string[]> {
   try {
-    const addons = await prisma.addon.findMany({
+    const page = await prisma.cmsPage.findUnique({
+      where: { slug: "system-addons-categories" },
+    });
+    if (page?.content && Array.isArray((page.content as any)?.categories)) {
+      return ((page.content as any).categories as string[]).map((c) => String(c).trim()).filter(Boolean);
+    }
+  } catch {}
+  return [];
+}
+
+async function saveCustomCategories(categories: string[]) {
+  const unique = Array.from(new Set(categories.map((c) => String(c).trim()).filter(Boolean))).sort();
+  await prisma.cmsPage.upsert({
+    where: { slug: "system-addons-categories" },
+    create: {
+      slug: "system-addons-categories",
+      title: "System Addons Custom Categories",
+      content: { categories: unique },
+      published: true,
+    },
+    update: {
+      content: { categories: unique },
+      updatedAt: new Date(),
+    },
+  });
+  return unique;
+}
+
+// GET /api/super/addons/categories
+superRouter.get("/addons/categories", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const returnDetails = req.query.details === "true";
+    const customList = await getCustomCategories();
+
+    const distinct = await prisma.addon.findMany({
+      select: { category: true },
+      distinct: ["category"],
       orderBy: { category: "asc" },
     });
-    return res.json(addons);
+
+    const dbCategories = distinct.map((d) => d.category).filter(Boolean);
+    const allSet = new Set<string>([...dbCategories, ...customList]);
+    const allCategories = Array.from(allSet).sort();
+
+    if (!returnDetails) {
+      return res.json(allCategories);
+    }
+
+    // Detailed metrics per category
+    const grouped = await prisma.addon.groupBy({
+      by: ["category"],
+      _count: { id: true },
+    });
+    const countMap = new Map<string, number>();
+    grouped.forEach((g) => countMap.set(g.category, g._count.id));
+
+    const details = allCategories.map((catName) => {
+      const count = countMap.get(catName) || 0;
+      return {
+        name: catName,
+        count,
+        isDeletable: count === 0,
+      };
+    });
+
+    return res.json(details);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch addon categories" });
+  }
+});
+
+// POST /api/super/addons/categories
+superRouter.post("/addons/categories", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name } = req.body;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({
+        error: "Category name is required and cannot be empty.",
+        code: "VALIDATION_FAILED",
+      });
+    }
+
+    const trimmed = name.trim();
+    const customList = await getCustomCategories();
+    const existingAddonWithCat = await prisma.addon.findFirst({
+      where: { category: { equals: trimmed, mode: "insensitive" } },
+    });
+
+    if (existingAddonWithCat || customList.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      return res.status(409).json({
+        error: `Category '${trimmed}' already exists.`,
+        code: "CATEGORY_EXISTS",
+      });
+    }
+
+    const updated = await saveCustomCategories([...customList, trimmed]);
+    return res.status(201).json({
+      success: true,
+      name: trimmed,
+      categories: updated,
+      message: `Category '${trimmed}' created successfully.`,
+    });
+  } catch (err: any) {
+    console.error("[super/addons/categories create error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to create category" });
+  }
+});
+
+// PUT /api/super/addons/categories/:name
+superRouter.put("/addons/categories/:name", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const oldName = decodeURIComponent(req.params.name).trim();
+    const { newName } = req.body;
+
+    if (!newName || typeof newName !== "string" || !newName.trim()) {
+      return res.status(400).json({
+        error: "New category name is required.",
+        code: "VALIDATION_FAILED",
+      });
+    }
+
+    const trimmedNew = newName.trim();
+    if (oldName.toLowerCase() === trimmedNew.toLowerCase()) {
+      return res.json({ success: true, oldName, newName: trimmedNew, updatedCount: 0 });
+    }
+
+    // Check if newName conflicts with a different category
+    const conflict = await prisma.addon.findFirst({
+      where: {
+        category: { equals: trimmedNew, mode: "insensitive" },
+        NOT: { category: { equals: oldName, mode: "insensitive" } },
+      },
+    });
+
+    if (conflict) {
+      return res.status(409).json({
+        error: `Category '${trimmedNew}' already exists.`,
+        code: "CATEGORY_EXISTS",
+      });
+    }
+
+    // Update all matching addons in database
+    const updateResult = await prisma.addon.updateMany({
+      where: { category: oldName },
+      data: { category: trimmedNew },
+    });
+
+    // Update in custom categories registry if present
+    const customList = await getCustomCategories();
+    const updatedCustom = customList.map((c) => (c.toLowerCase() === oldName.toLowerCase() ? trimmedNew : c));
+    if (!updatedCustom.includes(trimmedNew)) {
+      updatedCustom.push(trimmedNew);
+    }
+    await saveCustomCategories(updatedCustom);
+
+    return res.json({
+      success: true,
+      oldName,
+      newName: trimmedNew,
+      updatedCount: updateResult.count,
+      message: `Category '${oldName}' renamed to '${trimmedNew}'. Updated ${updateResult.count} associated add-on(s).`,
+    });
+  } catch (err: any) {
+    console.error("[super/addons/categories update error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to update category" });
+  }
+});
+
+// DELETE /api/super/addons/categories/:name
+superRouter.delete("/addons/categories/:name", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const name = decodeURIComponent(req.params.name).trim();
+
+    // Check if any add-on is currently assigned to this category
+    const associatedCount = await prisma.addon.count({
+      where: { category: name },
+    });
+
+    if (associatedCount > 0) {
+      return res.status(400).json({
+        error: `Cannot delete category '${name}' because ${associatedCount} add-on(s) are assigned to it. Reassign or delete associated add-ons first.`,
+        code: "CATEGORY_IN_USE",
+        count: associatedCount,
+      });
+    }
+
+    // Remove from custom categories registry
+    const customList = await getCustomCategories();
+    const filtered = customList.filter((c) => c.toLowerCase() !== name.toLowerCase());
+    await saveCustomCategories(filtered);
+
+    return res.json({
+      success: true,
+      name,
+      message: `Category '${name}' deleted successfully.`,
+    });
+  } catch (err: any) {
+    console.error("[super/addons/categories delete error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete category" });
+  }
+});
+
+// GET /api/super/addons
+superRouter.get("/addons", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const category = req.query.category as string | undefined;
+    const status = req.query.status as string | undefined;
+    const search = req.query.search as string | undefined;
+
+    const where: any = {};
+    if (category && category !== "All") {
+      where.category = category;
+    }
+    if (status && status !== "all") {
+      where.status = status;
+    }
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { slug: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+        { tagline: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const addons = await prisma.addon.findMany({
+      where,
+      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+    });
+
+    const formatted = addons.map((a) => {
+      const price = a.priceMonthly != null ? Number(a.priceMonthly) : 0;
+      return {
+        ...a,
+        priceMonthly: price,
+        price_monthly: price,
+        longDescription: a.longDescription ?? null,
+        long_description: a.longDescription ?? null,
+        installUrl: a.installUrl ?? null,
+        install_url: a.installUrl ?? null,
+        docsUrl: a.docsUrl ?? null,
+        docs_url: a.docsUrl ?? null,
+        features: Array.isArray(a.features) ? a.features : [],
+        screenshots: Array.isArray(a.screenshots) ? a.screenshots : [],
+      };
+    });
+
+    return res.json(formatted);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch addons" });
   }
@@ -1858,37 +2102,85 @@ superRouter.post("/addons", requireAuth, requireSuperAdmin, async (req: AuthRequ
       slug,
       tagline,
       description,
+      longDescription,
+      long_description,
       category,
-      priceMonthly = 0,
+      priceMonthly,
+      price_monthly,
       icon,
+      screenshots = [],
       features = [],
+      developer,
       version = "1.0.0",
+      docsUrl,
+      docs_url,
+      galleryVideo,
+      installUrl,
+      install_url,
       featured = false,
       status = "active",
     } = req.body;
 
     if (!name || !slug || !category) {
-      return res.status(400).json({ error: "Name, slug, and category are required fields." });
+      return res.status(400).json({
+        error: "Name, slug, and category are required fields.",
+        code: "VALIDATION_FAILED",
+      });
     }
+
+    const cleanSlug = String(slug).toLowerCase().trim().replace(/[^a-z0-9_-]/g, "-");
+    const existing = await prisma.addon.findUnique({ where: { slug: cleanSlug } });
+    if (existing) {
+      return res.status(409).json({
+        error: `An addon with slug '${cleanSlug}' already exists.`,
+        code: "SLUG_EXISTS",
+      });
+    }
+
+    const resolvedLongDesc = (longDescription ?? long_description) ? String(longDescription ?? long_description).trim() : null;
+    const resolvedPrice = Number(priceMonthly ?? price_monthly) || 0;
+    const resolvedDocsUrl = (docsUrl ?? docs_url) ? String(docsUrl ?? docs_url).trim() : null;
+    const resolvedInstallUrl = (installUrl ?? install_url) ? String(installUrl ?? install_url).trim() : null;
 
     const addon = await prisma.addon.create({
       data: {
-        name,
-        slug,
-        tagline,
-        description,
-        category,
-        priceMonthly,
-        icon,
-        features,
-        version,
+        name: String(name).trim(),
+        slug: cleanSlug,
+        tagline: tagline ? String(tagline).trim() : null,
+        description: description ? String(description).trim() : null,
+        longDescription: resolvedLongDesc,
+        category: String(category).trim(),
+        priceMonthly: resolvedPrice,
+        icon: icon ? String(icon).trim() : null,
+        screenshots: Array.isArray(screenshots) ? screenshots : [],
+        features: Array.isArray(features) ? features : [],
+        developer: developer ? String(developer).trim() : null,
+        version: version ? String(version).trim() : "1.0.0",
+        docsUrl: resolvedDocsUrl,
+        galleryVideo: galleryVideo ? String(galleryVideo).trim() : null,
+        installUrl: resolvedInstallUrl,
         featured: Boolean(featured),
-        status,
+        status: status || "active",
       },
     });
 
-    return res.status(201).json(addon);
+    const formatted = {
+      ...addon,
+      priceMonthly: Number(addon.priceMonthly) || 0,
+      price_monthly: Number(addon.priceMonthly) || 0,
+      longDescription: addon.longDescription ?? null,
+      long_description: addon.longDescription ?? null,
+      installUrl: addon.installUrl ?? null,
+      install_url: addon.installUrl ?? null,
+      docsUrl: addon.docsUrl ?? null,
+      docs_url: addon.docsUrl ?? null,
+      features: Array.isArray(addon.features) ? addon.features : [],
+      screenshots: Array.isArray(addon.screenshots) ? addon.screenshots : [],
+    };
+
+    return res.status(201).json(formatted);
   } catch (err: any) {
+    console.error("[super/addons create error]:", err);
     return res.status(500).json({ error: err.message || "Failed to create addon" });
   }
 });
@@ -1899,35 +2191,98 @@ superRouter.put("/addons/:id", requireAuth, requireSuperAdmin, async (req: AuthR
     const { id } = req.params;
     const {
       name,
+      slug,
       tagline,
       description,
+      longDescription,
+      long_description,
       category,
       priceMonthly,
+      price_monthly,
       icon,
+      screenshots,
       features,
+      developer,
       version,
+      docsUrl,
+      docs_url,
+      galleryVideo,
+      installUrl,
+      install_url,
       featured,
       status,
     } = req.body;
 
+    const existing = await prisma.addon.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Addon not found", code: "NOT_FOUND" });
+    }
+
+    let cleanSlug = existing.slug;
+    if (slug && slug !== existing.slug) {
+      cleanSlug = String(slug).toLowerCase().trim().replace(/[^a-z0-9_-]/g, "-");
+      const slugConflict = await prisma.addon.findUnique({ where: { slug: cleanSlug } });
+      if (slugConflict && slugConflict.id !== id) {
+        return res.status(409).json({
+          error: `Slug '${cleanSlug}' is already taken by another addon.`,
+          code: "SLUG_EXISTS",
+        });
+      }
+    }
+
+    const resolvedLongDesc = (longDescription !== undefined || long_description !== undefined)
+      ? ((longDescription ?? long_description) ? String(longDescription ?? long_description).trim() : null)
+      : undefined;
+    const resolvedPrice = (priceMonthly !== undefined || price_monthly !== undefined)
+      ? (Number(priceMonthly ?? price_monthly) || 0)
+      : undefined;
+    const resolvedDocsUrl = (docsUrl !== undefined || docs_url !== undefined)
+      ? ((docsUrl ?? docs_url) ? String(docsUrl ?? docs_url).trim() : null)
+      : undefined;
+    const resolvedInstallUrl = (installUrl !== undefined || install_url !== undefined)
+      ? ((installUrl ?? install_url) ? String(installUrl ?? install_url).trim() : null)
+      : undefined;
+
     const updated = await prisma.addon.update({
       where: { id },
       data: {
-        ...(name && { name }),
-        ...(tagline !== undefined && { tagline }),
-        ...(description !== undefined && { description }),
-        ...(category && { category }),
-        ...(priceMonthly !== undefined && { priceMonthly }),
-        ...(icon !== undefined && { icon }),
-        ...(features !== undefined && { features }),
-        ...(version !== undefined && { version }),
+        ...(name !== undefined && { name: String(name).trim() }),
+        slug: cleanSlug,
+        ...(tagline !== undefined && { tagline: tagline ? String(tagline).trim() : null }),
+        ...(description !== undefined && { description: description ? String(description).trim() : null }),
+        ...(resolvedLongDesc !== undefined && { longDescription: resolvedLongDesc }),
+        ...(category !== undefined && { category: String(category).trim() }),
+        ...(resolvedPrice !== undefined && { priceMonthly: resolvedPrice }),
+        ...(icon !== undefined && { icon: icon ? String(icon).trim() : null }),
+        ...(screenshots !== undefined && { screenshots: Array.isArray(screenshots) ? screenshots : [] }),
+        ...(features !== undefined && { features: Array.isArray(features) ? features : [] }),
+        ...(developer !== undefined && { developer: developer ? String(developer).trim() : null }),
+        ...(version !== undefined && { version: version ? String(version).trim() : "1.0.0" }),
+        ...(resolvedDocsUrl !== undefined && { docsUrl: resolvedDocsUrl }),
+        ...(galleryVideo !== undefined && { galleryVideo: galleryVideo ? String(galleryVideo).trim() : null }),
+        ...(resolvedInstallUrl !== undefined && { installUrl: resolvedInstallUrl }),
         ...(featured !== undefined && { featured: Boolean(featured) }),
-        ...(status && { status }),
+        ...(status !== undefined && { status }),
       },
     });
 
-    return res.json(updated);
+    const formatted = {
+      ...updated,
+      priceMonthly: Number(updated.priceMonthly) || 0,
+      price_monthly: Number(updated.priceMonthly) || 0,
+      longDescription: updated.longDescription ?? null,
+      long_description: updated.longDescription ?? null,
+      installUrl: updated.installUrl ?? null,
+      install_url: updated.installUrl ?? null,
+      docsUrl: updated.docsUrl ?? null,
+      docs_url: updated.docsUrl ?? null,
+      features: Array.isArray(updated.features) ? updated.features : [],
+      screenshots: Array.isArray(updated.screenshots) ? updated.screenshots : [],
+    };
+
+    return res.json(formatted);
   } catch (err: any) {
+    console.error("[super/addons update error]:", err);
     return res.status(500).json({ error: err.message || "Failed to update addon" });
   }
 });
@@ -1936,10 +2291,187 @@ superRouter.put("/addons/:id", requireAuth, requireSuperAdmin, async (req: AuthR
 superRouter.delete("/addons/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const existing = await prisma.addon.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Addon not found", code: "NOT_FOUND" });
+    }
+
+    // Check if referenced by tenant entitlements
+    const entitlementCount = await prisma.tenantAddon.count({
+      where: { addonSlug: existing.slug },
+    });
+
+    if (entitlementCount > 0) {
+      // Soft-archive to preserve historical commercial entitlements
+      const archived = await prisma.addon.update({
+        where: { id },
+        data: { status: "archived" },
+      });
+      return res.json({
+        success: true,
+        archived: true,
+        message: `Addon '${existing.name}' is referenced by ${entitlementCount} tenant entitlement(s). Archived instead of hard-deleted to preserve historical audit trail.`,
+        addon: archived,
+      });
+    }
+
     await prisma.addon.delete({ where: { id } });
-    return res.json({ success: true, message: "Addon removed from catalog" });
+    return res.json({ success: true, message: `Addon '${existing.name}' removed from catalog.` });
   } catch (err: any) {
+    console.error("[super/addons delete error]:", err);
     return res.status(500).json({ error: err.message || "Failed to delete addon" });
+  }
+});
+
+// Helper for Addon Version History & Changelog storage
+export type AddonReleaseRecord = {
+  id: string;
+  addonId: string;
+  addonSlug: string;
+  version: string;
+  previousVersion: string | null;
+  changeSummary: string;
+  releaseNotes: string | null;
+  isPublic: boolean;
+  actorEmail: string | null;
+  metadataDiff: Record<string, any> | null;
+  createdAt: string;
+};
+
+async function getStoredAddonReleases(addonSlug: string): Promise<AddonReleaseRecord[]> {
+  const pageSlug = `system-addon-releases-${addonSlug}`;
+  try {
+    const page = await prisma.cmsPage.findUnique({ where: { slug: pageSlug } });
+    if (page?.content && Array.isArray((page.content as any).releases)) {
+      return (page.content as any).releases;
+    }
+  } catch {}
+  return [];
+}
+
+async function saveAddonReleases(addonSlug: string, addonName: string, releases: AddonReleaseRecord[]) {
+  const pageSlug = `system-addon-releases-${addonSlug}`;
+  await prisma.cmsPage.upsert({
+    where: { slug: pageSlug },
+    create: {
+      slug: pageSlug,
+      title: `Release History for ${addonName}`,
+      content: { releases },
+      published: true,
+    },
+    update: {
+      content: { releases },
+      updatedAt: new Date(),
+    },
+  });
+  return releases;
+}
+
+// GET /api/super/addons/:slug/releases
+superRouter.get("/addons/:slug/releases", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const addon = await prisma.addon.findFirst({
+      where: { OR: [{ slug }, { id: slug }] },
+    });
+    if (!addon) {
+      return res.status(404).json({ error: "Addon not found", code: "NOT_FOUND" });
+    }
+
+    const releases = await getStoredAddonReleases(addon.slug);
+    const sorted = [...releases].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return res.json({
+      addonId: addon.id,
+      addonSlug: addon.slug,
+      addonName: addon.name,
+      currentVersion: addon.version || "1.0.0",
+      totalReleases: sorted.length,
+      releases: sorted,
+    });
+  } catch (err: any) {
+    console.error("[super/addons/:slug/releases get error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch addon release history" });
+  }
+});
+
+// POST /api/super/addons/:slug/releases
+superRouter.post("/addons/:slug/releases", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const { version, changeSummary, releaseNotes, isPublic = true, metadataDiff } = req.body;
+
+    if (!version || typeof version !== "string" || !version.trim()) {
+      return res.status(400).json({
+        error: "A valid version string (e.g. '2.4.1') is required.",
+        code: "VALIDATION_FAILED",
+      });
+    }
+
+    const trimmedVersion = version.trim().replace(/^v/i, "");
+    // Validate semantic version format (e.g. 1.0.0 or 2.4.1)
+    const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$/;
+    if (!semverRegex.test(trimmedVersion)) {
+      return res.status(400).json({
+        error: `Version '${version}' is not a valid semantic version (expected format: X.Y.Z, e.g. 1.2.0).`,
+        code: "INVALID_SEMVER",
+      });
+    }
+
+    if (!changeSummary || typeof changeSummary !== "string" || !changeSummary.trim()) {
+      return res.status(400).json({
+        error: "A change summary is required for a new release.",
+        code: "VALIDATION_FAILED",
+      });
+    }
+
+    const addon = await prisma.addon.findFirst({
+      where: { OR: [{ slug }, { id: slug }] },
+    });
+    if (!addon) {
+      return res.status(404).json({ error: "Addon not found", code: "NOT_FOUND" });
+    }
+
+    const existingReleases = await getStoredAddonReleases(addon.slug);
+    if (existingReleases.some((r) => r.version.toLowerCase() === trimmedVersion.toLowerCase())) {
+      return res.status(409).json({
+        error: `Release version '${trimmedVersion}' already exists for add-on '${addon.name}'. Historical releases are immutable.`,
+        code: "VERSION_EXISTS",
+      });
+    }
+
+    const newRelease: AddonReleaseRecord = {
+      id: crypto.randomUUID(),
+      addonId: addon.id,
+      addonSlug: addon.slug,
+      version: trimmedVersion,
+      previousVersion: addon.version ? String(addon.version).replace(/^v/i, "") : null,
+      changeSummary: changeSummary.trim(),
+      releaseNotes: releaseNotes ? String(releaseNotes).trim() : null,
+      isPublic: Boolean(isPublic),
+      actorEmail: req.user?.email || "superadmin@masterhrms.com",
+      metadataDiff: metadataDiff && typeof metadataDiff === "object" ? metadataDiff : null,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Atomically update addon record's version
+    await prisma.addon.update({
+      where: { id: addon.id },
+      data: { version: trimmedVersion },
+    });
+
+    const updatedReleases = [newRelease, ...existingReleases];
+    await saveAddonReleases(addon.slug, addon.name, updatedReleases);
+
+    return res.status(201).json({
+      success: true,
+      release: newRelease,
+      currentVersion: trimmedVersion,
+      releases: updatedReleases,
+      message: `Version v${trimmedVersion} published successfully for ${addon.name}.`,
+    });
+  } catch (err: any) {
+    console.error("[super/addons/:slug/releases create error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to publish addon version" });
   }
 });
 

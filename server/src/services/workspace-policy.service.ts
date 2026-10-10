@@ -1,7 +1,12 @@
 import { rawPrisma as prisma } from "../prisma";
 
 export class WorkspacePolicyError extends Error {
-  constructor(message: string, public status = 403) { super(message); }
+  public code: string;
+  constructor(message: string, public status = 403, code = "POLICY_VIOLATION") {
+    super(message);
+    this.name = "WorkspacePolicyError";
+    this.code = code;
+  }
 }
 
 export function resolveWorkspacePolicy(subscription: any = {}, plans: any[] = []) {
@@ -14,13 +19,27 @@ export function resolveWorkspacePolicy(subscription: any = {}, plans: any[] = []
     subscription.status === "expired" ||
     (subscription.expiresAt && new Date(subscription.expiresAt).getTime() <= Date.now())
   );
+
+  let maxEmployees = limit(subscription.maxEmployees !== undefined ? subscription.maxEmployees : planLimit("maxEmployees", "max_employees"));
+  // Sovereign tier hard capacity limit is 100 employees per Product Owner policy CP-02
+  if (maxEmployees === null) {
+    const planSlug = String(subscription.planId || plan?.slug || plan?.name || "").toLowerCase().trim();
+    if (planSlug === "sovereign" || planSlug.includes("sovereign")) {
+      maxEmployees = 100;
+    } else if (planSlug === "growth" || planSlug.includes("growth")) {
+      maxEmployees = 100;
+    } else if (planSlug === "starter" || planSlug.includes("starter")) {
+      maxEmployees = 25;
+    }
+  }
+
   return {
     planId: plan?.id ?? null,
     planName: plan?.name ?? "Unassigned",
     status: subscription.status === "suspended" ? "suspended" : (isExpired ? "expired" : (subscription.status || "active")),
     isExpired,
     expiresAt: subscription.expiresAt || null,
-    maxEmployees: limit(subscription.maxEmployees !== undefined ? subscription.maxEmployees : planLimit("maxEmployees", "max_employees")),
+    maxEmployees,
     maxUsers: limit(subscription.maxUsers !== undefined ? subscription.maxUsers : planLimit("maxUsers", "max_users")),
     billingCycle: subscription.billingCycle === "annual" ? "annual" : "monthly",
     monthlyRevenue: plan ? (subscription.billingCycle === "annual" ? planPrice("priceAnnual", "price_annual") / 12 : planPrice("priceMonthly", "price_monthly")) : 0,
@@ -155,9 +174,13 @@ export async function lockWorkspaceCapacity(db: any, tenantId: string, resource:
   assertWorkspaceActive(policy);
   const maximum = resource === "employees" ? policy.maxEmployees : policy.maxUsers;
   const used = resource === "employees"
-    ? await db.employee.count({ where: { tenantId } })
+    ? await db.employee.count({ where: { tenantId, status: { in: ["active", "on_leave"] } } })
     : await db.profile.count({ where: { tenantId, user: { roles: { none: { role: "super_admin" } } } } });
   if (maximum !== null && used + additional > maximum) {
-    throw new WorkspacePolicyError(`Workspace ${resource} limit reached (${used}/${maximum}). Contact your platform administrator.`, 409);
+    throw new WorkspacePolicyError(
+      `Workspace ${resource} limit reached (${used}/${maximum}). Adding ${additional} would exceed plan capacity.`,
+      409,
+      "QUOTA_EXCEEDED"
+    );
   }
 }

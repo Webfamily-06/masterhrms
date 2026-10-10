@@ -15,7 +15,6 @@ import { Route as R404RouteImport } from './routes/404'
 import { Route as R500RouteImport } from './routes/500'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as AddonsRouteImport } from './routes/addons'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CareersRouteImport } from './routes/careers'
 import { Route as ContactRouteImport } from './routes/contact'
@@ -47,7 +46,8 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSuperRouteRouteImport } from './routes/_authenticated/super/route'
 import { Route as AuthenticatedTenantRouteImport } from './routes/_authenticated/tenant'
 import { Route as ATagRouteImport } from './routes/a.$tag'
-import { Route as AddonsSlugRouteImport } from './routes/addons.$slug'
+import { Route as AddonsIndexRouteImport } from './routes/addons.index'
+import { Route as AddonsSlugRouteImport } from './routes/addons_.$slug'
 import { Route as CmsIndexRouteImport } from './routes/cms.index'
 import { Route as CmsSplatRouteImport } from './routes/cms.$'
 import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
@@ -464,11 +464,6 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AddonsRoute = AddonsRouteImport.update({
-  id: '/addons',
-  path: '/addons',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -623,10 +618,15 @@ const ATagRoute = ATagRouteImport.update({
   path: '/a/$tag',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AddonsIndexRoute = AddonsIndexRouteImport.update({
+  id: '/addons/',
+  path: '/addons/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AddonsSlugRoute = AddonsSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => AddonsRoute,
+  id: '/addons_/$slug',
+  path: '/addons/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CmsIndexRoute = CmsIndexRouteImport.update({
   id: '/cms/',
@@ -2890,7 +2890,6 @@ export interface FileRoutesByFullPath {
   '/404': typeof R404Route
   '/500': typeof R500Route
   '/about': typeof AboutRoute
-  '/addons': typeof AddonsRouteWithChildren
   '/auth': typeof AuthRoute
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
@@ -2928,6 +2927,7 @@ export interface FileRoutesByFullPath {
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/addons/': typeof AddonsIndexRoute
   '/cms/': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
@@ -3315,7 +3315,6 @@ export interface FileRoutesByTo {
   '/404': typeof R404Route
   '/500': typeof R500Route
   '/about': typeof AboutRoute
-  '/addons': typeof AddonsRouteWithChildren
   '/auth': typeof AuthRoute
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
@@ -3349,6 +3348,7 @@ export interface FileRoutesByTo {
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/addons': typeof AddonsIndexRoute
   '/cms': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
@@ -3738,7 +3738,6 @@ export interface FileRoutesById {
   '/404': typeof R404Route
   '/500': typeof R500Route
   '/about': typeof AboutRoute
-  '/addons': typeof AddonsRouteWithChildren
   '/auth': typeof AuthRoute
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
@@ -3770,13 +3769,14 @@ export interface FileRoutesById {
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/tenant': typeof AuthenticatedTenantRouteWithChildren
   '/a/$tag': typeof ATagRoute
-  '/addons/$slug': typeof AddonsSlugRoute
+  '/addons_/$slug': typeof AddonsSlugRoute
   '/cms/$': typeof CmsSplatRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/addons/': typeof AddonsIndexRoute
   '/cms/': typeof CmsIndexRoute
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
@@ -4166,7 +4166,6 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/about'
-    | '/addons'
     | '/auth'
     | '/careers'
     | '/contact'
@@ -4204,6 +4203,7 @@ export interface FileRouteTypes {
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
+    | '/addons/'
     | '/cms/'
     | '/accounting'
     | '/adjustments'
@@ -4591,7 +4591,6 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/about'
-    | '/addons'
     | '/auth'
     | '/careers'
     | '/contact'
@@ -4625,6 +4624,7 @@ export interface FileRouteTypes {
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
+    | '/addons'
     | '/cms'
     | '/accounting'
     | '/adjustments'
@@ -5013,7 +5013,6 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/about'
-    | '/addons'
     | '/auth'
     | '/careers'
     | '/contact'
@@ -5045,13 +5044,14 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding'
     | '/_authenticated/tenant'
     | '/a/$tag'
-    | '/addons/$slug'
+    | '/addons_/$slug'
     | '/cms/$'
     | '/legal/$slug'
     | '/p/$slug'
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
+    | '/addons/'
     | '/cms/'
     | '/_authenticated/_app/accounting'
     | '/_authenticated/_app/adjustments'
@@ -5441,7 +5441,6 @@ export interface RootRouteChildren {
   R404Route: typeof R404Route
   R500Route: typeof R500Route
   AboutRoute: typeof AboutRoute
-  AddonsRoute: typeof AddonsRouteWithChildren
   AuthRoute: typeof AuthRoute
   CareersRoute: typeof CareersRoute
   ContactRoute: typeof ContactRoute
@@ -5467,12 +5466,14 @@ export interface RootRouteChildren {
   Super06Route: typeof Super06Route
   Verify2faRoute: typeof Verify2faRoute
   ATagRoute: typeof ATagRoute
+  AddonsSlugRoute: typeof AddonsSlugRoute
   CmsSplatRoute: typeof CmsSplatRoute
   LegalSlugRoute: typeof LegalSlugRoute
   PSlugRoute: typeof PSlugRoute
   PaymentFailedRoute: typeof PaymentFailedRoute
   PaymentPendingRoute: typeof PaymentPendingRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
+  AddonsIndexRoute: typeof AddonsIndexRoute
   CmsIndexRoute: typeof CmsIndexRoute
 }
 
@@ -5518,13 +5519,6 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/addons': {
-      id: '/addons'
-      path: '/addons'
-      fullPath: '/addons'
-      preLoaderRoute: typeof AddonsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -5744,12 +5738,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ATagRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/addons/$slug': {
-      id: '/addons/$slug'
-      path: '/$slug'
+    '/addons/': {
+      id: '/addons/'
+      path: '/addons'
+      fullPath: '/addons/'
+      preLoaderRoute: typeof AddonsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/addons_/$slug': {
+      id: '/addons_/$slug'
+      path: '/addons/$slug'
       fullPath: '/addons/$slug'
       preLoaderRoute: typeof AddonsSlugRouteImport
-      parentRoute: typeof AddonsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/cms/': {
       id: '/cms/'
@@ -9426,17 +9427,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
-interface AddonsRouteChildren {
-  AddonsSlugRoute: typeof AddonsSlugRoute
-}
-
-const AddonsRouteChildren: AddonsRouteChildren = {
-  AddonsSlugRoute: AddonsSlugRoute,
-}
-
-const AddonsRouteWithChildren =
-  AddonsRoute._addFileChildren(AddonsRouteChildren)
-
 interface PortalRouteChildren {
   PortalInvoicesIdRoute: typeof PortalInvoicesIdRoute
   PortalProposalsIdRoute: typeof PortalProposalsIdRoute
@@ -9457,7 +9447,6 @@ const rootRouteChildren: RootRouteChildren = {
   R404Route: R404Route,
   R500Route: R500Route,
   AboutRoute: AboutRoute,
-  AddonsRoute: AddonsRouteWithChildren,
   AuthRoute: AuthRoute,
   CareersRoute: CareersRoute,
   ContactRoute: ContactRoute,
@@ -9483,12 +9472,14 @@ const rootRouteChildren: RootRouteChildren = {
   Super06Route: Super06Route,
   Verify2faRoute: Verify2faRoute,
   ATagRoute: ATagRoute,
+  AddonsSlugRoute: AddonsSlugRoute,
   CmsSplatRoute: CmsSplatRoute,
   LegalSlugRoute: LegalSlugRoute,
   PSlugRoute: PSlugRoute,
   PaymentFailedRoute: PaymentFailedRoute,
   PaymentPendingRoute: PaymentPendingRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
+  AddonsIndexRoute: AddonsIndexRoute,
   CmsIndexRoute: CmsIndexRoute,
 }
 export const routeTree = rootRouteImport

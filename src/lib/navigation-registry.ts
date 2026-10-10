@@ -25,7 +25,7 @@ export interface NavigationItem {
   permission?: string;
   roles?: string[];
   moduleKey?: string;
-  dataScope?: string;
+  dataScope?: string
   badgeKey?: string;
   exactMatch?: boolean;
   children?: NavigationItem[];

@@ -306,12 +306,39 @@ Upon Product Owner authorization, implementation should execute across three con
 
 ---
 
-## 12. Final Confirmation of Governance Boundaries
+## 12. Prior Read-Only Baseline Confirmation
 
-**IT IS HEREBY EXPLICITLY RECORDED THAT:**
-1. No application source code was modified.
-2. No database schema migrations were created or applied.
-3. No database records were altered.
-4. No payment gateway credentials, live webhooks, or merchant keys were configured.
-5. Live payment capture and production entitlement activation remain strictly **DISABLED**.
-6. Formal acceptance of Phase A3.6 was **NOT** self-approved and remains pending Product Owner sign-off.
+**RECORD OF PRIOR AUDIT STATE (PRE-IMPLEMENTATION):**
+Initial Phase A3.6 audit established the read-only baseline with 67/67 passing tests before implementation authorization was granted.
+
+---
+
+## 13. Authorized Implementation & Verification Addendum (October 9, 2026)
+
+Under explicit Product Owner authorization ("Phase A3.6 Final Owner Decision & Controlled Implementation Authorization"), Stages 0 through 3 were executed and verified against the isolated test database environment:
+
+### 13.1 Schema & Migration Foundation (Stage 1)
+- **Migration:** Forward migration script `server/scripts/apply_a3_6_governance_migration.cjs` executed against isolated test PostgreSQL instance (`aws-0-ap-south-1.pooler.supabase.com:6543/postgres`).
+- **Option 3A (Invoicing):** Altered `billing_invoices.subscription_id` to `DROP NOT NULL` (`is_nullable: YES`). Preserves foreign key relation and referential integrity for existing and future subscription-linked invoices while enabling standalone module invoices.
+- **OD-1 (Pricing):** Created `commercial_price_schedules` table with fields `(id, product_slug, version, currency, amount_monthly, amount_annual, tax_percentage, status, effective_from, effective_to, approved_by, approved_at, notes, created_by, created_at, updated_at)` and composite index on `(product_slug, status, effective_from)`.
+- **OD-10 (Plan Changes):** Added scheduled plan change fields to `tenant_subscriptions`: `scheduled_plan_id`, `scheduled_at`, `scheduled_effective_date`, `scheduled_by_user_id`, `scheduled_seats`.
+- **Prisma Sync:** Updated `server/prisma/schema.prisma` and generated Prisma Client v5.22.0.
+
+### 13.2 Core Services & Routes Implementation (Stage 2)
+- **`DynamicPricingService` (`server/src/services/dynamic-pricing.service.ts`):** Implemented lifecycle (`DRAFT` → `PENDING_APPROVAL` → `PUBLISHED` → `ARCHIVED`), active published price lookup with fallback for development, grandfathering check for existing active subscriptions, and fail-closed resolution in production mode.
+- **`SubscriptionScheduleService` (`server/src/services/subscription-schedule.service.ts`):** Implemented renewal-based plan change scheduling (`currentPeriodEnd`), employee count capacity validation against target plan (`DOWNGRADE_CAPACITY_EXCEEDED`), customer cancellation of scheduled changes, renewal sweep applicator, and Super Admin immediate override with mandatory support ticket and written justification logged in `SubscriptionPolicyAudit`.
+- **`CommerceFulfillmentService` (`server/src/services/commerce-fulfillment.service.ts`):** Updated to generate compliant `BillingInvoice` records with `subscriptionId = null` for standalone orders (Option 3A verified) and distinct line item snapshots.
+- **`UnifiedCatalogService` & `CartCalculatorService`:** Updated to resolve active database-published prices dynamically from `DynamicPricingService`.
+- **`commerceRouter` (`server/src/routes/commerce.routes.ts`):** Added endpoints for invoice retrieval (`/invoices/:id`), plan change scheduling (`/subscriptions/schedule-plan-change`), plan change cancellation (`/subscriptions/cancel-scheduled-plan-change`), Super Admin override (`/admin/subscription/override`), and price schedule lifecycle management (`/admin/pricing/schedules/*`).
+
+### 13.3 Test Verification & Regression Evidence (Stage 3)
+- **New Governance Suite:** Created `src/tests/commerce-governance-a3-6.test.ts` (21 tests across 4 validation tiers). **Result: 21/21 PASS (42.57s)**.
+- **Consolidated Sequential Regression:** Executed all 5 commerce suites sequentially (`--fileParallelism=false`): **88/88 PASS (245.53s, exit code 0)**.
+- **Static Typecheck:** `npx tsc --noEmit` exited code 0 cleanly with zero errors.
+- **Production Build:** `npm run build` compiled cleanly in 7.00s with code 0.
+
+### 13.4 Strict Production Boundaries Maintained
+- **Zero production migrations executed.**
+- **Zero production customer records altered.**
+- **Zero live payment gateway credentials activated.**
+- **Phase A3.6 ready for formal Product Owner acceptance.**

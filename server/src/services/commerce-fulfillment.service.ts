@@ -352,6 +352,37 @@ export class CommerceFulfillmentService {
         }
       }
 
+      // 6.5. Generate Compliant Billing Invoice (OD-3 Option 3A)
+      const activeSub = await tx.tenantSubscription.findUnique({
+        where: { tenantId: orderTenantId },
+      });
+
+      const existingInv = await tx.billingInvoice.findFirst({
+        where: { gatewayOrderId: order.order_number },
+      });
+
+      if (!existingInv) {
+        await tx.billingInvoice.create({
+          data: {
+            tenantId: orderTenantId,
+            subscriptionId: activeSub ? activeSub.id : null, // Nullable for standalone add-ons / modules
+            invoiceNo: `INV-${order.order_number}`,
+            amount: order.total_amount,
+            currency: order.currency || "INR",
+            subtotalAmount: order.subtotal,
+            taxAmount: order.total_tax,
+            discountAmount: order.discount_amount,
+            status: "paid",
+            billingCycle: "monthly",
+            paymentMethod: order.is_simulated ? "simulated" : "razorpay",
+            gatewayOrderId: order.order_number,
+            periodStart: paidAt,
+            periodEnd: new Date(paidAt.getTime() + 30 * 24 * 3600 * 1000),
+            paidAt: paidAt,
+          },
+        });
+      }
+
       // 7. Transition Order Fulfillment State
       await tx.commerceOrder.update({
         where: { id: order.id },

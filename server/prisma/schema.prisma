@@ -1099,6 +1099,11 @@ model TenantSubscription {
   storageLimitGb      Int?      @map("storage_limit_gb")
   trialEndsAt         DateTime? @map("trial_ends_at")
   expiresAt           DateTime? @map("expires_at")
+  scheduledPlanId         String?   @map("scheduled_plan_id") @db.VarChar(100)
+  scheduledAt             DateTime? @map("scheduled_at")
+  scheduledEffectiveDate  DateTime? @map("scheduled_effective_date")
+  scheduledByUserId       String?   @map("scheduled_by_user_id") @db.VarChar(36)
+  scheduledSeats          Int?      @map("scheduled_seats")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
@@ -1115,7 +1120,7 @@ model TenantSubscription {
 model BillingInvoice {
   id               String    @id @default(uuid()) @db.VarChar(36)
   tenantId         String    @map("tenant_id") @db.VarChar(36)
-  subscriptionId   String    @map("subscription_id") @db.VarChar(36)
+  subscriptionId   String?   @map("subscription_id") @db.VarChar(36)
   invoiceNo        String?   @map("invoice_no") @db.VarChar(50)
   amount           Decimal   @db.Decimal(12, 2)
   currency         String    @default("INR") @db.VarChar(10)
@@ -1141,7 +1146,7 @@ model BillingInvoice {
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  subscription     TenantSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscription     TenantSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status])
   @@map("billing_invoices")
@@ -1255,6 +1260,29 @@ model SubscriptionPolicyAudit {
 
   @@index([tenantId, createdAt])
   @@map("subscription_policy_audits")
+}
+
+model CommercialPriceSchedule {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  productSlug    String    @map("product_slug") @db.VarChar(100)
+  currency       String    @default("INR") @db.VarChar(10)
+  amountMonthly  Decimal   @map("amount_monthly") @db.Decimal(12, 2)
+  amountAnnual   Decimal?  @map("amount_annual") @db.Decimal(12, 2)
+  taxPercentage  Decimal?  @default(18.00) @map("tax_percentage") @db.Decimal(5, 2)
+  version        Int       @default(1)
+  status         String    @default("DRAFT") @db.VarChar(20) // DRAFT, PENDING_APPROVAL, PUBLISHED, ARCHIVED
+  effectiveFrom  DateTime  @map("effective_from")
+  effectiveTo    DateTime? @map("effective_to")
+  createdBy      String?   @map("created_by") @db.VarChar(36)
+  approvedBy     String?   @map("approved_by") @db.VarChar(36)
+  approvedAt     DateTime? @map("approved_at")
+  publishedBy    String?   @map("published_by") @db.VarChar(36)
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([productSlug, status, effectiveFrom])
+  @@map("commercial_price_schedules")
 }
 
 model Addon {

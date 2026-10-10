@@ -59,6 +59,12 @@ export interface CatalogProductDefinition {
     alreadyOwned?: boolean;
     reason?: string;
   };
+  icon?: string;
+  image?: string;
+  tagline?: string;
+  longDescription?: string;
+  screenshots?: string[];
+  developer?: string;
 }
 
 export interface CatalogQueryOptions {
@@ -417,6 +423,43 @@ export class UnifiedCatalogService {
       }
     }
 
+    // Query active published dynamic price schedules (OD-1)
+    const publishedSchedulesMap = new Map<string, any>();
+    try {
+      const now = new Date();
+      const schedules = await db.commercialPriceSchedule.findMany({
+        where: {
+          status: "PUBLISHED",
+          effectiveFrom: { lte: now },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: now } },
+          ],
+        },
+        orderBy: { version: "desc" },
+      });
+      for (const s of schedules) {
+        if (!publishedSchedulesMap.has(s.productSlug)) {
+          publishedSchedulesMap.set(s.productSlug, s);
+        }
+      }
+    } catch (err: any) {
+      // Non-fatal, table may be unmigrated in edge environments
+    }
+
+    // Load CMS Addon marketing records to bridge persisted metadata (icon, tagline, screenshots, category)
+    const addonMarketingMap = new Map<string, any>();
+    try {
+      const dbAddons = await db.addon.findMany({
+        where: { status: "active" },
+      });
+      for (const a of dbAddons) {
+        addonMarketingMap.set(a.slug.toLowerCase(), a);
+      }
+    } catch {
+      // Non-fatal, proceed with template defaults
+    }
+
     const result: CatalogProductDefinition[] = [];
 
     for (const template of CANONICAL_CATALOG_REGISTRY) {
@@ -424,17 +467,37 @@ export class UnifiedCatalogService {
       if (options?.isPublicOnly && !template.isPublic) {
         continue;
       }
-      // Filter by category
-      if (options?.category && template.category.toLowerCase() !== options.category.toLowerCase()) {
-        continue;
+
+      const marketing = addonMarketingMap.get(template.slug.toLowerCase());
+      const resolvedCategory = marketing?.category || template.category;
+
+      // Filter by category (reconciled against both marketing category and template category)
+      if (options?.category && options.category.toLowerCase() !== "all") {
+        const catTarget = options.category.toLowerCase();
+        const matchesCat =
+          resolvedCategory.toLowerCase() === catTarget ||
+          template.category.toLowerCase() === catTarget ||
+          (marketing?.category && marketing.category.toLowerCase() === catTarget);
+        if (!matchesCat) {
+          continue;
+        }
       }
       // Filter by productType
       if (options?.productType && template.productType.toLowerCase() !== options.productType.toLowerCase()) {
         continue;
       }
 
-      // Resolve prices from config
-      const priceConfig: ProductPriceConfig | undefined = config.products[template.slug];
+      // Resolve prices from dynamic published schedule if present, else fallback to config
+      const dbSchedule = publishedSchedulesMap.get(template.slug);
+      const priceConfig: ProductPriceConfig | undefined = dbSchedule
+        ? {
+            monthly: Number(dbSchedule.amountMonthly),
+            annual: dbSchedule.amountAnnual ? Number(dbSchedule.amountAnnual) : null,
+            pricePerUser: null,
+            includedSeats: undefined,
+          }
+        : config.products[template.slug];
+
       const monthlyPrice = priceConfig?.monthly ?? null;
       const annualPrice = priceConfig?.annual ?? null;
       const perUserPrice = priceConfig?.pricePerUser ?? null;
@@ -529,19 +592,38 @@ export class UnifiedCatalogService {
         };
       }
 
+      let image: string | undefined = undefined;
+      if (
+        marketing?.icon &&
+        (marketing.icon.startsWith("/uploads/") ||
+          marketing.icon.startsWith("http://") ||
+          marketing.icon.startsWith("https://"))
+      ) {
+        image = marketing.icon;
+      }
+
       result.push({
         id: template.id,
         slug: template.slug,
-        name: template.name,
+        name: marketing?.name || template.name,
         productType: template.productType,
         entitlementKey: template.entitlementKey,
         targetEngine: template.targetEngine,
-        description: template.description,
-        category: template.category,
+        description: marketing?.description || template.description,
+        tagline: marketing?.tagline || undefined,
+        longDescription: marketing?.longDescription || undefined,
+        developer: marketing?.developer || undefined,
+        category: resolvedCategory,
         isPublic: template.isPublic,
         status: template.status,
-        version: template.version,
-        features: template.features,
+        version: marketing?.version || template.version,
+        features:
+          Array.isArray(marketing?.features) && marketing.features.length > 0
+            ? marketing.features
+            : template.features,
+        icon: marketing?.icon || undefined,
+        image,
+        screenshots: Array.isArray(marketing?.screenshots) ? marketing.screenshots : undefined,
         prices,
         seatBands: template.hasSeatBands ? config.seatBands : undefined,
         requiredProductSlugs: template.requiredProductSlugs,

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "ba7f9d61-b9b6-4e93-9436-c852d5a5562a",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/apple/Documents/hrms/.archify/sequence-web-request-cache-miss-20261009-010947/candidate.json",
+  "output": "/Users/apple/Documents/hrms/.archify/sequence-web-request-cache-miss-20261009-010947/web-request-cache-miss.html",
+  "specification": {
+    "sha256": "0336a03672edf05cd58efcf746a9d00da313efc428f3f4c05bc4b8469e9ad093",
+    "bytes": 3240
+  },
+  "artifact": {
+    "sha256": "6374a99cecb322d5aa17da055ba1a050ca95444b6551810df40d2112973475d5",
+    "bytes": 754612
+  }
+}

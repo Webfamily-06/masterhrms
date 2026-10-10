@@ -1,6 +1,6 @@
 # 11. Marketplace, CMS, Cart, Checkout and Billing Flow
 
-Mode: **PHASE A3 COMMERCE BACKEND COMPLETED (67/67 TESTS PASSING); PHASE A4 MARKETPLACE UIS IN PROGRESS.** Context and platform rules are in `10_SaaS_Architecture_Master_Plan.md`; commerce architecture: `docs/architecture/PHASE_A3_COMMERCE_ARCHITECTURE_SPEC.md` and `docs/architecture/MASTERHRMS_A3_6_BUSINESS_POLICY_ALIGNMENT.md`.
+Mode: **PHASE A3 COMMERCE BACKEND & A3.6 GOVERNANCE FORMALLY ACCEPTED; A3.7 RAZORPAY SANDBOX VERIFIED (93/93 TESTS PASSING); PHASE A4 MARKETPLACE UIS IN PROGRESS.** Context and platform rules are in `10_SaaS_Architecture_Master_Plan.md`; commerce architecture: `docs/architecture/PHASE_A3_COMMERCE_ARCHITECTURE_SPEC.md`, `docs/architecture/MASTERHRMS_A3_6_BUSINESS_POLICY_ALIGNMENT.md`, and `docs/architecture/MASTERHRMS_A3_7_RAZORPAY_SANDBOX_SPEC.md`.
 
 The **same marketplace components** serve three surfaces. Build them once and pass a `context` (`public`, `tenant`, `super`).
 
@@ -69,10 +69,10 @@ Steps (one page with sections or a stepper):
    - Public/guest: choose **Sign in to my workspace** (redirect to workspace login, return to checkout) or **Create new workspace** (company, owner name, email, phone, password, workspace slug with live availability check). The workspace is created in `PENDING_PAYMENT` or `TRIAL` state depending on rules.
 2. **Billing details** (Checkout page): company/legal name, contact name, email, phone, **billing address** (line 1, line 2, city, state, pincode, country), GSTIN/VAT number, PAN (optional), PO number, invoice email recipients. Prefilled from the Company Profile (System Settings plan); saved back optionally. Tax is computed from country/state (GST: CGST+SGST vs IGST by place of supply; VAT or reverse charge by region).
 3. **Order summary** (items, coupon, taxes, total, billing cycle, renewal terms with consent checkbox, T&C and refund policy link).
-4. **Payment:** Razorpay (UPI, cards, netbanking) now; Stripe/PayPal later via the same payment abstraction; bank transfer/offline with manual approval (order stays `AWAITING_PAYMENT` until Super Admin marks paid); recurring mandate/auto-renew option.
+4. **Payment:** Razorpay sandbox (`rzp_test_*` credentials only; live mode fail-closed guarded) via `POST /api/commerce/checkout/initiate`. Validates authenticated tenant context, order ownership, server-authoritative amount, and currency (`INR`). Rejects any client-supplied amount. UPI, cards, and netbanking supported in sandbox; bank transfer/offline with manual approval (order stays `PENDING_PAYMENT` until Super Admin marks paid).
 5. **Result:** `/checkout/success` (order number, invoice download, "Go to my workspace", installed add-ons list, next-step guides) or failure/retry page with preserved cart.
 
-Security and integrity: server-side order creation, idempotency keys, amount from server, payment verified by **webhook signature** (never only by browser redirect), reconciliation job for missed webhooks, fraud/velocity limits, no card data stored.
+Security and integrity: Server-side order creation and gateway initiation (`POST /api/commerce/checkout/initiate`), client amounts strictly ignored, payments forensically settled via cryptographic webhook (`POST /api/commerce/webhook`) with timing-safe HMAC SHA-256 verification (`crypto.timingSafeEqual`), duplicate webhook idempotency headers (`X-Idempotent-Replay`), transactional outbox enqueue (`COMMERCE_ORDER_PAID`), reconciliation worker recovery for missed webhooks, zero card credentials stored. Live Razorpay keys (`rzp_live_*`) are blocked by fail-closed production gates until formal release authorization.
 
 ---
 
@@ -191,3 +191,10 @@ Existing endpoints (`GET /api/addons`, `POST /api/addons/:id/subscribe`, `GET /a
 8. Super Admin grants a free trial to a tenant; it expires on time and the tenant is notified.
 9. Review allowed only for verified tenants; comment moderation hides content everywhere.
 10. Unpublishing an add-on removes it from the storefront but existing tenants keep it.
+
+### 11.1 Verified Test Automation Baseline
+- **Phase A3 Core Commerce Suite:** 67/67 tests passing (`commerce-catalog-pricing.test.ts` 20/20, `commerce-order-lifecycle.test.ts` 12/12, `commerce-entitlement-fulfillment.test.ts` 22/22, `commerce-e2e-journey.test.ts` 13/13).
+- **Phase A3.6 Commercial Governance Suite:** 21/21 tests passing (`commerce-governance-a3-6.test.ts`).
+- **Phase A3.7 Razorpay Sandbox Payment Suite:** 18/18 tests passing (`commerce-razorpay-sandbox.test.ts`).
+- **Total Commerce Regression Baseline:** 93/93 unit/integration tests passing (and 106 total with full E2E acceptance suite), zero regressions.
+- **TypeScript Compilation:** `npx tsc --noEmit` verified with 0 errors.
