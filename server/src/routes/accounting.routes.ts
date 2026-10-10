@@ -1428,7 +1428,7 @@ accountingRouter.get("/export/xero", requireAuth, async (req: AuthRequest, res: 
  * POST /api/accounting/tally/preview
  * Parse uploaded Tally XML or CSV file and return structured preview rows
  */
-accountingRouter.post("/tally/preview", requireAuth, async (req: AuthRequest, res: Response) => {
+accountingRouter.post("/tally/preview", requireAuth, requireEntitlement("tally-importer"), async (req: AuthRequest, res: Response) => {
   try {
     const { fileContent, fileName = "tally_export.xml" } = req.body;
     if (!fileContent || typeof fileContent !== "string") {
@@ -1517,15 +1517,11 @@ accountingRouter.post("/tally/preview", requireAuth, async (req: AuthRequest, re
       }
     }
 
-    // If file was empty or had non-standard format, provide default structure
+    // Validate rows parsed from file
     if (rows.length === 0) {
-      rows.push(
-        { ledger: "Sales Account", date: "2026-07-01", type: "Sales", debit: "", credit: "125000", narration: "Product sales Q3" },
-        { ledger: "Sundry Debtors", date: "2026-07-02", type: "Receipt", debit: "85000", credit: "", narration: "Payment from Apex Ltd" },
-        { ledger: "Purchase Account", date: "2026-07-05", type: "Purchase", debit: "45000", credit: "", narration: "Raw material purchase" },
-        { ledger: "GST Payable", date: "2026-07-10", type: "Journal", debit: "22500", credit: "", narration: "GST liability Jul 2026" },
-        { ledger: "Office Expenses", date: "2026-07-15", type: "Payment", debit: "12000", credit: "", narration: "Monthly rent payment" }
-      );
+      return res.status(400).json({
+        error: "No valid Tally voucher or ledger transactions found in uploaded file. Please provide valid XML or CSV data.",
+      });
     }
 
     return res.json({
@@ -1545,7 +1541,7 @@ accountingRouter.post("/tally/preview", requireAuth, async (req: AuthRequest, re
  * POST /api/accounting/tally/import
  * Commit parsed Tally transactions into real MySQL ChartOfAccount & JournalEntry records
  */
-accountingRouter.post("/tally/import", requireAuth, async (req: AuthRequest, res: Response) => {
+accountingRouter.post("/tally/import", requireAuth, requireEntitlement("tally-importer"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -1564,6 +1560,7 @@ accountingRouter.post("/tally/import", requireAuth, async (req: AuthRequest, res
 
     let importedCount = 0;
     let createdAccountsCount = 0;
+    let skippedDuplicatesCount = 0;
     const accountCache = new Map<string, any>();
 
     for (const row of rows) {
@@ -1572,6 +1569,20 @@ accountingRouter.post("/tally/import", requireAuth, async (req: AuthRequest, res
       const creditNum = parseFloat(row.credit || 0) || 0;
       const txnAmount = Math.max(debitNum, creditNum);
       if (txnAmount <= 0) continue;
+
+      // Deterministic reference for idempotency and duplicate prevention
+      const cleanDate = row.date || new Date().toISOString().split("T")[0];
+      const deterministicRef = row.voucherNumber
+        ? `TL-VCH-${row.voucherNumber}`
+        : `TL-IMP-${cleanDate}-${ledgerName.replace(/[^a-zA-Z0-9]/g, "")}-${txnAmount}`;
+
+      const existingJe = await prisma.journalEntry.findFirst({
+        where: { tenantId, reference: deterministicRef },
+      });
+      if (existingJe) {
+        skippedDuplicatesCount++;
+        continue;
+      }
 
       // 1. Find or create Chart of Account
       let account = accountCache.get(ledgerName);
@@ -1615,7 +1626,7 @@ accountingRouter.post("/tally/import", requireAuth, async (req: AuthRequest, res
             tenantId,
             entryNumber,
             entryDate: isNaN(entryDate.getTime()) ? new Date() : entryDate,
-            reference: `TALLY-${Date.now()}-${importedCount}`,
+            reference: deterministicRef,
             referenceType: "tally_import",
             description: row.narration || `Imported Tally voucher (${row.type || "Journal"}): ${ledgerName}`,
             totalAmount: txnAmount,

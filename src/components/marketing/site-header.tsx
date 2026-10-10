@@ -210,6 +210,9 @@ export function SiteHeader() {
         return null;
       }
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   let cachedLogo = "";

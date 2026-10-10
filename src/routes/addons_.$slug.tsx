@@ -123,6 +123,9 @@ function AddonDetail() {
         return null;
       }
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const {
@@ -142,9 +145,12 @@ function AddonDetail() {
         throw err;
       }
     },
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
-  // Public Release History & Changelog Query
+  // Public Release History & Changelog Query — executes in parallel with addon query
   const { data: releaseData } = useQuery({
     queryKey: ["addon-public-releases", slug],
     queryFn: async () => {
@@ -166,7 +172,10 @@ function AddonDetail() {
         return null;
       }
     },
-    enabled: Boolean(addon),
+    enabled: Boolean(slug),
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   if (isLoading) {
@@ -254,8 +263,11 @@ function AddonDetail() {
               <img
                 src={iconInfo.url}
                 alt={addon.name}
+                width={64}
+                height={64}
                 className="size-16 object-contain rounded-xl"
                 loading="lazy"
+                decoding="async"
               />
             ) : (
               <div className="size-full rounded-xl bg-primary/10 grid place-items-center text-primary">
@@ -333,8 +345,11 @@ function AddonDetail() {
                       <img
                         src={src}
                         alt={`${addon.name} preview ${i + 1}`}
+                        width={480}
+                        height={270}
                         className="w-full object-cover aspect-video group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
+                        decoding="async"
                       />
                     </div>
                   ))}

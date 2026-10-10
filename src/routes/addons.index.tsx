@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatSystemAmount } from "@/lib/currency";
@@ -7,12 +7,13 @@ import { MarketingLayout, PageHero } from "@/components/marketing/marketing-layo
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search,
   Puzzle,
   Star,
-  Loader2,
+  RotateCcw,
   MessageSquare,
   Cpu,
   Landmark,
@@ -21,7 +22,6 @@ import {
   ShieldCheck,
   Users,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/addons/")({
@@ -53,6 +53,7 @@ type Addon = {
   icon: string | null;
   image_url?: string | null;
   price_monthly: number;
+  priceMonthly?: number;
   status: string;
   featured: boolean;
 };
@@ -75,11 +76,155 @@ function getCategoryIcon(category: string, addonName: string) {
   return Puzzle;
 }
 
+function AddonCardSkeleton() {
+  return (
+    <Card className="flex flex-col justify-between bg-card overflow-hidden border">
+      <div className="h-40 bg-muted/40 animate-pulse relative flex items-center justify-center">
+        <Skeleton className="size-16 rounded-2xl" />
+        <Skeleton className="absolute top-2.5 left-2.5 h-4 w-20 rounded-full" />
+      </div>
+      <div className="p-5 space-y-3 flex-1 flex flex-col justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+        </div>
+        <div className="pt-3 border-t flex items-center justify-between mt-2">
+          <div className="space-y-1">
+            <Skeleton className="h-2 w-10" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <Skeleton className="h-8 w-24 rounded-md" />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function AddonCard({
+  addon,
+  sysConfig,
+}: {
+  addon: Addon;
+  sysConfig: any;
+}) {
+  const [imageError, setImageError] = useState(false);
+  const CatIcon = getCategoryIcon(addon.category, addon.name);
+  const hasImg =
+    !imageError &&
+    !!(
+      addon.icon &&
+      (addon.icon.startsWith("http") ||
+        addon.icon.startsWith("data:") ||
+        addon.icon.startsWith("blob:") ||
+        addon.icon.startsWith("/"))
+    );
+
+  const currCode = sysConfig?.defaultCurrency || "INR";
+  const basePrice = addon.price_monthly ?? addon.priceMonthly ?? 0;
+  let priceNum = basePrice;
+  if (currCode === "USD")
+    priceNum = basePrice === 0 ? 0 : basePrice > 100 ? Math.round(basePrice / 80) : basePrice;
+  else if (currCode === "EUR")
+    priceNum = basePrice === 0 ? 0 : basePrice > 100 ? Math.round(basePrice / 85) : basePrice;
+  else if (currCode === "GBP")
+    priceNum = basePrice === 0 ? 0 : basePrice > 100 ? Math.round(basePrice / 100) : basePrice;
+
+  const priceFormatted =
+    basePrice === 0 ? "Free" : `${formatSystemAmount(priceNum, sysConfig)}/mo`;
+
+  return (
+    <Card className="hover:border-primary/70 hover:shadow-xl transition-all flex flex-col justify-between bg-card overflow-hidden group border">
+      {/* Top Thumbnail Banner / Category Icon Graphic Box */}
+      <div className="h-40 bg-gradient-to-br from-primary/10 via-purple-500/10 to-emerald-500/10 border-b relative flex items-center justify-center overflow-hidden">
+        {hasImg ? (
+          <img
+            src={addon.icon!}
+            alt={addon.name}
+            width={300}
+            height={160}
+            className="object-cover size-full group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            decoding="async"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="size-16 rounded-2xl bg-background/80 backdrop-blur-md border shadow-md grid place-items-center text-primary group-hover:scale-110 transition-transform">
+            <CatIcon className="size-8" />
+          </div>
+        )}
+
+        {/* Category Tag Overlay */}
+        <Badge
+          variant="secondary"
+          className="absolute top-2.5 left-2.5 text-[9px] font-mono font-bold bg-background/90 backdrop-blur-md border shadow-xs capitalize gap-1"
+        >
+          <CatIcon className="size-3 text-primary" /> {addon.category || "Extension"}
+        </Badge>
+
+        {/* Featured Tag Overlay */}
+        {addon.featured && (
+          <Badge className="absolute top-2.5 right-2.5 text-[9px] font-mono bg-amber-500 text-white shadow-xs">
+            <Star className="size-2.5 mr-1 fill-white" /> Featured
+          </Badge>
+        )}
+      </div>
+
+      {/* Card Content Details */}
+      <div className="p-5 space-y-3 flex-1 flex flex-col justify-between">
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-bold text-primary uppercase tracking-wider font-mono">
+            Category: {addon.category || "Extension"}
+          </div>
+          <h3 className="text-sm font-extrabold line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+            {addon.name}
+          </h3>
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mt-1">
+            {addon.tagline ||
+              addon.description ||
+              `Integrate ${addon.name} seamlessly into your Master ERP workspace.`}
+          </p>
+        </div>
+
+        <div className="pt-3 border-t flex items-center justify-between mt-2">
+          <div>
+            <div className="text-[9px] text-muted-foreground uppercase font-semibold">
+              Pricing
+            </div>
+            <div className="font-mono text-xs font-extrabold text-emerald-600">
+              {priceFormatted}
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            asChild
+            className="h-8 text-[11px] px-3 font-bold border-primary/30 hover:bg-primary hover:text-white transition-all"
+          >
+            <Link to="/addons/$slug" params={{ slug: addon.slug }}>
+              View details <ArrowRight className="size-3 ml-1" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function AddonsPage() {
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [cat, setCat] = useState("All");
 
-  // REALTIME SYSTEM SETTINGS QUERY FROM MySQL API
+  // Debounce search input to avoid re-rendering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q), 150);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  // REALTIME SYSTEM SETTINGS QUERY - Cached for 5m to eliminate duplicate requests across header/footer
   const { data: sysConfig } = useQuery({
     queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
@@ -90,6 +235,9 @@ function AddonsPage() {
         return null;
       }
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const {
@@ -104,6 +252,10 @@ function AddonsPage() {
       const data = await api.get<Addon[]>("/cms/addons");
       return Array.isArray(data) ? data : [];
     },
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 2,
   });
 
   const { data: serverCategories = [] } = useQuery({
@@ -112,6 +264,9 @@ function AddonsPage() {
       const data = await api.get<string[]>("/cms/addons/categories");
       return Array.isArray(data) ? data : [];
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const categories = useMemo(() => {
@@ -126,14 +281,16 @@ function AddonsPage() {
   }, [addons, serverCategories]);
 
   const filtered = useMemo(() => {
+    const filterTerm = debouncedQ.trim().toLowerCase();
     return (addons ?? []).filter(
       (a) =>
         (cat === "All" || a.category.toLowerCase() === cat.toLowerCase()) &&
-        (q === "" ||
-          a.name.toLowerCase().includes(q.toLowerCase()) ||
-          (a.tagline ?? "").toLowerCase().includes(q.toLowerCase())),
+        (filterTerm === "" ||
+          a.name.toLowerCase().includes(filterTerm) ||
+          (a.tagline ?? "").toLowerCase().includes(filterTerm) ||
+          (a.description ?? "").toLowerCase().includes(filterTerm)),
     );
-  }, [addons, q, cat]);
+  }, [addons, debouncedQ, cat]);
 
   return (
     <MarketingLayout>
@@ -176,11 +333,10 @@ function AddonsPage() {
           </div>
 
           {isLoading ? (
-            <div className="py-24 grid place-items-center">
-              <Loader2 className="size-8 animate-spin text-primary" />
-              <p className="text-xs text-muted-foreground font-mono mt-2">
-                Loading marketplace addons catalog...
-              </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <AddonCardSkeleton key={i} />
+              ))}
             </div>
           ) : isError ? (
             <div className="py-16 text-center text-muted-foreground space-y-4">
@@ -189,114 +345,15 @@ function AddonsPage() {
               <p className="text-xs max-w-md mx-auto">
                 {(error as any)?.message || "A network error occurred while retrieving extensions."}
               </p>
-              <Button size="sm" onClick={() => refetch()} variant="outline">
-                Retry loading
+              <Button size="sm" onClick={() => refetch()} variant="outline" className="gap-2">
+                <RotateCcw className="size-3.5" /> Retry loading
               </Button>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filtered.map((a) => {
-                const CatIcon = getCategoryIcon(a.category, a.name);
-                const hasImg = !!(
-                  a.icon &&
-                  (a.icon.startsWith("http") ||
-                    a.icon.startsWith("data:") ||
-                    a.icon.startsWith("blob:") ||
-                    a.icon.startsWith("/"))
-                );
-
-                const currCode = sysConfig?.defaultCurrency || "INR";
-                const basePrice = a.price_monthly ?? 0;
-                let priceNum = basePrice;
-                if (currCode === "USD")
-                  priceNum =
-                    basePrice === 0 ? 0 : basePrice > 100 ? Math.round(basePrice / 80) : basePrice;
-                else if (currCode === "EUR")
-                  priceNum =
-                    basePrice === 0 ? 0 : basePrice > 100 ? Math.round(basePrice / 85) : basePrice;
-                else if (currCode === "GBP")
-                  priceNum =
-                    basePrice === 0 ? 0 : basePrice > 100 ? Math.round(basePrice / 100) : basePrice;
-
-                const priceFormatted =
-                  basePrice === 0 ? "Free" : `${formatSystemAmount(priceNum, sysConfig)}/mo`;
-
-                return (
-                  <Card
-                    key={a.id}
-                    className="hover:border-primary/70 hover:shadow-xl transition-all flex flex-col justify-between bg-card overflow-hidden group border"
-                  >
-                    {/* Top Thumbnail Banner / Category Icon Graphic Box */}
-                    <div className="h-40 bg-gradient-to-br from-primary/10 via-purple-500/10 to-emerald-500/10 border-b relative flex items-center justify-center overflow-hidden">
-                      {hasImg ? (
-                        <img
-                          src={a.icon!}
-                          alt={a.name}
-                          className="object-cover size-full group-hover:scale-105 transition-transform duration-300"
-                         loading="lazy"/>
-                      ) : (
-                        <div className="size-16 rounded-2xl bg-background/80 backdrop-blur-md border shadow-md grid place-items-center text-primary group-hover:scale-110 transition-transform">
-                          <CatIcon className="size-8" />
-                        </div>
-                      )}
-
-                      {/* Category Tag Overlay */}
-                      <Badge
-                        variant="secondary"
-                        className="absolute top-2.5 left-2.5 text-[9px] font-mono font-bold bg-background/90 backdrop-blur-md border shadow-xs capitalize gap-1"
-                      >
-                        <CatIcon className="size-3 text-primary" /> {a.category || "Extension"}
-                      </Badge>
-
-                      {/* Featured Tag Overlay */}
-                      {a.featured && (
-                        <Badge className="absolute top-2.5 right-2.5 text-[9px] font-mono bg-amber-500 text-white shadow-xs">
-                          Featured
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Card Content Details */}
-                    <div className="p-5 space-y-3 flex-1 flex flex-col justify-between">
-                      <div className="space-y-1.5">
-                        <div className="text-[10px] font-bold text-primary uppercase tracking-wider font-mono">
-                          Category: {a.category || "Extension"}
-                        </div>
-                        <h3 className="text-sm font-extrabold line-clamp-2 leading-snug group-hover:text-primary transition-colors">
-                          {a.name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mt-1">
-                          {a.tagline ||
-                            a.description ||
-                            `Integrate ${a.name} seamlessly into your Master ERP workspace.`}
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t flex items-center justify-between mt-2">
-                        <div>
-                          <div className="text-[9px] text-muted-foreground uppercase font-semibold">
-                            Pricing
-                          </div>
-                          <div className="font-mono text-xs font-extrabold text-emerald-600">
-                            {priceFormatted}
-                          </div>
-                        </div>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          asChild
-                          className="h-8 text-[11px] px-3 font-bold border-primary/30 hover:bg-primary hover:text-white transition-all"
-                        >
-                          <Link to="/addons/$slug" params={{ slug: a.slug }}>
-                            View details <ArrowRight className="size-3 ml-1" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+              {filtered.map((a) => (
+                <AddonCard key={a.id} addon={a} sysConfig={sysConfig} />
+              ))}
             </div>
           )}
 

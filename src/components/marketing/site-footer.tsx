@@ -134,6 +134,9 @@ export function SiteFooter() {
         return {} as FooterContent;
       }
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
   const f = data ?? {};
   const socials = f.socials ?? {};
@@ -243,6 +246,9 @@ function BrandCol({
         return null;
       }
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   let cachedLogo = "";

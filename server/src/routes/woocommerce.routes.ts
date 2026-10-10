@@ -13,8 +13,13 @@ import {
   SYNC_OPTIONS_META,
 } from "../services/woocommerce-sync.service";
 import { prisma } from "../prisma";
+import { requireEntitlement } from "../middleware/entitlements";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 
 export const woocommerceRouter = Router();
+
+// Enforce authentication, tenant context, and WooCommerce Sync entitlement
+woocommerceRouter.use(requireAuth, resolveTenantContext, requireEntitlement("woocommerce-sync"));
 
 // Helper to get active tenantId
 function getTenantId(req: AuthRequest, res: Response): string | null {

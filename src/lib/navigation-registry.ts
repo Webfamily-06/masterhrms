@@ -1633,7 +1633,10 @@ export function getNavigationForPortal(
     const modKey = item.moduleKey || item.module;
     if (modKey && !isSuperAdmin) {
       const isCore = ["core", "overview", "settings"].includes(modKey);
-      if (!isCore && enabledModules && enabledModules.length > 0) {
+      if (!isCore) {
+        if (!enabledModules || enabledModules.length === 0) {
+          return false;
+        }
         const isEnabled =
           enabledModules.includes(modKey) ||
           (modKey === "crm" && enabledModules.includes("product_crm")) ||
@@ -1674,7 +1677,10 @@ export function getNavigationForPortal(
       const childModKey = child.moduleKey || child.module;
       if (childModKey && !isSuperAdmin) {
         const isCore = ["core", "overview", "settings"].includes(childModKey);
-        if (!isCore && enabledModules && enabledModules.length > 0) {
+        if (!isCore) {
+          if (!enabledModules || enabledModules.length === 0) {
+            return false;
+          }
           const isEnabled =
             enabledModules.includes(childModKey) ||
             (childModKey === "crm" && enabledModules.includes("product_crm")) ||

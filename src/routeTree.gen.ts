@@ -166,6 +166,7 @@ import { Route as AuthenticatedAppSetupNotesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppShiftSwapRequestsRouteImport } from './routes/_authenticated/_app/shift-swap-requests'
 import { Route as AuthenticatedAppShiftsRouteImport } from './routes/_authenticated/_app/shifts'
 import { Route as AuthenticatedAppShopifyRouteImport } from './routes/_authenticated/_app/shopify'
+import { Route as AuthenticatedAppStrategyStudioRouteImport } from './routes/_authenticated/_app/strategy-studio'
 import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_authenticated/_app/subscription'
 import { Route as AuthenticatedAppSuppliersRouteImport } from './routes/_authenticated/_app/suppliers'
 import { Route as AuthenticatedAppSupportRouteImport } from './routes/_authenticated/_app/support'
@@ -1308,6 +1309,12 @@ const AuthenticatedAppShopifyRoute = AuthenticatedAppShopifyRouteImport.update({
   path: '/shopify',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppStrategyStudioRoute =
+  AuthenticatedAppStrategyStudioRouteImport.update({
+    id: '/strategy-studio',
+    path: '/strategy-studio',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppSubscriptionRoute =
   AuthenticatedAppSubscriptionRouteImport.update({
     id: '/subscription',
@@ -3040,6 +3047,7 @@ export interface FileRoutesByFullPath {
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
+  '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/support': typeof AuthenticatedAppSupportRoute
@@ -3461,6 +3469,7 @@ export interface FileRoutesByTo {
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
+  '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/support': typeof AuthenticatedAppSupportRoute
@@ -3889,6 +3898,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/_authenticated/_app/shifts': typeof AuthenticatedAppShiftsRoute
   '/_authenticated/_app/shopify': typeof AuthenticatedAppShopifyRoute
+  '/_authenticated/_app/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/_authenticated/_app/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/_authenticated/_app/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/_authenticated/_app/support': typeof AuthenticatedAppSupportRoute
@@ -4316,6 +4326,7 @@ export interface FileRouteTypes {
     | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
+    | '/strategy-studio'
     | '/subscription'
     | '/suppliers'
     | '/support'
@@ -4737,6 +4748,7 @@ export interface FileRouteTypes {
     | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
+    | '/strategy-studio'
     | '/subscription'
     | '/suppliers'
     | '/support'
@@ -5164,6 +5176,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/shift-swap-requests'
     | '/_authenticated/_app/shifts'
     | '/_authenticated/_app/shopify'
+    | '/_authenticated/_app/strategy-studio'
     | '/_authenticated/_app/subscription'
     | '/_authenticated/_app/suppliers'
     | '/_authenticated/_app/support'
@@ -6576,6 +6589,13 @@ declare module '@tanstack/react-router' {
       path: '/shopify'
       fullPath: '/shopify'
       preLoaderRoute: typeof AuthenticatedAppShopifyRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/strategy-studio': {
+      id: '/_authenticated/_app/strategy-studio'
+      path: '/strategy-studio'
+      fullPath: '/strategy-studio'
+      preLoaderRoute: typeof AuthenticatedAppStrategyStudioRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/subscription': {
@@ -8598,6 +8618,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppShiftSwapRequestsRoute: typeof AuthenticatedAppShiftSwapRequestsRoute
   AuthenticatedAppShiftsRoute: typeof AuthenticatedAppShiftsRoute
   AuthenticatedAppShopifyRoute: typeof AuthenticatedAppShopifyRoute
+  AuthenticatedAppStrategyStudioRoute: typeof AuthenticatedAppStrategyStudioRoute
   AuthenticatedAppSubscriptionRoute: typeof AuthenticatedAppSubscriptionRoute
   AuthenticatedAppSuppliersRoute: typeof AuthenticatedAppSuppliersRoute
   AuthenticatedAppSupportRoute: typeof AuthenticatedAppSupportRoute
@@ -8753,6 +8774,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppShiftSwapRequestsRoute,
   AuthenticatedAppShiftsRoute: AuthenticatedAppShiftsRoute,
   AuthenticatedAppShopifyRoute: AuthenticatedAppShopifyRoute,
+  AuthenticatedAppStrategyStudioRoute: AuthenticatedAppStrategyStudioRoute,
   AuthenticatedAppSubscriptionRoute: AuthenticatedAppSubscriptionRoute,
   AuthenticatedAppSuppliersRoute: AuthenticatedAppSuppliersRoute,
   AuthenticatedAppSupportRoute: AuthenticatedAppSupportRoute,

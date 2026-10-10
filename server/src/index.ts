@@ -52,6 +52,8 @@ import { chatRouter } from "./routes/chat.routes";
 import { qzRouter } from "./routes/qz.routes";
 import { transfersRouter } from "./routes/transfers.routes";
 import { ecommerceRouter } from "./routes/ecommerce.routes";
+import { integrationRouter } from "./routes/integration.routes";
+import { strategyStudioRouter } from "./routes/strategy-studio.routes";
 import { woocommerceRouter } from "./routes/woocommerce.routes";
 import { shopifyRouter } from "./routes/shopify.routes";
 import { alertsRouter } from "./routes/alerts.routes";
@@ -87,6 +89,8 @@ import { SettingsService } from "./services/settings/settings.service";
 import { getUploadsRoot } from "./services/media/media.service";
 import { platformFoundationRouter } from "./routes/platform-foundation.routes";
 import { OutboxService } from "./services/outbox.service";
+import { securityHeadersMiddleware, authRateLimiter } from "./middleware/security-hardening.middleware";
+import { ConfigAuditService } from "./services/config-audit.service";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -98,6 +102,8 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+app.use(securityHeadersMiddleware);
 
 // CORS setup
 const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173,http://localhost:3000,http://localhost:8080")
@@ -162,11 +168,72 @@ app.use(
     },
   }),
 );
-app.use("/uploads", express.static(getUploadsRoot()));
+app.use(
+  "/uploads",
+  express.static(getUploadsRoot(), {
+    maxAge: "7d",
+    etag: true,
+    lastModified: true,
+    fallthrough: false,
+  })
+);
 app.use(compression()); // Gzip all responses — 60-80% smaller payloads
 app.use(workspaceHostMiddleware); // Host resolution early in the pipeline
 app.use(maintenanceMiddleware);
 app.use("/api", requireActiveSubscription);
+
+let isShuttingDown = false;
+app.use((req, res, next) => {
+  if (isShuttingDown && !req.path.startsWith("/api/health/live")) {
+    res.setHeader("Connection", "close");
+    return res.status(503).json({ error: "Server is undergoing graceful shutdown." });
+  }
+  next();
+});
+
+// Liveness Check (Process alive check without external dependency)
+app.get("/api/health/live", (_req, res) => {
+  if (isShuttingDown) {
+    return res.status(503).json({ status: "shutting_down", uptime: process.uptime() });
+  }
+  return res.status(200).json({
+    status: "alive",
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    service: "Master HRMS API",
+  });
+});
+
+// Readiness Check (Database dependency verification)
+app.get("/api/health/ready", async (_req, res) => {
+  if (isShuttingDown) {
+    return res.status(503).json({ status: "not_ready", error: "Server is shutting down" });
+  }
+  const timeoutMs = 3000;
+  const startTime = Date.now();
+  try {
+    const dbPingPromise = (async () => {
+      await prisma.$queryRawUnsafe("SELECT 1");
+      return Date.now() - startTime;
+    })();
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Database readiness ping timed out")), timeoutMs)
+    );
+    const latencyMs = await Promise.race([dbPingPromise, timeoutPromise]);
+    return res.status(200).json({
+      status: "ready",
+      timestamp: new Date().toISOString(),
+      database: { status: "connected", latencyMs },
+    });
+  } catch {
+    return res.status(503).json({
+      status: "not_ready",
+      timestamp: new Date().toISOString(),
+      database: { status: "disconnected" },
+      error: "Primary database readiness check failed",
+    });
+  }
+});
 
 // Health Check (Deep Observability & Outbox Health)
 app.get("/api/health", async (_req, res) => {
@@ -247,7 +314,7 @@ app.use("/api/company-profile", companyProfileRouter);
 app.use("/api/billing", billingRouter);
 app.use("/api/commerce", commerceRouter);
 app.post("/api/webhooks/razorpay", handleRazorpayWebhook);
-app.use("/api/auth", authRouter);
+app.use("/api/auth", authRateLimiter, authRouter);
 app.use("/api/workspace/custom-domain", tenantDomainRouter);
 app.use("/api/workspace", workspaceRoutingRouter);
 app.use("/api", workspaceRoutingRouter);
@@ -296,6 +363,8 @@ app.use("/iclock", iclockRouter);
 app.use("/api/qz", qzRouter);
 app.use("/api/transfers", transfersRouter);
 app.use("/api/ecommerce", ecommerceRouter);
+app.use("/api/integrations", integrationRouter);
+app.use("/api/strategy-studio", strategyStudioRouter);
 app.use("/api/woocommerce", woocommerceRouter);
 app.use("/api/shopify", shopifyRouter);
 app.use("/api/alerts", alertsRouter);
@@ -405,7 +474,47 @@ server.listen(PORT, async () => {
   try {
     await SettingsService.ensureDefaultSettings();
     console.log(`⚙️ [STARTUP] Platform default settings verified in database.`);
+
+    const audit = ConfigAuditService.auditEnvironment();
+    console.log(`🛡️ [CONFIG AUDIT] Score: ${audit.score}/100 | Pass: ${audit.summary.passed} | Warn: ${audit.summary.warnings} | Fail: ${audit.summary.failures}`);
   } catch (err: any) {
-    console.error(`⚠️ [STARTUP] Failed to ensure default settings:`, err?.message || err);
+    console.error(`⚠️ [STARTUP] Initialization warning:`, err?.message || err);
   }
 });
+
+// Graceful Process Shutdown Handler (SIGTERM & SIGINT)
+const handleGracefulShutdown = async (signal: string) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n🛑 [SHUTDOWN] Received ${signal}. Initiating graceful termination sequence...`);
+
+  // Allow 10s grace period for in-flight connections to complete
+  const forceKillTimer = setTimeout(() => {
+    console.error("⚠️ [SHUTDOWN] Grace period exceeded. Forcing exit.");
+    process.exit(1);
+  }, 10000);
+  if (forceKillTimer.unref) forceKillTimer.unref();
+
+  server.close(async () => {
+    console.log("🛑 [SHUTDOWN] HTTP listener closed to new connections.");
+    try {
+      // 1. Terminate background outbox worker
+      OutboxService.stopProcessor();
+      console.log("🛑 [SHUTDOWN] Background outbox scheduler halted.");
+
+      // 2. Disconnect Prisma pool
+      await prisma.$disconnect();
+      console.log("🛑 [SHUTDOWN] Database pool disconnected cleanly.");
+
+      console.log("✅ [SHUTDOWN] Graceful shutdown completed.");
+      process.exit(0);
+    } catch (shutdownErr: any) {
+      console.error("⚠️ [SHUTDOWN] Error during shutdown:", shutdownErr?.message);
+      process.exit(1);
+    }
+  });
+};
+
+process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
+

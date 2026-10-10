@@ -23,8 +23,8 @@ export function useAddon(addonSlug: "okr-performance" | "asset-management" | str
   const { data: profile } = useCurrentProfile(user);
   const tenantId = profile?.tenant_id || "default";
 
-  const { data: serverEntitlements = {}, isLoading: isEntitlementsLoading, refetch } = useQuery({
-    queryKey: ["tenant-addon-entitlements"],
+  const { data: serverEntitlements = {}, isLoading: isEntitlementsLoading, isError: isEntitlementsError, refetch } = useQuery({
+    queryKey: ["tenant-addon-entitlements", tenantId],
     queryFn: async () => {
       try {
         const res = await api.get("/addons/entitlements");
@@ -62,7 +62,11 @@ export function useAddon(addonSlug: "okr-performance" | "asset-management" | str
       (a.status === "active" || a.status === "trial")
   );
 
-  const isEntitled = isSuperAdmin || Boolean(serverEntitlement?.isActive) || isPurchasedLocally;
+  // Fail-closed: while loading or on error, do NOT treat as entitled
+  const isEntitled =
+    !isEntitlementsLoading &&
+    !isEntitlementsError &&
+    (isSuperAdmin || Boolean(serverEntitlement?.isActive) || isPurchasedLocally);
 
   const entitlement: AddonEntitlement = serverEntitlement || {
     addonSlug,

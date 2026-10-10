@@ -46,6 +46,7 @@ import { ExpiredSubscriptionView } from "@/components/subscription/expired-subsc
 import { SubscriptionWarningPopup } from "@/components/subscription/subscription-warning-popup";
 import { SubscriptionFooterBar } from "@/components/subscription/subscription-footer-bar";
 import { ProductNotSubscribed } from "@/components/product-not-subscribed";
+import { useNavigationResolver } from "@/lib/navigation-resolver";
 
 export const Route = createFileRoute("/_authenticated/_app")({
   component: AppShell,
@@ -193,6 +194,8 @@ const ALL_SEARCH_ITEMS = [
   { title: "Tally Prime Importer", url: "/tally-importer", group: "Extensions", icon: Layers },
   { title: "WhatsApp Alerts", url: "/whatsapp-alerts", group: "Extensions", icon: MessageSquare },
   { title: "Razorpay Gateway", url: "/razorpay-gateway", group: "Extensions", icon: CreditCard },
+  { title: "Strategy Studio (SWOT/PESTEL)", url: "/strategy-studio", group: "Extensions", icon: Target },
+  { title: "AI Invoice OCR Reader", url: "/ai-ocr", group: "Extensions", icon: ScanLine },
   { title: "Workspace Settings", url: "/settings", group: "Platform", icon: Settings },
   { title: "Primary Custom Domain", url: "/settings/custom-domain", group: "Platform", icon: Globe },
   { title: "Custom Fields", url: "/custom-fields", group: "Platform", icon: SlidersHorizontal },
@@ -251,6 +254,18 @@ export function AppShell() {
   const isPosRoute = isPathMatchingPrefixes(path, POS_ROUTE_PREFIXES);
   const isFinanceRoute = isPathMatchingPrefixes(path, FINANCE_ROUTE_PREFIXES);
   const isHrmsAdminRoute = isPathMatchingPrefixes(path, HRMS_ADMIN_ROUTE_PREFIXES);
+
+  const { isEntitled, filterSearchItems } = useNavigationResolver();
+  const isWooRoute = isPathMatchingPrefixes(path, ["/integrations"]);
+  const isShopifyRoute = isPathMatchingPrefixes(path, ["/shopify"]);
+  const isGoogleRoute = isPathMatchingPrefixes(path, ["/google-workspace"]);
+  const isTallyRoute = isPathMatchingPrefixes(path, ["/tally-importer"]);
+  const isWhatsappRoute = isPathMatchingPrefixes(path, ["/whatsapp-alerts"]);
+  const isRazorpayRoute = isPathMatchingPrefixes(path, ["/razorpay-gateway"]);
+  const isBiometricRoute = isPathMatchingPrefixes(path, ["/biometric", "/biometric-sync"]);
+  const isStrategyRoute = isPathMatchingPrefixes(path, ["/strategy-studio"]);
+  const isAiOcrRoute = isPathMatchingPrefixes(path, ["/ai-ocr"]);
+  const isIntegrationConfigRoute = isWooRoute || isShopifyRoute || isGoogleRoute || isTallyRoute || isWhatsappRoute || isRazorpayRoute;
 
   const homeRoute = isSuperAdmin
     ? "/super"
@@ -1033,6 +1048,65 @@ export function AppShell() {
               moduleName="Tenant Workspace"
               message="Platform Super Administrators are restricted from accessing tenant-only workspaces. Please switch to the Platform Super Admin Console or sign in with authorized tenant credentials."
             />
+          ) : isIntegrationConfigRoute && !isAdminOrSuper ? (
+            <AccessDenied
+              moduleName="Integration Management"
+              message="Your current user role does not have administrative permissions to configure workspace connectors."
+            />
+          ) : isWooRoute && !isEntitled("woocommerce-sync") ? (
+            <ProductNotSubscribed
+              productName="WooCommerce Sync Connector"
+              moduleKey="woocommerce-sync"
+              description="Your workspace does not have an active entitlement for the WooCommerce Sync integration add-on. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isShopifyRoute && !isEntitled("shopify-sync") ? (
+            <ProductNotSubscribed
+              productName="Shopify Storefront Sync"
+              moduleKey="shopify-sync"
+              description="Your workspace does not have an active entitlement for the Shopify Sync integration add-on. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isGoogleRoute && !isEntitled("google-workspace-integration") ? (
+            <ProductNotSubscribed
+              productName="Google Workspace Integration"
+              moduleKey="google-workspace-integration"
+              description="Your workspace does not have an active entitlement for the Google Workspace integration add-on. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isTallyRoute && !isEntitled("tally-importer") ? (
+            <ProductNotSubscribed
+              productName="Tally Prime Importer"
+              moduleKey="tally-importer"
+              description="Your workspace does not have an active entitlement for the Tally Prime Importer integration add-on. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isWhatsappRoute && !isEntitled("whatsapp-alerts") ? (
+            <ProductNotSubscribed
+              productName="WhatsApp Business Alerts"
+              moduleKey="whatsapp-alerts"
+              description="Your workspace does not have an active entitlement for the WhatsApp Alerts integration add-on. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isRazorpayRoute && !isEntitled("razorpay-gateway") ? (
+            <ProductNotSubscribed
+              productName="Razorpay Payment Gateway"
+              moduleKey="razorpay-gateway"
+              description="Your workspace does not have an active entitlement for the Razorpay Gateway integration add-on. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isBiometricRoute && !isEntitled("biometric-sync") ? (
+            <ProductNotSubscribed
+              productName="Biometric Hardware Cloud Sync"
+              moduleKey="biometric-sync"
+              description="Your workspace does not have an active entitlement for the Biometric Sync integration add-on. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isStrategyRoute && !isEntitled("swot") && !isEntitled("pestel") ? (
+            <ProductNotSubscribed
+              productName="Strategy Studio"
+              moduleKey="swot"
+              description="Your workspace does not have an active entitlement for Strategy Studio (SWOT & PESTEL). Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isAiOcrRoute && !isEntitled("ai-ocr") ? (
+            <ProductNotSubscribed
+              productName="AI Invoice OCR"
+              moduleKey="ai-ocr"
+              description="Your workspace does not have an active entitlement for the AI Invoice OCR reader. Please install or assign it from the Add-ons Marketplace."
+            />
           ) : isCrmRoute && !isCrmEntitled ? (
             <ProductNotSubscribed
               productName="Sales CRM & Pipeline Suite"
@@ -1079,7 +1153,7 @@ export function AppShell() {
         <CommandList className="max-h-[380px]">
           <CommandEmpty>No matching modules found.</CommandEmpty>
           {["ERP Core", "Sales & Finance", "HRM Suite", "Collaboration", "Extensions", "Platform"].map((group) => {
-            const items = ALL_SEARCH_ITEMS.filter((i) => i.group === group);
+            const items = filterSearchItems(ALL_SEARCH_ITEMS).filter((i) => i.group === group);
             if (!items.length) return null;
             return (
               <CommandGroup key={group} heading={group}>

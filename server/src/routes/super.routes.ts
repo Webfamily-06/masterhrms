@@ -14,7 +14,8 @@ import fs from "fs";
 import path from "path";
 import { getIO, broadcastToTenant } from "../socket";
 import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, syncSubscriptionPlans } from "../services/workspace-policy.service";
-import { generateDatabaseBackup, listBackupSnapshots, getBackupFilePath, deleteBackupSnapshot } from "../services/backup.service";
+import { generateDatabaseBackup, listBackupSnapshots, getBackupFilePath, deleteBackupSnapshot, verifyBackupIntegrityAndDisposableRestore } from "../services/backup.service";
+import { ConfigAuditService } from "../services/config-audit.service";
 import { getLanguagesList, getLanguagePhrases, saveLanguagePhrases, createLanguagePack, deleteLanguagePack, toggleLanguagePackStatus } from "../services/language.service";
 import { handleTenantSuspension, handleTenantReactivation } from "../services/subscription-lifecycle.service";
 import {
@@ -28,6 +29,7 @@ import {
 
 import { TenantUsageMetricsService } from "../services/tenant-usage-metrics.service";
 import { invalidateMaintenanceCache } from "../middleware/maintenance";
+import { invalidateCmsAddonsCache } from "./cms.routes";
 import { SettingsService } from "../services/settings/settings.service";
 import { getBaseDomain, getWorkspaceUrl, getSuperAdminUrl, getRootUrl, invalidateCustomDomainCache, getCustomDomainUrl } from "../lib/workspace-host";
 import { validateCustomDomain } from "../lib/domain-normalization";
@@ -44,6 +46,11 @@ import {
   type VerificationStatus,
 } from "../services/invoice-engine.service";
 import { generateInvoicePdf } from "../services/invoice-pdf.service";
+import {
+  findCanonicalProduct,
+  CANONICAL_CATALOG_REGISTRY,
+  UnifiedCatalogService,
+} from "../services/unified-catalog.service";
 
 export const superRouter = Router();
 
@@ -1937,6 +1944,7 @@ superRouter.post("/addons/categories", requireAuth, requireSuperAdmin, async (re
     }
 
     const updated = await saveCustomCategories([...customList, trimmed]);
+    invalidateCmsAddonsCache();
     return res.status(201).json({
       success: true,
       name: trimmed,
@@ -1996,6 +2004,7 @@ superRouter.put("/addons/categories/:name", requireAuth, requireSuperAdmin, asyn
     }
     await saveCustomCategories(updatedCustom);
 
+    invalidateCmsAddonsCache();
     return res.json({
       success: true,
       oldName,
@@ -2032,6 +2041,7 @@ superRouter.delete("/addons/categories/:name", requireAuth, requireSuperAdmin, a
     const filtered = customList.filter((c) => c.toLowerCase() !== name.toLowerCase());
     await saveCustomCategories(filtered);
 
+    invalidateCmsAddonsCache();
     return res.json({
       success: true,
       name,
@@ -2178,6 +2188,7 @@ superRouter.post("/addons", requireAuth, requireSuperAdmin, async (req: AuthRequ
       screenshots: Array.isArray(addon.screenshots) ? addon.screenshots : [],
     };
 
+    invalidateCmsAddonsCache(cleanSlug);
     return res.status(201).json(formatted);
   } catch (err: any) {
     console.error("[super/addons create error]:", err);
@@ -2280,6 +2291,7 @@ superRouter.put("/addons/:id", requireAuth, requireSuperAdmin, async (req: AuthR
       screenshots: Array.isArray(updated.screenshots) ? updated.screenshots : [],
     };
 
+    invalidateCmsAddonsCache(existing.slug);
     return res.json(formatted);
   } catch (err: any) {
     console.error("[super/addons update error]:", err);
@@ -2307,6 +2319,7 @@ superRouter.delete("/addons/:id", requireAuth, requireSuperAdmin, async (req: Au
         where: { id },
         data: { status: "archived" },
       });
+      invalidateCmsAddonsCache(existing.slug);
       return res.json({
         success: true,
         archived: true,
@@ -2316,6 +2329,7 @@ superRouter.delete("/addons/:id", requireAuth, requireSuperAdmin, async (req: Au
     }
 
     await prisma.addon.delete({ where: { id } });
+    invalidateCmsAddonsCache(existing.slug);
     return res.json({ success: true, message: `Addon '${existing.name}' removed from catalog.` });
   } catch (err: any) {
     console.error("[super/addons delete error]:", err);
@@ -2461,6 +2475,7 @@ superRouter.post("/addons/:slug/releases", requireAuth, requireSuperAdmin, async
 
     const updatedReleases = [newRelease, ...existingReleases];
     await saveAddonReleases(addon.slug, addon.name, updatedReleases);
+    invalidateCmsAddonsCache(addon.slug);
 
     return res.status(201).json({
       success: true,
@@ -2475,7 +2490,500 @@ superRouter.post("/addons/:slug/releases", requireAuth, requireSuperAdmin, async
   }
 });
 
-// POST /api/super/tenants/:id/addons/:addonSlug/toggle (Super Admin Tenant Addon Override)
+// ==========================================
+// 2.5 SUPER ADMIN TENANT ADD-ON ASSIGNMENT & INTEGRATIONS (Phase A4.3)
+// ==========================================
+
+// GET /api/super/tenants/:id/addons (List Catalog Add-ons & Tenant Assignments)
+superRouter.get("/tenants/:id/addons", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id },
+      include: {
+        subscription: {
+          include: { plan: true },
+        },
+      },
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant workspace not found.", code: "NOT_FOUND" });
+    }
+
+    const currentSub = tenant.subscription;
+    const planName = currentSub?.plan?.name || tenant.plan || "Standard";
+
+    // Ensure all canonical wave add-ons are available in the Addon table
+    await UnifiedCatalogService.ensureCanonicalAddonsInDb().catch(() => {});
+
+    // 1. Fetch all catalog add-ons
+    const catalogAddons = await prisma.addon.findMany({
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        category: true,
+        tagline: true,
+        description: true,
+        status: true,
+        priceMonthly: true,
+        icon: true,
+        developer: true,
+        version: true,
+        features: true,
+        createdAt: true,
+      },
+    });
+
+    // 2. Fetch tenant's active and historical add-on entitlements
+    const tenantEntitlements = await prisma.tenantAddon.findMany({
+      where: { tenantId: id },
+    });
+
+    // 3. Format assignments with source classification
+    const assignments = tenantEntitlements.map((e) => {
+      const catalogItem = catalogAddons.find((c) => c.slug === e.addonSlug);
+      const feat: any = e.features && typeof e.features === "object" ? e.features : {};
+
+      let source: "MANUAL_ASSIGNMENT" | "PURCHASED" | "PLAN_INCLUDED" = "MANUAL_ASSIGNMENT";
+      if (feat.source === "PLAN_INCLUDED" || e.plan === "plan_included") {
+        source = "PLAN_INCLUDED";
+      } else if (feat.source === "PURCHASED" || (e.plan === "standard" && feat.source !== "MANUAL_ASSIGNMENT")) {
+        source = "PURCHASED";
+      } else {
+        source = "MANUAL_ASSIGNMENT";
+      }
+
+      const isManual = source === "MANUAL_ASSIGNMENT";
+      const canRevoke = isManual && e.status === "active";
+
+      return {
+        id: e.id,
+        addonSlug: e.addonSlug,
+        name: catalogItem?.name || e.addonSlug,
+        category: catalogItem?.category || "General",
+        icon: catalogItem?.icon || null,
+        status: e.status,
+        plan: e.plan,
+        source,
+        isManual,
+        canRevoke,
+        assignedBy: feat.assignedBy || null,
+        assignedAt: feat.assignedAt || e.createdAt,
+        trialEndsAt: e.trialEndsAt,
+        renewsAt: e.renewsAt,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt,
+      };
+    });
+
+    return res.json({
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        plan: tenant.plan,
+        subscriptionPlan: planName,
+        status: tenant.status,
+      },
+      catalogAddons: catalogAddons.map((a) => ({
+        ...a,
+        priceMonthly: Number(a.priceMonthly) || 0,
+        features: Array.isArray(a.features) ? a.features : [],
+      })),
+      assignments,
+    });
+  } catch (err: any) {
+    console.error("[super/tenants/:id/addons get error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to load tenant add-ons" });
+  }
+});
+
+// POST /api/super/tenants/:id/addons/:addonSlug/assign (Manual Add-on Grant)
+superRouter.post("/tenants/:id/addons/:addonSlug/assign", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, addonSlug } = req.params;
+    const { reason = "Administrative grant", plan = "manual_assignment" } = req.body;
+
+    const tenant = await prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant workspace not found.", code: "NOT_FOUND" });
+    }
+
+    let addon = await prisma.addon.findUnique({ where: { slug: addonSlug } });
+    if (!addon) {
+      const canonical = findCanonicalProduct(addonSlug);
+      if (canonical) {
+        addon = await prisma.addon.create({
+          data: {
+            name: canonical.name,
+            slug: canonical.slug,
+            description: canonical.description,
+            category: canonical.category,
+            version: canonical.version,
+            status: "active",
+            priceMonthly: 0,
+            features: canonical.features,
+          },
+        });
+      } else {
+        return res.status(404).json({ error: `Add-on with slug '${addonSlug}' not found in catalog.`, code: "ADDON_NOT_FOUND" });
+      }
+    }
+
+    if (addon.status === "archived") {
+      return res.status(400).json({
+        error: `Cannot assign archived add-on '${addon.name}'. Unarchive or restore it in the catalog first.`,
+        code: "ARCHIVED_ADDON",
+      });
+    }
+
+    // Check existing entitlement
+    const existing = await prisma.tenantAddon.findUnique({
+      where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
+    });
+
+    if (existing && existing.status === "active") {
+      return res.status(200).json({
+        success: true,
+        alreadyActive: true,
+        message: `Add-on '${addon.name}' is already actively assigned to workspace '${tenant.name}'.`,
+        entitlement: existing,
+      });
+    }
+
+    const now = new Date();
+    const existingFeat = existing?.features && typeof existing.features === "object" ? (existing.features as any) : {};
+
+    const [entitlement] = await prisma.$transaction([
+      prisma.tenantAddon.upsert({
+        where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
+        create: {
+          tenantId: id,
+          addonSlug,
+          status: "active",
+          plan: plan || "manual_assignment",
+          features: {
+            ...existingFeat,
+            source: "MANUAL_ASSIGNMENT",
+            assignedBy: req.user?.email || "super_admin",
+            assignedAt: now.toISOString(),
+            reason,
+          },
+        },
+        update: {
+          status: "active",
+          plan: plan || "manual_assignment",
+          features: {
+            ...existingFeat,
+            source: "MANUAL_ASSIGNMENT",
+            assignedBy: req.user?.email || "super_admin",
+            assignedAt: now.toISOString(),
+            reason,
+          },
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          tenantId: id,
+          actorId: req.user?.userId || null,
+          actorEmail: req.user?.email || "super_admin",
+          action: "SUPER_ADMIN_ADDON_ASSIGNED",
+          entityType: "TenantAddon",
+          entityId: addon.id,
+          ipAddress: req.ip || null,
+          userAgent: req.headers["user-agent"] ? String(req.headers["user-agent"]).slice(0, 255) : null,
+          afterJson: {
+            addonSlug,
+            addonName: addon.name,
+            workspaceName: tenant.name,
+            reason,
+            assignedBy: req.user?.email || "super_admin",
+            timestamp: now.toISOString(),
+          },
+        },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: `Add-on '${addon.name}' successfully assigned to workspace '${tenant.name}'.`,
+      entitlement,
+    });
+  } catch (err: any) {
+    console.error("[super/tenants/:id/addons/:addonSlug/assign error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to assign add-on" });
+  }
+});
+
+// POST /api/super/tenants/:id/addons/:addonSlug/revoke (Manual Add-on Revocation)
+superRouter.post("/tenants/:id/addons/:addonSlug/revoke", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, addonSlug } = req.params;
+    const { reason = "Revoked by Super Admin" } = req.body;
+
+    const tenant = await prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant workspace not found.", code: "NOT_FOUND" });
+    }
+
+    let addon = await prisma.addon.findUnique({ where: { slug: addonSlug } });
+    if (!addon) {
+      const canonical = findCanonicalProduct(addonSlug);
+      if (canonical) {
+        addon = await prisma.addon.create({
+          data: {
+            name: canonical.name,
+            slug: canonical.slug,
+            description: canonical.description,
+            category: canonical.category,
+            version: canonical.version,
+            status: "active",
+            priceMonthly: 0,
+            features: canonical.features,
+          },
+        });
+      } else {
+        return res.status(404).json({ error: `Add-on with slug '${addonSlug}' not found in catalog.`, code: "ADDON_NOT_FOUND" });
+      }
+    }
+
+    const existing = await prisma.tenantAddon.findUnique({
+      where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
+    });
+
+    if (!existing || existing.status !== "active") {
+      return res.status(400).json({
+        error: `No active assignment found for add-on '${addon.name}' in workspace '${tenant.name}'.`,
+        code: "NO_ACTIVE_ASSIGNMENT",
+      });
+    }
+
+    // Protect commercial purchase and plan-included entitlements
+    const feat: any = existing.features && typeof existing.features === "object" ? existing.features : {};
+    const isPurchased = feat.source === "PURCHASED" || (existing.plan === "standard" && feat.source !== "MANUAL_ASSIGNMENT");
+    const isPlanIncluded = feat.source === "PLAN_INCLUDED" || existing.plan === "plan_included";
+
+    if (isPurchased || isPlanIncluded) {
+      return res.status(400).json({
+        error: `Cannot revoke a ${isPurchased ? "commercially purchased" : "plan-included"} add-on entitlement via manual revocation. Use subscription or billing management.`,
+        code: "PURCHASED_ENTITLEMENT_PROTECTED",
+      });
+    }
+
+    const now = new Date();
+    const updatedFeat = {
+      ...feat,
+      revokedBy: req.user?.email || "super_admin",
+      revokedAt: now.toISOString(),
+      revokeReason: reason,
+    };
+
+    const [updated] = await prisma.$transaction([
+      prisma.tenantAddon.update({
+        where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
+        data: {
+          status: "cancelled",
+          features: updatedFeat,
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          tenantId: id,
+          actorId: req.user?.userId || null,
+          actorEmail: req.user?.email || "super_admin",
+          action: "SUPER_ADMIN_ADDON_REVOKED",
+          entityType: "TenantAddon",
+          entityId: existing.id,
+          ipAddress: req.ip || null,
+          userAgent: req.headers["user-agent"] ? String(req.headers["user-agent"]).slice(0, 255) : null,
+          beforeJson: {
+            addonSlug,
+            status: existing.status,
+            plan: existing.plan,
+          },
+          afterJson: {
+            addonSlug,
+            addonName: addon.name,
+            workspaceName: tenant.name,
+            status: "cancelled",
+            reason,
+            revokedBy: req.user?.email || "super_admin",
+            timestamp: now.toISOString(),
+          },
+        },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: `Add-on '${addon.name}' successfully revoked for workspace '${tenant.name}'.`,
+      entitlement: updated,
+    });
+  } catch (err: any) {
+    console.error("[super/tenants/:id/addons/:addonSlug/revoke error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to revoke add-on" });
+  }
+});
+
+// GET /api/super/tenants/:id/addons/integrations-status (Safe Readiness & Config Status)
+superRouter.get("/tenants/:id/addons/integrations-status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: tenantId } = req.params;
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant workspace not found.", code: "NOT_FOUND" });
+    }
+
+    // Query active entitlements
+    const entitlements = await prisma.tenantAddon.findMany({
+      where: { tenantId, status: "active" },
+    });
+    const activeSlugs = new Set(entitlements.map((e) => e.addonSlug));
+
+    // Inspect real configurations for the 6 target integrations safely (ZERO credential leakage)
+    const [wooPage, shopifyPage, razorpayPage, waPage, gSuitePage] = await Promise.all([
+      prisma.cmsPage.findUnique({ where: { slug: `tenant-${tenantId}-woocommerce-settings` } }),
+      prisma.cmsPage.findUnique({ where: { slug: `tenant-${tenantId}-shopify-stores` } }),
+      prisma.cmsPage.findUnique({ where: { slug: `system-razorpay-${tenantId}` } }),
+      prisma.cmsPage.findUnique({ where: { slug: `whatsapp-alerts-config-${tenantId}` } }),
+      prisma.cmsPage.findUnique({ where: { slug: `system-google-workspace-${tenantId}` } }),
+    ]);
+
+    // 1. WooCommerce
+    const wooContent: any = wooPage?.content && typeof wooPage.content === "object" ? wooPage.content : {};
+    const wooConfigured = Boolean(wooContent.store_url && (wooContent.consumer_key || wooContent.wp_username));
+
+    // 2. Shopify
+    const shopifyContent: any = shopifyPage?.content && typeof shopifyPage.content === "object" ? shopifyPage.content : {};
+    const shopifyStores = Array.isArray(shopifyContent.stores) ? shopifyContent.stores : [];
+    const shopifyConfigured = shopifyStores.length > 0;
+
+    // 3. Razorpay
+    const razorpayContent: any = razorpayPage?.content && typeof razorpayPage.content === "object" ? razorpayPage.content : {};
+    const razorpayConfigured = Boolean(razorpayContent.keyId);
+
+    // 4. WhatsApp
+    const waContent: any = waPage?.content && typeof waPage.content === "object" ? waPage.content : {};
+    const waConfigured = Boolean(waContent.phoneNumberId && waContent.apiKey);
+
+    // 5. Tally Importer
+    const tallyConfigured = true; // Fully operational file-based XML & CSV ledger importer
+
+    // 6. Google Workspace
+    const gSuiteContent: any = gSuitePage?.content && typeof gSuitePage.content === "object" ? gSuitePage.content : {};
+    const gAccounts = Array.isArray(gSuiteContent.connectedAccounts) ? gSuiteContent.connectedAccounts : [];
+    const gSuiteConfigured = gAccounts.length > 0;
+
+    const integrations = [
+      {
+        slug: "woocommerce-sync",
+        name: "WooCommerce Sync",
+        category: "Integrations",
+        readinessStatus: wooConfigured ? "IMPLEMENTED_AND_CONFIGURED" : "IMPLEMENTED_UNCONFIGURED",
+        isAssigned: activeSlugs.has("woocommerce-sync"),
+        isConfigured: wooConfigured,
+        statusMessage: wooConfigured
+          ? "Configured: Connected to store " + (wooContent.store_url || "")
+          : "Configuration required: Provide WooCommerce Store URL and Consumer REST API credentials.",
+        configurationSummary: {
+          hasStoreUrl: Boolean(wooContent.store_url),
+          hasCredentials: Boolean(wooContent.consumer_key || wooContent.wp_username),
+          connectionStatus: wooContent.last_connection_status || "unknown",
+          lastSyncAt: wooContent.last_sync_at || null,
+        },
+      },
+      {
+        slug: "shopify-sync",
+        name: "Shopify Sync",
+        category: "Integrations",
+        readinessStatus: shopifyConfigured ? "IMPLEMENTED_AND_CONFIGURED" : "IMPLEMENTED_UNCONFIGURED",
+        isAssigned: activeSlugs.has("shopify-sync"),
+        isConfigured: shopifyConfigured,
+        statusMessage: shopifyConfigured
+          ? `Configured: ${shopifyStores.length} Shopify store(s) linked.`
+          : "Configuration required: Connect Shopify store domain and Admin API Access Token.",
+        configurationSummary: {
+          storeCount: shopifyStores.length,
+          hasStores: shopifyConfigured,
+        },
+      },
+      {
+        slug: "razorpay-gateway",
+        name: "Razorpay Gateway",
+        category: "Payments",
+        readinessStatus: razorpayConfigured ? "IMPLEMENTED_AND_CONFIGURED" : "IMPLEMENTED_UNCONFIGURED",
+        isAssigned: activeSlugs.has("razorpay-gateway"),
+        isConfigured: razorpayConfigured,
+        statusMessage: razorpayConfigured
+          ? "Configured: Tenant Razorpay merchant credentials active."
+          : "Configuration required: Configure tenant Razorpay Key ID and Secret in payment settings.",
+        configurationSummary: {
+          hasKeyId: Boolean(razorpayContent.keyId),
+          hasWebhookSecret: Boolean(razorpayContent.webhookSecret),
+          mode: razorpayContent.keyId?.startsWith("rzp_live") ? "live" : razorpayContent.keyId ? "test" : "unconfigured",
+        },
+      },
+      {
+        slug: "whatsapp-alerts",
+        name: "WhatsApp Alerts",
+        category: "Communication",
+        readinessStatus: waConfigured ? "IMPLEMENTED_AND_CONFIGURED" : "IMPLEMENTED_UNCONFIGURED",
+        isAssigned: activeSlugs.has("whatsapp-alerts"),
+        isConfigured: waConfigured,
+        statusMessage: waConfigured
+          ? "Configured: Meta Cloud API connection active."
+          : "Configuration required: Enter Meta Cloud API Phone Number ID and Bearer Token.",
+        configurationSummary: {
+          hasPhoneId: Boolean(waContent.phoneNumberId),
+          hasToken: Boolean(waContent.apiKey),
+        },
+      },
+      {
+        slug: "tally-importer",
+        name: "Tally Importer",
+        category: "Accounting",
+        readinessStatus: "PARTIALLY_IMPLEMENTED",
+        isAssigned: activeSlugs.has("tally-importer"),
+        isConfigured: true,
+        statusMessage: "Operational: File-based XML/CSV parsing and Chart of Accounts ingestion operational.",
+        configurationSummary: {
+          mode: "FILE_BASED_IMPORT",
+          bidirectionalSync: false,
+        },
+      },
+      {
+        slug: "google-workspace-integration",
+        name: "Google Workspace Integration",
+        category: "Integrations",
+        readinessStatus: gSuiteConfigured ? "IMPLEMENTED_AND_CONFIGURED" : "IMPLEMENTED_UNCONFIGURED",
+        isAssigned: activeSlugs.has("google-workspace-integration") || activeSlugs.has("google-workspace"),
+        isConfigured: gSuiteConfigured,
+        statusMessage: gSuiteConfigured
+          ? `Configured: ${gAccounts.length} Google account(s) authorized.`
+          : "Configuration required: Complete Google OAuth 2.0 workspace authorization.",
+        configurationSummary: {
+          connectedAccountsCount: gAccounts.length,
+          hasConnectedAccount: gSuiteConfigured,
+        },
+      },
+    ];
+
+    return res.json({
+      tenantId,
+      integrations,
+    });
+  } catch (err: any) {
+    console.error("[super/tenants/:id/addons/integrations-status error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to load integrations status" });
+  }
+});
+
+// POST /api/super/tenants/:id/addons/:addonSlug/toggle (Backward compatible legacy toggle)
 superRouter.post("/tenants/:id/addons/:addonSlug/toggle", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id, addonSlug } = req.params;
@@ -2486,18 +2994,46 @@ superRouter.post("/tenants/:id/addons/:addonSlug/toggle", requireAuth, requireSu
 
     const newStatus = enabled === false ? "cancelled" : "active";
 
-    const entitlement = await prisma.tenantAddon.upsert({
-      where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
-      create: {
-        tenantId: id,
-        addonSlug,
-        status: newStatus,
-        plan: "super_admin_override",
-      },
-      update: {
-        status: newStatus,
-      },
-    });
+    const [entitlement] = await prisma.$transaction([
+      prisma.tenantAddon.upsert({
+        where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
+        create: {
+          tenantId: id,
+          addonSlug,
+          status: newStatus,
+          plan: "super_admin_override",
+          features: {
+            source: "MANUAL_ASSIGNMENT",
+            assignedBy: req.user?.email || "super_admin",
+            assignedAt: new Date().toISOString(),
+          },
+        },
+        update: {
+          status: newStatus,
+          features: {
+            source: "MANUAL_ASSIGNMENT",
+            assignedBy: req.user?.email || "super_admin",
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          tenantId: id,
+          actorId: req.user?.userId || null,
+          actorEmail: req.user?.email || "super_admin",
+          action: newStatus === "active" ? "SUPER_ADMIN_ADDON_ASSIGNED" : "SUPER_ADMIN_ADDON_REVOKED",
+          entityType: "TenantAddon",
+          ipAddress: req.ip || null,
+          afterJson: {
+            addonSlug,
+            status: newStatus,
+            plan: "super_admin_override",
+            actor: req.user?.email,
+          },
+        },
+      }),
+    ]);
 
     return res.json({
       success: true,
@@ -4741,6 +5277,22 @@ superRouter.post("/backup/generate", requireAuth, requireSuperAdmin, async (_req
   }
 });
 
+superRouter.post("/backup/verify-restore/:filename", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { filename } = req.params;
+    if (!filename || filename.includes("..") || path.basename(filename) !== filename) {
+      return res.status(400).json({ error: "Invalid backup filename." });
+    }
+    const result = await verifyBackupIntegrityAndDisposableRestore(filename);
+    return res.json({
+      success: true,
+      result,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Backup restore verification failed." });
+  }
+});
+
 superRouter.get("/backup/download/:filename", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { filename } = req.params;
@@ -4780,6 +5332,18 @@ superRouter.delete("/backup/:filename", requireAuth, requireSuperAdmin, async (r
     return res.json({ success: true, message: `Backup file '${filename}' deleted successfully.` });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete backup file." });
+  }
+});
+
+superRouter.get("/config-audit", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const auditResult = ConfigAuditService.auditEnvironment();
+    return res.json({
+      success: true,
+      audit: auditResult,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to audit system configuration." });
   }
 });
 

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
-import { getTenantDb } from "../context/tenant-context";
+import { getTenantDb, getTenantContext } from "../context/tenant-context";
 import { getIO } from "../socket";
 import { rawPrisma, prisma } from "../prisma";
 
@@ -27,7 +27,7 @@ export class OutboxService {
     params: CreateOutboxEventParams,
     tx?: PrismaClient | any
   ): Promise<any> {
-    const db = tx || getTenantDb();
+    const db = tx || (getTenantContext()?.db ? getTenantDb() : (rawPrisma || prisma));
     const eventId = crypto.randomUUID();
 
     return await db.outboxEvent.create({

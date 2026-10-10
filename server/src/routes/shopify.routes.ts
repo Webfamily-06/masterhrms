@@ -16,7 +16,13 @@ import {
   clearShopifyLogs,
 } from "../services/shopify-sync.service";
 
+import { requireEntitlement } from "../middleware/entitlements";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+
 export const shopifyRouter = Router();
+
+// Enforce authentication, tenant context, and Shopify Sync entitlement
+shopifyRouter.use(requireAuth, resolveTenantContext, requireEntitlement("shopify-sync"));
 
 function getTenantId(req: AuthRequest, res: Response): string | null {
   const tenantId = req.user?.tenantId;

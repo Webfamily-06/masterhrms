@@ -1,4 +1,5 @@
 import { WorkspacePolicyDialog } from "@/components/workspace-policy-dialog";
+import { ManageTenantAddonsDialog } from "@/components/manage-tenant-addons-dialog";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, setToken } from "@/lib/api";
@@ -58,6 +59,7 @@ import {
   ExternalLink,
   Clock,
   Briefcase,
+  Puzzle,
   Sliders,
   CheckCircle2,
 } from "lucide-react";
@@ -229,6 +231,7 @@ function CompaniesManagementPage() {
 
   // Dialog & Drawer states
   const [policyTenant, setPolicyTenant] = useState<TenantItem | null>(null);
+  const [addonManageTenant, setAddonManageTenant] = useState<TenantItem | null>(null);
   const [detailTenantId, setDetailTenantId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1330,6 +1333,14 @@ function CompaniesManagementPage() {
                                 </DropdownMenuItem>
 
                                 <DropdownMenuItem
+                                  onClick={() => setAddonManageTenant(tenant)}
+                                  className="cursor-pointer gap-2 font-medium"
+                                >
+                                  <Puzzle className="size-3.5 text-indigo-600" />
+                                  Manage Add-ons
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
                                   onClick={() => handleOpenResetPassword(tenant)}
                                   className="cursor-pointer gap-2 font-medium"
                                 >
@@ -1517,6 +1528,14 @@ function CompaniesManagementPage() {
                               >
                                 <ShieldCheck className="size-3.5 text-primary" />
                                 Upgrade / Change Plan
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => setAddonManageTenant(tenant)}
+                                className="cursor-pointer gap-2 font-medium"
+                              >
+                                <Puzzle className="size-3.5 text-indigo-600" />
+                                Manage Add-ons
                               </DropdownMenuItem>
 
                               <DropdownMenuItem
@@ -2334,6 +2353,15 @@ function CompaniesManagementPage() {
             setPolicyTenant(null);
             refetchAll();
           }}
+        />
+      )}
+
+      {/* 7. Manage Add-ons & Integrations Modal */}
+      {addonManageTenant && (
+        <ManageTenantAddonsDialog
+          tenant={addonManageTenant}
+          open={Boolean(addonManageTenant)}
+          onOpenChange={(open) => !open && setAddonManageTenant(null)}
         />
       )}
     </div>

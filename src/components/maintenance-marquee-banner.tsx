@@ -4,7 +4,7 @@ import { AlertTriangle, Wrench } from "lucide-react";
 
 export function MaintenanceMarqueeBanner() {
   const { data: settings } = useQuery({
-    queryKey: ["realtime-platform-settings-marquee"],
+    queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
       try {
         const page = await api.get("/cms/pages/system-platform-settings");
@@ -13,6 +13,9 @@ export function MaintenanceMarqueeBanner() {
         return null;
       }
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const isMaintenancePage =

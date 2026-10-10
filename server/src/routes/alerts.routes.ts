@@ -11,6 +11,7 @@ import {
   dispatchTelegramNotification,
 } from "../services/alert-notification.service";
 import { NotificationService } from "../services/notification.service";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const alertsRouter = Router();
 
@@ -61,7 +62,7 @@ alertsRouter.post("/test", requireAuth, async (req: AuthRequest, res: Response) 
  * POST /api/alerts/whatsapp/send
  * Dispatch outbound WhatsApp message (Meta Cloud API or verified sandbox gateway)
  */
-alertsRouter.post("/whatsapp/send", requireAuth, async (req: AuthRequest, res: Response) => {
+alertsRouter.post("/whatsapp/send", requireAuth, requireEntitlement("whatsapp-alerts"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -157,7 +158,7 @@ alertsRouter.post("/whatsapp/send", requireAuth, async (req: AuthRequest, res: R
 });
 
 // POST /api/alerts/whatsapp (Resilient Outbound WhatsApp Queue Worker)
-alertsRouter.post("/whatsapp", requireAuth, async (req: AuthRequest, res: Response) => {
+alertsRouter.post("/whatsapp", requireAuth, requireEntitlement("whatsapp-alerts"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -214,7 +215,7 @@ alertsRouter.post("/whatsapp", requireAuth, async (req: AuthRequest, res: Respon
  * POST /api/alerts/whatsapp/simulate
  * Process inbound keyword from WhatsApp user and generate live data-backed reply
  */
-alertsRouter.post("/whatsapp/simulate", requireAuth, async (req: AuthRequest, res: Response) => {
+alertsRouter.post("/whatsapp/simulate", requireAuth, requireEntitlement("whatsapp-alerts"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -344,3 +345,91 @@ alertsRouter.post("/whatsapp/webhook/:tenantId", async (req, res) => {
     res.status(200).json({ success: false, error: err.message });
   }
 });
+
+// ==========================================
+// UNIFIED MESSAGING & SMS GATEWAY ENDPOINTS
+// ==========================================
+
+import { MessagingGatewayService } from "../services/messaging-gateway.service";
+
+/**
+ * GET /api/alerts/gateway/config
+ * Get tenant messaging gateway configuration
+ */
+alertsRouter.get("/gateway/config", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const config = await MessagingGatewayService.getTenantConfig(tenantId);
+    return res.json({ success: true, config });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch messaging config" });
+  }
+});
+
+/**
+ * POST /api/alerts/gateway/config
+ * Save tenant messaging gateway configuration
+ */
+alertsRouter.post("/gateway/config", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const result = await MessagingGatewayService.saveTenantConfig(tenantId, req.body, req.user?.id);
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to save messaging config" });
+  }
+});
+
+/**
+ * POST /api/alerts/gateway/test
+ * Test messaging provider in sandbox mode
+ */
+alertsRouter.post("/gateway/test", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const result = await MessagingGatewayService.testProviderConnection(tenantId, req.user?.id);
+    return res.json({ success: result.ok, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to test provider connection" });
+  }
+});
+
+/**
+ * POST /api/alerts/sms/send
+ * Dispatch outbound SMS through the unified Messaging Gateway
+ */
+alertsRouter.post("/sms/send", requireAuth, requireEntitlement("sms-gateway"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { phone, message, templateName, templateParams, idempotencyKey } = req.body;
+    if (!phone) {
+      return res.status(400).json({ error: "Recipient phone number is required." });
+    }
+
+    const delivery = await MessagingGatewayService.dispatchMessage(
+      tenantId,
+      {
+        channel: "sms",
+        recipientPhone: phone,
+        bodyText: message,
+        templateName,
+        templateParams,
+        idempotencyKey,
+      },
+      req.user?.id
+    );
+
+    return res.json({ success: true, delivery });
+  } catch (err: any) {
+    return res.status(err.status || 400).json({ error: err.message || "Failed to dispatch SMS" });
+  }
+});
+

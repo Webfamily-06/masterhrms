@@ -110,10 +110,48 @@ export async function checkTenantEntitlement(
 
   // 3. Check TenantAddon (active, trial, or expired)
   try {
+    const candidateAddonSlugs = new Set<string>([normalized, key]);
+    if (normalized.includes("google-workspace")) {
+      candidateAddonSlugs.add("google-workspace");
+      candidateAddonSlugs.add("google-workspace-integration");
+    }
+    if (normalized.includes("woocommerce")) {
+      candidateAddonSlugs.add("woocommerce");
+      candidateAddonSlugs.add("woocommerce-sync");
+    }
+    if (normalized.includes("shopify")) {
+      candidateAddonSlugs.add("shopify");
+      candidateAddonSlugs.add("shopify-sync");
+    }
+    if (normalized.includes("razorpay")) {
+      candidateAddonSlugs.add("razorpay");
+      candidateAddonSlugs.add("razorpay-gateway");
+    }
+    if (normalized.includes("whatsapp")) {
+      candidateAddonSlugs.add("whatsapp");
+      candidateAddonSlugs.add("whatsapp-alerts");
+    }
+    if (normalized.includes("tally")) {
+      candidateAddonSlugs.add("tally");
+      candidateAddonSlugs.add("tally-importer");
+    }
+    if (normalized.includes("biometric")) {
+      candidateAddonSlugs.add("biometric");
+      candidateAddonSlugs.add("biometric-sync");
+    }
+    if (normalized.includes("okr")) {
+      candidateAddonSlugs.add("okr");
+      candidateAddonSlugs.add("okr-performance");
+    }
+    if (normalized.includes("asset")) {
+      candidateAddonSlugs.add("assets");
+      candidateAddonSlugs.add("asset-management");
+    }
+
     const addonRecord = await db.tenantAddon.findFirst({
       where: {
         tenantId,
-        addonSlug: { in: [normalized, key] },
+        addonSlug: { in: Array.from(candidateAddonSlugs) },
       },
     });
 
@@ -203,9 +241,15 @@ export async function checkTenantEntitlement(
         if (normalized === "crm") return lf.includes("crm");
         if (normalized === "pos") return lf.includes("pos");
         if (normalized === "inventory") return lf.includes("inventory") || lf.includes("pos");
-        if (normalized === "finance" || normalized === "accounting") return lf.includes("financial") || lf.includes("ledger") || lf.includes("accounting");
-        if (normalized === "hrms") return lf.includes("hrm") || lf.includes("payroll") || lf.includes("attendance");
-        if (normalized === "biometric-sync") return lf.includes("biometric");
+        if (normalized === "finance" || normalized === "accounting") return lf.includes("financial") || lf.includes("ledger") || lf.includes("accounting") || lf.includes("finance");
+        if (normalized === "hrms" || normalized === "hrm") return lf.includes("hrm") || lf.includes("payroll") || lf.includes("attendance");
+        if (normalized === "biometric-sync" || normalized === "biometric") return lf.includes("biometric");
+        if (normalized === "woocommerce-sync" || normalized === "woocommerce") return lf.includes("woocommerce");
+        if (normalized === "shopify-sync" || normalized === "shopify") return lf.includes("shopify");
+        if (normalized === "razorpay-gateway" || normalized === "razorpay") return lf.includes("razorpay");
+        if (normalized === "whatsapp-alerts" || normalized === "whatsapp") return lf.includes("whatsapp");
+        if (normalized === "tally-importer" || normalized === "tally") return lf.includes("tally");
+        if (normalized === "google-workspace-integration" || normalized === "google-workspace") return lf.includes("google");
         return lf.includes(normalized);
       });
 
@@ -221,8 +265,9 @@ export async function checkTenantEntitlement(
 
       // Included add-ons check
       const rawAddons = Array.isArray(sub.plan.includedAddonIds) ? (sub.plan.includedAddonIds as any[]) : [];
-      const includedAddonIds: string[] = rawAddons.map((a) => String(a));
-      if (includedAddonIds.includes(normalized) || includedAddonIds.includes(key)) {
+      const includedAddonIds: string[] = rawAddons.map((a) => String(a).toLowerCase());
+      const hasIncluded = Array.from(candidateAddonSlugs).some((s) => includedAddonIds.includes(s.toLowerCase()));
+      if (hasIncluded) {
         return {
           entitled: true,
           type: "addon",

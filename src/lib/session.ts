@@ -27,6 +27,7 @@ export type ProfileWithRoles = {
   workspaceRole: WorkspaceRoleInfo | null;
   permissions: string[];
   enabledModules: string[];
+  activeAddons?: string[];
   allowedDashboards: string[];
   twoFactorEnabled?: boolean;
 };
@@ -119,6 +120,7 @@ export function useCurrentProfile(user?: SessionUser | null | undefined) {
       workspaceRole: rawUser.workspaceRole ?? null,
       permissions: rawUser.permissions ?? [],
       enabledModules: rawUser.enabledModules ?? [],
+      activeAddons: rawUser.activeAddons ?? [],
       allowedDashboards: rawUser.allowedDashboards ?? [],
       twoFactorEnabled: Boolean(rawUser.twoFactorEnabled),
     };

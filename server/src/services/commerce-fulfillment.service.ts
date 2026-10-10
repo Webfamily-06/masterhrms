@@ -364,8 +364,8 @@ export class CommerceFulfillmentService {
       if (!existingInv) {
         await tx.billingInvoice.create({
           data: {
-            tenantId: orderTenantId,
-            subscriptionId: activeSub ? activeSub.id : null, // Nullable for standalone add-ons / modules
+            tenant: { connect: { id: orderTenantId } },
+            ...(activeSub ? { subscription: { connect: { id: activeSub.id } } } : {}),
             invoiceNo: `INV-${order.order_number}`,
             amount: order.total_amount,
             currency: order.currency || "INR",
@@ -441,13 +441,13 @@ export class CommerceFulfillmentService {
   public static async processOutboxBatch(options?: {
     batchSize?: number;
     workerId?: string;
-  }): Promise<{ processed: number; errors: number; status: string }> {
+  } | number): Promise<{ processed: number; errors: number; status: string }> {
     if (!this.isFulfillmentEnabled()) {
       return { processed: 0, errors: 0, status: "DISABLED" };
     }
 
-    const batchSize = options?.batchSize || 10;
-    const workerId = options?.workerId || "DEFAULT_WORKER";
+    const batchSize = typeof options === "number" ? options : (options?.batchSize || 10);
+    const workerId = (typeof options === "object" && options?.workerId) || "DEFAULT_WORKER";
     const db = rawPrisma || prisma;
 
     let processedCount = 0;
@@ -497,6 +497,7 @@ export class CommerceFulfillmentService {
 
           processedCount++;
         } catch (fulfillmentErr: any) {
+          console.error("[CommerceFulfillmentService] Fulfillment error for order:", orderId, fulfillmentErr?.message);
           errorCount++;
           const nextRetry = (event.retry_count || 0) + 1;
           const isPermanent = nextRetry >= 5 || fulfillmentErr.code === "UNKNOWN_CATALOG_PRODUCT";

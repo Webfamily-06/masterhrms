@@ -637,10 +637,10 @@ async function runFlow2TestSuite() {
       if (res.status !== 403) {
         throw new Error(`Expected 403 HOST_TENANT_MISMATCH, got ${res.status}: ${JSON.stringify(data)}`);
       }
-      if (data.code !== "HOST_TENANT_MISMATCH") {
-        throw new Error(`Expected code HOST_TENANT_MISMATCH, got ${data.code}`);
+      if (data.code !== "HOST_TENANT_MISMATCH" && data.code !== "TENANT_HOST_MISMATCH") {
+        throw new Error(`Expected code TENANT_HOST_MISMATCH, got ${data.code}`);
       }
-      return `Cross-tenant token rejected with 403 HOST_TENANT_MISMATCH`;
+      return `Cross-tenant token rejected with 403 TENANT_HOST_MISMATCH`;
     });
 
     // ─────────────────────────────────────────────────────────

@@ -457,7 +457,7 @@ describe("MASTERHRMS — Phase A4.1 Tenant Marketplace Commerce Integration", ()
     expect(orderAfter?.status).toBe("PAID");
 
     // Execute outbox sweep to complete asynchronous fulfillment
-    const sweepResult = await CommerceFulfillmentService.processOutboxBatch(10);
+    const sweepResult = await CommerceFulfillmentService.processOutboxBatch({ batchSize: 10 });
     expect(sweepResult.processed).toBeGreaterThan(0);
 
     // Verify order is now FULFILLED

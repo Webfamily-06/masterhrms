@@ -1273,6 +1273,7 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
     let workspaceRole: any = null;
     let permissions: string[] = [];
     let enabledModules: string[] = [];
+    let activeAddons: string[] = [];
     let allowedDashboards: string[] = [];
 
     const isSuper = roles.includes("super_admin");
@@ -1289,6 +1290,7 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       };
       allowedDashboards = ERP_MODULES.map((m) => m.key);
       enabledModules = ERP_MODULES.map((m) => m.key);
+      activeAddons = ["*"];
     } else if (tenantId) {
         const tenantMods = await db.tenantModule.findMany({
           where: { tenantId },
@@ -1365,6 +1367,32 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
           if (CORE_PLATFORM_MODULES.has(m.key)) return true;
           return false;
         }).map((m) => m.key);
+
+        // Include active tenant add-on slugs in enabledModules
+        for (const addonSlug of activeAddonSlugs) {
+          if (!enabledModules.includes(addonSlug)) {
+            enabledModules.push(addonSlug);
+          }
+        }
+        if (isSovereignOrGrowth) {
+          const ALL_INTEGRATIONS = [
+            "woocommerce-sync",
+            "shopify-sync",
+            "google-workspace-integration",
+            "google-workspace",
+            "tally-importer",
+            "whatsapp-alerts",
+            "razorpay-gateway",
+            "biometric-sync",
+            "okr-performance",
+            "asset-management",
+          ];
+          for (const slug of ALL_INTEGRATIONS) {
+            if (!enabledModules.includes(slug)) {
+              enabledModules.push(slug);
+            }
+          }
+        }
         let assignment = await db.userRoleAssignment.findUnique({
           where: {
             userId_tenantId: {
@@ -1450,6 +1478,8 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
             permissions.includes(mod.permission);
           return isModEnabled && hasDashboardPerm;
         }).map((m) => m.key);
+
+        activeAddons = Array.from(activeAddonSlugs);
       }
 
     return res.json({
@@ -1460,6 +1490,7 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       workspaceRole,
       permissions,
       enabledModules,
+      activeAddons,
       allowedDashboards,
       twoFactorEnabled: user!.twoFactorEnabled,
     });

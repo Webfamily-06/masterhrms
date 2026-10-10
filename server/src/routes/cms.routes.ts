@@ -298,8 +298,10 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
           "footerText",
         ];
         const content = Object.fromEntries(Object.entries((page.content as any) || {}).filter(([key]) => safeKeys.includes(key)));
+        res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
         return res.json({ ...page, content });
       }
+      res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
       return res.json(page);
     }
     if (!isSuper && !slug.startsWith("tenant-") && !slug.startsWith("system-") && !page.published) {
@@ -432,16 +434,51 @@ cmsRouter.delete("/pages/:slug", requireAuth, async (req: AuthRequest, res: Resp
   }
 });
 
+// ==========================================
+// IN-MEMORY PERFORMANCE CACHE FOR PUBLIC ADDONS
+// ==========================================
+interface AddonCacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+let catalogCache: AddonCacheEntry<any[]> | null = null;
+let categoryCache: AddonCacheEntry<string[]> | null = null;
+const slugCache = new Map<string, AddonCacheEntry<any>>();
+
+export function invalidateCmsAddonsCache(slug?: string) {
+  catalogCache = null;
+  categoryCache = null;
+  if (slug) {
+    slugCache.delete(slug);
+  } else {
+    slugCache.clear();
+  }
+}
+
 // GET /api/cms/addons/categories
 cmsRouter.get("/addons/categories", async (_req, res) => {
   try {
+    const now = Date.now();
+    if (categoryCache && categoryCache.expiresAt > now) {
+      res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+      return res.json(categoryCache.data);
+    }
+
     const distinct = await prisma.addon.findMany({
       where: { status: "active" },
       select: { category: true },
       distinct: ["category"],
       orderBy: { category: "asc" },
     });
-    const categories = distinct.map((d) => d.category).filter(Boolean);
+    const categories = distinct.map((d: any) => d.category).filter(Boolean);
+
+    categoryCache = {
+      data: categories,
+      expiresAt: now + 60 * 1000,
+    };
+
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
     return res.json(categories);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch addon categories" });
@@ -453,42 +490,81 @@ cmsRouter.get("/addons", async (req, res) => {
   try {
     const category = req.query.category as string | undefined;
     const search = req.query.search as string | undefined;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    const isDefaultQuery = (!category || category === "All") && (!search || !search.trim()) && page === 1;
+    const now = Date.now();
+
+    if (isDefaultQuery && catalogCache && catalogCache.expiresAt > now) {
+      res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
+      return res.json(catalogCache.data);
+    }
 
     const where: any = { status: "active" };
     if (category && category !== "All") {
       where.category = category;
     }
-    if (search) {
+    if (search && search.trim()) {
+      const term = search.trim();
       where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { slug: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { tagline: { contains: search, mode: "insensitive" } },
+        { name: { contains: term, mode: "insensitive" } },
+        { slug: { contains: term, mode: "insensitive" } },
+        { description: { contains: term, mode: "insensitive" } },
+        { tagline: { contains: term, mode: "insensitive" } },
       ];
     }
 
+    // Only select fields required for catalog cards — avoid fetching large descriptions and galleries for listing cards
     const addons = await prisma.addon.findMany({
       where,
-      orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        tagline: true,
+        description: true,
+        category: true,
+        status: true,
+        priceMonthly: true,
+        icon: true,
+        featured: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ featured: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+      take: limit,
+      skip: offset,
     });
 
-    const formatted = addons.map((a) => {
+    const formatted = addons.map((a: any) => {
       const price = a.priceMonthly != null ? Number(a.priceMonthly) : 0;
       return {
-        ...a,
+        id: a.id,
+        name: a.name,
+        slug: a.slug,
+        tagline: a.tagline ?? null,
+        description: a.description ?? null,
+        category: a.category,
+        status: a.status,
         priceMonthly: price,
         price_monthly: price,
-        longDescription: a.longDescription ?? null,
-        long_description: a.longDescription ?? null,
-        installUrl: a.installUrl ?? null,
-        install_url: a.installUrl ?? null,
-        docsUrl: a.docsUrl ?? null,
-        docs_url: a.docsUrl ?? null,
-        features: Array.isArray(a.features) ? a.features : [],
-        screenshots: Array.isArray(a.screenshots) ? a.screenshots : [],
+        icon: a.icon ?? null,
+        featured: Boolean(a.featured),
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
       };
     });
 
+    if (isDefaultQuery) {
+      catalogCache = {
+        data: formatted,
+        expiresAt: now + 30 * 1000,
+      };
+    }
+
+    res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
     return res.json(formatted);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
@@ -499,10 +575,42 @@ cmsRouter.get("/addons", async (req, res) => {
 cmsRouter.get("/addons/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
-    const addon = await prisma.addon.findFirst({
-      where: { slug, status: "active" },
+    const now = Date.now();
+    const cached = slugCache.get(slug);
+    if (cached && cached.expiresAt > now) {
+      res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+      return res.json(cached.data);
+    }
+
+    // Direct indexed query by slug
+    const addon = await prisma.addon.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        tagline: true,
+        description: true,
+        longDescription: true,
+        category: true,
+        status: true,
+        priceMonthly: true,
+        icon: true,
+        screenshots: true,
+        features: true,
+        developer: true,
+        version: true,
+        docsUrl: true,
+        galleryVideo: true,
+        installUrl: true,
+        featured: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
-    if (!addon) {
+
+    // Ensure draft and archived records remain excluded from public results
+    if (!addon || addon.status !== "active") {
       return res.status(404).json({ error: "Addon not found", code: "NOT_FOUND" });
     }
 
@@ -521,6 +629,12 @@ cmsRouter.get("/addons/:slug", async (req, res) => {
       screenshots: Array.isArray(addon.screenshots) ? addon.screenshots : [],
     };
 
+    slugCache.set(slug, {
+      data: formatted,
+      expiresAt: now + 60 * 1000,
+    });
+
+    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
     return res.json(formatted);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch addon" });

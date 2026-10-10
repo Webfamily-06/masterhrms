@@ -6,6 +6,7 @@ import { ERP_MODULES } from "../lib/erp-modules";
 import { getWorkspacePolicy } from "../services/workspace-policy.service";
 import { SettingsService } from "../services/settings/settings.service";
 import { CompanyProfileService } from "../services/company-profile/company-profile.service";
+import { requireEntitlement } from "../middleware/entitlements";
 
 export const workspaceRouter = Router();
 
@@ -805,7 +806,7 @@ workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, async (re
 // -------------------------------------------------------------
 // 12. GET /api/workspace/google/config - Get Google Workspace integration settings
 // -------------------------------------------------------------
-workspaceRouter.get("/google/config", async (req: AuthRequest, res: Response) => {
+workspaceRouter.get("/google/config", requireEntitlement("google-workspace-integration"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const slug = `system-google-workspace-${tenantId}`;
@@ -844,7 +845,7 @@ workspaceRouter.get("/google/config", async (req: AuthRequest, res: Response) =>
 // -------------------------------------------------------------
 // 13. POST /api/workspace/google/config - Save Google Workspace settings
 // -------------------------------------------------------------
-workspaceRouter.post("/google/config", async (req: AuthRequest, res: Response) => {
+workspaceRouter.post("/google/config", requireEntitlement("google-workspace-integration"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const slug = `system-google-workspace-${tenantId}`;
@@ -914,7 +915,7 @@ workspaceRouter.post("/google/config", async (req: AuthRequest, res: Response) =
 // -------------------------------------------------------------
 // 14. POST /api/workspace/google/connect-account - Connect Google account
 // -------------------------------------------------------------
-workspaceRouter.post("/google/connect-account", async (req: AuthRequest, res: Response) => {
+workspaceRouter.post("/google/connect-account", requireEntitlement("google-workspace-integration"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const slug = `system-google-workspace-${tenantId}`;
@@ -987,7 +988,7 @@ workspaceRouter.post("/google/connect-account", async (req: AuthRequest, res: Re
 // -------------------------------------------------------------
 // 15. DELETE /api/workspace/google/accounts/:id - Disconnect account
 // -------------------------------------------------------------
-workspaceRouter.delete("/google/accounts/:id", async (req: AuthRequest, res: Response) => {
+workspaceRouter.delete("/google/accounts/:id", requireEntitlement("google-workspace-integration"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const { id } = req.params;
@@ -1023,7 +1024,7 @@ workspaceRouter.delete("/google/accounts/:id", async (req: AuthRequest, res: Res
 // -------------------------------------------------------------
 // 16. POST /api/workspace/google/sync-directory - Sync Directory with MySQL
 // -------------------------------------------------------------
-workspaceRouter.post("/google/sync-directory", async (req: AuthRequest, res: Response) => {
+workspaceRouter.post("/google/sync-directory", requireEntitlement("google-workspace-integration"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const slug = `system-google-workspace-${tenantId}`;
@@ -1093,7 +1094,7 @@ workspaceRouter.post("/google/sync-directory", async (req: AuthRequest, res: Res
 // -------------------------------------------------------------
 // 17. GET /api/workspace/google/drive-files - Real Drive & Company Documents
 // -------------------------------------------------------------
-workspaceRouter.get("/google/drive-files", async (req: AuthRequest, res: Response) => {
+workspaceRouter.get("/google/drive-files", requireEntitlement("google-workspace-integration"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
 
@@ -1136,7 +1137,7 @@ workspaceRouter.get("/google/drive-files", async (req: AuthRequest, res: Respons
 // -------------------------------------------------------------
 // 18. POST /api/workspace/tally-import - Tally ERP XML Auto-Ledger Ingestion
 // -------------------------------------------------------------
-workspaceRouter.post("/tally-import", async (req: AuthRequest, res: Response) => {
+workspaceRouter.post("/tally-import", requireEntitlement("tally-importer"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const { fileName = "tally_export.xml", vouchers = [], rows = [] } = req.body;

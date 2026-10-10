@@ -1,21 +1,26 @@
 import { Router, Response } from "express";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 
 export const addonsRouter = Router();
+
+// Enforce authentication and request-scoped tenant context for all tenant addon routes
+addonsRouter.use(requireAuth, resolveTenantContext);
 
 /**
  * GET /api/addons/entitlements
  * Returns all active addon entitlements for the current tenant.
  */
-addonsRouter.get("/entitlements", requireAuth, async (req: AuthRequest, res: Response) => {
+addonsRouter.get("/entitlements", async (req: AuthRequest, res: Response) => {
   try {
+    const db = rawPrisma || prisma;
     const tenantId = req.user?.tenantId;
     if (!tenantId) {
       return res.status(400).json({ error: "Tenant context required." });
     }
 
-    const entitlements = await prisma.tenantAddon.findMany({
+    const entitlements = await db.tenantAddon.findMany({
       where: { tenantId },
     });
 
@@ -37,6 +42,74 @@ addonsRouter.get("/entitlements", requireAuth, async (req: AuthRequest, res: Res
         isActive: !isExpired && (e.status === "active" || e.status === "trial"),
       };
     });
+
+    // Check tenant active subscription for included add-ons
+    const activeSub = await db.tenantSubscription.findFirst({
+      where: {
+        tenantId,
+        status: { in: ["active", "trial"] },
+      },
+      include: { plan: true },
+    });
+
+    if (activeSub?.plan) {
+      const planName = (activeSub.plan.name || "").toLowerCase();
+      const planSlug = (activeSub.plan.slug || "").toLowerCase();
+      const features = Array.isArray(activeSub.plan.features) ? activeSub.plan.features : [];
+      const isSovereignOrGrowth =
+        planName.includes("sovereign") ||
+        planName.includes("growth") ||
+        planSlug.includes("sovereign") ||
+        planSlug.includes("growth") ||
+        features.some(
+          (f: any) =>
+            typeof f === "string" &&
+            (f.toLowerCase().includes("sovereign") ||
+              f.toLowerCase().includes("integration") ||
+              f.toLowerCase().includes("all add-on") ||
+              f.toLowerCase().includes("all-addon"))
+        );
+
+      if (isSovereignOrGrowth) {
+        const ALL_INTEGRATIONS = [
+          "woocommerce-sync",
+          "shopify-sync",
+          "google-workspace-integration",
+          "tally-importer",
+          "whatsapp-alerts",
+          "razorpay-gateway",
+          "biometric-sync",
+          "okr-performance",
+          "asset-management",
+        ];
+        for (const slug of ALL_INTEGRATIONS) {
+          if (!entitlementMap[slug]) {
+            entitlementMap[slug] = {
+              id: `plan-${slug}`,
+              addonSlug: slug,
+              status: "active",
+              plan: activeSub.plan.name || "included",
+              isActive: true,
+            };
+          }
+        }
+      }
+
+      if (Array.isArray(activeSub.plan.includedAddonIds)) {
+        for (const addonId of activeSub.plan.includedAddonIds) {
+          const slug = String(addonId).toLowerCase();
+          if (!entitlementMap[slug]) {
+            entitlementMap[slug] = {
+              id: `plan-${slug}`,
+              addonSlug: slug,
+              status: "active",
+              plan: activeSub.plan.name || "included",
+              isActive: true,
+            };
+          }
+        }
+      }
+    }
 
     return res.json({ entitlements: entitlementMap });
   } catch (err: any) {

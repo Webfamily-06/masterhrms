@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import type { ProfileWithRoles } from "@/lib/session";
 import { isModuleAllowed, isWorkspaceAdminUser } from "@/lib/permissions";
 import { useTenantBranding } from "@/lib/useTenantBranding";
+import { useNavigationResolver } from "@/lib/navigation-resolver";
 import { cn } from "@/lib/utils";
 
 interface DreamsSidebarProps {
@@ -25,6 +26,7 @@ export function DreamsSidebar({
   onToggleFullView,
 }: DreamsSidebarProps) {
   const { branding, isDark } = useTenantBranding();
+  const { isEntitled } = useNavigationResolver();
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const [isHovered, setIsHovered] = useState(false);
   const [ignoreHover, setIgnoreHover] = useState(false);
@@ -2396,100 +2398,158 @@ export function DreamsSidebar({
           </>
         )}
 
-            {/* ===================== EXTENSIONS ===================== */}
-            <li className="menu-title">
-              <span>EXTENSIONS & ADD-ONS</span>
-            </li>
-            <li className="submenu">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toggleSubmenu("extensions");
-                }}
-                className={cn(
-                  "cursor-pointer",
-                  openMenus.extensions && "subdrop",
-                  [
-                    "/marketplace",
-                    "/integrations",
-                    "/google-workspace",
-                    "/tally-importer",
-                    "/whatsapp-alerts",
-                    "/razorpay-gateway",
-                  ].includes(currentPath) && "active"
-                )}
-              >
-                <i className="ph-duotone ph-sparkle"></i>
-                <span>Add-ons & Connectors</span>
-                <span className="menu-arrow"></span>
-              </a>
-              <ul style={{ display: !isMini && openMenus.extensions ? "block" : "none" }}>
-                <li>
-                  <Link
-                    to="/marketplace"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/marketplace" && "active")}
-                  >
-                    App Marketplace
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/integrations"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/integrations" && "active")}
-                  >
-                    WooCommerce Sync
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/shopify"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/shopify" && "active")}
-                  >
-                    Shopify Sync
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/google-workspace"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/google-workspace" && "active")}
-                  >
-                    Google Workspace
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/tally-importer"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/tally-importer" && "active")}
-                  >
-                    Tally Prime Sync
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/whatsapp-alerts"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/whatsapp-alerts" && "active")}
-                  >
-                    WhatsApp Alerts
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/razorpay-gateway"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/razorpay-gateway" && "active")}
-                  >
-                    Razorpay Gateway
-                  </Link>
-                </li>
-              </ul>
-            </li>
+            {/* ===================== EXTENSIONS & ADD-ONS ===================== */}
+            {(() => {
+              const hasMarketplace = isAdminOrSuper;
+              const hasWoo = isEntitled("woocommerce-sync") && isAdminOrSuper;
+              const hasShopify = isEntitled("shopify-sync") && isAdminOrSuper;
+              const hasGoogle = isEntitled("google-workspace-integration") && isAdminOrSuper;
+              const hasTally = isEntitled("tally-importer") && isAdminOrSuper;
+              const hasWhatsapp = isEntitled("whatsapp-alerts") && isAdminOrSuper;
+              const hasRazorpay = isEntitled("razorpay-gateway") && isAdminOrSuper;
+              const hasStrategy = (isEntitled("swot") || isEntitled("pestel")) && isAdminOrSuper;
+              const hasAiOcr = isEntitled("ai-ocr") && isAdminOrSuper;
+
+              const anyVisible = hasMarketplace || hasWoo || hasShopify || hasGoogle || hasTally || hasWhatsapp || hasRazorpay || hasStrategy || hasAiOcr;
+              if (!anyVisible) return null;
+
+              return (
+                <>
+                  <li className="menu-title">
+                    <span>EXTENSIONS & ADD-ONS</span>
+                  </li>
+                  <li className="submenu">
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleSubmenu("extensions");
+                      }}
+                      className={cn(
+                        "cursor-pointer",
+                        openMenus.extensions && "subdrop",
+                        [
+                          "/marketplace",
+                          "/integrations",
+                          "/shopify",
+                          "/google-workspace",
+                          "/tally-importer",
+                          "/whatsapp-alerts",
+                          "/razorpay-gateway",
+                          "/strategy-studio",
+                          "/ai-ocr",
+                        ].includes(currentPath) && "active"
+                      )}
+                    >
+                      <i className="ph-duotone ph-sparkle"></i>
+                      <span>Add-ons & Connectors</span>
+                      <span className="menu-arrow"></span>
+                    </a>
+                    <ul style={{ display: !isMini && openMenus.extensions ? "block" : "none" }}>
+                      {hasMarketplace && (
+                        <li>
+                          <Link
+                            to="/marketplace"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/marketplace" && "active")}
+                          >
+                            App Marketplace
+                          </Link>
+                        </li>
+                      )}
+                      {hasWoo && (
+                        <li>
+                          <Link
+                            to="/integrations"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/integrations" && "active")}
+                          >
+                            WooCommerce Sync
+                          </Link>
+                        </li>
+                      )}
+                      {hasShopify && (
+                        <li>
+                          <Link
+                            to="/shopify"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/shopify" && "active")}
+                          >
+                            Shopify Sync
+                          </Link>
+                        </li>
+                      )}
+                      {hasGoogle && (
+                        <li>
+                          <Link
+                            to="/google-workspace"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/google-workspace" && "active")}
+                          >
+                            Google Workspace
+                          </Link>
+                        </li>
+                      )}
+                      {hasTally && (
+                        <li>
+                          <Link
+                            to="/tally-importer"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/tally-importer" && "active")}
+                          >
+                            Tally Prime Sync
+                          </Link>
+                        </li>
+                      )}
+                      {hasWhatsapp && (
+                        <li>
+                          <Link
+                            to="/whatsapp-alerts"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/whatsapp-alerts" && "active")}
+                          >
+                            WhatsApp Alerts
+                          </Link>
+                        </li>
+                      )}
+                      {hasRazorpay && (
+                        <li>
+                          <Link
+                            to="/razorpay-gateway"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/razorpay-gateway" && "active")}
+                          >
+                            Razorpay Gateway
+                          </Link>
+                        </li>
+                      )}
+                      {hasStrategy && (
+                        <li>
+                          <Link
+                            to="/strategy-studio"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/strategy-studio" && "active")}
+                          >
+                            Strategy Studio
+                          </Link>
+                        </li>
+                      )}
+                      {hasAiOcr && (
+                        <li>
+                          <Link
+                            to="/ai-ocr"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/ai-ocr" && "active")}
+                          >
+                            AI Invoice OCR
+                          </Link>
+                        </li>
+                      )}
+                    </ul>
+                  </li>
+                </>
+              );
+            })()}
 
             {/* ===================== SYSTEM & SETTINGS ===================== */}
             <li className="menu-title">

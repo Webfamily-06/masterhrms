@@ -4,8 +4,13 @@ import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { autoPostSaleToLedger } from "../services/ledger-posting.service";
 import { broadcastToTenant } from "../socket";
+import { requireEntitlement } from "../middleware/entitlements";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 
 export const paymentsRouter = Router();
+
+// Enforce authentication, tenant context, and Razorpay Gateway entitlement
+paymentsRouter.use(requireAuth, resolveTenantContext, requireEntitlement("razorpay-gateway"));
 
 // -------------------------------------------------------------
 // 1. GET /api/payments/razorpay/config - Get Razorpay settings

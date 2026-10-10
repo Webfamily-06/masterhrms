@@ -6,6 +6,8 @@ import { autoPostPurchaseToLedger, autoPostSaleToLedger } from "../services/ledg
 import { resolveTenantId } from "../lib/tenant";
 import { InventoryMovementService } from "../services/inventory-movement.service";
 import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
+import { requireEntitlement } from "../middleware/entitlements";
+import { AiAutomationService } from "../services/ai-automation.service";
 
 export const aiRouter = Router();
 
@@ -372,7 +374,7 @@ Is there a specific policy, accounting calculation, or document template you wou
 // 4. NEURAL AI OCR INVOICE / BILL EXTRACTION & RELATIONAL SAVING
 // -------------------------------------------------------------
 
-aiRouter.post("/ocr/extract", requireAuth, async (req: AuthRequest, res: Response) => {
+aiRouter.post("/ocr/extract", requireAuth, requireEntitlement("ai-ocr"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -497,7 +499,7 @@ aiRouter.post("/ocr/extract", requireAuth, async (req: AuthRequest, res: Respons
   }
 });
 
-aiRouter.post("/ocr/save", requireAuth, async (req: AuthRequest, res: Response) => {
+aiRouter.post("/ocr/save", requireAuth, requireEntitlement("ai-ocr"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
@@ -832,4 +834,85 @@ aiRouter.get("/hiring-forecast", requireAuth, async (req: AuthRequest, res: Resp
     return res.status(500).json({ error: err.message || "Failed to generate AI hiring forecast" });
   }
 });
+
+// ==========================================
+// UNIFIED AI & AUTOMATION ENGINE ENDPOINTS
+// ==========================================
+
+
+/**
+ * GET /api/ai/engine/config
+ * Get tenant AI service configuration
+ */
+aiRouter.get("/engine/config", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const config = await AiAutomationService.getTenantConfig(tenantId);
+    return res.json({ success: true, config });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch AI engine config" });
+  }
+});
+
+/**
+ * POST /api/ai/engine/config
+ * Save tenant AI service configuration
+ */
+aiRouter.post("/engine/config", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const result = await AiAutomationService.saveTenantConfig(tenantId, req.body, req.user?.id);
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to save AI engine config" });
+  }
+});
+
+/**
+ * POST /api/ai/ocr/process
+ * Process document OCR with confidence scoring and human review flag
+ */
+aiRouter.post("/ocr/process", requireAuth, requireEntitlement("ai-ocr"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { fileName = "invoice.pdf", fileSizeBytes = 102400, mimeType = "application/pdf", overrideConfidence, overrideTotal } = req.body;
+
+    const job = await AiAutomationService.processDocumentOcr({
+      tenantId,
+      fileName,
+      fileSizeBytes,
+      mimeType,
+      actorId: req.user?.id,
+      overrideConfidence,
+      overrideTotal,
+    });
+
+    return res.json({ success: true, job });
+  } catch (err: any) {
+    return res.status(err.status || 400).json({ error: err.message || "Failed to process document OCR" });
+  }
+});
+
+/**
+ * GET /api/ai/ocr/jobs
+ * List tenant OCR jobs
+ */
+aiRouter.get("/ocr/jobs", requireAuth, requireEntitlement("ai-ocr"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const jobs = AiAutomationService.getTenantOcrJobs(tenantId);
+    return res.json({ success: true, jobs });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to list OCR jobs" });
+  }
+});
+
 
