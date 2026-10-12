@@ -1,0 +1,20 @@
+[Unit]
+Description=MASTERHRMS Staging Backend API Service
+After=network.target
+
+[Service]
+Type=simple
+User=hrms
+Group=hrms
+WorkingDirectory=/opt/masterhrms/server
+EnvironmentFile=/opt/masterhrms/server/.env.staging
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5s
+StandardOutput=append:/var/log/masterhrms/backend.log
+StandardError=append:/var/log/masterhrms/backend-err.log
+LimitNOFILE=65535
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target

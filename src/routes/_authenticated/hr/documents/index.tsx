@@ -44,9 +44,9 @@ export default function HrDocumentsVaultPage() {
   const [formData, setFormData] = useState({
     title: "",
     category: "Company Policy",
-    fileName: "policy.pdf",
-    fileUrl: "/mock/docs/company-policy.pdf",
-    fileSize: "1.4 MB",
+    fileName: "",
+    fileUrl: "",
+    fileSize: "",
     requiresSignature: false,
     notes: "",
   });
@@ -79,9 +79,9 @@ export default function HrDocumentsVaultPage() {
       setFormData({
         title: "",
         category: "Company Policy",
-        fileName: "policy.pdf",
-        fileUrl: "/mock/docs/company-policy.pdf",
-        fileSize: "1.4 MB",
+        fileName: "",
+        fileUrl: "",
+        fileSize: "",
         requiresSignature: false,
         notes: "",
       });

@@ -81,11 +81,19 @@ export function useRealtimeSocket() {
       toast.info(`Live Attendance: ${punch.employeeName} clocked ${punch.type === "check_in" ? "IN" : "OUT"} at ${punch.time}`);
       qc.invalidateQueries({ queryKey: ["realtime-tenant-dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["attendance-records"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-hrm-realtime-data"] });
+      qc.invalidateQueries({ queryKey: ["my-attendance"] });
+      qc.invalidateQueries({ queryKey: ["ess-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["tenant-dashboard-metrics"] });
     }
 
     function onLeaveUpdated(req: any) {
       qc.invalidateQueries({ queryKey: ["leave-requests"] });
       qc.invalidateQueries({ queryKey: ["realtime-tenant-dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-hrm-realtime-data"] });
+      qc.invalidateQueries({ queryKey: ["my-leaves"] });
+      qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
+      qc.invalidateQueries({ queryKey: ["ess-dashboard"] });
     }
 
     function onPaymentConfirmed(data: any) {
@@ -114,6 +122,8 @@ export function useRealtimeSocket() {
       qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
       qc.invalidateQueries({ queryKey: ["billing-plans"] });
       qc.invalidateQueries({ queryKey: ["tenant-features"] });
+      qc.invalidateQueries({ queryKey: ["tenant-dashboard-metrics"] });
+      qc.invalidateQueries({ queryKey: ["super-realtime-stats"] });
       qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
     }
 

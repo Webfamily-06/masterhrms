@@ -100,7 +100,7 @@ integrationRouter.post("/:connector/config", async (req: AuthRequest, res: Respo
       tenantId,
       connector,
       req.body,
-      req.user?.id
+      req.user?.userId
     );
 
     return res.json({ success: true, ...result });
@@ -139,7 +139,7 @@ integrationRouter.post("/:connector/test", async (req: AuthRequest, res: Respons
       tenantId,
       connector,
       customCreds,
-      req.user?.id
+      req.user?.userId
     );
 
     return res.json({ success: result.ok, ...result });
@@ -176,7 +176,7 @@ integrationRouter.post("/:connector/disconnect", async (req: AuthRequest, res: R
     const result = await IntegrationHubService.disconnectConnector(
       tenantId,
       connector,
-      req.user?.id
+      req.user?.userId
     );
 
     return res.json({ success: true, ...result });
@@ -257,7 +257,10 @@ integrationRouter.post("/:connector/webhook", async (req: AuthRequest, res: Resp
       return res.status(400).json({ error: "Connector is not actively connected" });
     }
 
-    const secret = (config.config as any)?.secretKey || (config.config as any)?.consumerSecret || "mock-secret";
+    const secret = (config.config as any)?.secretKey || (config.config as any)?.consumerSecret;
+    if (!secret) {
+      return res.status(400).json({ error: "Connector secret configuration missing" });
+    }
     const rawPayload = JSON.stringify(req.body);
 
     const verification = IntegrationHubService.verifyWebhookSignature({

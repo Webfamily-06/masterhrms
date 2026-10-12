@@ -15,6 +15,9 @@ export const GLOBAL_MODELS = new Set<string>([
   "SystemCronJob",
   "LoginHistory",
   "StateUTMaster",
+  "Setting",
+  "SettingSecret",
+  "SettingAudit",
 ]);
 
 // Root Tenant Entity (Has 'id' as the tenant identifier, not 'tenantId')

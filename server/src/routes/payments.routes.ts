@@ -82,6 +82,17 @@ paymentsRouter.post("/razorpay/config", requireAuth, async (req: AuthRequest, re
       updatedAt: new Date().toISOString(),
     };
 
+    if (
+      newConfig.environment === "sandbox" &&
+      ((newConfig.keyId && newConfig.keyId.startsWith("rzp_live_")) ||
+        (newConfig.keySecret && newConfig.keySecret.startsWith("rzp_live_")))
+    ) {
+      return res.status(400).json({
+        error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in sandbox mode.",
+        code: "LIVE_KEYS_PROHIBITED_IN_SANDBOX",
+      });
+    }
+
     const newContent = {
       transactions: existingContent.transactions || [],
       config: newConfig,
@@ -145,9 +156,18 @@ paymentsRouter.post("/razorpay/create-order", requireAuth, async (req: AuthReque
 
     const keyId = config.keyId || process.env.RAZORPAY_KEY_ID;
     const keySecret = config.keySecret || process.env.RAZORPAY_KEY_SECRET;
-
     if (!keyId || !keySecret) {
       return res.status(503).json({ error: "Razorpay is not configured for this workspace." });
+    }
+
+    if (
+      (config.environment === "sandbox" || (!config.environment && process.env.NODE_ENV !== "production")) &&
+      ((keyId && keyId.startsWith("rzp_live_")) || (keySecret && keySecret.startsWith("rzp_live_")))
+    ) {
+      return res.status(400).json({
+        error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in sandbox mode.",
+        code: "LIVE_KEYS_PROHIBITED_IN_SANDBOX",
+      });
     }
 
     const basicAuth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");

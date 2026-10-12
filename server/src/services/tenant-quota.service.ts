@@ -42,6 +42,12 @@ export async function assertTenantQuota(
 
   if (resourceType === "employees") {
     maxLimit = sub.maxEmployees ?? sub.plan?.maxEmployees ?? null;
+    if (maxLimit === null) {
+      const planIdent = String(sub.planId || (sub.plan as any)?.slug || sub.plan?.name || "").toLowerCase().trim();
+      if (planIdent === "sovereign" || planIdent.includes("sovereign")) {
+        maxLimit = 100;
+      }
+    }
     currentUsage = await prisma.employee.count({
       where: { tenantId, status: { in: ["active", "on_leave"] } },
     });

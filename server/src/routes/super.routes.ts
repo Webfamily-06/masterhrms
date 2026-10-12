@@ -2513,7 +2513,7 @@ superRouter.get("/tenants/:id/addons", requireAuth, requireSuperAdmin, async (re
     }
 
     const currentSub = tenant.subscription;
-    const planName = currentSub?.plan?.name || tenant.plan || "Standard";
+    const planName = currentSub?.plan?.name || (tenant as any).plan || "Standard";
 
     // Ensure all canonical wave add-ons are available in the Addon table
     await UnifiedCatalogService.ensureCanonicalAddonsInDb().catch(() => {});
@@ -2585,9 +2585,9 @@ superRouter.get("/tenants/:id/addons", requireAuth, requireSuperAdmin, async (re
         id: tenant.id,
         name: tenant.name,
         slug: tenant.slug,
-        plan: tenant.plan,
+        plan: (tenant as any).plan || currentSub?.plan?.name || "standard",
         subscriptionPlan: planName,
-        status: tenant.status,
+        status: (tenant as any).status || currentSub?.status || "active",
       },
       catalogAddons: catalogAddons.map((a) => ({
         ...a,

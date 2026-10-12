@@ -48,7 +48,7 @@ export default function EmployeeDashboardPage() {
   // Modal State
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [leaveForm, setLeaveForm] = useState({
-    employeeName: profile?.full_name || "Stephan Peralt",
+    employeeName: profile?.full_name || "",
     leaveTypeId: "Medical Leave",
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10),
@@ -57,74 +57,10 @@ export default function EmployeeDashboardPage() {
   });
 
   // Interactive Tasks Checklist State
-  const [tasks, setTasks] = useState([
-    {
-      id: 1,
-      title: "Patient appointment booking",
-      status: "Onhold",
-      statusColor: "bg-pink-500/10 text-pink-600 border border-pink-500/20",
-      avatars: ["/ui-assets/avatar-01.jpg", "/ui-assets/avatar-02.jpg"],
-      starred: false,
-      completed: false,
-    },
-    {
-      id: 2,
-      title: "Appointment booking with payment",
-      status: "Inprogress",
-      statusColor: "bg-warning-transparent text-warning border border-warning/20",
-      avatars: ["/ui-assets/avatar-03.jpg", "/ui-assets/avatar-04.jpg"],
-      starred: true,
-      completed: false,
-    },
-    {
-      id: 3,
-      title: "Patient and Doctor video conferencing",
-      status: "Completed",
-      statusColor: "bg-success-transparent text-success border border-success/20",
-      avatars: ["/ui-assets/avatar-05.jpg", "/ui-assets/avatar-06.jpg"],
-      starred: false,
-      completed: true,
-    },
-    {
-      id: 4,
-      title: "Private chat module with doctor",
-      status: "Pending",
-      statusColor: "bg-danger-transparent text-danger border border-danger/20",
-      avatars: ["/ui-assets/avatar-07.jpg", "/ui-assets/avatar-08.jpg"],
-      starred: false,
-      completed: false,
-    },
-  ]);
+  const [tasks, setTasks] = useState<any[]>([]);
 
   // Interactive Notifications State
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      user: "Lex Murphy",
-      avatar: "/ui-assets/avatar-02.jpg",
-      action: "requested access to UNIX directory",
-      time: "Today at 9:42 AM",
-      hasApproval: true,
-      decision: null as null | "approved" | "declined",
-    },
-    {
-      id: 2,
-      user: "Ray Arnold",
-      avatar: "/ui-assets/avatar-03.jpg",
-      action: "left 6 comments on",
-      attachment: "Isla Nublar SOC2 Compliance Report v2",
-      time: "Yesterday at 11:47 PM",
-    },
-    {
-      id: 3,
-      user: "Lex Murphy",
-      avatar: "/ui-assets/avatar-04.jpg",
-      action: "requested access to UNIX directory trees",
-      time: "Today at 10:50 AM",
-      hasApproval: true,
-      decision: null as null | "approved" | "declined",
-    },
-  ]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -275,6 +211,30 @@ export default function EmployeeDashboardPage() {
     },
   });
 
+  const leaveStats = useMemo(() => {
+    if (!leaveBalances || leaveBalances.length === 0) {
+      return {
+        categories: [] as string[],
+        series: [] as number[],
+        totalAccrued: 0,
+        approvedDays: 0,
+        availableDays: 0,
+        pendingDays: 0,
+      };
+    }
+    const categories = leaveBalances.map((b: any) => b.leaveTypeName || "Leave");
+    const series = leaveBalances.map((b: any) => Number(b.approvedDays) || 0);
+    const totalAccrued = leaveBalances.reduce((sum: number, b: any) => sum + (b.totalAccrued || 0), 0);
+    const approvedDays = leaveBalances.reduce((sum: number, b: any) => sum + (b.approvedDays || 0), 0);
+    const availableDays = leaveBalances.reduce((sum: number, b: any) => sum + (b.availableDays || 0), 0);
+    const pendingDays = leaveBalances.reduce((sum: number, b: any) => sum + (b.pendingDays || 0), 0);
+    return { categories, series, totalAccrued, approvedDays, availableDays, pendingDays };
+  }, [leaveBalances]);
+
+  const latestApprovedLeave = useMemo(() => {
+    return Array.isArray(leaves) ? leaves.find((l: any) => l.status === "approved" || l.status === "Approved") : null;
+  }, [leaves]);
+
   // Chart Configurations
   const leavesChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
@@ -284,8 +244,8 @@ export default function EmployeeDashboardPage() {
         toolbar: { show: false },
       },
       colors: ["#0E82FD", "#F37335", "#03C95A", "#E70D0D"],
-      labels: ["Emergency", "Casual", "Medical", "Annual"],
-      series: [14, 28, 42, 16],
+      labels: leaveStats.categories.length > 0 ? leaveStats.categories : ["No Leaves"],
+      series: leaveStats.series.length > 0 && leaveStats.series.some((s: number) => s > 0) ? leaveStats.series : [0],
       legend: { show: false },
       dataLabels: { enabled: false },
       stroke: { width: 2, colors: ["#ffffff"] },
@@ -297,8 +257,8 @@ export default function EmployeeDashboardPage() {
               show: true,
               total: {
                 show: true,
-                label: "Total Leaves",
-                formatter: () => "16",
+                label: "Leaves Taken",
+                formatter: () => String(leaveStats.approvedDays),
                 style: { fontSize: "12px", color: "#6B7280" },
               },
             },
@@ -306,7 +266,7 @@ export default function EmployeeDashboardPage() {
         },
       },
     }),
-    []
+    [leaveStats]
   );
 
   const performanceChartOptions: ApexCharts.ApexOptions = useMemo(
@@ -393,11 +353,19 @@ export default function EmployeeDashboardPage() {
       </div>
 
       {/* ── Status Announcement Banner ── */}
-      {!alertDismissed && (
+      {!alertDismissed && latestApprovedLeave && (
         <div className="bg-primary/10 border border-primary/20 rounded-md p-3 flex items-center justify-between text-xs text-primary dark:text-primary-light">
           <div className="flex items-center gap-2">
             <i className="ph-duotone ph-check-circle text-base shrink-0"></i>
-            <span>Your leave request for <strong>24th April 2026</strong> has been approved by HR Administration.</span>
+            <span>
+              Your leave request for{" "}
+              <strong>
+                {latestApprovedLeave.startDate
+                  ? new Date(latestApprovedLeave.startDate).toLocaleDateString()
+                  : "upcoming dates"}
+              </strong>{" "}
+              has been approved by HR Administration.
+            </span>
           </div>
           <button
             type="button"
@@ -427,11 +395,11 @@ export default function EmployeeDashboardPage() {
             </div>
             <div className="overflow-hidden">
               <h2 className="text-sm font-bold text-white leading-tight truncate">
-                {essDashboard?.employee ? `${essDashboard.employee.firstName} ${essDashboard.employee.lastName}` : (profile?.full_name || "Alex Morgan")}
+                {essDashboard?.employee ? `${essDashboard.employee.firstName} ${essDashboard.employee.lastName}` : (profile?.full_name || "Employee")}
               </h2>
-              <p className="text-xs text-slate-300 mt-0.5 truncate">{essDashboard?.employee?.position || "Senior Full Stack Engineer"}</p>
+              <p className="text-xs text-slate-300 mt-0.5 truncate">{essDashboard?.employee?.position || "Staff Member"}</p>
               <span className="inline-block text-[10px] bg-white/20 text-white px-2 py-0.5 rounded mt-1 font-medium">
-                {essDashboard?.employee?.department?.name || "Engineering Team"}
+                {essDashboard?.employee?.department?.name || "General"}
               </span>
             </div>
           </div>
@@ -440,13 +408,13 @@ export default function EmployeeDashboardPage() {
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
               <span className="text-muted-foreground">Employee ID</span>
               <span className="font-semibold text-gray-900 dark:text-gray-100 font-mono">
-                {essDashboard?.employee?.employeeCode ? `#${essDashboard.employee.employeeCode}` : "#EMP-0001"}
+                {essDashboard?.employee?.employeeCode ? `#${essDashboard.employee.employeeCode}` : "—"}
               </span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
               <span className="text-muted-foreground">Email Address</span>
               <span className="font-medium text-gray-900 dark:text-gray-100 truncate max-w-[180px]">
-                {essDashboard?.employee?.email || profile?.email || "employee@masterhrms.com"}
+                {essDashboard?.employee?.email || profile?.email || "—"}
               </span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
@@ -458,13 +426,13 @@ export default function EmployeeDashboardPage() {
             <div className="flex justify-between items-center py-1 border-b border-border-color/60">
               <span className="text-muted-foreground">Shift & Work Mode</span>
               <span className="font-medium text-gray-900 dark:text-gray-100">
-                {essDashboard?.shiftToday?.name || "Regular (09:00 - 18:00) · Hybrid"}
+                {essDashboard?.shiftToday?.name || "Regular Shift"}
               </span>
             </div>
             <div className="flex justify-between items-center py-1">
               <span className="text-muted-foreground">Date of Joining</span>
               <span className="font-semibold text-gray-900 dark:text-gray-100">
-                {essDashboard?.employee?.joinedAt ? new Date(essDashboard.employee.joinedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "15 Jan 2024"}
+                {essDashboard?.employee?.joinedAt ? new Date(essDashboard.employee.joinedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "—"}
               </span>
             </div>
           </div>
@@ -479,26 +447,20 @@ export default function EmployeeDashboardPage() {
 
           <div className="grid grid-cols-2 gap-2 my-auto py-2 items-center">
             <div className="space-y-2 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-[#0E82FD]"></span>
-                <span className="text-default">Emergency:</span>
-                <span className="font-semibold text-gray-900 dark:text-gray-100">14 hrs</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-[#F37335]"></span>
-                <span className="text-default">Casual:</span>
-                <span className="font-semibold text-gray-900 dark:text-gray-100">28 hrs</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-[#03C95A]"></span>
-                <span className="text-default">Medical:</span>
-                <span className="font-semibold text-gray-900 dark:text-gray-100">42 hrs</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-[#E70D0D]"></span>
-                <span className="text-default">Annual:</span>
-                <span className="font-semibold text-gray-900 dark:text-gray-100">16 hrs</span>
-              </div>
+              {leaveBalances.length > 0 ? (
+                leaveBalances.slice(0, 4).map((balance: any, idx: number) => {
+                  const colors = ["#0E82FD", "#F37335", "#03C95A", "#E70D0D"];
+                  return (
+                    <div key={balance.leaveTypeId || idx} className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: colors[idx % colors.length] }}></span>
+                      <span className="text-default truncate max-w-[80px]">{balance.leaveTypeName}:</span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">{balance.approvedDays || 0}d</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-xs text-muted-foreground py-2">No leave allocations yet</div>
+              )}
             </div>
 
             <div className="flex justify-center">
@@ -512,7 +474,7 @@ export default function EmployeeDashboardPage() {
 
           <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded border border-border-color/60 text-[11px] text-default flex items-center gap-2">
             <i className="ph-duotone ph-shield-check text-success text-base shrink-0"></i>
-            <span>Attendance score is better than <strong>85%</strong> of peer team members.</span>
+            <span>Real-time leave balance tracked against active tenant entitlements.</span>
           </div>
         </div>
 
@@ -527,19 +489,19 @@ export default function EmployeeDashboardPage() {
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Total Allowed</span>
               <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.totalAccrued || 0), 0) : 16}
+                {leaveStats.totalAccrued}
               </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Days Taken</span>
               <p className="text-lg font-bold text-primary">
-                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.approvedDays || 0), 0) : 0}
+                {leaveStats.approvedDays}
               </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Remaining</span>
               <p className="text-lg font-bold text-success">
-                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.availableDays || 0), 0) : 16}
+                {leaveStats.availableDays}
               </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
@@ -549,13 +511,13 @@ export default function EmployeeDashboardPage() {
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Pending</span>
               <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                {leaveBalances.length > 0 ? leaveBalances.reduce((sum: number, l: any) => sum + (l.pendingDays || 0), 0) : 0}
+                {leaveStats.pendingDays}
               </p>
             </div>
             <div className="p-2.5 rounded-md border border-border-color bg-slate-50/50 dark:bg-slate-800/30 text-center">
               <span className="text-[11px] text-default block mb-0.5">Worked Days</span>
               <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                {essDashboard?.attendanceToday ? 1 : 240}
+                {essDashboard?.workedDays ?? (attendanceData.length > 0 ? attendanceData.length : (essDashboard?.attendanceToday ? 1 : 0))}
               </p>
             </div>
           </div>
@@ -636,8 +598,14 @@ export default function EmployeeDashboardPage() {
                   <i className="ph-duotone ph-clock text-base"></i>
                 </div>
               </div>
-              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">8.36 / 9</h4>
-              <span className="text-[10px] text-success font-medium">+5% vs avg</span>
+              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">
+                {essDashboard?.attendanceToday?.hours
+                  ? `${Number(essDashboard.attendanceToday.hours).toFixed(1)} / 9`
+                  : elapsedSeconds > 0
+                  ? `${(elapsedSeconds / 3600).toFixed(1)} / 9`
+                  : "0.0 / 9"}
+              </h4>
+              <span className="text-[10px] text-success font-medium">Logged today</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-3.5">
@@ -647,8 +615,10 @@ export default function EmployeeDashboardPage() {
                   <i className="ph-duotone ph-calendar-check text-base"></i>
                 </div>
               </div>
-              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">32.5 / 40</h4>
-              <span className="text-[10px] text-success font-medium">On track</span>
+              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">
+                {essDashboard?.weekHours ? `${Number(essDashboard.weekHours).toFixed(1)} / 40` : "0.0 / 40"}
+              </h4>
+              <span className="text-[10px] text-success font-medium">This week</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-3.5">
@@ -658,8 +628,10 @@ export default function EmployeeDashboardPage() {
                   <i className="ph-duotone ph-chart-bar text-base"></i>
                 </div>
               </div>
-              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">142 / 168</h4>
-              <span className="text-[10px] text-default font-medium">84.5% complete</span>
+              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">
+                {essDashboard?.monthHours ? `${Number(essDashboard.monthHours).toFixed(1)} / 168` : "0.0 / 168"}
+              </h4>
+              <span className="text-[10px] text-default font-medium">Monthly hours</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-3.5">
@@ -669,8 +641,10 @@ export default function EmployeeDashboardPage() {
                   <i className="ph-duotone ph-timer text-base"></i>
                 </div>
               </div>
-              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">12.5 hrs</h4>
-              <span className="text-[10px] text-warning font-medium">Approved by lead</span>
+              <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-0.5">
+                {essDashboard?.overtimeHours ? `${Number(essDashboard.overtimeHours).toFixed(1)} hrs` : "0.0 hrs"}
+              </h4>
+              <span className="text-[10px] text-warning font-medium">Approved overtime</span>
             </div>
           </div>
 
@@ -681,18 +655,16 @@ export default function EmployeeDashboardPage() {
                 Shift Activity Breakdown
               </h4>
               <div className="flex items-center gap-3 text-[11px]">
-                <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-success"></span> Productive (8.2h)</span>
-                <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-warning"></span> Break (45m)</span>
-                <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-primary"></span> Meetings (1.5h)</span>
+                <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-success"></span> Productive</span>
+                <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-warning"></span> Break</span>
+                <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-primary"></span> Shift</span>
               </div>
             </div>
 
             <div className="h-5 w-full bg-slate-100 dark:bg-slate-800 rounded-md overflow-hidden flex gap-0.5 p-0.5">
-              <div className="h-full bg-success rounded-xs" style={{ width: "35%" }} title="Productive"></div>
-              <div className="h-full bg-warning rounded-xs" style={{ width: "10%" }} title="Lunch Break"></div>
-              <div className="h-full bg-primary rounded-xs" style={{ width: "20%" }} title="Design Sprint Sync"></div>
-              <div className="h-full bg-success rounded-xs" style={{ width: "25%" }} title="Productive Deep Work"></div>
-              <div className="h-full bg-slate-300 dark:bg-slate-700 rounded-xs" style={{ width: "10%" }} title="Unfilled Shift"></div>
+              <div className="h-full bg-success rounded-xs" style={{ width: isClockedIn ? "60%" : "0%" }} title="Productive"></div>
+              <div className="h-full bg-warning rounded-xs" style={{ width: isClockedIn ? "10%" : "0%" }} title="Break"></div>
+              <div className="h-full bg-slate-300 dark:bg-slate-700 rounded-xs" style={{ width: isClockedIn ? "30%" : "100%" }} title="Shift"></div>
             </div>
 
             <div className="flex justify-between text-[10px] text-muted-foreground mt-2">
@@ -717,49 +689,45 @@ export default function EmployeeDashboardPage() {
           </div>
 
           <div className="space-y-2">
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="p-2.5 rounded-md border border-border-color hover:bg-slate-50/50 dark:hover:bg-slate-800/40 flex items-center justify-between gap-3 transition-colors"
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <input
-                    type="checkbox"
-                    checked={task.completed}
-                    onChange={() =>
-                      setTasks((prev) =>
-                        prev.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t))
-                      )
-                    }
-                    className="size-4 rounded border-border-color text-primary focus:ring-0 cursor-pointer"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTasks((prev) =>
-                        prev.map((t) => (t.id === task.id ? { ...t, starred: !t.starred } : t))
-                      )
-                    }
-                    className="text-muted-foreground hover:text-warning"
-                  >
-                    <i className={`ph-fill ${task.starred ? "ph-star text-warning" : "ph-star text-slate-300 dark:text-slate-600"}`}></i>
-                  </button>
-                  <span
-                    className={`text-xs font-medium truncate ${
-                      task.completed ? "line-through text-muted-foreground" : "text-gray-900 dark:text-gray-100"
-                    }`}
-                  >
-                    {task.title}
-                  </span>
-                </div>
+            {tasks.length > 0 ? (
+              tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="p-2.5 rounded-md border border-border-color hover:bg-slate-50/50 dark:hover:bg-slate-800/40 flex items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <input
+                      type="checkbox"
+                      checked={task.completed}
+                      onChange={() =>
+                        setTasks((prev) =>
+                          prev.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t))
+                        )
+                      }
+                      className="size-4 rounded border-border-color text-primary focus:ring-0 cursor-pointer"
+                    />
+                    <span
+                      className={`text-xs font-medium truncate ${
+                        task.completed ? "line-through text-muted-foreground" : "text-gray-900 dark:text-gray-100"
+                      }`}
+                    >
+                      {task.title}
+                    </span>
+                  </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${task.statusColor}`}>
-                    {task.status}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${task.statusColor || "bg-primary/10 text-primary"}`}>
+                      {task.status || "Pending"}
+                    </span>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                <i className="ph-duotone ph-check-circle text-2xl mb-1 text-slate-400 block"></i>
+                No priority tasks assigned. You're all caught up!
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -770,36 +738,9 @@ export default function EmployeeDashboardPage() {
             <span className="text-xs text-muted-foreground font-mono">{projectsFilter}</span>
           </div>
 
-          <div className="space-y-3">
-            <div className="p-3 rounded-md border border-border-color bg-slate-50/40 dark:bg-slate-800/30">
-              <div className="flex items-center justify-between mb-1.5">
-                <h4 className="text-xs font-bold text-gray-900 dark:text-gray-100">ERP Redesign & Component Library</h4>
-                <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">In Progress</span>
-              </div>
-              <p className="text-[11px] text-default mb-2">Lead: Anthony Lewis · Due 15 Jul 2026</p>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-primary h-full rounded-full" style={{ width: "72%" }}></div>
-              </div>
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>72% completed</span>
-                <span>18/25 Tasks</span>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-md border border-border-color bg-slate-50/40 dark:bg-slate-800/30">
-              <div className="flex items-center justify-between mb-1.5">
-                <h4 className="text-xs font-bold text-gray-900 dark:text-gray-100">Mobile Attendance Geo-fencing</h4>
-                <span className="text-[10px] font-semibold text-success bg-success-transparent px-2 py-0.5 rounded">Testing</span>
-              </div>
-              <p className="text-[11px] text-default mb-2">Lead: Stephan Peralt · Due 30 Aug 2026</p>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-success h-full rounded-full" style={{ width: "90%" }}></div>
-              </div>
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>90% completed</span>
-                <span>9/10 Tasks</span>
-              </div>
-            </div>
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            <i className="ph-duotone ph-folder-notch text-2xl mb-1 text-slate-400 block"></i>
+            No active project assignments.
           </div>
 
           <Link

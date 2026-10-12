@@ -22,11 +22,43 @@ export const DEFAULT_CURRENCY_SETTINGS: SystemCurrencySettings = {
   addSpaceBetweenSymbol: true,
 };
 
+export const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  INR: "₹",
+  CAD: "CA$",
+  AUD: "A$",
+  SGD: "S$",
+  AED: "AED",
+  SAR: "SAR",
+  JPY: "¥",
+};
+
+export function getCurrencySymbol(code: string): string {
+  const upper = (code || "").toUpperCase().trim();
+  return CURRENCY_SYMBOLS[upper] || upper;
+}
+
+let activeCurrencySettings: SystemCurrencySettings = { ...DEFAULT_CURRENCY_SETTINGS };
+
+export function updateGlobalCurrencySettings(settings: Partial<SystemCurrencySettings>): void {
+  const merged = { ...activeCurrencySettings, ...settings };
+  if (settings.defaultCurrency && !settings.currencySymbol) {
+    merged.currencySymbol = getCurrencySymbol(settings.defaultCurrency);
+  }
+  activeCurrencySettings = merged;
+}
+
+export function getActiveCurrencySettings(): SystemCurrencySettings {
+  return { ...activeCurrencySettings };
+}
+
 export function formatSystemAmount(
   amount: number,
   customSettings?: Partial<SystemCurrencySettings>,
 ): string {
-  const cfg = { ...DEFAULT_CURRENCY_SETTINGS, ...customSettings };
+  const cfg = { ...activeCurrencySettings, ...customSettings };
 
   const num = Math.abs(amount);
   const decimals = cfg.showDecimals ? cfg.decimalPlaces : 0;
@@ -54,3 +86,4 @@ export function formatSystemAmount(
 
   return amount < 0 ? `-${result}` : result;
 }
+

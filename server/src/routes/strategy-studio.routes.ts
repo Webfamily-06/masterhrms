@@ -57,7 +57,7 @@ strategyStudioRouter.post("/documents", async (req: AuthRequest, res: Response) 
     const doc = await StrategyStudioService.createDocument(
       tenantId,
       { matrixType, title, description, initialItems },
-      req.user?.id
+      req.user?.userId
     );
 
     return res.json({ success: true, document: doc });
@@ -85,7 +85,7 @@ strategyStudioRouter.post("/documents/:id/items", async (req: AuthRequest, res: 
       req.params.id,
       category,
       { text, impactScore },
-      req.user?.id
+      req.user?.userId
     );
 
     return res.json({ success: true, document: doc });

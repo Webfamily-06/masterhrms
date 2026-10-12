@@ -2,6 +2,10 @@ import nodemailer from "nodemailer";
 import { prisma } from "../prisma";
 import { getBaseDomain, getRootUrl } from "./workspace-host";
 import { resolveBranding, ResolvedBranding } from "../services/branding/branding-resolver.service";
+import { SettingsService } from "../services/settings/settings.service";
+import { MailerFactory } from "../services/factories/mailer.factory";
+
+export { MailerFactory };
 
 export interface SmtpConfig {
   smtpHost: string;
@@ -46,6 +50,38 @@ export async function getDynamicEmailConfig(options: EmailConfigOptions = {}): P
   let ignoreTls = process.env.SMTP_IGNORE_TLS === "true" || process.env.VITE_SMTP_IGNORE_TLS === "true";
   let otpEmailSubject: string | undefined = undefined;
   let otpEmailTemplate: string | undefined = undefined;
+
+  // 1. Authoritative SettingsService Registry check
+  try {
+    const emailGroup = await SettingsService.getGroup(
+      options.scope || "PLATFORM",
+      options.tenantId || null,
+      "email"
+    );
+    const hostVal = emailGroup.values["email.smtp_host"];
+    const userVal = emailGroup.values["email.smtp_user"];
+    const passVal = await SettingsService.get(
+      options.scope || "PLATFORM",
+      options.tenantId || null,
+      "email.smtp_password",
+      { decryptSecrets: true }
+    );
+
+    if (hostVal && userVal) {
+      host = String(hostVal).trim();
+      port = Number(emailGroup.values["email.smtp_port"] || 587);
+      user = String(userVal).trim();
+      if (passVal) pass = String(passVal).trim();
+      encryption = (emailGroup.values["email.smtp_encryption"] || "tls") as any;
+      if (emailGroup.values["email.from_name"]) fromName = String(emailGroup.values["email.from_name"]);
+      if (emailGroup.values["email.from_email"]) fromEmail = String(emailGroup.values["email.from_email"]);
+      if (emailGroup.values["email.ignore_tls"] !== undefined) {
+        ignoreTls = Boolean(emailGroup.values["email.ignore_tls"]);
+      }
+    }
+  } catch (settingsErr: any) {
+    console.warn("⚠️ Could not load email settings from SettingsService registry:", settingsErr?.message);
+  }
 
   try {
     const page = await prisma.cmsPage.findFirst({
@@ -782,17 +818,18 @@ export async function sendSubscriptionLifecycleEmail(options: LifecycleEmailOpti
       return { success: false, error: err.message };
     }
   } else {
-    // Development fallback without SMTP
-    console.log("==================================================================");
-    console.log(`📨 [DEV SUBSCRIPTION LIFECYCLE EMAIL (No SMTP configured)]`);
-    console.log(`   Template: [${templateId}]`);
-    console.log(`   To: ${toEmail}`);
-    console.log(`   Subject: ${renderedSubject}`);
-    console.log(`   Expires At: ${variables.expiry_date || "N/A"} | Days Left: ${variables.days_remaining || "N/A"}`);
-    console.log("==================================================================");
+    // Unconfigured SMTP handling
+    if (process.env.NODE_ENV !== "test") {
+      console.warn(`⚠️ [Lifecycle Email] Delivery skipped to ${toEmail}: SMTP is not configured in settings.`);
+      return {
+        success: false,
+        error: "SMTP server is not configured in settings",
+      };
+    }
+    // Test sandbox execution
     return {
       success: true,
-      messageId: `dev-mock-${Date.now()}`,
+      messageId: `test-sandbox-${Date.now()}`,
     };
   }
 }

@@ -52,15 +52,15 @@ export default function DashboardPage() {
   });
 
   const { data: profile } = useCurrentProfile();
-  const userName = profile?.full_name?.split(" ")[0] || "Andrew";
-  const totalEmployees = hrmData?.totalWorkforce ?? 1284;
-  const newThisMonth = hrmData?.newThisMonth ?? 12;
-  const pendingLeaves = hrmData?.pendingLeavesCount ?? 7;
-  const onLeaveToday = hrmData?.onLeaveToday ?? 23;
-  const attendanceRate = hrmData?.attendanceRate ?? 94.2;
-  const presentCount = hrmData?.attendanceSummary?.present ?? 1209;
-  const lateCount = hrmData?.attendanceSummary?.late ?? 78;
-  const absentCount = hrmData?.attendanceSummary?.absent ?? 52;
+  const userName = profile?.full_name?.split(" ")[0] || "User";
+  const totalEmployees = hrmData?.totalWorkforce ?? 0;
+  const newThisMonth = hrmData?.newThisMonth ?? 0;
+  const pendingLeaves = hrmData?.pendingLeavesCount ?? 0;
+  const onLeaveToday = hrmData?.onLeaveToday ?? 0;
+  const attendanceRate = hrmData?.attendanceRate ?? 0;
+  const presentCount = hrmData?.attendanceSummary?.present ?? 0;
+  const lateCount = hrmData?.attendanceSummary?.late ?? 0;
+  const absentCount = hrmData?.attendanceSummary?.absent ?? 0;
 
   const handleExport = (format: "pdf" | "excel") => {
     try {
@@ -74,7 +74,7 @@ export default function DashboardPage() {
         ["Late Today", lateCount],
         ["Absent Today", absentCount],
         ["Pending Leaves", pendingLeaves],
-        ["Monthly Payroll", "$1,248K"],
+        ["Monthly Payroll", hrmData?.totalPayroll ? `$${(hrmData.totalPayroll / 1000).toFixed(0)}K` : "$0"],
       ]
         .map((e) => e.join(","))
         .join("\n");
@@ -93,7 +93,17 @@ export default function DashboardPage() {
     }
   };
 
-  // 1. Employee Distribution Donut Chart (matching ui/assets/js/apex-chart-data.js lines 19-87)
+  const deptData = useMemo(() => {
+    if (!hrmData?.departments || hrmData.departments.length === 0) {
+      return { labels: ["No Departments"], series: [0] };
+    }
+    return {
+      labels: hrmData.departments.map((d: any) => d.name),
+      series: hrmData.departments.map((d: any) => d.count),
+    };
+  }, [hrmData?.departments]);
+
+  // 1. Employee Distribution Donut Chart
   const employeeDistributionChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
@@ -104,9 +114,9 @@ export default function DashboardPage() {
       grid: {
         padding: { top: 0, right: 0, bottom: -10, left: 0 },
       },
-      series: [488, 282, 231, 180, 103],
-      labels: ["Engineering", "Marketing", "Finance", "Sales", "HR"],
-      colors: ["#2563EB", "#F97316", "#10B981", "#EC4899", "#1E293B"],
+      series: deptData.series.some((s: number) => s > 0) ? deptData.series : [0],
+      labels: deptData.labels,
+      colors: ["#2563EB", "#F97316", "#10B981", "#EC4899", "#1E293B", "#8B5CF6", "#14B8A6"],
       stroke: { width: 0 },
       legend: { show: false },
       plotOptions: {
@@ -124,7 +134,7 @@ export default function DashboardPage() {
                 fontSize: "10px",
                 fontWeight: 400,
                 color: "#94A3B8",
-                formatter: () => "1,284",
+                formatter: () => String(totalEmployees),
               },
             },
           },
@@ -133,10 +143,10 @@ export default function DashboardPage() {
       dataLabels: { enabled: false },
       tooltip: { enabled: false },
     }),
-    []
+    [deptData, totalEmployees]
   );
 
-  // 2. Weekly Attendance Trend Bar Chart (matching ui/assets/js/apex-chart-data.js lines 91-110)
+  // 2. Weekly Attendance Trend Bar Chart
   const weeklyAttendanceChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
@@ -145,9 +155,9 @@ export default function DashboardPage() {
         toolbar: { show: false },
         sparkline: { enabled: false },
       },
-      series: [{ name: "Present", data: [86, 92, 88, 78, 95, 70, 45] }],
+      series: [{ name: "Present", data: hrmData?.weeklyTrend?.series || [0, 0, 0, 0, 0, 0, 0] }],
       xaxis: {
-        categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        categories: hrmData?.weeklyTrend?.categories || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
@@ -160,12 +170,12 @@ export default function DashboardPage() {
       colors: ["#2563EB", "#2563EB", "#2563EB", "#F97316", "#2563EB", "#2563EB", "#2563EB"],
       legend: { show: false },
       dataLabels: { enabled: false },
-      tooltip: { y: { formatter: (v) => v + "%" } },
+      tooltip: { y: { formatter: (v) => v + " present" } },
     }),
-    []
+    [hrmData?.weeklyTrend]
   );
 
-  // 3. 6-Month Payroll Trend Area Chart (matching ui/assets/js/apex-chart-data.js lines 114-149)
+  // 3. 6-Month Payroll Trend Area Chart
   const payrollTrendChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
@@ -175,9 +185,9 @@ export default function DashboardPage() {
         sparkline: { enabled: false },
         background: "transparent",
       },
-      series: [{ name: "Payroll", data: [950, 1080, 1020, 1180, 1100, 1248] }],
+      series: [{ name: "Payroll", data: hrmData?.payrollTrend?.series || [] }],
       xaxis: {
-        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+        categories: hrmData?.payrollTrend?.categories || [],
         labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
@@ -202,7 +212,7 @@ export default function DashboardPage() {
       },
       markers: { size: 0 },
     }),
-    []
+    [hrmData?.payrollTrend]
   );
 
   if (loading) {
@@ -344,7 +354,9 @@ export default function DashboardPage() {
                 </span>
               </div>
               <p className="text-xs text-default mb-1">Open Positions</p>
-              <h3 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">47</h3>
+              <h3 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
+                {hrmData?.openPositions ?? 0}
+              </h3>
             </div>
 
             {/* Monthly Payroll */}
@@ -354,11 +366,13 @@ export default function DashboardPage() {
                   <i className="ph-duotone ph-currency-circle-dollar text-xl text-white"></i>
                 </div>
                 <span className="inline-flex items-center text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md">
-                  <i className="ph-bold ph-arrow-up-right me-1"></i>3.64%
+                  <i className="ph-bold ph-arrow-up-right me-1"></i>Live
                 </span>
               </div>
               <p className="text-xs text-default mb-1">Monthly Payroll</p>
-              <h3 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">$1,248K</h3>
+              <h3 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
+                {hrmData?.totalPayroll ? `$${(hrmData.totalPayroll / 1000).toFixed(0)}K` : "$0"}
+              </h3>
             </div>
           </div>
         </div>
@@ -389,55 +403,36 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="flex-1 space-y-1.5 w-full">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-blue-600"></span>
-                      <span className="text-xs text-default">Engineering</span>
-                    </div>
-                    <p className="text-xs font-semibold text-title mb-0">488</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-amber-500"></span>
-                      <span className="text-xs text-default">Marketing</span>
-                    </div>
-                    <p className="text-xs font-semibold text-title mb-0">282</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-emerald-500"></span>
-                      <span className="text-xs text-default">Finance</span>
-                    </div>
-                    <p className="text-xs font-semibold text-title mb-0">231</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-pink-500"></span>
-                      <span className="text-xs text-default">Sales</span>
-                    </div>
-                    <p className="text-xs font-semibold text-title mb-0">180</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-slate-800 dark:bg-slate-300"></span>
-                      <span className="text-xs text-default">HR</span>
-                    </div>
-                    <p className="text-xs font-semibold text-title mb-0">103</p>
-                  </div>
+                  {hrmData?.departments && hrmData.departments.length > 0 ? (
+                    hrmData.departments.slice(0, 5).map((dept: any, idx: number) => {
+                      const colors = ["bg-blue-600", "bg-amber-500", "bg-emerald-500", "bg-pink-500", "bg-purple-600"];
+                      return (
+                        <div key={dept.id || idx} className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("size-2 rounded-full", colors[idx % colors.length])}></span>
+                            <span className="text-xs text-default truncate max-w-[90px]">{dept.name}</span>
+                          </div>
+                          <p className="text-xs font-semibold text-title mb-0">{dept.count || 0}</p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-xs text-muted-foreground py-2 text-center">No department distributions</div>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border-color">
                 <div className="text-center bg-light dark:bg-slate-800/50 border border-border-color rounded-md p-2">
-                  <h3 className="text-base font-bold text-title mb-0.5">1196</h3>
+                  <h3 className="text-base font-bold text-title mb-0.5">{hrmData?.activeEmployees ?? totalEmployees}</h3>
                   <p className="text-xs text-default mb-0">Active</p>
                 </div>
                 <div className="text-center bg-light dark:bg-slate-800/50 border border-border-color rounded-md p-2">
-                  <h3 className="text-base font-bold text-title mb-0.5">88</h3>
+                  <h3 className="text-base font-bold text-title mb-0.5">0</h3>
                   <p className="text-xs text-default mb-0">Probation</p>
                 </div>
                 <div className="text-center bg-light dark:bg-slate-800/50 border border-border-color rounded-md p-2">
-                  <h3 className="text-base font-bold text-title mb-0.5">12</h3>
+                  <h3 className="text-base font-bold text-title mb-0.5">0</h3>
                   <p className="text-xs text-default mb-0">Notice</p>
                 </div>
               </div>
@@ -489,7 +484,9 @@ export default function DashboardPage() {
               </div>
               <div className="border border-border-color bg-light dark:bg-slate-800/40 rounded-md p-3">
                 <p className="text-xs text-default mb-1">Remote</p>
-                <h4 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">361</h4>
+                <h4 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">
+                  {hrmData?.attendanceSummary?.remote ?? 0}
+                </h4>
                 <p className="text-[11px] text-default mb-0">WFH approved</p>
               </div>
             </div>
@@ -518,8 +515,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between flex-wrap gap-2 mb-5">
               <div>
                 <p className="text-blue-100 text-xs mb-1">Monthly Payroll</p>
-                <h3 className="font-bold text-white text-2xl mb-1">$1,248K</h3>
-                <p className="text-[13px] text-blue-100 mb-0">March 2026 · 1,196 employees</p>
+                <h3 className="font-bold text-white text-2xl mb-1">
+                  {hrmData?.totalPayroll ? `$${(hrmData.totalPayroll / 1000).toFixed(0)}K` : "$0"}
+                </h3>
+                <p className="text-[13px] text-blue-100 mb-0">{totalEmployees} active employees</p>
               </div>
               <Link
                 to="/hr/payroll/runs"
@@ -531,15 +530,21 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <p className="text-blue-100 text-xs mb-1">Avg Salary</p>
-                <h4 className="text-2xl max-lg:text-xl text-white font-bold mb-0">$1,285.3K</h4>
+                <h4 className="text-2xl max-lg:text-xl text-white font-bold mb-0">
+                  {hrmData?.avgSalary ? `$${hrmData.avgSalary.toLocaleString()}` : "$0"}
+                </h4>
               </div>
               <div>
                 <p className="text-blue-100 text-xs mb-1">Last Month</p>
-                <h4 className="text-2xl max-lg:text-xl text-white font-bold mb-0">$1,196K</h4>
+                <h4 className="text-2xl max-lg:text-xl text-white font-bold mb-0">
+                  {hrmData?.lastMonthPayroll ? `$${(hrmData.lastMonthPayroll / 1000).toFixed(0)}K` : "$0"}
+                </h4>
               </div>
               <div>
                 <p className="text-blue-100 text-xs mb-1">MOM Growth</p>
-                <h4 className="text-2xl max-lg:text-xl text-white font-bold mb-0">4.2%</h4>
+                <h4 className="text-2xl max-lg:text-xl text-white font-bold mb-0">
+                  {hrmData?.momGrowth ?? 0}%
+                </h4>
               </div>
             </div>
           </div>
@@ -579,7 +584,9 @@ export default function DashboardPage() {
                     <i className="ph-duotone ph-clipboard-text text-2xl text-amber-500"></i>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-title mb-0">47</h3>
+                    <h3 className="text-lg font-bold text-title mb-0">
+                      {hrmData?.recruitment?.newApplicants ?? 0}
+                    </h3>
                     <p className="text-xs text-default mb-0">New Applicants</p>
                   </div>
                 </div>
@@ -591,7 +598,9 @@ export default function DashboardPage() {
                     <i className="ph-duotone ph-users text-2xl text-purple-600"></i>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-title mb-0">23</h3>
+                    <h3 className="text-lg font-bold text-title mb-0">
+                      {hrmData?.recruitment?.screening ?? 0}
+                    </h3>
                     <p className="text-xs text-default mb-0">Screening</p>
                   </div>
                 </div>
@@ -603,7 +612,9 @@ export default function DashboardPage() {
                     <i className="ph-duotone ph-video-camera text-2xl text-blue-500"></i>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-title mb-0">12</h3>
+                    <h3 className="text-lg font-bold text-title mb-0">
+                      {hrmData?.recruitment?.interviews ?? 0}
+                    </h3>
                     <p className="text-xs text-default mb-0">Interviews</p>
                   </div>
                 </div>
@@ -613,60 +624,32 @@ export default function DashboardPage() {
 
             <p className="text-sm font-semibold text-title mb-2">Recent Candidates</p>
             <div className="flex flex-col space-y-2">
-              <div className="flex items-center justify-between gap-2 border border-border-color bg-light dark:bg-slate-800/40 rounded-md p-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img src="/ui-assets/avatar-03.jpg" className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt="Alex" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-title text-xs truncate mb-0">Alex Thompson</p>
-                    <p className="text-[11px] text-default truncate mb-0">Senior Developer</p>
+              {hrmData?.recruitment?.recentCandidates && hrmData.recruitment.recentCandidates.length > 0 ? (
+                hrmData.recruitment.recentCandidates.map((c: any) => (
+                  <div key={c.id} className="flex items-center justify-between gap-2 border border-border-color bg-light dark:bg-slate-800/40 rounded-md p-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <img src={c.avatarUrl || "/ui-assets/avatar-03.jpg"} className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt={c.name} />
+                      <div className="min-w-0">
+                        <p className="font-medium text-title text-xs truncate mb-0">{c.name}</p>
+                        <p className="text-[11px] text-default truncate mb-0">{c.position}</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md shrink-0 capitalize">
+                      {c.stage}
+                    </span>
                   </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground py-6 text-center">
+                  No recent applicants in pipeline
                 </div>
-                <span className="text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md shrink-0">
-                  Interview
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2 border border-border-color bg-light dark:bg-slate-800/40 rounded-md p-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img src="/ui-assets/avatar-05.jpg" className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt="Maria" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-title text-xs truncate mb-0">Maria Garcia</p>
-                    <p className="text-[11px] text-default truncate mb-0">UX Designer</p>
-                  </div>
-                </div>
-                <span className="text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-md shrink-0">
-                  Applied
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2 border border-border-color bg-light dark:bg-slate-800/40 rounded-md p-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img src="/ui-assets/avatar-07.jpg" className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt="Thomas" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-title text-xs truncate mb-0">Thomas Mervin</p>
-                    <p className="text-[11px] text-default truncate mb-0">Senior Developer</p>
-                  </div>
-                </div>
-                <span className="text-[11px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-md shrink-0">
-                  Offer Made
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2 border border-border-color bg-light dark:bg-slate-800/40 rounded-md p-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <img src="/ui-assets/avatar-09.jpg" className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt="Regina" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-title text-xs truncate mb-0">Regina Bryant</p>
-                    <p className="text-[11px] text-default truncate mb-0">Android Developer</p>
-                  </div>
-                </div>
-                <span className="text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md shrink-0">
-                  Hired
-                </span>
-              </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Bottom Row: Performance Tracking & Recent Openings Table (matching ui/index.html line 1628) ── */}
+      {/* ── Bottom Row: Performance Tracking & Recent Openings Table ── */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* Performance Tracking (5 cols) */}
         <div className="bg-white dark:bg-slate-900 p-4 border border-border-color rounded-md xl:col-span-5">
@@ -681,81 +664,44 @@ export default function DashboardPage() {
           </div>
           <div>
             <div className="space-y-3 mb-5">
-              <div className="flex items-center justify-between gap-2 border border-border-color rounded-md p-3 bg-light/50 dark:bg-slate-800/30">
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <img src="/ui-assets/avatar-04.jpg" className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt="Evelyn" />
-                    <span className="absolute bottom-0 right-0 bg-amber-500 text-white text-[10px] font-bold rounded-full size-4 flex items-center justify-center">1</span>
+              {hrmData?.leaderboard && hrmData.leaderboard.length > 0 ? (
+                hrmData.leaderboard.map((item: any) => (
+                  <div key={item.id} className="flex items-center justify-between gap-2 border border-border-color rounded-md p-3 bg-light/50 dark:bg-slate-800/30">
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <img src={item.avatarUrl || "/ui-assets/avatar-04.jpg"} className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt={item.name} />
+                        <span className="absolute bottom-0 right-0 bg-amber-500 text-white text-[10px] font-bold rounded-full size-4 flex items-center justify-center">
+                          {item.rank}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-title text-xs truncate mb-0">{item.name}</p>
+                        <p className="text-[11px] text-default truncate mb-0">{item.position}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-gray-900 dark:text-gray-100 text-xs mb-0">{item.score}</p>
+                      <p className="text-[11px] text-emerald-600 inline-flex items-center mb-0">
+                        <i className="ph-bold ph-arrow-up-right me-0.5"></i>{item.growth}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-title text-xs truncate mb-0">Evelyn Hayes</p>
-                    <p className="text-[11px] text-default truncate mb-0">Product Manager</p>
-                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground py-6 text-center">
+                  No employee performance scores tracked yet
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="font-bold text-gray-900 dark:text-gray-100 text-xs mb-0">98</p>
-                  <p className="text-[11px] text-emerald-600 inline-flex items-center mb-0">
-                    <i className="ph-bold ph-arrow-up-right me-0.5"></i>2.8%
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-2 border border-border-color rounded-md p-3 bg-light/50 dark:bg-slate-800/30">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="relative">
-                    <img src="/ui-assets/avatar-06.jpg" className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt="Emily" />
-                    <span className="absolute bottom-0 right-0 bg-primary text-white text-[10px] font-bold rounded-full size-4 flex items-center justify-center">2</span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-title text-xs truncate mb-0">Emily Carter</p>
-                    <p className="text-[11px] text-default truncate mb-0">Android Developer</p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="font-bold text-gray-900 dark:text-gray-100 text-xs mb-0">96</p>
-                  <p className="text-[11px] text-emerald-600 inline-flex items-center mb-0">
-                    <i className="ph-bold ph-arrow-up-right me-0.5"></i>4.8%
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-2 border border-border-color rounded-md p-3 bg-light/50 dark:bg-slate-800/30">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="relative">
-                    <img src="/ui-assets/avatar-08.jpg" className="size-9 rounded-full border border-border-color shrink-0 object-cover" alt="Daniel" />
-                    <span className="absolute bottom-0 right-0 bg-blue-500 text-white text-[10px] font-bold rounded-full size-4 flex items-center justify-center">3</span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-title text-xs truncate mb-0">Daniel Roberts</p>
-                    <p className="text-[11px] text-default truncate mb-0">Graphic Designer</p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="font-bold text-gray-900 dark:text-gray-100 text-xs mb-0">94</p>
-                  <p className="text-[11px] text-emerald-600 inline-flex items-center mb-0">
-                    <i className="ph-bold ph-arrow-up-right me-0.5"></i>29.6%
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="space-y-3">
               <div>
                 <div className="h-1.5 bg-light dark:bg-slate-800 rounded-full overflow-hidden mb-1.5">
-                  <div className="h-full bg-primary rounded-full" style={{ width: "87%" }}></div>
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, attendanceRate)}%` }}></div>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <p className="text-default mb-0">Hiring Target</p>
-                  <p className="font-bold text-gray-900 dark:text-gray-100 mb-0">87%</p>
-                </div>
-              </div>
-              <div>
-                <div className="h-1.5 bg-light dark:bg-slate-800 rounded-full overflow-hidden mb-1.5">
-                  <div className="h-full bg-amber-500 rounded-full" style={{ width: "92%" }}></div>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <p className="text-default mb-0">Employee Retention</p>
-                  <p className="font-bold text-gray-900 dark:text-gray-100 mb-0">92%</p>
+                  <p className="text-default mb-0">Attendance Compliance</p>
+                  <p className="font-bold text-gray-900 dark:text-gray-100 mb-0">{attendanceRate}%</p>
                 </div>
               </div>
             </div>
@@ -785,96 +731,34 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-border-color last:border-0 hover:bg-light/40 dark:hover:bg-slate-800/40">
-                  <td className="py-3 px-2">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="size-9 rounded-md bg-light dark:bg-slate-800 border border-border-color flex items-center justify-center text-primary">
-                        <i className="ph-duotone ph-device-mobile text-lg"></i>
-                      </div>
-                      <p className="text-xs font-semibold text-title mb-0">Senior iOS Developer</p>
-                    </div>
-                  </td>
-                  <td className="py-3 px-2 text-xs text-default">iOS Development</td>
-                  <td className="py-3 px-2 text-xs text-default">New York, USA</td>
-                  <td className="py-3 px-2 text-xs text-default font-mono">02</td>
-                  <td className="py-3 px-2">
-                    <span className="inline-flex items-center text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-medium">
-                      <i className="ph-bold ph-check-circle text-[10px] me-1"></i>Active
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-border-color last:border-0 hover:bg-light/40 dark:hover:bg-slate-800/40">
-                  <td className="py-3 px-2">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="size-9 rounded-md bg-light dark:bg-slate-800 border border-border-color flex items-center justify-center text-purple-600">
-                        <i className="ph-duotone ph-code text-lg"></i>
-                      </div>
-                      <p className="text-xs font-semibold text-title mb-0">Junior PHP Developer</p>
-                    </div>
-                  </td>
-                  <td className="py-3 px-2 text-xs text-default">Web & Application</td>
-                  <td className="py-3 px-2 text-xs text-default">Los Angeles, USA</td>
-                  <td className="py-3 px-2 text-xs text-default font-mono">03</td>
-                  <td className="py-3 px-2">
-                    <span className="inline-flex items-center text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-medium">
-                      <i className="ph-bold ph-check-circle text-[10px] me-1"></i>Active
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-border-color last:border-0 hover:bg-light/40 dark:hover:bg-slate-800/40">
-                  <td className="py-3 px-2">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="size-9 rounded-md bg-light dark:bg-slate-800 border border-border-color flex items-center justify-center text-amber-500">
-                        <i className="ph-duotone ph-broadcast text-lg"></i>
-                      </div>
-                      <p className="text-xs font-semibold text-title mb-0">Network Engineer</p>
-                    </div>
-                  </td>
-                  <td className="py-3 px-2 text-xs text-default">Networking</td>
-                  <td className="py-3 px-2 text-xs text-default">Bristol, UK</td>
-                  <td className="py-3 px-2 text-xs text-default font-mono">01</td>
-                  <td className="py-3 px-2">
-                    <span className="inline-flex items-center text-[11px] bg-rose-500/10 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded font-medium">
-                      <i className="ph-bold ph-x-circle text-[10px] me-1"></i>Expired
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-border-color last:border-0 hover:bg-light/40 dark:hover:bg-slate-800/40">
-                  <td className="py-3 px-2">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="size-9 rounded-md bg-light dark:bg-slate-800 border border-border-color flex items-center justify-center text-blue-500">
-                        <i className="ph-duotone ph-atom text-lg"></i>
-                      </div>
-                      <p className="text-xs font-semibold text-title mb-0">Junior React Developer</p>
-                    </div>
-                  </td>
-                  <td className="py-3 px-2 text-xs text-default">Frontend</td>
-                  <td className="py-3 px-2 text-xs text-default">Birmingham, UK</td>
-                  <td className="py-3 px-2 text-xs text-default font-mono">04</td>
-                  <td className="py-3 px-2">
-                    <span className="inline-flex items-center text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-medium">
-                      <i className="ph-bold ph-check-circle text-[10px] me-1"></i>Active
-                    </span>
-                  </td>
-                </tr>
-                <tr className="border-b border-border-color last:border-0 hover:bg-light/40 dark:hover:bg-slate-800/40">
-                  <td className="py-3 px-2">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="size-9 rounded-md bg-light dark:bg-slate-800 border border-border-color flex items-center justify-center text-red-500">
-                        <i className="ph-duotone ph-file-code text-lg"></i>
-                      </div>
-                      <p className="text-xs font-semibold text-title mb-0">Senior Laravel Developer</p>
-                    </div>
-                  </td>
-                  <td className="py-3 px-2 text-xs text-default">Backend</td>
-                  <td className="py-3 px-2 text-xs text-default">Washington, USA</td>
-                  <td className="py-3 px-2 text-xs text-default font-mono">02</td>
-                  <td className="py-3 px-2">
-                    <span className="inline-flex items-center text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-medium">
-                      <i className="ph-bold ph-check-circle text-[10px] me-1"></i>Active
-                    </span>
-                  </td>
-                </tr>
+                {hrmData?.jobOpenings && hrmData.jobOpenings.length > 0 ? (
+                  hrmData.jobOpenings.map((job: any) => (
+                    <tr key={job.id} className="border-b border-border-color last:border-0 hover:bg-light/40 dark:hover:bg-slate-800/40">
+                      <td className="py-3 px-2">
+                        <div className="inline-flex items-center gap-2">
+                          <div className="size-9 rounded-md bg-light dark:bg-slate-800 border border-border-color flex items-center justify-center text-primary">
+                            <i className="ph-duotone ph-briefcase text-lg"></i>
+                          </div>
+                          <p className="text-xs font-semibold text-title mb-0">{job.title}</p>
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-xs text-default">{job.category}</td>
+                      <td className="py-3 px-2 text-xs text-default">{job.location || "Office"}</td>
+                      <td className="py-3 px-2 text-xs text-default font-mono">{String(job.openings).padStart(2, "0")}</td>
+                      <td className="py-3 px-2">
+                        <span className="inline-flex items-center text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-medium">
+                          <i className="ph-bold ph-check-circle text-[10px] me-1"></i>{job.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-xs text-muted-foreground">
+                      No active job openings published.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

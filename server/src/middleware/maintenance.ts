@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { prisma, rawPrisma } from "../prisma";
 import { verifyToken } from "../lib/jwt";
 import { getBaseDomain } from "../lib/workspace-host";
+import { SettingsService } from "../services/settings/settings.service";
 
 export interface MaintenanceConfig {
   maintenanceMode: boolean;
@@ -23,6 +24,24 @@ export async function getPlatformMaintenanceConfig(): Promise<MaintenanceConfig>
   }
 
   try {
+    // 1. Authoritative SettingsService check
+    const [modeVal, msgVal] = await Promise.all([
+      SettingsService.get("PLATFORM", null, "system.maintenance_mode").catch(() => null),
+      SettingsService.get("PLATFORM", null, "system.maintenance_message").catch(() => null),
+    ]);
+
+    if (modeVal !== null && modeVal !== undefined) {
+      cachedConfig = {
+        maintenanceMode: Boolean(modeVal),
+        maintenanceScheduled: false,
+        maintenanceNoticeMessage: msgVal ? String(msgVal) : undefined,
+        defaultTimezone: "Asia/Kolkata",
+        supportEmail: `support@${getBaseDomain()}`,
+        cachedAt: now,
+      };
+      return cachedConfig;
+    }
+
     const page = await (rawPrisma || prisma).cmsPage.findUnique({
       where: { slug: "system-platform-settings" },
     });
@@ -131,6 +150,9 @@ export async function maintenanceMiddleware(req: Request, res: Response, next: N
   const isWhitelisted =
     url.startsWith("/api/health") ||
     url.startsWith("/api/system/maintenance-status") ||
+    url.startsWith("/api/v1/public/app-config") ||
+    url.startsWith("/api/public/app-config") ||
+    url.startsWith("/api/app-config") ||
     url.startsWith("/api/cms/pages/system-platform-settings") ||
     url.startsWith("/api/cms/pages/footer") ||
     url.startsWith("/api/auth/login") ||

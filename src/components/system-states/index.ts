@@ -6,3 +6,4 @@ export * from "./success-state";
 export * from "./offline-banner";
 export * from "./session-expired-modal";
 export * from "./inactivity-tracker";
+export * from "./maintenance-banner";

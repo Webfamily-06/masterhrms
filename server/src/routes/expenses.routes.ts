@@ -3,7 +3,7 @@ import multer from "multer";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { autoPostExpenseToLedger } from "../services/ledger-posting.service";
-import { storageService } from "../services/storage/local-encrypted-storage.service";
+import { StorageFactory } from "../services/factories/storage.factory";
 import { validateFileBuffer, MAX_UPLOAD_SIZE_BYTES } from "../services/storage/file-validator";
 import { tesseractOcrService } from "../services/ocr/tesseract-ocr.service";
 import { ReimbursementApprovalService } from "../services/reimbursement-approval.service";
@@ -230,8 +230,9 @@ expensesRouter.post(
         return res.status(400).json({ error: val.error });
       }
 
-      // 2. Encrypt and save to tenant-isolated disk storage
-      const stored = await storageService.save(
+      // 2. Encrypt and save to tenant-isolated disk storage via StorageFactory
+      const storage = await StorageFactory.getDriver("TENANT", tenantId);
+      const stored = await storage.save(
         tenantId,
         {
           buffer: file.buffer,
@@ -419,7 +420,8 @@ expensesRouter.post("/claims/:id/ocr-process", requireAuth, async (req: AuthRequ
       return res.status(400).json({ error: "Claim does not have an attached stored document for OCR." });
     }
 
-    const { buffer, metadata } = await storageService.getBuffer(tenantId, claim.storedDocumentId);
+    const storage = await StorageFactory.getDriver("TENANT", tenantId);
+    const { buffer, metadata } = await storage.getBuffer(tenantId, claim.storedDocumentId);
     const ocrResult = await tesseractOcrService.processReceiptBuffer(buffer, metadata.mimeType);
 
     const updated = await prisma.expenseClaim.update({

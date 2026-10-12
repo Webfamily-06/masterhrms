@@ -271,15 +271,15 @@ Sequencing with your current phases: keep **A1b P0/P1 items** (add-on self-activ
 ### S-track: Settings, Realtime, Zero-Mock, CRUD (added 2026-10-10)
 Spec: saas-architecture/15_Settings_Realtime_ZeroMock_CRUD_Completion_Plan.md
 | ID | Step | Status |
-| S0 | Read-only audit (env reads, settings UI, mock inventory, CRUD matrix, dashboards, file API) | NS |
-| S1 | Settings core + realtime + env import | NS |
-| S2 | Runtime factories (mail, OAuth, payments, storage, realtime, SMS, AI) | NS |
-| S3 | Settings UI (Super Admin + Tenant) | NS |
-| S4 | App-wide consumption of settings | NS |
-| S5 | Zero-mock cleanup + live dashboards | NS |
-| S6 | CRUD completion (backend + API + UI) | NS |
-| S7 | Verification and hardening | NS |
-Proposed decisions (IDs continue after D-028): D-029 DB is source of truth for config, env bootstrap only; D-030 role-scoped settings with platform/tenant scopes; D-031 zero-mock production policy with flagged demo seeds; D-032 vertical-slice Definition of Done (DB+API+UI+realtime+tests).
+| S0 | Read-only audit (env reads, settings UI, mock inventory, CRUD matrix, dashboards, file API) | COMPLETED & VERIFIED (DOC-SAAS-S0-001) |
+| S1 | Settings core + realtime + env import | COMPLETED & VERIFIED (DOC-SAAS-S1-001) |
+| S2 | Runtime factories (mail, OAuth, payments, storage, realtime, SMS, AI) | COMPLETED & VERIFIED (DOC-SAAS-S2-001) |
+| S3 | Settings UI (Super Admin + Tenant) | COMPLETED & VERIFIED (DOC-SAAS-S3-001) |
+| S4 | App-wide consumption of settings | COMPLETED & VERIFIED (DOC-SAAS-S4-001) |
+| S5 | Zero-mock cleanup + live dashboards | NEXT IN LINE |
+| S6 | CRUD completion (backend + API + UI) | PENDING |
+| S7 | Verification and hardening | PENDING |
+Proposed decisions (IDs continue after D-028): D-029 DB is source of truth for config, env bootstrap only; D-030 role-scoped settings with platform/tenant scopes; D-031 zero-mock production policy with flagged demo seeds; D-032 vertical-slice Definition of Done (DB+API+UI+realtime+tests); D-041 /uploads security triage; D-042 Step S1 core & realtime; D-043 Step S2 runtime factories & dynamic consumers; D-044 Step S3 settings UI; D-045 Step S4 app-wide consumption of settings.
 Open questions: Q-S01 which roles besides Tenant Admin may edit SMTP/OAuth/payments? Q-S02 can tenants bring their own OAuth apps and SMTP (plan feature)? Q-S03 confirm "responsive" interpretation; Q-S04 should demo workspaces exist in production? Q-S05 which payment gateways besides Razorpay for platform billing and for tenant invoices?
 ```
 

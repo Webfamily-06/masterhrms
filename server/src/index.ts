@@ -87,6 +87,7 @@ import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes
 import { companyProfileRouter } from "./routes/company-profile.routes";
 import { SettingsService } from "./services/settings/settings.service";
 import { getUploadsRoot } from "./services/media/media.service";
+import { uploadsSecurityMiddleware } from "./middleware/uploads-security.middleware";
 import { platformFoundationRouter } from "./routes/platform-foundation.routes";
 import { OutboxService } from "./services/outbox.service";
 import { securityHeadersMiddleware, authRateLimiter } from "./middleware/security-hardening.middleware";
@@ -102,6 +103,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const HOST = process.env.HOST || "0.0.0.0";
+
+// Enable reverse-proxy header trust (X-Forwarded-For, X-Forwarded-Proto) for Nginx / Cloudflare
+app.set("trust proxy", 1);
 
 app.use(securityHeadersMiddleware);
 
@@ -170,6 +175,7 @@ app.use(
 );
 app.use(
   "/uploads",
+  uploadsSecurityMiddleware,
   express.static(getUploadsRoot(), {
     maxAge: "7d",
     etag: true,
@@ -399,7 +405,17 @@ app.use("/api", platformFoundationRouter);
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled error:", err);
-  res.status(500).json({ error: err.message || "Internal server error" });
+  const isHardened = process.env.NODE_ENV === "production" || process.env.NODE_ENV === "staging";
+  const rawMsg = String(err?.message || "");
+  const isSensitive =
+    rawMsg.includes("prisma") ||
+    rawMsg.includes("SELECT ") ||
+    rawMsg.includes("database") ||
+    rawMsg.includes("postgres") ||
+    rawMsg.includes("connect") ||
+    rawMsg.includes("password");
+  const clientError = isHardened && isSensitive ? "Internal server error" : (rawMsg || "Internal server error");
+  res.status(err.status || 500).json({ error: clientError });
 });
 
 const server = http.createServer(app);
@@ -464,23 +480,25 @@ function scheduleDailySubscriptionReminders() {
 
   console.log(`⏰ Daily Subscription Expiry Reminders scheduled in ${Math.round(msUntilNext / 60000)} min (target: 08:00 UTC)`);
 }
-scheduleDailySubscriptionReminders();
+if (process.env.NODE_ENV !== "test") {
+  scheduleDailySubscriptionReminders();
 
-server.listen(PORT, async () => {
-  console.log(`🚀 Master HRMS Backend Server running on http://localhost:${PORT}`);
-  console.log(`🔌 Database Provider: Supabase PostgreSQL (Prisma ORM connected)`);
-  console.log(`⚡ WebSocket Server: Ready on ws://localhost:${PORT}`);
+  server.listen(Number(PORT), HOST, async () => {
+    console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);
+    console.log(`🔌 Database Provider: Supabase PostgreSQL (Prisma ORM connected)`);
+    console.log(`⚡ WebSocket Server: Ready on ws://${HOST}:${PORT}`);
 
-  try {
-    await SettingsService.ensureDefaultSettings();
-    console.log(`⚙️ [STARTUP] Platform default settings verified in database.`);
+    try {
+      await SettingsService.ensureDefaultSettings();
+      console.log(`⚙️ [STARTUP] Platform default settings verified in database.`);
 
-    const audit = ConfigAuditService.auditEnvironment();
-    console.log(`🛡️ [CONFIG AUDIT] Score: ${audit.score}/100 | Pass: ${audit.summary.passed} | Warn: ${audit.summary.warnings} | Fail: ${audit.summary.failures}`);
-  } catch (err: any) {
-    console.error(`⚠️ [STARTUP] Initialization warning:`, err?.message || err);
-  }
-});
+      const audit = ConfigAuditService.auditEnvironment();
+      console.log(`🛡️ [CONFIG AUDIT] Score: ${audit.score}/100 | Pass: ${audit.summary.passed} | Warn: ${audit.summary.warnings} | Fail: ${audit.summary.failures}`);
+    } catch (err: any) {
+      console.error(`⚠️ [STARTUP] Initialization warning:`, err?.message || err);
+    }
+  });
+}
 
 // Graceful Process Shutdown Handler (SIGTERM & SIGINT)
 const handleGracefulShutdown = async (signal: string) => {

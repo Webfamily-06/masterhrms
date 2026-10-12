@@ -80,6 +80,7 @@ import {
   SettingsSectionBreadcrumb,
   type SettingsNavCategory,
 } from "@/components/settings/settings-nested-nav";
+import { SharedSettingsShell } from "@/components/settings/shared-settings-shell";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/super/settings")({
@@ -388,6 +389,11 @@ function SuperSettingsAdmin() {
         label: "Brand & Identity",
         description: "Logos, themes, legal entity and media storage",
         items: [
+          {
+            id: "runtime-factories",
+            label: "S3 Runtime Settings",
+            description: "Canonical 9-category runtime factories & connection tests",
+          },
           {
             id: "branding",
             label: "Branding & Themes",
@@ -875,6 +881,11 @@ function SuperSettingsAdmin() {
                 </div>
               }
             />
+
+        {/* TAB 0.9: S3 RUNIFIED RUNTIME SETTINGS & CONNECTION TEST SUITE */}
+        <TabsContent value="runtime-factories" className="space-y-6 pt-4">
+          <SharedSettingsShell scope="PLATFORM" />
+        </TabsContent>
 
         {/* TAB 1: BRANDING & THEME (PHASE 1 CORE) */}
         <TabsContent value="branding" className="space-y-6 pt-4">

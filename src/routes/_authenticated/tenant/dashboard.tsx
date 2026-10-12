@@ -30,41 +30,22 @@ export const Route = createFileRoute("/_authenticated/tenant/dashboard")({
 function TenantDashboardPage() {
   const { branding } = useTenantBranding();
 
-  const { data: tenantData, isLoading } = useQuery({
+  const { data: tenantMetrics } = useQuery({
     queryKey: ["tenant-dashboard-metrics"],
     queryFn: async () => {
       try {
-        const res = await api.get("/auth/public/tenant/resolve");
+        const res = await api.get<any>("/dashboard/tenant");
         return res;
       } catch {
         return null;
       }
     },
+    refetchInterval: 30000,
   });
 
-  const { data: usersCount } = useQuery({
-    queryKey: ["tenant-users-count"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/users");
-        return Array.isArray(res) ? res.length : 12;
-      } catch {
-        return 8;
-      }
-    },
-  });
-
-  const { data: auditLogs } = useQuery({
-    queryKey: ["tenant-recent-audits"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/audit-logs");
-        return Array.isArray(res) ? res.slice(0, 5) : [];
-      } catch {
-        return [];
-      }
-    },
-  });
+  const storagePct = tenantMetrics?.storageLimitGb
+    ? Math.min(100, (tenantMetrics.storageUsedGb / tenantMetrics.storageLimitGb) * 100)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -73,7 +54,7 @@ function TenantDashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
             <Building2 className="h-6 w-6 text-primary" />
-            {branding.name || "Enterprise Workspace"} Overview
+            {tenantMetrics?.tenantName || branding.name || "Enterprise Workspace"} Overview
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Tenant administration, plan governance, employee quotas, and system configuration.
@@ -106,13 +87,15 @@ function TenantDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold text-foreground">
-              {tenantData?.subscription?.planName || "Sovereign Tier"}
+              {tenantMetrics?.planType ? `${tenantMetrics.planType.toUpperCase()} Tier` : "Standard Tier"}
             </div>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                 Active
               </Badge>
-              <span className="text-[11px] text-muted-foreground">Renews monthly</span>
+              <span className="text-[11px] text-muted-foreground capitalize">
+                Renews {tenantMetrics?.billingCycle || "monthly"}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -125,9 +108,11 @@ function TenantDashboardPage() {
             <Users className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-foreground">{usersCount || 8} Members</div>
+            <div className="text-xl font-bold text-foreground">
+              {tenantMetrics?.activeUsers ?? 0} Members
+            </div>
             <div className="text-[11px] text-muted-foreground mt-1">
-              Unlimited employee seats enabled
+              {tenantMetrics?.totalEmployees ?? 0} employees ({tenantMetrics?.maxEmployees ? `${tenantMetrics.maxEmployees} quota` : "Unlimited quota"})
             </div>
           </CardContent>
         </Card>
@@ -140,9 +125,11 @@ function TenantDashboardPage() {
             <HardDrive className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-foreground">1.4 GB / 100 GB</div>
+            <div className="text-xl font-bold text-foreground">
+              {tenantMetrics?.storageUsageFormatted ?? "0 GB / 10 GB"}
+            </div>
             <div className="w-full bg-muted h-1.5 rounded-full mt-2 overflow-hidden">
-              <div className="bg-purple-500 h-full w-[1.4%]" />
+              <div className="bg-purple-500 h-full transition-all" style={{ width: `${Math.max(1, storagePct)}%` }} />
             </div>
           </CardContent>
         </Card>
@@ -156,10 +143,10 @@ function TenantDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold text-emerald-500 flex items-center gap-1.5">
-              <CheckCircle2 className="h-5 w-5" /> 99.98%
+              <CheckCircle2 className="h-5 w-5" /> 100% Operational
             </div>
             <div className="text-[11px] text-muted-foreground mt-1">
-              All 16 microservices operational
+              {tenantMetrics?.activeAddonsCount ?? 0} active add-on modules
             </div>
           </CardContent>
         </Card>
@@ -243,27 +230,24 @@ function TenantDashboardPage() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
-            <div className="flex items-start gap-2.5 text-xs pb-2 border-b border-border/50">
-              <Clock className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
-              <div>
-                <div className="font-medium text-foreground">Session logged in from host</div>
-                <div className="text-[10px] text-muted-foreground">Host-bound verification passed</div>
+            {tenantMetrics?.recentAudits && tenantMetrics.recentAudits.length > 0 ? (
+              tenantMetrics.recentAudits.map((audit: any) => (
+                <div key={audit.id} className="flex items-start gap-2.5 text-xs pb-2 border-b border-border/50 last:border-0 last:pb-0">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground truncate">{audit.key}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {audit.changedBy || "System"} · {new Date(audit.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                <ShieldCheck className="h-5 w-5 mx-auto mb-1 text-muted-foreground/60" />
+                No security audit events recorded yet.
               </div>
-            </div>
-            <div className="flex items-start gap-2.5 text-xs pb-2 border-b border-border/50">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 mt-0.5" />
-              <div>
-                <div className="font-medium text-foreground">Workspace isolation active</div>
-                <div className="text-[10px] text-muted-foreground">Single-tenant context isolated</div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5 text-xs">
-              <Activity className="h-3.5 w-3.5 text-blue-500 mt-0.5" />
-              <div>
-                <div className="font-medium text-foreground">Database migrations sync</div>
-                <div className="text-[10px] text-muted-foreground">Schema version 2026.10 healthy</div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

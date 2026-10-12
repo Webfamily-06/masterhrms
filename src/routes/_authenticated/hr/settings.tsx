@@ -1,6 +1,7 @@
 import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
 import { WorkspaceBrandingSettings } from "@/components/settings/workspace-branding-settings";
 import { CompanyProfileSettings } from "@/components/settings/company-profile-settings";
+import { SharedSettingsShell } from "@/components/settings/shared-settings-shell";
 import { AccessDenied } from "@/components/access-denied";
 import { isWorkspaceAdminUser } from "@/lib/permissions";
 import { createFileRoute, Link, useSearch, Outlet, useRouterState } from "@tanstack/react-router";
@@ -701,6 +702,11 @@ export function Settings() {
             label: "Office Timing & Policy",
             description: "Working shift timings, grace windows & official hours",
           },
+          {
+            id: "system-settings",
+            label: "Settings & Gateways (S3)",
+            description: "General, communication, payments, storage and security settings",
+          },
         ],
       },
       {
@@ -863,6 +869,11 @@ export function Settings() {
         {/* ===================== TAB 0.7: COMPANY PROFILE & GST (PHASE 2 WAVE 2.1) ===================== */}
         <TabsContent value="company-profile" className="space-y-5">
           <CompanyProfileSettings />
+        </TabsContent>
+
+        {/* ===================== TAB 0.9: SETTINGS & GATEWAYS (S3 UNIFIED) ===================== */}
+        <TabsContent value="system-settings" className="space-y-5">
+          <SharedSettingsShell scope="TENANT" tenantId={profile?.tenant_id || profile?.tenant?.id} />
         </TabsContent>
 
         {/* ===================== TAB 1: ORGANIZATION & OFFICE TIMINGS ===================== */}

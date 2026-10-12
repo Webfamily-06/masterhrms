@@ -186,106 +186,48 @@ export default function CrmDashboardPage() {
 							<div className="overflow-x-auto">
 								<table className="w-full text-sm">
 									<tbody>
-										<tr>
-											<td className="py-2.5 pe-3">
-												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-3.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Robert"  loading="lazy"/>
-													<div className="min-w-0">
-														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0020</a>
-														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Robert Cosper</p>
-													</div>
-												</div>
-											</td>
-											<td className="py-2.5 px-3 vertical-middle">
-												<div className="min-w-0">
-													<p className="text-[11px] text-default mb-1 leading-tight">Lead Owner</p>
-													<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Ethan Walker</p>
-												</div>
-											</td>
-											<td className="py-2.5 ps-3 text-right vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded font-medium">Closed</span>
-											</td>
-										</tr>
-										<tr>
-											<td className="py-2.5 pe-3">
-												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-4.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Helen"  loading="lazy"/>
-													<div className="min-w-0">
-														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0019</a>
-														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Helen Nelson</p>
-													</div>
-												</div>
-											</td>
-											<td className="py-2.5 px-3 vertical-middle">
-												<div className="min-w-0">
-													<p className="text-[11px] text-default mb-1 leading-tight">Lead Owner</p>
-													<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Madison Clark</p>
-												</div>
-											</td>
-											<td className="py-2.5 ps-3 text-right vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded font-medium">Not Closed</span>
-											</td>
-										</tr>
-										<tr>
-											<td className="py-2.5 pe-3">
-												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Thomas"  loading="lazy"/>
-													<div className="min-w-0">
-														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0018</a>
-														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Thomas Neal</p>
-													</div>
-												</div>
-											</td>
-											<td className="py-2.5 px-3 vertical-middle">
-												<div className="min-w-0">
-													<p className="text-[11px] text-default mb-1 leading-tight">Lead Owner</p>
-													<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">James Harris</p>
-												</div>
-											</td>
-											<td className="py-2.5 ps-3 text-right vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded font-medium">Contacted</span>
-											</td>
-										</tr>
-										<tr>
-											<td className="py-2.5 pe-3">
-												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-6.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Sarah"  loading="lazy"/>
-													<div className="min-w-0">
-														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0017</a>
-														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Sarah Spivey</p>
-													</div>
-												</div>
-											</td>
-											<td className="py-2.5 px-3 vertical-middle">
-												<div className="min-w-0">
-													<p className="text-[11px] text-default mb-1 leading-tight">Lead Owner</p>
-													<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Avery Thompson</p>
-												</div>
-											</td>
-											<td className="py-2.5 ps-3 text-right vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded font-medium">Lost</span>
-											</td>
-										</tr>
-										<tr>
-											<td className="py-2.5 pe-3">
-												<div className="flex items-center gap-2 min-w-0">
-													<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Jared"  loading="lazy"/>
-													<div className="min-w-0">
-														<a href="#" className="block text-[11px] text-default hover:text-primary transition-colors font-medium leading-tight mb-1">#LED0016</a>
-														<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Jared Griffin</p>
-													</div>
-												</div>
-											</td>
-											<td className="py-2.5 px-3 vertical-middle">
-												<div className="min-w-0">
-													<p className="text-[11px] text-default mb-1 leading-tight">Lead Owner</p>
-													<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">Benjamin Wright</p>
-												</div>
-											</td>
-											<td className="py-2.5 ps-3 text-right vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded font-medium">Closed</span>
-											</td>
-										</tr>
+										{crmData?.recentOrders && crmData.recentOrders.length > 0 ? (
+											crmData.recentOrders.slice(0, 5).map((order: any) => (
+												<tr key={order.id} className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
+													<td className="py-2.5 pe-3">
+														<div className="flex items-center gap-2 min-w-0">
+															<div className="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+																{order.customerName?.charAt(0) || "C"}
+															</div>
+															<div className="min-w-0">
+																<span className="block text-[11px] text-default font-medium leading-tight mb-1">
+																	#{order.invoiceNo || order.id.slice(0, 6)}
+																</span>
+																<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">
+																	{order.customerName}
+																</p>
+															</div>
+														</div>
+													</td>
+													<td className="py-2.5 px-3 vertical-middle">
+														<div className="min-w-0">
+															<p className="text-[11px] text-default mb-1 leading-tight">Amount</p>
+															<p className="text-xs font-semibold text-title truncate mb-0 leading-tight">
+																{formatSystemAmount(order.amount)}
+															</p>
+														</div>
+													</td>
+													<td className="py-2.5 ps-3 text-right vertical-middle">
+														<span className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded font-medium ${
+															order.status === "PAID" ? "bg-success-transparent text-success" : "bg-warning-transparent text-warning"
+														}`}>
+															{order.status || "Pending"}
+														</span>
+													</td>
+												</tr>
+											))
+										) : (
+											<tr>
+												<td colSpan={3} className="py-8 text-center text-xs text-muted-foreground">
+													No recent leads or orders recorded in this workspace.
+												</td>
+											</tr>
+										)}
 									</tbody>
 								</table>
 							</div>
@@ -345,66 +287,42 @@ export default function CrmDashboardPage() {
 											<th className="text-left py-2 px-2 font-semibold text-gray-900">ID</th>
 											<th className="text-left py-2 px-2 font-semibold text-gray-900">Deal Name</th>
 											<th className="text-left py-2 px-2 font-semibold text-gray-900">Stage</th>
-											<th className="text-left py-2 px-2 font-semibold text-gray-900">Probability</th>
-											<th className="text-left py-2 px-2 font-semibold text-gray-900">Tags</th>
+											<th className="text-left py-2 px-2 font-semibold text-gray-900">Amount</th>
+											<th className="text-left py-2 px-2 font-semibold text-gray-900">Date</th>
 										</tr>
 									</thead>
 									<tbody>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2 text-xs text-default"><a href="#">#DEL0020</a></td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">CRM Subscription</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-warning-transparent text-warning px-2 py-0.5 rounded">Qualify To Buy</span>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-gray-900">90%</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded"><i className="ph ph-plus-circle text-[10px] me-1"></i>Open<i className="ph ph-caret-down text-[10px] ms-1"></i></span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2 text-xs text-default"><a href="#">#DEL0019</a></td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">ERP Implementation</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-pink-transparent text-pink px-2 py-0.5 rounded">Contact Made</span>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-gray-900">40%</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded"><i className="ph ph-check-circle text-[10px] me-1"></i>Won<i className="ph ph-caret-down text-[10px] ms-1"></i></span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2 text-xs text-default"><a href="#">#DEL0018</a></td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">Cloud Migration</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-orange-transparent text-orange px-2 py-0.5 rounded">Presentation</span>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-gray-900">60%</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded"><i className="ph ph-x-circle text-[10px] me-1"></i>Lost<i className="ph ph-caret-down text-[10px] ms-1"></i></span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2 text-xs text-default"><a href="#">#DEL0017</a></td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">Cybersecurity Upgrade</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">Proposal Made</span>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-gray-900">50%</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded"><i className="ph ph-check-circle text-[10px] me-1"></i>Won<i className="ph ph-caret-down text-[10px] ms-1"></i></span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2 text-xs text-default"><a href="#">#DEL0016</a></td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">SaaS Renewal</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-purple-transparent text-purple px-2 py-0.5 rounded">Appointment</span>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-gray-900">70%</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded"><i className="ph ph-x-circle text-[10px] me-1"></i>Lost<i className="ph ph-caret-down text-[10px] ms-1"></i></span>
-											</td>
-										</tr>
+										{crmData?.recentDeals && crmData.recentDeals.length > 0 ? (
+											crmData.recentDeals.slice(0, 5).map((deal: any) => (
+												<tr key={deal.id} className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
+													<td className="py-2.5 px-2 text-xs text-default">
+														#{deal.invoiceNo || deal.id.slice(0, 6)}
+													</td>
+													<td className="py-2.5 px-2 text-xs font-semibold text-title">
+														{deal.title}
+													</td>
+													<td className="py-2.5 px-2">
+														<span className={`text-[11px] px-2 py-0.5 rounded ${
+															deal.stage === "Closed Won" ? "bg-success-transparent text-success" : "bg-info-transparent text-info"
+														}`}>
+															{deal.stage}
+														</span>
+													</td>
+													<td className="py-2.5 px-2 text-xs font-semibold text-gray-900">
+														{formatSystemAmount(deal.amount)}
+													</td>
+													<td className="py-2.5 px-2 text-xs text-muted-foreground">
+														{deal.date ? new Date(deal.date).toLocaleDateString() : "—"}
+													</td>
+												</tr>
+											))
+										) : (
+											<tr>
+												<td colSpan={5} className="py-8 text-center text-xs text-muted-foreground">
+													No deal records available in this workspace.
+												</td>
+											</tr>
+										)}
 									</tbody>
 								</table>
 							</div>
@@ -435,67 +353,23 @@ export default function CrmDashboardPage() {
                                 </div>
 							</div>
 							
-							<div className="flex w-full h-4 rounded-full overflow-hidden mb-5 bg-light-500">
-								<div className="bg-success" style={{ width: "26.8%" }}></div>
-								<div className="bg-orange" style={{ width: "19.5%" }}></div>
-								<div className="bg-warning" style={{ width: "17%" }}></div>
-								<div className="bg-info" style={{ width: "13.4%" }}></div>
-								<div className="bg-purple" style={{ width: "10.5%" }}></div>
-								<div className="bg-primary" style={{ width: "7.8%" }}></div>
-								<div className="bg-danger" style={{ width: "5.1%" }}></div>
-							</div>
-							
-							<div className="space-y-3">
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-success"></span>
-										<span className="text-xs text-default">Qualify To Buy</span>
-									</div>
-									<span className="text-xs font-semibold text-gray-900">1100</span>
+							{crmData?.pipelineStages && crmData.pipelineStages.length > 0 ? (
+								<div className="space-y-3">
+									{crmData.pipelineStages.map((st: any, idx: number) => (
+										<div key={idx} className="flex items-center justify-between gap-2">
+											<div className="flex items-center gap-2">
+												<span className="size-2 rounded-full bg-primary"></span>
+												<span className="text-xs text-default">{st.stage}</span>
+											</div>
+											<span className="text-xs font-semibold text-gray-900">{st.count} ({formatSystemAmount(st.value)})</span>
+										</div>
+									))}
 								</div>
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-orange"></span>
-										<span className="text-xs text-default">Contact Made</span>
-									</div>
-									<span className="text-xs font-semibold text-gray-900">800</span>
-								</div>								
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-warning"></span>
-										<span className="text-xs text-default">Presentation</span>
-									</div>
-									<span className="text-xs font-semibold text-gray-900">700</span>
+							) : (
+								<div className="py-8 text-center text-xs text-muted-foreground">
+									No pipeline stages active in this workspace.
 								</div>
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-info"></span>
-										<span className="text-xs text-default">Proposal Made</span>
-									</div>
-									<span className="text-xs font-semibold text-gray-900">550</span>
-								</div>
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-purple"></span>
-										<span className="text-xs text-default">Appointment</span>
-									</div>
-									<span className="text-xs font-semibold text-gray-900">430</span>
-								</div>
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-primary"></span>
-										<span className="text-xs text-default">Won</span>
-									</div>
-									<span className="text-xs font-semibold text-gray-900">320</span>
-								</div>
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-danger"></span>
-										<span className="text-xs text-default">Lost</span>
-									</div>
-									<span className="text-xs font-semibold text-gray-900">210</span>
-								</div>
-							</div>
+							)}
 						</div>
 
 					</div>
@@ -611,86 +485,37 @@ export default function CrmDashboardPage() {
 										</tr>
 									</thead>
 									<tbody>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2 text-xs text-default">
-												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0020</Link>
-											</td>
-											<td className="py-2.5 px-2">
-												<div className="flex items-center gap-2">
-													<div className="size-7 shrink-0">
-														<a href="#">
-															<img src="/images/avatars/avatar-3.webp" className="rounded-full border border-border-color" alt="Ethan"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Ethan Walker</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-default"><span>+1 (212) 555-0174</span>
-											</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded"><i className="ph ph-check-circle text-[10px] me-1"></i>Active</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2 text-xs text-default">
-												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0019</Link>
-											</td>
-											<td className="py-2.5 px-2">
-												<div className="flex items-center gap-2">
-													<div className="size-7 shrink-0">
-														<a href="#">
-															<img src="/images/avatars/avatar-4.webp" className="rounded-full border border-border-color" alt="Madison"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Madison Clark</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-default"><span>+1 (312) 555-0148</span>
-											</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded"><i className="ph ph-x-circle text-[10px] me-1"></i>Inactive</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2 text-xs text-default">
-												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0018</Link>
-											</td>
-											<td className="py-2.5 px-2">
-												<div className="flex items-center gap-2">
-													<div className="size-7 shrink-0">
-														<a href="#">
-															<img src="/images/avatars/avatar-5.webp" className="rounded-full border border-border-color" alt="James"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">James Harris</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-default"><span>+1 (415) 555-0123</span>
-											</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded"><i className="ph ph-check-circle text-[10px] me-1"></i>Active</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2 text-xs text-default">
-												<Link to="/contacts" className="hover:text-primary transition-colors font-medium">#CON0017</Link>
-											</td>
-											<td className="py-2.5 px-2">
-												<div className="flex items-center gap-2">
-													<div className="size-7 shrink-0">
-														<a href="#">
-															<img src="/images/avatars/avatar-6.webp" className="rounded-full border border-border-color" alt="Avery"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-nowrap"><a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Avery Thompson</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 text-xs text-default"><span>+1 (305) 555-0189</span>
-											</td>
-											<td className="py-2.5 px-2">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded"><i className="ph ph-check-circle text-[10px] me-1"></i>Active</span>
-											</td>
-										</tr>
+										{crmData?.recentContacts && crmData.recentContacts.length > 0 ? (
+											crmData.recentContacts.slice(0, 5).map((contact: any) => (
+												<tr key={contact.id} className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
+													<td className="py-2.5 px-2 text-xs text-default">
+														#{contact.id.slice(0, 6).toUpperCase()}
+													</td>
+													<td className="py-2.5 px-2">
+														<div className="flex items-center gap-2">
+															<div className="size-7 rounded-full bg-info/10 text-info flex items-center justify-center font-bold text-xs shrink-0">
+																{contact.name?.charAt(0) || "C"}
+															</div>
+															<p className="text-nowrap text-xs font-semibold text-title mb-0">{contact.name}</p>
+														</div>
+													</td>
+													<td className="py-2.5 px-2 text-xs text-default">
+														<span>{contact.phone || "—"}</span>
+													</td>
+													<td className="py-2.5 px-2">
+														<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">
+															<i className="ph ph-check-circle text-[10px] me-1"></i>Active
+														</span>
+													</td>
+												</tr>
+											))
+										) : (
+											<tr>
+												<td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
+													No contacts recorded in this workspace.
+												</td>
+											</tr>
+										)}
 									</tbody>
 								</table>
 							</div>

@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import crypto from "crypto";
 import { z } from "zod";
@@ -301,8 +301,29 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
         res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
         return res.json({ ...page, content });
       }
-      res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
-      return res.json(page);
+
+      // For Super Admin: NEVER leak plaintext secrets over the wire; mask them safely
+      const SENSITIVE_KEYS = [
+        "razorpayKeySecret",
+        "paypalSecret",
+        "paypalClientSecret",
+        "stripeSecretKey",
+        "smtpPass",
+        "smtpPassword",
+        "pusherAppSecret",
+        "livekitApiSecret",
+        "slackClientSecret",
+      ];
+      const maskedContent = { ...((page.content as any) || {}) };
+      for (const sk of SENSITIVE_KEYS) {
+        if (maskedContent[sk]) {
+          maskedContent[`has_${sk}`] = true;
+          maskedContent[`has${sk.charAt(0).toUpperCase()}${sk.slice(1)}`] = true;
+          maskedContent[sk] = "••••••••••••••••";
+        }
+      }
+      res.set("Cache-Control", "private, no-cache, no-store");
+      return res.json({ ...page, content: maskedContent });
     }
     if (!isSuper && !slug.startsWith("tenant-") && !slug.startsWith("system-") && !page.published) {
       return res.status(404).json({ error: "Page not found" });
@@ -348,7 +369,68 @@ cmsRouter.post(["/pages", "/page"], requireAuth, async (req: AuthRequest, res: R
 cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { slug } = req.params;
-    const { title, content, metaDescription, published } = req.body;
+    let { title, content, metaDescription, published } = req.body;
+    const isSuper = req.user?.roles.includes("super_admin");
+
+    if (slug === "system-platform-settings") {
+      if (!isSuper) {
+        return res.status(403).json({ error: "Super admin authorization required to update platform settings." });
+      }
+
+      const existingPage = await prisma.cmsPage.findUnique({ where: { slug } });
+      const existingContent = (existingPage?.content as any) || {};
+
+      // Credential validation: fail-closed if live keys in sandbox
+      const isLivePaymentAuthorized = process.env.ENABLE_LIVE_PAYMENTS === "true";
+      const keyId = content?.razorpayKeyId || "";
+      const keySecret = content?.razorpayKeySecret || "";
+      if (!isLivePaymentAuthorized && (keyId.startsWith("rzp_live_") || (keySecret && !keySecret.includes("••••") && keySecret.startsWith("rzp_live_")))) {
+        return res.status(400).json({
+          error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in sandbox mode.",
+        });
+      }
+
+      // Preserve existing secrets when omitted or masked
+      const SENSITIVE_KEYS = [
+        "razorpayKeySecret",
+        "paypalSecret",
+        "paypalClientSecret",
+        "stripeSecretKey",
+        "smtpPass",
+        "smtpPassword",
+        "pusherAppSecret",
+        "livekitApiSecret",
+        "slackClientSecret",
+      ];
+
+      const mergedContent = { ...existingContent, ...(content || {}) };
+      for (const sk of SENSITIVE_KEYS) {
+        const val = content ? content[sk] : undefined;
+        if (val === undefined || val === "" || (typeof val === "string" && val.includes("••••"))) {
+          mergedContent[sk] = existingContent[sk] || "";
+        } else if (typeof val === "string" && val !== existingContent[sk]) {
+          // Explicit secret rotation! Record audit log
+          mergedContent[sk] = val;
+          try {
+            await (rawPrisma || prisma).settingAudit.create({
+              data: {
+                scope: "PLATFORM",
+                scopeId: null,
+                key: `platform.${sk}`,
+                oldValueMasked: existingContent[sk] ? "••••••••••••••••" : null,
+                newValueMasked: "••••••••••••••••",
+                changedBy: req.user?.userId || "super-admin",
+                ipAddress: req.ip || null,
+                userAgent: (req.headers["user-agent"] as string) || null,
+              },
+            });
+          } catch (auditErr) {
+            console.error("Failed to write setting audit log:", auditErr);
+          }
+        }
+      }
+      content = mergedContent;
+    }
 
     const page = await prisma.cmsPage.upsert({
       where: { slug },
@@ -393,6 +475,29 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
       } catch (syncErr) {
         console.error("Failed to sync system-platform-settings to SettingsService:", syncErr);
       }
+    }
+
+    if (slug === "system-platform-settings") {
+      const maskedContent = { ...((page.content as any) || {}) };
+      const SENSITIVE_KEYS = [
+        "razorpayKeySecret",
+        "paypalSecret",
+        "paypalClientSecret",
+        "stripeSecretKey",
+        "smtpPass",
+        "smtpPassword",
+        "pusherAppSecret",
+        "livekitApiSecret",
+        "slackClientSecret",
+      ];
+      for (const sk of SENSITIVE_KEYS) {
+        if (maskedContent[sk]) {
+          maskedContent[`has_${sk}`] = true;
+          maskedContent[`has${sk.charAt(0).toUpperCase()}${sk.slice(1)}`] = true;
+          maskedContent[sk] = "••••••••••••••••";
+        }
+      }
+      return res.json({ ...page, content: maskedContent });
     }
 
     return res.json(page);

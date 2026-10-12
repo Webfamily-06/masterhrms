@@ -27,12 +27,15 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const user = await prisma.user.findUnique({ where: { id: identity.userId }, include: { profile: true, roles: true } });
       if (!user) throw new Error("Account not found");
       const isSuper = user.roles.some((role) => role.role === "super_admin");
-      const tenantId = isSuper ? identity.tenantId : user.profile?.tenantId;
-      if (!tenantId) throw new Error("Workspace context required");
-      const policy = await getWorkspacePolicy(tenantId);
-      if (!isSuper) assertWorkspaceActive(policy);
+      const tenantId = isSuper ? (identity.tenantId || null) : (user.profile?.tenantId || null);
+      if (!isSuper && !tenantId) throw new Error("Workspace context required");
+      let policy: any = null;
+      if (tenantId) {
+        policy = await getWorkspacePolicy(tenantId);
+        if (!isSuper) assertWorkspaceActive(policy);
+      }
       const tokenExpiry = Number((identity as any).exp) * 1000;
-      const expiry = !isSuper && policy.expiresAt ? Math.min(tokenExpiry, new Date(policy.expiresAt).getTime()) : tokenExpiry;
+      const expiry = !isSuper && policy?.expiresAt ? Math.min(tokenExpiry, new Date(policy.expiresAt).getTime()) : tokenExpiry;
       socket.data = { tenantId, userId: user.id, name: user.profile?.fullName || user.email, avatar: user.profile?.avatarUrl, isSuper, expiry };
       next();
     } catch { next(new Error("Workspace authentication required")); }
@@ -40,14 +43,21 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
 
   ioInstance.on("connection", (socket: Socket) => {
     console.log(`⚡ [WebSocket] Client connected: ${socket.id}`);
-    socket.join(`tenant:${socket.data.tenantId}`);
+    if (socket.data.isSuper) {
+      socket.join("platform:admin");
+    }
+    if (socket.data.tenantId) {
+      socket.join(`tenant:${socket.data.tenantId}`);
+    }
     socket.join(`user:${socket.data.userId}`);
     const expiryTimer = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(socket.data.expiry - Date.now(), 2147483647)));
     expiryTimer.unref();
     socket.use(async (_packet, next) => {
       try {
         verifyToken(socket.handshake.auth?.token || "");
-        if (!socket.data.isSuper) assertWorkspaceActive(await getWorkspacePolicy(socket.data.tenantId));
+        if (socket.data.tenantId && !socket.data.isSuper) {
+          assertWorkspaceActive(await getWorkspacePolicy(socket.data.tenantId));
+        }
         next();
       } catch { socket.disconnect(true); next(new Error("Workspace access expired")); }
     });
@@ -128,6 +138,11 @@ export function getIO(): SocketIOServer | null {
 export function broadcastToTenant(tenantId: string, event: string, payload: any) {
   if (!ioInstance) return;
   ioInstance.to(`tenant:${tenantId}`).emit(event, payload);
+}
+
+export function broadcastToPlatform(event: string, payload: any) {
+  if (!ioInstance) return;
+  ioInstance.to("platform:admin").emit(event, payload);
 }
 
 export function broadcastToAll(event: string, payload: any) {

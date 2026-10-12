@@ -26,8 +26,8 @@ import { cn } from "@/lib/utils";
 import { resolveDefaultRoute } from "@/lib/auth-navigation";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
 import { NotFoundView } from "@/components/error-pages/not-found-view";
+import { ForbiddenView } from "@/components/error-pages/forbidden-view";
 import { isTenantWorkspaceHost } from "@/lib/platform-domain";
-import { Super06LoginPage } from "@/routes/super06";
 import { useAppConfig } from "@/lib/useAppConfig";
 import { useThemeMode } from "@/lib/theme";
 
@@ -466,8 +466,36 @@ function SuperShell() {
   const hasToken = typeof window !== "undefined" && !!localStorage.getItem("hrms_auth_token");
   const isSuperAdmin = profile?.roles?.includes("super_admin");
 
-  if (!hasToken || (!isLoading && profile && !isSuperAdmin)) {
-    return <Super06LoginPage />;
+  useEffect(() => {
+    if (!hasToken) {
+      navigate({ to: "/super06" });
+    }
+  }, [hasToken, navigate]);
+
+  if (!hasToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (profile && !isSuperAdmin) {
+    return (
+      <ForbiddenView
+        requiredRole="super_admin"
+        customTitle="403 — Super Admin Authorization Required"
+        customMessage="This administrative console is strictly restricted to Master HRMS platform super-administrators. Your workspace account does not possess the required platform role."
+      />
+    );
   }
 
   async function handleSignOut() {

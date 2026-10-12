@@ -103,12 +103,13 @@ export class AuditService {
   public static async log(params: {
     tenantId: string;
     actorId?: string | null;
+    userId?: string | null;
     actorEmail?: string | null;
     action: string;
     entity?: string;
     entityType?: string;
     resourceType?: string;
-
+    changes?: any;
     entityId?: string;
     resourceId?: string;
     details?: any;
@@ -116,12 +117,12 @@ export class AuditService {
   }, tx?: PrismaClient | any) {
     return this.logMutation({
       tenantId: params.tenantId,
-      actorId: params.actorId,
+      actorId: params.actorId || params.userId,
       actorEmail: params.actorEmail,
       action: params.action,
       entityType: params.entityType || params.resourceType || params.entity || "SYSTEM",
       entityId: params.entityId || params.resourceId || "unknown",
-      metadata: params.metadata || params.details,
+      metadata: params.metadata || params.details || params.changes,
     }, tx);
   }
 

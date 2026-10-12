@@ -231,7 +231,7 @@ tenantDomainRouter.post(
       // Check mock test headers or options
       const mockSuccess =
         req.headers["x-test-mock-dns"] === "true" ||
-        process.env.MOCK_DNS_VERIFY === "true";
+        (process.env.NODE_ENV === "test" && process.env.MOCK_DNS_VERIFY === "true");
       const mockFailReason = req.headers["x-test-mock-dns-fail"] as string | undefined;
 
       // Run real or simulated server-side DNS verification

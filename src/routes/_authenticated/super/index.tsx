@@ -89,24 +89,24 @@ function SuperDashboard() {
           api.get("/super/transactions").catch(() => []),
         ]);
         return {
-          totalTenants: superStats?.totalTenants ?? tenants?.length ?? 5468,
-          activeTenants: superStats?.activeTenants ?? 4598,
-          totalUsers: superStats?.totalUsers ?? 3698,
-          mrr: superStats?.mrr ?? 89878,
+          totalTenants: superStats?.totalTenants ?? tenants?.length ?? 0,
+          activeTenants: superStats?.activeTenants ?? 0,
+          totalUsers: superStats?.totalUsers ?? 0,
+          mrr: superStats?.mrr ?? 0,
           todayNewTenants: tenants?.filter((t: any) => {
             const today = new Date().toDateString();
             return new Date(t.createdAt).toDateString() === today;
-          }).length || 14,
+          }).length || 0,
           tenantsList: tenants || [],
           transactionsList: txns || [],
         };
       } catch {
         return {
-          totalTenants: 5468,
-          activeTenants: 4598,
-          totalUsers: 3698,
-          mrr: 89878,
-          todayNewTenants: 14,
+          totalTenants: 0,
+          activeTenants: 0,
+          totalUsers: 0,
+          mrr: 0,
+          todayNewTenants: 0,
           tenantsList: [],
           transactionsList: [],
         };

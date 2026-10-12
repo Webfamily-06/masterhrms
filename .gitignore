@@ -51,6 +51,8 @@ Thumbs.db
 
 # Database dumps
 master_hrms_production_dump.sql
+server/backups/
+*.sql.gz
 
 # Environment / secrets
 .env

@@ -6,6 +6,7 @@ import { AuditService } from "../services/audit.service";
 import { OutboxService } from "../services/outbox.service";
 import { NotificationService } from "../services/notification.service";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { broadcastToTenant } from "../socket";
 
 export const employeeSelfServiceRouter = Router();
 
@@ -389,6 +390,14 @@ employeeSelfServiceRouter.post("/attendance/check-in", async (req: EmployeeAuthR
       },
     });
 
+    broadcastToTenant(tenantId, "punch:new", {
+      type: "check_in",
+      employeeId,
+      employeeName: `${req.employee!.firstName} ${req.employee!.lastName}`.trim(),
+      time: now.toLocaleTimeString(),
+      timestamp: now.toISOString(),
+    });
+
     return res.json({
       success: true,
       message: "Check-in punch recorded successfully.",
@@ -434,6 +443,15 @@ employeeSelfServiceRouter.post("/attendance/check-out", async (req: EmployeeAuth
         checkOut: now,
         hours,
       },
+    });
+
+    broadcastToTenant(tenantId, "punch:new", {
+      type: "check_out",
+      employeeId,
+      employeeName: `${req.employee!.firstName} ${req.employee!.lastName}`.trim(),
+      time: now.toLocaleTimeString(),
+      hours,
+      timestamp: now.toISOString(),
     });
 
     return res.json({

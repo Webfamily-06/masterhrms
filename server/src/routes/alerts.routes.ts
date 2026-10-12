@@ -377,7 +377,7 @@ alertsRouter.post("/gateway/config", requireAuth, async (req: AuthRequest, res: 
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const result = await MessagingGatewayService.saveTenantConfig(tenantId, req.body, req.user?.id);
+    const result = await MessagingGatewayService.saveTenantConfig(tenantId, req.body, req.user?.userId);
     return res.json({ success: true, ...result });
   } catch (err: any) {
     return res.status(400).json({ error: err.message || "Failed to save messaging config" });
@@ -393,7 +393,7 @@ alertsRouter.post("/gateway/test", requireAuth, async (req: AuthRequest, res: Re
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const result = await MessagingGatewayService.testProviderConnection(tenantId, req.user?.id);
+    const result = await MessagingGatewayService.testProviderConnection(tenantId, req.user?.userId);
     return res.json({ success: result.ok, ...result });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to test provider connection" });
@@ -424,7 +424,7 @@ alertsRouter.post("/sms/send", requireAuth, requireEntitlement("sms-gateway"), a
         templateParams,
         idempotencyKey,
       },
-      req.user?.id
+      req.user?.userId
     );
 
     return res.json({ success: true, delivery });

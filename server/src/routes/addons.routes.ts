@@ -54,7 +54,7 @@ addonsRouter.get("/entitlements", async (req: AuthRequest, res: Response) => {
 
     if (activeSub?.plan) {
       const planName = (activeSub.plan.name || "").toLowerCase();
-      const planSlug = (activeSub.plan.slug || "").toLowerCase();
+      const planSlug = ((activeSub.plan as any).slug || "").toLowerCase();
       const features = Array.isArray(activeSub.plan.features) ? activeSub.plan.features : [];
       const isSovereignOrGrowth =
         planName.includes("sovereign") ||

@@ -22,7 +22,10 @@ import {
   getEffectiveRequestHost,
 } from "../lib/workspace-host";
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
+import { SettingsService } from "../services/settings/settings.service";
+import { OAuthFactory } from "../services/factories/oauth.factory";
 
+export { OAuthFactory };
 export const authRouter = Router();
 
 function generateBackupCodes(count = 8): string[] {
@@ -1611,61 +1614,7 @@ authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) 
 // ─── OAuth 2.0 Configuration & Social Login Handlers ─────────────────────────
 
 async function getPlatformOAuthConfig(req?: any) {
-  try {
-    const page = await prisma.cmsPage.findUnique({
-      where: { slug: "system-platform-settings" },
-    });
-    const c = (page?.content as any) || {};
-
-    // Dynamic Host Resolution: If custom domain configured, use it; otherwise detect from request headers
-    const reqHost = req ? `${req.protocol}://${req.get("host")}` : "http://localhost:4000";
-    const oauthBaseUrl = (c.oauthBaseUrl || reqHost || "http://localhost:4000").replace(/\/+$/, "");
-    const frontendBaseUrl = (c.frontendBaseUrl || (req ? `${req.protocol}://${req.hostname}:8080` : "http://localhost:8080")).replace(/\/+$/, "");
-
-    return {
-      oauthBaseUrl,
-      frontendBaseUrl,
-      google: {
-        enabled: c.googleEnabled ?? true,
-        clientId: c.googleClientId || process.env.GOOGLE_CLIENT_ID || "",
-        clientSecret: c.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET || "",
-        callbackUrl: c.googleCallbackUrl || `${oauthBaseUrl}/api/auth/oauth/google/callback`,
-        scope: c.googleScope || "openid email profile",
-      },
-      apple: {
-        enabled: c.appleEnabled ?? true,
-        clientId: c.appleClientId || process.env.APPLE_CLIENT_ID || "",
-        teamId: c.appleTeamId || "",
-        keyId: c.appleKeyId || "",
-        privateKey: c.applePrivateKey || "",
-        callbackUrl: c.appleCallbackUrl || `${oauthBaseUrl}/api/auth/oauth/apple/callback`,
-      },
-      linkedin: {
-        enabled: c.linkedinEnabled ?? true,
-        clientId: c.linkedinClientId || process.env.LINKEDIN_CLIENT_ID || "",
-        clientSecret: c.linkedinClientSecret || process.env.LINKEDIN_CLIENT_SECRET || "",
-        callbackUrl: c.linkedinCallbackUrl || `${oauthBaseUrl}/api/auth/oauth/linkedin/callback`,
-        scope: c.linkedinScope || "openid profile email",
-      },
-      facebook: {
-        enabled: c.facebookEnabled ?? true,
-        appId: c.facebookAppId || process.env.FACEBOOK_APP_ID || "",
-        appSecret: c.facebookAppSecret || process.env.FACEBOOK_APP_SECRET || "",
-        callbackUrl: c.facebookCallbackUrl || `${oauthBaseUrl}/api/auth/oauth/facebook/callback`,
-        scope: c.facebookScope || "email,public_profile",
-      },
-    };
-  } catch {
-    const defaultBase = req ? `${req.protocol}://${req.get("host")}` : "http://localhost:4000";
-    return {
-      oauthBaseUrl: defaultBase,
-      frontendBaseUrl: "http://localhost:8080",
-      google: { enabled: true, clientId: "", clientSecret: "", callbackUrl: `${defaultBase}/api/auth/oauth/google/callback`, scope: "openid email profile" },
-      apple: { enabled: true, clientId: "", teamId: "", keyId: "", privateKey: "", callbackUrl: `${defaultBase}/api/auth/oauth/apple/callback` },
-      linkedin: { enabled: true, clientId: "", clientSecret: "", callbackUrl: `${defaultBase}/api/auth/oauth/linkedin/callback`, scope: "openid profile email" },
-      facebook: { enabled: true, appId: "", appSecret: "", callbackUrl: `${defaultBase}/api/auth/oauth/facebook/callback`, scope: "email,public_profile" },
-    };
-  }
+  return OAuthFactory.resolveConfig(req);
 }
 
 // GET /api/auth/oauth/config (Public endpoint for frontend auth buttons)
@@ -1678,6 +1627,14 @@ authRouter.get("/oauth/config", async (req, res) => {
         enabled: Boolean(config.google.enabled && config.google.clientId),
         configured: Boolean(config.google.clientId),
       },
+      github: {
+        enabled: Boolean(config.github.enabled && config.github.clientId),
+        configured: Boolean(config.github.clientId),
+      },
+      microsoft: {
+        enabled: Boolean(config.microsoft.enabled && config.microsoft.clientId),
+        configured: Boolean(config.microsoft.clientId),
+      },
       apple: {
         enabled: Boolean(config.apple.enabled && config.apple.clientId),
         configured: Boolean(config.apple.clientId),
@@ -1689,6 +1646,32 @@ authRouter.get("/oauth/config", async (req, res) => {
       facebook: {
         enabled: Boolean(config.facebook.enabled && config.facebook.appId),
         configured: Boolean(config.facebook.appId),
+      },
+      providers: {
+        google: {
+          enabled: Boolean(config.google.enabled && config.google.clientId),
+          configured: Boolean(config.google.clientId),
+        },
+        github: {
+          enabled: Boolean(config.github.enabled && config.github.clientId),
+          configured: Boolean(config.github.clientId),
+        },
+        microsoft: {
+          enabled: Boolean(config.microsoft.enabled && config.microsoft.clientId),
+          configured: Boolean(config.microsoft.clientId),
+        },
+        apple: {
+          enabled: Boolean(config.apple.enabled && config.apple.clientId),
+          configured: Boolean(config.apple.clientId),
+        },
+        linkedin: {
+          enabled: Boolean(config.linkedin.enabled && config.linkedin.clientId),
+          configured: Boolean(config.linkedin.clientId),
+        },
+        facebook: {
+          enabled: Boolean(config.facebook.enabled && config.facebook.appId),
+          configured: Boolean(config.facebook.appId),
+        },
       },
     });
   } catch (err: any) {
@@ -1720,6 +1703,34 @@ authRouter.get("/oauth/:provider", async (req, res) => {
       state,
     });
     authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  } else if (provider === "github") {
+    if (!config.github.clientId) {
+      return res.redirect(
+        `${config.frontendBaseUrl}/auth?error=${encodeURIComponent("GitHub OAuth Client ID is not configured yet in Super Admin Settings.")}`,
+      );
+    }
+    const params = new URLSearchParams({
+      client_id: config.github.clientId,
+      redirect_uri: config.github.callbackUrl,
+      scope: config.github.scope,
+      state,
+    });
+    authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
+  } else if (provider === "microsoft") {
+    if (!config.microsoft.clientId) {
+      return res.redirect(
+        `${config.frontendBaseUrl}/auth?error=${encodeURIComponent("Microsoft OAuth Client ID is not configured yet in Super Admin Settings.")}`,
+      );
+    }
+    const params = new URLSearchParams({
+      client_id: config.microsoft.clientId,
+      response_type: "code",
+      redirect_uri: config.microsoft.callbackUrl,
+      response_mode: "query",
+      scope: config.microsoft.scope,
+      state,
+    });
+    authUrl = `https://login.microsoftonline.com/${config.microsoft.tenantId || "common"}/oauth2/v2.0/authorize?${params.toString()}`;
   } else if (provider === "apple") {
     if (!config.apple.clientId) {
       return res.redirect(
@@ -1869,6 +1880,77 @@ async function handleOAuthCallback(req: any, res: Response) {
       // Apple handles email on first authorization
       email = req.body?.user ? JSON.parse(req.body.user).email : `apple_${Date.now()}@privaterelay.appleid.com`;
       fullName = "Apple User";
+    } else if (provider === "github") {
+      // 1. Exchange code for GitHub token
+      const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          client_id: config.github.clientId,
+          client_secret: config.github.clientSecret,
+          code,
+          redirect_uri: config.github.callbackUrl,
+        }),
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        throw new Error(tokenData.error_description || "Failed to exchange GitHub authorization token");
+      }
+
+      // 2. Fetch user profile
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          "User-Agent": "MasterHRMS-OAuth",
+        },
+      });
+      const userData = await userRes.json();
+      email = userData.email;
+      fullName = userData.name || userData.login || email?.split("@")[0] || "GitHub User";
+      avatarUrl = userData.avatar_url || "";
+
+      if (!email) {
+        const emailRes = await fetch("https://api.github.com/user/emails", {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "User-Agent": "MasterHRMS-OAuth",
+          },
+        });
+        const emails = await emailRes.json();
+        if (Array.isArray(emails)) {
+          const primary = emails.find((e: any) => e.primary && e.verified) || emails[0];
+          if (primary?.email) email = primary.email;
+        }
+      }
+    } else if (provider === "microsoft") {
+      // 1. Exchange code for Microsoft token
+      const tenant = config.microsoft.tenantId || "common";
+      const tokenRes = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: config.microsoft.clientId,
+          client_secret: config.microsoft.clientSecret,
+          code,
+          redirect_uri: config.microsoft.callbackUrl,
+          grant_type: "authorization_code",
+        }),
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        throw new Error(tokenData.error_description || "Failed to exchange Microsoft authorization token");
+      }
+
+      // 2. Fetch user profile from Microsoft Graph
+      const userRes = await fetch("https://graph.microsoft.com/v1.0/me", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const userData = await userRes.json();
+      email = userData.mail || userData.userPrincipalName;
+      fullName = userData.displayName || `${userData.givenName || ""} ${userData.surname || ""}`.trim() || email?.split("@")[0] || "Microsoft User";
     }
 
     if (!email) {

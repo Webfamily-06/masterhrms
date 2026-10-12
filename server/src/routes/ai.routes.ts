@@ -865,7 +865,7 @@ aiRouter.post("/engine/config", requireAuth, async (req: AuthRequest, res: Respo
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
-    const result = await AiAutomationService.saveTenantConfig(tenantId, req.body, req.user?.id);
+    const result = await AiAutomationService.saveTenantConfig(tenantId, req.body, req.user?.userId);
     return res.json({ success: true, ...result });
   } catch (err: any) {
     return res.status(400).json({ error: err.message || "Failed to save AI engine config" });
@@ -888,7 +888,7 @@ aiRouter.post("/ocr/process", requireAuth, requireEntitlement("ai-ocr"), async (
       fileName,
       fileSizeBytes,
       mimeType,
-      actorId: req.user?.id,
+      actorId: req.user?.userId,
       overrideConfidence,
       overrideTotal,
     });

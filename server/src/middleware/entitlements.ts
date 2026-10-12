@@ -109,44 +109,45 @@ export async function checkTenantEntitlement(
   }
 
   // 3. Check TenantAddon (active, trial, or expired)
+  const candidateAddonSlugs = new Set<string>([normalized, key]);
+  if (normalized.includes("google-workspace")) {
+    candidateAddonSlugs.add("google-workspace");
+    candidateAddonSlugs.add("google-workspace-integration");
+  }
+  if (normalized.includes("woocommerce")) {
+    candidateAddonSlugs.add("woocommerce");
+    candidateAddonSlugs.add("woocommerce-sync");
+  }
+  if (normalized.includes("shopify")) {
+    candidateAddonSlugs.add("shopify");
+    candidateAddonSlugs.add("shopify-sync");
+  }
+  if (normalized.includes("razorpay")) {
+    candidateAddonSlugs.add("razorpay");
+    candidateAddonSlugs.add("razorpay-gateway");
+  }
+  if (normalized.includes("whatsapp")) {
+    candidateAddonSlugs.add("whatsapp");
+    candidateAddonSlugs.add("whatsapp-alerts");
+  }
+  if (normalized.includes("tally")) {
+    candidateAddonSlugs.add("tally");
+    candidateAddonSlugs.add("tally-importer");
+  }
+  if (normalized.includes("biometric")) {
+    candidateAddonSlugs.add("biometric");
+    candidateAddonSlugs.add("biometric-sync");
+  }
+  if (normalized.includes("okr")) {
+    candidateAddonSlugs.add("okr");
+    candidateAddonSlugs.add("okr-performance");
+  }
+  if (normalized.includes("asset")) {
+    candidateAddonSlugs.add("assets");
+    candidateAddonSlugs.add("asset-management");
+  }
+
   try {
-    const candidateAddonSlugs = new Set<string>([normalized, key]);
-    if (normalized.includes("google-workspace")) {
-      candidateAddonSlugs.add("google-workspace");
-      candidateAddonSlugs.add("google-workspace-integration");
-    }
-    if (normalized.includes("woocommerce")) {
-      candidateAddonSlugs.add("woocommerce");
-      candidateAddonSlugs.add("woocommerce-sync");
-    }
-    if (normalized.includes("shopify")) {
-      candidateAddonSlugs.add("shopify");
-      candidateAddonSlugs.add("shopify-sync");
-    }
-    if (normalized.includes("razorpay")) {
-      candidateAddonSlugs.add("razorpay");
-      candidateAddonSlugs.add("razorpay-gateway");
-    }
-    if (normalized.includes("whatsapp")) {
-      candidateAddonSlugs.add("whatsapp");
-      candidateAddonSlugs.add("whatsapp-alerts");
-    }
-    if (normalized.includes("tally")) {
-      candidateAddonSlugs.add("tally");
-      candidateAddonSlugs.add("tally-importer");
-    }
-    if (normalized.includes("biometric")) {
-      candidateAddonSlugs.add("biometric");
-      candidateAddonSlugs.add("biometric-sync");
-    }
-    if (normalized.includes("okr")) {
-      candidateAddonSlugs.add("okr");
-      candidateAddonSlugs.add("okr-performance");
-    }
-    if (normalized.includes("asset")) {
-      candidateAddonSlugs.add("assets");
-      candidateAddonSlugs.add("asset-management");
-    }
 
     const addonRecord = await db.tenantAddon.findFirst({
       where: {
@@ -264,7 +265,7 @@ export async function checkTenantEntitlement(
       }
 
       // Included add-ons check
-      const rawAddons = Array.isArray(sub.plan.includedAddonIds) ? (sub.plan.includedAddonIds as any[]) : [];
+      const rawAddons = Array.isArray((sub.plan as any)?.includedAddonIds) ? ((sub.plan as any).includedAddonIds as any[]) : [];
       const includedAddonIds: string[] = rawAddons.map((a) => String(a).toLowerCase());
       const hasIncluded = Array.from(candidateAddonSlugs).some((s) => includedAddonIds.includes(s.toLowerCase()));
       if (hasIncluded) {

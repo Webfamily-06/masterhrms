@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
-import { storageService } from "../services/storage/local-encrypted-storage.service";
+import { StorageFactory } from "../services/factories/storage.factory";
 
 export const documentsRouter = Router();
 
@@ -358,8 +358,9 @@ documentsRouter.get("/:id/stream", requireAuth, async (req: AuthRequest, res: Re
       });
     }
 
-    // 3. Decrypt and stream from local encrypted repository
-    const { stream, metadata } = await storageService.getStream(tenantId, id);
+    // 3. Decrypt and stream from active tenant storage driver
+    const storage = await StorageFactory.getDriver("TENANT", tenantId);
+    const { stream, metadata } = await storage.getStream(tenantId, id);
 
     // 4. Hardened Security Headers
     res.setHeader("Content-Type", metadata.mimeType || "application/octet-stream");

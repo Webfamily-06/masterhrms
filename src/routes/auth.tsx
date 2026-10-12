@@ -58,11 +58,12 @@ function AuthPage() {
   const qc = useQueryClient();
   const { appConfig } = useAppConfig();
   const { branding } = useTenantBranding();
+  const isResetFlow = initialMode === "reset" || (Boolean(searchToken) && !searchToken?.includes("."));
   const [mode, setMode] = useState<"signin" | "signup" | "forgot" | "reset" | "verify">(
-    searchToken ? "reset" : (initialMode ?? "signin")
+    isResetFlow ? "reset" : (initialMode ?? "signin")
   );
   const [email, setEmail] = useState(searchEmail || "");
-  const [resetToken, setResetToken] = useState(searchToken || "");
+  const [resetToken, setResetToken] = useState(isResetFlow ? (searchToken || "") : "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -71,16 +72,16 @@ function AuthPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Sync token from URL query params (e.g., when arriving via email reset link)
+  // Sync token from URL query params (only when arriving via an explicit password reset link)
   useEffect(() => {
-    if (searchToken) {
+    if (isResetFlow && searchToken) {
       setResetToken(searchToken);
       setMode("reset");
     }
     if (searchEmail) {
       setEmail(searchEmail);
     }
-  }, [searchToken, searchEmail]);
+  }, [searchToken, searchEmail, isResetFlow]);
 
   // OTP Verification state (Forgot password / Verify email)
   const [otpCode, setOtpCode] = useState("");
@@ -158,11 +159,34 @@ function AuthPage() {
   const footerText = appConfig.footerText || branding.footerText || "© 2026 Master HRMS. All rights reserved.";
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
+  const githubVisible = Boolean(oauthConfig?.github?.enabled);
+  const microsoftVisible = Boolean(oauthConfig?.microsoft?.enabled);
   const appleVisible = Boolean(oauthConfig?.apple?.enabled);
   const linkedinVisible = Boolean(oauthConfig?.linkedin?.enabled);
   const facebookVisible = Boolean(oauthConfig?.facebook?.enabled);
 
-  const secondaryProviders = [
+  type OAuthProviderItem = {
+    id: "google" | "github" | "microsoft" | "apple" | "linkedin" | "facebook";
+    name: string;
+    icon: React.ReactNode;
+  };
+
+  const enabledProviders: OAuthProviderItem[] = [
+    googleVisible && {
+      id: "google" as const,
+      name: "Google",
+      icon: <i className="ph-fill ph-google-logo text-base"></i>,
+    },
+    githubVisible && {
+      id: "github" as const,
+      name: "GitHub",
+      icon: <i className="ph-fill ph-github-logo text-base"></i>,
+    },
+    microsoftVisible && {
+      id: "microsoft" as const,
+      name: "Microsoft",
+      icon: <i className="ph-fill ph-microsoft-logo text-base"></i>,
+    },
     appleVisible && {
       id: "apple" as const,
       name: "Apple",
@@ -190,20 +214,20 @@ function AuthPage() {
         </svg>
       ),
     },
-  ].filter(Boolean) as { id: "apple" | "linkedin" | "facebook"; name: string; icon: any }[];
+  ].filter(Boolean) as OAuthProviderItem[];
 
-  const anySocialVisible = googleVisible || secondaryProviders.length > 0;
+  const anySocialVisible = enabledProviders.length > 0;
 
   useEffect(() => {
-    // If it's a password reset flow, searchToken is the one-time reset token, NOT an OAuth login token!
-    if (initialMode === "reset" || mode === "reset") {
+    // If it's explicitly a password reset flow, searchToken is the one-time reset token, NOT an authentication token!
+    if (isResetFlow) {
       return;
     }
 
     if (searchToken) {
       setToken(searchToken);
       qc.invalidateQueries({ queryKey: ["current-session-user"] });
-      toast.success(`Successfully signed in with ${searchProvider ? searchProvider.toUpperCase() : "OAuth"}!`);
+      toast.success(`Successfully signed in${searchProvider ? ` with ${searchProvider.toUpperCase()}` : ""}!`);
       const { roles, isImpersonating } = extractRolesFromToken(searchToken);
       navigate({ to: resolveDefaultRoute(roles, redirect, { isImpersonating }) });
       return;
@@ -927,25 +951,22 @@ function AuthPage() {
             {mode === "signin" && anySocialVisible && (
               <>
                 <div className="text-center text-sm text-default">Or sign in with</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = `${API_BASE}/auth/oauth/google`;
-                    }}
-                    className="border border-border-color rounded-md py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <i className="ph-fill ph-google-logo text-base"></i> Google
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = `${API_BASE}/auth/oauth/apple`;
-                    }}
-                    className="border border-border-color rounded-md py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <i className="ph-fill ph-apple-logo text-base"></i> Apple
-                  </button>
+                <div className={cn(
+                  "grid gap-2",
+                  enabledProviders.length === 1 ? "grid-cols-1" : "grid-cols-2"
+                )}>
+                  {enabledProviders.map((prov) => (
+                    <button
+                      key={prov.id}
+                      type="button"
+                      onClick={() => {
+                        window.location.href = `${API_BASE}/auth/oauth/${prov.id}`;
+                      }}
+                      className="border border-border-color rounded-md py-2 px-3 text-sm text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer flex items-center justify-center gap-2 transition-colors"
+                    >
+                      {prov.icon} {prov.name}
+                    </button>
+                  ))}
                 </div>
               </>
             )}

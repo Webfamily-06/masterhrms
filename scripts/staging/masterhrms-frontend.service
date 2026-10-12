@@ -1,0 +1,20 @@
+[Unit]
+Description=MASTERHRMS Staging Frontend Service
+After=network.target
+
+[Service]
+Type=simple
+User=hrms
+Group=hrms
+WorkingDirectory=/opt/masterhrms
+EnvironmentFile=/opt/masterhrms/.env.staging
+ExecStart=/usr/bin/npm run preview -- --port 5173 --host 0.0.0.0
+Restart=always
+RestartSec=5s
+StandardOutput=append:/var/log/masterhrms/frontend.log
+StandardError=append:/var/log/masterhrms/frontend-err.log
+LimitNOFILE=65535
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target

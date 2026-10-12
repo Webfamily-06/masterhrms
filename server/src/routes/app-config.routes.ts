@@ -7,6 +7,7 @@ import { WorkspaceHostRequest } from "../middleware/workspace-host.middleware";
 import { getEffectiveRequestHost } from "../lib/workspace-host";
 import { verifyToken } from "../lib/jwt";
 import { prisma, rawPrisma } from "../prisma";
+import { getPlatformMaintenanceConfig, evaluateMaintenanceStatus } from "../middleware/maintenance";
 
 export const appConfigRouter = Router();
 
@@ -93,6 +94,9 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       supportEmail: resolved.supportEmail,
     };
 
+    const maintConfig = await getPlatformMaintenanceConfig();
+    const maintEvaluation = evaluateMaintenanceStatus(maintConfig);
+
     const config = {
       scope: resolution.scope,
       tenantId: resolution.tenantId,
@@ -109,6 +113,10 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       faviconUrl: resolved.faviconUrl,
       footerText: resolved.footerText,
       locale: resolved.locale,
+      maintenance: {
+        active: maintEvaluation.isActive,
+        message: maintConfig.maintenanceNoticeMessage || null,
+      },
       isWhiteLabeled: resolution.scope === "TENANT",
       version: resolved.version,
       timestamp: new Date().toISOString(),

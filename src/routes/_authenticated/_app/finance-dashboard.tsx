@@ -35,7 +35,7 @@ export default function FinanceDashboardPage() {
     queryKey: ["finance-dashboard-metrics"],
     queryFn: async () => {
       try {
-        const res = await api.get("/dashboard/hrm");
+        const res = await api.get<any>("/dashboard/finance");
         return res;
       } catch (err) {
         return null;
@@ -320,35 +320,41 @@ export default function FinanceDashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {[
-              { id: "#INV0020", client: "Apex Computers", amount: "$10,000", status: "Paid", color: "text-emerald-600 bg-emerald-500/10", icon: "ph-desktop-tower", iconColor: "text-amber-500" },
-              { id: "#INV0019", client: "Beats Headphones", amount: "$5,000", status: "Unpaid", color: "text-amber-600 bg-amber-500/10", icon: "ph-headphones", iconColor: "text-blue-500" },
-              { id: "#INV0018", client: "Dazzle Shoes", amount: "$25,000", status: "Canceled", color: "text-rose-600 bg-rose-500/10", icon: "ph-sneaker", iconColor: "text-pink-500" },
-              { id: "#INV0017", client: "Best Accessories", amount: "$15,500", status: "Partially", color: "text-blue-600 bg-blue-500/10", icon: "ph-shopping-bag", iconColor: "text-purple-600" },
-              { id: "#INV0016", client: "A-Z Store", amount: "$34,000", status: "Overdue", color: "text-amber-600 bg-amber-500/10", icon: "ph-storefront", iconColor: "text-emerald-500" },
-            ].map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between gap-3 sm:grid sm:grid-cols-12">
-                <div className="flex items-center gap-2 min-w-0 sm:col-span-6">
-                  <div className="size-9 rounded-md bg-light dark:bg-slate-800 flex items-center justify-center shrink-0">
-                    <i className={cn("ph-duotone text-base", inv.icon, inv.iconColor)}></i>
+            {financeData?.recentInvoices && financeData.recentInvoices.length > 0 ? (
+              financeData.recentInvoices.map((inv: any) => (
+                <div key={inv.id} className="flex items-center justify-between gap-3 sm:grid sm:grid-cols-12">
+                  <div className="flex items-center gap-2 min-w-0 sm:col-span-6">
+                    <div className="size-9 rounded-md bg-light dark:bg-slate-800 flex items-center justify-center shrink-0">
+                      <i className="ph-duotone ph-receipt text-base text-primary"></i>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-primary hover:underline font-mono mb-0 cursor-pointer">
+                        {inv.invoiceNo || `#INV-${inv.id.slice(0, 6)}`}
+                      </p>
+                      <p className="text-xs font-semibold text-title truncate mb-0">{inv.clientName}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-primary hover:underline font-mono mb-0 cursor-pointer">{inv.id}</p>
-                    <p className="text-xs font-semibold text-title truncate mb-0">{inv.client}</p>
+                  <div className="min-w-0 text-start hidden sm:block sm:col-span-3">
+                    <p className="text-[10px] text-default mb-0">Amount</p>
+                    <p className="text-xs font-bold text-title mb-0">${Number(inv.amount || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-end sm:col-span-3">
+                    <p className="text-[10px] text-default mb-0">Status</p>
+                    <span className={cn(
+                      "text-[11px] px-2 py-0.5 rounded font-medium capitalize",
+                      inv.status === "paid" ? "text-emerald-600 bg-emerald-500/10" : "text-amber-600 bg-amber-500/10"
+                    )}>
+                      {inv.status || "unpaid"}
+                    </span>
                   </div>
                 </div>
-                <div className="min-w-0 text-start hidden sm:block sm:col-span-3">
-                  <p className="text-[10px] text-default mb-0">Amount</p>
-                  <p className="text-xs font-bold text-title mb-0">{inv.amount}</p>
-                </div>
-                <div className="text-end sm:col-span-3">
-                  <p className="text-[10px] text-default mb-0">Status</p>
-                  <span className={cn("text-[11px] px-2 py-0.5 rounded font-medium", inv.color)}>
-                    {inv.status}
-                  </span>
-                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                <i className="ph-duotone ph-receipt text-2xl mb-1 text-slate-400 block"></i>
+                No recent billing invoices found.
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
@@ -359,7 +365,9 @@ export default function FinanceDashboardPage() {
           <div className="flex justify-between mb-2 items-center">
             <div>
               <p className="text-xs text-default mb-1">Total Revenue</p>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">$125,000</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
+                ${Number(financeData?.totalRevenue ?? 0).toLocaleString()}
+              </h3>
             </div>
             <div className="size-9 rounded-md bg-orange-500/10 flex items-center justify-center shrink-0">
               <i className="ph-duotone ph-wallet text-orange-500 text-lg"></i>
@@ -367,9 +375,9 @@ export default function FinanceDashboardPage() {
           </div>
           <div className="flex items-center gap-2 text-[11px] pt-2 border-t border-border-color">
             <span className="text-emerald-600 font-medium inline-flex items-center">
-              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>+12.4%
+              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>Live
             </span>
-            <span className="text-default">Last 30 days</span>
+            <span className="text-default">database records</span>
           </div>
         </div>
 
@@ -377,7 +385,9 @@ export default function FinanceDashboardPage() {
           <div className="flex justify-between mb-2 items-center">
             <div>
               <p className="text-xs text-default mb-1">Total Expenses</p>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">$89,500</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
+                ${Number(financeData?.totalExpenses ?? 0).toLocaleString()}
+              </h3>
             </div>
             <div className="size-9 rounded-md bg-blue-500/10 flex items-center justify-center shrink-0">
               <i className="ph-duotone ph-credit-card text-blue-500 text-lg"></i>
@@ -385,9 +395,9 @@ export default function FinanceDashboardPage() {
           </div>
           <div className="flex items-center gap-2 text-[11px] pt-2 border-t border-border-color">
             <span className="text-rose-600 font-medium inline-flex items-center">
-              <i className="ph-bold ph-arrow-down text-[10px] me-0.5"></i>-6.8%
+              <i className="ph-bold ph-arrow-down text-[10px] me-0.5"></i>Live
             </span>
-            <span className="text-default">Last 30 days</span>
+            <span className="text-default">approved claims</span>
           </div>
         </div>
 
@@ -395,7 +405,9 @@ export default function FinanceDashboardPage() {
           <div className="flex justify-between mb-2 items-center">
             <div>
               <p className="text-xs text-default mb-1">Pending Invoices</p>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">12</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
+                {financeData?.unpaidInvoices ?? 0}
+              </h3>
             </div>
             <div className="size-9 rounded-md bg-pink-500/10 flex items-center justify-center shrink-0">
               <i className="ph-duotone ph-file-text text-pink-500 text-lg"></i>
@@ -403,9 +415,9 @@ export default function FinanceDashboardPage() {
           </div>
           <div className="flex items-center gap-2 text-[11px] pt-2 border-t border-border-color">
             <span className="text-emerald-600 font-medium inline-flex items-center">
-              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>+5.2%
+              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>Unpaid
             </span>
-            <span className="text-default">Last 30 days</span>
+            <span className="text-default">awaiting settlement</span>
           </div>
         </div>
 
@@ -413,7 +425,11 @@ export default function FinanceDashboardPage() {
           <div className="flex justify-between mb-2 items-center">
             <div>
               <p className="text-xs text-default mb-1">Budget Utilization</p>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">65%</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
+                {financeData?.totalRevenue > 0
+                  ? `${Math.min(100, Math.round((financeData.totalExpenses / financeData.totalRevenue) * 100))}%`
+                  : "0%"}
+              </h3>
             </div>
             <div className="size-9 rounded-md bg-purple-500/10 flex items-center justify-center shrink-0">
               <i className="ph-duotone ph-chart-bar text-purple-600 text-lg"></i>
@@ -421,9 +437,9 @@ export default function FinanceDashboardPage() {
           </div>
           <div className="flex items-center gap-2 text-[11px] pt-2 border-t border-border-color">
             <span className="text-emerald-600 font-medium inline-flex items-center">
-              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>+5.2%
+              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>Expense / Rev
             </span>
-            <span className="text-default">Last 30 days</span>
+            <span className="text-default">ratio</span>
           </div>
         </div>
 
@@ -431,7 +447,9 @@ export default function FinanceDashboardPage() {
           <div className="flex justify-between mb-2 items-center">
             <div>
               <p className="text-xs text-default mb-1">Net Profit / Loss</p>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">$35,500</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
+                ${Number(financeData?.netProfit ?? 0).toLocaleString()}
+              </h3>
             </div>
             <div className="size-9 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
               <i className="ph-duotone ph-trend-up text-emerald-600 text-lg"></i>
@@ -439,9 +457,9 @@ export default function FinanceDashboardPage() {
           </div>
           <div className="flex items-center gap-2 text-[11px] pt-2 border-t border-border-color">
             <span className="text-emerald-600 font-medium inline-flex items-center">
-              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>+18%
+              <i className="ph-bold ph-arrow-up text-[10px] me-0.5"></i>Net
             </span>
-            <span className="text-default">Last 30 days</span>
+            <span className="text-default">balance</span>
           </div>
         </div>
       </div>

@@ -9,27 +9,39 @@ import {
   getSettingDefinition,
   validateSettingValue,
 } from "./settings-registry";
-import { broadcastToAll, broadcastToTenant } from "../../socket";
+export { SettingScopeType } from "./settings-registry";
+import { broadcastToAll, broadcastToTenant, broadcastToPlatform } from "../../socket";
+import { MailerFactory } from "../factories/mailer.factory";
+import { OAuthFactory } from "../factories/oauth.factory";
+import { StorageFactory } from "../factories/storage.factory";
+import { SmsFactory } from "../factories/sms.factory";
 
 // ─── AES-256-GCM Secret Encryption Engine ────────────────────────
 const ENCRYPTION_SALT = "master-hrms-settings-secret-salt-v1";
-const RAW_KEY_MATERIAL =
-  process.env.ENCRYPTION_KEY ||
-  process.env.JWT_SECRET ||
-  "master-hrms-32-char-encryption-key-phrase!";
-const DERIVED_KEY = crypto.scryptSync(RAW_KEY_MATERIAL, ENCRYPTION_SALT, 32);
 
-export function encryptSecret(plaintext: string): {
+export function getDerivedEncryptionKey(): Buffer {
+  const rawKeyMaterial =
+    process.env.ENCRYPTION_KEY ||
+    process.env.JWT_SECRET ||
+    "master-hrms-32-char-encryption-key-phrase!";
+  return crypto.scryptSync(rawKeyMaterial, ENCRYPTION_SALT, 32);
+}
+
+export function encryptSecret(plaintext: string, customKey?: Buffer): {
   ciphertext: string;
   iv: string;
   authTag: string;
   keyVersion: number;
 } {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", DERIVED_KEY, iv);
+  if (typeof plaintext !== "string") {
+    throw new Error("Plaintext must be a string");
+  }
+  const key = customKey || getDerivedEncryptionKey();
+  const iv = crypto.randomBytes(12); // Standard 96-bit IV for GCM
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   let ciphertext = cipher.update(plaintext, "utf8", "hex");
   ciphertext += cipher.final("hex");
-  const authTag = cipher.getAuthTag().toString("hex");
+  const authTag = cipher.getAuthTag().toString("hex"); // 128-bit authentication tag
 
   return {
     ciphertext,
@@ -39,17 +51,42 @@ export function encryptSecret(plaintext: string): {
   };
 }
 
-export function decryptSecret(ciphertext: string, ivHex: string, authTagHex: string): string {
+export function decryptSecret(
+  ciphertext: string,
+  ivHex: string,
+  authTagHex: string,
+  customKey?: Buffer
+): string {
+  if (!ciphertext || !ivHex || !authTagHex) {
+    throw new Error("Missing ciphertext, IV, or authentication tag for decryption");
+  }
+  const key = customKey || getDerivedEncryptionKey();
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", DERIVED_KEY, iv);
+
+  if (iv.length !== 12) {
+    throw new Error(`Invalid IV length: expected 12 bytes, got ${iv.length}`);
+  }
+  if (authTag.length !== 16) {
+    throw new Error(`Invalid auth tag length: expected 16 bytes, got ${authTag.length}`);
+  }
+
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(authTag);
   let plaintext = decipher.update(ciphertext, "hex", "utf8");
   plaintext += decipher.final("utf8");
   return plaintext;
 }
 
-// ─── In-Memory Cache Store ─────────────────────────────────────────
+// ─── In-Memory TTL Cache Store ─────────────────────────────────────
+// NOTE ON MULTI-PROCESS CONSISTENCY:
+// In a single-process Node.js deployment, this in-memory Map provides microsecond reads.
+// In clustered/multi-process or multi-container deployments, each process maintains its own
+// local TTL cache. Cross-process invalidation is coordinated via WebSocket events ('settings.updated')
+// or cache expiry after CACHE_TTL_MS (60s). For distributed guarantees across worker pools,
+// a Redis-backed adapter can be swapped in without modifying caller interfaces.
+export const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
 interface CacheEntry {
   value: any;
   version: number;
@@ -102,80 +139,99 @@ export class SettingsService {
 
     const cacheKey = getCacheKey(scope, normScopeId, key);
     const cached = cacheStore.get(cacheKey);
-    if (cached) {
+    const now = Date.now();
+    if (cached && (now - cached.updatedAt < CACHE_TTL_MS) && !options.decryptSecrets) {
       return cached.value as T;
     }
 
-    // Try finding exact match
-    const row = await prisma.setting.findFirst({
-      where: {
-        scope,
-        ...(scope === "PLATFORM"
-          ? { OR: [{ scopeId: normScopeId }, { scopeId: null }, { scopeId: "global" }] }
-          : { scopeId: normScopeId }),
-        key,
-      },
-      include: {
-        secret: true,
-      },
-    });
-
-    if (row) {
-      let finalVal = row.valueJson;
-      if (row.isSecret && row.secret) {
-        if (options.decryptSecrets) {
-          try {
-            finalVal = decryptSecret(row.secret.ciphertext, row.secret.iv, row.secret.authTag);
-          } catch (err) {
-            console.error(`Failed to decrypt secret setting ${key}:`, err);
-            finalVal = null;
-          }
-        } else {
-          finalVal = { isSecret: true, set: true };
-        }
-      }
-
-      cacheStore.set(cacheKey, {
-        value: finalVal,
-        version: row.version,
-        updatedAt: Date.now(),
-      });
-      return finalVal as T;
-    }
-
-    // Fallback: If scope is TENANT or USER, fallback to PLATFORM
-    if (scope !== "PLATFORM") {
-      const platformScopeId = normalizeScopeId("PLATFORM", null);
-      const platformRow = await prisma.setting.findFirst({
+    try {
+      // Try finding exact match
+      const row = await prisma.setting.findFirst({
         where: {
-          scope: "PLATFORM",
-          OR: [{ scopeId: platformScopeId }, { scopeId: null }, { scopeId: "global" }],
+          scope,
+          ...(scope === "PLATFORM"
+            ? { OR: [{ scopeId: normScopeId }, { scopeId: null }, { scopeId: "global" }] }
+            : { scopeId: normScopeId }),
           key,
         },
-        include: { secret: true },
+        include: {
+          secret: true,
+        },
       });
-      if (platformRow) {
-        let finalVal = platformRow.valueJson;
-        if (platformRow.isSecret && platformRow.secret) {
+
+      if (row) {
+        let finalVal = row.valueJson;
+        if (row.isSecret && row.secret) {
           if (options.decryptSecrets) {
             try {
-              finalVal = decryptSecret(
-                platformRow.secret.ciphertext,
-                platformRow.secret.iv,
-                platformRow.secret.authTag
-              );
-            } catch {
+              finalVal = decryptSecret(row.secret.ciphertext, row.secret.iv, row.secret.authTag);
+            } catch (err) {
+              console.error(`Failed to decrypt secret setting ${key}:`, err);
               finalVal = null;
             }
           } else {
             finalVal = { isSecret: true, set: true };
           }
         }
+
+        // Only cache masked or non-secret values in memory
+        if (!options.decryptSecrets) {
+          cacheStore.set(cacheKey, {
+            value: finalVal,
+            version: row.version,
+            updatedAt: Date.now(),
+          });
+        }
         return finalVal as T;
       }
-    }
 
-    return defaultValue;
+      // Fallback: If scope is TENANT or USER, fallback to PLATFORM
+      if (scope !== "PLATFORM") {
+        const platformScopeId = normalizeScopeId("PLATFORM", null);
+        const platformRow = await prisma.setting.findFirst({
+          where: {
+            scope: "PLATFORM",
+            OR: [{ scopeId: platformScopeId }, { scopeId: null }, { scopeId: "global" }],
+            key,
+          },
+          include: { secret: true },
+        });
+        if (platformRow) {
+          let finalVal = platformRow.valueJson;
+          if (platformRow.isSecret && platformRow.secret) {
+            if (options.decryptSecrets) {
+              try {
+                finalVal = decryptSecret(
+                  platformRow.secret.ciphertext,
+                  platformRow.secret.iv,
+                  platformRow.secret.authTag
+                );
+              } catch {
+                finalVal = null;
+              }
+            } else {
+              finalVal = { isSecret: true, set: true };
+            }
+          }
+          if (!options.decryptSecrets) {
+            cacheStore.set(cacheKey, {
+              value: finalVal,
+              version: platformRow.version,
+              updatedAt: Date.now(),
+            });
+          }
+          return finalVal as T;
+        }
+      }
+
+      return defaultValue;
+    } catch (dbErr: any) {
+      console.warn(`[SettingsService.get] Database read failed for ${key}, falling back:`, dbErr?.message);
+      if (cached) {
+        return cached.value as T;
+      }
+      return defaultValue;
+    }
   }
 
   /**
@@ -186,7 +242,8 @@ export class SettingsService {
   static async getGroup(
     scopeOrGroup: SettingScopeType | string,
     scopeIdOrScope?: string | null | undefined,
-    groupOrScopeId?: string
+    groupOrScopeId?: string,
+    options: { decryptSecrets?: boolean } = {}
   ): Promise<{
     values: Record<string, any>;
     mediaUrls: Record<string, string>;
@@ -273,9 +330,20 @@ export class SettingsService {
       for (const pRow of platformRows) {
         maxVersion = Math.max(maxVersion, pRow.version);
         if (pRow.isSecret) {
-          const secretPlaceholder = { isSecret: true, set: !!pRow.secret };
-          platformValues[pRow.key] = secretPlaceholder;
-          values[pRow.key] = secretPlaceholder;
+          if (options.decryptSecrets && pRow.secret) {
+            try {
+              const decrypted = decryptSecret(pRow.secret.ciphertext, pRow.secret.iv, pRow.secret.authTag);
+              platformValues[pRow.key] = decrypted;
+              values[pRow.key] = decrypted;
+            } catch {
+              platformValues[pRow.key] = null;
+              values[pRow.key] = null;
+            }
+          } else {
+            const secretPlaceholder = { isSecret: true, set: !!pRow.secret };
+            platformValues[pRow.key] = secretPlaceholder;
+            values[pRow.key] = secretPlaceholder;
+          }
           sources[pRow.key] = "PLATFORM";
         } else if (pRow.valueJson !== null && pRow.valueJson !== undefined) {
           platformValues[pRow.key] = pRow.valueJson;
@@ -327,7 +395,15 @@ export class SettingsService {
     for (const row of rows) {
       maxVersion = Math.max(maxVersion, row.version);
       if (row.isSecret) {
-        values[row.key] = { isSecret: true, set: !!row.secret };
+        if (options.decryptSecrets && row.secret) {
+          try {
+            values[row.key] = decryptSecret(row.secret.ciphertext, row.secret.iv, row.secret.authTag);
+          } catch {
+            values[row.key] = null;
+          }
+        } else {
+          values[row.key] = { isSecret: true, set: !!row.secret };
+        }
         if (scope === "TENANT") {
           overrides[row.key] = true;
           sources[row.key] = "TENANT";
@@ -691,12 +767,29 @@ export class SettingsService {
         });
 
         changedKeys.push(key);
-        // Clear in-memory cache
+        // Clear in-memory cache for this setting
         cacheStore.delete(getCacheKey(scope, normScopeId, key));
       }
     }, { timeout: 30000, maxWait: 10000 });
 
-    // 3. Emit Realtime Event
+    // When PLATFORM scope settings are updated, invalidate all cached entries
+    // so that tenant workspaces that inherit platform values immediately pick up changes.
+    if (scope === "PLATFORM") {
+      SettingsService.clearCache();
+    }
+
+    // 2.5 Invalidate affected runtime factories for immediate hot-reload
+    if (group === "email") {
+      try { MailerFactory.invalidate(scope, normScopeId); } catch {}
+    } else if (group === "oauth" && scope === "PLATFORM") {
+      try { OAuthFactory.invalidate(); } catch {}
+    } else if (group === "storage") {
+      try { StorageFactory.invalidate(scope, normScopeId); } catch {}
+    } else if (group === "messaging" || group === "sms") {
+      try { SmsFactory.invalidate(normScopeId || undefined); } catch {}
+    }
+
+    // 3. Emit Realtime Event with safe metadata only (never contains secret values or ciphertext)
     const realtimePayload = {
       scope,
       tenantId: scopeId || undefined,
@@ -707,8 +800,16 @@ export class SettingsService {
     };
 
     if (scope === "PLATFORM") {
-      broadcastToAll("settings.updated", realtimePayload);
+      // Public platform settings (branding, locale) broadcast to all workspaces
+      const isPublicPlatformGroup = ["branding", "locale"].includes(group);
+      if (isPublicPlatformGroup) {
+        broadcastToAll("settings.updated", realtimePayload);
+      } else {
+        // Internal/sensitive platform settings (email, oauth, storage, security) broadcast only to platform admins
+        broadcastToPlatform("settings.updated", realtimePayload);
+      }
     } else if (scopeId) {
+      // Tenant settings broadcast exclusively to the affected tenant room
       broadcastToTenant(scopeId, "settings.updated", realtimePayload);
     }
 
@@ -959,5 +1060,36 @@ export class SettingsService {
    */
   static clearCache() {
     cacheStore.clear();
+  }
+
+  /**
+   * Selectively invalidate cache entries for a given scope, scopeId, or specific key.
+   */
+  static invalidateCache(scope?: SettingScopeType, scopeId?: string | null, key?: string) {
+    if (!scope) {
+      cacheStore.clear();
+      return;
+    }
+    const normScopeId = normalizeScopeId(scope, scopeId);
+    if (key) {
+      cacheStore.delete(getCacheKey(scope, normScopeId, key));
+    } else {
+      const prefix = `${scope}:${normScopeId}:`;
+      for (const k of cacheStore.keys()) {
+        if (k.startsWith(prefix)) {
+          cacheStore.delete(k);
+        }
+      }
+    }
+  }
+
+  /**
+   * Get cache telemetry/metrics
+   */
+  static getCacheStats() {
+    return {
+      size: cacheStore.size,
+      ttlMs: CACHE_TTL_MS,
+    };
   }
 }

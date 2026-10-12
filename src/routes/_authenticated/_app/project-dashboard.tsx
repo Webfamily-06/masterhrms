@@ -262,90 +262,35 @@ export default function ProjectDashboardPage() {
 										</tr>
 									</thead>
 									<tbody>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2">
-												<p className="text-[11px] text-default mb-1 leading-tight"><a href="#">#TSK0020</a></p>
-												<p className="text-xs font-semibold text-title mb-0 leading-tight">Design Employee Dashboard</p>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<div className="flex items-center gap-2">
-													<div className="size-7 overflow-hidden">
-														<a href="#">
-															<img src="/images/avatars/avatar-3.webp" className="rounded-full border border-border-color w-full h-full object-cover" alt="Alexander"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Alexander Kenn</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded font-medium">
-													Completed <i className="ph ph-check text-[10px] ms-1"></i>
-												</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2">
-												<p className="text-[11px] text-default mb-1 leading-tight"><a href="#">#TSK0019</a></p>
-												<p className="text-xs font-semibold text-title mb-0 leading-tight">Build Patient Registration Form</p>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<div className="flex items-center gap-2">													
-													<div className="size-7 overflow-hidden">
-														<a href="#">
-															<img src="/images/avatars/avatar-4.webp" className="border border-border-color w-full h-full object-cover rounded-full" alt="Gabriella"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Gabriella White</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-warning-transparent text-warning px-2 py-0.5 rounded font-medium">
-													Pending <i className="ph ph-clock text-[10px] ms-1"></i>
-												</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2">
-												<p className="text-[11px] text-default mb-1 leading-tight"><a href="#">#TSK0018</a></p>
-												<p className="text-xs font-semibold text-title mb-0 leading-tight">Develop Quiz &amp; Assessment</p>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<div className="flex items-center gap-2">
-													<div className="size-7 overflow-hidden">
-														<a href="#">
-															<img src="/images/avatars/avatar-5.webp" className="rounded-full border border-border-color shrink-0" alt="Christopher"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Christopher Rey</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded font-medium">
-													In Progress <i className="ph ph-arrow-clockwise text-[10px] ms-1"></i>
-												</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
-											<td className="py-2.5 px-2">
-												<p className="text-[11px] text-default mb-1 leading-tight"><a href="#">#TSK0017</a></p>
-												<p className="text-xs font-semibold text-title mb-0 leading-tight">Integrate Voice &amp; Video Calling</p>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<div className="flex items-center gap-2">
-													<div className="size-7 overflow-hidden">
-														<a href="#">
-															<img src="/images/avatars/avatar-6.webp" className="rounded-full border border-border-color w-full h-full object-cover" alt="Penelope"  loading="lazy"/>
-														</a>
-													</div>
-													<p className="text-xs font-semibold text-title"><a href="#" className="text-title hover:text-primary transition-colors">Penelope Ton</a></p>
-												</div>
-											</td>
-											<td className="py-2.5 px-2 vertical-middle">
-												<span className="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded font-medium">
-													Completed <i className="ph ph-check text-[10px] ms-1"></i>
-												</span>
-											</td>
-										</tr>
+										{projectData?.recentTasks && projectData.recentTasks.length > 0 ? (
+											projectData.recentTasks.map((task: any) => (
+												<tr key={task.id} className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
+													<td className="py-2.5 px-2">
+														<p className="text-[11px] text-default mb-1 leading-tight">#{task.id.slice(0, 8).toUpperCase()}</p>
+														<p className="text-xs font-semibold text-title mb-0 leading-tight">{task.title}</p>
+													</td>
+													<td className="py-2.5 px-2 vertical-middle">
+														<p className="text-xs font-semibold text-title mb-0">{task.assignedTo || "Unassigned"}</p>
+														<span className="text-[10px] text-muted-foreground">{task.projectName}</span>
+													</td>
+													<td className="py-2.5 px-2 vertical-middle">
+														<span className={`inline-flex items-center text-[11px] px-2 py-0.5 rounded font-medium capitalize ${
+															task.status === "done" ? "bg-success-transparent text-success" :
+															task.status === "in_progress" ? "bg-info-transparent text-info" :
+															"bg-warning-transparent text-warning"
+														}`}>
+															{task.status?.replace("_", " ") || "Pending"}
+														</span>
+													</td>
+												</tr>
+											))
+										) : (
+											<tr>
+												<td colSpan={3} className="py-8 text-center text-xs text-muted-foreground">
+													No tasks recorded in this workspace.
+												</td>
+											</tr>
+										)}
 									</tbody>
 								</table>
 							</div>
@@ -369,56 +314,37 @@ export default function ProjectDashboardPage() {
 										</tr>
 									</thead>
 									<tbody>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2">
-												<a href="#" className="text-xs text-default hover:text-primary transition-colors">#MLS0020</a>
-											</td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">Requirement Gathering</td>
-											<td className="py-2.5 px-2 text-xs text-default">11 Sep 2025</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Planned</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2">
-												<a href="#" className="text-xs text-default hover:text-primary transition-colors">#MLS0019</a>
-											</td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">Design Phase</td>
-											<td className="py-2.5 px-2 text-xs text-default">05 Sep 2025</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-warning-transparent text-warning px-2 py-0.5 rounded">Pending</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2">
-												<a href="#" className="text-xs text-default hover:text-primary transition-colors">#MLS0018</a>
-											</td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">First Pass API</td>
-											<td className="py-2.5 px-2 text-xs text-default">27 Aug 2025</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">On Track</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2">
-												<a href="#" className="text-xs text-default hover:text-primary transition-colors">#MLS0017</a>
-											</td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">App Store Submission</td>
-											<td className="py-2.5 px-2 text-xs text-default">16 Aug 2025</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Planned</span>
-											</td>
-										</tr>
-										<tr className="border-b border-border-color last:border-0">
-											<td className="py-2.5 px-2">
-												<a href="#" className="text-xs text-default hover:text-primary transition-colors">#MLS0011</a>
-											</td>
-											<td className="py-2.5 px-2 text-xs font-semibold text-title">Beta Release</td>
-											<td className="py-2.5 px-2 text-xs text-default">18 May 2025</td>
-											<td className="py-2.5 px-2">
-												<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">On Track</span>
-											</td>
-										</tr>
+										{projectData?.recentMilestones && projectData.recentMilestones.length > 0 ? (
+											projectData.recentMilestones.map((ms: any) => (
+												<tr key={ms.id} className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
+													<td className="py-2.5 px-2">
+														<span className="text-xs text-default font-medium">#{ms.id.slice(0, 8).toUpperCase()}</span>
+													</td>
+													<td className="py-2.5 px-2">
+														<p className="text-xs font-semibold text-title mb-0">{ms.title}</p>
+														<span className="text-[10px] text-muted-foreground">{ms.projectName}</span>
+													</td>
+													<td className="py-2.5 px-2 text-xs text-default">
+														{ms.dueDate ? new Date(ms.dueDate).toLocaleDateString() : "—"}
+													</td>
+													<td className="py-2.5 px-2">
+														<span className={`text-[11px] px-2 py-0.5 rounded capitalize ${
+															ms.status === "completed" ? "bg-success-transparent text-success" :
+															ms.status === "in_progress" ? "bg-info-transparent text-info" :
+															"bg-warning-transparent text-warning"
+														}`}>
+															{ms.status?.replace("_", " ") || "Pending"}
+														</span>
+													</td>
+												</tr>
+											))
+										) : (
+											<tr>
+												<td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
+													No milestones defined in this workspace.
+												</td>
+											</tr>
+										)}
 									</tbody>
 								</table>
 
@@ -453,85 +379,8 @@ export default function ProjectDashboardPage() {
 									</div>
 								</div>
 							</div>
-							<div className="space-y-3">
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-3.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Anastasia Leton"  loading="lazy"/>
-										<div className="min-w-0">
-											<p className="text-xs font-semibold text-title truncate mb-0">Anastasia Leton</p>
-											<p className="text-[11px] text-default truncate mb-0">Design Employee Dashboard</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-0">05 Sep 2025</p>
-										<span className="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded">Approved</span>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-4.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Noah Bennett"  loading="lazy"/>
-										<div className="min-w-0">
-											<p className="text-xs font-semibold text-title truncate mb-0">Noah Bennett</p>
-											<p className="text-[11px] text-default truncate mb-0">Build Patient Form</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-0">11 Sep 2025</p>
-										<span className="text-[10px] bg-warning-transparent text-warning px-1.5 py-0.5 rounded">Pending</span>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Victoria Ellsworth"  loading="lazy"/>
-										<div className="min-w-0">
-											<p className="text-xs font-semibold text-title truncate mb-0">Victoria Ellsworth</p>
-											<p className="text-[11px] text-default truncate mb-0">Develop Quiz</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-0">28 Aug 2025</p>
-										<span className="text-[10px] bg-info-transparent text-info px-1.5 py-0.5 rounded">Submitted</span>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-6.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Noah Kensington"  loading="lazy"/>
-										<div className="min-w-0">
-											<p className="text-xs font-semibold text-title truncate mb-0">Noah Kensington</p>
-											<p className="text-[11px] text-default truncate mb-0">Integrate Voice</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-0">17 Aug 2025</p>
-										<span className="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded">Approved</span>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Liam Gallagher"  loading="lazy"/>
-										<div className="min-w-0">
-											<p className="text-xs font-semibold text-title truncate mb-0">Liam Gallagher</p>
-											<p className="text-[11px] text-default truncate mb-0">Refactor API Authentication</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-0">14 Aug 2025</p>
-										<span className="text-[10px] bg-secondary-transparent text-secondary px-1.5 py-0.5 rounded">In Progress</span>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<img src="/images/avatars/avatar-8.webp" className="size-9 rounded-full border border-border-color shrink-0" alt="Sophia Vance"  loading="lazy"/>
-										<div className="min-w-0">
-											<p className="text-xs font-semibold text-title truncate mb-0">Sophia Vance</p>
-											<p className="text-[11px] text-default truncate mb-0">Setup Webhook Listeners</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-0">09 Aug 2025</p>
-										<span className="text-[10px] bg-danger-transparent text-danger px-1.5 py-0.5 rounded">Rejected</span>
-									</div>
-								</div>
+							<div className="py-8 text-center text-xs text-muted-foreground">
+								No timesheet submissions recorded for this workspace.
 							</div>
 
 						</div>
@@ -543,133 +392,8 @@ export default function ProjectDashboardPage() {
 									View All<i className="icon-chevron-right"></i>
 								</Link>
 							</div>
-							<div className="space-y-2">
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-4.webp" className="size-9 rounded-full border border-border-color" alt="Chloe Mitchell"  loading="lazy"/>
-										</a>
-										<div className="min-w-0">
-											<p className="mb-0">
-												<a href="#" className="text-xs font-semibold text-title truncate block hover:text-primary transition-colors">Chloe Mitchell (TL)</a>
-											</p>
-											<p className="text-[11px] text-default mb-0">UI/UX Designing</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-1">Team Members</p>
-										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-3.webp" className="size-5 rounded-full border-2 border-white" alt="Anastasia Leton"  loading="lazy"/>
-											<img src="/images/avatars/avatar-5.webp" className="size-5 rounded-full border-2 border-white" alt="Victoria Ellsworth"  loading="lazy"/>
-											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
-										</div>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-5.webp" className="size-9 rounded-full border border-border-color" alt="Daniel Roberts"  loading="lazy"/>
-										</a>
-										<div className="min-w-0">
-											<p className="mb-0">
-												<a href="#" className="text-xs font-semibold text-title truncate block hover:text-primary transition-colors">Daniel Roberts (TL)</a>
-											</p>
-											<p className="text-[11px] text-default mb-0">Frontend Developer</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-1">Team Members</p>
-										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-4.webp" className="size-5 rounded-full border-2 border-white" alt="Chloe Mitchell"  loading="lazy"/>
-											<img src="/images/avatars/avatar-7.webp" className="size-5 rounded-full border-2 border-white" alt="Daniel Roberts"  loading="lazy"/>
-											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
-										</div>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-6.webp" className="size-9 rounded-full border border-border-color" alt="Grace Adams"  loading="lazy"/>
-										</a>
-										<div className="min-w-0">
-											<p className="mb-0">
-												<a href="#" className="text-xs font-semibold text-title truncate block hover:text-primary transition-colors">Grace Adams (TL)</a>
-											</p>
-											<p className="text-[11px] text-default mb-0">React Developer</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-1">Team Members</p>
-										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-3.webp" className="size-5 rounded-full border-2 border-white" alt="Ethan Turner"  loading="lazy"/>
-											<img src="/images/avatars/avatar-8.webp" className="size-5 rounded-full border-2 border-white" alt="Marcus Vance"  loading="lazy"/>
-											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
-										</div>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-7.webp" className="size-9 rounded-full border border-border-color" alt="Hendrita Bennett"  loading="lazy"/>
-										</a>
-										<div className="min-w-0">
-											<p className="mb-0">
-												<a href="#" className="text-xs font-semibold text-title truncate block hover:text-primary transition-colors">Hendrita Bennett (TL)</a>
-											</p>
-											<p className="text-[11px] text-default mb-0">Backend Developer</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-1">Team Members</p>
-										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-4.webp" className="size-5 rounded-full border-2 border-white" alt="Chloe Mitchell"  loading="lazy"/>
-											<img src="/images/avatars/avatar-6.webp" className="size-5 rounded-full border-2 border-white" alt="Grace Adams"  loading="lazy"/>
-											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+5</span>
-										</div>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-8.webp" className="size-9 rounded-full border border-border-color" alt="Marcus Vance"  loading="lazy"/>
-										</a>
-										<div className="min-w-0">
-											<p className="mb-0">
-												<a href="#" className="text-xs font-semibold text-title truncate block hover:text-primary transition-colors">Marcus Vance (TL)</a>
-											</p>
-											<p className="text-[11px] text-default mb-0">DevOps Engineer</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-1">Team Members</p>
-										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-1.webp" className="size-5 rounded-full border-2 border-white" alt="Alice Johnson"  loading="lazy"/>
-											<img src="/images/avatars/avatar-2.webp" className="size-5 rounded-full border-2 border-white" alt="Boe Johnson"  loading="lazy"/>
-											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+3</span>
-										</div>
-									</div>
-								</div>
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex items-center gap-2 min-w-0">
-										<a href="#" className="shrink-0 group hover:opacity-80 transition-opacity">
-											<img src="/images/avatars/avatar-9.webp" className="size-9 rounded-full border border-border-color" alt="Sophia Gallagher"  loading="lazy"/>
-										</a>
-										<div className="min-w-0">
-											<p className="mb-0">
-												<a href="#" className="text-xs font-semibold text-title truncate block hover:text-primary transition-colors">Sophia Gallagher (TL)</a>
-											</p>
-											<p className="text-[11px] text-default mb-0">QA Automation</p>
-										</div>
-									</div>
-									<div className="text-end shrink-0">
-										<p className="text-[11px] text-default mb-1">Team Members</p>
-										<div className="flex items-center -space-x-2 justify-end">
-											<img src="/images/avatars/avatar-10.webp" className="size-5 rounded-full border-2 border-white" alt="Isabella Martin"  loading="lazy"/>
-											<img src="/images/avatars/avatar-11.webp" className="size-5 rounded-full border-2 border-white" alt="James Wilson"  loading="lazy"/>
-											<span className="size-5 rounded-full bg-primary text-white text-[9px] flex items-center justify-center border-2 border-white">+4</span>
-										</div>
-									</div>
-								</div>
+							<div className="py-8 text-center text-xs text-muted-foreground">
+								Project teams are organized dynamically via Department and Staff directories.
 							</div>
 
 						</div>
@@ -780,151 +504,43 @@ export default function ProjectDashboardPage() {
 									</tr>
 								</thead>
 								<tbody>
-									<tr className="border-b border-border-color last:border-0">
-										<td className="py-2.5 px-2">
-											<a href="#" className="text-xs text-default hover:text-primary transition-colors">#PRO0020</a>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<a href="#" className="size-7 rounded-md bg-success-transparent flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
-													<i className="ph-duotone ph-buildings text-success"></i>
-												</a>
-												<p className="mb-0">
-													<a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Office Management App</a>
-												</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">Low</span>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-3.webp" className="rounded-full border border-border-color" alt="Ethan Walker"  loading="lazy"/>
-												</div>
-												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Ethan Walker</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Completed</span>
-										</td>
-									</tr>
-									<tr className="border-b border-border-color last:border-0">
-										<td className="py-2.5 px-2">
-											<a href="#" className="text-xs text-default hover:text-primary transition-colors">#PRO0019</a>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<a href="#" className="size-7 rounded-md bg-info-transparent flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
-													<i className="ph-duotone ph-first-aid-kit text-info"></i>
-												</a>
-												<p className="mb-0">
-													<a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Clinic Management</a>
-												</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-warning-transparent text-warning px-2 py-0.5 rounded">Medium</span>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-4.webp" className="rounded-full border border-border-color" alt="Madison Clark"  loading="lazy"/>
-												</div>
-												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Madison Clark</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">In Progress</span>
-										</td>
-									</tr>
-									<tr className="border-b border-border-color last:border-0">
-										<td className="py-2.5 px-2">
-											<a href="#" className="text-xs text-default hover:text-primary transition-colors">#PRO0018</a>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<a href="#" className="size-7 rounded-md bg-orange-transparent flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
-													<i className="ph-duotone ph-graduation-cap text-orange"></i>
-												</a>
-												<p className="mb-0">
-													<a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Educational Platform</a>
-												</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-danger-transparent text-danger px-2 py-0.5 rounded">High</span>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-5.webp" className="rounded-full border border-border-color" alt="James Harris"  loading="lazy"/>
-												</div>
-												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">James Harris</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Completed</span>
-										</td>
-									</tr>
-									<tr className="border-b border-border-color last:border-0">
-										<td className="py-2.5 px-2">
-											<a href="#" className="text-xs text-default hover:text-primary transition-colors">#PRO0017</a>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<a href="#" className="size-7 rounded-md bg-pink-transparent flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
-													<i className="ph-duotone ph-chat-circle text-pink"></i>
-												</a>
-												<p className="mb-0">
-													<a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">Chat &amp; Call Mobile App</a>
-												</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">Low</span>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-6.webp" className="rounded-full border border-border-color" alt="Avery Thompson"  loading="lazy"/>
-												</div>
-												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Avery Thompson</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">In Progress</span>
-										</td>
-									</tr>
-									<tr className="border-b border-border-color last:border-0">
-										<td className="py-2.5 px-2">
-											<a href="#" className="text-xs text-default hover:text-primary transition-colors">#PRO0011</a>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<a href="#" className="size-7 rounded-md bg-purple-transparent flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
-													<i className="ph-duotone ph-storefront text-purple"></i>
-												</a>
-												<p className="mb-0">
-													<a href="#" className="text-xs font-semibold text-title hover:text-primary transition-colors">POS Admin Software</a>
-												</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">Low</span>
-										</td>
-										<td className="py-2.5 px-2">
-											<div className="flex items-center gap-2">
-												<div className="size-7 shrink-0">
-													<img src="/images/avatars/avatar-7.webp" className="rounded-full border border-border-color" alt="Harper Scott"  loading="lazy"/>
-												</div>
-												<p className="text-xs font-semibold text-title mb-0 whitespace-nowrap">Harper Scott</p>
-											</div>
-										</td>
-										<td className="py-2.5 px-2">
-											<span className="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Completed</span>
-										</td>
-									</tr>
+									{projectData?.recentProjects && projectData.recentProjects.length > 0 ? (
+										projectData.recentProjects.map((proj: any) => (
+											<tr key={proj.id} className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
+												<td className="py-2.5 px-2 text-xs text-default font-medium">
+													#{proj.id.slice(0, 8).toUpperCase()}
+												</td>
+												<td className="py-2.5 px-2">
+													<p className="text-xs font-semibold text-title mb-0">{proj.name}</p>
+													<span className="text-[11px] text-muted-foreground">{proj.taskCount || 0} tasks</span>
+												</td>
+												<td className="py-2.5 px-2 text-xs text-default">
+													{proj.clientName || "Internal"}
+												</td>
+												<td className="py-2.5 px-2">
+													<div className="w-24 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+														<div className="bg-primary h-1.5 rounded-full" style={{ width: `${proj.progress || 0}%` }}></div>
+													</div>
+													<span className="text-[10px] text-muted-foreground">{proj.progress || 0}%</span>
+												</td>
+												<td className="py-2.5 px-2">
+													<span className={`text-[11px] px-2 py-0.5 rounded capitalize ${
+														proj.status === "completed" ? "bg-success-transparent text-success" :
+														proj.status === "in_progress" ? "bg-info-transparent text-info" :
+														"bg-warning-transparent text-warning"
+													}`}>
+														{proj.status?.replace("_", " ") || "Pending"}
+													</span>
+												</td>
+											</tr>
+										))
+									) : (
+										<tr>
+											<td colSpan={5} className="py-8 text-center text-xs text-muted-foreground">
+												No projects registered in this workspace.
+											</td>
+										</tr>
+									)}
 								</tbody>
 							</table>
 						</div>

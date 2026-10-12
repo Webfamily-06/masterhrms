@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import { resolveBrandingContext, BrandingContextType } from "./branding-context";
+import { updateGlobalCurrencySettings } from "./currency";
 
 export interface AppConfig {
   appName: string;
@@ -27,6 +28,10 @@ export interface AppConfig {
     dateFormat: string;
     timeFormat: string;
   };
+  maintenance?: {
+    active: boolean;
+    message: string | null;
+  };
   scope: "PLATFORM" | "TENANT";
   context: BrandingContextType;
   tenantId: string | null;
@@ -49,6 +54,10 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     timezone: "Asia/Kolkata",
     dateFormat: "DD/MM/YYYY",
     timeFormat: "12",
+  },
+  maintenance: {
+    active: false,
+    message: null,
   },
   scope: "PLATFORM",
   context: "PLATFORM",
@@ -178,6 +187,14 @@ export function useAppConfig() {
     // 4. Dynamic page title (platform scope only — tenant sidebars override separately)
     if (config.appName && config.scope === "PLATFORM") {
       document.title = config.appName;
+    }
+
+    // 5. Dynamic currency & formatting synchronization
+    if (config.locale?.defaultCurrency || config.locale?.currencySymbol) {
+      updateGlobalCurrencySettings({
+        defaultCurrency: config.locale.defaultCurrency,
+        currencySymbol: config.locale.currencySymbol,
+      });
     }
   }, [config, isLoading]);
 

@@ -18,7 +18,7 @@ import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { Toaster } from "@/components/ui/sonner";
-import { OfflineBanner, SessionExpiredModal, InactivityTracker } from "@/components/system-states";
+import { OfflineBanner, MaintenanceBanner, SessionExpiredModal, InactivityTracker } from "@/components/system-states";
 
 function NotFoundComponent() {
   return <NotFoundView />;
@@ -155,6 +155,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <PlatformFaviconSync />
       <OfflineBanner />
+      <MaintenanceBanner />
       <SessionExpiredModal />
       <InactivityTracker />
       <Outlet />
