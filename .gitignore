@@ -58,6 +58,7 @@ server/backups/
 .env
 .env.*
 !.env.example
+!**/.env*.example
 
 # Dependencies / builds
 node_modules/
@@ -70,6 +71,7 @@ build/
 .env
 .env.*
 !.env.example
+!**/.env*.example
 
 # Dependencies
 node_modules/
