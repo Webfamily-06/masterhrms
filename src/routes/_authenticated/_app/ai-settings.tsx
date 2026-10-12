@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { useCurrentProfile } from "@/lib/session";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/_app/ai-settings")({
   component: AISettingsPage,
@@ -13,20 +16,68 @@ export const Route = createFileRoute("/_authenticated/_app/ai-settings")({
 });
 
 export default function AISettingsPage() {
-  const [geminiApiKey, setGeminiApiKey] = useState("AIzaSyB3_example_key_master_hrms_984");
-  const [anthropicApiKey, setAnthropicApiKey] = useState("sk-ant-api03-live_secret_key_88492");
-  const [openAiApiKey, setOpenAiApiKey] = useState("sk-proj-live_enterprise_token_947192");
+  const qc = useQueryClient();
+  const { data: profile } = useCurrentProfile();
+  const tenantId = profile?.tenant_id || "default";
+
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [anthropicApiKey, setAnthropicApiKey] = useState("");
+  const [openAiApiKey, setOpenAiApiKey] = useState("");
   const [monthlyTokenCap, setMonthlyTokenCap] = useState("50000000");
-  const [isSaving, setIsSaving] = useState(false);
+
+  const { isLoading } = useQuery({
+    queryKey: ["app-ai-keys", tenantId],
+    queryFn: async () => {
+      try {
+        const page = await api.get(`/cms/pages/tenant-${tenantId}-ai-keys`);
+        if (page?.content) {
+          if (page.content.geminiKey) setGeminiApiKey(page.content.geminiKey);
+          if (page.content.claudeKey) setAnthropicApiKey(page.content.claudeKey);
+          if (page.content.openaiKey) setOpenAiApiKey(page.content.openaiKey);
+          if (page.content.monthlyTokenCap) setMonthlyTokenCap(String(page.content.monthlyTokenCap));
+          return page.content;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!tenantId,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        geminiKey: geminiApiKey,
+        claudeKey: anthropicApiKey,
+        openaiKey: openAiApiKey,
+        monthlyTokenCap: monthlyTokenCap,
+      };
+      await api.put(`/cms/pages/tenant-${tenantId}-ai-keys`, {
+        title: `AI Keys ${tenantId}`,
+        content: payload,
+        published: true,
+      });
+      try {
+        await api.post("/ai/settings", payload);
+      } catch {}
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["app-ai-keys", tenantId] });
+      qc.invalidateQueries({ queryKey: ["tenant-ai-settings-page", tenantId] });
+      toast.success("AI API credentials and quota caps updated successfully.");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save AI credentials");
+    },
+  });
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      toast.success("AI API credentials and quota caps updated successfully.");
-    }, 600);
+    saveMutation.mutate();
   };
+
+  const isSaving = saveMutation.isPending;
 
   return (
     <div className="space-y-4">

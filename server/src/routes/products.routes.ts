@@ -8,6 +8,8 @@ import { InventoryMovementService } from "../services/inventory-movement.service
 import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
 import { requireWithinLimit } from "../middleware/limits";
 import { requireEntitlement } from "../middleware/entitlements";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
 
 export const productsRouter = Router();
 
@@ -202,6 +204,25 @@ productsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =>
       return product;
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.product.created",
+      entityType: "Product",
+      entityId: result.id,
+      newState: { name: result.name, sku: result.sku, salePrice: Number(result.salePrice) },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "pos.product.created",
+      entityType: "product",
+      entityId: result.id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { name: result.name, sku: result.sku, salePrice: Number(result.salePrice) },
+    }).catch(() => {});
+
     return res.status(201).json(result);
   } catch (err: any) {
     console.error("Products POST error:", err);
@@ -239,6 +260,26 @@ productsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) 
       },
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.product.updated",
+      entityType: "Product",
+      entityId: id,
+      oldState: { name: existing.name, salePrice: Number(existing.salePrice), sku: existing.sku },
+      newState: { name: updated.name, salePrice: Number(updated.salePrice), sku: updated.sku },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "pos.product.updated",
+      entityType: "product",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { name: updated.name, sku: updated.sku, salePrice: Number(updated.salePrice) },
+    }).catch(() => {});
+
     return res.json(updated);
   } catch (err: any) {
     console.error("Products PUT error:", err);
@@ -253,10 +294,34 @@ productsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respons
     if (!tenantId) return;
     const { id } = req.params;
 
+    const existing = await prisma.product.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
     await prisma.product.updateMany({
       where: { id, tenantId },
       data: { isActive: false },
     });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.product.deleted",
+      entityType: "Product",
+      entityId: id,
+      oldState: { name: existing.name, sku: existing.sku },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "pos.product.deleted",
+      entityType: "product",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { name: existing.name, sku: existing.sku },
+    }).catch(() => {});
 
     return res.json({ success: true, message: "Product deleted" });
   } catch (err: any) {
@@ -446,8 +511,71 @@ productsRouter.delete("/categories/:id", requireAuth, async (req: AuthRequest, r
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
     const { id } = req.params;
-    await prisma.productCategory.deleteMany({ where: { id, tenantId } });
+
+    const existing = await prisma.productCategory.findFirst({
+      where: { id, tenantId },
+      include: { products: { select: { id: true } } },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+
+    if (existing.products && existing.products.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete category with ${existing.products.length} associated products. Reassign or delete products first.`,
+      });
+    }
+
+    await prisma.productCategory.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.category.deleted",
+      entityType: "ProductCategory",
+      entityId: id,
+      oldState: { name: existing.name },
+    }).catch(() => {});
+
     return res.json({ success: true, message: "Category deleted" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/products/categories/:id - Update category
+productsRouter.put("/categories/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+    const { name, color, description } = req.body;
+
+    const existing = await prisma.productCategory.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: "Category not found" });
+
+    const updated = await prisma.productCategory.update({
+      where: { id },
+      data: {
+        ...(name && { name: name.trim() }),
+        ...(color && { color }),
+        ...(description !== undefined && { description }),
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.category.updated",
+      entityType: "ProductCategory",
+      entityId: id,
+      oldState: { name: existing.name },
+      newState: { name: updated.name },
+    }).catch(() => {});
+
+    return res.json(updated);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -596,8 +724,70 @@ productsRouter.delete("/units/:id", requireAuth, async (req: AuthRequest, res: R
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
     const { id } = req.params;
-    await prisma.unit.deleteMany({ where: { id, tenantId } });
+
+    const existing = await prisma.unit.findFirst({
+      where: { id, tenantId },
+      include: { products: { select: { id: true } } },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Unit not found" });
+    }
+
+    if (existing.products && existing.products.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete unit with ${existing.products.length} associated products. Reassign or delete products first.`,
+      });
+    }
+
+    await prisma.unit.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.unit.deleted",
+      entityType: "Unit",
+      entityId: id,
+      oldState: { name: existing.name },
+    }).catch(() => {});
+
     return res.json({ success: true, message: "Unit deleted" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/products/units/:id - Update unit
+productsRouter.put("/units/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+    const { name, shortName } = req.body;
+
+    const existing = await prisma.unit.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: "Unit not found" });
+
+    const updated = await prisma.unit.update({
+      where: { id },
+      data: {
+        ...(name && { name: name.trim() }),
+        ...(shortName !== undefined && { shortName: shortName || null }),
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.unit.updated",
+      entityType: "Unit",
+      entityId: id,
+      oldState: { name: existing.name },
+      newState: { name: updated.name },
+    }).catch(() => {});
+
+    return res.json(updated);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -620,7 +810,140 @@ productsRouter.post("/warehouses", requireAuth, requireWithinLimit("warehouses")
         email: email || null,
       },
     });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.warehouse.created",
+      entityType: "Warehouse",
+      entityId: wh.id,
+      newState: { name: wh.name, location: wh.location },
+    }).catch(() => {});
+
     return res.status(201).json(wh);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/products/warehouses/:id - Get single warehouse
+productsRouter.get("/warehouses/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+
+    const wh = await prisma.warehouse.findFirst({
+      where: { id, tenantId },
+      include: {
+        stocks: {
+          include: { product: true },
+        },
+      },
+    });
+
+    if (!wh) {
+      return res.status(404).json({ error: "Warehouse not found" });
+    }
+
+    return res.json(wh);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/products/warehouses/:id - Update warehouse
+productsRouter.put("/warehouses/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+    const { name, location, city, phone, email, isDefault } = req.body;
+
+    const existing = await prisma.warehouse.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Warehouse not found" });
+    }
+
+    if (isDefault) {
+      await prisma.warehouse.updateMany({
+        where: { tenantId, id: { not: id } },
+        data: { isDefault: false },
+      });
+    }
+
+    const updated = await prisma.warehouse.update({
+      where: { id },
+      data: {
+        ...(name && { name: name.trim() }),
+        ...(location !== undefined && { location: location || null }),
+        ...(city !== undefined && { city: city || null }),
+        ...(phone !== undefined && { phone: phone || null }),
+        ...(email !== undefined && { email: email || null }),
+        ...(isDefault !== undefined && { isDefault: Boolean(isDefault) }),
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.warehouse.updated",
+      entityType: "Warehouse",
+      entityId: id,
+      oldState: { name: existing.name },
+      newState: { name: updated.name },
+    }).catch(() => {});
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/products/warehouses/:id - Delete warehouse
+productsRouter.delete("/warehouses/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+
+    const existing = await prisma.warehouse.findFirst({
+      where: { id, tenantId },
+      include: {
+        stocks: true,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Warehouse not found" });
+    }
+
+    if (existing.isDefault) {
+      return res.status(400).json({ error: "Cannot delete the default warehouse" });
+    }
+
+    const totalStock = existing.stocks.reduce((sum, s) => sum + Number(s.quantity), 0);
+    if (totalStock > 0) {
+      return res.status(400).json({
+        error: `Cannot delete warehouse with positive stock inventory (${totalStock} units). Transfer or adjust stock first.`,
+      });
+    }
+
+    await prisma.warehouse.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "pos.warehouse.deleted",
+      entityType: "Warehouse",
+      entityId: id,
+      oldState: { name: existing.name },
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "Warehouse deleted successfully" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -698,6 +1021,72 @@ productsRouter.get("/:id/movements", requireAuth, async (req: AuthRequest, res: 
   } catch (err: any) {
     console.error("GET /api/products/:id/movements error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch stock movements" });
+  }
+});
+
+// GET /api/products/:id - Single product details
+productsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+    const { id } = req.params;
+
+    const p = await prisma.product.findFirst({
+      where: { id, tenantId },
+      include: {
+        category: true,
+        brand: true,
+        unit: true,
+        taxRate: true,
+        warehouseStocks: {
+          include: {
+            warehouse: true,
+          },
+        },
+      },
+    });
+
+    if (!p) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const totalStock = p.warehouseStocks.reduce((sum, ws) => sum + Number(ws.quantity), 0);
+
+    return res.json({
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      sku: p.sku,
+      barcode: p.barcode || p.sku,
+      hsn_sac: p.hsnSac,
+      categoryId: p.categoryId,
+      categoryName: p.category ? p.category.name : "General",
+      categoryColor: p.category ? p.category.color : "#3b82f6",
+      category: p.category ? p.category.name : "General",
+      taxRate: p.taxRate ? Number(p.taxRate.rate) : 18,
+      taxName: p.taxRate ? p.taxRate.name : "GST 18%",
+      gst_rate: p.taxRate ? Number(p.taxRate.rate) : 18,
+      salePrice: Number(p.salePrice),
+      purchasePrice: Number(p.purchasePrice),
+      price: Number(p.salePrice),
+      unit: p.unit ? p.unit.name : "Pcs",
+      quantity: totalStock,
+      stock: totalStock,
+      low_stock_threshold: p.lowStockThreshold,
+      warehouseStocks: p.warehouseStocks.map((ws) => ({
+        warehouseId: ws.warehouseId,
+        warehouseName: ws.warehouse.name,
+        quantity: ws.quantity,
+      })),
+      image: p.image || "/images/no-image.png",
+      shortDescription: p.shortDescription || "",
+      description: p.description || "",
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+      isActive: p.isActive,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch product" });
   }
 });
 

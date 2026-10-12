@@ -30,7 +30,8 @@ import {
   Receipt, FileText, FolderLock, Layers, FileSpreadsheet, Workflow, BarChart3,
   ShoppingCart, Landmark, Kanban, MessageSquare, Package, Store, Compass,
   Fingerprint, ScanLine, HardDrive, Target, ArrowRightLeft, Truck, Building2, SlidersHorizontal,
-  CalendarDays, Trophy, ShieldAlert, Timer, TrendingUp, UserCheck, UserX, PiggyBank, Percent, GitBranch, Coins, RefreshCw, Award, Gift, Phone, Repeat, Megaphone
+  CalendarDays, Trophy, ShieldAlert, Timer, TrendingUp, UserCheck, UserX, PiggyBank, Percent, GitBranch, Coins, RefreshCw, Award, Gift, Phone, Repeat, Megaphone,
+  Bell, History, Database, Code, Webhook
 } from "lucide-react";
 import { api, clearToken, setToken } from "@/lib/api";
 import { toast } from "sonner";
@@ -196,6 +197,14 @@ const ALL_SEARCH_ITEMS = [
   { title: "Razorpay Gateway", url: "/razorpay-gateway", group: "Extensions", icon: CreditCard },
   { title: "Strategy Studio (SWOT/PESTEL)", url: "/strategy-studio", group: "Extensions", icon: Target },
   { title: "AI Invoice OCR Reader", url: "/ai-ocr", group: "Extensions", icon: ScanLine },
+  { title: "Company Notice Board", url: "/notice-board", group: "HRM Suite", icon: Megaphone },
+  { title: "Internal Reminders", url: "/internal-reminders", group: "Extensions", icon: Bell },
+  { title: "Two-Factor Authentication", url: "/two-factor-auth", group: "Platform", icon: ShieldCheck },
+  { title: "Backup & Restore", url: "/backup-restore", group: "Platform", icon: Database },
+  { title: "Activity Logs", url: "/activity-logs", group: "Platform", icon: History },
+  { title: "Public REST API", url: "/public-api", group: "Extensions", icon: Code },
+  { title: "Outbound Webhooks", url: "/outbound-webhooks", group: "Extensions", icon: Webhook },
+  { title: "SMS Gateway Integration", url: "/sms-gateway", group: "Extensions", icon: MessageSquare },
   { title: "Workspace Settings", url: "/settings", group: "Platform", icon: Settings },
   { title: "Primary Custom Domain", url: "/settings/custom-domain", group: "Platform", icon: Globe },
   { title: "Custom Fields", url: "/custom-fields", group: "Platform", icon: SlidersHorizontal },

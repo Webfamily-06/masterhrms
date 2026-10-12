@@ -2,6 +2,8 @@ import { Router, Response, Request } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { requireAddon } from "../middleware/addons";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
 
 export const assetsRouter = Router();
 
@@ -127,11 +129,75 @@ assetsRouter.post("/categories", async (req: AuthRequest, res: Response) => {
 
 assetsRouter.delete("/categories/:id", async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.user?.tenantId!;
     const { id } = req.params;
+
+    const existing = await prisma.assetCategory.findFirst({
+      where: { id, tenantId },
+      include: { assets: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Category not found." });
+    }
+
+    if (existing.assets && existing.assets.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete category with ${existing.assets.length} associated assets. Please reassign or delete assets first.`,
+      });
+    }
+
     await prisma.assetCategory.delete({ where: { id } });
-    return res.json({ message: "Category deleted successfully." });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "asset.category.deleted",
+      entityType: "AssetCategory",
+      entityId: id,
+      oldState: { name: existing.name },
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "Category deleted successfully." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete category." });
+  }
+});
+
+assetsRouter.put("/categories/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+    const { name, description, icon, prefix } = req.body;
+
+    const existing = await prisma.assetCategory.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: "Category not found." });
+
+    const updated = await prisma.assetCategory.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(icon && { icon }),
+        ...(prefix && { prefix: prefix.toUpperCase() }),
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "asset.category.updated",
+      entityType: "AssetCategory",
+      entityId: id,
+      oldState: { name: existing.name },
+      newState: { name: updated.name },
+    }).catch(() => {});
+
+    return res.json({ category: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update category." });
   }
 });
 
@@ -313,10 +379,198 @@ assetsRouter.post("/", async (req: AuthRequest, res: Response) => {
       },
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "asset.created",
+      entityType: "Asset",
+      entityId: asset.id,
+      newState: { assetTag: asset.assetTag, name: asset.name, category: asset.category, quantity: parsedTotalQty },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "asset.created",
+      entityType: "asset",
+      entityId: asset.id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { assetTag: asset.assetTag, name: asset.name, status: asset.status },
+    }).catch(() => {});
+
     return res.status(201).json({ asset });
   } catch (err: any) {
     console.error("[assets/create] error:", err);
     return res.status(500).json({ error: err.message || "Failed to register asset." });
+  }
+});
+
+// GET /api/addons/assets/:id - Fetch single asset details
+assetsRouter.get("/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+
+    const asset = await prisma.asset.findFirst({
+      where: { id, tenantId },
+      include: {
+        categoryRel: true,
+        assignedEmployee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            position: true,
+            department: { select: { name: true } },
+          },
+        },
+        assignments: {
+          orderBy: { assignedAt: "desc" },
+          include: {
+            employee: { select: { firstName: true, lastName: true, email: true } },
+          },
+        },
+        maintenanceLogs: {
+          orderBy: { serviceDate: "desc" },
+        },
+      },
+    });
+
+    if (!asset) {
+      return res.status(404).json({ error: "Asset not found." });
+    }
+
+    return res.json({ asset });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch asset." });
+  }
+});
+
+// PUT /api/addons/assets/:id - Update asset details
+assetsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+    const {
+      name,
+      category,
+      categoryId,
+      brand,
+      model,
+      serialNumber,
+      location,
+      purchaseDate,
+      purchasePrice,
+      vendor,
+      warrantyExpiry,
+      condition,
+      notes,
+    } = req.body;
+
+    const existing = await prisma.asset.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Asset not found." });
+    }
+
+    const updated = await prisma.asset.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(category && { category }),
+        ...(categoryId !== undefined && { categoryId }),
+        ...(brand !== undefined && { brand }),
+        ...(model !== undefined && { model }),
+        ...(serialNumber !== undefined && { serialNumber }),
+        ...(location !== undefined && { location }),
+        ...(purchaseDate !== undefined && { purchaseDate: purchaseDate ? new Date(purchaseDate) : null }),
+        ...(purchasePrice !== undefined && { purchasePrice: Number(purchasePrice) }),
+        ...(vendor !== undefined && { vendor }),
+        ...(warrantyExpiry !== undefined && { warrantyExpiry: warrantyExpiry ? new Date(warrantyExpiry) : null }),
+        ...(condition && { condition }),
+        ...(notes !== undefined && { notes }),
+      },
+      include: {
+        categoryRel: true,
+        assignedEmployee: true,
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "asset.updated",
+      entityType: "Asset",
+      entityId: id,
+      oldState: { name: existing.name, condition: existing.condition },
+      newState: { name: updated.name, condition: updated.condition },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "asset.updated",
+      entityType: "asset",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { assetTag: updated.assetTag, name: updated.name },
+    }).catch(() => {});
+
+    return res.json({ asset: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update asset." });
+  }
+});
+
+// DELETE /api/addons/assets/:id - Delete asset (restricted if currently allocated)
+assetsRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+
+    const existing = await prisma.asset.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Asset not found." });
+    }
+
+    if (existing.status === "assigned" || existing.availableQuantity < existing.totalQuantity) {
+      return res.status(400).json({
+        error: `Cannot delete asset '${existing.assetTag}' while allocated to employees or departments. Please return all allocations first.`,
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.assetAssignment.deleteMany({ where: { assetId: id } });
+      await tx.assetActivityLog.deleteMany({ where: { assetId: id } });
+      await tx.assetMaintenance.deleteMany({ where: { assetId: id } });
+      await tx.asset.delete({ where: { id } });
+
+      await AuditService.logMutation({
+        tenantId,
+        actorId: (req.user as any)?.userId || (req.user as any)?.id,
+        actorEmail: req.user?.email,
+        action: "asset.deleted",
+        entityType: "Asset",
+        entityId: id,
+        oldState: { assetTag: existing.assetTag, name: existing.name },
+      }, tx).catch(() => {});
+
+      await OutboxService.createOutboxEvent({
+        tenantId,
+        eventType: "asset.deleted",
+        entityType: "asset",
+        entityId: id,
+        actorId: (req.user as any)?.userId || (req.user as any)?.id,
+        payload: { assetTag: existing.assetTag },
+      }, tx).catch(() => {});
+    });
+
+    return res.json({ success: true, message: `Asset ${existing.assetTag} deleted successfully.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete asset." });
   }
 });
 

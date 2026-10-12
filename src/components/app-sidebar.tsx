@@ -46,6 +46,11 @@ import {
   ChevronRight,
   Building2,
   RotateCcw,
+  Megaphone,
+  Bell,
+  History,
+  Code,
+  Webhook,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -382,6 +387,14 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {isAddonUnlocked("whatsapp-alerts") && <SimpleNavItem item={{ title: "WhatsApp Gateway", url: "/whatsapp-alerts", icon: MessageSquare }} />}
+              {isAddonUnlocked("notice-board") && <SimpleNavItem item={{ title: "Notice Board", url: "/notice-board", icon: Megaphone }} />}
+              {isAddonUnlocked("internal-reminders") && <SimpleNavItem item={{ title: "Internal Reminders", url: "/internal-reminders", icon: Bell }} />}
+              {isAddonUnlocked("two-factor-auth") && <SimpleNavItem item={{ title: "Two-Factor Auth", url: "/two-factor-auth", icon: ShieldCheck }} />}
+              {isAddonUnlocked("backup-restore") && <SimpleNavItem item={{ title: "Backup & Restore", url: "/backup-restore", icon: RotateCcw }} />}
+              {isAddonUnlocked("activity-logs") && <SimpleNavItem item={{ title: "Activity Logs", url: "/activity-logs", icon: History }} />}
+              {isAddonUnlocked("public-api") && <SimpleNavItem item={{ title: "Public API Keys", url: "/public-api", icon: Code }} />}
+              {isAddonUnlocked("outbound-webhooks") && <SimpleNavItem item={{ title: "Outbound Webhooks", url: "/outbound-webhooks", icon: Webhook }} />}
+              {isAddonUnlocked("sms-gateway") && <SimpleNavItem item={{ title: "SMS Gateway", url: "/sms-gateway", icon: MessageSquare }} />}
               {isAddonUnlocked("biometric-sync") && <SimpleNavItem item={{ title: "Biometric Sync Hub", url: "/biometric-sync", icon: Fingerprint }} />}
               {isAddonUnlocked("ai-ocr") && <SimpleNavItem item={{ title: "AI Invoice OCR", url: "/ai-ocr", icon: ScanLine }} />}
               {(isAddonUnlocked("ai-content-generator") || isAddonUnlocked("ai-writer")) && (

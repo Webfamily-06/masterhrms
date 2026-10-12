@@ -92,6 +92,14 @@ import { platformFoundationRouter } from "./routes/platform-foundation.routes";
 import { OutboxService } from "./services/outbox.service";
 import { securityHeadersMiddleware, authRateLimiter } from "./middleware/security-hardening.middleware";
 import { ConfigAuditService } from "./services/config-audit.service";
+import { twoFactorRouter } from "./modules/two-factor-auth/two-factor.routes";
+import { backupRestoreRouter } from "./modules/backup-restore/backup-restore.routes";
+import { activityLogsRouter } from "./modules/activity-logs/activity-logs.routes";
+import { internalRemindersRouter } from "./modules/internal-reminders/internal-reminders.routes";
+import { publicApiRouter } from "./modules/public-api/public-api.routes";
+import { noticeBoardRouter } from "./modules/notice-board/notice-board.routes";
+import { outboundWebhooksRouter } from "./modules/outbound-webhooks/outbound-webhooks.routes";
+import { smsGatewayRouter } from "./modules/sms-gateway/sms-gateway.routes";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -343,6 +351,24 @@ app.use("/api/super", superRouter);
 app.use("/api/addons", addonsRouter);
 app.use("/api/addons/okr", okrRouter);
 app.use("/api/addons/assets", assetsRouter);
+app.use("/api/v1/two-factor-auth", twoFactorRouter);
+app.use("/api/two-factor-auth", twoFactorRouter);
+app.use("/api/v1/backup-restore", backupRestoreRouter);
+app.use("/api/backup-restore", backupRestoreRouter);
+app.use("/api/v1/activity-logs", activityLogsRouter);
+app.use("/api/activity-logs", activityLogsRouter);
+app.use("/api/v1/reminders", internalRemindersRouter);
+app.use("/api/reminders", internalRemindersRouter);
+app.use("/api/v1/internal-reminders", internalRemindersRouter);
+app.use("/api/internal-reminders", internalRemindersRouter);
+app.use("/api/v1/public-api", publicApiRouter);
+app.use("/api/public-api", publicApiRouter);
+app.use("/api/v1/notice-board", noticeBoardRouter);
+app.use("/api/notice-board", noticeBoardRouter);
+app.use("/api/v1/outbound-webhooks", outboundWebhooksRouter);
+app.use("/api/outbound-webhooks", outboundWebhooksRouter);
+app.use("/api/v1/sms-gateway", smsGatewayRouter);
+app.use("/api/sms-gateway", smsGatewayRouter);
 app.use("/api/recruitment", recruitmentRouter);
 app.use("/api/addons/recruitment", recruitmentRouter);
 app.use("/api/public/jobs", publicJobsRouter);
@@ -535,4 +561,5 @@ const handleGracefulShutdown = async (signal: string) => {
 
 process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
+// MasterHRMS Platform Server active
 

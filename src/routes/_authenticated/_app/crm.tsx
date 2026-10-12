@@ -163,6 +163,7 @@ function CrmPage() {
   const [form, setForm] = useState<Omit<CrmLead, "id" | "createdAt">>(EMPTY_LEAD);
 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<CrmContact | null>(null);
   const [contactForm, setContactForm] = useState({
     name: "",
     role: "",
@@ -173,6 +174,7 @@ function CrmPage() {
   });
 
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<CrmCompany | null>(null);
   const [companyForm, setCompanyForm] = useState({
     name: "",
     industry: "",
@@ -329,15 +331,20 @@ function CrmPage() {
 
   const contactMutation = useMutation({
     mutationFn: async (data: typeof contactForm) => {
-      await api.post("/crm/contacts", { ...data, rating: 5.0, status: "active" });
+      if (editingContact) {
+        await api.put(`/crm/contacts/${editingContact.id}`, { ...data });
+      } else {
+        await api.post("/crm/contacts", { ...data, rating: 5.0, status: "active" });
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["crm-contacts", tenantId] });
       setIsContactModalOpen(false);
+      setEditingContact(null);
       setContactForm({ name: "", role: "", company: "", email: "", phone: "", location: "" });
-      toast.success("Contact added successfully.");
+      toast.success(editingContact ? "Contact updated successfully." : "Contact added successfully.");
     },
-    onError: (e: Error) => toast.error(e.message || "Failed to add contact"),
+    onError: (e: Error) => toast.error(e.message || "Failed to save contact"),
   });
 
   function handleSaveContact() {
@@ -350,22 +357,28 @@ function CrmPage() {
 
   const companyMutation = useMutation({
     mutationFn: async (data: typeof companyForm) => {
-      await api.post("/crm/companies", {
+      const payload = {
         name: data.name.trim(),
         industry: data.industry.trim() || "Technology",
         employeesCount: data.employeesCount,
         annualRevenue: Number(data.annualRevenue) || 0,
         website: data.website.trim(),
         location: data.location.trim(),
-      });
+      };
+      if (editingCompany) {
+        await api.put(`/crm/companies/${editingCompany.id}`, payload);
+      } else {
+        await api.post("/crm/companies", payload);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["crm-companies", tenantId] });
       setIsCompanyModalOpen(false);
+      setEditingCompany(null);
       setCompanyForm({ name: "", industry: "", employeesCount: "50-200", annualRevenue: "500000", website: "", location: "" });
-      toast.success("Company organization added.");
+      toast.success(editingCompany ? "Company organization updated." : "Company organization added.");
     },
-    onError: (e: Error) => toast.error(e.message || "Failed to add company"),
+    onError: (e: Error) => toast.error(e.message || "Failed to save company"),
   });
 
   function handleSaveCompany() {
@@ -416,11 +429,25 @@ function CrmPage() {
                 <Plus className="size-4" /> Add Deal / Lead
               </Button>
             ) : activeTab === "contacts" ? (
-              <Button onClick={() => setIsContactModalOpen(true)} className="gap-2 font-bold text-xs shrink-0 bg-primary text-primary-foreground">
+              <Button
+                onClick={() => {
+                  setEditingContact(null);
+                  setContactForm({ name: "", role: "", company: "", email: "", phone: "", location: "" });
+                  setIsContactModalOpen(true);
+                }}
+                className="gap-2 font-bold text-xs shrink-0 bg-primary text-primary-foreground"
+              >
                 <Plus className="size-4" /> Add Contact
               </Button>
             ) : (
-              <Button onClick={() => setIsCompanyModalOpen(true)} className="gap-2 font-bold text-xs shrink-0 bg-primary text-primary-foreground">
+              <Button
+                onClick={() => {
+                  setEditingCompany(null);
+                  setCompanyForm({ name: "", industry: "", employeesCount: "50-200", annualRevenue: "500000", website: "", location: "" });
+                  setIsCompanyModalOpen(true);
+                }}
+                className="gap-2 font-bold text-xs shrink-0 bg-primary text-primary-foreground"
+              >
                 <Plus className="size-4" /> Add Company
               </Button>
             )}
@@ -673,18 +700,41 @@ function CrmPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <a href={`mailto:${c.email}`} className="p-1.5 rounded hover:bg-muted text-primary">
+                            <a href={`mailto:${c.email}`} className="p-1.5 rounded hover:bg-muted text-primary" title="Email contact">
                               <Mail className="size-3.5" />
                             </a>
-                            <a href={`tel:${c.phone}`} className="p-1.5 rounded hover:bg-muted text-emerald-600">
+                            <a href={`tel:${c.phone}`} className="p-1.5 rounded hover:bg-muted text-emerald-600" title="Call contact">
                               <Phone className="size-3.5" />
                             </a>
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="size-7 text-rose-500"
+                              className="size-7 text-muted-foreground hover:text-foreground"
+                              title="Edit contact"
                               onClick={() => {
-                                deleteContactMutation.mutate(c.id);
+                                setEditingContact(c);
+                                setContactForm({
+                                  name: c.name,
+                                  role: c.role || "",
+                                  company: c.company || "",
+                                  email: c.email || "",
+                                  phone: c.phone || "",
+                                  location: c.location || "",
+                                });
+                                setIsContactModalOpen(true);
+                              }}
+                            >
+                              <Edit2 className="size-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7 text-rose-500"
+                              title="Delete contact"
+                              onClick={() => {
+                                if (confirm(`Delete contact "${c.name}"?`)) {
+                                  deleteContactMutation.mutate(c.id);
+                                }
                               }}
                             >
                               <Trash2 className="size-3.5" />
@@ -736,16 +786,41 @@ function CrmPage() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">{cmp.location}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="size-7 text-rose-500"
-                            onClick={() => {
-                              deleteCompanyMutation.mutate(cmp.id);
-                            }}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7 text-muted-foreground hover:text-foreground"
+                              title="Edit company"
+                              onClick={() => {
+                                setEditingCompany(cmp);
+                                setCompanyForm({
+                                  name: cmp.name,
+                                  industry: cmp.industry || "",
+                                  employeesCount: cmp.employeesCount || "50-200",
+                                  annualRevenue: String(cmp.annualRevenue || 0),
+                                  website: cmp.website || "",
+                                  location: cmp.location || "",
+                                });
+                                setIsCompanyModalOpen(true);
+                              }}
+                            >
+                              <Edit2 className="size-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7 text-rose-500"
+                              title="Delete company"
+                              onClick={() => {
+                                if (confirm(`Delete organization "${cmp.name}"?`)) {
+                                  deleteCompanyMutation.mutate(cmp.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -854,12 +929,12 @@ function CrmPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Modal: Add Contact */}
+        {/* Modal: Add/Edit Contact */}
         <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Users className="size-5 text-primary" /> Add Contact
+                <Users className="size-5 text-primary" /> {editingContact ? "Edit Contact" : "Add Contact"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3 py-2 text-xs">
@@ -921,18 +996,18 @@ function CrmPage() {
                 Cancel
               </Button>
               <Button size="sm" onClick={handleSaveContact} className="font-bold">
-                Save Contact
+                {editingContact ? "Update Contact" : "Save Contact"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Modal: Add Company */}
+        {/* Modal: Add/Edit Company */}
         <Dialog open={isCompanyModalOpen} onOpenChange={setIsCompanyModalOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Building2 className="size-5 text-primary" /> Add Organization Company
+                <Building2 className="size-5 text-primary" /> {editingCompany ? "Edit Organization Company" : "Add Organization Company"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3 py-2 text-xs">
@@ -1000,7 +1075,7 @@ function CrmPage() {
                 Cancel
               </Button>
               <Button size="sm" onClick={handleSaveCompany} className="font-bold">
-                Save Company
+                {editingCompany ? "Update Company" : "Save Company"}
               </Button>
             </DialogFooter>
           </DialogContent>

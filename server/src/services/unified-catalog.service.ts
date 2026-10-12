@@ -58,6 +58,12 @@ export interface CatalogProductDefinition {
     eligible: boolean;
     alreadyOwned?: boolean;
     reason?: string;
+    isPlanIncluded?: boolean;
+    isInstalled?: boolean;
+    isEntitled?: boolean;
+    isFree?: boolean;
+    lifecycleStatus?: "installed" | "enabled" | "available" | "pending_payment" | "plan_restricted";
+    allowedAction?: "open" | "install" | "purchase" | "upgrade_plan";
   };
   icon?: string;
   image?: string;
@@ -474,7 +480,7 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     entitlementKey: "notice-board",
     targetEngine: "addon",
     description: "Company-wide announcements, policy bulletin updates, and departmental communication broadcasts.",
-    category: "Communications",
+    category: "Communication",
     isPublic: true,
     status: "ACTIVE",
     version: "1.0.0",
@@ -973,6 +979,14 @@ export class UnifiedCatalogService {
   public static async getCatalog(options?: CatalogQueryOptions): Promise<{
     currency: string;
     totalProducts: number;
+    summary: {
+      total: number;
+      available: number;
+      installed: number;
+      planIncluded: number;
+      free: number;
+      paid: number;
+    };
     products: CatalogProductDefinition[];
   }> {
     const config = getCommercePricingConfig();
@@ -1006,6 +1020,47 @@ export class UnifiedCatalogService {
         // Non-fatal, proceed without tenant state
       }
     }
+
+    const planName = (tenantSub?.plan?.name || "").toLowerCase();
+    const planSlug = (tenantSub?.plan?.slug || "").toLowerCase();
+    const planFeatures = Array.isArray(tenantSub?.plan?.features) ? tenantSub.plan.features : [];
+    const isSovereignOrGrowth =
+      planName.includes("sovereign") ||
+      planName.includes("growth") ||
+      planSlug.includes("sovereign") ||
+      planSlug.includes("growth") ||
+      planFeatures.some(
+        (f: any) =>
+          typeof f === "string" &&
+          (f.toLowerCase().includes("sovereign") ||
+            f.toLowerCase().includes("integration") ||
+            f.toLowerCase().includes("all add-on") ||
+            f.toLowerCase().includes("all-addon"))
+      );
+
+    const rawIncluded = Array.isArray(tenantSub?.plan?.includedAddonIds) ? tenantSub.plan.includedAddonIds : [];
+    const includedAddonIds = new Set(rawIncluded.map((s: any) => String(s).toLowerCase()));
+
+    const SOVEREIGN_GROWTH_INCLUDED_ADDONS = new Set([
+      "woocommerce-sync",
+      "shopify-sync",
+      "google-workspace",
+      "google-workspace-integration",
+      "tally-importer",
+      "whatsapp-alerts",
+      "razorpay-gateway",
+      "biometric-sync",
+      "okr-performance",
+      "asset-management",
+      "two-factor-auth",
+      "backup-restore",
+      "activity-logs",
+      "internal-reminders",
+      "public-api",
+      "notice-board",
+      "outbound-webhooks",
+      "sms-gateway",
+    ]);
 
     // Query active published dynamic price schedules (OD-1)
     const publishedSchedulesMap = new Map<string, any>();
@@ -1141,13 +1196,18 @@ export class UnifiedCatalogService {
         }
       }
 
-      // Check tenant eligibility
-      let eligibility: CatalogProductDefinition["eligibility"] = undefined;
-      if (options?.tenantId) {
-        let alreadyOwned = false;
-        let eligible = true;
-        let reason: string | undefined = undefined;
+      // Check tenant eligibility and compute normalized lifecycle fields
+      const isFree =
+        (monthlyPrice === 0 || monthlyPrice === null) &&
+        (annualPrice === 0 || annualPrice === null) &&
+        (perUserPrice === 0 || perUserPrice === null);
 
+      let isPlanIncluded = false;
+      let alreadyOwned = false;
+      let eligible = true;
+      let reason: string | undefined = undefined;
+
+      if (options?.tenantId) {
         if (template.targetEngine === "subscription") {
           if (tenantSub?.planId === template.slug) {
             alreadyOwned = true;
@@ -1168,20 +1228,46 @@ export class UnifiedCatalogService {
             ...(tSlug.includes("google-workspace")
               ? ["google-workspace", "google-workspace-integration"]
               : []),
+            ...(tSlug.includes("tally") ? ["tally", "tally-importer"] : []),
           ];
-          if (checkSlugs.some((s) => tenantAddons.has(s))) {
+
+          if (checkSlugs.some((s) => tenantAddons.has(s) || tenantModules.has(s))) {
             alreadyOwned = true;
             eligible = false;
             reason = "Add-on is already active for this workspace";
           }
-        }
 
-        eligibility = {
-          eligible,
-          alreadyOwned,
-          reason,
-        };
+          if (checkSlugs.some((s) => includedAddonIds.has(s))) {
+            isPlanIncluded = true;
+          }
+          if (isSovereignOrGrowth && checkSlugs.some((s) => SOVEREIGN_GROWTH_INCLUDED_ADDONS.has(s))) {
+            isPlanIncluded = true;
+          }
+        }
       }
+
+      const isInstalled = alreadyOwned;
+      const isEntitled = isInstalled || isPlanIncluded;
+      const lifecycleStatus: "installed" | "enabled" | "available" | "pending_payment" | "plan_restricted" =
+        isInstalled ? "installed" : "available";
+      const allowedAction: "open" | "install" | "purchase" | "upgrade_plan" =
+        isInstalled
+          ? "open"
+          : isPlanIncluded || isFree
+            ? "install"
+            : "purchase";
+
+      const eligibility: CatalogProductDefinition["eligibility"] = {
+        eligible,
+        alreadyOwned,
+        reason,
+        isPlanIncluded,
+        isInstalled,
+        isEntitled,
+        isFree,
+        lifecycleStatus,
+        allowedAction,
+      };
 
       let image: string | undefined = undefined;
       if (
@@ -1223,9 +1309,19 @@ export class UnifiedCatalogService {
       });
     }
 
+    const summary = {
+      total: result.length,
+      available: result.filter((p) => !p.eligibility?.alreadyOwned).length,
+      installed: result.filter((p) => p.eligibility?.alreadyOwned).length,
+      planIncluded: result.filter((p) => p.eligibility?.isPlanIncluded).length,
+      free: result.filter((p) => p.eligibility?.isFree).length,
+      paid: result.filter((p) => !p.eligibility?.isFree).length,
+    };
+
     return {
       currency: config.tax.currency,
       totalProducts: result.length,
+      summary,
       products: result,
     };
   }

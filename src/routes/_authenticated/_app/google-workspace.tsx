@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
@@ -86,11 +86,6 @@ function GoogleWorkspacePage() {
     queryFn: async () => {
       try {
         const res = await api.get("/workspace/google/config");
-        if (res?.config) {
-          setClientId(res.config.clientId || "");
-          setSsoEnabled(res.config.ssoEnabled || false);
-          setDriveEnabled(res.config.driveEnabled || false);
-        }
         return {
           accounts: (res?.accounts || []) as ConnectedAccount[],
           config: res?.config || {},
@@ -100,6 +95,14 @@ function GoogleWorkspacePage() {
       }
     },
   });
+
+  useEffect(() => {
+    if (storeData?.config) {
+      setClientId(storeData.config.clientId || "");
+      setSsoEnabled(storeData.config.ssoEnabled || false);
+      setDriveEnabled(storeData.config.driveEnabled || false);
+    }
+  }, [storeData?.config]);
 
   const accounts = storeData?.accounts ?? [];
 
@@ -166,7 +169,7 @@ function GoogleWorkspacePage() {
   async function syncDirectory() {
     try {
       setIsSyncing(true);
-      const res = await api.post("/workspace/google/sync-directory");
+      const res = await api.post("/workspace/google/sync-directory", {});
       qc.invalidateQueries({ queryKey: ["google-workspace-config", tenantId] });
       qc.invalidateQueries({ queryKey: ["employees"] });
       toast.success(
@@ -180,7 +183,10 @@ function GoogleWorkspacePage() {
   }
 
   return (
-    <PlanGuard moduleName="Google Workspace SSO & Drive" requiredPlan="growth">
+    <PlanGuard
+      moduleName="Google Workspace SSO & Drive"
+      addonKey="google-workspace-integration"
+    >
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b pb-4">
           <div>

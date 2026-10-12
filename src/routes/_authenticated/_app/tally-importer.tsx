@@ -220,7 +220,11 @@ function TallyImporterPage() {
   }
 
   return (
-    <PlanGuard moduleName="Tally Prime Ledger Importer" requiredPlan="growth">
+    <PlanGuard
+      moduleName="Tally Prime Ledger Importer"
+      addonKey="tally-importer"
+      requiredPlan="growth"
+    >
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b pb-4">
           <div>

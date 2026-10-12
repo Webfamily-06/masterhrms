@@ -7,6 +7,8 @@ import { StorageFactory } from "../services/factories/storage.factory";
 import { validateFileBuffer, MAX_UPLOAD_SIZE_BYTES } from "../services/storage/file-validator";
 import { tesseractOcrService } from "../services/ocr/tesseract-ocr.service";
 import { ReimbursementApprovalService } from "../services/reimbursement-approval.service";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
 
 export const expensesRouter = Router();
 const approvalService = new ReimbursementApprovalService(prisma as any);
@@ -395,12 +397,119 @@ expensesRouter.post("/claims", requireAuth, async (req: AuthRequest, res: Respon
       return created;
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "expense.claim.created",
+      entityType: "ExpenseClaim",
+      entityId: claim.id,
+      newState: { claimCode: claim.claimCode, title: claim.title, amount: Number(claim.amount), merchant: claim.merchant },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "expense.claim.created",
+      entityType: "expense_claim",
+      entityId: claim.id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { claimCode: claim.claimCode, amount: Number(claim.amount), merchant: claim.merchant },
+    }).catch(() => {});
+
     return res.status(201).json(claim);
   } catch (err: any) {
     if (err.statusCode === 400) {
       return res.status(400).json({ error: err.message, categoryLimit: err.categoryLimit });
     }
     return res.status(500).json({ error: err.message || "Failed to submit expense claim." });
+  }
+});
+
+// GET /api/expenses/claims/:id (Get single claim details)
+expensesRouter.get("/claims/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const claim = await prisma.expenseClaim.findFirst({
+      where: { id, tenantId },
+      include: {
+        employee: { include: { department: true } },
+        category: true,
+      },
+    });
+
+    if (!claim) {
+      return res.status(404).json({ error: "Expense claim not found." });
+    }
+
+    return res.json(claim);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch claim." });
+  }
+});
+
+// PUT /api/expenses/claims/:id (Update pending claim)
+expensesRouter.put("/claims/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const existing = await prisma.expenseClaim.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Expense claim not found." });
+    }
+
+    if (existing.status !== "pending") {
+      return res.status(400).json({ error: `Cannot edit claim with status '${existing.status}'. Only pending claims can be updated.` });
+    }
+
+    const { title, amount, merchant, description, categoryId, expenseDate } = req.body;
+
+    const updated = await prisma.expenseClaim.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(amount !== undefined && { amount: Number(amount) }),
+        ...(merchant !== undefined && { merchant }),
+        ...(description !== undefined && { description }),
+        ...(categoryId !== undefined && { categoryId }),
+        ...(expenseDate !== undefined && { expenseDate: new Date(expenseDate) }),
+      },
+      include: {
+        employee: { include: { department: true } },
+        category: true,
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "expense.claim.updated",
+      entityType: "ExpenseClaim",
+      entityId: id,
+      oldState: { title: existing.title, amount: Number(existing.amount), merchant: existing.merchant },
+      newState: { title: updated.title, amount: Number(updated.amount), merchant: updated.merchant },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "expense.claim.updated",
+      entityType: "expense_claim",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { claimCode: updated.claimCode, amount: Number(updated.amount), merchant: updated.merchant },
+    }).catch(() => {});
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update expense claim." });
   }
 });
 
@@ -560,6 +669,26 @@ expensesRouter.post("/claims/:id/reimburse", requireAuth, async (req: AuthReques
       paymentMode: reimbursementMethod || "Cash",
     }).catch((e) => console.error("Auto-post expense to ledger error:", e));
 
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "expense.claim.reimbursed",
+      entityType: "ExpenseClaim",
+      entityId: id,
+      oldState: { status: existing.status },
+      newState: { status: "reimbursed", reimbursementMethod: updated.reimbursementMethod },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "expense.claim.reimbursed",
+      entityType: "expense_claim",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { claimCode: existing.claimCode, amount: Number(existing.amount), status: "reimbursed" },
+    }).catch(() => {});
+
     return res.json({
       success: true,
       message: `Expense claim ${existing.claimCode} marked as Reimbursed (${updated.reimbursementMethod?.replace("_", " ")})!`,
@@ -586,6 +715,26 @@ expensesRouter.delete("/claims/:id", requireAuth, async (req: AuthRequest, res: 
     }
 
     await prisma.expenseClaim.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "expense.claim.deleted",
+      entityType: "ExpenseClaim",
+      entityId: id,
+      oldState: { claimCode: existing.claimCode, title: existing.title, amount: Number(existing.amount) },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "expense.claim.deleted",
+      entityType: "expense_claim",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { claimCode: existing.claimCode },
+    }).catch(() => {});
+
     return res.json({ success: true, message: "Expense claim deleted." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete expense claim." });

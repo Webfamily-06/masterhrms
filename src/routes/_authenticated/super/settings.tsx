@@ -305,18 +305,17 @@ const DEFAULT_SETTINGS: SuperSettings = {
   pusherCluster: (import.meta.env.VITE_PUSHER_CLUSTER as string) || "ap2",
   pusherEnabled: (import.meta.env.VITE_PUSHER_ENABLED as string) !== "false",
 
-  paypalClientId: "AQxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  paypalSecret: "ELxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  paypalClientId: "",
+  paypalSecret: "",
   paypalMode: "sandbox",
-  paypalEnabled: true,
+  paypalEnabled: false,
 
-  razorpayKeyId: "rzp_test_99XXXXXXXX",
-  razorpayKeySecret: "rzp_sec_XXXXXXXX",
-  razorpayEnabled: true,
+  razorpayKeyId: "",
+  razorpayKeySecret: "",
+  razorpayEnabled: false,
 
-  bankTransferDetails:
-    "Bank: HDFC Bank\nAccount Name: Master HRMS Inc\nAccount No: 50200012345678\nIFSC: HDFC0001234\nSwift Code: HDFCINBB",
-  bankTransferEnabled: true,
+  bankTransferDetails: "",
+  bankTransferEnabled: false,
 
   smtpLogs: [
     {
@@ -581,7 +580,10 @@ function SuperSettingsAdmin() {
     queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
       try {
-        const brandingRes = await api.get("/v1/settings/PLATFORM/branding").catch(() => null);
+        const [brandingRes, paymentsRes] = await Promise.all([
+          api.get("/v1/settings/PLATFORM/branding").catch(() => null),
+          api.get("/v1/settings/PLATFORM/payments").catch(() => null),
+        ]);
         let cmsContent: any = {};
         try {
           const page = await api.get("/cms/pages/system-platform-settings");
@@ -592,6 +594,23 @@ function SuperSettingsAdmin() {
           ...DEFAULT_SETTINGS,
           ...cmsContent,
         };
+
+        // Overlay authoritative payments from SettingsService if available
+        if (paymentsRes?.values) {
+          const pv = paymentsRes.values;
+          if (pv["payments.razorpay_enabled"] !== undefined && cmsContent.razorpayEnabled === undefined) {
+            merged.razorpayEnabled = Boolean(pv["payments.razorpay_enabled"]);
+          }
+          if (pv["payments.razorpay_key_id"] && !cmsContent.razorpayKeyId) {
+            merged.razorpayKeyId = pv["payments.razorpay_key_id"];
+          }
+          if (pv["payments.bank_transfer_enabled"] !== undefined && cmsContent.bankTransferEnabled === undefined) {
+            merged.bankTransferEnabled = Boolean(pv["payments.bank_transfer_enabled"]);
+          }
+          if (pv["payments.bank_details"] && !cmsContent.bankTransferDetails) {
+            merged.bankTransferDetails = pv["payments.bank_details"];
+          }
+        }
 
         // Harmonize platform address fields from legacy/current cmsPage keys
         if (cmsContent.platformName || cmsContent.companyName) {
@@ -641,15 +660,27 @@ function SuperSettingsAdmin() {
   const saveMutation = useMutation({
     mutationFn: async (updatedForm: SuperSettings) => {
       // 1. Save typed settings to Settings Service (Phase 1)
-      await api.put("/v1/settings/PLATFORM/branding", {
-        "branding.app_name": updatedForm.appName,
-        "branding.support_email": updatedForm.supportEmail,
-        "branding.primary_color": updatedForm.primaryThemeColor,
-        "branding.logo_light_id": updatedForm.logoLightId || null,
-        "branding.logo_dark_id": updatedForm.logoDarkId || null,
-        "branding.favicon_id": updatedForm.faviconId || null,
-        "branding.footer_text": updatedForm.footerText || "© 2026 Master HRMS. All rights reserved.",
-      });
+      await Promise.all([
+        api.put("/v1/settings/PLATFORM/branding", {
+          "branding.app_name": updatedForm.appName,
+          "branding.support_email": updatedForm.supportEmail,
+          "branding.primary_color": updatedForm.primaryThemeColor,
+          "branding.logo_light_id": updatedForm.logoLightId || null,
+          "branding.logo_dark_id": updatedForm.logoDarkId || null,
+          "branding.favicon_id": updatedForm.faviconId || null,
+          "branding.footer_text": updatedForm.footerText || "© 2026 Master HRMS. All rights reserved.",
+        }),
+        api.put("/v1/settings/PLATFORM/payments", {
+          "payments.razorpay_enabled": Boolean(updatedForm.razorpayEnabled),
+          "payments.razorpay_key_id": updatedForm.razorpayKeyId || "",
+          ...(updatedForm.razorpayKeySecret && !updatedForm.razorpayKeySecret.includes("••••")
+            ? { "payments.razorpay_key_secret": updatedForm.razorpayKeySecret }
+            : {}),
+          "payments.bank_transfer_enabled": Boolean(updatedForm.bankTransferEnabled),
+          "payments.bank_details": updatedForm.bankTransferDetails || "",
+          "payments.currency": updatedForm.defaultCurrency || "INR",
+        }).catch((err) => console.warn("Failed to sync payments to SettingsService:", err)),
+      ]);
 
       // 2. Also keep CMS page updated for backward compatibility
       await api.put("/cms/pages/system-platform-settings", {
@@ -2802,7 +2833,7 @@ function SuperSettingsAdmin() {
                     value={form.razorpayKeyId}
                     onChange={(e) => setForm({ ...form, razorpayKeyId: e.target.value })}
                     className="text-xs font-mono"
-                    placeholder="rzp_live_xxxxxxxxxxxx"
+                    placeholder="rzp_test_... or rzp_live_..."
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2812,7 +2843,7 @@ function SuperSettingsAdmin() {
                     value={form.razorpayKeySecret}
                     onChange={(e) => setForm({ ...form, razorpayKeySecret: e.target.value })}
                     className="text-xs font-mono"
-                    placeholder="••••••••••••••••"
+                    placeholder="•••••••••••••••• (leave blank to keep current)"
                   />
                 </div>
               </div>
@@ -2841,7 +2872,7 @@ function SuperSettingsAdmin() {
                     value={form.paypalClientId}
                     onChange={(e) => setForm({ ...form, paypalClientId: e.target.value })}
                     className="text-xs font-mono"
-                    placeholder="AQxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    placeholder="Enter PayPal Client ID..."
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2866,7 +2897,7 @@ function SuperSettingsAdmin() {
                     value={form.paypalSecret}
                     onChange={(e) => setForm({ ...form, paypalSecret: e.target.value })}
                     className="text-xs font-mono"
-                    placeholder="ELxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    placeholder="•••••••••••••••• (leave blank to keep current)"
                   />
                 </div>
               </div>

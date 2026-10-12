@@ -224,6 +224,13 @@ export class SettingsService {
         }
       }
 
+      if (!options.decryptSecrets) {
+        cacheStore.set(cacheKey, {
+          value: defaultValue,
+          version: 1,
+          updatedAt: Date.now(),
+        });
+      }
       return defaultValue;
     } catch (dbErr: any) {
       console.warn(`[SettingsService.get] Database read failed for ${key}, falling back:`, dbErr?.message);

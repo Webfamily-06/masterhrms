@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Store,
   Search,
@@ -39,7 +45,12 @@ import {
   Lock,
   Puzzle,
   PackageCheck,
-  LayoutGrid,
+  X,
+  Filter,
+  Check,
+  Info,
+  ArrowUpRight,
+  Zap,
 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
 import { openRazorpayCheckout } from "@/lib/razorpay";
@@ -48,7 +59,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/_app/marketplace")({
   component: MarketplacePage,
-  head: () => ({ meta: [{ title: "Addons Marketplace — Master ERP" }] }),
+  head: () => ({ meta: [{ title: "Add-ons Marketplace — Master ERP" }] }),
 });
 
 export type CatalogPriceDefinition = {
@@ -80,6 +91,12 @@ export type CatalogProduct = {
   eligibility?: {
     eligible: boolean;
     alreadyOwned?: boolean;
+    isInstalled?: boolean;
+    isPlanIncluded?: boolean;
+    isEntitled?: boolean;
+    isFree?: boolean;
+    lifecycleStatus?: "INSTALLED" | "PLAN_INCLUDED" | "AVAILABLE_FREE" | "AVAILABLE_PAID" | "RESTRICTED";
+    allowedAction?: "OPEN" | "INSTALL" | "PURCHASE" | "VIEW_PLAN" | "RESTRICTED";
     reason?: string;
   };
   icon?: string;
@@ -133,20 +150,47 @@ function getCategoryIcon(category?: string, productName?: string, iconName?: str
   return Puzzle;
 }
 
+// Soft pastel styling per category
+function getCategoryBadgeColor(category?: string): string {
+  const cat = (category || "").toLowerCase();
+  if (cat.includes("communication")) return "bg-sky-500/10 text-sky-600 dark:text-sky-400";
+  if (cat.includes("hardware") || cat.includes("biometric")) return "bg-orange-500/10 text-orange-600 dark:text-orange-400";
+  if (cat.includes("ai") || cat.includes("automation")) return "bg-purple-500/10 text-purple-600 dark:text-purple-400";
+  if (cat.includes("commerce") || cat.includes("pos")) return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+  if (cat.includes("finance") || cat.includes("accounting")) return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+  if (cat.includes("security") || cat.includes("auth")) return "bg-rose-500/10 text-rose-600 dark:text-rose-400";
+  if (cat.includes("hr") || cat.includes("people")) return "bg-blue-500/10 text-blue-600 dark:text-blue-400";
+  if (cat.includes("developer") || cat.includes("compliance")) return "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
+  return "bg-primary/10 text-primary";
+}
+
 const LAUNCH_URLS: Record<string, string> = {
   pos: "/pos",
   crm: "/crm",
   finance: "/accounting",
   "biometric-sync": "/attendance",
-  "google-workspace": "/settings",
+  "google-workspace": "/google-workspace",
+  "google-workspace-integration": "/google-workspace",
+  "tally-importer": "/tally-importer",
+  "tally-prime-sync": "/tally-importer",
   "asset-management": "/assets",
   "okr-performance": "/okr",
   "whatsapp-alerts": "/notifications",
   "ai-ocr": "/ai-ocr",
+  "two-factor-auth": "/two-factor-auth",
+  "backup-restore": "/backup-restore",
+  "activity-logs": "/activity-logs",
+  "internal-reminders": "/internal-reminders",
+  "public-api": "/developer",
+  "notice-board": "/notice-board",
+  "outbound-webhooks": "/outbound-webhooks",
+  "sms-gateway": "/sms-gateway",
   starter: "/subscription",
   growth: "/subscription",
   sovereign: "/subscription",
 };
+
+type StatusQuickFilter = "all" | "free" | "paid" | "installed" | "available";
 
 function MarketplacePage() {
   const qc = useQueryClient();
@@ -156,9 +200,9 @@ function MarketplacePage() {
 
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
-  const [filterTab, setFilterTab] = useState<"all" | "installed" | "pro">("all");
-  const [filterType, setFilterType] = useState<"all" | "addons" | "modules" | "plans">("all");
+  const [statusFilter, setStatusFilter] = useState<StatusQuickFilter>("all");
   const [selectedProductForDetails, setSelectedProductForDetails] = useState<CatalogProduct | null>(null);
+  const [installingSlug, setInstallingSlug] = useState<string | null>(null);
 
   // Authoritative Checkout State
   const [checkoutProduct, setCheckoutProduct] = useState<CatalogProduct | null>(null);
@@ -169,7 +213,7 @@ function MarketplacePage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   // 1. Authoritative Commerce Catalog Query
-  const { data: catalogProducts = [], isLoading: isCatalogLoading } = useQuery({
+  const { data: catalogData, isLoading: isCatalogLoading } = useQuery({
     queryKey: ["commerce-catalog", tenantId],
     queryFn: async () => {
       try {
@@ -178,17 +222,27 @@ function MarketplacePage() {
           success: boolean;
           currency: string;
           totalProducts: number;
+          summary?: {
+            total: number;
+            available: number;
+            installed: number;
+            planIncluded: number;
+            free: number;
+            paid: number;
+          };
           products: CatalogProduct[];
         }>(`/commerce/catalog${queryParam}`);
-        return res?.products || [];
+        return res || { success: true, currency: "INR", totalProducts: 0, products: [] };
       } catch (err) {
         console.error("Failed to load commerce catalog:", err);
-        return [];
+        return { success: false, currency: "INR", totalProducts: 0, products: [] };
       }
     },
     enabled: !!tenantId,
     staleTime: 60 * 1000,
   });
+
+  const catalogProducts = catalogData?.products || [];
 
   // 2. Authoritative Price Resolution
   function getProductMonthlyPrice(product: CatalogProduct): number {
@@ -201,7 +255,7 @@ function MarketplacePage() {
 
   // 3. Authoritative Entitlement / Installed Verification
   function isProductInstalled(product: CatalogProduct): boolean {
-    if (product.eligibility?.alreadyOwned === true) return true;
+    if (product.eligibility?.isInstalled === true || product.eligibility?.alreadyOwned === true) return true;
     const slug = (product.slug || "").toLowerCase();
     const enabledMods = profile?.enabledModules || [];
     if (enabledMods.includes(slug)) return true;
@@ -210,12 +264,45 @@ function MarketplacePage() {
     return false;
   }
 
+  function isProductPlanIncluded(product: CatalogProduct): boolean {
+    return product.eligibility?.isPlanIncluded === true;
+  }
+
+  function isProductFree(product: CatalogProduct): boolean {
+    if (product.eligibility?.isFree === true) return true;
+    return getProductMonthlyPrice(product) === 0;
+  }
+
   function getLaunchUrl(product: CatalogProduct): string {
     const slug = (product.slug || "").toLowerCase();
     return LAUNCH_URLS[slug] || LAUNCH_URLS[slug.replace("prod_", "")] || "/dashboard";
   }
 
-  // 4. Authoritative Purchase & Checkout Handler
+  // 4. Authoritative Free Add-on Direct Installation (No Payment Gateway Redirect)
+  async function handleInstallFree(product: CatalogProduct) {
+    if (!tenantId) {
+      toast.error("Authenticated workspace context required.");
+      return;
+    }
+
+    try {
+      setInstallingSlug(product.slug);
+      const res = await api.post<{ success: boolean; message: string }>(`/addons/${product.slug}/install`);
+      if (res?.success) {
+        toast.success(res.message || `Add-on "${product.name}" installed successfully!`);
+        qc.invalidateQueries({ queryKey: ["commerce-catalog", tenantId] });
+        qc.invalidateQueries({ queryKey: ["current-session-user"] });
+        qc.invalidateQueries({ queryKey: ["workspace-subscription-shell"] });
+        qc.invalidateQueries({ queryKey: ["addon-entitlements"] });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to install add-on.");
+    } finally {
+      setInstallingSlug(null);
+    }
+  }
+
+  // 5. Authoritative Paid Add-on Purchase & Checkout Handler
   async function handleStartCheckout(product: CatalogProduct) {
     if (!tenantId) {
       toast.error("Authenticated workspace context required.");
@@ -284,7 +371,6 @@ function MarketplacePage() {
       });
 
       // Step 4: Await Authoritative Server Settlement
-      // A payment callback from Razorpay is NOT settlement. Entitlements are NEVER granted client-side.
       setCheckoutStep("verifying");
       toast.info(`Payment received by gateway (${rzpRes.razorpay_payment_id}). Awaiting server settlement...`);
 
@@ -310,7 +396,6 @@ function MarketplacePage() {
               finalState = "settled";
               break;
             } else {
-              // Webhook verified & settled, but outbox worker is still fulfilling
               setCheckoutStep("fulfilling");
             }
           }
@@ -328,7 +413,6 @@ function MarketplacePage() {
         setCheckoutStep("failed");
         toast.error("Payment or order verification failed.");
       } else {
-        // Pending webhook settlement or outbox delay: do NOT claim settled!
         setCheckoutStep("pending_settlement");
         qc.invalidateQueries({ queryKey: ["commerce-catalog", tenantId] });
         toast.info("Payment confirmed by gateway. Authoritative settlement is completing in background.");
@@ -367,546 +451,885 @@ function MarketplacePage() {
     }
   }
 
-  // Categories derivation from server catalog
-  const categories = useMemo(() => {
-    const set = new Set<string>();
+  // Authoritative dynamic categories with counts
+  const dynamicCategories = useMemo(() => {
+    const map = new Map<string, number>();
     catalogProducts.forEach((p) => {
-      if (p.category) set.add(p.category);
+      const rawCat = p.category ? p.category.trim() : "General";
+      const cat = rawCat === "Communications" ? "Communication" : rawCat;
+      map.set(cat, (map.get(cat) || 0) + 1);
     });
-    return ["all", ...Array.from(set).sort()];
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [catalogProducts]);
 
-  // Filtering
-  const filtered = catalogProducts.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.category || "").toLowerCase().includes(search.toLowerCase()) ||
-      (p.description || "").toLowerCase().includes(search.toLowerCase());
+  // Authoritative Summary Counters
+  const summaryCounts = useMemo(() => {
+    let installed = 0;
+    let planIncluded = 0;
+    let free = 0;
+    let paid = 0;
+    let available = 0;
 
-    const matchesCategory =
-      filterCategory === "all" ||
-      (p.category || "").toLowerCase() === filterCategory.toLowerCase();
+    catalogProducts.forEach((p) => {
+      const isInst = isProductInstalled(p);
+      const isInc = isProductPlanIncluded(p);
+      const isFr = isProductFree(p);
+      if (isInst) installed++;
+      else available++;
+      if (isInc) planIncluded++;
+      if (isFr) free++;
+      else paid++;
+    });
 
-    const installed = isProductInstalled(p);
-    let matchesTab = true;
-    if (filterTab === "installed") matchesTab = installed;
-    else if (filterTab === "pro") matchesTab = !installed;
+    return {
+      total: catalogProducts.length,
+      installed,
+      available,
+      planIncluded,
+      free,
+      paid,
+    };
+  }, [catalogProducts, profile]);
 
-    let matchesType = true;
-    if (filterType === "addons") {
-      matchesType = p.productType === "ADDON_FEATURE" || p.productType === "ADDON_INTEGRATION";
-    } else if (filterType === "modules") {
-      matchesType = p.productType === "STANDALONE_PRODUCT";
-    } else if (filterType === "plans") {
-      matchesType = p.productType === "BASE_PLAN";
-    }
+  // Combined Search & Filters
+  const filteredProducts = useMemo(() => {
+    return catalogProducts.filter((p) => {
+      const matchesSearch =
+        !search.trim() ||
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        (p.category || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.description || "").toLowerCase().includes(search.toLowerCase());
 
-    return matchesSearch && matchesCategory && matchesTab && matchesType;
-  });
+      const rawCat = p.category ? p.category.trim() : "General";
+      const cat = rawCat === "Communications" ? "Communication" : rawCat;
+      const matchesCategory =
+        filterCategory === "all" ||
+        cat.toLowerCase() === filterCategory.toLowerCase();
+
+      const installed = isProductInstalled(p);
+      const planIncluded = isProductPlanIncluded(p);
+      const free = isProductFree(p);
+
+      let matchesStatus = true;
+      if (statusFilter === "installed") {
+        matchesStatus = installed;
+      } else if (statusFilter === "free") {
+        matchesStatus = free;
+      } else if (statusFilter === "paid") {
+        matchesStatus = !free && !planIncluded;
+      } else if (statusFilter === "available") {
+        matchesStatus = !installed;
+      }
+
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [catalogProducts, search, filterCategory, statusFilter, profile]);
+
+  const hasActiveFilters = search.trim() !== "" || filterCategory !== "all" || statusFilter !== "all";
+
+  function handleResetFilters() {
+    setSearch("");
+    setFilterCategory("all");
+    setStatusFilter("all");
+  }
 
   return (
     <PlanGuard moduleName="Addons Marketplace" requiredPlan="free">
-      <div className="space-y-6 max-w-full pb-12">
-        {/* Top Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <Store className="size-6 text-primary" /> Addons Marketplace
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Discover and activate enterprise extensions backed by server-authoritative pricing and isolation.
-            </p>
+      <TooltipProvider delayDuration={150}>
+        <div className="space-y-6 max-w-full pb-12">
+          {/* A. SIMPLIFIED PAGE HEADER */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+                <Store className="size-6 text-primary" /> Add-ons Marketplace
+              </h1>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Discover, install, and manage extensions available to your workspace.
+              </p>
+            </div>
+
+            {/* Authoritative DB-backed Summary Counters */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
+                    <span className="size-2 rounded-full bg-blue-500 shrink-0" />
+                    <span className="text-muted-foreground">Available:</span>
+                    <span className="font-bold text-foreground font-mono">{summaryCounts.available}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Not currently installed; purchase or eligibility may be required.
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
+                    <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-muted-foreground">Installed:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">{summaryCounts.installed}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  This add-on is installed in your workspace.
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
+                    <span className="size-2 rounded-full bg-purple-500 shrink-0" />
+                    <span className="text-muted-foreground">Included in plan:</span>
+                    <span className="font-bold text-purple-600 dark:text-purple-400 font-mono">{summaryCounts.planIncluded}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Included in your current subscription tier.
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
-        </div>
 
-        {/* Product Type Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-          <span className="text-[11px] font-bold text-muted-foreground uppercase mr-1 shrink-0 flex items-center gap-1">
-            <LayoutGrid className="size-3 text-primary" /> Type:
-          </span>
-          {[
-            { id: "all", label: "All Items" },
-            { id: "addons", label: "Add-ons & Integrations" },
-            { id: "modules", label: "ERP Modules" },
-            { id: "plans", label: "Subscription Plans" },
-          ].map((t) => (
-            <Button
-              key={t.id}
-              variant={filterType === t.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterType(t.id as any)}
-              className="h-7 text-xs px-2.5 rounded-lg shrink-0 font-semibold"
-            >
-              {t.label}
-            </Button>
-          ))}
-        </div>
+          {/* MAIN LAYOUT: SIDEBAR + 4-COLUMN CARD GRID */}
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* B. COMPACT CATEGORY SIDEBAR */}
+            <aside className="w-full lg:w-64 xl:w-72 shrink-0 space-y-5 rounded-xl border bg-card p-4 shadow-2xs">
+              {/* Search Bar */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search add-ons..."
+                    className="pl-8 pr-8 text-xs h-9 rounded-lg"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch("")}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-        {/* Search & Status Filters */}
-        <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search addons, categories..."
-              className="pl-9 text-xs"
-            />
-          </div>
+              {/* Status Quick-Filters */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Filter by Status
+                  </label>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="text-[10px] text-primary hover:underline font-semibold"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {(["all", "installed", "pro"] as const).map((tab) => (
-              <Button
-                key={tab}
-                variant={filterTab === tab ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilterTab(tab)}
-                className="text-xs font-bold capitalize"
-              >
-                {tab === "all" ? "All Status" : tab === "installed" ? "Installed & Active" : "Available to Purchase"}
-              </Button>
-            ))}
-          </div>
-        </div>
+                <div className="space-y-1">
+                  {[
+                    { id: "all", label: "All Add-ons", count: summaryCounts.total },
+                    { id: "free", label: "Free Add-ons", count: summaryCounts.free },
+                    { id: "paid", label: "Pro / Paid Add-ons", count: summaryCounts.paid },
+                    { id: "installed", label: "Installed Add-ons", count: summaryCounts.installed },
+                    { id: "available", label: "Available to Purchase", count: summaryCounts.available },
+                  ].map((filter) => {
+                    const active = statusFilter === filter.id;
+                    return (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        onClick={() => setStatusFilter(filter.id as StatusQuickFilter)}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          active
+                            ? "bg-primary text-primary-foreground font-semibold"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground font-medium"
+                        }`}
+                      >
+                        <span className="truncate">{filter.label}</span>
+                        <span
+                          className={`text-[10px] font-mono px-1.5 py-0.2 rounded-md ${
+                            active
+                              ? "bg-primary-foreground/20 text-primary-foreground font-bold"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {filter.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-        {/* Category Navigation Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-          <span className="text-[11px] font-bold text-muted-foreground uppercase mr-1 shrink-0 flex items-center gap-1">
-            <Tag className="size-3 text-primary" /> Categories:
-          </span>
-          {categories.map((cat: string) => (
-            <Button
-              key={cat}
-              variant={filterCategory.toLowerCase() === cat.toLowerCase() ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterCategory(cat)}
-              className="h-7 text-xs px-2.5 rounded-lg shrink-0 font-semibold capitalize"
-            >
-              {cat === "all" ? "All Categories" : cat}
-            </Button>
-          ))}
-        </div>
-
-        {/* Addons Grid */}
-        {isCatalogLoading ? (
-          <div className="py-16 grid place-items-center">
-            <Loader2 className="size-8 animate-spin text-primary" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-16 text-center text-xs text-muted-foreground italic space-y-2">
-            <Store className="size-10 mx-auto opacity-30" />
-            <p>No extensions match your search criteria.</p>
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map((product) => {
-              const installed = isProductInstalled(product);
-              const priceVal = getProductMonthlyPrice(product);
-              const CatIcon = getCategoryIcon(product.category, product.name, product.icon);
-              const hasUploadedImg = isUploadedAssetUrl(product.image) || isUploadedAssetUrl(product.icon);
-              const displayImg = isUploadedAssetUrl(product.image) ? product.image! : isUploadedAssetUrl(product.icon) ? product.icon! : null;
-
-              return (
-                <Card
-                  key={product.id}
-                  className={`flex flex-col justify-between overflow-hidden transition-all hover:shadow-xl group border shadow-xs ${
-                    installed ? "border-emerald-500/50 bg-emerald-500/5" : ""
-                  }`}
-                >
-                  {/* Top Thumbnail Banner / Neutral Category Graphic */}
-                  <div
-                    className="h-40 relative bg-gradient-to-br from-primary/10 via-purple-500/10 to-emerald-500/10 border-b overflow-hidden cursor-pointer flex items-center justify-center"
-                    onClick={() => setSelectedProductForDetails(product)}
+              {/* Dynamic Catalog Categories */}
+              <div className="space-y-1.5 pt-3 border-t">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Categories
+                </label>
+                <div className="space-y-1 max-h-[380px] overflow-y-auto pr-1">
+                  <button
+                    type="button"
+                    onClick={() => setFilterCategory("all")}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                      filterCategory === "all"
+                        ? "bg-primary/10 text-primary font-bold border border-primary/20"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground font-medium"
+                    }`}
                   >
-                    {hasUploadedImg ? (
-                      <img
-                        src={displayImg!}
-                        alt={product.name}
-                        className="size-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="size-16 rounded-2xl bg-background/80 backdrop-blur-md border shadow-md grid place-items-center text-primary group-hover:scale-110 transition-transform">
-                        <CatIcon className="size-8" />
+                    <span>All Categories</span>
+                    <span className="text-[10px] font-mono bg-muted text-muted-foreground px-1.5 py-0.2 rounded-md">
+                      {summaryCounts.total}
+                    </span>
+                  </button>
+
+                  {dynamicCategories.map(([cat, count]) => {
+                    const active = filterCategory.toLowerCase() === cat.toLowerCase();
+                    const CatIcon = getCategoryIcon(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setFilterCategory(cat)}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          active
+                            ? "bg-primary/10 text-primary font-bold border border-primary/20"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground font-medium"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <CatIcon className="size-3.5 shrink-0 opacity-70" />
+                          <span className="truncate">{cat}</span>
+                        </span>
+                        <span className="text-[10px] font-mono bg-muted text-muted-foreground px-1.5 py-0.2 rounded-md shrink-0 ml-1">
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </aside>
+
+            {/* C. MAIN CONTENT AREA & 4-COLUMN CARD GRID */}
+            <main className="flex-1 min-w-0 space-y-4">
+              {/* Active Filter Status Bar */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                <div className="flex items-center gap-2">
+                  <span>
+                    Showing <strong className="text-foreground">{filteredProducts.length}</strong> of{" "}
+                    <strong>{summaryCounts.total}</strong> add-ons
+                  </span>
+                  {filterCategory !== "all" && (
+                    <Badge variant="outline" className="text-[10px] gap-1 font-medium bg-muted/50">
+                      Category: {filterCategory}
+                      <button type="button" onClick={() => setFilterCategory("all")}>
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                  {statusFilter !== "all" && (
+                    <Badge variant="outline" className="text-[10px] gap-1 font-medium bg-muted/50 capitalize">
+                      Status: {statusFilter}
+                      <button type="button" onClick={() => setStatusFilter("all")}>
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  )}
+                </div>
+
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResetFilters}
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+
+              {/* Grid Loading or Empty State */}
+              {isCatalogLoading ? (
+                <div className="py-24 grid place-items-center rounded-xl border bg-card">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="size-8 animate-spin text-primary" />
+                    <p className="text-xs text-muted-foreground">Loading marketplace catalog...</p>
+                  </div>
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="py-20 text-center rounded-xl border bg-card p-6 space-y-3">
+                  <Store className="size-10 mx-auto text-muted-foreground/40" />
+                  <h3 className="text-sm font-bold text-foreground">No add-ons found</h3>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    No extensions match your current filter and search criteria. Try clearing filters or searching for something else.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={handleResetFilters} className="text-xs">
+                    Clear all filters
+                  </Button>
+                </div>
+              ) : (
+                /* DESKTOP 4-COLUMN RESPONSIVE GRID */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredProducts.map((product) => {
+                    const installed = isProductInstalled(product);
+                    const planIncluded = isProductPlanIncluded(product);
+                    const isFree = isProductFree(product);
+                    const priceVal = getProductMonthlyPrice(product);
+                    const CatIcon = getCategoryIcon(product.category, product.name, product.icon);
+                    const badgeColor = getCategoryBadgeColor(product.category);
+                    const hasUploadedImg = isUploadedAssetUrl(product.image) || isUploadedAssetUrl(product.icon);
+                    const displayImg = isUploadedAssetUrl(product.image) ? product.image! : isUploadedAssetUrl(product.icon) ? product.icon! : null;
+
+                    return (
+                      <Card
+                        key={product.id}
+                        className={`flex flex-col justify-between overflow-hidden transition-all duration-200 hover:shadow-md border bg-card group ${
+                          installed ? "border-emerald-500/40 bg-emerald-500/[0.02]" : "border-border/70"
+                        }`}
+                      >
+                        <div className="p-4 space-y-3 flex-1 flex flex-col">
+                          {/* Card Top: Icon & Pricing/Status Badges */}
+                          <div className="flex items-start justify-between gap-2">
+                            {/* Icon or Uploaded Thumbnail */}
+                            <div
+                              className={`size-10 rounded-xl ${badgeColor} flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform`}
+                            >
+                              {hasUploadedImg ? (
+                                <img
+                                  src={displayImg!}
+                                  alt={product.name}
+                                  className="size-full object-cover rounded-xl"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <CatIcon className="size-5" />
+                              )}
+                            </div>
+
+                            {/* Status & Pricing Indicators with Accessible Tooltips */}
+                            <div className="flex flex-col items-end gap-1">
+                              {installed ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 gap-1 cursor-help py-0.5"
+                                    >
+                                      <CheckCircle2 className="size-2.5" /> Installed
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    This add-on is installed in your workspace.
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] font-medium text-muted-foreground border-border cursor-help py-0.5"
+                                    >
+                                      Available
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    Not currently installed; purchase or eligibility may be required.
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+
+                              {/* Commercial / Tier Badge */}
+                              {planIncluded ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 cursor-help py-0"
+                                    >
+                                      Plan Included
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    Included in your current subscription.
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : isFree ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 cursor-help py-0"
+                                    >
+                                      Free
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    No purchase payment is required for this catalog item.
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 cursor-help py-0"
+                                    >
+                                      Pro
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    Requires purchase unless your subscription already covers it.
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Addon Name & Category */}
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              {product.category || "Extension"}
+                            </span>
+                            <h3
+                              className="font-bold text-sm text-foreground leading-tight line-clamp-1 group-hover:text-primary transition-colors cursor-pointer"
+                              onClick={() => setSelectedProductForDetails(product)}
+                            >
+                              {product.name}
+                            </h3>
+                          </div>
+
+                          {/* Short Description */}
+                          <p
+                            className="text-xs text-muted-foreground line-clamp-2 leading-relaxed flex-1 cursor-pointer"
+                            onClick={() => setSelectedProductForDetails(product)}
+                          >
+                            {product.description}
+                          </p>
+
+                          {/* Price & Billing Interval */}
+                          <div className="pt-2.5 border-t border-border/50 flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground text-[11px]">Price:</span>
+                            <span className="font-mono font-bold text-foreground text-xs">
+                              {planIncluded ? (
+                                <span className="text-purple-600 dark:text-purple-400">Included</span>
+                              ) : isFree || priceVal === 0 ? (
+                                <span className="text-blue-600 dark:text-blue-400">Free</span>
+                              ) : (
+                                `${formatSystemAmount(priceVal)}/mo`
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Card Actions: Details + Primary Action */}
+                        <div className="p-3 pt-0 flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs px-2.5 font-medium text-muted-foreground hover:text-foreground shrink-0"
+                            onClick={() => setSelectedProductForDetails(product)}
+                          >
+                            Details
+                          </Button>
+
+                          <div className="flex-1 min-w-0">
+                            {installed ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="w-full h-8 text-xs font-semibold gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25"
+                                asChild
+                              >
+                                <Link to={getLaunchUrl(product) as any}>
+                                  <ExternalLink className="size-3" /> Open
+                                </Link>
+                              </Button>
+                            ) : product.productType === "BASE_PLAN" ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full h-8 text-xs font-semibold gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                                asChild
+                              >
+                                <Link to="/subscription">
+                                  <ExternalLink className="size-3" /> Manage Plan
+                                </Link>
+                              </Button>
+                            ) : isFree || planIncluded ? (
+                              <Button
+                                size="sm"
+                                className="w-full h-8 text-xs font-semibold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                disabled={installingSlug === product.slug}
+                                onClick={() => handleInstallFree(product)}
+                              >
+                                {installingSlug === product.slug ? (
+                                  <>
+                                    <Loader2 className="size-3 animate-spin" /> Installing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <PackageCheck className="size-3" /> Install
+                                  </>
+                                )}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="w-full h-8 text-xs font-semibold gap-1"
+                                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
+                                onClick={() => handleStartCheckout(product)}
+                              >
+                                <ShoppingBag className="size-3" /> Purchase
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </main>
+          </div>
+
+          {/* D. DETAILS MODAL */}
+          <Dialog open={!!selectedProductForDetails} onOpenChange={(open) => !open && setSelectedProductForDetails(null)}>
+            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+              {selectedProductForDetails && (() => {
+                const product = selectedProductForDetails;
+                const installed = isProductInstalled(product);
+                const planIncluded = isProductPlanIncluded(product);
+                const isFree = isProductFree(product);
+                const priceVal = getProductMonthlyPrice(product);
+                const ModalCatIcon = getCategoryIcon(product.category, product.name, product.icon);
+                const modalBadgeColor = getCategoryBadgeColor(product.category);
+                const modalHasUploadedImg = isUploadedAssetUrl(product.image) || isUploadedAssetUrl(product.icon);
+                const modalDisplayImg = isUploadedAssetUrl(product.image) ? product.image! : isUploadedAssetUrl(product.icon) ? product.icon! : null;
+
+                return (
+                  <div className="space-y-4 text-xs">
+                    {/* Header Banner */}
+                    <div className="p-4 rounded-xl bg-muted/40 border flex items-start gap-4">
+                      <div className={`size-14 rounded-2xl ${modalBadgeColor} flex items-center justify-center shrink-0 border`}>
+                        {modalHasUploadedImg ? (
+                          <img src={modalDisplayImg!} alt={product.name} className="size-full object-cover rounded-2xl" />
+                        ) : (
+                          <ModalCatIcon className="size-7" />
+                        )}
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            {product.category || "Extension"}
+                          </Badge>
+                          {product.version && (
+                            <Badge variant="secondary" className="text-[10px] font-mono">
+                              {product.version}
+                            </Badge>
+                          )}
+                          {installed && (
+                            <Badge className="bg-emerald-500 text-white font-semibold text-[10px] gap-1">
+                              <CheckCircle2 className="size-3" /> Installed
+                            </Badge>
+                          )}
+                          {planIncluded && (
+                            <Badge className="bg-purple-500 text-white font-semibold text-[10px]">
+                              Plan Included
+                            </Badge>
+                          )}
+                        </div>
+                        <h2 className="text-lg font-black text-foreground">{product.name}</h2>
+                        <p className="text-xs text-muted-foreground">
+                          {product.developer || "Master ERP Official Extension"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div className="space-y-1.5">
+                      <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">About this Add-on</h3>
+                      <p className="text-muted-foreground leading-relaxed">
+                        {product.long_description || product.description}
+                      </p>
+                    </div>
+
+                    {/* Features List */}
+                    {Array.isArray(product.features) && product.features.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">Key Capabilities</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {product.features.map((feat: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/30 border">
+                              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
+                              <span className="font-medium text-foreground text-[11px]">{feat}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    <div className="absolute top-3 left-3">
-                      <Badge variant="outline" className="text-[10px] font-mono bg-background/85 backdrop-blur-md gap-1">
-                        <CatIcon className="size-3 text-primary" /> {product.category || "General"}
-                      </Badge>
+                    {/* Pricing Summary */}
+                    <div className="p-3 bg-muted/40 rounded-xl flex items-center justify-between border">
+                      <div>
+                        <span className="text-muted-foreground text-[11px]">Authoritative License Rate:</span>
+                        <div className="font-mono font-bold text-base text-primary">
+                          {planIncluded ? "Included with Workspace Plan" : isFree || priceVal === 0 ? "Free (No Payment Required)" : `${formatSystemAmount(priceVal)}/month`}
+                        </div>
+                      </div>
+                      <div>
+                        {installed ? (
+                          <Badge className="bg-emerald-500 text-white font-bold">
+                            Active in Workspace
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground font-mono">
+                            Ready to Activate
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                      {product.productType === "BASE_PLAN" && (
-                        <Badge variant="secondary" className="font-mono text-[9px] bg-background/90 text-primary border shadow-xs">
-                          Plan Tier
-                        </Badge>
-                      )}
-                      <Badge className="bg-primary text-white font-mono text-[9px] shadow-sm">
-                        {formatSystemAmount(priceVal)}/mo
-                      </Badge>
-                    </div>
+                    {/* Modal Actions */}
+                    <DialogFooter className="flex justify-between sm:justify-between items-center w-full pt-3 border-t">
+                      <Button size="sm" variant="outline" onClick={() => setSelectedProductForDetails(null)}>
+                        Close
+                      </Button>
+                      <div className="flex gap-2">
+                        {installed ? (
+                          <Button size="sm" className="font-bold gap-1.5 bg-primary" asChild>
+                            <Link to={getLaunchUrl(product) as any}>
+                              <ExternalLink className="size-3.5" /> Open Module
+                            </Link>
+                          </Button>
+                        ) : product.productType === "BASE_PLAN" ? (
+                          <Button size="sm" variant="outline" className="font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10" asChild>
+                            <Link to="/subscription">
+                              <ExternalLink className="size-3.5" /> Manage Workspace Plan
+                            </Link>
+                          </Button>
+                        ) : isFree || planIncluded ? (
+                          <Button
+                            size="sm"
+                            className="font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={installingSlug === product.slug}
+                            onClick={() => {
+                              setSelectedProductForDetails(null);
+                              handleInstallFree(product);
+                            }}
+                          >
+                            {installingSlug === product.slug ? (
+                              <>
+                                <Loader2 className="size-3.5 animate-spin" /> Installing...
+                              </>
+                            ) : (
+                              <>
+                                <PackageCheck className="size-3.5" /> Install Free
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedProductForDetails(null);
+                              handleStartCheckout(product);
+                            }}
+                            className="font-bold gap-1.5"
+                            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
+                          >
+                            <ShoppingBag className="size-3.5" /> Purchase & Activate
+                          </Button>
+                        )}
+                      </div>
+                    </DialogFooter>
                   </div>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
 
-                  <CardHeader className="pb-2 pt-3 cursor-pointer" onClick={() => setSelectedProductForDetails(product)}>
-                    <CardTitle className="text-base font-bold leading-snug group-hover:text-primary transition-colors">
-                      {product.name}
-                    </CardTitle>
-                    <CardDescription className="text-xs leading-relaxed mt-1 line-clamp-2">
-                      {product.description}
-                    </CardDescription>
-                  </CardHeader>
+          {/* E. AUTHORITATIVE CHECKOUT DIALOG */}
+          <Dialog
+            open={!!checkoutProduct}
+            onOpenChange={(open) => {
+              if (
+                !open &&
+                checkoutStep !== "creating_order" &&
+                checkoutStep !== "launching_gateway" &&
+                checkoutStep !== "verifying" &&
+                checkoutStep !== "fulfilling"
+              ) {
+                setCheckoutProduct(null);
+                setCheckoutStep("idle");
+                setCreatedOrder(null);
+                setCheckoutError(null);
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-md text-xs">
+              {checkoutProduct && (() => {
+                const priceVal = getProductMonthlyPrice(checkoutProduct);
+                return (
+                  <div className="space-y-4">
+                    <DialogHeader>
+                      <DialogTitle className="text-base font-black flex items-center gap-2">
+                        <CreditCard className="size-5 text-primary" /> Checkout: {checkoutProduct.name}
+                      </DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Server-authoritative sandbox payment powered by Razorpay.
+                      </DialogDescription>
+                    </DialogHeader>
 
-                  <CardContent className="pt-0 space-y-3">
-                    <div className="pt-3 border-t flex items-center justify-between gap-2">
+                    {/* Order Preview */}
+                    <div className="p-3 bg-secondary/30 rounded-xl border space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">Product:</span>
+                        <span className="font-bold text-foreground">{checkoutProduct.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">Billing Interval:</span>
+                        <Badge variant="outline" className="text-[10px] font-mono">1 Month</Badge>
+                      </div>
+                      <div className="flex justify-between items-center text-xs pt-2 border-t">
+                        <span className="font-bold text-foreground">Authoritative Amount:</span>
+                        <span className="font-mono font-bold text-base text-primary">
+                          {formatSystemAmount(priceVal)}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground italic">
+                        * Taxes calculated and sealed server-side upon order creation.
+                      </p>
+                    </div>
+
+                    {/* Status & Feedback */}
+                    {checkoutStep === "creating_order" && (
+                      <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center gap-2 text-blue-600">
+                        <Loader2 className="size-4 animate-spin shrink-0" />
+                        <span>Creating immutable order snapshot on server...</span>
+                      </div>
+                    )}
+
+                    {checkoutStep === "launching_gateway" && (
+                      <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center gap-2 text-purple-600">
+                        <Loader2 className="size-4 animate-spin shrink-0" />
+                        <span>Opening Razorpay Sandbox Checkout window...</span>
+                      </div>
+                    )}
+
+                    {checkoutStep === "verifying" && (
+                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-600">
+                        <Loader2 className="size-4 animate-spin shrink-0" />
+                        <div>
+                          <p className="font-bold">Gateway Payment Received</p>
+                          <p className="text-[10px]">Awaiting authoritative server webhook verification...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {checkoutStep === "fulfilling" && (
+                      <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center gap-2 text-indigo-600">
+                        <Loader2 className="size-4 animate-spin shrink-0" />
+                        <div>
+                          <p className="font-bold">Payment Settled (PAID)</p>
+                          <p className="text-[10px]">Processing transactional outbox fulfillment & granting entitlements...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {checkoutStep === "settled" && (
+                      <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-emerald-600">
+                        <CheckCircle2 className="size-5 shrink-0" />
+                        <div>
+                          <p className="font-bold">Payment Verified & Settled!</p>
+                          <p className="text-[10px]">Addon is now active on your workspace.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {checkoutStep === "pending_settlement" && (
+                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-600">
+                        <AlertCircle className="size-5 shrink-0" />
+                        <div>
+                          <p className="font-bold">Settlement In Progress</p>
+                          <p className="text-[10px]">Payment received by gateway. Webhook settlement or outbox worker is finalizing in the background. Entitlement will activate once complete.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {(checkoutStep === "error" || checkoutStep === "failed") && (
+                      <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 flex items-center gap-2 text-destructive">
+                        <AlertCircle className="size-5 shrink-0" />
+                        <div>
+                          <p className="font-bold">Checkout / Payment Incomplete</p>
+                          <p className="text-[10px]">{checkoutError || "An error occurred during checkout or payment settlement."}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Trust & Security Badge */}
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
+                      <span>HMAC-SHA256 Webhook Verification • Zero Client Pricing Authority</span>
+                    </div>
+
+                    <DialogFooter className="flex justify-between sm:justify-between items-center pt-2 border-t">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setSelectedProductForDetails(product)}
-                        className="h-8 text-xs font-semibold gap-1.5 flex-1"
+                        onClick={() => {
+                          setCheckoutProduct(null);
+                          setCheckoutStep("idle");
+                        }}
+                        disabled={checkoutStep === "creating_order" || checkoutStep === "launching_gateway"}
                       >
-                        <Eye className="size-3.5 text-primary" /> View Details
+                        {checkoutStep === "settled" ? "Done" : checkoutStep === "pending_settlement" ? "Close" : "Cancel"}
                       </Button>
 
-                      {installed ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="h-8 text-xs font-bold gap-1 text-emerald-600 border border-emerald-500/20"
-                          asChild
-                        >
-                          <Link to={getLaunchUrl(product) as any}>
-                            <ExternalLink className="size-3.5" /> Launch
-                          </Link>
-                        </Button>
-                      ) : product.productType === "BASE_PLAN" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs font-bold gap-1 border-primary/40 text-primary hover:bg-primary/10"
-                          asChild
-                        >
-                          <Link to="/subscription">
-                            <ExternalLink className="size-3.5" /> Manage Plan
-                          </Link>
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          className="h-8 font-bold text-xs gap-1.5"
-                          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
-                          onClick={() => handleStartCheckout(product)}
-                        >
-                          <ShoppingBag className="size-3.5" /> Purchase
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                      <div className="flex gap-2">
+                        {checkoutStep === "idle" && (
+                          <Button
+                            size="sm"
+                            onClick={executeRazorpayCheckout}
+                            className="font-bold gap-1.5"
+                            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
+                          >
+                            <CreditCard className="size-3.5" /> Pay with Razorpay Sandbox
+                          </Button>
+                        )}
 
-        {/* MODAL: VIEW FULL ADDON DETAILS */}
-        <Dialog open={!!selectedProductForDetails} onOpenChange={(open) => !open && setSelectedProductForDetails(null)}>
-          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-            {selectedProductForDetails && (() => {
-              const product = selectedProductForDetails;
-              const installed = isProductInstalled(product);
-              const priceVal = getProductMonthlyPrice(product);
-              const ModalCatIcon = getCategoryIcon(product.category, product.name, product.icon);
-              const modalHasUploadedImg = isUploadedAssetUrl(product.image) || isUploadedAssetUrl(product.icon);
-              const modalDisplayImg = isUploadedAssetUrl(product.image) ? product.image! : isUploadedAssetUrl(product.icon) ? product.icon! : null;
-
-              return (
-                <div className="space-y-4 text-xs">
-                  {/* Banner Image / Neutral Lucide Category Icon Box */}
-                  <div className="h-44 rounded-xl relative overflow-hidden bg-gradient-to-br from-primary/10 via-purple-500/10 to-emerald-500/10 border flex items-center justify-center">
-                    {modalHasUploadedImg ? (
-                      <img src={modalDisplayImg!} alt={product.name} className="size-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="size-16 rounded-2xl bg-background/90 border shadow-md grid place-items-center text-primary">
-                        <ModalCatIcon className="size-8" />
+                        {/* Developer Sandbox Instant Settlement (Dev Only Fallback) */}
+                        {import.meta.env.DEV && createdOrder && checkoutStep !== "settled" && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={handleSimulateDevSettlement}
+                            className="text-[10px] h-8 font-mono border"
+                          >
+                            <RefreshCw className="size-3 mr-1" /> Dev Simulate Settlement
+                          </Button>
+                        )}
                       </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/25 to-transparent" />
-                    <div className="absolute top-3 left-3 flex gap-2">
-                      <Badge className="bg-background/85 backdrop-blur-md text-foreground font-mono text-[10px] gap-1">
-                        <ModalCatIcon className="size-3 text-primary" /> {product.category || "Extension"}
-                      </Badge>
-                      <Badge variant="outline" className="bg-background/85 font-mono text-[10px]">
-                        {product.version || "v1.0.0"}
-                      </Badge>
-                      {product.productType === "BASE_PLAN" && (
-                        <Badge variant="secondary" className="bg-background/90 text-primary font-mono text-[10px]">
-                          Subscription Plan
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
-                      <div>
-                        <h2 className="text-xl font-black text-foreground">{product.name}</h2>
-                        <p className="text-muted-foreground text-xs mt-0.5">{product.developer || "Master ERP Platform Official"}</p>
-                      </div>
-                      <Badge className="bg-primary text-white font-mono font-bold text-xs">
-                        {formatSystemAmount(priceVal)}/mo
-                      </Badge>
-                    </div>
+                    </DialogFooter>
                   </div>
-
-                  {/* Description */}
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-sm text-foreground">About this Add-on</h3>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {product.long_description || product.description}
-                    </p>
-                  </div>
-
-                  {/* Key Features List */}
-                  {Array.isArray(product.features) && product.features.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t">
-                      <h4 className="font-bold text-xs uppercase text-muted-foreground">Included Features & Capabilities</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {product.features.map((feat: string, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/30 border">
-                            <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-                            <span className="font-medium text-foreground text-[11px]">{feat}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Status & Pricing Banner */}
-                  <div className="p-3 bg-muted/40 rounded-xl flex items-center justify-between border">
-                    <div>
-                      <span className="text-muted-foreground text-[11px]">Monthly License Rate:</span>
-                      <div className="font-mono font-bold text-base text-primary">
-                        {formatSystemAmount(priceVal)}
-                      </div>
-                    </div>
-                    <div>
-                      {installed ? (
-                        <Badge className="bg-emerald-500 text-white font-bold">
-                          INSTALLED & ACTIVE
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground font-mono">
-                          Ready to Purchase
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions Footer */}
-                  <DialogFooter className="flex justify-between sm:justify-between items-center w-full pt-2 border-t">
-                    <Button size="sm" variant="outline" onClick={() => setSelectedProductForDetails(null)}>
-                      Close
-                    </Button>
-                    <div className="flex gap-2">
-                      {installed ? (
-                        <Button size="sm" className="font-bold gap-1.5 bg-primary" asChild>
-                          <Link to={getLaunchUrl(product) as any}>
-                            <ExternalLink className="size-3.5" /> Launch Module
-                          </Link>
-                        </Button>
-                      ) : product.productType === "BASE_PLAN" ? (
-                        <Button size="sm" variant="outline" className="font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10" asChild>
-                          <Link to="/subscription">
-                            <ExternalLink className="size-3.5" /> Manage Workspace Plan
-                          </Link>
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedProductForDetails(null);
-                            handleStartCheckout(product);
-                          }}
-                          className="font-bold gap-1.5"
-                          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
-                        >
-                          <ShoppingBag className="size-3.5" /> Purchase & Activate
-                        </Button>
-                      )}
-                    </div>
-                  </DialogFooter>
-                </div>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
-
-        {/* MODAL: AUTHORITATIVE CHECKOUT DIALOG */}
-        <Dialog
-          open={!!checkoutProduct}
-          onOpenChange={(open) => {
-            if (
-              !open &&
-              checkoutStep !== "creating_order" &&
-              checkoutStep !== "launching_gateway" &&
-              checkoutStep !== "verifying" &&
-              checkoutStep !== "fulfilling"
-            ) {
-              setCheckoutProduct(null);
-              setCheckoutStep("idle");
-              setCreatedOrder(null);
-              setCheckoutError(null);
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-md text-xs">
-            {checkoutProduct && (() => {
-              const priceVal = getProductMonthlyPrice(checkoutProduct);
-              return (
-                <div className="space-y-4">
-                  <DialogHeader>
-                    <DialogTitle className="text-base font-black flex items-center gap-2">
-                      <CreditCard className="size-5 text-primary" /> Checkout: {checkoutProduct.name}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs">
-                      Server-authoritative sandbox payment powered by Razorpay.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  {/* Order Preview */}
-                  <div className="p-3 bg-secondary/30 rounded-xl border space-y-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-muted-foreground">Product:</span>
-                      <span className="font-bold text-foreground">{checkoutProduct.name}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-muted-foreground">Billing Interval:</span>
-                      <Badge variant="outline" className="text-[10px] font-mono">1 Month</Badge>
-                    </div>
-                    <div className="flex justify-between items-center text-xs pt-2 border-t">
-                      <span className="font-bold text-foreground">Authoritative Amount:</span>
-                      <span className="font-mono font-bold text-base text-primary">
-                        {formatSystemAmount(priceVal)}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground italic">
-                      * Taxes calculated and sealed server-side upon order creation.
-                    </p>
-                  </div>
-
-                  {/* Status & Feedback */}
-                  {checkoutStep === "creating_order" && (
-                    <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center gap-2 text-blue-600">
-                      <Loader2 className="size-4 animate-spin shrink-0" />
-                      <span>Creating immutable order snapshot on server...</span>
-                    </div>
-                  )}
-
-                  {checkoutStep === "launching_gateway" && (
-                    <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center gap-2 text-purple-600">
-                      <Loader2 className="size-4 animate-spin shrink-0" />
-                      <span>Opening Razorpay Sandbox Checkout window...</span>
-                    </div>
-                  )}
-
-                  {checkoutStep === "verifying" && (
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-600">
-                      <Loader2 className="size-4 animate-spin shrink-0" />
-                      <div>
-                        <p className="font-bold">Gateway Payment Received</p>
-                        <p className="text-[10px]">Awaiting authoritative server webhook verification...</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {checkoutStep === "fulfilling" && (
-                    <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center gap-2 text-indigo-600">
-                      <Loader2 className="size-4 animate-spin shrink-0" />
-                      <div>
-                        <p className="font-bold">Payment Settled (PAID)</p>
-                        <p className="text-[10px]">Processing transactional outbox fulfillment & granting entitlements...</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {checkoutStep === "settled" && (
-                    <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-emerald-600">
-                      <CheckCircle2 className="size-5 shrink-0" />
-                      <div>
-                        <p className="font-bold">Payment Verified & Settled!</p>
-                        <p className="text-[10px]">Addon is now active on your workspace.</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {checkoutStep === "pending_settlement" && (
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-amber-600">
-                      <AlertCircle className="size-5 shrink-0" />
-                      <div>
-                        <p className="font-bold">Settlement In Progress</p>
-                        <p className="text-[10px]">Payment received by gateway. Webhook settlement or outbox worker is finalizing in the background. Entitlement will activate once complete.</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {(checkoutStep === "error" || checkoutStep === "failed") && (
-                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 flex items-center gap-2 text-destructive">
-                      <AlertCircle className="size-5 shrink-0" />
-                      <div>
-                        <p className="font-bold">Checkout / Payment Incomplete</p>
-                        <p className="text-[10px]">{checkoutError || "An error occurred during checkout or payment settlement."}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Trust & Security Badge */}
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
-                    <span>HMAC-SHA256 Webhook Verification • Zero Client Pricing Authority</span>
-                  </div>
-
-                  <DialogFooter className="flex justify-between sm:justify-between items-center pt-2 border-t">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setCheckoutProduct(null);
-                        setCheckoutStep("idle");
-                      }}
-                      disabled={checkoutStep === "creating_order" || checkoutStep === "launching_gateway"}
-                    >
-                      {checkoutStep === "settled" ? "Done" : checkoutStep === "pending_settlement" ? "Close" : "Cancel"}
-                    </Button>
-
-                    <div className="flex gap-2">
-                      {checkoutStep === "idle" && (
-                        <Button
-                          size="sm"
-                          onClick={executeRazorpayCheckout}
-                          className="font-bold gap-1.5"
-                          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff" }}
-                        >
-                          <CreditCard className="size-3.5" /> Pay with Razorpay Sandbox
-                        </Button>
-                      )}
-
-                      {/* Developer Sandbox Instant Settlement (Dev Only Fallback) */}
-                      {import.meta.env.DEV && createdOrder && checkoutStep !== "settled" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={handleSimulateDevSettlement}
-                          className="text-[10px] h-8 font-mono border"
-                        >
-                          <RefreshCw className="size-3 mr-1" /> Dev Simulate Settlement
-                        </Button>
-                      )}
-                    </div>
-                  </DialogFooter>
-                </div>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
-      </div>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
+        </div>
+      </TooltipProvider>
     </PlanGuard>
   );
 }

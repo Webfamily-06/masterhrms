@@ -264,6 +264,25 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
           ...(mUrls["branding.logo_dark_id"] ? { logoDarkUrl: mUrls["branding.logo_dark_id"] } : {}),
           ...(mUrls["branding.favicon_id"] ? { faviconUrl: mUrls["branding.favicon_id"] } : {}),
         };
+        // Overlay authoritative payments from SettingsService
+        try {
+          const paymentsRes = await SettingsService.getGroup("payments", "PLATFORM");
+          const pVals = paymentsRes?.values || {};
+          if (pVals["payments.razorpay_enabled"] !== undefined && (page.content as any)?.razorpayEnabled === undefined) {
+            content.razorpayEnabled = Boolean(pVals["payments.razorpay_enabled"]);
+          }
+          if (pVals["payments.razorpay_key_id"] && !(page.content as any)?.razorpayKeyId) {
+            content.razorpayKeyId = pVals["payments.razorpay_key_id"];
+          }
+          if (pVals["payments.bank_transfer_enabled"] !== undefined && (page.content as any)?.bankTransferEnabled === undefined) {
+            content.bankTransferEnabled = Boolean(pVals["payments.bank_transfer_enabled"]);
+          }
+          if (pVals["payments.bank_details"] && !(page.content as any)?.bankTransferDetails) {
+            content.bankTransferDetails = pVals["payments.bank_details"];
+          }
+        } catch (payErr) {
+          console.error("Failed to overlay payments onto system-platform-settings:", payErr);
+        }
         page.content = content;
       } catch (brandingErr) {
         console.error("Failed to overlay authoritative branding onto system-platform-settings:", brandingErr);
@@ -469,6 +488,16 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
         if (content.logoDarkId !== undefined) toSet["branding.logo_dark_id"] = content.logoDarkId;
         if (content.faviconId !== undefined) toSet["branding.favicon_id"] = content.faviconId;
 
+        // Sync payment gateways to SettingsService
+        if (content.razorpayEnabled !== undefined) toSet["payments.razorpay_enabled"] = Boolean(content.razorpayEnabled);
+        if (content.razorpayKeyId !== undefined) toSet["payments.razorpay_key_id"] = content.razorpayKeyId;
+        if (content.razorpayKeySecret && typeof content.razorpayKeySecret === "string" && !content.razorpayKeySecret.includes("••••")) {
+          toSet["payments.razorpay_key_secret"] = content.razorpayKeySecret;
+        }
+        if (content.bankTransferEnabled !== undefined) toSet["payments.bank_transfer_enabled"] = Boolean(content.bankTransferEnabled);
+        if (content.bankTransferDetails !== undefined) toSet["payments.bank_details"] = content.bankTransferDetails;
+        if (content.defaultCurrency) toSet["payments.currency"] = content.defaultCurrency;
+
         if (Object.keys(toSet).length > 0) {
           await SettingsService.setMany(toSet, "PLATFORM", null, req.user?.userId || null);
         }
@@ -643,6 +672,21 @@ cmsRouter.get("/addons", async (req, res) => {
       skip: offset,
     });
 
+    // Check if custom persisted ordering exists
+    let orderSlugs: string[] = [];
+    try {
+      const orderSetting = await (rawPrisma || prisma).setting.findFirst({
+        where: {
+          scope: "PLATFORM",
+          group: "addon_catalog",
+          key: { in: ["addon_catalog.display_order", "display_order"] },
+        },
+      });
+      if (orderSetting?.valueJson && Array.isArray((orderSetting.valueJson as any).slugs)) {
+        orderSlugs = (orderSetting.valueJson as any).slugs;
+      }
+    } catch {}
+
     const formatted = addons.map((a: any) => {
       const price = a.priceMonthly != null ? Number(a.priceMonthly) : 0;
       return {
@@ -662,6 +706,18 @@ cmsRouter.get("/addons", async (req, res) => {
       };
     });
 
+    if (orderSlugs.length > 0) {
+      formatted.sort((a, b) => {
+        const idxA = orderSlugs.indexOf(a.slug);
+        const idxB = orderSlugs.indexOf(b.slug);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        if (a.featured !== b.featured) return a.featured ? -1 : 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+    }
+
     if (isDefaultQuery) {
       catalogCache = {
         data: formatted,
@@ -669,10 +725,105 @@ cmsRouter.get("/addons", async (req, res) => {
       };
     }
 
-    res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
     return res.json(formatted);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message || "Failed to fetch addons" });
+  }
+});
+
+// PATCH & PUT /api/cms/addons/reorder (Super Admin manual ordering persistence)
+const handleAddonReorder = async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuperAdmin = (req.user?.roles || []).includes("super_admin") || (req.user as any)?.role === "super_admin";
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: "Super admin authorization required to reorder catalog" });
+    }
+
+    const { slugs } = req.body;
+    if (!Array.isArray(slugs)) {
+      return res.status(400).json({ error: "slugs must be an array of addon slugs" });
+    }
+
+    const db = rawPrisma || prisma;
+    await db.setting.upsert({
+      where: {
+        scope_scopeId_key: {
+          scope: "PLATFORM",
+          scopeId: "SYSTEM",
+          key: "addon_catalog.display_order",
+        },
+      },
+      create: {
+        scope: "PLATFORM",
+        scopeId: "SYSTEM",
+        group: "addon_catalog",
+        key: "addon_catalog.display_order",
+        valueJson: { slugs } as any,
+        valueType: "json",
+        isSecret: false,
+        version: 1,
+        updatedBy: req.user?.userId || "SYSTEM",
+      },
+      update: {
+        valueJson: { slugs } as any,
+        updatedBy: req.user?.userId || "SYSTEM",
+      },
+    });
+
+    invalidateCmsAddonsCache();
+
+    return res.json({ success: true, message: "Addon catalog order persisted successfully", slugs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to persist addon order" });
+  }
+};
+cmsRouter.patch("/addons/reorder", requireAuth, handleAddonReorder);
+cmsRouter.put("/addons/reorder", requireAuth, handleAddonReorder);
+
+// PATCH /api/cms/addons/categories/reorder
+cmsRouter.patch("/addons/categories/reorder", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuperAdmin = (req.user?.roles || []).includes("super_admin") || (req.user as any)?.role === "super_admin";
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: "Super admin authorization required to reorder categories" });
+    }
+
+    const { categories } = req.body;
+    if (!Array.isArray(categories)) {
+      return res.status(400).json({ error: "categories must be an array of category names" });
+    }
+
+    const db = rawPrisma || prisma;
+    await db.setting.upsert({
+      where: {
+        scope_scopeId_key: {
+          scope: "PLATFORM",
+          scopeId: "SYSTEM",
+          key: "addon_catalog.category_order",
+        },
+      },
+      create: {
+        scope: "PLATFORM",
+        scopeId: "SYSTEM",
+        group: "addon_catalog",
+        key: "addon_catalog.category_order",
+        valueJson: { categories } as any,
+        valueType: "json",
+        isSecret: false,
+        version: 1,
+        updatedBy: req.user?.userId || "SYSTEM",
+      },
+      update: {
+        valueJson: { categories } as any,
+        updatedBy: req.user?.userId || "SYSTEM",
+      },
+    });
+
+    invalidateCmsAddonsCache();
+
+    return res.json({ success: true, message: "Category order persisted successfully", categories });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to persist category order" });
   }
 });
 

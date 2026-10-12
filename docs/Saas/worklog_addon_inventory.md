@@ -13,89 +13,89 @@ Status values: NS not started, AU audit needed, IP in progress, DN done (add-on 
 | AD-005 | McKinsey 7-S Model | HRMS and Business Tools | `mckinsey-7s` | `/mckinsey-7s/*` | app | E1 | 3 | NS |  |
 | AD-006 | SWOT Analysis | HRMS and Business Tools | `swot` | `/swot/*` | app | E1 | 3 | NS |  |
 | AD-007 | Business Model | HRMS and Business Tools | `business-model` | `/business-model/*` | app | E1 | 3 | NS |  |
-| AD-008 | Exam | HRMS and Business Tools | `exam` | `/hr/exam/*` | hr-module | E2 | 2 | NS |  |
+| AD-008 | Exam | HRMS and Business Tools | `exam` | `/hr/exam/*` | hr-module | E2 | 2 | NS | Deferred to W2.5 LMS track |
 | AD-009 | Job Search | HRMS and Business Tools | `job-search` | `/job-search/*` | app | E3 | 3 | NS |  |
 | AD-010 | Business Plan | HRMS and Business Tools | `business-plan` | `/business-plan/*` | app | E1 | 3 | NS |  |
 | AD-011 | Marketing Plan | HRMS and Business Tools | `marketing-plan` | `/marketing-plan/*` | app | E1 | 3 | NS |  |
 | AD-012 | Planning | HRMS and Business Tools | `planning` | `/planning/*` | app | E1 | 3 | NS | decision/merge pending (file 12 s5) |
-| AD-013 | Procurement | HRMS and Business Tools | `procurement` | `/procurement/*` | app | E5 | 2 | NS | decision/merge pending (file 12 s5) |
-| AD-014 | Team Workload | HRMS and Business Tools | `team-workload` | `/team-workload/*` | app | E4 | 2 | NS |  |
+| AD-013 | Procurement | HRMS and Business Tools | `procurement` | `/procurement/*` | app | E5 | 2 | NS | Decision pending (overlaps ERP purchase orders, DOC-SAAS-W2-PLAN-001 §3.1) |
+| AD-014 | Team Workload | HRMS and Business Tools | `team-workload` | `/team-workload/*` | app | E4 | 2 | NS | Deferred to W2.5 PM track |
 | AD-015 | Time Tracker | HRMS and Business Tools | `time-tracker` | `/time-tracker/*` | app | E4 | 1 | NS |  |
 | AD-016 | Bio-matric Attendance | HRMS and Business Tools | `biometric-sync` | `/hr/biometric/*` | hr-module | E4 | 1 | NS |  |
 | AD-017 | Training | HRMS and Business Tools | `training` | `/hr/training/*` | hr-module | E2 | 1 | NS | decision/merge pending (file 12 s5) |
-| AD-018 | LMS | HRMS and Business Tools | `learning-lms` | `/learning-lms/*` | app | E2 | 2 | NS |  |
+| AD-018 | LMS | HRMS and Business Tools | `learning-lms` | `/learning-lms/*` | app | E2 | 2 | NS | Deferred to W2.5 LMS track |
 | AD-019 | Performance | HRMS and Business Tools | `okr-performance` | `/hr/performance/*` | hr-module | E3 | 1 | NS | decision/merge pending (file 12 s5) |
 | AD-020 | Recruitment | HRMS and Business Tools | `recruitment-ats` | `/hr/recruitment/*` | hr-module | E3 | 1 | NS | decision/merge pending (file 12 s5) |
-| AD-021 | Webhook | Integrations | `webhook` | `/webhook/*` | integration | E6 | 1 | NS |  |
-| AD-022 | SMS | Integrations | `sms-gateway` | `/sms-gateway/*` | integration | E7 | 1 | NS |  |
-| AD-023 | Zapier | Integrations | `zapier` | `/zapier/*` | integration | E6 | 2 | NS |  |
-| AD-024 | n8n | Integrations | `n8n` | `/n8n/*` | integration | E6 | 2 | NS |  |
-| AD-025 | Pabbly Connect | Integrations | `pabbly-connect` | `/pabbly-connect/*` | integration | E6 | 2 | NS |  |
-| AD-026 | Google Analytics | Integrations | `google-analytics` | `/google-analytics/*` | integration | E6 | 2 | NS |  |
+| AD-021 | Webhook | Integrations | `outbound-webhooks` | `/outbound-webhooks/*` | integration | E6 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): Pinned socket, manual redirect inspection, SSRF closed |
+| AD-022 | SMS | Integrations | `sms-gateway` | `/sms-gateway/*` | integration | E7 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): Multi-provider MSG91/Fast2SMS/Twilio, sandbox double |
+| AD-023 | Zapier | Integrations | `zapier` | `/zapier/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Webhook Dispatch |
+| AD-024 | n8n | Integrations | `n8n` | `/n8n/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Workflow triggers |
+| AD-025 | Pabbly Connect | Integrations | `pabbly-connect` | `/pabbly-connect/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Webhook triggers |
+| AD-026 | Google Analytics | Integrations | `google-analytics` | `/google-analytics/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Measurement ID |
 | AD-027 | Diagram | Integrations | `diagram` | `/diagram/*` | integration | E6/E1 | 3 | NS | decision/merge pending (file 12 s5) |
 | AD-028 | WHMCS | Integrations | `whmcs` | `/whmcs/*` | integration | E6 | 3 | NS | decision/merge pending (file 12 s5) |
-| AD-029 | Bulk SMS | Integrations | `bulk-sms` | `/bulk-sms/*` | integration | E7 | 2 | NS |  |
+| AD-029 | Bulk SMS | Integrations | `bulk-sms` | `/bulk-sms/*` | integration | E7 | 2 | NS | W2 Plan Group B (DOC-SAAS-W2-PLAN-001): E7 Messaging, CSV campaigns, DLT IDs |
 | AD-030 | Google Slides | Integrations | `google-slides` | `/google-slides/*` | integration | E6 | 3 | NS |  |
-| AD-031 | Make | Integrations | `make` | `/make/*` | integration | E6 | 2 | NS |  |
-| AD-032 | Indiamart | Integrations | `indiamart` | `/indiamart/*` | integration | E6 | 2 | NS |  |
-| AD-033 | Trello | Integrations | `trello` | `/trello/*` | integration | E6 | 2 | NS |  |
+| AD-031 | Make | Integrations | `make` | `/make/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Make webhook sync |
+| AD-032 | Indiamart | Integrations | `indiamart` | `/indiamart/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Inbound lead ingestion |
+| AD-033 | Trello | Integrations | `trello` | `/trello/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Card sync |
 | AD-034 | ClickSend | Integrations | `clicksend` | `/clicksend/*` | integration | E7 | 3 | NS |  |
-| AD-035 | Asana Project | Integrations | `asana` | `/asana/*` | integration | E6 | 2 | NS |  |
+| AD-035 | Asana Project | Integrations | `asana` | `/asana/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Task/milestone sync |
 | AD-036 | Google Wallet | Integrations | `google-wallet` | `/google-wallet/*` | integration | E6 | 3 | NS | decision/merge pending (file 12 s5) |
-| AD-037 | Jira | Integrations | `jira` | `/jira/*` | integration | E6 | 2 | NS |  |
+| AD-037 | Jira | Integrations | `jira` | `/jira/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Issue/ticket sync |
 | AD-038 | OneNote | Integrations | `onenote` | `/onenote/*` | integration | E6 | 3 | NS |  |
 | AD-039 | Vonage SMS | Integrations | `vonage-sms` | `/vonage-sms/*` | integration | E7 | 3 | NS |  |
-| AD-040 | Sendinblue | Integrations | `brevo` | `/brevo/*` | integration | E7/E6 | 2 | NS |  |
-| AD-041 | MSG91 | Integrations | `msg91` | `/msg91/*` | integration | E7 | 1 | NS |  |
+| AD-040 | Sendinblue | Integrations | `brevo` | `/brevo/*` | integration | E7/E6 | 2 | NS | W2 Plan Group B (DOC-SAAS-W2-PLAN-001): E7 Messaging, Transactional email/SMS |
+| AD-041 | MSG91 | Integrations | `msg91` | `/msg91/*` | integration | E7 | 1 | DN | W1: Fulfilled via `sms-gateway` factory adapter |
 | AD-042 | Plivo SMS | Integrations | `plivo-sms` | `/plivo-sms/*` | integration | E7 | 3 | NS |  |
-| AD-043 | HubSpot Support | Integrations | `hubspot-support` | `/hubspot-support/*` | integration | E6 | 2 | NS |  |
-| AD-044 | Pipedrive | Integrations | `pipedrive` | `/pipedrive/*` | integration | E6 | 2 | NS |  |
-| AD-045 | Fast2SMS | Integrations | `fast2sms` | `/fast2sms/*` | integration | E7 | 1 | NS |  |
-| AD-046 | Microsoft To Do | Integrations | `microsoft-todo` | `/microsoft-todo/*` | integration | E6 | 2 | NS |  |
+| AD-043 | HubSpot Support | Integrations | `hubspot-support` | `/hubspot-support/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Contact/ticket sync |
+| AD-044 | Pipedrive | Integrations | `pipedrive` | `/pipedrive/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Deal/person sync |
+| AD-045 | Fast2SMS | Integrations | `fast2sms` | `/fast2sms/*` | integration | E7 | 1 | DN | W1: Fulfilled via `sms-gateway` factory adapter |
+| AD-046 | Microsoft To Do | Integrations | `microsoft-todo` | `/microsoft-todo/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Personal task sync |
 | AD-047 | Zita SMS | Integrations | `zita-sms` | `/zita-sms/*` | integration | E7 | 3 | NS | decision/merge pending (file 12 s5) |
 | AD-048 | Telesign SMS | Integrations | `telesign-sms` | `/telesign-sms/*` | integration | E7 | 3 | NS |  |
 | AD-049 | Africa's Talking | Integrations | `africas-talking` | `/africas-talking/*` | integration | E7 | 3 | NS |  |
-| AD-050 | AI Business Advisor | AI | `ai-business-advisor` | `/ai-business-advisor/*` | app | E8 | 2 | NS |  |
-| AD-051 | AI Document | AI | `ai-document` | `/ai-document/*` | app | E8 | 2 | NS |  |
+| AD-050 | AI Business Advisor | AI | `ai-business-advisor` | `/ai-business-advisor/*` | app | E8 | 2 | NS | Externally blocked (LLM API keys required, DOC-SAAS-W2-PLAN-001 §3.2) |
+| AD-051 | AI Document | AI | `ai-document` | `/ai-document/*` | app | E8 | 2 | NS | Externally blocked (LLM API keys required, DOC-SAAS-W2-PLAN-001 §3.2) |
 | AD-052 | AI Assistant | AI | `ai-assistant` | `/ai-assistant/*` | app | E8 | 1 | NS |  |
 | AD-053 | AI Image | AI | `ai-image` | `/ai-image/*` | app | E8 | 3 | NS |  |
 | AD-054 | Google Captcha | Security and Authentication | `google-recaptcha` | `(Settings > Authentication)` | setting | E9 | 1 | NS |  |
-| AD-055 | Google Authentication | Security and Authentication | `google-authenticator` | `(Settings > Authentication)` | setting | E9 | 1 | NS | decision/merge pending (file 12 s5) |
-| AD-056 | Backup and Restore | Security and Authentication | `backup-restore` | `/backup-restore/*` | app | E9 | 1 | NS |  |
+| AD-055 | Google Authentication / 2FA | Security and Authentication | `two-factor-auth` | `(Settings > Security)` | setting | E9 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): RFC 6238 TOTP, QR codes, backup codes |
+| AD-056 | Backup and Restore | Security and Authentication | `backup-restore` | `/backup-restore/*` | app | E9 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): Snapshot export, SHA-256, mid-restore rollback |
 | AD-057 | Sign-in with Google | Security and Authentication | `signin-google` | `(Settings > Authentication)` | setting | E9 | 1 | NS |  |
 | AD-058 | Sign-in with Outlook | Security and Authentication | `signin-outlook` | `(Settings > Authentication)` | setting | E9 | 1 | NS | decision/merge pending (file 12 s5) |
 | AD-059 | Sign-in with Microsoft | Security and Authentication | `signin-microsoft` | `(Settings > Authentication)` | setting | E9 | 1 | NS | decision/merge pending (file 12 s5) |
 | AD-060 | Support Ticket | Operations | `support` | `/support/*` | app | E10 | 1 | NS | same as product app prefix |
-| AD-061 | Activity Logs | Operations | `activity-logs` | `/activity-logs/*` | app | E10 | 1 | NS |  |
-| AD-062 | Rotas | Operations | `rotas` | `/hr/rotas/*` | hr-module | E4/E10 | 2 | NS | decision/merge pending (file 12 s5) |
+| AD-061 | Activity Logs | Operations | `activity-logs` | `/activity-logs/*` | app | E10 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): Tenant audit trail, PII redaction, CSV export |
+| AD-062 | Rotas | Operations | `rotas` | `/hr/rotas/*` | hr-module | E4/E10 | 2 | NS | Decision pending (overlaps HR shift management, DOC-SAAS-W2-PLAN-001 §3.1) |
 | AD-063 | Project Template | Operations | `project-template` | `/project-template/*` | app | E10 | 3 | NS |  |
-| AD-064 | Reminder ("Remainder") | Operations | `reminders` | `/reminders/*` | app | E10 | 1 | NS |  |
-| AD-065 | Signature | Operations | `signature` | `/signature/*` | app | E10 | 2 | NS |  |
+| AD-064 | Reminder ("Remainder") | Operations | `internal-reminders` | `/reminders/*` | app | E10 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): Contextual reminders, due scanner |
+| AD-065 | Signature | Operations | `signature` | `/signature/*` | app | E10 | 2 | NS | Deferred to Wave 3 E-Sign track |
 | AD-066 | Roadmap Central | Operations | `roadmap-central` | `/roadmap-central/*` | app | E10 | 3 | NS |  |
 | AD-067 | Custom Alert | Operations | `custom-alert` | `/custom-alert/*` | app | E10 | 3 | NS |  |
-| AD-068 | Notice Board | Mobility and Communication | `notice-board` | `/hr/notice-board/*` | hr-module | E12 | 1 | NS | decision/merge pending (file 12 s5) |
+| AD-068 | Notice Board | Mobility and Communication | `notice-board` | `/hr/notice-board/*` | hr-module | E12 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): Free install, broadcasts, acknowledgements |
 | AD-069 | Suggestion Box | Mobility and Communication | `suggestion-box` | `/suggestion-box/*` | app | E12 | 3 | NS |  |
-| AD-070 | API | Mobility and Communication | `public-api` | `/public-api/*` | app | E12 | 1 | NS | `/api` reserved by backend; use `/public-api` |
+| AD-070 | API | Mobility and Communication | `public-api` | `/public-api/*` | app | E12 | 1 | DN | W1 Frozen & Ratified (DOC-SAAS-W1-FREEZE-001): Tenant API keys, SHA-256 at rest, rate limits |
 | AD-071 | Notes | Mobility and Communication | `notes` | `/notes/*` | app | E12 | 1 | NS |  |
 | AD-072 | Warranty | Mobility and Communication | `warranty` | `/warranty/*` | app | E12 | 3 | NS |  |
-| AD-073 | File Sharing | Content and Storage | `file-sharing` | `/file-sharing/*` | app | E11 | 1 | NS |  |
-| AD-074 | Documents | Content and Storage | `documents` | `/documents/*` | app | E11 | 1 | NS |  |
-| AD-075 | Internal Knowledge | Content and Storage | `knowledge-base` | `/knowledge-base/*` | app | E11 | 2 | NS |  |
-| AD-076 | Google Drive | Content and Storage | `google-drive` | `/google-drive/*` | app | E11 | 2 | NS |  |
+| AD-073 | File Sharing | Content and Storage | `file-sharing` | `/file-sharing/*` | app | E11 | 2 | NS | W2 Plan Group C (DOC-SAAS-W2-PLAN-001): E11 Storage Engine, expiring links, password protection |
+| AD-074 | Documents | Content and Storage | `documents` | `/documents/*` | app | E11 | 2 | NS | W2 Plan Group C (DOC-SAAS-W2-PLAN-001): E11 Storage Engine, catalog, role-based download |
+| AD-075 | Internal Knowledge | Content and Storage | `knowledge-base` | `/knowledge-base/*` | app | E11 | 2 | NS | W2 Plan Group C (DOC-SAAS-W2-PLAN-001): E11 Storage Engine, markdown wiki, role visibility |
+| AD-076 | Google Drive | Content and Storage | `google-drive` | `/google-drive/*` | app | E11 | 2 | NS | Externally blocked (Google Cloud OAuth app verification required, DOC-SAAS-W2-PLAN-001 §3.2) |
 | AD-077 | Spreadsheet | Content and Storage | `spreadsheet` | `/spreadsheet/*` | app | E11 | 3 | NS | decision/merge pending (file 12 s5) |
-| AD-078 | Video Hub | Content and Storage | `video-hub` | `/video-hub/*` | app | E11 | 2 | NS |  |
-| AD-079 | Document Template | Content and Storage | `document-template` | `/document-template/*` | app | E11 | 2 | NS |  |
+| AD-078 | Video Hub | Content and Storage | `video-hub` | `/video-hub/*` | app | E11 | 2 | NS | W2 Plan Group C (DOC-SAAS-W2-PLAN-001): E11 Storage Engine, secure stream, progress tracking |
+| AD-079 | Document Template | Content and Storage | `document-template` | `/document-template/*` | app | E11 | 2 | NS | W2 Plan Group C (DOC-SAAS-W2-PLAN-001): E11 Storage Engine, merge tags, PDF preview |
 | AD-080 | Innovation Center | Content and Storage | `innovation-center` | `/innovation-center/*` | app | E11/E12 | 3 | NS |  |
-| AD-081 | OneDrive | Content and Storage | `onedrive` | `/onedrive/*` | app | E11 | 2 | NS |  |
+| AD-081 | OneDrive | Content and Storage | `onedrive` | `/onedrive/*` | app | E11 | 2 | NS | Externally blocked (Microsoft Entra ID app approval required, DOC-SAAS-W2-PLAN-001 §3.2) |
 | AD-082 | Google Sheet | Content and Storage | `google-sheet` | `/google-sheet/*` | app | E11 | 3 | NS |  |
 | AD-083 | Portfolio | Content and Storage | `portfolio` | `/portfolio/*` | app | E11 | 3 | NS |  |
-| AD-084 | Dropbox | Content and Storage | `dropbox` | `/dropbox/*` | app | E11 | 2 | NS |  |
-| AD-085 | Box | Content and Storage | `box` | `/box/*` | app | E11 | 2 | NS |  |
+| AD-084 | Dropbox | Content and Storage | `dropbox` | `/dropbox/*` | app | E11 | 2 | NS | Externally blocked (Dropbox Developer app approval required, DOC-SAAS-W2-PLAN-001 §3.2) |
+| AD-085 | Box | Content and Storage | `box` | `/box/*` | app | E11 | 2 | NS | Externally blocked (Box Developer enterprise approval required, DOC-SAAS-W2-PLAN-001 §3.2) |
 | AD-086 | Google Docs | Content and Storage | `google-docs` | `/google-docs/*` | app | E11 | 3 | NS |  |
-| AD-087 | Smart Reports | Finance | `smart-reports` | `/smart-reports/*` | app | E5 | 2 | NS |  |
-| AD-088 | Smart Dashboard | Finance | `smart-dashboard` | `/smart-dashboard/*` | app | E5 | 2 | NS |  |
+| AD-087 | Smart Reports | Finance | `smart-reports` | `/smart-reports/*` | app | E5 | 2 | NS | Deferred to Wave 3 BI track |
+| AD-088 | Smart Dashboard | Finance | `smart-dashboard` | `/smart-dashboard/*` | app | E5 | 2 | NS | Deferred to Wave 3 BI track |
 | AD-089 | Double Entry | Finance | `accounts` | `/accounts/*` | app | E5 | 1 | NS | decision/merge pending (file 12 s5); same as product app prefix |
-| AD-090 | Contracts | Finance | `contracts` | `/contracts/*` | app | E5/E10 | 2 | NS | decision/merge pending (file 12 s5) |
+| AD-090 | Contracts | Finance | `contracts` | `/contracts/*` | app | E5/E10 | 2 | NS | Decision pending (overlaps HR vs CRM contracts, DOC-SAAS-W2-PLAN-001 §3.1) |
 | AD-091 | Assets | Finance | `asset-management` | `/asset-management/*` | app | E5 | 1 | NS |  |
 | AD-092 | Timesheet | Finance | `timesheet` | `/hr/timesheet/*` | hr-module | E4 | 1 | NS | decision/merge pending (file 12 s5) |
 | AD-093 | Recurring Invoice/Bill | Finance | `recurring-invoice-bill` | `/recurring-invoice-bill/*` | app | E5 | 1 | NS |  |
@@ -103,12 +103,12 @@ Status values: NS not started, AU audit needed, IP in progress, DN done (add-on 
 | AD-095 | E-Invoice (European) | Finance | `einvoice-eu` | `/einvoice-eu/*` | integration | E6 | 3 | NS |  |
 | AD-096 | Retainer | Finance | `retainer` | `/retainer/*` | app | E5 | 3 | NS |  |
 | AD-097 | Quotation | Finance | `quotation` | `/quotation/*` | app | E5 | 1 | NS |  |
-| AD-098 | Contract Templates | Finance | `contract-templates` | `/contract-templates/*` | app | E5 | 2 | NS |  |
-| AD-099 | Budget Planner | Finance | `budget-planner` | `/budget-planner/*` | app | E5 | 2 | NS |  |
+| AD-098 | Contract Templates | Finance | `contract-templates` | `/contract-templates/*` | app | E5 | 2 | NS | Decision pending (sub-capability of contracts, DOC-SAAS-W2-PLAN-001 §3.1) |
+| AD-099 | Budget Planner | Finance | `budget-planner` | `/budget-planner/*` | app | E5 | 2 | NS | Deferred to Wave 3 Finance track |
 | AD-100 | ZATCA | Finance | `zatca` | `/zatca/*` | integration | E6 | 3 | NS |  |
 | AD-101 | Plaid | Finance | `plaid` | `/plaid/*` | integration | E6 | 3 | NS |  |
-| AD-102 | QuickBooks | Finance | `quickbooks` | `/quickbooks/*` | integration | E6 | 2 | NS |  |
-| AD-103 | Petty Cash Management | Finance | `petty-cash-management` | `/petty-cash-management/*` | app | E5 | 2 | NS |  |
-| AD-104 | Xero | Finance | `xero` | `/xero/*` | integration | E6 | 2 | NS |  |
+| AD-102 | QuickBooks | Finance | `quickbooks` | `/quickbooks/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Invoice/ledger sync |
+| AD-103 | Petty Cash Management | Finance | `petty-cash-management` | `/petty-cash-management/*` | app | E5 | 2 | NS | Deferred to Wave 3 Finance track |
+| AD-104 | Xero | Finance | `xero` | `/xero/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Cloud ledger sync |
 | AD-105 | Sage | Finance | `sage` | `/sage/*` | integration | E6 | 3 | NS |  |
 | AD-106 | Asset Borrow and Rent | Finance | `asset-borrow-and-rent` | `/asset-borrow-and-rent/*` | app | E5 | 3 | NS |  |

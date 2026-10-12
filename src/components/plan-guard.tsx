@@ -1,15 +1,20 @@
 import { ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Lock, Sparkles, ArrowRight, ShieldAlert, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useCurrentProfile } from "@/lib/session";
+import { useNavigationResolver, ROUTE_ENTITLEMENT_MAP } from "@/lib/navigation-resolver";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 type PlanTier = "free" | "starter" | "growth" | "enterprise";
 
 interface PlanGuardProps {
   requiredPlan?: PlanTier;
   currentPlan?: string;
+  addonKey?: string;
   moduleName: string;
   featureDesc?: string;
   limitReached?: boolean;
@@ -26,16 +31,79 @@ const PLAN_HIERARCHY: Record<string, number> = {
 
 export function PlanGuard({
   requiredPlan = "starter",
-  currentPlan = "starter",
+  currentPlan: explicitCurrentPlan,
+  addonKey,
   moduleName,
   featureDesc = "Upgrade your workspace plan to unlock this enterprise module with unlimited capacity, automation, and real-time syncing.",
   limitReached = false,
   limitMessage,
   children,
 }: PlanGuardProps) {
-  const normCurrent = (currentPlan || "free").toLowerCase();
-  const normRequired = requiredPlan.toLowerCase();
+  const { data: profile } = useCurrentProfile();
+  const { isEntitled } = useNavigationResolver();
 
+  // Safe router pathname inspection
+  let currentPath = "";
+  try {
+    currentPath = useRouterState({ select: (r) => r.location.pathname });
+  } catch {
+    if (typeof window !== "undefined") {
+      currentPath = window.location.pathname;
+    }
+  }
+
+  // 1. Super Admin bypass (Super Admins are entitled to all modules)
+  const isSuperAdmin = Boolean(
+    profile?.roles?.includes("super_admin") ||
+    profile?.roles?.includes("platform_admin")
+  );
+  if (isSuperAdmin && !limitReached) {
+    return <>{children}</>;
+  }
+
+  // 2. Addon Entitlement Check:
+  // If the tenant holds an active entitlement for this addon (installed, purchased, or included),
+  // they are fully authorized to access the module regardless of their base subscription tier!
+  const effectiveAddonKey = addonKey || ROUTE_ENTITLEMENT_MAP[currentPath];
+  if (effectiveAddonKey && isEntitled(effectiveAddonKey) && !limitReached) {
+    return <>{children}</>;
+  }
+
+  // Fallback module name alias checks against known catalog slugs
+  const normalizedModule = (moduleName || "").toLowerCase();
+  if (normalizedModule.includes("google") && isEntitled("google-workspace-integration") && !limitReached) {
+    return <>{children}</>;
+  }
+  if (normalizedModule.includes("tally") && isEntitled("tally-importer") && !limitReached) {
+    return <>{children}</>;
+  }
+  if (normalizedModule.includes("ocr") && isEntitled("ai-ocr") && !limitReached) {
+    return <>{children}</>;
+  }
+
+  // 3. Resolve Current Subscription Plan Tier if not explicitly passed
+  const tenantId = profile?.tenant_id;
+  const { data: subscription } = useQuery({
+    queryKey: ["workspace-subscription-shell", tenantId],
+    queryFn: () => api.get("/workspace/subscription"),
+    enabled: !!tenantId && !explicitCurrentPlan,
+    staleTime: 30000,
+  });
+
+  const rawPlan = explicitCurrentPlan || subscription?.planName || subscription?.planId || "starter";
+  let normCurrent = "starter";
+  const lowerRaw = String(rawPlan).toLowerCase();
+  if (lowerRaw.includes("enterprise") || lowerRaw.includes("sovereign")) {
+    normCurrent = "enterprise";
+  } else if (lowerRaw.includes("growth")) {
+    normCurrent = "growth";
+  } else if (lowerRaw.includes("starter")) {
+    normCurrent = "starter";
+  } else if (lowerRaw.includes("free")) {
+    normCurrent = "free";
+  }
+
+  const normRequired = requiredPlan.toLowerCase();
   const currentLevel = PLAN_HIERARCHY[normCurrent] ?? 1;
   const requiredLevel = PLAN_HIERARCHY[normRequired] ?? 1;
 

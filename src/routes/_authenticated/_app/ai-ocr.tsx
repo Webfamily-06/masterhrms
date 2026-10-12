@@ -221,7 +221,11 @@ function AiOcrPage() {
   }
 
   return (
-    <PlanGuard moduleName="AI Invoice OCR Reader" requiredPlan="growth">
+    <PlanGuard
+      moduleName="AI Invoice OCR Reader"
+      addonKey="ai-ocr"
+      requiredPlan="growth"
+    >
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b pb-4">
           <div>

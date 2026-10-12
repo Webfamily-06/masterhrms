@@ -5,6 +5,8 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
 
 export const recruitmentRouter = Router();
 export const publicJobsRouter = Router();
@@ -127,6 +129,25 @@ recruitmentRouter.post("/jobs", requireAuth, async (req: AuthRequest, res: Respo
       },
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "recruitment.job.created",
+      entityType: "JobPosting",
+      entityId: job.id,
+      newState: { title: job.title, status: job.status, location: job.location },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "recruitment.job.created",
+      entityType: "job_posting",
+      entityId: job.id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { title: job.title, status: job.status },
+    }).catch(() => {});
+
     return res.status(201).json(job);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to create job posting." });
@@ -217,6 +238,26 @@ recruitmentRouter.put("/jobs/:id", requireAuth, async (req: AuthRequest, res: Re
       },
     });
 
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "recruitment.job.updated",
+      entityType: "JobPosting",
+      entityId: id,
+      oldState: { title: existing.title, status: existing.status },
+      newState: { title: updated.title, status: updated.status },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "recruitment.job.updated",
+      entityType: "job_posting",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { title: updated.title, status: updated.status },
+    }).catch(() => {});
+
     return res.json(updated);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to update job posting." });
@@ -235,6 +276,26 @@ recruitmentRouter.delete("/jobs/:id", requireAuth, async (req: AuthRequest, res:
     }
 
     await prisma.jobPosting.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "recruitment.job.deleted",
+      entityType: "JobPosting",
+      entityId: id,
+      oldState: { title: existing.title },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "recruitment.job.deleted",
+      entityType: "job_posting",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { title: existing.title },
+    }).catch(() => {});
+
     return res.json({ success: true, message: "Job posting deleted successfully." });
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to delete job posting." });
@@ -356,9 +417,171 @@ recruitmentRouter.post("/candidates", requireAuth, async (req: AuthRequest, res:
       },
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "recruitment.candidate.created",
+      entityType: "JobCandidate",
+      entityId: candidate.id,
+      newState: { fullName: candidate.fullName, email: candidate.email, jobPostingId: candidate.jobPostingId },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "recruitment.candidate.created",
+      entityType: "candidate",
+      entityId: candidate.id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { fullName: candidate.fullName, email: candidate.email, stage: candidate.stage },
+    }).catch(() => {});
+
     return res.status(201).json(candidate);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to create candidate." });
+  }
+});
+
+// GET /api/recruitment/candidates/:id (Single candidate details)
+recruitmentRouter.get("/candidates/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+
+    const candidate = await prisma.jobCandidate.findUnique({
+      where: { id },
+      include: {
+        jobPosting: {
+          include: { department: true },
+        },
+        interviews: {
+          include: {
+            interviewer: {
+              select: { id: true, firstName: true, lastName: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!candidate || (tenantId && candidate.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Candidate not found." });
+    }
+
+    return res.json(candidate);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to get candidate." });
+  }
+});
+
+// PUT /api/recruitment/candidates/:id (Update candidate details)
+recruitmentRouter.put("/candidates/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+
+    const existing = await prisma.jobCandidate.findUnique({ where: { id } });
+    if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Candidate not found." });
+    }
+
+    const {
+      fullName,
+      email,
+      phone,
+      resumeUrl,
+      portfolioUrl,
+      coverLetter,
+      yearsOfExperience,
+      currentCompany,
+      expectedSalary,
+      interviewerNotes,
+      stage,
+      rating,
+    } = req.body;
+
+    const updated = await prisma.jobCandidate.update({
+      where: { id },
+      data: {
+        ...(fullName && { fullName }),
+        ...(email && { email }),
+        ...(phone !== undefined && { phone: phone || null }),
+        ...(resumeUrl !== undefined && { resumeUrl: resumeUrl || null }),
+        ...(portfolioUrl !== undefined && { portfolioUrl: portfolioUrl || null }),
+        ...(coverLetter !== undefined && { coverLetter: coverLetter || null }),
+        ...(yearsOfExperience !== undefined && { yearsOfExperience: Number(yearsOfExperience) }),
+        ...(currentCompany !== undefined && { currentCompany: currentCompany || null }),
+        ...(expectedSalary !== undefined && { expectedSalary: expectedSalary ? Number(expectedSalary) : null }),
+        ...(interviewerNotes !== undefined && { interviewerNotes: interviewerNotes || null }),
+        ...(stage && { stage }),
+        ...(rating !== undefined && { rating: Number(rating) }),
+      },
+      include: {
+        jobPosting: { include: { department: true } },
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "recruitment.candidate.updated",
+      entityType: "JobCandidate",
+      entityId: id,
+      oldState: { fullName: existing.fullName, email: existing.email },
+      newState: { fullName: updated.fullName, email: updated.email },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "recruitment.candidate.updated",
+      entityType: "candidate",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { fullName: updated.fullName, email: updated.email },
+    }).catch(() => {});
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to update candidate." });
+  }
+});
+
+// DELETE /api/recruitment/candidates/:id (Delete candidate)
+recruitmentRouter.delete("/candidates/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+
+    const existing = await prisma.jobCandidate.findUnique({ where: { id } });
+    if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Candidate not found." });
+    }
+
+    await prisma.jobCandidate.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "recruitment.candidate.deleted",
+      entityType: "JobCandidate",
+      entityId: id,
+      oldState: { fullName: existing.fullName, email: existing.email },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "recruitment.candidate.deleted",
+      entityType: "candidate",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { fullName: existing.fullName },
+    }).catch(() => {});
+
+    return res.json({ success: true, message: "Candidate deleted successfully." });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to delete candidate." });
   }
 });
 
@@ -388,6 +611,26 @@ recruitmentRouter.put("/candidates/:id/stage", requireAuth, async (req: AuthRequ
         },
       },
     });
+
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "recruitment.candidate.stage_changed",
+      entityType: "JobCandidate",
+      entityId: id,
+      oldState: { stage: existing.stage },
+      newState: { stage: updated.stage },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "recruitment.candidate.stage_changed",
+      entityType: "candidate",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { fullName: updated.fullName, oldStage: existing.stage, newStage: updated.stage },
+    }).catch(() => {});
 
     return res.json(updated);
   } catch (err: any) {

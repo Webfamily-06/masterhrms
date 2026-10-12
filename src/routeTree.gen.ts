@@ -56,6 +56,7 @@ import { Route as PaymentFailedRouteImport } from './routes/payment.failed'
 import { Route as PaymentPendingRouteImport } from './routes/payment.pending'
 import { Route as PaymentSuccessRouteImport } from './routes/payment.success'
 import { Route as AuthenticatedAppAccountingRouteImport } from './routes/_authenticated/_app/accounting'
+import { Route as AuthenticatedAppActivityLogsRouteImport } from './routes/_authenticated/_app/activity-logs'
 import { Route as AuthenticatedAppAdjustmentsRouteImport } from './routes/_authenticated/_app/adjustments'
 import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/_app/ai'
 import { Route as AuthenticatedAppAiAttendanceInsightsRouteImport } from './routes/_authenticated/_app/ai-attendance-insights'
@@ -74,6 +75,7 @@ import { Route as AuthenticatedAppAttendanceRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppAttendanceEmployeeRouteImport } from './routes/_authenticated/_app/attendance-employee'
 import { Route as AuthenticatedAppAttendanceReportRouteImport } from './routes/_authenticated/_app/attendance-report'
 import { Route as AuthenticatedAppAwardsRouteImport } from './routes/_authenticated/_app/awards'
+import { Route as AuthenticatedAppBackupRestoreRouteImport } from './routes/_authenticated/_app/backup-restore'
 import { Route as AuthenticatedAppBanIpAddressRouteImport } from './routes/_authenticated/_app/ban-ip-address'
 import { Route as AuthenticatedAppBiometricRouteImport } from './routes/_authenticated/_app/biometric'
 import { Route as AuthenticatedAppBiometricSyncRouteImport } from './routes/_authenticated/_app/biometric-sync'
@@ -116,6 +118,7 @@ import { Route as AuthenticatedAppHolidaysRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppHrmRouteImport } from './routes/_authenticated/_app/hrm'
 import { Route as AuthenticatedAppHrmDashboardRouteImport } from './routes/_authenticated/_app/hrm-dashboard'
 import { Route as AuthenticatedAppIntegrationsRouteImport } from './routes/_authenticated/_app/integrations'
+import { Route as AuthenticatedAppInternalRemindersRouteImport } from './routes/_authenticated/_app/internal-reminders'
 import { Route as AuthenticatedAppInventoryDashboardRouteImport } from './routes/_authenticated/_app/inventory-dashboard'
 import { Route as AuthenticatedAppInvoiceReportRouteImport } from './routes/_authenticated/_app/invoice-report'
 import { Route as AuthenticatedAppInvoicesRouteImport } from './routes/_authenticated/_app/invoices'
@@ -128,9 +131,11 @@ import { Route as AuthenticatedAppManagerHubRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppMarketplaceRouteImport } from './routes/_authenticated/_app/marketplace'
 import { Route as AuthenticatedAppMediaRouteImport } from './routes/_authenticated/_app/media'
 import { Route as AuthenticatedAppNotesRouteImport } from './routes/_authenticated/_app/notes'
+import { Route as AuthenticatedAppNoticeBoardRouteImport } from './routes/_authenticated/_app/notice-board'
 import { Route as AuthenticatedAppNoticePeriodTrackerRouteImport } from './routes/_authenticated/_app/notice-period-tracker'
 import { Route as AuthenticatedAppOffboardingRouteImport } from './routes/_authenticated/_app/offboarding'
 import { Route as AuthenticatedAppOkrRouteImport } from './routes/_authenticated/_app/okr'
+import { Route as AuthenticatedAppOutboundWebhooksRouteImport } from './routes/_authenticated/_app/outbound-webhooks'
 import { Route as AuthenticatedAppOvertimeRouteImport } from './routes/_authenticated/_app/overtime'
 import { Route as AuthenticatedAppPaymentReportRouteImport } from './routes/_authenticated/_app/payment-report'
 import { Route as AuthenticatedAppPayrollRouteImport } from './routes/_authenticated/_app/payroll'
@@ -152,6 +157,7 @@ import { Route as AuthenticatedAppProjectsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppPromotionsRouteImport } from './routes/_authenticated/_app/promotions'
 import { Route as AuthenticatedAppProposalsRouteImport } from './routes/_authenticated/_app/proposals'
 import { Route as AuthenticatedAppProvidentFundRouteImport } from './routes/_authenticated/_app/provident-fund'
+import { Route as AuthenticatedAppPublicApiRouteImport } from './routes/_authenticated/_app/public-api'
 import { Route as AuthenticatedAppPurchasesRouteImport } from './routes/_authenticated/_app/purchases'
 import { Route as AuthenticatedAppRazorpayGatewayRouteImport } from './routes/_authenticated/_app/razorpay-gateway'
 import { Route as AuthenticatedAppRecruitmentRouteImport } from './routes/_authenticated/_app/recruitment'
@@ -166,6 +172,7 @@ import { Route as AuthenticatedAppSetupNotesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppShiftSwapRequestsRouteImport } from './routes/_authenticated/_app/shift-swap-requests'
 import { Route as AuthenticatedAppShiftsRouteImport } from './routes/_authenticated/_app/shifts'
 import { Route as AuthenticatedAppShopifyRouteImport } from './routes/_authenticated/_app/shopify'
+import { Route as AuthenticatedAppSmsGatewayRouteImport } from './routes/_authenticated/_app/sms-gateway'
 import { Route as AuthenticatedAppStrategyStudioRouteImport } from './routes/_authenticated/_app/strategy-studio'
 import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_authenticated/_app/subscription'
 import { Route as AuthenticatedAppSuppliersRouteImport } from './routes/_authenticated/_app/suppliers'
@@ -182,6 +189,7 @@ import { Route as AuthenticatedAppTimesheetsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppTodoRouteImport } from './routes/_authenticated/_app/todo'
 import { Route as AuthenticatedAppTrainingRouteImport } from './routes/_authenticated/_app/training'
 import { Route as AuthenticatedAppTransfersRouteImport } from './routes/_authenticated/_app/transfers'
+import { Route as AuthenticatedAppTwoFactorAuthRouteImport } from './routes/_authenticated/_app/two-factor-auth'
 import { Route as AuthenticatedAppUsersRouteImport } from './routes/_authenticated/_app/users'
 import { Route as AuthenticatedAppWarningsRouteImport } from './routes/_authenticated/_app/warnings'
 import { Route as AuthenticatedAppWhatsappAlertsRouteImport } from './routes/_authenticated/_app/whatsapp-alerts'
@@ -670,6 +678,12 @@ const AuthenticatedAppAccountingRoute =
     path: '/accounting',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppActivityLogsRoute =
+  AuthenticatedAppActivityLogsRouteImport.update({
+    id: '/activity-logs',
+    path: '/activity-logs',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppAdjustmentsRoute =
   AuthenticatedAppAdjustmentsRouteImport.update({
     id: '/adjustments',
@@ -774,6 +788,12 @@ const AuthenticatedAppAwardsRoute = AuthenticatedAppAwardsRouteImport.update({
   path: '/awards',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppBackupRestoreRoute =
+  AuthenticatedAppBackupRestoreRouteImport.update({
+    id: '/backup-restore',
+    path: '/backup-restore',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppBanIpAddressRoute =
   AuthenticatedAppBanIpAddressRouteImport.update({
     id: '/ban-ip-address',
@@ -1019,6 +1039,12 @@ const AuthenticatedAppIntegrationsRoute =
     path: '/integrations',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppInternalRemindersRoute =
+  AuthenticatedAppInternalRemindersRouteImport.update({
+    id: '/internal-reminders',
+    path: '/internal-reminders',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppInventoryDashboardRoute =
   AuthenticatedAppInventoryDashboardRouteImport.update({
     id: '/inventory-dashboard',
@@ -1088,6 +1114,12 @@ const AuthenticatedAppNotesRoute = AuthenticatedAppNotesRouteImport.update({
   path: '/notes',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppNoticeBoardRoute =
+  AuthenticatedAppNoticeBoardRouteImport.update({
+    id: '/notice-board',
+    path: '/notice-board',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppNoticePeriodTrackerRoute =
   AuthenticatedAppNoticePeriodTrackerRouteImport.update({
     id: '/notice-period-tracker',
@@ -1105,6 +1137,12 @@ const AuthenticatedAppOkrRoute = AuthenticatedAppOkrRouteImport.update({
   path: '/okr',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppOutboundWebhooksRoute =
+  AuthenticatedAppOutboundWebhooksRouteImport.update({
+    id: '/outbound-webhooks',
+    path: '/outbound-webhooks',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppOvertimeRoute =
   AuthenticatedAppOvertimeRouteImport.update({
     id: '/overtime',
@@ -1228,6 +1266,12 @@ const AuthenticatedAppProvidentFundRoute =
     path: '/provident-fund',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppPublicApiRoute =
+  AuthenticatedAppPublicApiRouteImport.update({
+    id: '/public-api',
+    path: '/public-api',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppPurchasesRoute =
   AuthenticatedAppPurchasesRouteImport.update({
     id: '/purchases',
@@ -1309,6 +1353,12 @@ const AuthenticatedAppShopifyRoute = AuthenticatedAppShopifyRouteImport.update({
   path: '/shopify',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppSmsGatewayRoute =
+  AuthenticatedAppSmsGatewayRouteImport.update({
+    id: '/sms-gateway',
+    path: '/sms-gateway',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppStrategyStudioRoute =
   AuthenticatedAppStrategyStudioRouteImport.update({
     id: '/strategy-studio',
@@ -1399,6 +1449,12 @@ const AuthenticatedAppTransfersRoute =
   AuthenticatedAppTransfersRouteImport.update({
     id: '/transfers',
     path: '/transfers',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppTwoFactorAuthRoute =
+  AuthenticatedAppTwoFactorAuthRouteImport.update({
+    id: '/two-factor-auth',
+    path: '/two-factor-auth',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppUsersRoute = AuthenticatedAppUsersRouteImport.update({
@@ -2937,6 +2993,7 @@ export interface FileRoutesByFullPath {
   '/addons/': typeof AddonsIndexRoute
   '/cms/': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
+  '/activity-logs': typeof AuthenticatedAppActivityLogsRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
   '/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
@@ -2955,6 +3012,7 @@ export interface FileRoutesByFullPath {
   '/attendance-employee': typeof AuthenticatedAppAttendanceEmployeeRoute
   '/attendance-report': typeof AuthenticatedAppAttendanceReportRoute
   '/awards': typeof AuthenticatedAppAwardsRoute
+  '/backup-restore': typeof AuthenticatedAppBackupRestoreRoute
   '/ban-ip-address': typeof AuthenticatedAppBanIpAddressRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
@@ -2997,6 +3055,7 @@ export interface FileRoutesByFullPath {
   '/hrm': typeof AuthenticatedAppHrmRoute
   '/hrm-dashboard': typeof AuthenticatedAppHrmDashboardRoute
   '/integrations': typeof AuthenticatedAppIntegrationsRoute
+  '/internal-reminders': typeof AuthenticatedAppInternalRemindersRoute
   '/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
   '/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
   '/invoices': typeof AuthenticatedAppInvoicesRoute
@@ -3009,9 +3068,11 @@ export interface FileRoutesByFullPath {
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
   '/notes': typeof AuthenticatedAppNotesRoute
+  '/notice-board': typeof AuthenticatedAppNoticeBoardRoute
   '/notice-period-tracker': typeof AuthenticatedAppNoticePeriodTrackerRoute
   '/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/okr': typeof AuthenticatedAppOkrRoute
+  '/outbound-webhooks': typeof AuthenticatedAppOutboundWebhooksRoute
   '/overtime': typeof AuthenticatedAppOvertimeRoute
   '/payment-report': typeof AuthenticatedAppPaymentReportRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
@@ -3033,6 +3094,7 @@ export interface FileRoutesByFullPath {
   '/promotions': typeof AuthenticatedAppPromotionsRoute
   '/proposals': typeof AuthenticatedAppProposalsRoute
   '/provident-fund': typeof AuthenticatedAppProvidentFundRoute
+  '/public-api': typeof AuthenticatedAppPublicApiRoute
   '/purchases': typeof AuthenticatedAppPurchasesRoute
   '/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/recruitment': typeof AuthenticatedAppRecruitmentRoute
@@ -3047,6 +3109,7 @@ export interface FileRoutesByFullPath {
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
+  '/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
@@ -3063,6 +3126,7 @@ export interface FileRoutesByFullPath {
   '/todo': typeof AuthenticatedAppTodoRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
+  '/two-factor-auth': typeof AuthenticatedAppTwoFactorAuthRoute
   '/users': typeof AuthenticatedAppUsersRoute
   '/warnings': typeof AuthenticatedAppWarningsRoute
   '/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
@@ -3359,6 +3423,7 @@ export interface FileRoutesByTo {
   '/addons': typeof AddonsIndexRoute
   '/cms': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
+  '/activity-logs': typeof AuthenticatedAppActivityLogsRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
   '/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
@@ -3377,6 +3442,7 @@ export interface FileRoutesByTo {
   '/attendance-employee': typeof AuthenticatedAppAttendanceEmployeeRoute
   '/attendance-report': typeof AuthenticatedAppAttendanceReportRoute
   '/awards': typeof AuthenticatedAppAwardsRoute
+  '/backup-restore': typeof AuthenticatedAppBackupRestoreRoute
   '/ban-ip-address': typeof AuthenticatedAppBanIpAddressRoute
   '/biometric': typeof AuthenticatedAppBiometricRoute
   '/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
@@ -3419,6 +3485,7 @@ export interface FileRoutesByTo {
   '/hrm': typeof AuthenticatedAppHrmRoute
   '/hrm-dashboard': typeof AuthenticatedAppHrmDashboardRoute
   '/integrations': typeof AuthenticatedAppIntegrationsRoute
+  '/internal-reminders': typeof AuthenticatedAppInternalRemindersRoute
   '/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
   '/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
   '/invoices': typeof AuthenticatedAppInvoicesRoute
@@ -3431,9 +3498,11 @@ export interface FileRoutesByTo {
   '/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/media': typeof AuthenticatedAppMediaRoute
   '/notes': typeof AuthenticatedAppNotesRoute
+  '/notice-board': typeof AuthenticatedAppNoticeBoardRoute
   '/notice-period-tracker': typeof AuthenticatedAppNoticePeriodTrackerRoute
   '/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/okr': typeof AuthenticatedAppOkrRoute
+  '/outbound-webhooks': typeof AuthenticatedAppOutboundWebhooksRoute
   '/overtime': typeof AuthenticatedAppOvertimeRoute
   '/payment-report': typeof AuthenticatedAppPaymentReportRoute
   '/payroll': typeof AuthenticatedAppPayrollRoute
@@ -3455,6 +3524,7 @@ export interface FileRoutesByTo {
   '/promotions': typeof AuthenticatedAppPromotionsRoute
   '/proposals': typeof AuthenticatedAppProposalsRoute
   '/provident-fund': typeof AuthenticatedAppProvidentFundRoute
+  '/public-api': typeof AuthenticatedAppPublicApiRoute
   '/purchases': typeof AuthenticatedAppPurchasesRoute
   '/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/recruitment': typeof AuthenticatedAppRecruitmentRoute
@@ -3469,6 +3539,7 @@ export interface FileRoutesByTo {
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
+  '/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
@@ -3485,6 +3556,7 @@ export interface FileRoutesByTo {
   '/todo': typeof AuthenticatedAppTodoRoute
   '/training': typeof AuthenticatedAppTrainingRoute
   '/transfers': typeof AuthenticatedAppTransfersRoute
+  '/two-factor-auth': typeof AuthenticatedAppTwoFactorAuthRoute
   '/users': typeof AuthenticatedAppUsersRoute
   '/warnings': typeof AuthenticatedAppWarningsRoute
   '/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
@@ -3788,6 +3860,7 @@ export interface FileRoutesById {
   '/addons/': typeof AddonsIndexRoute
   '/cms/': typeof CmsIndexRoute
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
+  '/_authenticated/_app/activity-logs': typeof AuthenticatedAppActivityLogsRoute
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/_authenticated/_app/ai': typeof AuthenticatedAppAiRoute
   '/_authenticated/_app/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
@@ -3806,6 +3879,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/attendance-employee': typeof AuthenticatedAppAttendanceEmployeeRoute
   '/_authenticated/_app/attendance-report': typeof AuthenticatedAppAttendanceReportRoute
   '/_authenticated/_app/awards': typeof AuthenticatedAppAwardsRoute
+  '/_authenticated/_app/backup-restore': typeof AuthenticatedAppBackupRestoreRoute
   '/_authenticated/_app/ban-ip-address': typeof AuthenticatedAppBanIpAddressRoute
   '/_authenticated/_app/biometric': typeof AuthenticatedAppBiometricRoute
   '/_authenticated/_app/biometric-sync': typeof AuthenticatedAppBiometricSyncRoute
@@ -3848,6 +3922,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/hrm': typeof AuthenticatedAppHrmRoute
   '/_authenticated/_app/hrm-dashboard': typeof AuthenticatedAppHrmDashboardRoute
   '/_authenticated/_app/integrations': typeof AuthenticatedAppIntegrationsRoute
+  '/_authenticated/_app/internal-reminders': typeof AuthenticatedAppInternalRemindersRoute
   '/_authenticated/_app/inventory-dashboard': typeof AuthenticatedAppInventoryDashboardRoute
   '/_authenticated/_app/invoice-report': typeof AuthenticatedAppInvoiceReportRoute
   '/_authenticated/_app/invoices': typeof AuthenticatedAppInvoicesRoute
@@ -3860,9 +3935,11 @@ export interface FileRoutesById {
   '/_authenticated/_app/marketplace': typeof AuthenticatedAppMarketplaceRoute
   '/_authenticated/_app/media': typeof AuthenticatedAppMediaRoute
   '/_authenticated/_app/notes': typeof AuthenticatedAppNotesRoute
+  '/_authenticated/_app/notice-board': typeof AuthenticatedAppNoticeBoardRoute
   '/_authenticated/_app/notice-period-tracker': typeof AuthenticatedAppNoticePeriodTrackerRoute
   '/_authenticated/_app/offboarding': typeof AuthenticatedAppOffboardingRoute
   '/_authenticated/_app/okr': typeof AuthenticatedAppOkrRoute
+  '/_authenticated/_app/outbound-webhooks': typeof AuthenticatedAppOutboundWebhooksRoute
   '/_authenticated/_app/overtime': typeof AuthenticatedAppOvertimeRoute
   '/_authenticated/_app/payment-report': typeof AuthenticatedAppPaymentReportRoute
   '/_authenticated/_app/payroll': typeof AuthenticatedAppPayrollRoute
@@ -3884,6 +3961,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/promotions': typeof AuthenticatedAppPromotionsRoute
   '/_authenticated/_app/proposals': typeof AuthenticatedAppProposalsRoute
   '/_authenticated/_app/provident-fund': typeof AuthenticatedAppProvidentFundRoute
+  '/_authenticated/_app/public-api': typeof AuthenticatedAppPublicApiRoute
   '/_authenticated/_app/purchases': typeof AuthenticatedAppPurchasesRoute
   '/_authenticated/_app/razorpay-gateway': typeof AuthenticatedAppRazorpayGatewayRoute
   '/_authenticated/_app/recruitment': typeof AuthenticatedAppRecruitmentRoute
@@ -3898,6 +3976,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/_authenticated/_app/shifts': typeof AuthenticatedAppShiftsRoute
   '/_authenticated/_app/shopify': typeof AuthenticatedAppShopifyRoute
+  '/_authenticated/_app/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/_authenticated/_app/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/_authenticated/_app/subscription': typeof AuthenticatedAppSubscriptionRoute
   '/_authenticated/_app/suppliers': typeof AuthenticatedAppSuppliersRoute
@@ -3914,6 +3993,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/todo': typeof AuthenticatedAppTodoRoute
   '/_authenticated/_app/training': typeof AuthenticatedAppTrainingRoute
   '/_authenticated/_app/transfers': typeof AuthenticatedAppTransfersRoute
+  '/_authenticated/_app/two-factor-auth': typeof AuthenticatedAppTwoFactorAuthRoute
   '/_authenticated/_app/users': typeof AuthenticatedAppUsersRoute
   '/_authenticated/_app/warnings': typeof AuthenticatedAppWarningsRoute
   '/_authenticated/_app/whatsapp-alerts': typeof AuthenticatedAppWhatsappAlertsRoute
@@ -4216,6 +4296,7 @@ export interface FileRouteTypes {
     | '/addons/'
     | '/cms/'
     | '/accounting'
+    | '/activity-logs'
     | '/adjustments'
     | '/ai'
     | '/ai-attendance-insights'
@@ -4234,6 +4315,7 @@ export interface FileRouteTypes {
     | '/attendance-employee'
     | '/attendance-report'
     | '/awards'
+    | '/backup-restore'
     | '/ban-ip-address'
     | '/biometric'
     | '/biometric-sync'
@@ -4276,6 +4358,7 @@ export interface FileRouteTypes {
     | '/hrm'
     | '/hrm-dashboard'
     | '/integrations'
+    | '/internal-reminders'
     | '/inventory-dashboard'
     | '/invoice-report'
     | '/invoices'
@@ -4288,9 +4371,11 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/media'
     | '/notes'
+    | '/notice-board'
     | '/notice-period-tracker'
     | '/offboarding'
     | '/okr'
+    | '/outbound-webhooks'
     | '/overtime'
     | '/payment-report'
     | '/payroll'
@@ -4312,6 +4397,7 @@ export interface FileRouteTypes {
     | '/promotions'
     | '/proposals'
     | '/provident-fund'
+    | '/public-api'
     | '/purchases'
     | '/razorpay-gateway'
     | '/recruitment'
@@ -4326,6 +4412,7 @@ export interface FileRouteTypes {
     | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
+    | '/sms-gateway'
     | '/strategy-studio'
     | '/subscription'
     | '/suppliers'
@@ -4342,6 +4429,7 @@ export interface FileRouteTypes {
     | '/todo'
     | '/training'
     | '/transfers'
+    | '/two-factor-auth'
     | '/users'
     | '/warnings'
     | '/whatsapp-alerts'
@@ -4638,6 +4726,7 @@ export interface FileRouteTypes {
     | '/addons'
     | '/cms'
     | '/accounting'
+    | '/activity-logs'
     | '/adjustments'
     | '/ai'
     | '/ai-attendance-insights'
@@ -4656,6 +4745,7 @@ export interface FileRouteTypes {
     | '/attendance-employee'
     | '/attendance-report'
     | '/awards'
+    | '/backup-restore'
     | '/ban-ip-address'
     | '/biometric'
     | '/biometric-sync'
@@ -4698,6 +4788,7 @@ export interface FileRouteTypes {
     | '/hrm'
     | '/hrm-dashboard'
     | '/integrations'
+    | '/internal-reminders'
     | '/inventory-dashboard'
     | '/invoice-report'
     | '/invoices'
@@ -4710,9 +4801,11 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/media'
     | '/notes'
+    | '/notice-board'
     | '/notice-period-tracker'
     | '/offboarding'
     | '/okr'
+    | '/outbound-webhooks'
     | '/overtime'
     | '/payment-report'
     | '/payroll'
@@ -4734,6 +4827,7 @@ export interface FileRouteTypes {
     | '/promotions'
     | '/proposals'
     | '/provident-fund'
+    | '/public-api'
     | '/purchases'
     | '/razorpay-gateway'
     | '/recruitment'
@@ -4748,6 +4842,7 @@ export interface FileRouteTypes {
     | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
+    | '/sms-gateway'
     | '/strategy-studio'
     | '/subscription'
     | '/suppliers'
@@ -4764,6 +4859,7 @@ export interface FileRouteTypes {
     | '/todo'
     | '/training'
     | '/transfers'
+    | '/two-factor-auth'
     | '/users'
     | '/warnings'
     | '/whatsapp-alerts'
@@ -5066,6 +5162,7 @@ export interface FileRouteTypes {
     | '/addons/'
     | '/cms/'
     | '/_authenticated/_app/accounting'
+    | '/_authenticated/_app/activity-logs'
     | '/_authenticated/_app/adjustments'
     | '/_authenticated/_app/ai'
     | '/_authenticated/_app/ai-attendance-insights'
@@ -5084,6 +5181,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/attendance-employee'
     | '/_authenticated/_app/attendance-report'
     | '/_authenticated/_app/awards'
+    | '/_authenticated/_app/backup-restore'
     | '/_authenticated/_app/ban-ip-address'
     | '/_authenticated/_app/biometric'
     | '/_authenticated/_app/biometric-sync'
@@ -5126,6 +5224,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/hrm'
     | '/_authenticated/_app/hrm-dashboard'
     | '/_authenticated/_app/integrations'
+    | '/_authenticated/_app/internal-reminders'
     | '/_authenticated/_app/inventory-dashboard'
     | '/_authenticated/_app/invoice-report'
     | '/_authenticated/_app/invoices'
@@ -5138,9 +5237,11 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/marketplace'
     | '/_authenticated/_app/media'
     | '/_authenticated/_app/notes'
+    | '/_authenticated/_app/notice-board'
     | '/_authenticated/_app/notice-period-tracker'
     | '/_authenticated/_app/offboarding'
     | '/_authenticated/_app/okr'
+    | '/_authenticated/_app/outbound-webhooks'
     | '/_authenticated/_app/overtime'
     | '/_authenticated/_app/payment-report'
     | '/_authenticated/_app/payroll'
@@ -5162,6 +5263,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/promotions'
     | '/_authenticated/_app/proposals'
     | '/_authenticated/_app/provident-fund'
+    | '/_authenticated/_app/public-api'
     | '/_authenticated/_app/purchases'
     | '/_authenticated/_app/razorpay-gateway'
     | '/_authenticated/_app/recruitment'
@@ -5176,6 +5278,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/shift-swap-requests'
     | '/_authenticated/_app/shifts'
     | '/_authenticated/_app/shopify'
+    | '/_authenticated/_app/sms-gateway'
     | '/_authenticated/_app/strategy-studio'
     | '/_authenticated/_app/subscription'
     | '/_authenticated/_app/suppliers'
@@ -5192,6 +5295,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/todo'
     | '/_authenticated/_app/training'
     | '/_authenticated/_app/transfers'
+    | '/_authenticated/_app/two-factor-auth'
     | '/_authenticated/_app/users'
     | '/_authenticated/_app/warnings'
     | '/_authenticated/_app/whatsapp-alerts'
@@ -5821,6 +5925,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAccountingRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/activity-logs': {
+      id: '/_authenticated/_app/activity-logs'
+      path: '/activity-logs'
+      fullPath: '/activity-logs'
+      preLoaderRoute: typeof AuthenticatedAppActivityLogsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/adjustments': {
       id: '/_authenticated/_app/adjustments'
       path: '/adjustments'
@@ -5945,6 +6056,13 @@ declare module '@tanstack/react-router' {
       path: '/awards'
       fullPath: '/awards'
       preLoaderRoute: typeof AuthenticatedAppAwardsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/backup-restore': {
+      id: '/_authenticated/_app/backup-restore'
+      path: '/backup-restore'
+      fullPath: '/backup-restore'
+      preLoaderRoute: typeof AuthenticatedAppBackupRestoreRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/ban-ip-address': {
@@ -6241,6 +6359,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppIntegrationsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/internal-reminders': {
+      id: '/_authenticated/_app/internal-reminders'
+      path: '/internal-reminders'
+      fullPath: '/internal-reminders'
+      preLoaderRoute: typeof AuthenticatedAppInternalRemindersRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/inventory-dashboard': {
       id: '/_authenticated/_app/inventory-dashboard'
       path: '/inventory-dashboard'
@@ -6325,6 +6450,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppNotesRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/notice-board': {
+      id: '/_authenticated/_app/notice-board'
+      path: '/notice-board'
+      fullPath: '/notice-board'
+      preLoaderRoute: typeof AuthenticatedAppNoticeBoardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/notice-period-tracker': {
       id: '/_authenticated/_app/notice-period-tracker'
       path: '/notice-period-tracker'
@@ -6344,6 +6476,13 @@ declare module '@tanstack/react-router' {
       path: '/okr'
       fullPath: '/okr'
       preLoaderRoute: typeof AuthenticatedAppOkrRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/outbound-webhooks': {
+      id: '/_authenticated/_app/outbound-webhooks'
+      path: '/outbound-webhooks'
+      fullPath: '/outbound-webhooks'
+      preLoaderRoute: typeof AuthenticatedAppOutboundWebhooksRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/overtime': {
@@ -6493,6 +6632,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProvidentFundRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/public-api': {
+      id: '/_authenticated/_app/public-api'
+      path: '/public-api'
+      fullPath: '/public-api'
+      preLoaderRoute: typeof AuthenticatedAppPublicApiRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/purchases': {
       id: '/_authenticated/_app/purchases'
       path: '/purchases'
@@ -6589,6 +6735,13 @@ declare module '@tanstack/react-router' {
       path: '/shopify'
       fullPath: '/shopify'
       preLoaderRoute: typeof AuthenticatedAppShopifyRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/sms-gateway': {
+      id: '/_authenticated/_app/sms-gateway'
+      path: '/sms-gateway'
+      fullPath: '/sms-gateway'
+      preLoaderRoute: typeof AuthenticatedAppSmsGatewayRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/strategy-studio': {
@@ -6701,6 +6854,13 @@ declare module '@tanstack/react-router' {
       path: '/transfers'
       fullPath: '/transfers'
       preLoaderRoute: typeof AuthenticatedAppTransfersRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/two-factor-auth': {
+      id: '/_authenticated/_app/two-factor-auth'
+      path: '/two-factor-auth'
+      fullPath: '/two-factor-auth'
+      preLoaderRoute: typeof AuthenticatedAppTwoFactorAuthRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/users': {
@@ -8508,6 +8668,7 @@ const AuthenticatedAppInvoiceIdRouteWithChildren =
 
 interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAccountingRoute: typeof AuthenticatedAppAccountingRoute
+  AuthenticatedAppActivityLogsRoute: typeof AuthenticatedAppActivityLogsRoute
   AuthenticatedAppAdjustmentsRoute: typeof AuthenticatedAppAdjustmentsRoute
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
   AuthenticatedAppAiAttendanceInsightsRoute: typeof AuthenticatedAppAiAttendanceInsightsRoute
@@ -8526,6 +8687,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAttendanceEmployeeRoute: typeof AuthenticatedAppAttendanceEmployeeRoute
   AuthenticatedAppAttendanceReportRoute: typeof AuthenticatedAppAttendanceReportRoute
   AuthenticatedAppAwardsRoute: typeof AuthenticatedAppAwardsRoute
+  AuthenticatedAppBackupRestoreRoute: typeof AuthenticatedAppBackupRestoreRoute
   AuthenticatedAppBanIpAddressRoute: typeof AuthenticatedAppBanIpAddressRoute
   AuthenticatedAppBiometricRoute: typeof AuthenticatedAppBiometricRoute
   AuthenticatedAppBiometricSyncRoute: typeof AuthenticatedAppBiometricSyncRoute
@@ -8568,6 +8730,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppHrmRoute: typeof AuthenticatedAppHrmRoute
   AuthenticatedAppHrmDashboardRoute: typeof AuthenticatedAppHrmDashboardRoute
   AuthenticatedAppIntegrationsRoute: typeof AuthenticatedAppIntegrationsRoute
+  AuthenticatedAppInternalRemindersRoute: typeof AuthenticatedAppInternalRemindersRoute
   AuthenticatedAppInventoryDashboardRoute: typeof AuthenticatedAppInventoryDashboardRoute
   AuthenticatedAppInvoiceReportRoute: typeof AuthenticatedAppInvoiceReportRoute
   AuthenticatedAppInvoicesRoute: typeof AuthenticatedAppInvoicesRoute
@@ -8580,9 +8743,11 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppMarketplaceRoute: typeof AuthenticatedAppMarketplaceRoute
   AuthenticatedAppMediaRoute: typeof AuthenticatedAppMediaRoute
   AuthenticatedAppNotesRoute: typeof AuthenticatedAppNotesRoute
+  AuthenticatedAppNoticeBoardRoute: typeof AuthenticatedAppNoticeBoardRoute
   AuthenticatedAppNoticePeriodTrackerRoute: typeof AuthenticatedAppNoticePeriodTrackerRoute
   AuthenticatedAppOffboardingRoute: typeof AuthenticatedAppOffboardingRoute
   AuthenticatedAppOkrRoute: typeof AuthenticatedAppOkrRoute
+  AuthenticatedAppOutboundWebhooksRoute: typeof AuthenticatedAppOutboundWebhooksRoute
   AuthenticatedAppOvertimeRoute: typeof AuthenticatedAppOvertimeRoute
   AuthenticatedAppPaymentReportRoute: typeof AuthenticatedAppPaymentReportRoute
   AuthenticatedAppPayrollRoute: typeof AuthenticatedAppPayrollRoute
@@ -8604,6 +8769,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppPromotionsRoute: typeof AuthenticatedAppPromotionsRoute
   AuthenticatedAppProposalsRoute: typeof AuthenticatedAppProposalsRoute
   AuthenticatedAppProvidentFundRoute: typeof AuthenticatedAppProvidentFundRoute
+  AuthenticatedAppPublicApiRoute: typeof AuthenticatedAppPublicApiRoute
   AuthenticatedAppPurchasesRoute: typeof AuthenticatedAppPurchasesRoute
   AuthenticatedAppRazorpayGatewayRoute: typeof AuthenticatedAppRazorpayGatewayRoute
   AuthenticatedAppRecruitmentRoute: typeof AuthenticatedAppRecruitmentRoute
@@ -8618,6 +8784,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppShiftSwapRequestsRoute: typeof AuthenticatedAppShiftSwapRequestsRoute
   AuthenticatedAppShiftsRoute: typeof AuthenticatedAppShiftsRoute
   AuthenticatedAppShopifyRoute: typeof AuthenticatedAppShopifyRoute
+  AuthenticatedAppSmsGatewayRoute: typeof AuthenticatedAppSmsGatewayRoute
   AuthenticatedAppStrategyStudioRoute: typeof AuthenticatedAppStrategyStudioRoute
   AuthenticatedAppSubscriptionRoute: typeof AuthenticatedAppSubscriptionRoute
   AuthenticatedAppSuppliersRoute: typeof AuthenticatedAppSuppliersRoute
@@ -8634,6 +8801,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppTodoRoute: typeof AuthenticatedAppTodoRoute
   AuthenticatedAppTrainingRoute: typeof AuthenticatedAppTrainingRoute
   AuthenticatedAppTransfersRoute: typeof AuthenticatedAppTransfersRoute
+  AuthenticatedAppTwoFactorAuthRoute: typeof AuthenticatedAppTwoFactorAuthRoute
   AuthenticatedAppUsersRoute: typeof AuthenticatedAppUsersRoute
   AuthenticatedAppWarningsRoute: typeof AuthenticatedAppWarningsRoute
   AuthenticatedAppWhatsappAlertsRoute: typeof AuthenticatedAppWhatsappAlertsRoute
@@ -8647,6 +8815,7 @@ interface AuthenticatedAppRouteRouteChildren {
 
 const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppAccountingRoute: AuthenticatedAppAccountingRoute,
+  AuthenticatedAppActivityLogsRoute: AuthenticatedAppActivityLogsRoute,
   AuthenticatedAppAdjustmentsRoute: AuthenticatedAppAdjustmentsRoute,
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
   AuthenticatedAppAiAttendanceInsightsRoute:
@@ -8669,6 +8838,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppAttendanceEmployeeRoute,
   AuthenticatedAppAttendanceReportRoute: AuthenticatedAppAttendanceReportRoute,
   AuthenticatedAppAwardsRoute: AuthenticatedAppAwardsRoute,
+  AuthenticatedAppBackupRestoreRoute: AuthenticatedAppBackupRestoreRoute,
   AuthenticatedAppBanIpAddressRoute: AuthenticatedAppBanIpAddressRoute,
   AuthenticatedAppBiometricRoute: AuthenticatedAppBiometricRoute,
   AuthenticatedAppBiometricSyncRoute: AuthenticatedAppBiometricSyncRoute,
@@ -8714,6 +8884,8 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppHrmRoute: AuthenticatedAppHrmRoute,
   AuthenticatedAppHrmDashboardRoute: AuthenticatedAppHrmDashboardRoute,
   AuthenticatedAppIntegrationsRoute: AuthenticatedAppIntegrationsRoute,
+  AuthenticatedAppInternalRemindersRoute:
+    AuthenticatedAppInternalRemindersRoute,
   AuthenticatedAppInventoryDashboardRoute:
     AuthenticatedAppInventoryDashboardRoute,
   AuthenticatedAppInvoiceReportRoute: AuthenticatedAppInvoiceReportRoute,
@@ -8728,10 +8900,12 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppMarketplaceRoute: AuthenticatedAppMarketplaceRoute,
   AuthenticatedAppMediaRoute: AuthenticatedAppMediaRoute,
   AuthenticatedAppNotesRoute: AuthenticatedAppNotesRoute,
+  AuthenticatedAppNoticeBoardRoute: AuthenticatedAppNoticeBoardRoute,
   AuthenticatedAppNoticePeriodTrackerRoute:
     AuthenticatedAppNoticePeriodTrackerRoute,
   AuthenticatedAppOffboardingRoute: AuthenticatedAppOffboardingRoute,
   AuthenticatedAppOkrRoute: AuthenticatedAppOkrRoute,
+  AuthenticatedAppOutboundWebhooksRoute: AuthenticatedAppOutboundWebhooksRoute,
   AuthenticatedAppOvertimeRoute: AuthenticatedAppOvertimeRoute,
   AuthenticatedAppPaymentReportRoute: AuthenticatedAppPaymentReportRoute,
   AuthenticatedAppPayrollRoute: AuthenticatedAppPayrollRoute,
@@ -8757,6 +8931,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppPromotionsRoute: AuthenticatedAppPromotionsRoute,
   AuthenticatedAppProposalsRoute: AuthenticatedAppProposalsRoute,
   AuthenticatedAppProvidentFundRoute: AuthenticatedAppProvidentFundRoute,
+  AuthenticatedAppPublicApiRoute: AuthenticatedAppPublicApiRoute,
   AuthenticatedAppPurchasesRoute: AuthenticatedAppPurchasesRoute,
   AuthenticatedAppRazorpayGatewayRoute: AuthenticatedAppRazorpayGatewayRoute,
   AuthenticatedAppRecruitmentRoute: AuthenticatedAppRecruitmentRoute,
@@ -8774,6 +8949,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppShiftSwapRequestsRoute,
   AuthenticatedAppShiftsRoute: AuthenticatedAppShiftsRoute,
   AuthenticatedAppShopifyRoute: AuthenticatedAppShopifyRoute,
+  AuthenticatedAppSmsGatewayRoute: AuthenticatedAppSmsGatewayRoute,
   AuthenticatedAppStrategyStudioRoute: AuthenticatedAppStrategyStudioRoute,
   AuthenticatedAppSubscriptionRoute: AuthenticatedAppSubscriptionRoute,
   AuthenticatedAppSuppliersRoute: AuthenticatedAppSuppliersRoute,
@@ -8790,6 +8966,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppTodoRoute: AuthenticatedAppTodoRoute,
   AuthenticatedAppTrainingRoute: AuthenticatedAppTrainingRoute,
   AuthenticatedAppTransfersRoute: AuthenticatedAppTransfersRoute,
+  AuthenticatedAppTwoFactorAuthRoute: AuthenticatedAppTwoFactorAuthRoute,
   AuthenticatedAppUsersRoute: AuthenticatedAppUsersRoute,
   AuthenticatedAppWarningsRoute: AuthenticatedAppWarningsRoute,
   AuthenticatedAppWhatsappAlertsRoute: AuthenticatedAppWhatsappAlertsRoute,

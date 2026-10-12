@@ -172,19 +172,53 @@ export function SharedSettingsShell({
   const [form, setForm] = useState<Record<string, any>>({});
   const [initialFormLoaded, setInitialFormLoaded] = useState<boolean>(false);
 
+  const isQueriesLoading = loadingGeneral || loadingEmail || loadingStorage || loadingSecurity || loadingPayments;
+
   useEffect(() => {
-    if (Object.keys(persistedSettings).length > 0 && !initialFormLoaded) {
+    if (!initialFormLoaded && !isQueriesLoading) {
       setForm(persistedSettings);
       setInitialFormLoaded(true);
     }
-  }, [persistedSettings, initialFormLoaded]);
+  }, [persistedSettings, initialFormLoaded, isQueriesLoading]);
+
+  // Secret helper methods
+  const isSecretSet = useCallback(
+    (key: string) => {
+      const val = persistedSettings[key];
+      if (typeof val === "object" && val !== null) {
+        return Boolean(val.set);
+      }
+      return Boolean(val);
+    },
+    [persistedSettings]
+  );
+
+  const getSecretValue = useCallback(
+    (key: string) => {
+      const val = form[key];
+      return typeof val === "string" ? val : "";
+    },
+    [form]
+  );
 
   // When remote settings refresh, update form if not dirty
   const isDirty = useMemo(() => {
     if (!initialFormLoaded) return false;
     for (const [k, v] of Object.entries(form)) {
       if (k.startsWith("_")) continue;
-      if (persistedSettings[k] !== undefined && persistedSettings[k] !== v) {
+      const persisted = persistedSettings[k];
+
+      // If it's a secret that was already saved and value is blank/unmodified, it's not dirty
+      if (typeof persisted === "object" && persisted?.isSecret) {
+        if (typeof v === "string" && v.trim().length > 0) return true;
+        continue;
+      }
+
+      if (persisted === undefined) {
+        if (v !== undefined && v !== "" && v !== null && v !== false) {
+          return true;
+        }
+      } else if (persisted !== v) {
         return true;
       }
     }
@@ -203,7 +237,20 @@ export function SharedSettingsShell({
 
       for (const [key, value] of Object.entries(form)) {
         if (key.startsWith("_")) continue;
-        if (persistedSettings[key] !== value) {
+        const persisted = persistedSettings[key];
+
+        // If it's a secret:
+        if (typeof persisted === "object" && persisted?.isSecret) {
+          // Only send if user explicitly typed a new string secret
+          if (typeof value === "string" && value.trim().length > 0) {
+            const [group] = key.split(".");
+            if (!groupsToSave[group]) groupsToSave[group] = {};
+            groupsToSave[group][key] = value;
+          }
+          continue;
+        }
+
+        if (persisted !== value) {
           const [group] = key.split(".");
           if (!groupsToSave[group]) groupsToSave[group] = {};
           groupsToSave[group][key] = value;
@@ -612,8 +659,8 @@ export function SharedSettingsShell({
                   <SecretField
                     id="smtp_password"
                     label="SMTP Password"
-                    hasSavedSecret={Boolean(persistedSettings["email.smtp_password"])}
-                    value={form["email.smtp_password"] || ""}
+                    hasSavedSecret={isSecretSet("email.smtp_password")}
+                    value={getSecretValue("email.smtp_password")}
                     onChange={(val) => updateFormField("email.smtp_password", val)}
                   />
                 </div>
@@ -722,8 +769,8 @@ export function SharedSettingsShell({
                   <SecretField
                     id="google_client_secret"
                     label="Google Client Secret"
-                    hasSavedSecret={Boolean(persistedSettings["oauth.google_client_secret"])}
-                    value={form["oauth.google_client_secret"] || ""}
+                    hasSavedSecret={isSecretSet("oauth.google_client_secret")}
+                    value={getSecretValue("oauth.google_client_secret")}
                     onChange={(val) => updateFormField("oauth.google_client_secret", val)}
                   />
                 </div>
@@ -754,8 +801,8 @@ export function SharedSettingsShell({
                   <SecretField
                     id="github_client_secret"
                     label="GitHub Client Secret"
-                    hasSavedSecret={Boolean(persistedSettings["oauth.github_client_secret"])}
-                    value={form["oauth.github_client_secret"] || ""}
+                    hasSavedSecret={isSecretSet("oauth.github_client_secret")}
+                    value={getSecretValue("oauth.github_client_secret")}
                     onChange={(val) => updateFormField("oauth.github_client_secret", val)}
                   />
                 </div>
@@ -785,8 +832,8 @@ export function SharedSettingsShell({
                   <SecretField
                     id="microsoft_client_secret"
                     label="Client Secret Value"
-                    hasSavedSecret={Boolean(persistedSettings["oauth.microsoft_client_secret"])}
-                    value={form["oauth.microsoft_client_secret"] || ""}
+                    hasSavedSecret={isSecretSet("oauth.microsoft_client_secret")}
+                    value={getSecretValue("oauth.microsoft_client_secret")}
                     onChange={(val) => updateFormField("oauth.microsoft_client_secret", val)}
                   />
                 </div>
@@ -825,8 +872,8 @@ export function SharedSettingsShell({
                   <SecretField
                     id="razorpay_key_secret"
                     label="Razorpay Key Secret"
-                    hasSavedSecret={Boolean(persistedSettings["payments.razorpay_key_secret"])}
-                    value={form["payments.razorpay_key_secret"] || ""}
+                    hasSavedSecret={isSecretSet("payments.razorpay_key_secret")}
+                    value={getSecretValue("payments.razorpay_key_secret")}
                     onChange={(val) => updateFormField("payments.razorpay_key_secret", val)}
                   />
                 </div>
@@ -939,8 +986,8 @@ export function SharedSettingsShell({
                       <SecretField
                         id="s3_secret_key"
                         label="Secret Access Key"
-                        hasSavedSecret={Boolean(persistedSettings["storage.s3_secret_key"])}
-                        value={form["storage.s3_secret_key"] || ""}
+                        hasSavedSecret={isSecretSet("storage.s3_secret_key")}
+                        value={getSecretValue("storage.s3_secret_key")}
                         onChange={(val) => updateFormField("storage.s3_secret_key", val)}
                       />
                     </div>

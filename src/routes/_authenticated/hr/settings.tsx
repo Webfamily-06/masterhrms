@@ -301,6 +301,154 @@ export function Settings() {
     },
   });
 
+  // Approval Workflows Persistence
+  const { data: savedApprovals } = useQuery({
+    queryKey: ["tenant-approval-workflows", tenantId],
+    queryFn: async () => {
+      try {
+        const page = await api.get(`/cms/pages/tenant-${tenantId}-approval-workflows`);
+        if (page?.content?.workflows && Array.isArray(page.content.workflows)) {
+          setApprovalWorkflows(page.content.workflows);
+          return page.content.workflows;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!tenantId,
+  });
+
+  const saveApprovalsMutation = useMutation({
+    mutationFn: async (workflows: any[]) => {
+      await api.put(`/cms/pages/tenant-${tenantId}-approval-workflows`, {
+        title: `Approval Workflows ${tenantId}`,
+        content: { workflows },
+        published: true,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenant-approval-workflows", tenantId] });
+      toast.success("Approval workflows updated and persisted successfully!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save approval workflows");
+    },
+  });
+
+  // Salary Configuration Persistence
+  const { data: savedSalarySettings } = useQuery({
+    queryKey: ["tenant-salary-settings", tenantId],
+    queryFn: async () => {
+      try {
+        const page = await api.get(`/cms/pages/tenant-${tenantId}-salary-settings`);
+        if (page?.content && typeof page.content === "object") {
+          setSalaryConfig((prev) => ({ ...prev, ...page.content }));
+          return page.content;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!tenantId,
+  });
+
+  const saveSalaryMutation = useMutation({
+    mutationFn: async (config: any) => {
+      await api.put(`/cms/pages/tenant-${tenantId}-salary-settings`, {
+        title: `Salary Rules ${tenantId}`,
+        content: config,
+        published: true,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenant-salary-settings", tenantId] });
+      toast.success("Salary & statutory rules saved successfully!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save salary settings");
+    },
+  });
+
+  // Invoice & Billing Settings Persistence
+  const { data: savedInvoiceSettings } = useQuery({
+    queryKey: ["tenant-invoice-settings", tenantId],
+    queryFn: async () => {
+      try {
+        const page = await api.get(`/cms/pages/tenant-${tenantId}-invoice-settings`);
+        if (page?.content && typeof page.content === "object") {
+          setInvoiceConfig((prev) => ({ ...prev, ...page.content }));
+          return page.content;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!tenantId,
+  });
+
+  const saveInvoiceMutation = useMutation({
+    mutationFn: async (config: any) => {
+      await api.put(`/cms/pages/tenant-${tenantId}-invoice-settings`, {
+        title: `Invoice Settings ${tenantId}`,
+        content: config,
+        published: true,
+      });
+      // Also sync bank details to SettingsService for TENANT scope
+      if (config.bankName || config.accountNumber || config.ifscSwift) {
+        const bankStr = `Bank: ${config.bankName || ""}\nAccount No: ${config.accountNumber || ""}\nIFSC/SWIFT: ${config.ifscSwift || ""}\nTerms: ${config.terms || ""}`;
+        await api.put(`/v1/settings/TENANT/payments?tenantId=${tenantId}`, {
+          "payments.bank_details": bankStr,
+        }).catch((e) => console.warn("Failed to sync bank details to tenant settings:", e));
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenant-invoice-settings", tenantId] });
+      qc.invalidateQueries({ queryKey: ["settings", "TENANT"] });
+      toast.success("Invoicing & billing settings updated and persisted successfully!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save invoice settings");
+    },
+  });
+
+  // Custom Fields Persistence
+  const { data: savedCustomFields } = useQuery({
+    queryKey: ["tenant-custom-fields", tenantId],
+    queryFn: async () => {
+      try {
+        const page = await api.get(`/cms/pages/tenant-${tenantId}-custom-fields`);
+        if (page?.content?.fields && Array.isArray(page.content.fields)) {
+          setCustomFields(page.content.fields);
+          return page.content.fields;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!tenantId,
+  });
+
+  const saveCustomFieldsMutation = useMutation({
+    mutationFn: async (fields: any[]) => {
+      await api.put(`/cms/pages/tenant-${tenantId}-custom-fields`, {
+        title: `Custom Fields ${tenantId}`,
+        content: { fields },
+        published: true,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenant-custom-fields", tenantId] });
+      toast.success("Custom fields configuration persisted successfully!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save custom fields");
+    },
+  });
+
   // Office Shift & Timing State
   const [shiftStartTime, setShiftStartTime] = useState("09:30");
   const [shiftEndTime, setShiftEndTime] = useState("18:30");
@@ -1962,8 +2110,13 @@ export function Settings() {
                 ))}
               </div>
               <div className="flex justify-end pt-2 border-t">
-                <Button size="sm" onClick={() => toast.success("Approval workflows updated successfully!")} className="text-xs font-bold gap-1.5">
-                  <Check className="size-3.5" /> Save Workflow Rules
+                <Button
+                  size="sm"
+                  onClick={() => saveApprovalsMutation.mutate(approvalWorkflows)}
+                  disabled={saveApprovalsMutation.isPending}
+                  className="text-xs font-bold gap-1.5"
+                >
+                  <Check className="size-3.5" /> {saveApprovalsMutation.isPending ? "Saving..." : "Save Workflow Rules"}
                 </Button>
               </div>
             </CardContent>
@@ -2054,8 +2207,13 @@ export function Settings() {
               </div>
 
               <div className="flex justify-end pt-2 border-t">
-                <Button size="sm" onClick={() => toast.success("Salary & statutory rules saved!")} className="text-xs font-bold gap-1.5">
-                  <Check className="size-3.5" /> Save Salary Configuration
+                <Button
+                  size="sm"
+                  onClick={() => saveSalaryMutation.mutate(salaryConfig)}
+                  disabled={saveSalaryMutation.isPending}
+                  className="text-xs font-bold gap-1.5"
+                >
+                  <Check className="size-3.5" /> {saveSalaryMutation.isPending ? "Saving..." : "Save Salary Configuration"}
                 </Button>
               </div>
             </CardContent>
@@ -2142,8 +2300,13 @@ export function Settings() {
               </div>
 
               <div className="flex justify-end pt-2 border-t">
-                <Button size="sm" onClick={() => toast.success("Invoicing & billing settings updated!")} className="text-xs font-bold gap-1.5">
-                  <Check className="size-3.5" /> Save Invoice Settings
+                <Button
+                  size="sm"
+                  onClick={() => saveInvoiceMutation.mutate(invoiceConfig)}
+                  disabled={saveInvoiceMutation.isPending}
+                  className="text-xs font-bold gap-1.5"
+                >
+                  <Check className="size-3.5" /> {saveInvoiceMutation.isPending ? "Saving..." : "Save Invoice Settings"}
                 </Button>
               </div>
             </CardContent>
@@ -2206,8 +2369,9 @@ export function Settings() {
                           variant="ghost"
                           onClick={() => {
                             if (confirm(`Remove custom field "${cf.label}"?`)) {
-                              setCustomFields(customFields.filter((item) => item.id !== cf.id));
-                              toast.success("Custom field removed.");
+                              const updated = customFields.filter((item) => item.id !== cf.id);
+                              setCustomFields(updated);
+                              saveCustomFieldsMutation.mutate(updated);
                             }
                           }}
                           className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
@@ -2453,20 +2617,19 @@ export function Settings() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              setCustomFields([
-                ...customFields,
-                {
-                  id: "cf-" + Date.now(),
-                  module: customFieldForm.module,
-                  label: customFieldForm.label,
-                  type: customFieldForm.type,
-                  options: customFieldForm.options,
-                  required: customFieldForm.required,
-                },
-              ]);
+              const newField = {
+                id: "cf-" + Date.now(),
+                module: customFieldForm.module,
+                label: customFieldForm.label,
+                type: customFieldForm.type,
+                options: customFieldForm.options,
+                required: customFieldForm.required,
+              };
+              const updated = [...customFields, newField];
+              setCustomFields(updated);
+              saveCustomFieldsMutation.mutate(updated);
               setIsAddCustomFieldOpen(false);
               setCustomFieldForm({ module: "Employees", label: "", type: "Text", options: "", required: false });
-              toast.success(`Custom field "${customFieldForm.label}" added to ${customFieldForm.module}!`);
             }}
             className="space-y-3 py-2 text-xs"
           >

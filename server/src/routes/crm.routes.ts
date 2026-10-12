@@ -5,6 +5,8 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { requireEntitlement } from "../middleware/entitlements";
 import { broadcastToTenant } from "../socket";
 import { parsePaginationParams, formatPaginatedResponse, parsePagination, paginate } from "../lib/pagination";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
 
 export const crmRouter = Router();
 
@@ -68,6 +70,41 @@ crmRouter.get("/leads", requireAuth, resolveTenantContext, requirePermission("cr
   }
 });
 
+// GET /api/crm/leads/:id - Fetch single lead by id
+crmRouter.get("/leads/:id", requireAuth, resolveTenantContext, requirePermission("crm.leads.view"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const l = await prisma.crmLead.findFirst({
+      where: { id, tenantId },
+    });
+    if (!l) {
+      return res.status(404).json({ error: "CRM lead not found" });
+    }
+
+    return res.json({
+      id: l.id,
+      name: l.contactName || l.title,
+      title: l.title,
+      contactName: l.contactName,
+      company: l.company || "",
+      email: l.email || "",
+      phone: l.phone || "",
+      value: Number(l.value),
+      stage: l.stage,
+      priority: l.priority,
+      source: l.source || "Direct",
+      notes: l.notes || "",
+      assignedTo: l.assignedTo || "",
+      createdAt: l.createdAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Lead GET :id error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch CRM lead" });
+  }
+});
+
 // POST /api/crm/leads - Create new lead
 crmRouter.post("/leads", requireAuth, resolveTenantContext, requirePermission("crm.leads.create"), async (req: AuthRequest, res: Response) => {
   try {
@@ -91,6 +128,16 @@ crmRouter.post("/leads", requireAuth, resolveTenantContext, requirePermission("c
         assignedTo: body.assignedTo || null,
       },
     });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.lead.created",
+      entityType: "CrmLead",
+      entityId: lead.id,
+      newState: { title: lead.title, value: Number(lead.value), stage: lead.stage },
+    }).catch(() => {});
 
     return res.status(201).json({
       id: lead.id,
@@ -119,6 +166,11 @@ crmRouter.put("/leads/:id", requireAuth, resolveTenantContext, requirePermission
     const { id } = req.params;
     const body = req.body;
 
+    const existing = await prisma.crmLead.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "CRM lead not found" });
+    }
+
     const dataToUpdate: any = {};
     if (body.name !== undefined) {
       dataToUpdate.contactName = body.name;
@@ -135,12 +187,34 @@ crmRouter.put("/leads/:id", requireAuth, resolveTenantContext, requirePermission
     if (body.notes !== undefined) dataToUpdate.notes = body.notes;
     if (body.assignedTo !== undefined) dataToUpdate.assignedTo = body.assignedTo;
 
-    await prisma.crmLead.updateMany({
-      where: { id, tenantId },
+    const updated = await prisma.crmLead.update({
+      where: { id: existing.id },
       data: dataToUpdate,
     });
 
-    return res.json({ success: true, id });
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.lead.updated",
+      entityType: "CrmLead",
+      entityId: id,
+      oldState: { stage: existing.stage, value: Number(existing.value) },
+      newState: dataToUpdate,
+    }).catch(() => {});
+
+    if (body.stage && body.stage !== existing.stage) {
+      await OutboxService.createOutboxEvent({
+        tenantId,
+        eventType: "crm.lead.stage_changed",
+        entityType: "CrmLead",
+        entityId: id,
+        actorId: (req.user as any)?.userId || (req.user as any)?.id,
+        payload: { id, fromStage: existing.stage, toStage: body.stage },
+      }).catch(() => {});
+    }
+
+    return res.json({ success: true, id, lead: updated });
   } catch (err: any) {
     console.error("CRM Leads PUT error:", err);
     return res.status(500).json({ error: err.message || "Failed to update CRM lead" });
@@ -153,9 +227,24 @@ crmRouter.delete("/leads/:id", requireAuth, resolveTenantContext, requirePermiss
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
 
-    await prisma.crmLead.deleteMany({
-      where: { id, tenantId },
+    const existing = await prisma.crmLead.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "CRM lead not found" });
+    }
+
+    await prisma.crmLead.delete({
+      where: { id: existing.id },
     });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.lead.deleted",
+      entityType: "CrmLead",
+      entityId: id,
+      oldState: { title: existing.title, contactName: existing.contactName },
+    }).catch(() => {});
 
     return res.json({ success: true, message: "Lead removed" });
   } catch (err: any) {
@@ -306,6 +395,16 @@ crmRouter.post("/deals", requireAuth, resolveTenantContext, async (req: AuthRequ
       status: deal.status,
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.deal.created",
+      entityType: "CrmDeal",
+      entityId: deal.id,
+      newState: { name: deal.name, value: Number(deal.value), stage: deal.stage, customer: deal.customer },
+    }).catch(() => {});
+
     return res.status(201).json({
       id: deal.id,
       name: deal.name,
@@ -362,6 +461,17 @@ crmRouter.put("/deals/:id", requireAuth, resolveTenantContext, async (req: AuthR
       data: dataToUpdate,
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.deal.updated",
+      entityType: "CrmDeal",
+      entityId: id,
+      oldState: { name: existing.name, stage: existing.stage, value: Number(existing.value) },
+      newState: dataToUpdate,
+    }).catch(() => {});
+
     broadcastToTenant(tenantId, "crm:deal:updated", {
       id: updated.id,
       name: updated.name,
@@ -401,6 +511,26 @@ crmRouter.patch("/deals/:id/stage", requireAuth, resolveTenantContext, async (re
       data: { stage, status },
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.deal.stage_updated",
+      entityType: "CrmDeal",
+      entityId: id,
+      oldState: { stage: existing.stage, status: existing.status },
+      newState: { stage: updated.stage, status: updated.status },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: updated.stage === "Won" ? "crm.deal.won" : "crm.deal.stage_changed",
+      entityType: "CrmDeal",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { id, stage: updated.stage, status: updated.status, value: Number(existing.value) },
+    }).catch(() => {});
+
     broadcastToTenant(tenantId, "crm:deal:stageChanged", {
       id: updated.id,
       stage: updated.stage,
@@ -430,6 +560,16 @@ crmRouter.delete("/deals/:id", requireAuth, resolveTenantContext, async (req: Au
     await prisma.crmDeal.delete({
       where: { id },
     });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.deal.deleted",
+      entityType: "CrmDeal",
+      entityId: id,
+      oldState: { name: existing.name, customer: existing.customer, value: Number(existing.value) },
+    }).catch(() => {});
 
     broadcastToTenant(tenantId, "crm:deal:deleted", { id });
 
@@ -906,130 +1046,10 @@ crmRouter.get("/contacts", requireAuth, resolveTenantContext, async (req: AuthRe
         { city: { contains: searchParam } },
       ];
     }
-
-    let contacts = await prisma.crmContact.findMany({
+    const contacts = await prisma.crmContact.findMany({
       where,
       orderBy: { createdAt: sortParam },
     });
-
-    // Auto-seed realistic enterprise contacts if table empty for this tenant
-    if (contacts.length === 0 && !searchParam && (!statusParam || statusParam === "all")) {
-      const initialContacts = [
-        {
-          tenantId,
-          name: "Darlee Robertson",
-          email: "darlee@example.com",
-          phone: "(163) 2459 315",
-          role: "Facility Manager",
-          company: "TechCorp Solutions",
-          city: "Berlin",
-          country: "Germany",
-          rating: 4.2,
-          owner: (req.user as any)?.fullName || "Admin",
-          status: "active",
-          social: {
-            linkedin: "linkedin.com/in/darlee-robertson",
-            twitter: "@darlee_r",
-          },
-          activities: [
-            {
-              type: "call",
-              title: "Initial Qualification Call",
-              date: new Date(Date.now() - 86400000 * 2).toISOString(),
-              notes: "Discussed corporate facilities renewal and Q3 requirements.",
-            },
-            {
-              type: "email",
-              title: "Quotation Sent",
-              date: new Date(Date.now() - 86400000 * 4).toISOString(),
-              notes: "Shared standard ERP licensing schedule and implementation terms.",
-            },
-          ],
-          notes: "Key decision maker for European enterprise facilities rollout.",
-        },
-        {
-          tenantId,
-          name: "Alexander Kenn",
-          email: "alex@example.com",
-          phone: "+1 202 555 0173",
-          role: "Chief Executive Officer",
-          company: "TechCorp Inc",
-          city: "New York",
-          country: "USA",
-          rating: 4.8,
-          owner: (req.user as any)?.fullName || "Admin",
-          status: "active",
-          social: {
-            linkedin: "linkedin.com/in/alex-kenn-ceo",
-            twitter: "@akenn_tech",
-          },
-          activities: [
-            {
-              type: "meeting",
-              title: "Executive Strategic Review",
-              date: new Date(Date.now() - 86400000).toISOString(),
-              notes: "Finalized master multi-tenant subscription terms.",
-            },
-            {
-              type: "call",
-              title: "Contract Review Call",
-              date: new Date(Date.now() - 86400000 * 3).toISOString(),
-              notes: "Addressed SLA and high-availability queries.",
-            },
-          ],
-          notes: "High priority account. Prefers email follow-ups with concise milestone summaries.",
-        },
-        {
-          tenantId,
-          name: "Sharon Roy",
-          email: "sharon@example.com",
-          phone: "(145) 8965 241",
-          role: "Software Architect",
-          company: "Nova Digital Systems",
-          city: "London",
-          country: "United Kingdom",
-          rating: 4.5,
-          owner: (req.user as any)?.fullName || "Admin",
-          status: "active",
-          social: {
-            linkedin: "linkedin.com/in/sharon-roy-arch",
-          },
-          activities: [
-            {
-              type: "email",
-              title: "API Architecture Specs Exchanged",
-              date: new Date(Date.now() - 86400000 * 5).toISOString(),
-              notes: "Reviewed REST API and webhook integration capabilities.",
-            },
-          ],
-          notes: "Technical stakeholder evaluating custom POS and ERP integrations.",
-        },
-        {
-          tenantId,
-          name: "Vaughn Lewis",
-          email: "vaughn@example.com",
-          phone: "(178) 6589 423",
-          role: "Director of Operations",
-          company: "Global Logistics Group",
-          city: "Toronto",
-          country: "Canada",
-          rating: 4.0,
-          owner: (req.user as any)?.fullName || "Admin",
-          status: "inactive",
-          activities: [],
-          notes: "Legacy logistics contract on pause until next budget cycle in November.",
-        },
-      ];
-
-      for (const item of initialContacts) {
-        await prisma.crmContact.create({ data: item });
-      }
-
-      contacts = await prisma.crmContact.findMany({
-        where,
-        orderBy: { createdAt: sortParam },
-      });
-    }
 
     const formatted = contacts.map((c) => ({
       id: c.id,
@@ -1055,6 +1075,45 @@ crmRouter.get("/contacts", requireAuth, resolveTenantContext, async (req: AuthRe
   } catch (err: any) {
     console.error("CRM Contacts GET error:", err);
     return res.status(500).json({ error: err.message || "Failed to fetch CRM contacts" });
+  }
+});
+
+// GET /api/crm/contacts/:id - Get single contact
+crmRouter.get("/contacts/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const c = await prisma.crmContact.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!c) {
+      return res.status(404).json({ error: "Contact not found." });
+    }
+
+    return res.json({
+      id: c.id,
+      name: c.name,
+      email: c.email || "",
+      phone: c.phone || "",
+      role: c.role || "",
+      company: c.company || "",
+      city: c.city || "",
+      country: c.country || "India",
+      location: [c.city, c.country].filter(Boolean).join(", ") || "Global",
+      rating: Number(c.rating),
+      owner: c.owner || "Admin",
+      status: c.status as "active" | "inactive",
+      social: (c.social as any) || {},
+      activities: (c.activities as any) || [],
+      notes: c.notes || "",
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Contact GET :id error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch CRM contact" });
   }
 });
 
@@ -1086,6 +1145,16 @@ crmRouter.post("/contacts", requireAuth, resolveTenantContext, async (req: AuthR
         notes: body.notes || null,
       },
     });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.contact.created",
+      entityType: "CrmContact",
+      entityId: created.id,
+      newState: { name: created.name, email: created.email, company: created.company },
+    }).catch(() => {});
 
     broadcastToTenant(tenantId, "crm:contact:created", { id: created.id, name: created.name });
 
@@ -1149,6 +1218,17 @@ crmRouter.put("/contacts/:id", requireAuth, resolveTenantContext, async (req: Au
       data: dataToUpdate,
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.contact.updated",
+      entityType: "CrmContact",
+      entityId: id,
+      oldState: { name: existing.name, email: existing.email },
+      newState: dataToUpdate,
+    }).catch(() => {});
+
     broadcastToTenant(tenantId, "crm:contact:updated", { id: updated.id, name: updated.name });
 
     return res.json({
@@ -1182,13 +1262,26 @@ crmRouter.delete("/contacts/:id", requireAuth, resolveTenantContext, async (req:
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
 
-    const deleted = await prisma.crmContact.deleteMany({
+    const existing = await prisma.crmContact.findFirst({
       where: { id, tenantId },
     });
-
-    if (deleted.count === 0) {
+    if (!existing) {
       return res.status(404).json({ error: "Contact not found." });
     }
+
+    await prisma.crmContact.delete({
+      where: { id: existing.id },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.contact.deleted",
+      entityType: "CrmContact",
+      entityId: id,
+      oldState: { name: existing.name, email: existing.email },
+    }).catch(() => {});
 
     broadcastToTenant(tenantId, "crm:contact:deleted", { id });
 
@@ -1245,6 +1338,39 @@ crmRouter.get("/companies", requireAuth, resolveTenantContext, async (req: AuthR
   }
 });
 
+// GET /api/crm/companies/:id - Get single company
+crmRouter.get("/companies/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const c = await prisma.crmCompany.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!c) {
+      return res.status(404).json({ error: "Company not found." });
+    }
+
+    return res.json({
+      id: c.id,
+      name: c.name,
+      industry: c.industry || "",
+      employeesCount: c.employeesCount || "1-50",
+      annualRevenue: Number(c.annualRevenue),
+      website: c.website || "",
+      location: c.location || "",
+      dealsCount: c.dealsCount,
+      notes: c.notes || "",
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+    });
+  } catch (err: any) {
+    console.error("CRM Company GET :id error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch CRM company" });
+  }
+});
+
 // POST /api/crm/companies - Create company
 crmRouter.post("/companies", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
@@ -1268,6 +1394,16 @@ crmRouter.post("/companies", requireAuth, resolveTenantContext, async (req: Auth
         notes: body.notes || null,
       },
     });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.company.created",
+      entityType: "CrmCompany",
+      entityId: created.id,
+      newState: { name: created.name, industry: created.industry },
+    }).catch(() => {});
 
     broadcastToTenant(tenantId, "crm:company:created", { id: created.id, name: created.name });
 
@@ -1314,6 +1450,17 @@ crmRouter.put("/companies/:id", requireAuth, resolveTenantContext, async (req: A
 
     const updated = await prisma.crmCompany.update({ where: { id: existing.id }, data: dataToUpdate });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.company.updated",
+      entityType: "CrmCompany",
+      entityId: id,
+      oldState: { name: existing.name },
+      newState: dataToUpdate,
+    }).catch(() => {});
+
     broadcastToTenant(tenantId, "crm:company:updated", { id: updated.id, name: updated.name });
 
     return res.json({
@@ -1341,12 +1488,25 @@ crmRouter.delete("/companies/:id", requireAuth, resolveTenantContext, async (req
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
 
-    const deleted = await prisma.crmCompany.deleteMany({ where: { id, tenantId } });
-    if (deleted.count === 0) {
+    const existing = await prisma.crmCompany.findFirst({ where: { id, tenantId } });
+    if (!existing) {
       return res.status(404).json({ error: "Company not found." });
     }
 
+    await prisma.crmCompany.delete({ where: { id: existing.id } });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.company.deleted",
+      entityType: "CrmCompany",
+      entityId: id,
+      oldState: { name: existing.name },
+    }).catch(() => {});
+
     broadcastToTenant(tenantId, "crm:company:deleted", { id });
+
     return res.json({ success: true, message: "Company deleted successfully." });
   } catch (err: any) {
     console.error("CRM Company DELETE error:", err);

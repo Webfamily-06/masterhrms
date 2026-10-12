@@ -46,7 +46,7 @@ export class ReimbursementApprovalService {
     // This serializes concurrent claim submissions for the same employee, preventing race conditions/phantom spend
     if (txClient) {
       await txClient.$queryRawUnsafe(
-        `SELECT id FROM employees WHERE id = ? AND tenant_id = ? FOR UPDATE`,
+        `SELECT id FROM employees WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
         employeeId,
         tenantId
       );

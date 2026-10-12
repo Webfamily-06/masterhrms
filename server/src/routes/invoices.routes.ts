@@ -14,6 +14,8 @@ import {
 } from "../services/recurring-invoice.service";
 import { CompanyProfileService } from "../services/company-profile/company-profile.service";
 import { requireEntitlement } from "../middleware/entitlements";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
 
 export const invoicesRouter = Router();
 
@@ -270,6 +272,25 @@ invoicesRouter.post("/", requireAuth, requirePermission("finance.invoices.create
       isPaid: body.status === "paid",
     }).catch((e) => console.error("Auto-post invoice to ledger error:", e));
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "finance.invoice.created",
+      entityType: "Sale",
+      entityId: sale.id,
+      newState: { invoiceNo, total, customerName: sale.customerName, paymentStatus: sale.paymentStatus },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "finance.invoice.created",
+      entityType: "invoice",
+      entityId: sale.id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { invoiceNo, total, status: sale.paymentStatus, customerName: sale.customerName },
+    }).catch(() => {});
+
     return res.status(201).json({
       ...body,
       id: sale.id,
@@ -390,249 +411,6 @@ invoicesRouter.get("/recurring", requireAuth, requirePermission("finance.invoice
         select: { status: true, totalAmount: true, cycle: true },
       }),
     ]);
-
-    // Seed default recurring invoices matching ui/recurring-invoices.html if tenant has zero
-    if (total === 0 && !search && !status && !cycle && !startDate) {
-      const existingTotal = await prisma.recurringInvoice.count({ where: { tenantId } });
-      if (existingTotal === 0) {
-        const seedData = [
-          {
-            recurringInvoiceNo: "#RI0020",
-            customerName: "Alexander Kenn",
-            customerEmail: "alexander@techcorp.io",
-            customerAddress: "123 Business Ave, New York, NY",
-            cycle: "Monthly",
-            startDate: new Date("2025-09-01"),
-            nextIssueDate: new Date("2026-10-01"),
-            subtotal: new Prisma.Decimal("1250.00"),
-            taxRate: new Prisma.Decimal("0.00"),
-            taxAmount: new Prisma.Decimal("0.00"),
-            discountRate: new Prisma.Decimal("0.00"),
-            discountAmount: new Prisma.Decimal("0.00"),
-            shippingCharge: new Prisma.Decimal("0.00"),
-            totalAmount: new Prisma.Decimal("1250.00"),
-            status: "Active",
-            issuesSentCount: 8,
-            notes: "Monthly enterprise support and maintenance",
-            items: [
-              { description: "Monthly Subscription", quantity: 1, unitPrice: new Prisma.Decimal("1000.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("1000.00") },
-              { description: "Premium Support", quantity: 1, unitPrice: new Prisma.Decimal("250.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("250.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0019",
-            customerName: "Gabriella White",
-            customerEmail: "gabriella.white@zenith.org",
-            cycle: "Quarterly",
-            startDate: new Date("2025-09-15"),
-            nextIssueDate: new Date("2026-12-15"),
-            subtotal: new Prisma.Decimal("3750.00"),
-            taxRate: new Prisma.Decimal("0.00"),
-            taxAmount: new Prisma.Decimal("0.00"),
-            totalAmount: new Prisma.Decimal("3750.00"),
-            status: "Active",
-            issuesSentCount: 4,
-            items: [
-              { description: "Quarterly Platform License", quantity: 1, unitPrice: new Prisma.Decimal("3750.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("3750.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0018",
-            customerName: "Christopher Rey",
-            customerEmail: "chris.rey@apex.net",
-            cycle: "Monthly",
-            startDate: new Date("2025-08-27"),
-            nextIssueDate: new Date("2026-09-27"),
-            subtotal: new Prisma.Decimal("580.00"),
-            totalAmount: new Prisma.Decimal("580.00"),
-            status: "Paused",
-            issuesSentCount: 3,
-            items: [
-              { description: "Basic Cloud Hosting Tier", quantity: 1, unitPrice: new Prisma.Decimal("580.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("580.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0017",
-            customerName: "Penelope Ton",
-            customerEmail: "penelope@tonventures.com",
-            cycle: "Yearly",
-            startDate: new Date("2025-08-16"),
-            nextIssueDate: new Date("2026-08-16"),
-            subtotal: new Prisma.Decimal("12000.00"),
-            totalAmount: new Prisma.Decimal("12000.00"),
-            status: "Active",
-            issuesSentCount: 1,
-            items: [
-              { description: "Annual Enterprise License", quantity: 1, unitPrice: new Prisma.Decimal("12000.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("12000.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0016",
-            customerName: "Daniel Foster",
-            customerEmail: "daniel@fosterlaw.com",
-            cycle: "Monthly",
-            startDate: new Date("2025-07-25"),
-            nextIssueDate: new Date("2026-09-25"),
-            subtotal: new Prisma.Decimal("740.00"),
-            totalAmount: new Prisma.Decimal("740.00"),
-            status: "Cancelled",
-            issuesSentCount: 2,
-            items: [
-              { description: "Legal Document Cloud Storage", quantity: 1, unitPrice: new Prisma.Decimal("740.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("740.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0015",
-            customerName: "Anastasia Leton",
-            customerEmail: "anastasia@letondesign.co",
-            cycle: "Quarterly",
-            startDate: new Date("2025-07-12"),
-            nextIssueDate: new Date("2026-10-12"),
-            subtotal: new Prisma.Decimal("2950.00"),
-            totalAmount: new Prisma.Decimal("2950.00"),
-            status: "Active",
-            issuesSentCount: 3,
-            items: [
-              { description: "Quarterly Retainer & UI Design", quantity: 1, unitPrice: new Prisma.Decimal("2950.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("2950.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0014",
-            customerName: "Noah Bennett",
-            customerEmail: "noah.bennett@bennettsys.com",
-            cycle: "Monthly",
-            startDate: new Date("2025-08-23"),
-            nextIssueDate: new Date("2026-09-23"),
-            subtotal: new Prisma.Decimal("430.00"),
-            totalAmount: new Prisma.Decimal("430.00"),
-            status: "Active",
-            issuesSentCount: 5,
-            items: [
-              { description: "Managed Endpoint Protection", quantity: 1, unitPrice: new Prisma.Decimal("430.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("430.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0013",
-            customerName: "Victoria Ellsworth",
-            customerEmail: "victoria@ellsworthpartners.com",
-            cycle: "Weekly",
-            startDate: new Date("2025-09-07"),
-            nextIssueDate: new Date("2026-09-14"),
-            subtotal: new Prisma.Decimal("185.00"),
-            totalAmount: new Prisma.Decimal("185.00"),
-            status: "Paused",
-            issuesSentCount: 12,
-            items: [
-              { description: "Weekly Operations Consulting", quantity: 1, unitPrice: new Prisma.Decimal("185.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("185.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0012",
-            customerName: "Noah Kensington",
-            customerEmail: "noah@kensingtoncapital.io",
-            cycle: "Monthly",
-            startDate: new Date("2025-06-28"),
-            nextIssueDate: new Date("2026-09-28"),
-            subtotal: new Prisma.Decimal("1340.00"),
-            totalAmount: new Prisma.Decimal("1340.00"),
-            status: "Active",
-            issuesSentCount: 6,
-            items: [
-              { description: "Portfolio Reporting Subscription", quantity: 1, unitPrice: new Prisma.Decimal("1340.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("1340.00") },
-            ],
-          },
-          {
-            recurringInvoiceNo: "#RI0011",
-            customerName: "Catherine Lan",
-            customerEmail: "catherine@lanlogistics.com",
-            cycle: "Yearly",
-            startDate: new Date("2025-05-18"),
-            nextIssueDate: new Date("2026-05-18"),
-            subtotal: new Prisma.Decimal("5880.00"),
-            totalAmount: new Prisma.Decimal("5880.00"),
-            status: "Active",
-            issuesSentCount: 1,
-            items: [
-              { description: "Fleet Management Platform Subscription", quantity: 1, unitPrice: new Prisma.Decimal("5880.00"), discount: new Prisma.Decimal("0.00"), amount: new Prisma.Decimal("5880.00") },
-            ],
-          },
-        ];
-
-        for (const item of seedData) {
-          const { items, ...scheduleData } = item;
-          await prisma.recurringInvoice.create({
-            data: {
-              ...scheduleData,
-              tenantId,
-              items: {
-                create: items,
-              },
-            },
-          });
-        }
-
-        // Re-query after seeding
-        const seededRecords = await prisma.recurringInvoice.findMany({
-          where: { tenantId },
-          include: { items: true, customer: true },
-          orderBy,
-          skip,
-          take,
-        });
-        const seededTotal = await prisma.recurringInvoice.count({ where: { tenantId } });
-
-        const formatted = seededRecords.map((r) => ({
-          id: r.id,
-          recurringInvoiceNo: r.recurringInvoiceNo,
-          customerName: r.customerName,
-          customerEmail: r.customerEmail,
-          customerAddress: r.customerAddress,
-          customerId: r.customerId,
-          cycle: r.cycle,
-          startDate: r.startDate.toISOString(),
-          dueDate: r.dueDate?.toISOString() || null,
-          nextIssueDate: r.nextIssueDate.toISOString(),
-          endDate: r.endDate?.toISOString() || null,
-          status: r.status,
-          subtotal: Number(r.subtotal),
-          taxRate: Number(r.taxRate),
-          taxAmount: Number(r.taxAmount),
-          discountRate: Number(r.discountRate),
-          discountAmount: Number(r.discountAmount),
-          shippingCharge: Number(r.shippingCharge),
-          totalAmount: Number(r.totalAmount),
-          issuesSentCount: r.issuesSentCount,
-          lastIssueDate: r.lastIssueDate?.toISOString() || null,
-          notes: r.notes,
-          terms: r.terms,
-          reference: r.reference,
-          items: r.items.map((it) => ({
-            id: it.id,
-            description: it.description,
-            quantity: it.quantity,
-            unitPrice: Number(it.unitPrice),
-            discount: Number(it.discount),
-            amount: Number(it.amount),
-          })),
-        }));
-
-        return res.json({
-          data: formatted,
-          pagination: {
-            total: seededTotal,
-            page: pageNum,
-            limit: take,
-            totalPages: Math.ceil(seededTotal / take),
-          },
-          summary: {
-            totalActive: seededRecords.filter((r) => r.status === "Active").length,
-            totalPaused: seededRecords.filter((r) => r.status === "Paused").length,
-            totalCancelled: seededRecords.filter((r) => r.status === "Cancelled").length,
-            totalVolume: seededRecords.reduce((acc, r) => acc + Number(r.totalAmount), 0),
-          },
-        });
-      }
-    }
 
     const formatted = records.map((r) => ({
       id: r.id,
@@ -1137,6 +915,184 @@ invoicesRouter.get("/:id", requireAuth, requirePermission("finance.invoices.view
     return res.json(formatted);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch invoice" });
+  }
+});
+
+// PUT /api/invoices/:id - Update invoice details (notes, dueDate, customer info)
+invoicesRouter.put("/:id", requireAuth, requirePermission("finance.invoices.edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+    const body = req.body;
+
+    const existing = await prisma.sale.findFirst({
+      where: { id, tenantId },
+      include: { details: true, payments: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (existing.paymentStatus === "void") {
+      return res.status(400).json({ error: "Cannot modify a voided invoice" });
+    }
+
+    const updated = await prisma.sale.update({
+      where: { id },
+      data: {
+        ...(body.notes !== undefined && { notes: body.notes }),
+        ...(body.dueDate && { dueDate: new Date(body.dueDate) }),
+        ...(body.customerName && { customerName: body.customerName }),
+        ...(body.client && { customerName: body.client }),
+        ...(body.customerGstin && { customerGstin: body.customerGstin }),
+        ...(body.client_gstin && { customerGstin: body.client_gstin }),
+      },
+      include: { customer: true, details: true, payments: true },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "finance.invoice.updated",
+      entityType: "Sale",
+      entityId: id,
+      oldState: { notes: existing.notes, dueDate: existing.dueDate, customerName: existing.customerName },
+      newState: { notes: updated.notes, dueDate: updated.dueDate, customerName: updated.customerName },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "finance.invoice.updated",
+      entityType: "invoice",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { invoiceNo: updated.invoiceNo, total: Number(updated.total) },
+    }).catch(() => {});
+
+    return res.json({
+      id: updated.id,
+      number: updated.invoiceNo,
+      invoiceNo: updated.invoiceNo,
+      date: updated.date.toISOString(),
+      dueDate: updated.dueDate ? updated.dueDate.toISOString() : updated.date.toISOString(),
+      client: updated.customerName || "B2B Client",
+      client_gstin: updated.customerGstin || "",
+      status: updated.paymentStatus,
+      paymentStatus: updated.paymentStatus,
+      subtotal: Number(updated.subtotal),
+      total: Number(updated.total),
+      paidAmount: Number(updated.paidAmount),
+      notes: updated.notes || "",
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update invoice" });
+  }
+});
+
+// POST /api/invoices/:id/void - State-aware voiding/cancellation
+invoicesRouter.post("/:id/void", requireAuth, requirePermission("finance.invoices.edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+
+    const existing = await prisma.sale.findFirst({
+      where: { id, tenantId },
+      include: { payments: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (existing.paymentStatus === "paid" || Number(existing.paidAmount) > 0) {
+      return res.status(400).json({ error: "Cannot void an invoice with recorded payments. Issue a credit note instead." });
+    }
+
+    if (existing.paymentStatus === "void") {
+      return res.json({ success: true, message: "Invoice is already voided", invoice: existing });
+    }
+
+    const updated = await prisma.sale.update({
+      where: { id },
+      data: { paymentStatus: "void" },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "finance.invoice.voided",
+      entityType: "Sale",
+      entityId: id,
+      oldState: { paymentStatus: existing.paymentStatus },
+      newState: { paymentStatus: "void" },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "finance.invoice.voided",
+      entityType: "invoice",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { invoiceNo: updated.invoiceNo, total: Number(updated.total) },
+    }).catch(() => {});
+
+    return res.json({ success: true, message: `Invoice ${updated.invoiceNo} marked as void`, invoice: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to void invoice" });
+  }
+});
+
+// DELETE /api/invoices/:id - Safe deletion (restricted to invoices with zero payments)
+invoicesRouter.delete("/:id", requireAuth, requirePermission("finance.invoices.delete"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const { id } = req.params;
+
+    const existing = await prisma.sale.findFirst({
+      where: { id, tenantId },
+      include: { payments: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (existing.payments.length > 0 || Number(existing.paidAmount) > 0) {
+      return res.status(400).json({
+        error: "Cannot delete an invoice with recorded payments. Please void the invoice or delete the payments first.",
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.saleDetail.deleteMany({ where: { saleId: id } });
+      await tx.sale.delete({ where: { id } });
+
+      await AuditService.logMutation({
+        tenantId,
+        actorId: (req.user as any)?.userId || (req.user as any)?.id,
+        actorEmail: req.user?.email,
+        action: "finance.invoice.deleted",
+        entityType: "Sale",
+        entityId: id,
+        oldState: { invoiceNo: existing.invoiceNo, total: Number(existing.total) },
+      }, tx).catch(() => {});
+
+      await OutboxService.createOutboxEvent({
+        tenantId,
+        eventType: "finance.invoice.deleted",
+        entityType: "invoice",
+        entityId: id,
+        actorId: (req.user as any)?.userId || (req.user as any)?.id,
+        payload: { invoiceNo: existing.invoiceNo, total: Number(existing.total) },
+      }, tx).catch(() => {});
+    });
+
+    return res.json({ success: true, message: `Invoice ${existing.invoiceNo} deleted successfully` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete invoice" });
   }
 });
 

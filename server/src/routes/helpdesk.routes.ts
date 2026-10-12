@@ -1,6 +1,8 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { AuditService } from "../services/audit.service";
+import { OutboxService } from "../services/outbox.service";
 
 export const helpdeskRouter = Router();
 
@@ -197,6 +199,25 @@ helpdeskRouter.post("/tickets", requireAuth, async (req: AuthRequest, res: Respo
       },
     });
 
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "helpdesk.ticket.created",
+      entityType: "HelpdeskTicket",
+      entityId: ticket.id,
+      newState: { ticketCode, subject: ticket.subject, priority: ticket.priority, category: ticket.category },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId,
+      eventType: "helpdesk.ticket.created",
+      entityType: "helpdesk_ticket",
+      entityId: ticket.id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { ticketCode, subject: ticket.subject, priority: ticket.priority },
+    }).catch(() => {});
+
     return res.status(201).json(refreshed);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to create internal ticket." });
@@ -224,6 +245,59 @@ helpdeskRouter.get("/tickets/:id", requireAuth, async (req: AuthRequest, res: Re
     return res.json(ticket);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch ticket." });
+  }
+});
+
+// PUT /api/helpdesk/tickets/:id (Edit ticket details)
+helpdeskRouter.put("/tickets/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    const { subject, category, priority, description, assignedAgent } = req.body;
+
+    const existing = await prisma.helpdeskTicket.findUnique({ where: { id } });
+    if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Ticket not found." });
+    }
+
+    const updated = await prisma.helpdeskTicket.update({
+      where: { id },
+      data: {
+        ...(subject && { subject }),
+        ...(category && { category }),
+        ...(priority && { priority }),
+        ...(description && { description }),
+        ...(assignedAgent && { assignedAgent }),
+      },
+      include: {
+        employee: { include: { department: true } },
+        comments: { orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "helpdesk.ticket.updated",
+      entityType: "HelpdeskTicket",
+      entityId: id,
+      oldState: { subject: existing.subject, priority: existing.priority },
+      newState: { subject: updated.subject, priority: updated.priority },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "helpdesk.ticket.updated",
+      entityType: "helpdesk_ticket",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { ticketCode: updated.ticketCode, subject: updated.subject },
+    }).catch(() => {});
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update ticket." });
   }
 });
 
@@ -302,6 +376,26 @@ helpdeskRouter.put("/tickets/:id/status", requireAuth, async (req: AuthRequest, 
       });
     }
 
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "helpdesk.ticket.status_changed",
+      entityType: "HelpdeskTicket",
+      entityId: id,
+      oldState: { status: existing.status },
+      newState: { status: updated.status, resolutionNotes },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "helpdesk.ticket.status_changed",
+      entityType: "helpdesk_ticket",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { ticketCode: updated.ticketCode, status: updated.status },
+    }).catch(() => {});
+
     return res.json({
       success: true,
       message: `Ticket status updated to ${status}!`,
@@ -323,7 +417,28 @@ helpdeskRouter.delete("/tickets/:id", requireAuth, async (req: AuthRequest, res:
       return res.status(404).json({ error: "Ticket not found." });
     }
 
+    await prisma.helpdeskComment.deleteMany({ where: { ticketId: id } });
     await prisma.helpdeskTicket.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId: existing.tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "helpdesk.ticket.deleted",
+      entityType: "HelpdeskTicket",
+      entityId: id,
+      oldState: { ticketCode: existing.ticketCode, subject: existing.subject },
+    }).catch(() => {});
+
+    await OutboxService.createOutboxEvent({
+      tenantId: existing.tenantId,
+      eventType: "helpdesk.ticket.deleted",
+      entityType: "helpdesk_ticket",
+      entityId: id,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      payload: { ticketCode: existing.ticketCode },
+    }).catch(() => {});
+
     return res.json({ success: true, message: "Ticket deleted." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete ticket." });

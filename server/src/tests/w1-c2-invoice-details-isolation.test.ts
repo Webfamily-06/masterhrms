@@ -57,6 +57,17 @@ describe("W1-C2: Invoice Details Passport & Multi-Tenant Isolation", () => {
       update: { name: "Beta Invoice Tenant" },
     });
 
+    await prisma.tenantModule.upsert({
+      where: { tenantId_moduleKey: { tenantId: tenantAlphaId, moduleKey: "finance" } },
+      create: { tenantId: tenantAlphaId, moduleKey: "finance", isEnabled: true },
+      update: { isEnabled: true },
+    });
+    await prisma.tenantModule.upsert({
+      where: { tenantId_moduleKey: { tenantId: tenantBetaId, moduleKey: "finance" } },
+      create: { tenantId: tenantBetaId, moduleKey: "finance", isEnabled: true },
+      update: { isEnabled: true },
+    });
+
     TenantConnectionManager.getInstance().registerTenant({
       tenantId: tenantAlphaId,
       name: "Alpha Invoice Tenant",
@@ -279,6 +290,9 @@ describe("W1-C2: Invoice Details Passport & Multi-Tenant Isolation", () => {
     await prisma.sale.deleteMany({
       where: { tenantId: { in: [tenantAlphaId, tenantBetaId] } },
     });
+    await prisma.tenantModule.deleteMany({
+      where: { tenantId: { in: [tenantAlphaId, tenantBetaId] } },
+    }).catch(() => {});
   });
 
   it("1. Rejects unauthenticated request with 401", async () => {

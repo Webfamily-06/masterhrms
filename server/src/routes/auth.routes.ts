@@ -24,6 +24,7 @@ import {
 import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
 import { SettingsService } from "../services/settings/settings.service";
 import { OAuthFactory } from "../services/factories/oauth.factory";
+import { TwoFactorService } from "../modules/two-factor-auth/two-factor.service";
 
 export { OAuthFactory };
 export const authRouter = Router();
@@ -927,10 +928,33 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
       return res.status(400).json({ error: "User account not found." });
     }
 
-    // Verify submitted 6-digit Email OTP against database hash
-    const verification = await verifyOtpCode(user.id, String(code));
-    if (!verification.valid) {
-      return res.status(400).json({ error: verification.error || "Invalid verification code." });
+    // Verify submitted code: check RFC 6238 TOTP / Backup code first, then fall back to Email OTP
+    let isCodeValid = false;
+    let verificationError = "Invalid verification code.";
+
+    if (user.twoFactorSecret) {
+      const totpResult = await TwoFactorService.verifyTotpOrBackup(user.id, String(code));
+      if (totpResult.valid) {
+        isCodeValid = true;
+      } else {
+        verificationError = totpResult.error || "Invalid 2FA code or backup code.";
+        if (totpResult.rateLimited) {
+          return res.status(429).json({ error: totpResult.error });
+        }
+      }
+    }
+
+    if (!isCodeValid) {
+      const emailOtpVerification = await verifyOtpCode(user.id, String(code));
+      if (emailOtpVerification.valid) {
+        isCodeValid = true;
+      } else if (!user.twoFactorSecret) {
+        verificationError = emailOtpVerification.error || "Invalid verification code.";
+      }
+    }
+
+    if (!isCodeValid) {
+      return res.status(400).json({ error: verificationError });
     }
 
     // ── Host-Scoped Authentication Enforcement for 2FA Completion ──

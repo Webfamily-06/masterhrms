@@ -2410,7 +2410,16 @@ export function DreamsSidebar({
               const hasStrategy = (isEntitled("swot") || isEntitled("pestel")) && isAdminOrSuper;
               const hasAiOcr = isEntitled("ai-ocr") && isAdminOrSuper;
 
-              const anyVisible = hasMarketplace || hasWoo || hasShopify || hasGoogle || hasTally || hasWhatsapp || hasRazorpay || hasStrategy || hasAiOcr;
+              const hasNoticeBoard = isEntitled("notice-board");
+              const hasInternalReminders = isEntitled("internal-reminders");
+              const hasTwoFactor = isEntitled("two-factor-auth");
+              const hasBackupRestore = isEntitled("backup-restore") && isAdminOrSuper;
+              const hasActivityLogs = isEntitled("activity-logs") && isAdminOrSuper;
+              const hasPublicApi = isEntitled("public-api") && isAdminOrSuper;
+              const hasOutboundWebhooks = isEntitled("outbound-webhooks") && isAdminOrSuper;
+              const hasSmsGateway = isEntitled("sms-gateway") && isAdminOrSuper;
+
+              const anyVisible = hasMarketplace || hasWoo || hasShopify || hasGoogle || hasTally || hasWhatsapp || hasRazorpay || hasStrategy || hasAiOcr || hasNoticeBoard || hasInternalReminders || hasTwoFactor || hasBackupRestore || hasActivityLogs || hasPublicApi || hasOutboundWebhooks || hasSmsGateway;
               if (!anyVisible) return null;
 
               return (
@@ -2438,6 +2447,14 @@ export function DreamsSidebar({
                           "/razorpay-gateway",
                           "/strategy-studio",
                           "/ai-ocr",
+                          "/notice-board",
+                          "/internal-reminders",
+                          "/two-factor-auth",
+                          "/backup-restore",
+                          "/activity-logs",
+                          "/public-api",
+                          "/outbound-webhooks",
+                          "/sms-gateway",
                         ].includes(currentPath) && "active"
                       )}
                     >
@@ -2454,6 +2471,94 @@ export function DreamsSidebar({
                             className={cn(currentPath === "/marketplace" && "active")}
                           >
                             App Marketplace
+                          </Link>
+                        </li>
+                      )}
+                      {hasNoticeBoard && (
+                        <li>
+                          <Link
+                            to="/notice-board"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/notice-board" && "active")}
+                          >
+                            Notice Board
+                          </Link>
+                        </li>
+                      )}
+                      {hasInternalReminders && (
+                        <li>
+                          <Link
+                            to="/internal-reminders"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/internal-reminders" && "active")}
+                          >
+                            Internal Reminders
+                          </Link>
+                        </li>
+                      )}
+                      {hasTwoFactor && (
+                        <li>
+                          <Link
+                            to="/two-factor-auth"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/two-factor-auth" && "active")}
+                          >
+                            Two-Factor Auth
+                          </Link>
+                        </li>
+                      )}
+                      {hasBackupRestore && (
+                        <li>
+                          <Link
+                            to="/backup-restore"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/backup-restore" && "active")}
+                          >
+                            Backup & Restore
+                          </Link>
+                        </li>
+                      )}
+                      {hasActivityLogs && (
+                        <li>
+                          <Link
+                            to="/activity-logs"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/activity-logs" && "active")}
+                          >
+                            Activity Logs
+                          </Link>
+                        </li>
+                      )}
+                      {hasPublicApi && (
+                        <li>
+                          <Link
+                            to="/public-api"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/public-api" && "active")}
+                          >
+                            Public API Keys
+                          </Link>
+                        </li>
+                      )}
+                      {hasOutboundWebhooks && (
+                        <li>
+                          <Link
+                            to="/outbound-webhooks"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/outbound-webhooks" && "active")}
+                          >
+                            Outbound Webhooks
+                          </Link>
+                        </li>
+                      )}
+                      {hasSmsGateway && (
+                        <li>
+                          <Link
+                            to="/sms-gateway"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/sms-gateway" && "active")}
+                          >
+                            SMS Gateway
                           </Link>
                         </li>
                       )}

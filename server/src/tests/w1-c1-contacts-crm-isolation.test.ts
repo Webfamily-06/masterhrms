@@ -46,6 +46,17 @@ describe("W1-C1: Contacts CRM & Multi-Tenant Isolation", () => {
       update: { name: "Beta CRM Tenant" },
     });
 
+    await prisma.tenantModule.upsert({
+      where: { tenantId_moduleKey: { tenantId: tenantAlphaId, moduleKey: "crm" } },
+      create: { tenantId: tenantAlphaId, moduleKey: "crm", isEnabled: true },
+      update: { isEnabled: true },
+    });
+    await prisma.tenantModule.upsert({
+      where: { tenantId_moduleKey: { tenantId: tenantBetaId, moduleKey: "crm" } },
+      create: { tenantId: tenantBetaId, moduleKey: "crm", isEnabled: true },
+      update: { isEnabled: true },
+    });
+
     // Register active tenants with TenantConnectionManager
     TenantConnectionManager.getInstance().registerTenant({
       tenantId: tenantAlphaId,
