@@ -123,8 +123,53 @@ All issues have been resolved, backed by real database persistence, AES-256-GCM 
 
 ---
 
+### 4.4 Live Browser Empirical Verification (Playwright MCP Session)
+Direct headless and visual browser verification was conducted on `http://localhost:5173/super/settings?tab=payments` with the running backend and frontend daemons.
+
+**Browser Execution Sequence:**
+1. **Initial Hydration:** Loaded `/super/settings?tab=payments`. Authenticated as Super Admin (`superadmin@masterhrms.com`). Initial form loaded existing database values with clean placeholders and write-only secret masks.
+2. **Interactive Form Input:**
+   - Modified **Razorpay Key ID** to `rzp_test_VerifiedLivePersistence_777`
+   - Preserved **Razorpay Key Secret** without editing (tested write-only preservation)
+   - Modified **PayPal Client ID** to `paypal_client_verified_live_888`
+   - Verified **PayPal Environment Mode** set to `Sandbox (Testing)`
+   - Appended line to **Manual Bank Transfer Instructions**: `Verification Note: Confirmed Live Persistence Oct 2026`
+   - Verified all gateway toggles active (Razorpay ON, PayPal ON, Bank Transfer ON)
+3. **Save Action:** Clicked **"Save Settings"** button. Realtime API requests completed successfully:
+   - `PUT /v1/settings/PLATFORM/payments` → HTTP 200
+   - `PUT /api/cms/pages/system-platform-settings` → HTTP 200
+4. **Hard Page Reload & Post-Reload Verification:**
+   - Executed full browser reload `page.goto('http://localhost:5173/super/settings?tab=payments')`.
+   - Waited for complete page hydration and React Query cache fetch.
+   - **Result:** Every modified value persisted accurately from the MySQL database:
+     - `Razorpay Key ID`: `rzp_test_VerifiedLivePersistence_777` (Persisted)
+     - `Razorpay Key Secret`: `••••••••••••••••` (Preserved AES-256-GCM encrypted secret)
+     - `PayPal Client ID`: `paypal_client_verified_live_888` (Persisted)
+     - `Bank Details`: persisted updated instructions with verification note
+     - Toggles: remained checked (ON)
+
+#### Evidence Screenshots:
+1. **Initial Gateways UI State Before Edit:**
+   ![Initial Gateways State](C:/Users/TSV%20Global%20Solutions/.gemini/antigravity-ide/brain/4c193016-caee-4f4f-a575-2c0f8457c0a7/super_payments_before_edit.png)
+
+2. **Saved State (Interactive Form Submission):**
+   ![Saved Gateways State](C:/Users/TSV%20Global%20Solutions/.gemini/antigravity-ide/brain/4c193016-caee-4f4f-a575-2c0f8457c0a7/super_payments_saved.png)
+
+3. **Post-Reload State (Survives Hard Browser Reload):**
+   ![Post Reload Gateways State](C:/Users/TSV%20Global%20Solutions/.gemini/antigravity-ide/brain/4c193016-caee-4f4f-a575-2c0f8457c0a7/super_payments_persisted_post_reload.png)
+
+---
+
 ## 5. Security Safeguards Verified
 1. **AES-256-GCM Encryption:** Persisted secrets are stored in `SettingSecret` table with encrypted ciphertext, IV, authTag, and keyVersion.
 2. **Zero Plaintext Wire Exposure:** GET requests return write-only representation `{ isSecret: true, set: true }`.
 3. **Redacted Audit Trails:** `SettingAudit` logs write `[MASKED SECRET]` or `••••••••••••••••`, ensuring no credentials appear in audit logs.
 4. **Fail-Closed Sandbox Guard:** Live credentials (`rzp_live_*`) are rejected with HTTP 400 when sandbox mode is enforced.
+
+---
+
+## 6. Sign-off & Audit Conclusion
+- **Payment Gateways CRUD Persistence:** **VERIFIED & OPERATIONAL** (Database-backed via `SettingsService` and CMS page sync).
+- **Secret Encryption & Wire Redaction:** **VERIFIED & OPERATIONAL** (AES-256-GCM ciphertexts with write-only masking).
+- **Tenant Scope Isolation:** **VERIFIED & OPERATIONAL** (Strict multi-tenant boundaries between PLATFORM and TENANT scopes).
+- **Quality Gates:** 9/9 regression tests pass, TypeScript compiler clean (0 errors), production build successful.
