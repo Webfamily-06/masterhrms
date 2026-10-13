@@ -280,6 +280,15 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
           if (pVals["payments.bank_details"] && !(page.content as any)?.bankTransferDetails) {
             content.bankTransferDetails = pVals["payments.bank_details"];
           }
+          if (pVals["payments.paypal_enabled"] !== undefined && (page.content as any)?.paypalEnabled === undefined) {
+            content.paypalEnabled = Boolean(pVals["payments.paypal_enabled"]);
+          }
+          if (pVals["payments.paypal_client_id"] && !(page.content as any)?.paypalClientId) {
+            content.paypalClientId = pVals["payments.paypal_client_id"];
+          }
+          if (pVals["payments.paypal_mode"] && !(page.content as any)?.paypalMode) {
+            content.paypalMode = pVals["payments.paypal_mode"];
+          }
         } catch (payErr) {
           console.error("Failed to overlay payments onto system-platform-settings:", payErr);
         }
@@ -497,6 +506,14 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
         if (content.bankTransferEnabled !== undefined) toSet["payments.bank_transfer_enabled"] = Boolean(content.bankTransferEnabled);
         if (content.bankTransferDetails !== undefined) toSet["payments.bank_details"] = content.bankTransferDetails;
         if (content.defaultCurrency) toSet["payments.currency"] = content.defaultCurrency;
+
+        // Sync PayPal to SettingsService
+        if (content.paypalEnabled !== undefined) toSet["payments.paypal_enabled"] = Boolean(content.paypalEnabled);
+        if (content.paypalClientId !== undefined) toSet["payments.paypal_client_id"] = content.paypalClientId;
+        if (content.paypalSecret && typeof content.paypalSecret === "string" && !content.paypalSecret.includes("••••")) {
+          toSet["payments.paypal_secret"] = content.paypalSecret;
+        }
+        if (content.paypalMode !== undefined) toSet["payments.paypal_mode"] = content.paypalMode;
 
         if (Object.keys(toSet).length > 0) {
           await SettingsService.setMany(toSet, "PLATFORM", null, req.user?.userId || null);

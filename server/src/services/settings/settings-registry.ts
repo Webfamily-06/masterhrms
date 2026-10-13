@@ -881,6 +881,57 @@ export const SETTINGS_REGISTRY: Record<string, SettingDefinition> = {
     applyStrategy: "INSTANT",
     realtimeTopic: "settings.updated",
   },
+  "payments.paypal_enabled": {
+    key: "payments.paypal_enabled",
+    group: "payments",
+    label: "Enable PayPal Gateway",
+    help: "Enable PayPal checkout for international currency billing.",
+    type: "boolean",
+    default: false,
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "payments.paypal_client_id": {
+    key: "payments.paypal_client_id",
+    group: "payments",
+    label: "PayPal Client ID",
+    help: "Public Client ID issued by PayPal Developer Portal.",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "payments.paypal_secret": {
+    key: "payments.paypal_secret",
+    group: "payments",
+    label: "PayPal Secret Key",
+    help: "Confidential Client Secret issued by PayPal. Stored with AES-256-GCM encryption.",
+    type: "secret",
+    isSecret: true,
+    default: "",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "payments.paypal_mode": {
+    key: "payments.paypal_mode",
+    group: "payments",
+    label: "PayPal Environment Mode",
+    help: "Environment mode: 'sandbox' for testing, 'live' for production transactions.",
+    type: "string",
+    default: "sandbox",
+    scopes: ["PLATFORM", "TENANT"],
+    validation: (val) => {
+      if (val !== "sandbox" && val !== "live") {
+        return { valid: false, error: "PayPal mode must be 'sandbox' or 'live'" };
+      }
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
   "payments.stripe_enabled": {
     key: "payments.stripe_enabled",
     group: "payments",

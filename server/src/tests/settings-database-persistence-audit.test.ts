@@ -400,5 +400,210 @@ describe("Settings Database Persistence & Secret-Field Audit", { timeout: 30000 
       expect(getJson.content.fields.length).toBe(2);
       expect(getJson.content.fields[0].label).toBe("National ID (SSN/Aadhaar)");
     });
+
+    it("3.4 Persists and reloads tenant approval workflows", async () => {
+      const workflowsData = [
+        {
+          id: "wf-leave",
+          name: "Leave Requests",
+          module: "Leave & Attendance",
+          levels: 2,
+          tier1Role: "Team Lead",
+          tier2Role: "HR Manager",
+          autoApproveDays: 3,
+          notifySlack: true,
+        },
+        {
+          id: "wf-expense",
+          name: "Expense Claims",
+          module: "Payroll & Finance",
+          levels: 3,
+          tier1Role: "Finance Officer",
+          tier2Role: "CFO",
+          autoApproveDays: 5,
+          notifySlack: false,
+        },
+      ];
+
+      const putRes = await fetch(`${baseUrl}/api/cms/pages/tenant-${tenantAId}-approval-workflows`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tenantAToken}`,
+        },
+        body: JSON.stringify({
+          title: `Approval Workflows ${tenantAId}`,
+          content: { workflows: workflowsData },
+          published: true,
+        }),
+      });
+
+      expect(putRes.status).toBe(200);
+
+      const getRes = await fetch(`${baseUrl}/api/cms/pages/tenant-${tenantAId}-approval-workflows`, {
+        headers: { Authorization: `Bearer ${tenantAToken}` },
+      });
+      expect(getRes.status).toBe(200);
+      const getJson = await getRes.json();
+      expect(getJson.content.workflows.length).toBe(2);
+      expect(getJson.content.workflows[0].autoApproveDays).toBe(3);
+      expect(getJson.content.workflows[0].notifySlack).toBe(true);
+      expect(getJson.content.workflows[1].tier2Role).toBe("CFO");
+    });
+  });
+
+  describe("4. PayPal Gateway Secret Encryption, Masking & Blank Preservation", () => {
+    it("4.1 Super Admin sets PayPal Client ID and disposable test secret with AES-256-GCM encryption", async () => {
+      const putRes = await fetch(`${baseUrl}/api/v1/settings/PLATFORM/payments`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${superToken}`,
+        },
+        body: JSON.stringify({
+          "payments.paypal_enabled": true,
+          "payments.paypal_client_id": "test_paypal_client_id_followup",
+          "payments.paypal_secret": "disposable_test_paypal_secret_xyz123",
+          "payments.paypal_mode": "sandbox",
+        }),
+      });
+
+      expect(putRes.status).toBe(200);
+
+      // Verify GET returns masked secret
+      const getRes = await fetch(`${baseUrl}/api/v1/settings/PLATFORM/payments`, {
+        headers: { Authorization: `Bearer ${superToken}` },
+      });
+      expect(getRes.status).toBe(200);
+      const getJson = await getRes.json();
+      expect(getJson.values["payments.paypal_client_id"]).toBe("test_paypal_client_id_followup");
+      expect(getJson.values["payments.paypal_secret"]).toEqual({ isSecret: true, set: true });
+
+      // Verify in DB that it is encrypted with AES-256-GCM
+      const setting = await rawPrisma.setting.findFirst({
+        where: {
+          scope: "PLATFORM",
+          key: "payments.paypal_secret",
+        },
+        include: { secret: true },
+      });
+
+      expect(setting).not.toBeNull();
+      expect(setting?.secret).not.toBeNull();
+      expect(setting!.secret!.ciphertext).not.toBe("disposable_test_paypal_secret_xyz123");
+      const decrypted = decryptSecret(setting!.secret!.ciphertext, setting!.secret!.iv, setting!.secret!.authTag);
+      expect(decrypted).toBe("disposable_test_paypal_secret_xyz123");
+    });
+
+    it("4.2 Partial update omitting secret preserves existing encrypted PayPal secret", async () => {
+      const putRes = await fetch(`${baseUrl}/api/v1/settings/PLATFORM/payments`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${superToken}`,
+        },
+        body: JSON.stringify({
+          "payments.paypal_client_id": "test_paypal_client_id_updated_safe",
+        }),
+      });
+
+      expect(putRes.status).toBe(200);
+
+      // Verify secret remains in DB and unchanged
+      const setting = await rawPrisma.setting.findFirst({
+        where: {
+          scope: "PLATFORM",
+          key: "payments.paypal_secret",
+        },
+        include: { secret: true },
+      });
+
+      expect(setting).not.toBeNull();
+      expect(setting?.secret).not.toBeNull();
+      const decrypted = decryptSecret(setting!.secret!.ciphertext, setting!.secret!.iv, setting!.secret!.authTag);
+      expect(decrypted).toBe("disposable_test_paypal_secret_xyz123");
+    });
+  });
+
+  describe("5. Platform vs Tenant Bank Transfer Settings Isolation", () => {
+    it("5.1 Platform and tenant bank details are strictly isolated in DB", async () => {
+      // Set platform bank details
+      await fetch(`${baseUrl}/api/v1/settings/PLATFORM/payments`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${superToken}`,
+        },
+        body: JSON.stringify({
+          "payments.bank_details": "PLATFORM: Master HRMS Inc HDFC 50200012345678",
+        }),
+      });
+
+      // Set Tenant A bank details
+      await fetch(`${baseUrl}/api/v1/settings/TENANT/payments?tenantId=${tenantAId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tenantAToken}`,
+        },
+        body: JSON.stringify({
+          "payments.bank_details": "TENANT-A: Acme Corp ICICI 001122334455",
+        }),
+      });
+
+      // Read Platform
+      const platRes = await fetch(`${baseUrl}/api/v1/settings/PLATFORM/payments`, {
+        headers: { Authorization: `Bearer ${superToken}` },
+      });
+      const platJson = await platRes.json();
+      expect(platJson.values["payments.bank_details"]).toBe("PLATFORM: Master HRMS Inc HDFC 50200012345678");
+
+      // Read Tenant A
+      const tenRes = await fetch(`${baseUrl}/api/v1/settings/TENANT/payments?tenantId=${tenantAId}`, {
+        headers: { Authorization: `Bearer ${tenantAToken}` },
+      });
+      const tenJson = await tenRes.json();
+      expect(tenJson.values["payments.bank_details"]).toBe("TENANT-A: Acme Corp ICICI 001122334455");
+
+      // Verify DB records
+      const platDb = await rawPrisma.setting.findFirst({
+        where: {
+          scope: "PLATFORM",
+          key: "payments.bank_details",
+        },
+      });
+      const tenantDb = await rawPrisma.setting.findFirst({
+        where: {
+          scope: "TENANT",
+          scopeId: tenantAId,
+          key: "payments.bank_details",
+        },
+      });
+      expect(platDb!.valueJson).toContain("Master HRMS Inc");
+      expect(tenantDb!.valueJson).toContain("Acme Corp");
+    });
+  });
+
+  describe("6. Fail-Closed Error Handling", () => {
+    it("6.1 Submitting live Razorpay key in sandbox mode returns HTTP 400 and does not persist", async () => {
+      const putRes = await fetch(`${baseUrl}/api/cms/pages/system-platform-settings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${superToken}`,
+        },
+        body: JSON.stringify({
+          slug: "system-platform-settings",
+          content: {
+            razorpayKeyId: "rzp_live_forbidden_key_123",
+          },
+        }),
+      });
+
+      expect(putRes.status).toBe(400);
+      const errJson = await putRes.json();
+      expect(errJson.error).toContain("Live Razorpay credentials");
+    });
   });
 });
+

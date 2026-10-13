@@ -610,6 +610,15 @@ function SuperSettingsAdmin() {
           if (pv["payments.bank_details"] && !cmsContent.bankTransferDetails) {
             merged.bankTransferDetails = pv["payments.bank_details"];
           }
+          if (pv["payments.paypal_enabled"] !== undefined && cmsContent.paypalEnabled === undefined) {
+            merged.paypalEnabled = Boolean(pv["payments.paypal_enabled"]);
+          }
+          if (pv["payments.paypal_client_id"] && !cmsContent.paypalClientId) {
+            merged.paypalClientId = pv["payments.paypal_client_id"];
+          }
+          if (pv["payments.paypal_mode"] && !cmsContent.paypalMode) {
+            merged.paypalMode = pv["payments.paypal_mode"];
+          }
         }
 
         // Harmonize platform address fields from legacy/current cmsPage keys
@@ -676,6 +685,12 @@ function SuperSettingsAdmin() {
           ...(updatedForm.razorpayKeySecret && !updatedForm.razorpayKeySecret.includes("••••")
             ? { "payments.razorpay_key_secret": updatedForm.razorpayKeySecret }
             : {}),
+          "payments.paypal_enabled": Boolean(updatedForm.paypalEnabled),
+          "payments.paypal_client_id": updatedForm.paypalClientId || "",
+          ...(updatedForm.paypalSecret && !updatedForm.paypalSecret.includes("••••")
+            ? { "payments.paypal_secret": updatedForm.paypalSecret }
+            : {}),
+          "payments.paypal_mode": updatedForm.paypalMode || "sandbox",
           "payments.bank_transfer_enabled": Boolean(updatedForm.bankTransferEnabled),
           "payments.bank_details": updatedForm.bankTransferDetails || "",
           "payments.currency": updatedForm.defaultCurrency || "INR",

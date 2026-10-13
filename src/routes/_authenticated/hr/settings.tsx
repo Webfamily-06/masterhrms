@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus,
   Trash2,
@@ -174,7 +175,20 @@ export function Settings() {
   });
 
   // Approval Workflows State (approval-settings.html)
-  const [approvalWorkflows, setApprovalWorkflows] = useState([
+  interface ApprovalWorkflowItem {
+    id: string;
+    name: string;
+    module: string;
+    levels: number;
+    tier1Role: string;
+    tier2Role?: string;
+    tier3Role?: string;
+    autoApproveDays: number;
+    notifySlack: boolean;
+    status: string;
+  }
+
+  const [approvalWorkflows, setApprovalWorkflows] = useState<ApprovalWorkflowItem[]>([
     {
       id: "appr-1",
       name: "Employee Leave & PTO Requests",
@@ -2078,32 +2092,68 @@ export function Settings() {
                     </div>
 
                     <div className="space-y-2 p-3 rounded-lg bg-muted/20 border">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-semibold text-muted-foreground">Tier 1 Reviewer:</span>
-                        <span className="font-bold text-foreground">{w.tier1Role}</span>
+                      <div className="flex items-center justify-between text-[11px] gap-2">
+                        <span className="font-semibold text-muted-foreground shrink-0">Tier 1 Reviewer:</span>
+                        <Input
+                          value={w.tier1Role}
+                          onChange={(e) => {
+                            setApprovalWorkflows(approvalWorkflows.map(item => item.id === w.id ? { ...item, tier1Role: e.target.value } : item));
+                          }}
+                          className="h-7 text-xs bg-background"
+                        />
                       </div>
                       {w.tier2Role && (
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-semibold text-muted-foreground">Tier 2 Final Approver:</span>
-                          <span className="font-bold text-foreground">{w.tier2Role}</span>
+                        <div className="flex items-center justify-between text-[11px] gap-2">
+                          <span className="font-semibold text-muted-foreground shrink-0">Tier 2 Final Approver:</span>
+                          <Input
+                            value={w.tier2Role}
+                            onChange={(e) => {
+                              setApprovalWorkflows(approvalWorkflows.map(item => item.id === w.id ? { ...item, tier2Role: e.target.value } : item));
+                            }}
+                            className="h-7 text-xs bg-background"
+                          />
                         </div>
                       )}
                       {w.tier3Role && (
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-semibold text-muted-foreground">Executive Clearance:</span>
-                          <span className="font-bold text-foreground">{w.tier3Role}</span>
+                        <div className="flex items-center justify-between text-[11px] gap-2">
+                          <span className="font-semibold text-muted-foreground shrink-0">Executive Clearance:</span>
+                          <Input
+                            value={w.tier3Role}
+                            onChange={(e) => {
+                              setApprovalWorkflows(approvalWorkflows.map(item => item.id === w.id ? { ...item, tier3Role: e.target.value } : item));
+                            }}
+                            className="h-7 text-xs bg-background"
+                          />
                         </div>
                       )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="p-2 rounded border bg-background">
-                        <span className="text-[10px] text-muted-foreground block">Auto-Pass SLA</span>
-                        <span className="font-bold">{w.autoApproveDays > 0 ? `${w.autoApproveDays} Business Days` : "No Auto-Pass"}</span>
+                      <div className="p-2 rounded border bg-background space-y-1">
+                        <span className="text-[10px] text-muted-foreground block font-semibold">Auto-Pass SLA (Days)</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={30}
+                          value={w.autoApproveDays}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setApprovalWorkflows(approvalWorkflows.map(item => item.id === w.id ? { ...item, autoApproveDays: val } : item));
+                          }}
+                          className="h-7 text-xs font-mono font-bold"
+                        />
                       </div>
-                      <div className="p-2 rounded border bg-background">
-                        <span className="text-[10px] text-muted-foreground block">Instant Alerts</span>
-                        <span className="font-bold text-emerald-600">{w.notifySlack ? "Slack & Email" : "Email Only"}</span>
+                      <div className="p-2 rounded border bg-background space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground block font-semibold">Instant Alerts</span>
+                          <Switch
+                            checked={w.notifySlack}
+                            onCheckedChange={(checked) => {
+                              setApprovalWorkflows(approvalWorkflows.map(item => item.id === w.id ? { ...item, notifySlack: checked } : item));
+                            }}
+                          />
+                        </div>
+                        <span className="font-bold text-[10px] text-emerald-600 block">{w.notifySlack ? "Slack & Email" : "Email Only"}</span>
                       </div>
                     </div>
                   </div>
