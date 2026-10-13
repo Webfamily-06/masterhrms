@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Target,
   Plus,
@@ -413,6 +414,7 @@ export function OkrPerformancePage() {
                 Enterprise Add-on
               </Badge>
             </div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Objectives & Key Results (OKR) Platform
             </h1>

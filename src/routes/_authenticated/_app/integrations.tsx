@@ -49,6 +49,8 @@ import {
   EyeOff,
   Save,
 } from "lucide-react";
+import { useNavigationResolver } from "@/lib/navigation-resolver";
+import { AddonNotInstalled } from "@/components/addon-not-installed";
 
 export const Route = createFileRoute("/_authenticated/_app/integrations")({
   component: WooCommerceSettingsPage,
@@ -56,6 +58,8 @@ export const Route = createFileRoute("/_authenticated/_app/integrations")({
 
 export default function WooCommerceSettingsPage() {
   const queryClient = useQueryClient();
+  const { isEntitled, isLoading: isNavLoading } = useNavigationResolver();
+  const hasEntitlement = isEntitled("woocommerce-sync") || isEntitled("woocommerce-hub");
   const [activeTab, setActiveTab] = useState("settings");
 
   // Form State - Clean blank defaults for any new user
@@ -101,6 +105,7 @@ export default function WooCommerceSettingsPage() {
       }>("/woocommerce/settings");
       return res;
     },
+    enabled: hasEntitlement,
   });
 
   // 2. Fetch WooCommerce Status & Counts
@@ -120,7 +125,8 @@ export default function WooCommerceSettingsPage() {
       }>("/woocommerce/status");
       return res;
     },
-    refetchInterval: 15000,
+    enabled: hasEntitlement,
+    refetchInterval: hasEntitlement ? 15000 : false,
   });
 
   // 3. Fetch POS Products List
@@ -130,6 +136,7 @@ export default function WooCommerceSettingsPage() {
       const res = await api.get<any[]>("/products");
       return res;
     },
+    enabled: hasEntitlement,
   });
 
   // 4. Fetch WooCommerce Orders
@@ -139,6 +146,7 @@ export default function WooCommerceSettingsPage() {
       const res = await api.get<{ ok: boolean; orders: any[] }>("/woocommerce/orders");
       return res;
     },
+    enabled: hasEntitlement,
   });
 
   // 5. Fetch WooCommerce Logs
@@ -148,7 +156,8 @@ export default function WooCommerceSettingsPage() {
       const res = await api.get<{ ok: boolean; logs: any[] }>("/woocommerce/logs");
       return res;
     },
-    refetchInterval: 10000,
+    enabled: hasEntitlement,
+    refetchInterval: hasEntitlement ? 10000 : false,
   });
 
   // 6. Fetch Stock Metrics
@@ -158,6 +167,7 @@ export default function WooCommerceSettingsPage() {
       const res = await api.get<{ in_stock: number; out_stock: number; last_sync: string }>("/woocommerce/stock-metrics");
       return res;
     },
+    enabled: hasEntitlement,
   });
 
   // Populate settings if stored in DB
@@ -298,6 +308,17 @@ export default function WooCommerceSettingsPage() {
   });
 
   const connectionOk = statusData?.connectionOk;
+
+  if (!isNavLoading && !hasEntitlement) {
+    return (
+      <AddonNotInstalled
+        addonName="WooCommerce Integration Hub"
+        addonSlug="woocommerce-hub"
+        category="E-Commerce"
+        description="Bi-directional synchronization for products, inventory, customers, and orders with your WooCommerce store."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">

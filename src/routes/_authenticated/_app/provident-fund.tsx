@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatSystemAmount } from "@/lib/currency";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/provident-fund")({
   component: ProvidentFundPage,
@@ -192,6 +193,7 @@ export function ProvidentFundPage() {
       {/* ─── Header ────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Landmark className="size-6 text-primary" />
             <span>Provident Fund Administration</span>

@@ -28,6 +28,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { PlanGuard } from "@/components/plan-guard";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
+import { useNavigationResolver } from "@/lib/navigation-resolver";
+import { AddonNotInstalled } from "@/components/addon-not-installed";
 import {
   Fingerprint,
   Plus,
@@ -205,6 +208,8 @@ async function pingBiometricDevice(
 }
 
 function BiometricSyncPage() {
+  const { isEntitled, isLoading: isNavLoading } = useNavigationResolver();
+  const hasEntitlement = isEntitled("biometric-sync");
   const [isSavingDevice, setIsSavingDevice] = useState(false);
   const qc = useQueryClient();
   const { user } = useSession();
@@ -718,12 +723,24 @@ function BiometricSyncPage() {
     return matchSearch && matchType && matchReg;
   });
 
+  if (!isNavLoading && !hasEntitlement) {
+    return (
+      <AddonNotInstalled
+        addonName="Biometric Device Cloud Sync"
+        addonSlug="biometric-sync"
+        category="Integrations"
+        description="Direct real-time hardware synchronization with ZKTeco, Essl, and biometric push-data attendance terminals."
+      />
+    );
+  }
+
   return (
     <PlanGuard moduleName="Biometric Hardware Sync" requiredPlan="starter">
       <div className="space-y-5">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <Fingerprint className="size-6 text-primary" /> Biometric Hardware Sync Engine
             </h1>

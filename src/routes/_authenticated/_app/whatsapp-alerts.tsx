@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlanGuard } from "@/components/plan-guard";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   MessageSquare,
   Plus,
@@ -329,6 +330,7 @@ function WhatsAppAlertsPage() {
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <MessageSquare className="size-6 text-emerald-600" /> WhatsApp Alerts & Bot Engine
             </h1>

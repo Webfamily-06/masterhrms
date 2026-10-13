@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -153,6 +154,7 @@ export function SupportDeskAdmin() {
 
   return (
     <div className="space-y-6 max-w-full pb-12">
+      <BreadcrumbNav className="mb-4" />
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>

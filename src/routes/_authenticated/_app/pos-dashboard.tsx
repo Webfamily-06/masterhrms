@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initPosCharts } from "@/lib/dashboard-charts";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/pos-dashboard")({
   component: PosDashboardPage,
@@ -107,6 +108,7 @@ export default function PosDashboardPage() {
                     
 					
 					<div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+						<BreadcrumbNav />
 						<h1 className="text-gray-900 text-xl font-bold mb-0">POS Dashboard</h1>
 						<div className="flex items-center gap-2">
 							<div className="relative rangepicker-input w-[174px] h-[28px] leading-none">

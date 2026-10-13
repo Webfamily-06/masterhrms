@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatSystemAmount } from "@/lib/currency";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/purchases")({
   component: PurchasesPage,
@@ -415,6 +416,7 @@ export default function PurchasesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-2xl font-bold tracking-tight text-gray-950 dark:text-gray-50 flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-primary" />
             Purchases & Purchase Orders (PO)

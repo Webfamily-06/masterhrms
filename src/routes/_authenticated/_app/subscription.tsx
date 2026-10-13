@@ -62,6 +62,7 @@ import { PaymentCheckoutModal } from "@/components/payment-checkout-modal";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SubscriptionPlan } from "@/routes/_authenticated/super/plans";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/subscription")({
   component: SubscriptionPage,
@@ -391,6 +392,7 @@ export function SubscriptionPage() {
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
             <CreditCard className="size-6 text-primary" /> Subscription, Addons & Invoices
           </h1>

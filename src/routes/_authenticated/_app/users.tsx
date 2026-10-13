@@ -65,6 +65,7 @@ export type RoleOption = {
 
 import { AccessDenied } from "@/components/access-denied";
 import { usePermissions } from "@/lib/permissions";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 function UsersPage() {
   const { isWorkspaceAdmin, isSuperAdmin, loading, profile } = usePermissions();
@@ -158,6 +159,7 @@ function UsersPage() {
               </span>
               <span className="text-xs text-muted-foreground font-mono">Live Database</span>
             </div>
+            <BreadcrumbNav />
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Workspace Users & Role Assignments
             </h1>

@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Printer,
   ChevronRight,
@@ -151,6 +152,7 @@ export function PerformanceReviewPage() {
             <FileCheck className="h-6 w-6" />
           </div>
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-bold tracking-tight">Performance Review Scorecard</h1>
             <p className="text-sm text-muted-foreground">Standardized Multi-Pillar Employee Evaluation Sheets</p>
           </div>

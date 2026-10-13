@@ -41,6 +41,7 @@ import {
   FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/notice-board")({
   component: NoticeBoardPage,
@@ -214,6 +215,7 @@ export function NoticeBoardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
         <div>
+          <BreadcrumbNav />
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-black tracking-tight text-foreground">Company Notice Board</h1>
             <Badge variant="outline" className="text-xs font-mono">

@@ -33,6 +33,7 @@ import {
 import { PlanGuard } from "@/components/plan-guard";
 import { formatSystemAmount } from "@/lib/currency";
 import { useSession, useCurrentProfile } from "@/lib/session";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/hrm")({
   component: HrmHubPage,
@@ -148,6 +149,7 @@ export function HrmHubPage() {
               <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
                 <Users className="size-4.5" />
               </div>
+              <BreadcrumbNav />
               <h1 className="text-xl font-bold tracking-tight text-foreground">HRM Hub</h1>
               <Badge variant="outline" className="text-[10px] font-mono font-medium px-2 py-0 border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
                 ● Live Database

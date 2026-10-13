@@ -35,6 +35,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Award,
   Plus,
@@ -307,6 +308,7 @@ export function PerformanceAppraisalPage() {
             <Award className="h-6 w-6" />
           </div>
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-bold tracking-tight">Performance Appraisal</h1>
             <p className="text-sm text-muted-foreground">Periodic Employee Competency Assessments & Scorecards</p>
           </div>

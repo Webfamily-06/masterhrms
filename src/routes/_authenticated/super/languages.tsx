@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -219,6 +220,7 @@ function LanguageEditorPage() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-300">
+      <BreadcrumbNav className="mb-4" />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>

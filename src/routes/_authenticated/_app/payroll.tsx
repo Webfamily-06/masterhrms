@@ -90,6 +90,7 @@ import { FbpWorkspace } from "@/components/payroll/fbp-workspace";
 import { TaxVerificationWorkspace } from "@/components/payroll/tax-verification-workspace";
 import { BankDisbursementWorkspace } from "@/components/payroll/bank-disbursement-workspace";
 import { StatutoryReturnsWorkspace } from "@/components/payroll/statutory-returns-workspace";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/payroll")({
   beforeLoad: () => {
@@ -680,6 +681,7 @@ function Payroll() {
             <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
               <Calculator className="size-5" />
             </div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight text-foreground">
               Payroll & Statutory Compliance Suite
             </h1>

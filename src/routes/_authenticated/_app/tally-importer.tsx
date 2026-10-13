@@ -19,6 +19,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlanGuard } from "@/components/plan-guard";
 import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
+import { useNavigationResolver } from "@/lib/navigation-resolver";
+import { AddonNotInstalled } from "@/components/addon-not-installed";
 import {
   ArrowLeftRight,
   Upload,
@@ -73,6 +76,8 @@ const ERP_FIELDS = [
 
 
 function TallyImporterPage() {
+  const { isEntitled, isLoading: isNavLoading } = useNavigationResolver();
+  const hasEntitlement = isEntitled("tally-importer");
   const qc = useQueryClient();
   const { user } = useSession();
   const { data: profile } = useCurrentProfile();
@@ -219,6 +224,17 @@ function TallyImporterPage() {
     setParsedRows([]);
   }
 
+  if (!isNavLoading && !hasEntitlement) {
+    return (
+      <AddonNotInstalled
+        addonName="TallyPrime XML Data Bridge"
+        addonSlug="tally-importer"
+        category="Finance"
+        description="Seamless two-way XML export and import bridge for TallyPrime and Tally.ERP 9 financial records."
+      />
+    );
+  }
+
   return (
     <PlanGuard
       moduleName="Tally Prime Ledger Importer"
@@ -228,6 +244,7 @@ function TallyImporterPage() {
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <ArrowLeftRight className="size-6 text-orange-600" /> Tally Prime Ledger Importer
             </h1>

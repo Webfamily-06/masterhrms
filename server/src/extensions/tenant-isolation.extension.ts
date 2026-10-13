@@ -164,7 +164,7 @@ export function createTenantIsolationExtension(baseClient: PrismaClient) {
             args.where = {
               ...(args.where || {}),
               [rel.parentRelation]: {
-                ...(args.where?.[rel.parentRelation] || {}),
+                ...((args.where as any)?.[rel.parentRelation] || {}),
                 tenantId: context.tenantId,
               },
             };
@@ -188,7 +188,7 @@ export function createTenantIsolationExtension(baseClient: PrismaClient) {
             args.where = {
               ...(args.where || {}),
               [rel.parentRelation]: {
-                ...(args.where?.[rel.parentRelation] || {}),
+                ...((args.where as any)?.[rel.parentRelation] || {}),
                 tenantId: context.tenantId,
               },
             };
@@ -227,7 +227,7 @@ export function createTenantIsolationExtension(baseClient: PrismaClient) {
             args.where = {
               ...(args.where || {}),
               [rel.parentRelation]: {
-                ...(args.where?.[rel.parentRelation] || {}),
+                ...((args.where as any)?.[rel.parentRelation] || {}),
                 tenantId: context.tenantId,
               },
             };

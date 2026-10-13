@@ -24,6 +24,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Target,
   Plus,
@@ -36,6 +37,8 @@ import {
   Layers,
   Sparkles,
 } from "lucide-react";
+import { useNavigationResolver } from "@/lib/navigation-resolver";
+import { AddonNotInstalled } from "@/components/addon-not-installed";
 
 export const Route = createFileRoute("/_authenticated/_app/strategy-studio")({
   component: StrategyStudioPage,
@@ -65,6 +68,8 @@ export function StrategyStudioPage() {
   const qc = useQueryClient();
   const { data: profile } = useCurrentProfile();
   const tenantId = profile?.tenant_id || "default";
+  const { isEntitled, isLoading: isNavLoading } = useNavigationResolver();
+  const hasEntitlement = isEntitled("swot") || isEntitled("strategy-studio");
 
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -91,10 +96,22 @@ export function StrategyStudioPage() {
       const res = await api.get("/strategy-studio/documents");
       return (res?.documents || []) as StrategyDocument[];
     },
+    enabled: hasEntitlement,
   });
 
   const documents = documentsData || [];
   const selectedDoc = documents.find((d) => d.id === selectedDocId) || documents[0] || null;
+
+  if (!isNavLoading && !hasEntitlement) {
+    return (
+      <AddonNotInstalled
+        addonName="Strategy Studio"
+        addonSlug="swot"
+        category="Strategy"
+        description="Corporate Strengths, Weaknesses, Opportunities, and Threats strategic assessment studio with AI recommendations."
+      />
+    );
+  }
 
   // 2. Create Document Mutation
   const createMutation = useMutation({
@@ -165,6 +182,7 @@ export function StrategyStudioPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
             <Target className="size-6 text-primary" />
             Strategy Studio

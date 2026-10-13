@@ -8,6 +8,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/workspace")({
   component: WorkspacePage,
@@ -78,6 +79,8 @@ function WorkspacePage() {
                 </Badge>
               )}
             </div>
+
+            <BreadcrumbNav />
 
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
               Welcome back, {profile?.full_name || "Team Member"}

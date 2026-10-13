@@ -1,12 +1,10 @@
 import * as React from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getBreadcrumbsForRoute, type BreadcrumbItem } from "@/lib/breadcrumb-registry";
 
-export interface PageHeaderBreadcrumbItem {
-  label: string;
-  href?: string;
-}
+export type PageHeaderBreadcrumbItem = BreadcrumbItem;
 
 export interface PageHeaderProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
@@ -14,7 +12,7 @@ export interface PageHeaderProps
   description?: string | React.ReactNode;
   icon?: React.ReactNode | React.ComponentType<{ className?: string }>;
   badge?: React.ReactNode;
-  breadcrumbs?: PageHeaderBreadcrumbItem[] | React.ReactNode;
+  breadcrumbs?: PageHeaderBreadcrumbItem[] | React.ReactNode | false;
   actions?: React.ReactNode;
 }
 
@@ -29,6 +27,16 @@ export function PageHeader({
   children,
   ...props
 }: PageHeaderProps) {
+  const routerState = useRouterState();
+  const currentPath = routerState?.location?.pathname || "";
+
+  const resolvedBreadcrumbs =
+    breadcrumbs === false
+      ? null
+      : (breadcrumbs !== undefined
+          ? breadcrumbs
+          : (currentPath ? getBreadcrumbsForRoute(currentPath) : null));
+
   return (
     <div
       className={cn(
@@ -39,11 +47,11 @@ export function PageHeader({
     >
       <div className="space-y-1 min-w-0">
         {/* Breadcrumb section */}
-        {breadcrumbs && (
+        {resolvedBreadcrumbs && (
           <nav aria-label="Breadcrumb" className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-            {Array.isArray(breadcrumbs) ? (
-              breadcrumbs.map((item, index) => {
-                const isLast = index === breadcrumbs.length - 1;
+            {Array.isArray(resolvedBreadcrumbs) ? (
+              resolvedBreadcrumbs.map((item, index) => {
+                const isLast = index === resolvedBreadcrumbs.length - 1;
                 return (
                   <React.Fragment key={`${item.label}-${index}`}>
                     {index > 0 && (
@@ -52,7 +60,7 @@ export function PageHeader({
                     {item.href && !isLast ? (
                       <Link
                         to={item.href}
-                        className="hover:text-foreground transition-colors font-medium"
+                        className="hover:text-foreground transition-colors font-medium hover:underline underline-offset-2"
                       >
                         {item.label}
                       </Link>
@@ -61,6 +69,7 @@ export function PageHeader({
                         className={cn(
                           isLast ? "font-semibold text-foreground" : "text-muted-foreground",
                         )}
+                        aria-current={isLast ? "page" : undefined}
                       >
                         {item.label}
                       </span>
@@ -69,7 +78,7 @@ export function PageHeader({
                 );
               })
             ) : (
-              breadcrumbs
+              resolvedBreadcrumbs
             )}
           </nav>
         )}

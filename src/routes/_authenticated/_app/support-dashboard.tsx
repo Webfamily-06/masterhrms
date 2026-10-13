@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initSupportCharts } from "@/lib/dashboard-charts";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/support-dashboard")({
   component: SupportDashboardPage,
@@ -59,6 +60,7 @@ export default function SupportDashboardPage() {
       <div className="p-3 lg:py-6 lg:px-0">
 
 					<div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+						<BreadcrumbNav />
 						<h1 className="text-gray-900 text-xl font-bold mb-0">Support Dashboard</h1>
 						<div className="flex items-center gap-2 flex-wrap">
 							<button type="button" className="btn-sm bg-dark text-white border border-dark inline-flex items-center gap-2 hover:bg-primary-hover hover:border-primary-hover cursor-pointer" data-hs-overlay="#add-modal"><i className="ph ph-plus"></i> Add Tickets</button>

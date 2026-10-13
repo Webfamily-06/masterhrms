@@ -68,6 +68,7 @@ import {
 import { PlanGuard } from "@/components/plan-guard";
 import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/accounting")({
   beforeLoad: () => {
@@ -364,6 +365,7 @@ export function AccountingAppSuite() {
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <Landmark className="size-6 text-primary" /> Advanced Accounting & General Ledger
             </h1>

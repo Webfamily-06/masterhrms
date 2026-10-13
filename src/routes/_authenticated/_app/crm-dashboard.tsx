@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { formatSystemAmount } from "@/lib/currency";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initCrmCharts } from "@/lib/dashboard-charts";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/crm-dashboard")({
   component: CrmDashboardPage,
@@ -61,6 +62,7 @@ export default function CrmDashboardPage() {
 
 					
 					<div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+						<BreadcrumbNav />
 						<h1 className="text-gray-900 text-xl max-lg:text-lg font-bold mb-0">CRM Dashboard</h1>
 						<div className="flex items-center flex-wrap gap-2">
 							<div className="flex items-center -space-x-2 me-1">

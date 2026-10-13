@@ -10,6 +10,58 @@ export const addonsRouter = Router();
 // Enforce authentication and request-scoped tenant context for all tenant addon routes
 addonsRouter.use(requireAuth, resolveTenantContext);
 
+export function getRelatedSlugs(cleanSlug: string): string[] {
+  const set = new Set<string>([cleanSlug]);
+  if (cleanSlug.includes("woocommerce")) {
+    set.add("woocommerce");
+    set.add("woocommerce-sync");
+    set.add("woocommerce-hub");
+  }
+  if (cleanSlug.includes("shopify")) {
+    set.add("shopify");
+    set.add("shopify-sync");
+  }
+  if (cleanSlug.includes("google-workspace")) {
+    set.add("google-workspace");
+    set.add("google-workspace-integration");
+  }
+  if (cleanSlug.includes("tally")) {
+    set.add("tally");
+    set.add("tally-importer");
+  }
+  if (cleanSlug.includes("biometric")) {
+    set.add("biometric");
+    set.add("biometric-sync");
+  }
+  if (cleanSlug.includes("okr")) {
+    set.add("okr");
+    set.add("okr-performance");
+  }
+  if (cleanSlug.includes("asset")) {
+    set.add("assets");
+    set.add("asset-management");
+  }
+  if (cleanSlug.includes("smart-reports") || cleanSlug.includes("smart_reports")) {
+    set.add("smart-reports");
+    set.add("smart-reports-addon");
+    set.add("addon_smart_reports");
+    set.add("module-smart-reports");
+  }
+  if (cleanSlug.includes("smart-dashboard") || cleanSlug.includes("smart_dashboard")) {
+    set.add("smart-dashboard");
+    set.add("smart-dashboard-analytics");
+    set.add("addon_smart_dashboard");
+    set.add("module-smart-dashboard");
+  }
+  if (cleanSlug.includes("ai-business-advisor") || cleanSlug.includes("business-advisor")) {
+    set.add("ai-business-advisor");
+    set.add("business-advisor");
+    set.add("addon_ai_business_advisor");
+    set.add("module-ai-business-advisor");
+  }
+  return Array.from(set);
+}
+
 /**
  * GET /api/addons/entitlements
  * Returns all active addon entitlements for the current tenant.
@@ -33,6 +85,10 @@ addonsRouter.get("/entitlements", async (req: AuthRequest, res: Response) => {
         isExpired = true;
       }
 
+      const isInstalled = true;
+      const isEnabled = !isExpired && e.status !== "disabled";
+      const isActive = !isExpired && (e.status === "active" || e.status === "trial");
+
       entitlementMap[e.addonSlug] = {
         id: e.id,
         addonSlug: e.addonSlug,
@@ -41,7 +97,9 @@ addonsRouter.get("/entitlements", async (req: AuthRequest, res: Response) => {
         trialEndsAt: e.trialEndsAt,
         renewsAt: e.renewsAt,
         features: e.features,
-        isActive: !isExpired && (e.status === "active" || e.status === "trial"),
+        isInstalled,
+        isEnabled,
+        isActive,
       };
     });
 
@@ -75,6 +133,7 @@ addonsRouter.get("/entitlements", async (req: AuthRequest, res: Response) => {
       if (isSovereignOrGrowth) {
         const ALL_INTEGRATIONS = [
           "woocommerce-sync",
+          "woocommerce-hub",
           "shopify-sync",
           "google-workspace-integration",
           "tally-importer",
@@ -91,16 +150,32 @@ addonsRouter.get("/entitlements", async (req: AuthRequest, res: Response) => {
           "notice-board",
           "outbound-webhooks",
           "sms-gateway",
+          "procurement",
+          "smart-reports",
+          "smart-dashboard",
+          "ai-business-advisor",
+          "learning-lms",
+          "contracts",
+          "budget-planner",
+          "swot",
+          "pestel",
         ];
         for (const slug of ALL_INTEGRATIONS) {
+          const related = getRelatedSlugs(slug);
+          const isExplicitlyDisabled = related.some((r) => entitlementMap[r]?.status === "disabled");
           if (!entitlementMap[slug]) {
-            entitlementMap[slug] = {
-              id: `plan-${slug}`,
-              addonSlug: slug,
-              status: "active",
-              plan: activeSub.plan.name || "included",
-              isActive: true,
-            };
+            if (!isExplicitlyDisabled) {
+              entitlementMap[slug] = {
+                id: `plan-${slug}`,
+                addonSlug: slug,
+                status: "available_in_plan",
+                plan: activeSub.plan.name || "included",
+                isPlanIncluded: true,
+                isInstalled: false,
+                isEnabled: false,
+                isActive: false,
+              };
+            }
           }
         }
       }
@@ -108,14 +183,21 @@ addonsRouter.get("/entitlements", async (req: AuthRequest, res: Response) => {
       if (Array.isArray(activeSub.plan.includedAddonIds)) {
         for (const addonId of activeSub.plan.includedAddonIds) {
           const slug = String(addonId).toLowerCase();
+          const related = getRelatedSlugs(slug);
+          const isExplicitlyDisabled = related.some((r) => entitlementMap[r]?.status === "disabled");
           if (!entitlementMap[slug]) {
-            entitlementMap[slug] = {
-              id: `plan-${slug}`,
-              addonSlug: slug,
-              status: "active",
-              plan: activeSub.plan.name || "included",
-              isActive: true,
-            };
+            if (!isExplicitlyDisabled) {
+              entitlementMap[slug] = {
+                id: `plan-${slug}`,
+                addonSlug: slug,
+                status: "available_in_plan",
+                plan: activeSub.plan.name || "included",
+                isPlanIncluded: true,
+                isInstalled: false,
+                isEnabled: false,
+                isActive: false,
+              };
+            }
           }
         }
       }
@@ -323,6 +405,154 @@ addonsRouter.post("/:addonSlug/uninstall", async (req: AuthRequest, res: Respons
   } catch (err: any) {
     console.error("[addons/uninstall] error:", err);
     return res.status(500).json({ error: err.message || "Failed to uninstall add-on." });
+  }
+});
+
+/**
+ * POST /api/addons/:addonSlug/disable
+ * Explicitly disables an installed add-on for the tenant workspace.
+ */
+addonsRouter.post("/:addonSlug/disable", async (req: AuthRequest, res: Response) => {
+  try {
+    const db = rawPrisma || prisma;
+    const tenantId = req.user?.tenantId;
+    const userId = req.user?.userId;
+    const { addonSlug } = req.params;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context required." });
+    }
+
+    const cleanSlug = addonSlug.trim().toLowerCase();
+
+    const CORE_MODULES = new Set(["core_platform", "hrm", "hrms", "employees", "starter", "growth", "sovereign"]);
+    if (CORE_MODULES.has(cleanSlug)) {
+      return res.status(400).json({ success: false, error: `Core platform modules cannot be disabled: ${cleanSlug}` });
+    }
+
+    const relatedSlugs = getRelatedSlugs(cleanSlug);
+
+    await db.$transaction(async (tx: any) => {
+      await tx.tenantAddon.upsert({
+        where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+        create: {
+          tenantId,
+          addonSlug: cleanSlug,
+          status: "disabled",
+          plan: "custom",
+          features: [],
+        },
+        update: {
+          status: "disabled",
+        },
+      });
+
+      await tx.tenantAddon.updateMany({
+        where: { tenantId, addonSlug: { in: relatedSlugs } },
+        data: { status: "disabled" },
+      });
+
+      if (tx.tenantModule) {
+        await tx.tenantModule.upsert({
+          where: { tenantId_moduleKey: { tenantId, moduleKey: cleanSlug } },
+          create: { tenantId, moduleKey: cleanSlug, isEnabled: false },
+          update: { isEnabled: false },
+        });
+
+        await tx.tenantModule.updateMany({
+          where: { tenantId, moduleKey: { in: relatedSlugs } },
+          data: { isEnabled: false },
+        });
+      }
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: userId || "SYSTEM",
+      action: "addon.disabled",
+      entityType: "TenantAddon",
+      entityId: cleanSlug,
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      status: "disabled",
+      message: `Add-on "${cleanSlug}" disabled successfully.`,
+    });
+  } catch (err: any) {
+    console.error("[addons/disable] error:", err);
+    return res.status(500).json({ error: err.message || "Failed to disable add-on." });
+  }
+});
+
+/**
+ * POST /api/addons/:addonSlug/enable
+ * Re-enables a previously disabled add-on for the tenant workspace.
+ */
+addonsRouter.post("/:addonSlug/enable", async (req: AuthRequest, res: Response) => {
+  try {
+    const db = rawPrisma || prisma;
+    const tenantId = req.user?.tenantId;
+    const userId = req.user?.userId;
+    const { addonSlug } = req.params;
+
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context required." });
+    }
+
+    const cleanSlug = addonSlug.trim().toLowerCase();
+    const relatedSlugs = getRelatedSlugs(cleanSlug);
+
+    await db.$transaction(async (tx: any) => {
+      await tx.tenantAddon.upsert({
+        where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+        create: {
+          tenantId,
+          addonSlug: cleanSlug,
+          status: "active",
+          plan: "custom",
+          features: ["full_access"],
+        },
+        update: {
+          status: "active",
+        },
+      });
+
+      await tx.tenantAddon.updateMany({
+        where: { tenantId, addonSlug: { in: relatedSlugs } },
+        data: { status: "active" },
+      });
+
+      if (tx.tenantModule) {
+        await tx.tenantModule.upsert({
+          where: { tenantId_moduleKey: { tenantId, moduleKey: cleanSlug } },
+          create: { tenantId, moduleKey: cleanSlug, isEnabled: true },
+          update: { isEnabled: true },
+        });
+
+        await tx.tenantModule.updateMany({
+          where: { tenantId, moduleKey: { in: relatedSlugs } },
+          data: { isEnabled: true },
+        });
+      }
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: userId || "SYSTEM",
+      action: "addon.enabled",
+      entityType: "TenantAddon",
+      entityId: cleanSlug,
+    }).catch(() => {});
+
+    return res.json({
+      success: true,
+      status: "active",
+      message: `Add-on "${cleanSlug}" enabled successfully.`,
+    });
+  } catch (err: any) {
+    console.error("[addons/enable] error:", err);
+    return res.status(500).json({ error: err.message || "Failed to enable add-on." });
   }
 });
 

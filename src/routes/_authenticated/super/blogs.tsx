@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -292,6 +293,7 @@ function DedicatedBlogsManager() {
 
   return (
     <div className="space-y-6">
+      <BreadcrumbNav className="mb-4" />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>

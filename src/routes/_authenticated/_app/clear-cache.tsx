@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/clear-cache")({
   component: ClearCachePage,
@@ -71,6 +72,7 @@ export function ClearCachePage() {
       {/* ─── Header ────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <RefreshCw className="size-6 text-primary" />
             <span>Clear Cache &amp; System Maintenance</span>

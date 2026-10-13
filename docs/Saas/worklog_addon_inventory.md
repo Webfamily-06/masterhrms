@@ -55,7 +55,7 @@ Status values: NS not started, AU audit needed, IP in progress, DN done (add-on 
 | AD-047 | Zita SMS | Integrations | `zita-sms` | `/zita-sms/*` | integration | E7 | 3 | NS | decision/merge pending (file 12 s5) |
 | AD-048 | Telesign SMS | Integrations | `telesign-sms` | `/telesign-sms/*` | integration | E7 | 3 | NS |  |
 | AD-049 | Africa's Talking | Integrations | `africas-talking` | `/africas-talking/*` | integration | E7 | 3 | NS |  |
-| AD-050 | AI Business Advisor | AI | `ai-business-advisor` | `/ai-business-advisor/*` | app | E8 | 2 | NS | Externally blocked (LLM API keys required, DOC-SAAS-W2-PLAN-001 §3.2) |
+| AD-050 | AI Business Advisor | AI | `ai-business-advisor` | `/ai-business-advisor/*` | app | E8 | 2 | DN | Completed & Ratified: 5-pillar health score, trend charts, dismissable insights, resolvable alerts, actionable recommendations, Setting table persistence |
 | AD-051 | AI Document | AI | `ai-document` | `/ai-document/*` | app | E8 | 2 | NS | Externally blocked (LLM API keys required, DOC-SAAS-W2-PLAN-001 §3.2) |
 | AD-052 | AI Assistant | AI | `ai-assistant` | `/ai-assistant/*` | app | E8 | 1 | NS |  |
 | AD-053 | AI Image | AI | `ai-image` | `/ai-image/*` | app | E8 | 3 | NS |  |
@@ -92,8 +92,8 @@ Status values: NS not started, AU audit needed, IP in progress, DN done (add-on 
 | AD-084 | Dropbox | Content and Storage | `dropbox` | `/dropbox/*` | app | E11 | 2 | NS | Externally blocked (Dropbox Developer app approval required, DOC-SAAS-W2-PLAN-001 §3.2) |
 | AD-085 | Box | Content and Storage | `box` | `/box/*` | app | E11 | 2 | NS | Externally blocked (Box Developer enterprise approval required, DOC-SAAS-W2-PLAN-001 §3.2) |
 | AD-086 | Google Docs | Content and Storage | `google-docs` | `/google-docs/*` | app | E11 | 3 | NS |  |
-| AD-087 | Smart Reports | Finance | `smart-reports` | `/smart-reports/*` | app | E5 | 2 | NS | Deferred to Wave 3 BI track |
-| AD-088 | Smart Dashboard | Finance | `smart-dashboard` | `/smart-dashboard/*` | app | E5 | 2 | NS | Deferred to Wave 3 BI track |
+| AD-087 | Smart Reports | Finance | `smart-reports` | `/smart-reports/*` | app | E5 | 2 | DN | Completed & Ratified: 8 reports (Attendance, Payroll, Leaves, Sales, Purchases, CRM pipeline, Stock, Projects), table/chart views, CSV/JSON export |
+| AD-088 | Smart Dashboard | Finance | `smart-dashboard` | `/smart-dashboard/*` | app | E5 | 2 | DN | Completed & Ratified: 4-tab analytics suite (Executive, Financial, Sales & CRM, Operational), ApexCharts, live DB KPI aggregation, CSV export |
 | AD-089 | Double Entry | Finance | `accounts` | `/accounts/*` | app | E5 | 1 | NS | decision/merge pending (file 12 s5); same as product app prefix |
 | AD-090 | Contracts | Finance | `contracts` | `/contracts/*` | app | E5/E10 | 2 | NS | Decision pending (overlaps HR vs CRM contracts, DOC-SAAS-W2-PLAN-001 §3.1) |
 | AD-091 | Assets | Finance | `asset-management` | `/asset-management/*` | app | E5 | 1 | NS |  |
@@ -112,3 +112,6 @@ Status values: NS not started, AU audit needed, IP in progress, DN done (add-on 
 | AD-104 | Xero | Finance | `xero` | `/xero/*` | integration | E6 | 2 | NS | W2 Plan Group A (DOC-SAAS-W2-PLAN-001): E6 Connector Shell, Cloud ledger sync |
 | AD-105 | Sage | Finance | `sage` | `/sage/*` | integration | E6 | 3 | NS |  |
 | AD-106 | Asset Borrow and Rent | Finance | `asset-borrow-and-rent` | `/asset-borrow-and-rent/*` | app | E5 | 3 | NS |  |
+| AD-107 | WooCommerce Integration Hub | E-Commerce | `woocommerce-hub` | `/integrations/*` | integration | E6 | 2 | DN | Full bidirectional sync, catalog, stock, webhooks & order ingestion |
+| AD-108 | WooCommerce Sync | E-Commerce | `woocommerce-sync` | `/integrations/*` | integration | E6 | 2 | DN | WordPress WooCommerce store connector, stock push, alias to /integrations |
+| AD-109 | Shopify Sync | E-Commerce | `shopify-sync` | `/shopify/*` | integration | E6 | 2 | DN | Multi-store bidirectional catalog, warehouse stock, and order ingestion |

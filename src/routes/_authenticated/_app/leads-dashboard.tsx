@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Dialog,
   DialogContent,
@@ -243,6 +244,7 @@ export default function LeadsDashboardPage() {
       {/* ── Page Header (matching ui/leads.html lines 1267-1280) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 lg:mb-6">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-gray-900 dark:text-gray-100 text-xl font-bold mb-1">Leads Management</h1>
           <p className="text-sm text-default mb-0">
             Incoming inbound prospect funnel, marketing acquisition channels, and lead qualification matrix.

@@ -63,6 +63,7 @@ import {
   parseISO,
 } from "date-fns";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/calendar")({
   beforeLoad: () => {
@@ -261,6 +262,7 @@ export function CalendarPage() {
         <div>
           <div className="flex items-center gap-2">
             <CalendarIcon className="size-5 text-primary" />
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight text-foreground">Company Calendar</h1>
             <Badge variant="outline" className="text-[10px] font-mono">
               {filteredEvents.length} Events

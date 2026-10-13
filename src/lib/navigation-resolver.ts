@@ -9,7 +9,8 @@ import type { NavigationItem } from "./navigation-registry";
  * Ensures consistent entitlement resolution regardless of slug conventions.
  */
 export const ADDON_ALIASES: Record<string, string[]> = {
-  "woocommerce-sync": ["woocommerce", "woocommerce-sync", "woocommerce_sync"],
+  "woocommerce-sync": ["woocommerce", "woocommerce-sync", "woocommerce_sync", "woocommerce-hub", "woocommerce_hub"],
+  "woocommerce-hub": ["woocommerce-hub", "woocommerce_hub", "woocommerce", "woocommerce-sync", "woocommerce_sync"],
   "shopify-sync": ["shopify", "shopify-sync", "shopify_sync"],
   "google-workspace-integration": ["google-workspace", "google-workspace-integration", "google_workspace"],
   "tally-importer": ["tally", "tally-importer", "tally_importer", "tally-prime"],
@@ -30,8 +31,9 @@ export const ADDON_ALIASES: Record<string, string[]> = {
   "learning-lms": ["learning-lms", "lms", "training"],
   "procurement": ["procurement", "purchase-orders"],
   "team-workload": ["team-workload", "workload"],
-  "smart-reports": ["smart-reports", "executive-reports"],
-  "smart-dashboard": ["smart-dashboard", "custom-dashboard"],
+  "smart-reports": ["smart-reports", "executive-reports", "custom-reports"],
+  "smart-dashboard": ["smart-dashboard", "custom-dashboard", "bi-dashboard"],
+  "ai-business-advisor": ["ai-business-advisor", "business-advisor", "advisor", "ai-advisor"],
   "contracts": ["contracts", "contract-management"],
   "budget-planner": ["budget-planner", "budgeting"],
   "zatca": ["zatca", "zatca-einvoice"],
@@ -45,9 +47,13 @@ export const ADDON_ALIASES: Record<string, string[]> = {
   "outbound-webhooks": ["outbound-webhooks", "webhooks"],
   "sms-gateway": ["sms-gateway", "sms"],
   "crm": ["crm", "product_crm"],
-  "pos": ["pos", "product_pos", "inventory", "product_inventory"],
+  "pos": ["pos", "product_pos"],
+  "inventory": ["inventory", "product_inventory", "stock"],
+  "projects": ["projects", "project", "product_projects", "project-management"],
+  "purchases": ["purchases", "procurement", "purchase-orders", "purchase", "product_purchases"],
+  "sales": ["sales", "invoicing", "product_sales"],
   "finance": ["finance", "product_finance", "accounting", "product_accounting"],
-  "hrms": ["hrm", "hrms", "product_hrms"],
+  "hrms": ["hrm", "hrms", "product_hrms", "core_platform", "core-platform"],
 };
 
 /**
@@ -69,6 +75,19 @@ export const ROUTE_ENTITLEMENT_MAP: Record<string, string> = {
   "/procurement": "procurement",
   "/contracts": "contracts",
   "/smart-reports": "smart-reports",
+  "/smart-reports/attendance-summary": "smart-reports",
+  "/smart-reports/payroll-sheet": "smart-reports",
+  "/smart-reports/leave-report": "smart-reports",
+  "/smart-reports/sales-invoice": "smart-reports",
+  "/smart-reports/purchase-invoice": "smart-reports",
+  "/smart-reports/deal-pipeline": "smart-reports",
+  "/smart-reports/product-stock": "smart-reports",
+  "/smart-reports/project-progress": "smart-reports",
+  "/smart-dashboard": "smart-dashboard",
+  "/smart-dashboard/financial": "smart-dashboard",
+  "/smart-dashboard/sales": "smart-dashboard",
+  "/smart-dashboard/operational": "smart-dashboard",
+  "/ai-business-advisor": "ai-business-advisor",
   "/budget-planner": "budget-planner",
   "/zatca": "zatca",
   "/einvoice-eu": "einvoice-eu",
@@ -124,27 +143,41 @@ export function checkEntitlementByKey(
     }
   }
 
-  // 1. Check enabledModules from /api/auth/me
+  // 1. Authoritative check against serverEntitlements if present
+  for (const c of candidates) {
+    const ent = context.serverEntitlements[c];
+    if (ent !== undefined) {
+      if (
+        ent.isActive === false ||
+        ent.isEnabled === false ||
+        ent.isInstalled === false ||
+        ent.status === "disabled" ||
+        ent.status === "available_in_plan" ||
+        ent.status === "not_installed" ||
+        ent.status === "expired" ||
+        ent.status === "revoked"
+      ) {
+        return false;
+      }
+      if (ent.isActive === true && ent.isEnabled !== false && ent.isInstalled !== false) {
+        return true;
+      }
+    }
+  }
+
+  // 2. Check enabledModules from /api/auth/me
   for (const c of candidates) {
     if (context.enabledModules.includes(c)) {
       return true;
     }
   }
 
-  // 2. Check activeAddons from /api/auth/me
+  // 3. Check activeAddons from /api/auth/me
   if (context.activeAddons.includes("*")) {
     return true;
   }
   for (const c of candidates) {
     if (context.activeAddons.includes(c)) {
-      return true;
-    }
-  }
-
-  // 3. Check serverEntitlements from /api/addons/entitlements
-  for (const c of candidates) {
-    const ent = context.serverEntitlements[c];
-    if (ent && ent.isActive) {
       return true;
     }
   }
@@ -346,6 +379,7 @@ export function useNavigationResolver() {
 
   return {
     isEntitled,
+    hasEntitlement: isEntitled,
     canAccess,
     filterNavigation,
     filterSearchItems,

@@ -81,6 +81,7 @@ import {
   Filter,
 } from "lucide-react";
 import type { Product } from "./products";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/pos")({
   component: PosPage,
@@ -832,6 +833,7 @@ function PosPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <ShoppingCart className="size-6 text-primary" /> Point of Sale & Barcode Hub
             </h1>

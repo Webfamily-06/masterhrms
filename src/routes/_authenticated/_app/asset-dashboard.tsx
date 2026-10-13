@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Dialog,
   DialogContent,
@@ -432,6 +433,7 @@ export default function AssetDashboardPage() {
       {/* ── Page Header (matching ui/asset-register.html lines 1272-1293) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 lg:mb-6">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-gray-900 dark:text-gray-100 text-xl font-bold mb-1">
             {activeTab === "register" ? "Asset Register" : "Asset Analytics"}
           </h1>

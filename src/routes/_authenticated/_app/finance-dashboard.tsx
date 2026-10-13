@@ -8,6 +8,7 @@ import { isWorkspaceAdminUser } from "@/lib/permissions";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
@@ -212,6 +213,7 @@ export default function FinanceDashboardPage() {
     <div className="p-3 lg:py-6 lg:px-0">
       {/* ── Page Header (matching ui/finance-dashboard.html line 1272) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+        <BreadcrumbNav />
         <h1 className="text-gray-900 dark:text-gray-100 text-xl font-bold mb-0">Finance Dashboard</h1>
         <div className="flex items-center gap-2">
           <div className="relative rangepicker-input w-[180px] h-[32px] leading-none">

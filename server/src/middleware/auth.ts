@@ -225,7 +225,7 @@ export function requirePermission(permissionCode: string) {
 
       // 4. Verify permission exists on role
       const hasPerm = assignment.role.permissions.some(
-        (rp) => rp.permission.code === permissionCode
+        (rp: any) => rp.permission.code === permissionCode
       );
 
       if (!hasPerm) {

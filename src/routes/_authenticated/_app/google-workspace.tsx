@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlanGuard } from "@/components/plan-guard";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Settings2,
   Users,
@@ -190,6 +191,7 @@ function GoogleWorkspacePage() {
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <svg className="size-6" viewBox="0 0 24 24">
                 <path

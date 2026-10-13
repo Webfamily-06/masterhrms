@@ -19,6 +19,9 @@ const PRODUCT_KEYS = new Set([
   "product_inventory", "inventory",
   "product_finance", "finance", "product_accounting", "accounting",
   "product_hrms", "hrms",
+  "product_projects", "projects", "project",
+  "product_purchases", "purchases",
+  "product_sales", "sales", "invoicing",
 ]);
 
 function normalizeKey(key: string): { normalized: string; isProduct: boolean } {
@@ -36,15 +39,35 @@ function getCandidateModuleKeys(normalized: string, key: string): string[] {
     keys.add("product_finance");
     keys.add("product_accounting");
   }
-  if (normalized === "pos" || normalized === "inventory") {
+  if (normalized === "pos") {
     keys.add("pos");
-    keys.add("inventory");
     keys.add("product_pos");
+  }
+  if (normalized === "inventory") {
+    keys.add("inventory");
     keys.add("product_inventory");
   }
   if (normalized === "crm") {
     keys.add("crm");
     keys.add("product_crm");
+  }
+  if (normalized === "projects" || normalized === "project") {
+    keys.add("projects");
+    keys.add("project");
+    keys.add("product_projects");
+    keys.add("project-management");
+  }
+  if (normalized === "purchases" || normalized === "procurement" || normalized === "purchase") {
+    keys.add("purchases");
+    keys.add("procurement");
+    keys.add("purchase");
+    keys.add("purchase-orders");
+    keys.add("product_purchases");
+  }
+  if (normalized === "sales" || normalized === "invoicing") {
+    keys.add("sales");
+    keys.add("invoicing");
+    keys.add("product_sales");
   }
   return Array.from(keys);
 }
@@ -117,6 +140,7 @@ export async function checkTenantEntitlement(
   if (normalized.includes("woocommerce")) {
     candidateAddonSlugs.add("woocommerce");
     candidateAddonSlugs.add("woocommerce-sync");
+    candidateAddonSlugs.add("woocommerce-hub");
   }
   if (normalized.includes("shopify")) {
     candidateAddonSlugs.add("shopify");
@@ -145,6 +169,24 @@ export async function checkTenantEntitlement(
   if (normalized.includes("asset")) {
     candidateAddonSlugs.add("assets");
     candidateAddonSlugs.add("asset-management");
+  }
+  if (normalized.includes("smart-dashboard") || normalized.includes("smart_dashboard")) {
+    candidateAddonSlugs.add("smart-dashboard");
+    candidateAddonSlugs.add("smart-dashboard-analytics");
+    candidateAddonSlugs.add("addon_smart_dashboard");
+    candidateAddonSlugs.add("module-smart-dashboard");
+  }
+  if (normalized.includes("smart-reports") || normalized.includes("smart_reports")) {
+    candidateAddonSlugs.add("smart-reports");
+    candidateAddonSlugs.add("smart-reports-addon");
+    candidateAddonSlugs.add("addon_smart_reports");
+    candidateAddonSlugs.add("module-smart-reports");
+  }
+  if (normalized.includes("ai-business-advisor") || normalized.includes("business-advisor") || normalized.includes("ai_business_advisor")) {
+    candidateAddonSlugs.add("ai-business-advisor");
+    candidateAddonSlugs.add("business-advisor");
+    candidateAddonSlugs.add("addon_ai_business_advisor");
+    candidateAddonSlugs.add("module-ai-business-advisor");
   }
 
   try {
@@ -187,7 +229,7 @@ export async function checkTenantEntitlement(
         };
       }
 
-      if (["suspended", "cancelled", "expired"].includes(addonRecord.status)) {
+      if (["suspended", "cancelled", "expired", "disabled"].includes(addonRecord.status)) {
         return {
           entitled: false,
           type: "addon",
@@ -202,7 +244,18 @@ export async function checkTenantEntitlement(
     // Non-fatal
   }
 
-  // 4. Check TenantSubscription and SubscriptionPlan
+  // If this is an optional add-on and no active TenantAddon row exists, it is not installed
+  if (type === "addon") {
+    return {
+      entitled: false,
+      type: "addon",
+      key,
+      status: "not_installed",
+      reason: `Add-on '${key}' is not installed for this workspace`,
+    };
+  }
+
+  // 4. For standalone products (POS, CRM, Finance, Projects, Procurement): Check TenantSubscription and SubscriptionPlan
   try {
     const sub = await db.tenantSubscription.findFirst({
       where: {
@@ -216,9 +269,8 @@ export async function checkTenantEntitlement(
     if (sub && sub.plan) {
       const planName = (sub.plan.name || "").toLowerCase();
       const planId = (sub.plan.id || "").toLowerCase();
-      const planType = (sub.plan.planType || "").toLowerCase();
 
-      // Top-tier enterprise / sovereign / growth plans include all products and add-ons
+      // Top-tier enterprise / sovereign / growth plans include standalone ERP suites
       if (
         planId === "sovereign" ||
         planId === "growth" ||
@@ -227,51 +279,33 @@ export async function checkTenantEntitlement(
       ) {
         return {
           entitled: true,
-          type,
+          type: "product",
           key,
           source: "plan",
           status: "active",
         };
       }
 
-      // Feature array verification
+      // Feature array verification for standalone products
       const rawFeatures = Array.isArray(sub.plan.features) ? (sub.plan.features as any[]) : [];
       const features: string[] = rawFeatures.map((f) => String(f));
       const featureMatches = features.some((f: string) => {
         const lf = f.toLowerCase();
         if (normalized === "crm") return lf.includes("crm");
-        if (normalized === "pos") return lf.includes("pos");
-        if (normalized === "inventory") return lf.includes("inventory") || lf.includes("pos");
+        if (normalized === "pos") return lf.includes("pos") || lf.includes("point of sale");
+        if (normalized === "inventory") return lf.includes("inventory") || lf.includes("stock") || lf.includes("warehouse");
         if (normalized === "finance" || normalized === "accounting") return lf.includes("financial") || lf.includes("ledger") || lf.includes("accounting") || lf.includes("finance");
         if (normalized === "hrms" || normalized === "hrm") return lf.includes("hrm") || lf.includes("payroll") || lf.includes("attendance");
-        if (normalized === "biometric-sync" || normalized === "biometric") return lf.includes("biometric");
-        if (normalized === "woocommerce-sync" || normalized === "woocommerce") return lf.includes("woocommerce");
-        if (normalized === "shopify-sync" || normalized === "shopify") return lf.includes("shopify");
-        if (normalized === "razorpay-gateway" || normalized === "razorpay") return lf.includes("razorpay");
-        if (normalized === "whatsapp-alerts" || normalized === "whatsapp") return lf.includes("whatsapp");
-        if (normalized === "tally-importer" || normalized === "tally") return lf.includes("tally");
-        if (normalized === "google-workspace-integration" || normalized === "google-workspace") return lf.includes("google");
-        return lf.includes(normalized);
+        if (normalized === "projects" || normalized === "project") return lf.includes("project");
+        if (normalized === "purchases" || normalized === "procurement" || normalized === "purchase") return lf.includes("purchase") || lf.includes("procurement") || lf.includes("vendor");
+        if (normalized === "sales" || normalized === "invoicing") return lf.includes("sale") || lf.includes("invoice");
+        return false;
       });
 
       if (featureMatches) {
         return {
           entitled: true,
-          type,
-          key,
-          source: "plan",
-          status: "active",
-        };
-      }
-
-      // Included add-ons check
-      const rawAddons = Array.isArray((sub.plan as any)?.includedAddonIds) ? ((sub.plan as any).includedAddonIds as any[]) : [];
-      const includedAddonIds: string[] = rawAddons.map((a) => String(a).toLowerCase());
-      const hasIncluded = Array.from(candidateAddonSlugs).some((s) => includedAddonIds.includes(s.toLowerCase()));
-      if (hasIncluded) {
-        return {
-          entitled: true,
-          type: "addon",
+          type: "product",
           key,
           source: "plan",
           status: "active",
@@ -354,6 +388,7 @@ export function requireEntitlement(entitlementKey: string) {
 
       const isProduct = result.type === "product";
       return res.status(403).json({
+        success: false,
         error: isProduct
           ? `Product '${entitlementKey}' is not included in this workspace's subscription.`
           : `Add-on '${entitlementKey}' is not active on this workspace.`,

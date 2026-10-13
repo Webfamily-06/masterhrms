@@ -65,6 +65,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/assets")({
   beforeLoad: () => {
@@ -763,6 +764,7 @@ export function AssetManagementPage() {
                 Enterprise Add-on
               </Badge>
             </div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Hardware & IT Asset Lifecycle Management
             </h1>

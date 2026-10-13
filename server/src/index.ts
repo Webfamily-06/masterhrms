@@ -100,6 +100,10 @@ import { publicApiRouter } from "./modules/public-api/public-api.routes";
 import { noticeBoardRouter } from "./modules/notice-board/notice-board.routes";
 import { outboundWebhooksRouter } from "./modules/outbound-webhooks/outbound-webhooks.routes";
 import { smsGatewayRouter } from "./modules/sms-gateway/sms-gateway.routes";
+import { smartDashboardRouter } from "./routes/smart-dashboard.routes";
+import { smartReportsRouter } from "./routes/smart-reports.routes";
+import { aiBusinessAdvisorRouter } from "./routes/ai-business-advisor.routes";
+import { UnifiedCatalogService } from "./services/unified-catalog.service";
 
 import http from "http";
 import { initSocket } from "./socket";
@@ -423,6 +427,9 @@ app.use("/api/campaigns", campaignsRouter);
 app.use("/api/todos", todosRouter);
 app.use("/api/notes", notesRouter);
 app.use("/api/calendar", calendarRouter);
+app.use("/api/smart-dashboard", smartDashboardRouter);
+app.use("/api/smart-reports", smartReportsRouter);
+app.use("/api/ai-business-advisor", aiBusinessAdvisorRouter);
 
 // Platform Foundation APIs (v1 & unversioned alias)
 app.use("/api/v1", platformFoundationRouter);
@@ -517,6 +524,9 @@ if (process.env.NODE_ENV !== "test") {
     try {
       await SettingsService.ensureDefaultSettings();
       console.log(`⚙️ [STARTUP] Platform default settings verified in database.`);
+
+      await UnifiedCatalogService.ensureCanonicalAddonsInDb();
+      console.log(`📦 [STARTUP] Canonical Add-ons verified in database.`);
 
       const audit = ConfigAuditService.auditEnvironment();
       console.log(`🛡️ [CONFIG AUDIT] Score: ${audit.score}/100 | Pass: ${audit.summary.passed} | Warn: ${audit.summary.warnings} | Fail: ${audit.summary.failures}`);

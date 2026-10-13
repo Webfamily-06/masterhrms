@@ -46,6 +46,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/_app/client-dashboard")({
@@ -137,6 +138,7 @@ export default function ClientDashboardPage() {
       {/* Client Portal Header */}
       <div className="bg-gradient-to-r from-blue-500/15 via-blue-500/5 to-background border border-blue-500/20 rounded-xl p-5 lg:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div className="space-y-1">
+          <BreadcrumbNav />
           <div className="flex items-center gap-2">
             <span className="text-xl lg:text-2xl font-bold tracking-tight text-foreground">
               Client Portal • {clientName}

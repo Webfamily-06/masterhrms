@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initProjectCharts } from "@/lib/dashboard-charts";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/project-dashboard")({
   component: ProjectDashboardPage,
@@ -59,6 +60,7 @@ export default function ProjectDashboardPage() {
       <div className="p-3 lg:p-6 lg:px-0">
 
 					<div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+						<BreadcrumbNav />
 						<h1 className="text-gray-900 text-xl max-lg:text-lg font-bold mb-0">Project Dashboard</h1>
 						<div className="flex items-center flex-wrap gap-2">
 							<div className="relative rangepicker-input w-[174px] h-[28px] leading-none">

@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PlanGuard } from "@/components/plan-guard";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/workflows")({
   component: WorkflowsPage,
@@ -192,6 +193,7 @@ export function WorkflowsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <Workflow className="size-6 text-primary" /> Event-Driven Automation & Workflows Engine
             </h1>

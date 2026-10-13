@@ -56,6 +56,7 @@ import { formatSystemAmount } from "@/lib/currency";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { PlanGuard } from "@/components/plan-guard";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/marketplace")({
   component: MarketplacePage,
@@ -95,8 +96,11 @@ export type CatalogProduct = {
     isPlanIncluded?: boolean;
     isEntitled?: boolean;
     isFree?: boolean;
-    lifecycleStatus?: "INSTALLED" | "PLAN_INCLUDED" | "AVAILABLE_FREE" | "AVAILABLE_PAID" | "RESTRICTED";
-    allowedAction?: "OPEN" | "INSTALL" | "PURCHASE" | "VIEW_PLAN" | "RESTRICTED";
+    isEnabled?: boolean;
+    canDisable?: boolean;
+    canEnable?: boolean;
+    lifecycleStatus?: "INSTALLED" | "PLAN_INCLUDED" | "AVAILABLE_FREE" | "AVAILABLE_PAID" | "RESTRICTED" | "disabled" | "enabled" | "available" | string;
+    allowedAction?: "OPEN" | "INSTALL" | "PURCHASE" | "VIEW_PLAN" | "RESTRICTED" | "enable" | "disable" | string;
     reason?: string;
   };
   icon?: string;
@@ -185,12 +189,15 @@ const LAUNCH_URLS: Record<string, string> = {
   "notice-board": "/notice-board",
   "outbound-webhooks": "/outbound-webhooks",
   "sms-gateway": "/sms-gateway",
+  "woocommerce-sync": "/integrations",
+  "woocommerce-hub": "/integrations",
+  "shopify-sync": "/shopify",
   starter: "/subscription",
   growth: "/subscription",
   sovereign: "/subscription",
 };
 
-type StatusQuickFilter = "all" | "free" | "paid" | "installed" | "available";
+type StatusQuickFilter = "all" | "free" | "paid" | "installed" | "disabled" | "available";
 
 function MarketplacePage() {
   const qc = useQueryClient();
@@ -203,6 +210,23 @@ function MarketplacePage() {
   const [statusFilter, setStatusFilter] = useState<StatusQuickFilter>("all");
   const [selectedProductForDetails, setSelectedProductForDetails] = useState<CatalogProduct | null>(null);
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
+  const [actionLoadingSlug, setActionLoadingSlug] = useState<string | null>(null);
+
+  // Dedicated Workspace Subscription Plan Query (Strictly separated from add-on catalog)
+  const { data: workspaceSub, isLoading: isSubLoading } = useQuery({
+    queryKey: ["workspace-subscription", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get<any>("/workspace/subscription");
+        return res || null;
+      } catch (err) {
+        console.error("Failed to load workspace subscription:", err);
+        return null;
+      }
+    },
+    enabled: !!tenantId,
+    staleTime: 60 * 1000,
+  });
 
   // Authoritative Checkout State
   const [checkoutProduct, setCheckoutProduct] = useState<CatalogProduct | null>(null);
@@ -242,9 +266,13 @@ function MarketplacePage() {
     staleTime: 60 * 1000,
   });
 
-  const catalogProducts = catalogData?.products || [];
+  // Strict Separation: Add-on Marketplace products ONLY (filter out base subscription plans)
+  const addOnProducts = useMemo(() => {
+    const raw = catalogData?.products || [];
+    return raw.filter((p) => p.productType !== "BASE_PLAN");
+  }, [catalogData]);
 
-  // 2. Authoritative Price Resolution
+  // 2. Authoritative Price Resolution (Both Monthly and Yearly)
   function getProductMonthlyPrice(product: CatalogProduct): number {
     const monthly = product.prices?.find((p) => p.billingInterval === "1_month");
     if (monthly && typeof monthly.basePrice === "number") return monthly.basePrice;
@@ -253,8 +281,24 @@ function MarketplacePage() {
     return 0;
   }
 
-  // 3. Authoritative Entitlement / Installed Verification
+  function getProductYearlyPrice(product: CatalogProduct): number | null {
+    const yearly = product.prices?.find((p) => p.billingInterval === "1_year");
+    if (yearly && typeof yearly.basePrice === "number") return yearly.basePrice;
+    const monthly = getProductMonthlyPrice(product);
+    if (monthly > 0) return Math.round(monthly * 12 * 0.83); // Standard annual discount reference if not explicit
+    return null;
+  }
+
+  // 3. Authoritative Lifecycle & Entitlement Verification
+  function isProductDisabled(product: CatalogProduct): boolean {
+    const status = String(product.eligibility?.lifecycleStatus || "").toLowerCase();
+    if (status === "disabled") return true;
+    if (product.eligibility?.isEnabled === false && product.eligibility?.isInstalled === true) return true;
+    return false;
+  }
+
   function isProductInstalled(product: CatalogProduct): boolean {
+    if (isProductDisabled(product)) return true;
     if (product.eligibility?.isInstalled === true || product.eligibility?.alreadyOwned === true) return true;
     const slug = (product.slug || "").toLowerCase();
     const enabledMods = profile?.enabledModules || [];
@@ -262,6 +306,23 @@ function MarketplacePage() {
     if (enabledMods.includes(slug.replace("prod_", ""))) return true;
     if (enabledMods.includes(slug.replace("addon_", ""))) return true;
     return false;
+  }
+
+  function isProductEnabled(product: CatalogProduct): boolean {
+    if (isProductDisabled(product)) return false;
+    return isProductInstalled(product);
+  }
+
+  function canDisableProduct(product: CatalogProduct): boolean {
+    if (product.eligibility?.canDisable !== undefined) return product.eligibility.canDisable;
+    const slug = (product.slug || "").toLowerCase();
+    const coreSlugs = ["starter", "growth", "sovereign", "core_platform", "hrm", "hrms", "employees"];
+    return !coreSlugs.includes(slug) && isProductInstalled(product) && !isProductDisabled(product);
+  }
+
+  function canEnableProduct(product: CatalogProduct): boolean {
+    if (product.eligibility?.canEnable !== undefined) return product.eligibility.canEnable;
+    return isProductDisabled(product);
   }
 
   function isProductPlanIncluded(product: CatalogProduct): boolean {
@@ -292,13 +353,64 @@ function MarketplacePage() {
         toast.success(res.message || `Add-on "${product.name}" installed successfully!`);
         qc.invalidateQueries({ queryKey: ["commerce-catalog", tenantId] });
         qc.invalidateQueries({ queryKey: ["current-session-user"] });
-        qc.invalidateQueries({ queryKey: ["workspace-subscription-shell"] });
+        qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
         qc.invalidateQueries({ queryKey: ["addon-entitlements"] });
+        qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] });
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to install add-on.");
     } finally {
       setInstallingSlug(null);
+    }
+  }
+
+  // Authoritative Add-on Disable Action
+  async function handleDisableAddon(product: CatalogProduct) {
+    if (!tenantId) {
+      toast.error("Authenticated workspace context required.");
+      return;
+    }
+    try {
+      setActionLoadingSlug(product.slug);
+      const res = await api.post<{ success: boolean; message: string }>(`/addons/${product.slug}/disable`);
+      if (res?.success) {
+        toast.success(res.message || `Add-on "${product.name}" disabled.`);
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["commerce-catalog"] }),
+          qc.invalidateQueries({ queryKey: ["addon-entitlements"] }),
+          qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] }),
+          qc.invalidateQueries({ queryKey: ["current-session-user"] }),
+        ]);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to disable add-on.");
+    } finally {
+      setActionLoadingSlug(null);
+    }
+  }
+
+  // Authoritative Add-on Enable Action
+  async function handleEnableAddon(product: CatalogProduct) {
+    if (!tenantId) {
+      toast.error("Authenticated workspace context required.");
+      return;
+    }
+    try {
+      setActionLoadingSlug(product.slug);
+      const res = await api.post<{ success: boolean; message: string }>(`/addons/${product.slug}/enable`);
+      if (res?.success) {
+        toast.success(res.message || `Add-on "${product.name}" enabled.`);
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["commerce-catalog"] }),
+          qc.invalidateQueries({ queryKey: ["addon-entitlements"] }),
+          qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] }),
+          qc.invalidateQueries({ queryKey: ["current-session-user"] }),
+        ]);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to enable add-on.");
+    } finally {
+      setActionLoadingSlug(null);
     }
   }
 
@@ -407,6 +519,7 @@ function MarketplacePage() {
       if (finalState === "settled") {
         setCheckoutStep("settled");
         qc.invalidateQueries({ queryKey: ["commerce-catalog", tenantId] });
+        qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] });
         qc.invalidateQueries({ queryKey: ["current-session-user"] });
         toast.success(`Add-on "${checkoutProduct.name}" is now active on your workspace!`);
       } else if (finalState === "failed") {
@@ -415,6 +528,7 @@ function MarketplacePage() {
       } else {
         setCheckoutStep("pending_settlement");
         qc.invalidateQueries({ queryKey: ["commerce-catalog", tenantId] });
+        qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] });
         toast.info("Payment confirmed by gateway. Authoritative settlement is completing in background.");
       }
     } catch (err: any) {
@@ -443,6 +557,7 @@ function MarketplacePage() {
       });
       setCheckoutStep("settled");
       qc.invalidateQueries({ queryKey: ["commerce-catalog", tenantId] });
+      qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] });
       qc.invalidateQueries({ queryKey: ["current-session-user"] });
       toast.success("Sandbox settlement simulated successfully! Addon is now active.");
     } catch (err: any) {
@@ -451,49 +566,57 @@ function MarketplacePage() {
     }
   }
 
-  // Authoritative dynamic categories with counts
+  // Authoritative dynamic categories with counts (strictly add-on products)
   const dynamicCategories = useMemo(() => {
     const map = new Map<string, number>();
-    catalogProducts.forEach((p) => {
+    addOnProducts.forEach((p) => {
       const rawCat = p.category ? p.category.trim() : "General";
       const cat = rawCat === "Communications" ? "Communication" : rawCat;
       map.set(cat, (map.get(cat) || 0) + 1);
     });
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [catalogProducts]);
+  }, [addOnProducts]);
 
-  // Authoritative Summary Counters
+  // Authoritative Summary Counters (strictly add-on products)
   const summaryCounts = useMemo(() => {
     let installed = 0;
+    let disabled = 0;
     let planIncluded = 0;
     let free = 0;
     let paid = 0;
     let available = 0;
 
-    catalogProducts.forEach((p) => {
+    addOnProducts.forEach((p) => {
+      const isDis = isProductDisabled(p);
       const isInst = isProductInstalled(p);
       const isInc = isProductPlanIncluded(p);
       const isFr = isProductFree(p);
-      if (isInst) installed++;
-      else available++;
+      if (isDis) {
+        disabled++;
+      } else if (isInst) {
+        installed++;
+      } else {
+        available++;
+      }
       if (isInc) planIncluded++;
       if (isFr) free++;
       else paid++;
     });
 
     return {
-      total: catalogProducts.length,
+      total: addOnProducts.length,
       installed,
+      disabled,
       available,
       planIncluded,
       free,
       paid,
     };
-  }, [catalogProducts, profile]);
+  }, [addOnProducts, profile]);
 
-  // Combined Search & Filters
+  // Combined Search & Filters (strictly add-on products)
   const filteredProducts = useMemo(() => {
-    return catalogProducts.filter((p) => {
+    return addOnProducts.filter((p) => {
       const matchesSearch =
         !search.trim() ||
         p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -507,12 +630,16 @@ function MarketplacePage() {
         cat.toLowerCase() === filterCategory.toLowerCase();
 
       const installed = isProductInstalled(p);
+      const disabled = isProductDisabled(p);
+      const enabled = isProductEnabled(p);
       const planIncluded = isProductPlanIncluded(p);
       const free = isProductFree(p);
 
       let matchesStatus = true;
       if (statusFilter === "installed") {
-        matchesStatus = installed;
+        matchesStatus = enabled;
+      } else if (statusFilter === "disabled") {
+        matchesStatus = disabled;
       } else if (statusFilter === "free") {
         matchesStatus = free;
       } else if (statusFilter === "paid") {
@@ -523,7 +650,7 @@ function MarketplacePage() {
 
       return matchesSearch && matchesCategory && matchesStatus;
     });
-  }, [catalogProducts, search, filterCategory, statusFilter, profile]);
+  }, [addOnProducts, search, filterCategory, statusFilter, profile]);
 
   const hasActiveFilters = search.trim() !== "" || filterCategory !== "all" || statusFilter !== "all";
 
@@ -540,6 +667,7 @@ function MarketplacePage() {
           {/* A. SIMPLIFIED PAGE HEADER */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
             <div>
+              <BreadcrumbNav />
               <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
                 <Store className="size-6 text-primary" /> Add-ons Marketplace
               </h1>
@@ -576,6 +704,21 @@ function MarketplacePage() {
                 </TooltipContent>
               </Tooltip>
 
+              {summaryCounts.disabled > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
+                      <span className="size-2 rounded-full bg-amber-500 shrink-0" />
+                      <span className="text-muted-foreground">Disabled:</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">{summaryCounts.disabled}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    Installed add-ons currently disabled for this workspace.
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
@@ -588,6 +731,58 @@ function MarketplacePage() {
                   Included in your current subscription tier.
                 </TooltipContent>
               </Tooltip>
+            </div>
+          </div>
+
+          {/* TENANT SUBSCRIPTION PANEL (STRICT BILLING & METADATA SEPARATION) */}
+          <div className="rounded-xl border bg-gradient-to-r from-card via-card to-primary/5 p-4 md:p-5 shadow-2xs relative overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider bg-background/80 border-primary/20 text-primary gap-1">
+                    <ShieldCheck className="size-3 text-primary" /> Workspace Subscription Plan
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] font-bold uppercase tracking-wider ${
+                      workspaceSub?.status === "active"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                        : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                    }`}
+                  >
+                    {workspaceSub?.status || "Active"}
+                  </Badge>
+                </div>
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <h2 className="text-xl font-black text-foreground tracking-tight">
+                    {workspaceSub?.planName || "Standard Plan"}
+                  </h2>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Billing Cycle: <strong className="text-foreground capitalize">{workspaceSub?.billingCycle || "Monthly"}</strong>
+                  </span>
+                  {workspaceSub?.expiresAt && (
+                    <span className="text-xs text-muted-foreground font-medium">
+                      Renews / Valid Until: <strong className="text-foreground">{new Date(workspaceSub.expiresAt).toLocaleDateString()}</strong>
+                    </span>
+                  )}
+                  {workspaceSub?.maxEmployees && (
+                    <span className="text-xs text-muted-foreground font-medium">
+                      Seat Limit: <strong className="text-foreground">{workspaceSub.usage?.employees ?? 0} / {workspaceSub.maxEmployees} employees</strong>
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Your base HRMS plan and seat capacities are billed separately. Individual add-ons below are standalone extensions.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button size="sm" variant="outline" className="text-xs font-semibold gap-1.5 shadow-2xs bg-background" asChild>
+                  <Link to="/subscription">
+                    <CreditCard className="size-3.5 text-primary" /> Manage Subscription & Plans
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -643,6 +838,9 @@ function MarketplacePage() {
                     { id: "free", label: "Free Add-ons", count: summaryCounts.free },
                     { id: "paid", label: "Pro / Paid Add-ons", count: summaryCounts.paid },
                     { id: "installed", label: "Installed Add-ons", count: summaryCounts.installed },
+                    ...(summaryCounts.disabled > 0
+                      ? [{ id: "disabled", label: "Disabled Add-ons", count: summaryCounts.disabled }]
+                      : []),
                     { id: "available", label: "Available to Purchase", count: summaryCounts.available },
                   ].map((filter) => {
                     const active = statusFilter === filter.id;
@@ -784,10 +982,12 @@ function MarketplacePage() {
                 /* DESKTOP 4-COLUMN RESPONSIVE GRID */
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {filteredProducts.map((product) => {
+                    const disabled = isProductDisabled(product);
                     const installed = isProductInstalled(product);
                     const planIncluded = isProductPlanIncluded(product);
                     const isFree = isProductFree(product);
-                    const priceVal = getProductMonthlyPrice(product);
+                    const monthlyVal = getProductMonthlyPrice(product);
+                    const yearlyVal = getProductYearlyPrice(product);
                     const CatIcon = getCategoryIcon(product.category, product.name, product.icon);
                     const badgeColor = getCategoryBadgeColor(product.category);
                     const hasUploadedImg = isUploadedAssetUrl(product.image) || isUploadedAssetUrl(product.icon);
@@ -797,7 +997,11 @@ function MarketplacePage() {
                       <Card
                         key={product.id}
                         className={`flex flex-col justify-between overflow-hidden transition-all duration-200 hover:shadow-md border bg-card group ${
-                          installed ? "border-emerald-500/40 bg-emerald-500/[0.02]" : "border-border/70"
+                          disabled
+                            ? "border-amber-500/40 bg-amber-500/[0.02]"
+                            : installed
+                            ? "border-emerald-500/40 bg-emerald-500/[0.02]"
+                            : "border-border/70"
                         }`}
                       >
                         <div className="p-4 space-y-3 flex-1 flex flex-col">
@@ -821,7 +1025,21 @@ function MarketplacePage() {
 
                             {/* Status & Pricing Indicators with Accessible Tooltips */}
                             <div className="flex flex-col items-end gap-1">
-                              {installed ? (
+                              {disabled ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 gap-1 cursor-help py-0.5"
+                                    >
+                                      <AlertCircle className="size-2.5" /> Disabled
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    This add-on is currently disabled for this workspace.
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : installed ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Badge
@@ -919,23 +1137,35 @@ function MarketplacePage() {
                             {product.description}
                           </p>
 
-                          {/* Price & Billing Interval */}
-                          <div className="pt-2.5 border-t border-border/50 flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground text-[11px]">Price:</span>
-                            <span className="font-mono font-bold text-foreground text-xs">
-                              {planIncluded ? (
-                                <span className="text-purple-600 dark:text-purple-400">Included</span>
-                              ) : isFree || priceVal === 0 ? (
-                                <span className="text-blue-600 dark:text-blue-400">Free</span>
-                              ) : (
-                                `${formatSystemAmount(priceVal)}/mo`
-                              )}
-                            </span>
+                          {/* Price & Billing Intervals (Both Monthly and Yearly) */}
+                          <div className="pt-2.5 border-t border-border/50 flex flex-col gap-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-[11px]">Pricing:</span>
+                              <span className="font-mono font-bold text-foreground text-xs text-right">
+                                {planIncluded ? (
+                                  <span className="text-purple-600 dark:text-purple-400">Plan Included</span>
+                                ) : isFree || (monthlyVal === 0 && (yearlyVal === null || yearlyVal === 0)) ? (
+                                  <span className="text-blue-600 dark:text-blue-400">Free</span>
+                                ) : (
+                                  <span className="inline-flex items-baseline gap-1.5 flex-wrap justify-end">
+                                    <span>
+                                      {formatSystemAmount(monthlyVal)}
+                                      <span className="text-[10px] font-normal text-muted-foreground">/mo</span>
+                                    </span>
+                                    {yearlyVal !== null && (
+                                      <span className="text-[10px] text-muted-foreground font-normal">
+                                        · {formatSystemAmount(yearlyVal)}/yr
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Card Actions: Details + Primary Action */}
-                        <div className="p-3 pt-0 flex items-center gap-2">
+                        {/* Card Actions: Details + Primary Action / Enable / Disable */}
+                        <div className="p-3 pt-0 flex items-center gap-1.5">
                           <Button
                             size="sm"
                             variant="outline"
@@ -945,29 +1175,50 @@ function MarketplacePage() {
                             Details
                           </Button>
 
-                          <div className="flex-1 min-w-0">
-                            {installed ? (
+                          <div className="flex-1 min-w-0 flex items-center gap-1">
+                            {disabled ? (
                               <Button
                                 size="sm"
-                                variant="secondary"
-                                className="w-full h-8 text-xs font-semibold gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25"
-                                asChild
+                                className="w-full h-8 text-xs font-semibold gap-1 bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                                disabled={actionLoadingSlug === product.slug}
+                                onClick={() => handleEnableAddon(product)}
                               >
-                                <Link to={getLaunchUrl(product) as any}>
-                                  <ExternalLink className="size-3" /> Open
-                                </Link>
+                                {actionLoadingSlug === product.slug ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <Zap className="size-3" />
+                                )}
+                                Enable
                               </Button>
-                            ) : product.productType === "BASE_PLAN" ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="w-full h-8 text-xs font-semibold gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                                asChild
-                              >
-                                <Link to="/subscription">
-                                  <ExternalLink className="size-3" /> Manage Plan
-                                </Link>
-                              </Button>
+                            ) : installed ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="flex-1 h-8 text-xs font-semibold gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25"
+                                  asChild
+                                >
+                                  <Link to={getLaunchUrl(product) as any}>
+                                    <ExternalLink className="size-3" /> Open
+                                  </Link>
+                                </Button>
+                                {canDisableProduct(product) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs px-2 font-medium text-muted-foreground hover:text-destructive hover:border-destructive/30 shrink-0"
+                                    disabled={actionLoadingSlug === product.slug}
+                                    onClick={() => handleDisableAddon(product)}
+                                    title="Disable this add-on for your workspace"
+                                  >
+                                    {actionLoadingSlug === product.slug ? (
+                                      <Loader2 className="size-3 animate-spin" />
+                                    ) : (
+                                      "Disable"
+                                    )}
+                                  </Button>
+                                )}
+                              </>
                             ) : isFree || planIncluded ? (
                               <Button
                                 size="sm"
@@ -1010,10 +1261,12 @@ function MarketplacePage() {
             <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
               {selectedProductForDetails && (() => {
                 const product = selectedProductForDetails;
+                const disabled = isProductDisabled(product);
                 const installed = isProductInstalled(product);
                 const planIncluded = isProductPlanIncluded(product);
                 const isFree = isProductFree(product);
-                const priceVal = getProductMonthlyPrice(product);
+                const monthlyVal = getProductMonthlyPrice(product);
+                const yearlyVal = getProductYearlyPrice(product);
                 const ModalCatIcon = getCategoryIcon(product.category, product.name, product.icon);
                 const modalBadgeColor = getCategoryBadgeColor(product.category);
                 const modalHasUploadedImg = isUploadedAssetUrl(product.image) || isUploadedAssetUrl(product.icon);
@@ -1040,9 +1293,17 @@ function MarketplacePage() {
                               {product.version}
                             </Badge>
                           )}
-                          {installed && (
+                          {disabled ? (
+                            <Badge className="bg-amber-500 text-white font-semibold text-[10px] gap-1">
+                              <AlertCircle className="size-3" /> Disabled
+                            </Badge>
+                          ) : installed ? (
                             <Badge className="bg-emerald-500 text-white font-semibold text-[10px] gap-1">
                               <CheckCircle2 className="size-3" /> Installed
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                              Available
                             </Badge>
                           )}
                           {planIncluded && (
@@ -1086,11 +1347,28 @@ function MarketplacePage() {
                       <div>
                         <span className="text-muted-foreground text-[11px]">Authoritative License Rate:</span>
                         <div className="font-mono font-bold text-base text-primary">
-                          {planIncluded ? "Included with Workspace Plan" : isFree || priceVal === 0 ? "Free (No Payment Required)" : `${formatSystemAmount(priceVal)}/month`}
+                          {planIncluded ? (
+                            "Included with Workspace Plan"
+                          ) : isFree || (monthlyVal === 0 && (yearlyVal === null || yearlyVal === 0)) ? (
+                            "Free (No Payment Required)"
+                          ) : (
+                            <div className="space-y-0.5">
+                              <div>{formatSystemAmount(monthlyVal)} / month</div>
+                              {yearlyVal !== null && (
+                                <div className="text-xs text-muted-foreground font-normal">
+                                  {formatSystemAmount(yearlyVal)} / year (Annual Billing)
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div>
-                        {installed ? (
+                        {disabled ? (
+                          <Badge variant="secondary" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold border border-amber-500/30">
+                            Disabled in Workspace
+                          </Badge>
+                        ) : installed ? (
                           <Badge className="bg-emerald-500 text-white font-bold">
                             Active in Workspace
                           </Badge>
@@ -1108,18 +1386,49 @@ function MarketplacePage() {
                         Close
                       </Button>
                       <div className="flex gap-2">
-                        {installed ? (
-                          <Button size="sm" className="font-bold gap-1.5 bg-primary" asChild>
-                            <Link to={getLaunchUrl(product) as any}>
-                              <ExternalLink className="size-3.5" /> Open Module
-                            </Link>
+                        {disabled ? (
+                          <Button
+                            size="sm"
+                            className="font-bold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                            disabled={actionLoadingSlug === product.slug}
+                            onClick={() => {
+                              setSelectedProductForDetails(null);
+                              handleEnableAddon(product);
+                            }}
+                          >
+                            {actionLoadingSlug === product.slug ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Zap className="size-3.5" />
+                            )}
+                            Enable Add-on
                           </Button>
-                        ) : product.productType === "BASE_PLAN" ? (
-                          <Button size="sm" variant="outline" className="font-bold gap-1.5 border-primary/40 text-primary hover:bg-primary/10" asChild>
-                            <Link to="/subscription">
-                              <ExternalLink className="size-3.5" /> Manage Workspace Plan
-                            </Link>
-                          </Button>
+                        ) : installed ? (
+                          <div className="flex gap-2">
+                            {canDisableProduct(product) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="font-semibold text-destructive hover:bg-destructive/10 border-destructive/30"
+                                disabled={actionLoadingSlug === product.slug}
+                                onClick={() => {
+                                  setSelectedProductForDetails(null);
+                                  handleDisableAddon(product);
+                                }}
+                              >
+                                {actionLoadingSlug === product.slug ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  "Disable Add-on"
+                                )}
+                              </Button>
+                            )}
+                            <Button size="sm" className="font-bold gap-1.5 bg-primary" asChild>
+                              <Link to={getLaunchUrl(product) as any}>
+                                <ExternalLink className="size-3.5" /> Open Module
+                              </Link>
+                            </Button>
+                          </div>
                         ) : isFree || planIncluded ? (
                           <Button
                             size="sm"

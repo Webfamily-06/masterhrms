@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -456,6 +457,7 @@ export default function TaskBoardPage() {
 
   return (
     <div className="space-y-4">
+      <BreadcrumbNav className="mb-4" />
       {/* ─── PAGE BREADCRUMB & HEADER (Exact match to ui-2/task-board.html) ─── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

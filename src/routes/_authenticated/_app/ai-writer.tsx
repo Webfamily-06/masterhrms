@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/ai-writer")({
   component: AIWriterPage,
@@ -239,6 +240,7 @@ export function AIWriterPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <Sparkles className="size-6 text-primary animate-pulse" /> AI Content Generation Studio
             </h1>

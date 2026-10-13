@@ -22,6 +22,7 @@ import {
 import { formatSystemAmount } from "@/lib/currency";
 import { PlanGuard, PlanLimitBar } from "@/components/plan-guard";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/proposals")({
   component: ProposalsPage,
@@ -189,6 +190,7 @@ function ProposalsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <FileText className="size-6 text-primary" /> Realtime Proposals & Quotations
             </h1>

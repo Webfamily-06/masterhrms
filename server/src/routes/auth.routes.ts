@@ -1401,25 +1401,8 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
             enabledModules.push(addonSlug);
           }
         }
-        if (isSovereignOrGrowth) {
-          const ALL_INTEGRATIONS = [
-            "woocommerce-sync",
-            "shopify-sync",
-            "google-workspace-integration",
-            "google-workspace",
-            "tally-importer",
-            "whatsapp-alerts",
-            "razorpay-gateway",
-            "biometric-sync",
-            "okr-performance",
-            "asset-management",
-          ];
-          for (const slug of ALL_INTEGRATIONS) {
-            if (!enabledModules.includes(slug)) {
-              enabledModules.push(slug);
-            }
-          }
-        }
+        // Uninstalled optional add-ons are strictly not injected into enabledModules.
+        // Add-ons must be explicitly installed by the tenant to be enabled.
         let assignment = await db.userRoleAssignment.findUnique({
           where: {
             userId_tenantId: {

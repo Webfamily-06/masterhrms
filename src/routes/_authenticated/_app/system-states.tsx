@@ -26,6 +26,7 @@ import {
   Package,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/system-states")({
   component: SystemStatesShowcase,
@@ -67,6 +68,7 @@ function SystemStatesShowcase() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-5">
         <div>
+          <BreadcrumbNav />
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Enterprise System States & Error Workflow

@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -44,6 +45,8 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
+import { useNavigationResolver } from "@/lib/navigation-resolver";
+import { AddonNotInstalled } from "@/components/addon-not-installed";
 
 export const Route = createFileRoute("/_authenticated/_app/shopify")({
   component: ShopifyHubPage,
@@ -51,6 +54,8 @@ export const Route = createFileRoute("/_authenticated/_app/shopify")({
 
 export default function ShopifyHubPage() {
   const queryClient = useQueryClient();
+  const { isEntitled, isLoading: isNavLoading } = useNavigationResolver();
+  const hasEntitlement = isEntitled("shopify-sync");
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Store Form State
@@ -78,17 +83,20 @@ export default function ShopifyHubPage() {
   const { data: dashData, isLoading: dashLoading } = useQuery({
     queryKey: ["shopify-dashboard"],
     queryFn: () => api.get("/shopify/dashboard"),
-    refetchInterval: 15000,
+    enabled: hasEntitlement,
+    refetchInterval: hasEntitlement ? 15000 : false,
   });
 
   const { data: storesData } = useQuery({
     queryKey: ["shopify-stores"],
     queryFn: () => api.get("/shopify/stores"),
+    enabled: hasEntitlement,
   });
 
   const { data: logsData, refetch: refetchLogs } = useQuery({
     queryKey: ["shopify-logs"],
     queryFn: () => api.get("/shopify/logs"),
+    enabled: hasEntitlement,
   });
 
   const stores = storesData?.stores || dashData?.stores || [];
@@ -204,8 +212,20 @@ export default function ShopifyHubPage() {
     return matchSearch && matchLevel;
   });
 
+  if (!isNavLoading && !hasEntitlement) {
+    return (
+      <AddonNotInstalled
+        addonName="Shopify Sync"
+        addonSlug="shopify-sync"
+        category="E-Commerce"
+        description="Automate inventory updates, product catalog synchronization, and real-time order processing with your Shopify store."
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      <BreadcrumbNav className="mb-4" />
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">
         <div>

@@ -9,6 +9,7 @@ import { formatSystemAmount } from "@/lib/currency";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initInventoryCharts } from "@/lib/dashboard-charts";
 import { Badge } from "@/components/ui/badge";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/inventory-dashboard")({
   component: InventoryDashboardPage,
@@ -86,6 +87,7 @@ export default function InventoryDashboardPage() {
         {/* Top Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-gray-900 dark:text-gray-100 text-xl max-lg:text-lg font-bold mb-0">Inventory Dashboard</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Realtime warehouse balances, stock valuations, and item movements.</p>
           </div>

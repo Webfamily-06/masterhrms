@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -419,6 +420,7 @@ export function SuperAdminPlansPage() {
 
   return (
     <div className="space-y-6">
+      <BreadcrumbNav className="mb-4" />
       {/* Top Header & Context Actions */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5">
         <div>

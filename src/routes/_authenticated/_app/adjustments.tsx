@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatSystemAmount } from "@/lib/currency";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/adjustments")({
   component: AdjustmentsPage,
@@ -261,6 +262,7 @@ function AdjustmentsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
             <SlidersHorizontal className="size-6 text-indigo-500" />
             Physical Stock Adjustments & Count Audits

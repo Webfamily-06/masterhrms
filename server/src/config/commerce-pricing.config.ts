@@ -273,6 +273,30 @@ export function buildCommercePricingConfig(overrides?: Partial<CommercePricingCo
       monthly: p(process.env.COMMERCE_PRICE_MULTI_CURRENCY_MONTHLY, 89),
       annual: p(process.env.COMMERCE_PRICE_MULTI_CURRENCY_ANNUAL, 890),
     },
+    "woocommerce-sync": {
+      monthly: p(process.env.COMMERCE_PRICE_WOOCOMMERCE_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_WOOCOMMERCE_ANNUAL, 0, true),
+    },
+    "woocommerce-hub": {
+      monthly: p(process.env.COMMERCE_PRICE_WOOCOMMERCE_HUB_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_WOOCOMMERCE_HUB_ANNUAL, 0, true),
+    },
+    "shopify-sync": {
+      monthly: p(process.env.COMMERCE_PRICE_SHOPIFY_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_SHOPIFY_ANNUAL, 0, true),
+    },
+    "smart-dashboard": {
+      monthly: p(process.env.COMMERCE_PRICE_SMART_DASHBOARD_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_SMART_DASHBOARD_ANNUAL, 0, true),
+    },
+    "smart-reports": {
+      monthly: p(process.env.COMMERCE_PRICE_SMART_REPORTS_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_SMART_REPORTS_ANNUAL, 0, true),
+    },
+    "ai-business-advisor": {
+      monthly: p(process.env.COMMERCE_PRICE_AI_BUSINESS_ADVISOR_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_AI_BUSINESS_ADVISOR_ANNUAL, 0, true),
+    },
   };
 
   return {

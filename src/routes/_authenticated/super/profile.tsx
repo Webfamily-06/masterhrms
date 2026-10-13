@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -231,6 +232,7 @@ function SuperProfileAdmin() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      <BreadcrumbNav className="mb-4" />
       {/* Hidden Canvas for Avatar Cropping */}
       <canvas ref={canvasRef} className="hidden" />
 

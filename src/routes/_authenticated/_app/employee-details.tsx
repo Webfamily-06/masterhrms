@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -293,6 +294,7 @@ export function EmployeeDetailsPage() {
 
   return (
     <div className="space-y-6 max-w-full pb-16 animate-in fade-in duration-200">
+      <BreadcrumbNav className="mb-4" />
       {/* ─── 1. TOP BREADCRUMB & ACTION BAR (MATCHING LARAVEL SHOW.TSX) ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div className="flex items-center gap-2.5 flex-wrap">

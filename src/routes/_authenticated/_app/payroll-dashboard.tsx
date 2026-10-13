@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Dialog,
   DialogContent,
@@ -263,6 +264,7 @@ export default function PayrollDashboardPage() {
       {/* ── Page Header / Actions (matching ui/payroll.html line 1272) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-border-color">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">Payroll</h1>
           <div className="flex items-center gap-1.5 text-xs text-default">
             <Link to="/hrm-dashboard" className="hover:text-primary">Dashboard</Link>

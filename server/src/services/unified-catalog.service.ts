@@ -38,6 +38,15 @@ export interface CatalogPriceDefinition {
   isDefault: boolean;
 }
 
+export type AddonNavigationMode = "extension" | "standalone" | "standalone_with_submenu" | "integrated";
+
+export interface CatalogNavigationChild {
+  label: string;
+  route: string;
+  requiredAddonSlug?: string;
+  order?: number;
+}
+
 export interface CatalogProductDefinition {
   id: string;
   slug: string;
@@ -54,16 +63,27 @@ export interface CatalogProductDefinition {
   prices: CatalogPriceDefinition[];
   seatBands?: SeatBandTier[];
   requiredProductSlugs?: string[];
+  navigationMode?: AddonNavigationMode;
+  navigationLabel?: string;
+  navigationIcon?: string;
+  navigationGroup?: string;
+  navigationOrder?: number;
+  navigationRoute?: string;
+  targetParentId?: string;
+  navigationChildren?: CatalogNavigationChild[];
   eligibility?: {
     eligible: boolean;
     alreadyOwned?: boolean;
     reason?: string;
     isPlanIncluded?: boolean;
     isInstalled?: boolean;
+    isEnabled?: boolean;
+    canDisable?: boolean;
+    canEnable?: boolean;
     isEntitled?: boolean;
     isFree?: boolean;
-    lifecycleStatus?: "installed" | "enabled" | "available" | "pending_payment" | "plan_restricted";
-    allowedAction?: "open" | "install" | "purchase" | "upgrade_plan";
+    lifecycleStatus?: "installed" | "enabled" | "disabled" | "available" | "pending_payment" | "plan_restricted";
+    allowedAction?: "open" | "install" | "purchase" | "upgrade_plan" | "enable" | "disable";
   };
   icon?: string;
   image?: string;
@@ -100,6 +120,14 @@ export interface CanonicalProductTemplate {
   requiredProductSlugs?: string[];
   hasSeatBands?: boolean;
   wave?: "WAVE_1" | "WAVE_2" | "WAVE_3";
+  navigationMode?: AddonNavigationMode;
+  navigationLabel?: string;
+  navigationIcon?: string;
+  navigationGroup?: string;
+  navigationOrder?: number;
+  navigationRoute?: string;
+  targetParentId?: string;
+  navigationChildren?: CatalogNavigationChild[];
 }
 
 export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
@@ -261,6 +289,13 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_1",
+    navigationMode: "integrated",
+    targetParentId: "time-attendance",
+    navigationLabel: "Biometric Hardware Sync",
+    navigationIcon: "ph-fingerprint",
+    navigationGroup: "HRM SUITE",
+    navigationOrder: 10,
+    navigationRoute: "/biometric-sync",
     features: [
       "Push-protocol & iClock ADMS support",
       "Automated attendance punch log reconciliation",
@@ -280,6 +315,12 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "Google Workspace",
+    navigationIcon: "ph-google-logo",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 10,
+    navigationRoute: "/google-workspace",
     features: [
       "Google Calendar out-of-office synchronization",
       "Workspace directory provisioning",
@@ -299,6 +340,13 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_1",
+    navigationMode: "integrated",
+    targetParentId: "operations-assets",
+    navigationLabel: "Enterprise Asset Management",
+    navigationIcon: "ph-cube",
+    navigationGroup: "Operations",
+    navigationOrder: 5,
+    navigationRoute: "/assets",
     features: [
       "Asset custody & custodian sign-off",
       "Warranty tracking & maintenance scheduling",
@@ -318,6 +366,13 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_1",
+    navigationMode: "integrated",
+    targetParentId: "hrm-performance",
+    navigationLabel: "Strategic OKRs & Goals",
+    navigationIcon: "ph-target",
+    navigationGroup: "HRM SUITE",
+    navigationOrder: 5,
+    navigationRoute: "/okr",
     features: [
       "Quarterly & annual OKR cycle management",
       "Key result progress tracking with weightings",
@@ -337,6 +392,12 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "WhatsApp Alerts",
+    navigationIcon: "ph-whatsapp-logo",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 11,
+    navigationRoute: "/whatsapp-alerts",
     features: [
       "Automated PDF payslip dispatch",
       "Instant shift and leave status alerts",
@@ -355,6 +416,12 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "AI Document OCR",
+    navigationIcon: "ph-file-text",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 13,
+    navigationRoute: "/ai-ocr",
     features: [
       "Automated invoice data extraction",
       "Vendor GSTIN and line-item reconciliation",
@@ -373,6 +440,13 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_1",
+    navigationMode: "integrated",
+    targetParentId: "finance-accounting",
+    navigationLabel: "TallyPrime XML Bridge",
+    navigationIcon: "ph-arrows-left-right",
+    navigationGroup: "Finance",
+    navigationOrder: 10,
+    navigationRoute: "/tally-importer",
     features: [
       "Tally XML journal and voucher generation",
       "Ledger masters two-way sync",
@@ -582,6 +656,23 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_2",
+    navigationMode: "standalone",
+    navigationLabel: "Smart Reports",
+    navigationIcon: "ph-file-text",
+    navigationGroup: "Finance",
+    navigationOrder: 3,
+    navigationRoute: "/smart-reports",
+    navigationChildren: [
+      { label: "Reports Catalogue", route: "/smart-reports", requiredAddonSlug: "smart-reports", order: 1 },
+      { label: "Attendance Summary", route: "/smart-reports/attendance-summary", requiredAddonSlug: "smart-reports", order: 2 },
+      { label: "Payroll Sheet", route: "/smart-reports/payroll-sheet", requiredAddonSlug: "smart-reports", order: 3 },
+      { label: "Leave Utilization", route: "/smart-reports/leave-report", requiredAddonSlug: "smart-reports", order: 4 },
+      { label: "Sales Invoices", route: "/smart-reports/sales-invoice", requiredAddonSlug: "smart-reports", order: 5 },
+      { label: "Purchase Invoices", route: "/smart-reports/purchase-invoice", requiredAddonSlug: "smart-reports", order: 6 },
+      { label: "Deal Pipeline", route: "/smart-reports/deal-pipeline", requiredAddonSlug: "smart-reports", order: 7 },
+      { label: "Product Stock", route: "/smart-reports/product-stock", requiredAddonSlug: "smart-reports", order: 8 },
+      { label: "Project Progress", route: "/smart-reports/project-progress", requiredAddonSlug: "smart-reports", order: 9 },
+    ],
     features: [
       "Custom multi-dimensional report generator",
       "Scheduled email delivery for leadership",
@@ -601,10 +692,47 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_2",
+    navigationMode: "standalone_with_submenu",
+    navigationLabel: "Smart Dashboard",
+    navigationIcon: "ph-chart-pie",
+    navigationGroup: "Operations",
+    navigationOrder: 2,
+    navigationRoute: "/smart-dashboard",
+    navigationChildren: [
+      { label: "Executive Overview", route: "/smart-dashboard", requiredAddonSlug: "smart-dashboard", order: 1 },
+      { label: "Financial Analytics", route: "/smart-dashboard/financial", requiredAddonSlug: "smart-dashboard", order: 2 },
+      { label: "Sales & Customer", route: "/smart-dashboard/sales", requiredAddonSlug: "smart-dashboard", order: 3 },
+      { label: "Operational Analytics", route: "/smart-dashboard/operational", requiredAddonSlug: "smart-dashboard", order: 4 },
+    ],
     features: [
       "Widget-based real-time telemetry",
       "Role-tailored KPI views",
       "Exportable presentation graphics",
+    ],
+  },
+  {
+    id: "addon_ai_business_advisor",
+    slug: "ai-business-advisor",
+    name: "AI Business Advisor",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "ai-business-advisor",
+    targetEngine: "addon",
+    description: "Daily AI-driven executive business health checks across Accounting, HRM, CRM, Projects, POS, and Inventory.",
+    category: "AI",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_2",
+    navigationMode: "standalone",
+    navigationLabel: "AI Business Advisor",
+    navigationIcon: "ph-brain",
+    navigationGroup: "AI",
+    navigationOrder: 1,
+    navigationRoute: "/ai-business-advisor",
+    features: [
+      "Daily automated business health scoring across 6 modules",
+      "AI-generated Insights, Recommendations, and Alerts",
+      "7-day trend tracking with on-demand Generate Now refresh",
     ],
   },
   {
@@ -691,11 +819,18 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     entitlementKey: "shopify-sync",
     targetEngine: "addon",
     description: "Bi-directional catalog, order, and stock sync connecting Shopify e-commerce storefronts to POS inventory.",
-    category: "Integrations",
+    category: "E-Commerce",
     isPublic: true,
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_2",
+    navigationMode: "standalone_with_submenu",
+    navigationLabel: "Shopify Sync",
+    navigationIcon: "ph-shopping-bag",
+    navigationGroup: "E-Commerce",
+    navigationOrder: 2,
+    navigationRoute: "/shopify",
+    requiredProductSlugs: ["shopify-sync"],
     features: [
       "Real-time order webhook ingestion",
       "Automatic POS inventory decrementing",
@@ -710,15 +845,49 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     entitlementKey: "woocommerce-sync",
     targetEngine: "addon",
     description: "Synchronize WordPress WooCommerce digital storefronts with centralized billing, stock, and orders.",
-    category: "Integrations",
+    category: "E-Commerce",
     isPublic: true,
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_2",
+    navigationMode: "standalone_with_submenu",
+    navigationLabel: "WooCommerce Sync",
+    navigationIcon: "ph-shopping-cart",
+    navigationGroup: "E-Commerce",
+    navigationOrder: 1,
+    navigationRoute: "/integrations",
+    requiredProductSlugs: ["woocommerce-sync"],
     features: [
       "REST API product catalog publishing",
       "Two-way order and fulfillment sync",
       "Refund and stock balance reconciliation",
+    ],
+  },
+  {
+    id: "addon_woocommerce_hub",
+    slug: "woocommerce-hub",
+    name: "WooCommerce Integration Hub",
+    productType: "ADDON_INTEGRATION",
+    entitlementKey: "woocommerce-hub",
+    targetEngine: "addon",
+    description: "Bi-directional synchronization for products, inventory, customers, and orders with your WooCommerce store.",
+    category: "E-Commerce",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_2",
+    navigationMode: "standalone_with_submenu",
+    navigationLabel: "WooCommerce Sync",
+    navigationIcon: "ph-shopping-cart",
+    navigationGroup: "E-Commerce",
+    navigationOrder: 1,
+    navigationRoute: "/integrations",
+    requiredProductSlugs: ["woocommerce-hub"],
+    features: [
+      "REST API product catalog publishing",
+      "Two-way order and fulfillment sync",
+      "Refund and stock balance reconciliation",
+      "Automated webhook order ingestion",
     ],
   },
   {
@@ -734,6 +903,12 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_2",
+    navigationMode: "extension",
+    navigationLabel: "Razorpay Gateway",
+    navigationIcon: "ph-credit-card",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 12,
+    navigationRoute: "/razorpay-gateway",
     features: [
       "Standard Checkout modal with instant capture",
       "Webhook payment verification with HMAC signatures",
@@ -755,6 +930,12 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     status: "ACTIVE",
     version: "1.0.0",
     wave: "WAVE_3",
+    navigationMode: "standalone",
+    navigationLabel: "Strategy Studio",
+    navigationIcon: "ph-compass",
+    navigationGroup: "STRATEGY",
+    navigationOrder: 2,
+    navigationRoute: "/strategy-studio",
     features: [
       "Interactive 4-quadrant strategic canvas",
       "Strategic initiative prioritization scoring",
@@ -994,8 +1175,10 @@ export class UnifiedCatalogService {
 
     // Optional tenant entitlement state
     let tenantSub: any = null;
-    let tenantModules: Set<string> = new Set();
-    let tenantAddons: Set<string> = new Set();
+    let tenantActiveModules: Set<string> = new Set();
+    let tenantDisabledModules: Set<string> = new Set();
+    let tenantActiveAddons: Set<string> = new Set();
+    let tenantDisabledAddons: Set<string> = new Set();
 
     if (options?.tenantId) {
       try {
@@ -1005,17 +1188,31 @@ export class UnifiedCatalogService {
             include: { plan: true },
           }),
           db.tenantModule.findMany({
-            where: { tenantId: options.tenantId, isEnabled: true },
-            select: { moduleKey: true },
+            where: { tenantId: options.tenantId },
+            select: { moduleKey: true, isEnabled: true },
           }),
           db.tenantAddon.findMany({
-            where: { tenantId: options.tenantId, status: "active" },
-            select: { addonSlug: true },
+            where: { tenantId: options.tenantId },
+            select: { addonSlug: true, status: true },
           }),
         ]);
         tenantSub = sub;
-        mods.forEach((m) => tenantModules.add(m.moduleKey.toLowerCase()));
-        addons.forEach((a) => tenantAddons.add(a.addonSlug.toLowerCase()));
+        mods.forEach((m: any) => {
+          const key = m.moduleKey.toLowerCase();
+          if (m.isEnabled) {
+            tenantActiveModules.add(key);
+          } else {
+            tenantDisabledModules.add(key);
+          }
+        });
+        addons.forEach((a: any) => {
+          const key = a.addonSlug.toLowerCase();
+          if (a.status === "active" || a.status === "trial") {
+            tenantActiveAddons.add(key);
+          } else if (a.status === "disabled") {
+            tenantDisabledAddons.add(key);
+          }
+        });
       } catch (err) {
         // Non-fatal, proceed without tenant state
       }
@@ -1043,6 +1240,7 @@ export class UnifiedCatalogService {
 
     const SOVEREIGN_GROWTH_INCLUDED_ADDONS = new Set([
       "woocommerce-sync",
+      "woocommerce-hub",
       "shopify-sync",
       "google-workspace",
       "google-workspace-integration",
@@ -1204,8 +1402,13 @@ export class UnifiedCatalogService {
 
       let isPlanIncluded = false;
       let alreadyOwned = false;
+      let isExplicitlyDisabled = false;
       let eligible = true;
       let reason: string | undefined = undefined;
+
+      const isCoreProduct =
+        template.productType === "BASE_PLAN" ||
+        ["starter", "growth", "sovereign", "core_platform", "hrm", "hrms"].includes(template.slug.toLowerCase());
 
       if (options?.tenantId) {
         if (template.targetEngine === "subscription") {
@@ -1216,7 +1419,12 @@ export class UnifiedCatalogService {
           }
         } else if (template.targetEngine === "module") {
           const modKey = template.slug.toLowerCase();
-          if (tenantModules.has(modKey) || tenantModules.has(`product_${modKey}`)) {
+          const checkKeys = [modKey, `product_${modKey}`];
+          if (checkKeys.some((k) => tenantDisabledModules.has(k))) {
+            isExplicitlyDisabled = true;
+            alreadyOwned = true;
+            reason = "Module is currently disabled for this workspace";
+          } else if (checkKeys.some((k) => tenantActiveModules.has(k))) {
             alreadyOwned = true;
             eligible = false;
             reason = "Module is already activated for this workspace";
@@ -1229,9 +1437,21 @@ export class UnifiedCatalogService {
               ? ["google-workspace", "google-workspace-integration"]
               : []),
             ...(tSlug.includes("tally") ? ["tally", "tally-importer"] : []),
+            ...(tSlug.includes("woocommerce") ? ["woocommerce", "woocommerce-sync", "woocommerce-hub"] : []),
+            ...(tSlug.includes("shopify") ? ["shopify", "shopify-sync"] : []),
+            ...(tSlug.includes("biometric") ? ["biometric", "biometric-sync"] : []),
+            ...(tSlug.includes("okr") ? ["okr", "okr-performance"] : []),
+            ...(tSlug.includes("asset") ? ["assets", "asset-management"] : []),
+            ...(tSlug.includes("smart-reports") ? ["smart-reports", "smart-reports-addon", "addon_smart_reports"] : []),
+            ...(tSlug.includes("smart-dashboard") ? ["smart-dashboard", "smart-dashboard-analytics", "addon_smart_dashboard"] : []),
+            ...(tSlug.includes("ai-business-advisor") || tSlug.includes("business-advisor") ? ["ai-business-advisor", "business-advisor"] : []),
           ];
 
-          if (checkSlugs.some((s) => tenantAddons.has(s) || tenantModules.has(s))) {
+          if (checkSlugs.some((s) => tenantDisabledAddons.has(s) || tenantDisabledModules.has(s))) {
+            isExplicitlyDisabled = true;
+            alreadyOwned = true;
+            reason = "Add-on is installed but disabled for this workspace";
+          } else if (checkSlugs.some((s) => tenantActiveAddons.has(s) || tenantActiveModules.has(s))) {
             alreadyOwned = true;
             eligible = false;
             reason = "Add-on is already active for this workspace";
@@ -1247,15 +1467,26 @@ export class UnifiedCatalogService {
       }
 
       const isInstalled = alreadyOwned;
-      const isEntitled = isInstalled || isPlanIncluded;
-      const lifecycleStatus: "installed" | "enabled" | "available" | "pending_payment" | "plan_restricted" =
-        isInstalled ? "installed" : "available";
-      const allowedAction: "open" | "install" | "purchase" | "upgrade_plan" =
-        isInstalled
-          ? "open"
-          : isPlanIncluded || isFree
-            ? "install"
-            : "purchase";
+      const isEnabled = isInstalled && !isExplicitlyDisabled;
+      const canDisable = isEnabled && !isCoreProduct;
+      const canEnable = isInstalled && isExplicitlyDisabled && !isCoreProduct;
+      const isEntitled = isEnabled;
+
+      const lifecycleStatus: "installed" | "enabled" | "disabled" | "available" | "pending_payment" | "plan_restricted" =
+        isExplicitlyDisabled
+          ? "disabled"
+          : isEnabled
+            ? "enabled"
+            : "available";
+
+      const allowedAction: "open" | "install" | "purchase" | "upgrade_plan" | "enable" | "disable" =
+        isExplicitlyDisabled
+          ? "enable"
+          : isEnabled
+            ? "open"
+            : isPlanIncluded || isFree
+              ? "install"
+              : "purchase";
 
       const eligibility: CatalogProductDefinition["eligibility"] = {
         eligible,
@@ -1263,6 +1494,9 @@ export class UnifiedCatalogService {
         reason,
         isPlanIncluded,
         isInstalled,
+        isEnabled,
+        canDisable,
+        canEnable,
         isEntitled,
         isFree,
         lifecycleStatus,
@@ -1304,6 +1538,14 @@ export class UnifiedCatalogService {
         prices,
         seatBands: template.hasSeatBands ? config.seatBands : undefined,
         requiredProductSlugs: template.requiredProductSlugs,
+        navigationMode: template.navigationMode,
+        navigationLabel: template.navigationLabel,
+        navigationIcon: template.navigationIcon,
+        navigationGroup: template.navigationGroup,
+        navigationOrder: template.navigationOrder,
+        navigationRoute: template.navigationRoute,
+        targetParentId: template.targetParentId,
+        navigationChildren: template.navigationChildren,
         eligibility,
         wave: template.wave,
       });
@@ -1353,6 +1595,21 @@ export class UnifiedCatalogService {
         })),
         skipDuplicates: true,
       });
+    }
+
+    // Synchronize category for E-Commerce add-ons in case of existing rows
+    try {
+      await db.addon.updateMany({
+        where: {
+          slug: { in: ["shopify-sync", "woocommerce-sync", "woocommerce-hub"] },
+        },
+        data: {
+          category: "E-Commerce",
+          status: "active",
+        },
+      });
+    } catch {
+      // Non-fatal if table unmigrated
     }
   }
 

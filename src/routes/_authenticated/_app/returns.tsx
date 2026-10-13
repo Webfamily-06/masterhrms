@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatSystemAmount } from "@/lib/currency";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/returns")({
   component: ReturnsPage,
@@ -565,6 +566,7 @@ function ReturnsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <RotateCcw className="h-6 w-6 text-orange-500" />
             Returns & Credit/Debit Notes

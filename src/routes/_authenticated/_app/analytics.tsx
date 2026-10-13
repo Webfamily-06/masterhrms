@@ -42,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Select,
   SelectContent,
@@ -295,6 +296,7 @@ export default function EnterpriseAnalyticsPage() {
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
         <div>
+          <BreadcrumbNav />
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Enterprise Reports & Analytics Hub</h1>
             <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs py-0.5">

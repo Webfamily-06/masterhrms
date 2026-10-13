@@ -74,6 +74,7 @@ import {
 import { toast } from "sonner";
 import { generateOfficialStatutoryPdf } from "@/lib/statutory-pdf-generator";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/forms")({
   component: FormsPage,
@@ -533,6 +534,7 @@ export function FormsPage() {
               <Scale className="size-5" />
             </div>
             <div>
+              <BreadcrumbNav />
               <h1 className="text-xl font-bold tracking-tight text-foreground">
                 Official Statutory Forms & Compliance Hub
               </h1>

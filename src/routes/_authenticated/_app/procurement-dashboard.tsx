@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { formatSystemAmount } from "@/lib/currency";
 import { initFlatpickr } from "@/lib/init-dashboard";
 import { initProcurementCharts } from "@/lib/dashboard-charts";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/procurement-dashboard")({
   component: ProcurementDashboardPage,
@@ -60,6 +61,7 @@ export default function ProcurementDashboardPage() {
       <div className="p-3 lg:py-6 lg:px-0">
                     
 					<div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+						<BreadcrumbNav />
 						<h1 className="text-gray-900 text-xl font-bold mb-0">Procurement Dashboard</h1>
 						<div className="flex items-center gap-2">
 							<div className="relative rangepicker-input w-[174px] h-[28px] leading-none">

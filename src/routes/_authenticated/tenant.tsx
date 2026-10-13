@@ -5,6 +5,7 @@ import { evaluateRouteAccess } from "@/lib/route-guards";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RealtimeNotificationDrawer } from "@/components/realtime-notification-drawer";
 import { PortalSwitcher } from "@/components/portal-switcher";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/tenant")({
   beforeLoad: async () => {
@@ -40,6 +41,7 @@ function TenantPortalLayout() {
 
           {/* Main content viewport */}
           <main className="flex-1 overflow-y-auto p-6">
+            <BreadcrumbNav className="mb-5" />
             <Outlet />
           </main>
         </div>

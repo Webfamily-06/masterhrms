@@ -36,6 +36,7 @@ import {
 import { PlanGuard } from "@/components/plan-guard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   Kanban,
   Plus,
@@ -345,6 +346,7 @@ function ProjectsPage() {
               <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
                 <Kanban className="size-5" />
               </div>
+              <BreadcrumbNav />
               <h1 className="text-2xl font-bold tracking-tight truncate">Projects & Kanban Board</h1>
             </div>
             <p className="text-sm text-muted-foreground mt-1 truncate">

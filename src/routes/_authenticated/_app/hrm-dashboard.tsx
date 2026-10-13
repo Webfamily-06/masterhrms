@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
@@ -232,6 +233,7 @@ export default function DashboardPage() {
       {/* ── Greeting & Actions (matching ui/index.html line 1268) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 lg:mb-6">
         <div>
+          <BreadcrumbNav />
           <h1 className="text-gray-900 dark:text-gray-100 text-xl max-lg:text-lg font-bold mb-1">
             Good morning, {userName}
           </h1>

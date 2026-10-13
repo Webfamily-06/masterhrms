@@ -7,6 +7,7 @@ import { initFlatpickr } from "@/lib/init-dashboard";
 import { initSalesCharts } from "@/lib/dashboard-charts";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, ShoppingCart, Users, FileText, ArrowUpRight, TrendingUp, Package, Compass } from "lucide-react";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/sales-dashboard")({
   component: SalesDashboardPage,
@@ -57,6 +58,7 @@ export default function SalesDashboardPage() {
         {/* Top Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-gray-900 dark:text-gray-100 text-xl font-bold mb-0">Sales & CRM Analytics</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Realtime order velocity, customer lifetime value, and sales pipelines.</p>
           </div>

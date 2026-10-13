@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlanGuard } from "@/components/plan-guard";
 import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import {
   ScanLine,
   Upload,
@@ -229,6 +230,7 @@ function AiOcrPage() {
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b pb-4">
           <div>
+            <BreadcrumbNav />
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <ScanLine className="size-6 text-purple-600" /> AI Invoice OCR Reader
             </h1>

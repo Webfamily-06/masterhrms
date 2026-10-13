@@ -1,3 +1,4 @@
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -137,6 +138,7 @@ export default function SuperAnalyticsPage() {
 
   return (
     <div className="w-full min-w-0 flex-1 space-y-6 p-4 lg:p-6 pb-12">
+      <BreadcrumbNav className="mb-4" />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
         <div>

@@ -72,6 +72,7 @@ import {
 import { formatSystemAmount } from "@/lib/currency";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/project/$id")({
   component: ProjectDetailPage,
@@ -904,6 +905,7 @@ function ProjectDetailPage() {
                     <FolderGit2 className="size-6" />
                   </div>
                   <div className="min-w-0">
+                    <BreadcrumbNav />
                     <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">
                       {project.name}
                     </h1>

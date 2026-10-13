@@ -47,6 +47,7 @@ import { ExpiredSubscriptionView } from "@/components/subscription/expired-subsc
 import { SubscriptionWarningPopup } from "@/components/subscription/subscription-warning-popup";
 import { SubscriptionFooterBar } from "@/components/subscription/subscription-footer-bar";
 import { ProductNotSubscribed } from "@/components/product-not-subscribed";
+import { AddonNotInstalled } from "@/components/addon-not-installed";
 import { useNavigationResolver } from "@/lib/navigation-resolver";
 
 export const Route = createFileRoute("/_authenticated/_app")({
@@ -129,8 +130,8 @@ const ALL_SEARCH_ITEMS = [
   { title: "Point of Sale (POS Terminal)", url: "/pos", group: "ERP Core", icon: ShoppingCart },
   { title: "Online Storefront Catalog", url: "/store", group: "ERP Core", icon: Store },
   { title: "Client Invoice Portal (B2B)", url: "/portal/invoices/INV-2026-001", group: "Sales & Finance", icon: Receipt },
-  { title: "WooCommerce Sync", url: "/integrations", group: "Extensions", icon: ShoppingCart },
-  { title: "Shopify Sync", url: "/shopify", group: "Extensions", icon: Store },
+  { title: "WooCommerce Sync", url: "/integrations", group: "E-Commerce", icon: ShoppingCart },
+  { title: "Shopify Sync", url: "/shopify", group: "E-Commerce", icon: Store },
   { title: "Products & Catalog", url: "/products", group: "ERP Core", icon: Package },
   { title: "Stock Transfers & In-Transit", url: "/transfers", group: "ERP Core", icon: ArrowRightLeft },
   { title: "Stock Adjustments & Audits", url: "/adjustments", group: "ERP Core", icon: SlidersHorizontal },
@@ -190,12 +191,12 @@ const ALL_SEARCH_ITEMS = [
   { title: "Automation Rules", url: "/workflows", group: "HRM Suite", icon: Workflow },
   { title: "People Analytics", url: "/analytics", group: "HRM Suite", icon: BarChart3 },
   { title: "App Marketplace", url: "/marketplace", group: "Extensions", icon: Store },
-  { title: "Integrations & API", url: "/integrations", group: "Extensions", icon: Sparkles },
+  { title: "WooCommerce Sync Hub", url: "/integrations", group: "E-Commerce", icon: Sparkles },
   { title: "Google Workspace", url: "/google-workspace", group: "Extensions", icon: Sparkles },
-  { title: "Tally Prime Importer", url: "/tally-importer", group: "Extensions", icon: Layers },
+  { title: "Tally Prime Importer", url: "/tally-importer", group: "Finance", icon: Layers },
   { title: "WhatsApp Alerts", url: "/whatsapp-alerts", group: "Extensions", icon: MessageSquare },
   { title: "Razorpay Gateway", url: "/razorpay-gateway", group: "Extensions", icon: CreditCard },
-  { title: "Strategy Studio (SWOT/PESTEL)", url: "/strategy-studio", group: "Extensions", icon: Target },
+  { title: "Strategy Studio (SWOT/PESTEL)", url: "/strategy-studio", group: "Strategy", icon: Target },
   { title: "AI Invoice OCR Reader", url: "/ai-ocr", group: "Extensions", icon: ScanLine },
   { title: "Company Notice Board", url: "/notice-board", group: "HRM Suite", icon: Megaphone },
   { title: "Internal Reminders", url: "/internal-reminders", group: "Extensions", icon: Bell },
@@ -274,6 +275,9 @@ export function AppShell() {
   const isBiometricRoute = isPathMatchingPrefixes(path, ["/biometric", "/biometric-sync"]);
   const isStrategyRoute = isPathMatchingPrefixes(path, ["/strategy-studio"]);
   const isAiOcrRoute = isPathMatchingPrefixes(path, ["/ai-ocr"]);
+  const isSmartReportsRoute = isPathMatchingPrefixes(path, ["/smart-reports"]);
+  const isSmartDashboardRoute = isPathMatchingPrefixes(path, ["/smart-dashboard"]);
+  const isAiAdvisorRoute = isPathMatchingPrefixes(path, ["/ai-business-advisor"]);
   const isIntegrationConfigRoute = isWooRoute || isShopifyRoute || isGoogleRoute || isTallyRoute || isWhatsappRoute || isRazorpayRoute;
 
   const homeRoute = isSuperAdmin
@@ -730,34 +734,15 @@ export function AppShell() {
 
             {/* Mobile Brand Logo (Visible only on mobile / tablet < 992px) */}
             <Link to={homeRoute} className="logo lg:hidden flex items-center gap-1.5 shrink-0">
-              {branding.isWhiteLabeled && (!branding.activeLogo || branding.activeLogo.includes("logo.webp") || branding.activeLogo.includes("white-logo")) ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="size-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                    <img
-                      src={branding.faviconUrl || "/favicon.webp"}
-                      alt={branding.name}
-                      className="size-4 object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/favicon.webp";
-                      }}
-                      loading="lazy"
-                    />
-                  </div>
-                  <span className="font-bold text-xs tracking-tight text-foreground truncate max-w-[120px]">
-                    {branding.name}
-                  </span>
-                </div>
-              ) : (
-                <img
-                  src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
-                  alt={branding.name || "Master Platform"}
-                  className="h-7 max-h-7 w-auto object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
-                  }}
-                  loading="lazy"
-                />
-              )}
+              <img
+                src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
+                alt={branding.name || "Master Platform"}
+                className="h-7 max-h-7 w-auto object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+                }}
+                loading="lazy"
+              />
             </Link>
 
             {/* Desktop Full Sidebar / Mini Sidebar Toggle Button */}
@@ -784,33 +769,40 @@ export function AppShell() {
               <i className={cn("ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
 
-            {/* Active Company / Workspace Selector */}
+            {/* Active Company / Workspace Brand Logo & Selector */}
             {isWorkspaceAdmin ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="header-item hidden md:flex relative company-dropdown me-auto cursor-pointer">
-                    <div className="bg-card border border-border/70 rounded-xl py-1.5 px-3 flex items-center justify-between gap-2.5 shadow-2xs hover:border-primary/40 hover:bg-muted/40 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <div className="size-5 rounded-md flex items-center justify-center shrink-0">
-                          <img src={branding.faviconUrl || "/favicon.webp"} alt="company" className="size-3.5 object-contain" loading="lazy"/>
-                        </div>
-                        <p className="text-xs font-bold text-foreground leading-none truncate max-w-[150px]">
-                          {profile.tenant?.name || branding.name || "Workspace"}
-                        </p>
-                      </div>
+                    <div className="bg-card border border-border/70 rounded-xl py-1 px-3 flex items-center justify-between gap-2.5 shadow-2xs hover:border-primary/40 hover:bg-muted/40 transition-colors">
+                      <img
+                        src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
+                        alt={branding.name || "Workspace"}
+                        className="h-6 max-h-6 w-auto object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+                        }}
+                        loading="lazy"
+                      />
                       <i className="ph-duotone ph-caret-down text-xs text-muted-foreground"></i>
                     </div>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 p-2 rounded-xl border border-border/70 shadow-md font-sans" align="start">
+                <DropdownMenuContent className="w-60 p-2 rounded-xl border border-border/70 shadow-md font-sans" align="start">
                   <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
                     Active Workspace
                   </DropdownMenuLabel>
                   <DropdownMenuItem className="flex items-center gap-2 p-2 rounded-lg font-medium text-xs">
-                    <div className="size-6 rounded-md flex items-center justify-center">
-                      <img src={branding.faviconUrl || "/favicon.webp"} alt="Tenant" className="size-4 object-contain" loading="lazy"/>
-                    </div>
-                    <span className="truncate">{profile.tenant?.name || branding.name || "Workspace"}</span>
+                    <img
+                      src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
+                      alt="Tenant"
+                      className="h-5 max-h-5 w-auto object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+                      }}
+                      loading="lazy"
+                    />
+                    <span className="truncate text-muted-foreground text-[11px]">{profile.tenant?.name || branding.name || "Workspace"}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
@@ -823,13 +815,16 @@ export function AppShell() {
               </DropdownMenu>
             ) : (
               <div className="header-item hidden md:flex relative me-auto">
-                <div className="bg-card border border-border/70 rounded-xl py-1.5 px-3 flex items-center gap-2 shadow-2xs">
-                  <div className="size-5 rounded-md flex items-center justify-center shrink-0">
-                    <img src={branding.faviconUrl || "/favicon.webp"} alt="company" className="size-3.5 object-contain" loading="lazy"/>
-                  </div>
-                  <p className="text-xs font-bold text-foreground leading-none truncate max-w-[150px]">
-                    {profile.tenant?.name || branding.name || "Workspace"}
-                  </p>
+                <div className="bg-card border border-border/70 rounded-xl py-1 px-3 flex items-center gap-2 shadow-2xs">
+                  <img
+                    src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
+                    alt={branding.name || "Workspace"}
+                    className="h-6 max-h-6 w-auto object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+                    }}
+                    loading="lazy"
+                  />
                 </div>
               </div>
             )}
@@ -1062,17 +1057,19 @@ export function AppShell() {
               moduleName="Integration Management"
               message="Your current user role does not have administrative permissions to configure workspace connectors."
             />
-          ) : isWooRoute && !isEntitled("woocommerce-sync") ? (
-            <ProductNotSubscribed
-              productName="WooCommerce Sync Connector"
-              moduleKey="woocommerce-sync"
-              description="Your workspace does not have an active entitlement for the WooCommerce Sync integration add-on. Please install or assign it from the Add-ons Marketplace."
+          ) : isWooRoute && !isEntitled("woocommerce-sync") && !isEntitled("woocommerce-hub") ? (
+            <AddonNotInstalled
+              addonName="WooCommerce Sync"
+              addonSlug="woocommerce-sync"
+              category="E-Commerce"
+              description="Your workspace does not have an active installation of the WooCommerce integration add-on. Please install or enable it from the Add-ons Marketplace."
             />
           ) : isShopifyRoute && !isEntitled("shopify-sync") ? (
-            <ProductNotSubscribed
-              productName="Shopify Storefront Sync"
-              moduleKey="shopify-sync"
-              description="Your workspace does not have an active entitlement for the Shopify Sync integration add-on. Please install or assign it from the Add-ons Marketplace."
+            <AddonNotInstalled
+              addonName="Shopify Sync"
+              addonSlug="shopify-sync"
+              category="E-Commerce"
+              description="Your workspace does not have an active installation of the Shopify Sync add-on. Please install or enable it from the Add-ons Marketplace."
             />
           ) : isGoogleRoute && !isEntitled("google-workspace-integration") ? (
             <ProductNotSubscribed
@@ -1115,6 +1112,27 @@ export function AppShell() {
               productName="AI Invoice OCR"
               moduleKey="ai-ocr"
               description="Your workspace does not have an active entitlement for the AI Invoice OCR reader. Please install or assign it from the Add-ons Marketplace."
+            />
+          ) : isSmartReportsRoute && !isEntitled("smart-reports") ? (
+            <AddonNotInstalled
+              addonName="Executive Smart Reports"
+              addonSlug="smart-reports"
+              category="Analytics"
+              description="Your workspace does not have an active installation of Executive Smart Reports. Please install or enable it from the Add-ons Marketplace."
+            />
+          ) : isSmartDashboardRoute && !isEntitled("smart-dashboard") ? (
+            <AddonNotInstalled
+              addonName="Smart Dashboard Analytics"
+              addonSlug="smart-dashboard"
+              category="Analytics"
+              description="Your workspace does not have an active installation of Smart Dashboard Analytics. Please install or enable it from the Add-ons Marketplace."
+            />
+          ) : isAiAdvisorRoute && !isEntitled("ai-business-advisor") ? (
+            <AddonNotInstalled
+              addonName="AI Business Advisor"
+              addonSlug="ai-business-advisor"
+              category="AI"
+              description="Your workspace does not have an active installation of AI Business Advisor. Please install or enable it from the Add-ons Marketplace."
             />
           ) : isCrmRoute && !isCrmEntitled ? (
             <ProductNotSubscribed

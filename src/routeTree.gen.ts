@@ -60,6 +60,7 @@ import { Route as AuthenticatedAppActivityLogsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAppAdjustmentsRouteImport } from './routes/_authenticated/_app/adjustments'
 import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/_app/ai'
 import { Route as AuthenticatedAppAiAttendanceInsightsRouteImport } from './routes/_authenticated/_app/ai-attendance-insights'
+import { Route as AuthenticatedAppAiBusinessAdvisorRouteImport } from './routes/_authenticated/_app/ai-business-advisor'
 import { Route as AuthenticatedAppAiConfigurationRouteImport } from './routes/_authenticated/_app/ai-configuration'
 import { Route as AuthenticatedAppAiHiringForecastRouteImport } from './routes/_authenticated/_app/ai-hiring-forecast'
 import { Route as AuthenticatedAppAiOcrRouteImport } from './routes/_authenticated/_app/ai-ocr'
@@ -172,6 +173,8 @@ import { Route as AuthenticatedAppSetupNotesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAppShiftSwapRequestsRouteImport } from './routes/_authenticated/_app/shift-swap-requests'
 import { Route as AuthenticatedAppShiftsRouteImport } from './routes/_authenticated/_app/shifts'
 import { Route as AuthenticatedAppShopifyRouteImport } from './routes/_authenticated/_app/shopify'
+import { Route as AuthenticatedAppSmartDashboardRouteImport } from './routes/_authenticated/_app/smart-dashboard'
+import { Route as AuthenticatedAppSmartReportsRouteImport } from './routes/_authenticated/_app/smart-reports'
 import { Route as AuthenticatedAppSmsGatewayRouteImport } from './routes/_authenticated/_app/sms-gateway'
 import { Route as AuthenticatedAppStrategyStudioRouteImport } from './routes/_authenticated/_app/strategy-studio'
 import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_authenticated/_app/subscription'
@@ -274,6 +277,18 @@ import { Route as AuthenticatedAppInvoiceIdRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppInvoiceCreateRouteImport } from './routes/_authenticated/_app/invoice.create'
 import { Route as AuthenticatedAppProjectIdRouteImport } from './routes/_authenticated/_app/project.$id'
 import { Route as AuthenticatedAppSettingsCustomDomainRouteImport } from './routes/_authenticated/_app/settings.custom-domain'
+import { Route as AuthenticatedAppSmartDashboardFinancialRouteImport } from './routes/_authenticated/_app/smart-dashboard.financial'
+import { Route as AuthenticatedAppSmartDashboardOperationalRouteImport } from './routes/_authenticated/_app/smart-dashboard.operational'
+import { Route as AuthenticatedAppSmartDashboardSalesRouteImport } from './routes/_authenticated/_app/smart-dashboard.sales'
+import { Route as AuthenticatedAppSmartReportsReportIdRouteImport } from './routes/_authenticated/_app/smart-reports.$reportId'
+import { Route as AuthenticatedAppSmartReportsAttendanceSummaryRouteImport } from './routes/_authenticated/_app/smart-reports.attendance-summary'
+import { Route as AuthenticatedAppSmartReportsDealPipelineRouteImport } from './routes/_authenticated/_app/smart-reports.deal-pipeline'
+import { Route as AuthenticatedAppSmartReportsLeaveReportRouteImport } from './routes/_authenticated/_app/smart-reports.leave-report'
+import { Route as AuthenticatedAppSmartReportsPayrollSheetRouteImport } from './routes/_authenticated/_app/smart-reports.payroll-sheet'
+import { Route as AuthenticatedAppSmartReportsProductStockRouteImport } from './routes/_authenticated/_app/smart-reports.product-stock'
+import { Route as AuthenticatedAppSmartReportsProjectProgressRouteImport } from './routes/_authenticated/_app/smart-reports.project-progress'
+import { Route as AuthenticatedAppSmartReportsPurchaseInvoiceRouteImport } from './routes/_authenticated/_app/smart-reports.purchase-invoice'
+import { Route as AuthenticatedAppSmartReportsSalesInvoiceRouteImport } from './routes/_authenticated/_app/smart-reports.sales-invoice'
 import { Route as AuthenticatedHrAssetsIndexRouteImport } from './routes/_authenticated/hr/assets/index'
 import { Route as AuthenticatedHrAssetsDashboardRouteImport } from './routes/_authenticated/hr/assets/dashboard'
 import { Route as AuthenticatedHrAssetsDepreciationRouteImport } from './routes/_authenticated/hr/assets/depreciation'
@@ -699,6 +714,12 @@ const AuthenticatedAppAiAttendanceInsightsRoute =
   AuthenticatedAppAiAttendanceInsightsRouteImport.update({
     id: '/ai-attendance-insights',
     path: '/ai-attendance-insights',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAiBusinessAdvisorRoute =
+  AuthenticatedAppAiBusinessAdvisorRouteImport.update({
+    id: '/ai-business-advisor',
+    path: '/ai-business-advisor',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 const AuthenticatedAppAiConfigurationRoute =
@@ -1353,6 +1374,18 @@ const AuthenticatedAppShopifyRoute = AuthenticatedAppShopifyRouteImport.update({
   path: '/shopify',
   getParentRoute: () => AuthenticatedAppRouteRoute,
 } as any)
+const AuthenticatedAppSmartDashboardRoute =
+  AuthenticatedAppSmartDashboardRouteImport.update({
+    id: '/smart-dashboard',
+    path: '/smart-dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppSmartReportsRoute =
+  AuthenticatedAppSmartReportsRouteImport.update({
+    id: '/smart-reports',
+    path: '/smart-reports',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppSmsGatewayRoute =
   AuthenticatedAppSmsGatewayRouteImport.update({
     id: '/sms-gateway',
@@ -1931,6 +1964,78 @@ const AuthenticatedAppSettingsCustomDomainRoute =
     id: '/custom-domain',
     path: '/custom-domain',
     getParentRoute: () => AuthenticatedAppSettingsRoute,
+  } as any)
+const AuthenticatedAppSmartDashboardFinancialRoute =
+  AuthenticatedAppSmartDashboardFinancialRouteImport.update({
+    id: '/financial',
+    path: '/financial',
+    getParentRoute: () => AuthenticatedAppSmartDashboardRoute,
+  } as any)
+const AuthenticatedAppSmartDashboardOperationalRoute =
+  AuthenticatedAppSmartDashboardOperationalRouteImport.update({
+    id: '/operational',
+    path: '/operational',
+    getParentRoute: () => AuthenticatedAppSmartDashboardRoute,
+  } as any)
+const AuthenticatedAppSmartDashboardSalesRoute =
+  AuthenticatedAppSmartDashboardSalesRouteImport.update({
+    id: '/sales',
+    path: '/sales',
+    getParentRoute: () => AuthenticatedAppSmartDashboardRoute,
+  } as any)
+const AuthenticatedAppSmartReportsReportIdRoute =
+  AuthenticatedAppSmartReportsReportIdRouteImport.update({
+    id: '/$reportId',
+    path: '/$reportId',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsAttendanceSummaryRoute =
+  AuthenticatedAppSmartReportsAttendanceSummaryRouteImport.update({
+    id: '/attendance-summary',
+    path: '/attendance-summary',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsDealPipelineRoute =
+  AuthenticatedAppSmartReportsDealPipelineRouteImport.update({
+    id: '/deal-pipeline',
+    path: '/deal-pipeline',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsLeaveReportRoute =
+  AuthenticatedAppSmartReportsLeaveReportRouteImport.update({
+    id: '/leave-report',
+    path: '/leave-report',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsPayrollSheetRoute =
+  AuthenticatedAppSmartReportsPayrollSheetRouteImport.update({
+    id: '/payroll-sheet',
+    path: '/payroll-sheet',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsProductStockRoute =
+  AuthenticatedAppSmartReportsProductStockRouteImport.update({
+    id: '/product-stock',
+    path: '/product-stock',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsProjectProgressRoute =
+  AuthenticatedAppSmartReportsProjectProgressRouteImport.update({
+    id: '/project-progress',
+    path: '/project-progress',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsPurchaseInvoiceRoute =
+  AuthenticatedAppSmartReportsPurchaseInvoiceRouteImport.update({
+    id: '/purchase-invoice',
+    path: '/purchase-invoice',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
+  } as any)
+const AuthenticatedAppSmartReportsSalesInvoiceRoute =
+  AuthenticatedAppSmartReportsSalesInvoiceRouteImport.update({
+    id: '/sales-invoice',
+    path: '/sales-invoice',
+    getParentRoute: () => AuthenticatedAppSmartReportsRoute,
   } as any)
 const AuthenticatedHrAssetsIndexRoute =
   AuthenticatedHrAssetsIndexRouteImport.update({
@@ -2997,6 +3102,7 @@ export interface FileRoutesByFullPath {
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
   '/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
+  '/ai-business-advisor': typeof AuthenticatedAppAiBusinessAdvisorRoute
   '/ai-configuration': typeof AuthenticatedAppAiConfigurationRoute
   '/ai-hiring-forecast': typeof AuthenticatedAppAiHiringForecastRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
@@ -3109,6 +3215,8 @@ export interface FileRoutesByFullPath {
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
+  '/smart-dashboard': typeof AuthenticatedAppSmartDashboardRouteWithChildren
+  '/smart-reports': typeof AuthenticatedAppSmartReportsRouteWithChildren
   '/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
@@ -3211,6 +3319,18 @@ export interface FileRoutesByFullPath {
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
+  '/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
+  '/smart-dashboard/sales': typeof AuthenticatedAppSmartDashboardSalesRoute
+  '/smart-reports/$reportId': typeof AuthenticatedAppSmartReportsReportIdRoute
+  '/smart-reports/attendance-summary': typeof AuthenticatedAppSmartReportsAttendanceSummaryRoute
+  '/smart-reports/deal-pipeline': typeof AuthenticatedAppSmartReportsDealPipelineRoute
+  '/smart-reports/leave-report': typeof AuthenticatedAppSmartReportsLeaveReportRoute
+  '/smart-reports/payroll-sheet': typeof AuthenticatedAppSmartReportsPayrollSheetRoute
+  '/smart-reports/product-stock': typeof AuthenticatedAppSmartReportsProductStockRoute
+  '/smart-reports/project-progress': typeof AuthenticatedAppSmartReportsProjectProgressRoute
+  '/smart-reports/purchase-invoice': typeof AuthenticatedAppSmartReportsPurchaseInvoiceRoute
+  '/smart-reports/sales-invoice': typeof AuthenticatedAppSmartReportsSalesInvoiceRoute
   '/hr/assets/dashboard': typeof AuthenticatedHrAssetsDashboardRoute
   '/hr/assets/depreciation': typeof AuthenticatedHrAssetsDepreciationRoute
   '/hr/assets/requests-maintenance': typeof AuthenticatedHrAssetsRequestsMaintenanceRoute
@@ -3427,6 +3547,7 @@ export interface FileRoutesByTo {
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/ai': typeof AuthenticatedAppAiRoute
   '/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
+  '/ai-business-advisor': typeof AuthenticatedAppAiBusinessAdvisorRoute
   '/ai-configuration': typeof AuthenticatedAppAiConfigurationRoute
   '/ai-hiring-forecast': typeof AuthenticatedAppAiHiringForecastRoute
   '/ai-ocr': typeof AuthenticatedAppAiOcrRoute
@@ -3539,6 +3660,8 @@ export interface FileRoutesByTo {
   '/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/shifts': typeof AuthenticatedAppShiftsRoute
   '/shopify': typeof AuthenticatedAppShopifyRoute
+  '/smart-dashboard': typeof AuthenticatedAppSmartDashboardRouteWithChildren
+  '/smart-reports': typeof AuthenticatedAppSmartReportsRouteWithChildren
   '/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
@@ -3641,6 +3764,18 @@ export interface FileRoutesByTo {
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
+  '/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
+  '/smart-dashboard/sales': typeof AuthenticatedAppSmartDashboardSalesRoute
+  '/smart-reports/$reportId': typeof AuthenticatedAppSmartReportsReportIdRoute
+  '/smart-reports/attendance-summary': typeof AuthenticatedAppSmartReportsAttendanceSummaryRoute
+  '/smart-reports/deal-pipeline': typeof AuthenticatedAppSmartReportsDealPipelineRoute
+  '/smart-reports/leave-report': typeof AuthenticatedAppSmartReportsLeaveReportRoute
+  '/smart-reports/payroll-sheet': typeof AuthenticatedAppSmartReportsPayrollSheetRoute
+  '/smart-reports/product-stock': typeof AuthenticatedAppSmartReportsProductStockRoute
+  '/smart-reports/project-progress': typeof AuthenticatedAppSmartReportsProjectProgressRoute
+  '/smart-reports/purchase-invoice': typeof AuthenticatedAppSmartReportsPurchaseInvoiceRoute
+  '/smart-reports/sales-invoice': typeof AuthenticatedAppSmartReportsSalesInvoiceRoute
   '/hr/assets/dashboard': typeof AuthenticatedHrAssetsDashboardRoute
   '/hr/assets/depreciation': typeof AuthenticatedHrAssetsDepreciationRoute
   '/hr/assets/requests-maintenance': typeof AuthenticatedHrAssetsRequestsMaintenanceRoute
@@ -3864,6 +3999,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
   '/_authenticated/_app/ai': typeof AuthenticatedAppAiRoute
   '/_authenticated/_app/ai-attendance-insights': typeof AuthenticatedAppAiAttendanceInsightsRoute
+  '/_authenticated/_app/ai-business-advisor': typeof AuthenticatedAppAiBusinessAdvisorRoute
   '/_authenticated/_app/ai-configuration': typeof AuthenticatedAppAiConfigurationRoute
   '/_authenticated/_app/ai-hiring-forecast': typeof AuthenticatedAppAiHiringForecastRoute
   '/_authenticated/_app/ai-ocr': typeof AuthenticatedAppAiOcrRoute
@@ -3976,6 +4112,8 @@ export interface FileRoutesById {
   '/_authenticated/_app/shift-swap-requests': typeof AuthenticatedAppShiftSwapRequestsRoute
   '/_authenticated/_app/shifts': typeof AuthenticatedAppShiftsRoute
   '/_authenticated/_app/shopify': typeof AuthenticatedAppShopifyRoute
+  '/_authenticated/_app/smart-dashboard': typeof AuthenticatedAppSmartDashboardRouteWithChildren
+  '/_authenticated/_app/smart-reports': typeof AuthenticatedAppSmartReportsRouteWithChildren
   '/_authenticated/_app/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/_authenticated/_app/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/_authenticated/_app/subscription': typeof AuthenticatedAppSubscriptionRoute
@@ -4078,6 +4216,18 @@ export interface FileRoutesById {
   '/_authenticated/_app/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/_authenticated/_app/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/_authenticated/_app/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/_authenticated/_app/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
+  '/_authenticated/_app/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
+  '/_authenticated/_app/smart-dashboard/sales': typeof AuthenticatedAppSmartDashboardSalesRoute
+  '/_authenticated/_app/smart-reports/$reportId': typeof AuthenticatedAppSmartReportsReportIdRoute
+  '/_authenticated/_app/smart-reports/attendance-summary': typeof AuthenticatedAppSmartReportsAttendanceSummaryRoute
+  '/_authenticated/_app/smart-reports/deal-pipeline': typeof AuthenticatedAppSmartReportsDealPipelineRoute
+  '/_authenticated/_app/smart-reports/leave-report': typeof AuthenticatedAppSmartReportsLeaveReportRoute
+  '/_authenticated/_app/smart-reports/payroll-sheet': typeof AuthenticatedAppSmartReportsPayrollSheetRoute
+  '/_authenticated/_app/smart-reports/product-stock': typeof AuthenticatedAppSmartReportsProductStockRoute
+  '/_authenticated/_app/smart-reports/project-progress': typeof AuthenticatedAppSmartReportsProjectProgressRoute
+  '/_authenticated/_app/smart-reports/purchase-invoice': typeof AuthenticatedAppSmartReportsPurchaseInvoiceRoute
+  '/_authenticated/_app/smart-reports/sales-invoice': typeof AuthenticatedAppSmartReportsSalesInvoiceRoute
   '/_authenticated/hr/assets/dashboard': typeof AuthenticatedHrAssetsDashboardRoute
   '/_authenticated/hr/assets/depreciation': typeof AuthenticatedHrAssetsDepreciationRoute
   '/_authenticated/hr/assets/requests-maintenance': typeof AuthenticatedHrAssetsRequestsMaintenanceRoute
@@ -4300,6 +4450,7 @@ export interface FileRouteTypes {
     | '/adjustments'
     | '/ai'
     | '/ai-attendance-insights'
+    | '/ai-business-advisor'
     | '/ai-configuration'
     | '/ai-hiring-forecast'
     | '/ai-ocr'
@@ -4412,6 +4563,8 @@ export interface FileRouteTypes {
     | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
+    | '/smart-dashboard'
+    | '/smart-reports'
     | '/sms-gateway'
     | '/strategy-studio'
     | '/subscription'
@@ -4514,6 +4667,18 @@ export interface FileRouteTypes {
     | '/invoice/create'
     | '/project/$id'
     | '/settings/custom-domain'
+    | '/smart-dashboard/financial'
+    | '/smart-dashboard/operational'
+    | '/smart-dashboard/sales'
+    | '/smart-reports/$reportId'
+    | '/smart-reports/attendance-summary'
+    | '/smart-reports/deal-pipeline'
+    | '/smart-reports/leave-report'
+    | '/smart-reports/payroll-sheet'
+    | '/smart-reports/product-stock'
+    | '/smart-reports/project-progress'
+    | '/smart-reports/purchase-invoice'
+    | '/smart-reports/sales-invoice'
     | '/hr/assets/dashboard'
     | '/hr/assets/depreciation'
     | '/hr/assets/requests-maintenance'
@@ -4730,6 +4895,7 @@ export interface FileRouteTypes {
     | '/adjustments'
     | '/ai'
     | '/ai-attendance-insights'
+    | '/ai-business-advisor'
     | '/ai-configuration'
     | '/ai-hiring-forecast'
     | '/ai-ocr'
@@ -4842,6 +5008,8 @@ export interface FileRouteTypes {
     | '/shift-swap-requests'
     | '/shifts'
     | '/shopify'
+    | '/smart-dashboard'
+    | '/smart-reports'
     | '/sms-gateway'
     | '/strategy-studio'
     | '/subscription'
@@ -4944,6 +5112,18 @@ export interface FileRouteTypes {
     | '/invoice/create'
     | '/project/$id'
     | '/settings/custom-domain'
+    | '/smart-dashboard/financial'
+    | '/smart-dashboard/operational'
+    | '/smart-dashboard/sales'
+    | '/smart-reports/$reportId'
+    | '/smart-reports/attendance-summary'
+    | '/smart-reports/deal-pipeline'
+    | '/smart-reports/leave-report'
+    | '/smart-reports/payroll-sheet'
+    | '/smart-reports/product-stock'
+    | '/smart-reports/project-progress'
+    | '/smart-reports/purchase-invoice'
+    | '/smart-reports/sales-invoice'
     | '/hr/assets/dashboard'
     | '/hr/assets/depreciation'
     | '/hr/assets/requests-maintenance'
@@ -5166,6 +5346,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/adjustments'
     | '/_authenticated/_app/ai'
     | '/_authenticated/_app/ai-attendance-insights'
+    | '/_authenticated/_app/ai-business-advisor'
     | '/_authenticated/_app/ai-configuration'
     | '/_authenticated/_app/ai-hiring-forecast'
     | '/_authenticated/_app/ai-ocr'
@@ -5278,6 +5459,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/shift-swap-requests'
     | '/_authenticated/_app/shifts'
     | '/_authenticated/_app/shopify'
+    | '/_authenticated/_app/smart-dashboard'
+    | '/_authenticated/_app/smart-reports'
     | '/_authenticated/_app/sms-gateway'
     | '/_authenticated/_app/strategy-studio'
     | '/_authenticated/_app/subscription'
@@ -5380,6 +5563,18 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/invoice/create'
     | '/_authenticated/_app/project/$id'
     | '/_authenticated/_app/settings/custom-domain'
+    | '/_authenticated/_app/smart-dashboard/financial'
+    | '/_authenticated/_app/smart-dashboard/operational'
+    | '/_authenticated/_app/smart-dashboard/sales'
+    | '/_authenticated/_app/smart-reports/$reportId'
+    | '/_authenticated/_app/smart-reports/attendance-summary'
+    | '/_authenticated/_app/smart-reports/deal-pipeline'
+    | '/_authenticated/_app/smart-reports/leave-report'
+    | '/_authenticated/_app/smart-reports/payroll-sheet'
+    | '/_authenticated/_app/smart-reports/product-stock'
+    | '/_authenticated/_app/smart-reports/project-progress'
+    | '/_authenticated/_app/smart-reports/purchase-invoice'
+    | '/_authenticated/_app/smart-reports/sales-invoice'
     | '/_authenticated/hr/assets/dashboard'
     | '/_authenticated/hr/assets/depreciation'
     | '/_authenticated/hr/assets/requests-maintenance'
@@ -5951,6 +6146,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-attendance-insights'
       fullPath: '/ai-attendance-insights'
       preLoaderRoute: typeof AuthenticatedAppAiAttendanceInsightsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/ai-business-advisor': {
+      id: '/_authenticated/_app/ai-business-advisor'
+      path: '/ai-business-advisor'
+      fullPath: '/ai-business-advisor'
+      preLoaderRoute: typeof AuthenticatedAppAiBusinessAdvisorRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/ai-configuration': {
@@ -6737,6 +6939,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppShopifyRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/smart-dashboard': {
+      id: '/_authenticated/_app/smart-dashboard'
+      path: '/smart-dashboard'
+      fullPath: '/smart-dashboard'
+      preLoaderRoute: typeof AuthenticatedAppSmartDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/smart-reports': {
+      id: '/_authenticated/_app/smart-reports'
+      path: '/smart-reports'
+      fullPath: '/smart-reports'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/sms-gateway': {
       id: '/_authenticated/_app/sms-gateway'
       path: '/sms-gateway'
@@ -7450,6 +7666,90 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/custom-domain'
       preLoaderRoute: typeof AuthenticatedAppSettingsCustomDomainRouteImport
       parentRoute: typeof AuthenticatedAppSettingsRoute
+    }
+    '/_authenticated/_app/smart-dashboard/financial': {
+      id: '/_authenticated/_app/smart-dashboard/financial'
+      path: '/financial'
+      fullPath: '/smart-dashboard/financial'
+      preLoaderRoute: typeof AuthenticatedAppSmartDashboardFinancialRouteImport
+      parentRoute: typeof AuthenticatedAppSmartDashboardRoute
+    }
+    '/_authenticated/_app/smart-dashboard/operational': {
+      id: '/_authenticated/_app/smart-dashboard/operational'
+      path: '/operational'
+      fullPath: '/smart-dashboard/operational'
+      preLoaderRoute: typeof AuthenticatedAppSmartDashboardOperationalRouteImport
+      parentRoute: typeof AuthenticatedAppSmartDashboardRoute
+    }
+    '/_authenticated/_app/smart-dashboard/sales': {
+      id: '/_authenticated/_app/smart-dashboard/sales'
+      path: '/sales'
+      fullPath: '/smart-dashboard/sales'
+      preLoaderRoute: typeof AuthenticatedAppSmartDashboardSalesRouteImport
+      parentRoute: typeof AuthenticatedAppSmartDashboardRoute
+    }
+    '/_authenticated/_app/smart-reports/$reportId': {
+      id: '/_authenticated/_app/smart-reports/$reportId'
+      path: '/$reportId'
+      fullPath: '/smart-reports/$reportId'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsReportIdRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/attendance-summary': {
+      id: '/_authenticated/_app/smart-reports/attendance-summary'
+      path: '/attendance-summary'
+      fullPath: '/smart-reports/attendance-summary'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsAttendanceSummaryRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/deal-pipeline': {
+      id: '/_authenticated/_app/smart-reports/deal-pipeline'
+      path: '/deal-pipeline'
+      fullPath: '/smart-reports/deal-pipeline'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsDealPipelineRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/leave-report': {
+      id: '/_authenticated/_app/smart-reports/leave-report'
+      path: '/leave-report'
+      fullPath: '/smart-reports/leave-report'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsLeaveReportRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/payroll-sheet': {
+      id: '/_authenticated/_app/smart-reports/payroll-sheet'
+      path: '/payroll-sheet'
+      fullPath: '/smart-reports/payroll-sheet'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsPayrollSheetRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/product-stock': {
+      id: '/_authenticated/_app/smart-reports/product-stock'
+      path: '/product-stock'
+      fullPath: '/smart-reports/product-stock'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsProductStockRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/project-progress': {
+      id: '/_authenticated/_app/smart-reports/project-progress'
+      path: '/project-progress'
+      fullPath: '/smart-reports/project-progress'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsProjectProgressRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/purchase-invoice': {
+      id: '/_authenticated/_app/smart-reports/purchase-invoice'
+      path: '/purchase-invoice'
+      fullPath: '/smart-reports/purchase-invoice'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsPurchaseInvoiceRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
+    }
+    '/_authenticated/_app/smart-reports/sales-invoice': {
+      id: '/_authenticated/_app/smart-reports/sales-invoice'
+      path: '/sales-invoice'
+      fullPath: '/smart-reports/sales-invoice'
+      preLoaderRoute: typeof AuthenticatedAppSmartReportsSalesInvoiceRouteImport
+      parentRoute: typeof AuthenticatedAppSmartReportsRoute
     }
     '/_authenticated/hr/assets/': {
       id: '/_authenticated/hr/assets/'
@@ -8652,6 +8952,66 @@ const AuthenticatedAppSettingsRouteWithChildren =
     AuthenticatedAppSettingsRouteChildren,
   )
 
+interface AuthenticatedAppSmartDashboardRouteChildren {
+  AuthenticatedAppSmartDashboardFinancialRoute: typeof AuthenticatedAppSmartDashboardFinancialRoute
+  AuthenticatedAppSmartDashboardOperationalRoute: typeof AuthenticatedAppSmartDashboardOperationalRoute
+  AuthenticatedAppSmartDashboardSalesRoute: typeof AuthenticatedAppSmartDashboardSalesRoute
+}
+
+const AuthenticatedAppSmartDashboardRouteChildren: AuthenticatedAppSmartDashboardRouteChildren =
+  {
+    AuthenticatedAppSmartDashboardFinancialRoute:
+      AuthenticatedAppSmartDashboardFinancialRoute,
+    AuthenticatedAppSmartDashboardOperationalRoute:
+      AuthenticatedAppSmartDashboardOperationalRoute,
+    AuthenticatedAppSmartDashboardSalesRoute:
+      AuthenticatedAppSmartDashboardSalesRoute,
+  }
+
+const AuthenticatedAppSmartDashboardRouteWithChildren =
+  AuthenticatedAppSmartDashboardRoute._addFileChildren(
+    AuthenticatedAppSmartDashboardRouteChildren,
+  )
+
+interface AuthenticatedAppSmartReportsRouteChildren {
+  AuthenticatedAppSmartReportsReportIdRoute: typeof AuthenticatedAppSmartReportsReportIdRoute
+  AuthenticatedAppSmartReportsAttendanceSummaryRoute: typeof AuthenticatedAppSmartReportsAttendanceSummaryRoute
+  AuthenticatedAppSmartReportsDealPipelineRoute: typeof AuthenticatedAppSmartReportsDealPipelineRoute
+  AuthenticatedAppSmartReportsLeaveReportRoute: typeof AuthenticatedAppSmartReportsLeaveReportRoute
+  AuthenticatedAppSmartReportsPayrollSheetRoute: typeof AuthenticatedAppSmartReportsPayrollSheetRoute
+  AuthenticatedAppSmartReportsProductStockRoute: typeof AuthenticatedAppSmartReportsProductStockRoute
+  AuthenticatedAppSmartReportsProjectProgressRoute: typeof AuthenticatedAppSmartReportsProjectProgressRoute
+  AuthenticatedAppSmartReportsPurchaseInvoiceRoute: typeof AuthenticatedAppSmartReportsPurchaseInvoiceRoute
+  AuthenticatedAppSmartReportsSalesInvoiceRoute: typeof AuthenticatedAppSmartReportsSalesInvoiceRoute
+}
+
+const AuthenticatedAppSmartReportsRouteChildren: AuthenticatedAppSmartReportsRouteChildren =
+  {
+    AuthenticatedAppSmartReportsReportIdRoute:
+      AuthenticatedAppSmartReportsReportIdRoute,
+    AuthenticatedAppSmartReportsAttendanceSummaryRoute:
+      AuthenticatedAppSmartReportsAttendanceSummaryRoute,
+    AuthenticatedAppSmartReportsDealPipelineRoute:
+      AuthenticatedAppSmartReportsDealPipelineRoute,
+    AuthenticatedAppSmartReportsLeaveReportRoute:
+      AuthenticatedAppSmartReportsLeaveReportRoute,
+    AuthenticatedAppSmartReportsPayrollSheetRoute:
+      AuthenticatedAppSmartReportsPayrollSheetRoute,
+    AuthenticatedAppSmartReportsProductStockRoute:
+      AuthenticatedAppSmartReportsProductStockRoute,
+    AuthenticatedAppSmartReportsProjectProgressRoute:
+      AuthenticatedAppSmartReportsProjectProgressRoute,
+    AuthenticatedAppSmartReportsPurchaseInvoiceRoute:
+      AuthenticatedAppSmartReportsPurchaseInvoiceRoute,
+    AuthenticatedAppSmartReportsSalesInvoiceRoute:
+      AuthenticatedAppSmartReportsSalesInvoiceRoute,
+  }
+
+const AuthenticatedAppSmartReportsRouteWithChildren =
+  AuthenticatedAppSmartReportsRoute._addFileChildren(
+    AuthenticatedAppSmartReportsRouteChildren,
+  )
+
 interface AuthenticatedAppInvoiceIdRouteChildren {
   AuthenticatedAppInvoiceIdPrintRoute: typeof AuthenticatedAppInvoiceIdPrintRoute
 }
@@ -8672,6 +9032,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAdjustmentsRoute: typeof AuthenticatedAppAdjustmentsRoute
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
   AuthenticatedAppAiAttendanceInsightsRoute: typeof AuthenticatedAppAiAttendanceInsightsRoute
+  AuthenticatedAppAiBusinessAdvisorRoute: typeof AuthenticatedAppAiBusinessAdvisorRoute
   AuthenticatedAppAiConfigurationRoute: typeof AuthenticatedAppAiConfigurationRoute
   AuthenticatedAppAiHiringForecastRoute: typeof AuthenticatedAppAiHiringForecastRoute
   AuthenticatedAppAiOcrRoute: typeof AuthenticatedAppAiOcrRoute
@@ -8784,6 +9145,8 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppShiftSwapRequestsRoute: typeof AuthenticatedAppShiftSwapRequestsRoute
   AuthenticatedAppShiftsRoute: typeof AuthenticatedAppShiftsRoute
   AuthenticatedAppShopifyRoute: typeof AuthenticatedAppShopifyRoute
+  AuthenticatedAppSmartDashboardRoute: typeof AuthenticatedAppSmartDashboardRouteWithChildren
+  AuthenticatedAppSmartReportsRoute: typeof AuthenticatedAppSmartReportsRouteWithChildren
   AuthenticatedAppSmsGatewayRoute: typeof AuthenticatedAppSmsGatewayRoute
   AuthenticatedAppStrategyStudioRoute: typeof AuthenticatedAppStrategyStudioRoute
   AuthenticatedAppSubscriptionRoute: typeof AuthenticatedAppSubscriptionRoute
@@ -8820,6 +9183,8 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
   AuthenticatedAppAiAttendanceInsightsRoute:
     AuthenticatedAppAiAttendanceInsightsRoute,
+  AuthenticatedAppAiBusinessAdvisorRoute:
+    AuthenticatedAppAiBusinessAdvisorRoute,
   AuthenticatedAppAiConfigurationRoute: AuthenticatedAppAiConfigurationRoute,
   AuthenticatedAppAiHiringForecastRoute: AuthenticatedAppAiHiringForecastRoute,
   AuthenticatedAppAiOcrRoute: AuthenticatedAppAiOcrRoute,
@@ -8949,6 +9314,10 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppShiftSwapRequestsRoute,
   AuthenticatedAppShiftsRoute: AuthenticatedAppShiftsRoute,
   AuthenticatedAppShopifyRoute: AuthenticatedAppShopifyRoute,
+  AuthenticatedAppSmartDashboardRoute:
+    AuthenticatedAppSmartDashboardRouteWithChildren,
+  AuthenticatedAppSmartReportsRoute:
+    AuthenticatedAppSmartReportsRouteWithChildren,
   AuthenticatedAppSmsGatewayRoute: AuthenticatedAppSmsGatewayRoute,
   AuthenticatedAppStrategyStudioRoute: AuthenticatedAppStrategyStudioRoute,
   AuthenticatedAppSubscriptionRoute: AuthenticatedAppSubscriptionRoute,

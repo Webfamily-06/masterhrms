@@ -1,9 +1,14 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import type { ProfileWithRoles } from "@/lib/session";
 import { isModuleAllowed, isWorkspaceAdminUser } from "@/lib/permissions";
 import { useTenantBranding } from "@/lib/useTenantBranding";
 import { useNavigationResolver } from "@/lib/navigation-resolver";
+import {
+  resolveStandaloneModules,
+  resolveIntegratedAddons,
+  resolveExtensionItems,
+} from "@/lib/addon-navigation";
 import { cn } from "@/lib/utils";
 
 interface DreamsSidebarProps {
@@ -52,6 +57,7 @@ export function DreamsSidebar({
     sales: false,
     talent: false,
     operations: false,
+    ecommerce: false,
     extensions: false,
     meOrg: true,
     meAttendance: true,
@@ -88,6 +94,9 @@ export function DreamsSidebar({
     if (currentPath.startsWith("/me/meetings")) setOpenMenus((p) => ({ ...p, meMeetings: true }));
     if (currentPath.startsWith("/me/documents")) setOpenMenus((p) => ({ ...p, meDocs: true }));
     if (currentPath.startsWith("/me/media")) setOpenMenus((p) => ({ ...p, meMedia: true }));
+    if (currentPath === "/integrations" || currentPath === "/shopify") {
+      setOpenMenus((p) => ({ ...p, ecommerce: true }));
+    }
   }, [currentPath]);
 
   const userRoles = profile?.roles || [];
@@ -128,24 +137,23 @@ export function DreamsSidebar({
   const enabledModules = profile?.enabledModules || (profile as any)?.tenant?.enabledModules || [];
 
   const isPosUnlocked = isSuperAdmin ||
-    enabledModules.includes("pos") ||
-    enabledModules.includes("product_pos") ||
-    enabledModules.includes("inventory");
+    isEntitled("pos") ||
+    isEntitled("product_pos");
 
   const isFinanceUnlocked = isSuperAdmin ||
-    enabledModules.includes("accounting") ||
-    enabledModules.includes("finance") ||
-    enabledModules.includes("product_finance");
+    isEntitled("accounting") ||
+    isEntitled("finance") ||
+    isEntitled("product_finance");
 
   const isCrmUnlocked = isSuperAdmin ||
-    enabledModules.includes("crm") ||
-    enabledModules.includes("product_crm");
+    isEntitled("crm") ||
+    isEntitled("product_crm");
 
   const isHrmsUnlocked = isSuperAdmin ||
-    enabledModules.length === 0 ||
-    enabledModules.includes("hrm") ||
-    enabledModules.includes("hrms") ||
-    enabledModules.includes("product_hrms");
+    isEntitled("hrm") ||
+    isEntitled("hrms") ||
+    isEntitled("product_hrms") ||
+    isEntitled("core_platform");
 
   const homeRoute = isSuperAdmin
     ? "/super"
@@ -202,39 +210,15 @@ export function DreamsSidebar({
               className="brand-logo logo flex items-center gap-2 flex-1 min-w-0 overflow-hidden"
               onClick={onCloseMobile}
             >
-              {branding.isWhiteLabeled && (!branding.activeLogo || branding.activeLogo.includes("logo.webp") || branding.activeLogo.includes("white-logo")) ? (
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                    <img
-                      src={branding.faviconUrl || "/favicon.webp"}
-                      alt={branding.name}
-                      className="size-5 object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/favicon.webp";
-                      }}
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-sm tracking-tight text-foreground truncate leading-tight">
-                      {branding.name}
-                    </span>
-                    <span className="text-[10px] font-semibold text-primary uppercase tracking-wider leading-none">
-                      Workspace
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <img
-                  src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
-                  alt={branding.name || "Master HRMS & ERP"}
-                  className="h-8 max-h-8 w-auto object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
-                  }}
-                  loading="lazy"
-                />
-              )}
+              <img
+                src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
+                alt={branding.name || "Master HRMS & ERP"}
+                className="h-8 max-h-8 w-auto object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
+                }}
+                loading="lazy"
+              />
             </Link>
 
             {/* Desktop Collapse / Expand Button */}
@@ -1175,16 +1159,7 @@ export function DreamsSidebar({
                       onClick={onCloseMobile}
                       className={cn(currentPath === "/me/media" && "active")}
                     >
-                      Shared Files
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/me/media"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/me/media" && "active")}
-                    >
-                      My Files
+                      Media Files
                     </Link>
                   </li>
                 </ul>
@@ -1318,79 +1293,95 @@ export function DreamsSidebar({
                     Client Portal
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    to="/deals-dashboard"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/deals-dashboard" && "active")}
-                  >
-                    Deals Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/leads-dashboard"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/leads-dashboard" && "active")}
-                  >
-                    Leads Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/payroll-dashboard"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/payroll-dashboard" && "active")}
-                  >
-                    Payroll Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/recruitment-dashboard"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/recruitment-dashboard" && "active")}
-                  >
-                    Recruitment Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/help-desk-dashboard"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/help-desk-dashboard" && "active")}
-                  >
-                    Help Desk Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/asset-dashboard"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/asset-dashboard" && "active")}
-                  >
-                    Asset Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/it-admin-dashboard"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/it-admin-dashboard" && "active")}
-                  >
-                    IT Admin Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/learning-analytics"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/learning-analytics" && "active")}
-                  >
-                    Learning Analytics
-                  </Link>
-                </li>
-                {isModuleAllowed("pos", profile) && (<li>
+                {isCrmUnlocked && isModuleAllowed("crm", profile) && (
+                  <>
+                    <li>
+                      <Link
+                        to="/deals-dashboard"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/deals-dashboard" && "active")}
+                      >
+                        Deals Dashboard
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/leads-dashboard"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/leads-dashboard" && "active")}
+                      >
+                        Leads Dashboard
+                      </Link>
+                    </li>
+                  </>
+                )}
+                {isHrmsUnlocked && isModuleAllowed("hrm", profile) && (
+                  <li>
+                    <Link
+                      to="/payroll-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/payroll-dashboard" && "active")}
+                    >
+                      Payroll Dashboard
+                    </Link>
+                  </li>
+                )}
+                {isEntitled("recruitment-ats") && (
+                  <li>
+                    <Link
+                      to="/recruitment-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/recruitment-dashboard" && "active")}
+                    >
+                      Recruitment Dashboard
+                    </Link>
+                  </li>
+                )}
+                {isEntitled("support") && (
+                  <li>
+                    <Link
+                      to="/help-desk-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/help-desk-dashboard" && "active")}
+                    >
+                      Help Desk Dashboard
+                    </Link>
+                  </li>
+                )}
+                {isEntitled("asset-management") && (
+                  <li>
+                    <Link
+                      to="/asset-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/asset-dashboard" && "active")}
+                    >
+                      Asset Dashboard
+                    </Link>
+                  </li>
+                )}
+                {(isEntitled("support") || isAdminOrSuper) && (
+                  <li>
+                    <Link
+                      to="/it-admin-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/it-admin-dashboard" && "active")}
+                    >
+                      IT Admin Dashboard
+                    </Link>
+                  </li>
+                )}
+                {isEntitled("learning-lms") && (
+                  <li>
+                    <Link
+                      to="/learning-analytics"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/learning-analytics" && "active")}
+                    >
+                      Learning Analytics
+                    </Link>
+                  </li>
+                )}
+                {isPosUnlocked && isModuleAllowed("pos", profile) && (<li>
                   <Link
                     to="/pos-dashboard"
                     onClick={onCloseMobile}
@@ -1399,7 +1390,7 @@ export function DreamsSidebar({
                     POS Dashboard
                   </Link>
                 </li>)}
-                {isModuleAllowed("inventory", profile) && (<li>
+                {isEntitled("inventory") && isModuleAllowed("inventory", profile) && (<li>
                   <Link
                     to="/inventory-dashboard"
                     onClick={onCloseMobile}
@@ -1408,7 +1399,7 @@ export function DreamsSidebar({
                     Inventory Dashboard
                   </Link>
                 </li>)}
-                {isModuleAllowed("crm", profile) && (<li>
+                {isCrmUnlocked && isModuleAllowed("crm", profile) && (<li>
                   <Link
                     to="/crm-dashboard"
                     onClick={onCloseMobile}
@@ -1417,7 +1408,7 @@ export function DreamsSidebar({
                     Sales CRM Dashboard
                   </Link>
                 </li>)}
-                {isModuleAllowed("finance", profile) && (<li>
+                {isFinanceUnlocked && isModuleAllowed("finance", profile) && (<li>
                   <Link
                     to="/finance-dashboard"
                     onClick={onCloseMobile}
@@ -1435,7 +1426,7 @@ export function DreamsSidebar({
                       Project Dashboard
                     </Link>
                   </li>)}
-                  {isModuleAllowed("support", profile) && (<li>
+                  {isEntitled("support") && isModuleAllowed("support", profile) && (<li>
                     <Link
                       to="/support-dashboard"
                       onClick={onCloseMobile}
@@ -1444,7 +1435,7 @@ export function DreamsSidebar({
                       Support Dashboard
                     </Link>
                   </li>)}
-                  {isModuleAllowed("procurement", profile) && (<li>
+                  {isEntitled("procurement") && isModuleAllowed("procurement", profile) && (<li>
                     <Link
                       to="/procurement-dashboard"
                       onClick={onCloseMobile}
@@ -1569,15 +1560,6 @@ export function DreamsSidebar({
                 <span className="menu-arrow"></span>
               </a>
               <ul style={{ display: !isMini && openMenus.apps ? "block" : "none" }}>
-                <li>
-                  <Link
-                    to="/ai"
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/ai" && "active font-semibold text-purple-600")}
-                  >
-                    AI Intelligence Center
-                  </Link>
-                </li>
                 <li>
                   <Link
                     to={isAdminOrSuper ? "/hr/chat" : "/me/chat"}
@@ -1739,8 +1721,12 @@ export function DreamsSidebar({
                     <span>Storefront Catalog</span>
                   </Link>
                 </li>
+              </>
+            )}
 
-                {/* ===================== PURCHASES & PROCUREMENT ===================== */}
+            {/* ===================== PURCHASES & PROCUREMENT ===================== */}
+            {isEntitled("procurement") && (
+              <>
                 <li className="menu-title">
                   <span>PROCUREMENT</span>
                 </li>
@@ -1893,16 +1879,18 @@ export function DreamsSidebar({
                         <span>Ledgers & Accounting</span>
                       </Link>
                     </li>
-                    <li>
-                      <Link
-                        to="/budgets"
-                        onClick={onCloseMobile}
-                        className={cn(currentPath === "/budgets" && "active")}
-                      >
-                        <i className="ph-duotone ph-piggy-bank"></i>
-                        <span>Budgets & Financial Plans</span>
-                      </Link>
-                    </li>
+                    {resolveIntegratedAddons(isEntitled, isAdminOrSuper, "finance-accounting", currentPath).map((item) => (
+                      <li key={item.id}>
+                        <Link
+                          to={item.route}
+                          onClick={onCloseMobile}
+                          className={cn(item.isActive && "active")}
+                        >
+                          <i className={cn("ph-duotone", item.icon || "ph-arrows-left-right")}></i>
+                          <span>{item.label}</span>
+                        </Link>
+                      </li>
+                    ))}
                     <li>
                       <Link
                         to="/taxes"
@@ -1915,16 +1903,6 @@ export function DreamsSidebar({
                     </li>
                     <li>
                       <Link
-                        to="/currencies"
-                        onClick={onCloseMobile}
-                        className={cn(currentPath === "/currencies" && "active")}
-                      >
-                        <i className="ph-duotone ph-coins"></i>
-                        <span>Currencies & FX</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
                         to="/expenses"
                         onClick={onCloseMobile}
                         className={cn(currentPath === "/expenses" && "active")}
@@ -1933,20 +1911,72 @@ export function DreamsSidebar({
                         <span>Expense Claims</span>
                       </Link>
                     </li>
-                    <li>
-                      <Link
-                        to="/suppliers"
-                        onClick={onCloseMobile}
-                        className={cn(currentPath === "/suppliers" && "active")}
-                      >
-                        <i className="ph-duotone ph-truck"></i>
-                        <span>Suppliers & Vendors</span>
-                      </Link>
-                    </li>
                   </>
                 )}
               </>
             )}
+
+            {/* ===================== STANDALONE APPLICATION MODULES ===================== */}
+            {(() => {
+              const standaloneModules = resolveStandaloneModules(isEntitled, isAdminOrSuper, currentPath);
+              if (!standaloneModules.length) return null;
+
+              return (
+                <>
+                  {standaloneModules.map((mod) => (
+                    <React.Fragment key={mod.id}>
+                      <li className="menu-title">
+                        <span>{mod.menuTitle}</span>
+                      </li>
+                      {mod.navigationMode === "standalone_with_submenu" ? (
+                        <li className="submenu">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              toggleSubmenu(mod.key);
+                            }}
+                            className={cn(
+                              "cursor-pointer",
+                              openMenus[mod.key] && "subdrop",
+                              mod.activeRoute && "active"
+                            )}
+                          >
+                            <i className={cn("ph-duotone", mod.icon)}></i>
+                            <span>{mod.label}</span>
+                            <span className="menu-arrow"></span>
+                          </a>
+                          <ul style={{ display: !isMini && openMenus[mod.key] ? "block" : "none" }}>
+                            {mod.children.map((child) => (
+                              <li key={child.id}>
+                                <Link
+                                  to={child.route}
+                                  onClick={onCloseMobile}
+                                  className={cn(child.isActive && "active")}
+                                >
+                                  {child.label}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ) : (
+                        <li>
+                          <Link
+                            to={mod.routes[0] || "/"}
+                            onClick={onCloseMobile}
+                            className={cn(mod.activeRoute && "active")}
+                          >
+                            <i className={cn("ph-duotone", mod.icon)}></i>
+                            <span>{mod.label}</span>
+                          </Link>
+                        </li>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </>
+              );
+            })()}
 
             {/* ===================== HRM SUITE ===================== */}
             {isHrmsUnlocked && (
@@ -2091,24 +2121,17 @@ export function DreamsSidebar({
                     Daily Attendance Report
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/records"}
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/biometric" && "active")}
-                  >
-                    Biometric Hardware
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/records"}
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/biometric-sync" && "active")}
-                  >
-                    Device Sync Agent
-                  </Link>
-                </li>
+                {resolveIntegratedAddons(isEntitled, isAdminOrSuper, "time-attendance", currentPath).map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      to={item.route}
+                      onClick={onCloseMobile}
+                      className={cn(item.isActive && "active")}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </li>
 
@@ -2125,83 +2148,93 @@ export function DreamsSidebar({
             </li>
 
             {/* Talent & Recruitment Submenu */}
-            <li className="submenu">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toggleSubmenu("talent");
-                }}
-                className={cn(
-                  "cursor-pointer",
-                  openMenus.talent && "subdrop",
-                  (
-                    currentPath.startsWith("/hr/recruitment") ||
-                    currentPath.startsWith("/hr/training") ||
-                    currentPath.startsWith("/me/recruitment") ||
-                    currentPath.startsWith("/me/training") ||
-                    [
-                      "/recruitment",
-                      "/training",
-                      "/certification-tracking",
-                      "/campus-hiring",
-                      "/referrals",
-                    ].includes(currentPath)
-                  ) && "active"
-                )}
-              >
-                <i className="ph-duotone ph-briefcase"></i>
-                <span>Talent & Hiring</span>
-                <span className="menu-arrow"></span>
-              </a>
-              <ul style={{ display: !isMini && openMenus.talent ? "block" : "none" }}>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/recruitment/job-postings" : "/me/recruitment/job-postings"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/recruitment/job-postings" || currentPath === "/me/recruitment/job-postings" || currentPath === "/recruitment") && "active")}
-                  >
-                    Recruitment ATS
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/recruitment/candidates" : "/me/recruitment/job-postings"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/recruitment/candidates" || currentPath === "/campus-hiring") && "active")}
-                  >
-                    Campus Hiring
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/recruitment/referrals" : "/me/recruitment/job-postings"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/recruitment/referrals" || currentPath === "/referrals") && "active")}
-                  >
-                    Employee Referrals
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/training/employee-trainings" : "/me/training/trainings"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath.startsWith("/hr/training") || currentPath.startsWith("/me/training") || currentPath === "/training") && "active")}
-                  >
-                    Training & LMS
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/training/programs" : "/me/training/programs"}
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/certification-tracking" && "active")}
-                  >
-                    Certification Tracking
-                  </Link>
-                </li>
-              </ul>
-            </li>
+            {(isEntitled("recruitment-ats") || isEntitled("learning-lms")) && (
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("talent");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.talent && "subdrop",
+                    (
+                      currentPath.startsWith("/hr/recruitment") ||
+                      currentPath.startsWith("/hr/training") ||
+                      currentPath.startsWith("/me/recruitment") ||
+                      currentPath.startsWith("/me/training") ||
+                      [
+                        "/recruitment",
+                        "/training",
+                        "/certification-tracking",
+                        "/campus-hiring",
+                        "/referrals",
+                      ].includes(currentPath)
+                    ) && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-briefcase"></i>
+                  <span>Talent & Hiring</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.talent ? "block" : "none" }}>
+                  {isEntitled("recruitment-ats") && (
+                    <>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/recruitment/job-postings" : "/me/recruitment/job-postings"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/recruitment/job-postings" || currentPath === "/me/recruitment/job-postings" || currentPath === "/recruitment") && "active")}
+                        >
+                          Recruitment ATS
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/recruitment/candidates" : "/me/recruitment/job-postings"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/recruitment/candidates" || currentPath === "/campus-hiring") && "active")}
+                        >
+                          Campus Hiring
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/recruitment/referrals" : "/me/recruitment/job-postings"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/recruitment/referrals" || currentPath === "/referrals") && "active")}
+                        >
+                          Employee Referrals
+                        </Link>
+                      </li>
+                    </>
+                  )}
+                  {isEntitled("learning-lms") && (
+                    <>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/training/employee-trainings" : "/me/training/trainings"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath.startsWith("/hr/training") || currentPath.startsWith("/me/training") || currentPath === "/training") && "active")}
+                        >
+                          Training & LMS
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/training/programs" : "/me/training/programs"}
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/certification-tracking" && "active")}
+                        >
+                          Certification Tracking
+                        </Link>
+                      </li>
+                    </>
+                  )}
+                </ul>
+              </li>
+            )}
 
             {/* Operations & Services Submenu */}
             <li className="submenu">
@@ -2249,24 +2282,28 @@ export function DreamsSidebar({
                 <span className="menu-arrow"></span>
               </a>
               <ul style={{ display: !isMini && openMenus.operations ? "block" : "none" }}>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/lifecycle/complaints" : "/me/helpdesk"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/lifecycle/complaints" || currentPath === "/me/helpdesk" || currentPath === "/helpdesk") && "active")}
-                  >
-                    Helpdesk Tickets
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/documents" : "/me/documents"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath.startsWith("/hr/documents") || currentPath.startsWith("/me/documents") || currentPath === "/documents") && "active")}
-                  >
-                    Document Vault
-                  </Link>
-                </li>
+                {isEntitled("support") && (
+                  <li>
+                    <Link
+                      to={isAdminOrSuper ? "/hr/lifecycle/complaints" : "/me/helpdesk"}
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/hr/lifecycle/complaints" || currentPath === "/me/helpdesk" || currentPath === "/helpdesk") && "active")}
+                    >
+                      Helpdesk Tickets
+                    </Link>
+                  </li>
+                )}
+                {isEntitled("documents") && (
+                  <li>
+                    <Link
+                      to={isAdminOrSuper ? "/hr/documents" : "/me/documents"}
+                      onClick={onCloseMobile}
+                      className={cn((currentPath.startsWith("/hr/documents") || currentPath.startsWith("/me/documents") || currentPath === "/documents") && "active")}
+                    >
+                      Document Vault
+                    </Link>
+                  </li>
+                )}
                 <li>
                   <Link
                     to={isAdminOrSuper ? "/hr/organization/announcements" : "/me/organization/announcements"}
@@ -2294,24 +2331,28 @@ export function DreamsSidebar({
                     Automations
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/performance/goals" : "/me/performance/goals"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/performance/goals" || currentPath === "/me/performance/goals" || currentPath === "/okr") && "active")}
-                  >
-                    OKR & Goals
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/assets" : "/me/assets"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath.startsWith("/hr/assets") || currentPath.startsWith("/me/assets") || currentPath === "/assets") && "active")}
-                  >
-                    Asset Management
-                  </Link>
-                </li>
+                {isEntitled("okr-performance") && (
+                  <li>
+                    <Link
+                      to={isAdminOrSuper ? "/hr/performance/goals" : "/me/performance/goals"}
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/hr/performance/goals" || currentPath === "/me/performance/goals" || currentPath === "/okr") && "active")}
+                    >
+                      OKR & Goals
+                    </Link>
+                  </li>
+                )}
+                {isEntitled("asset-management") && (
+                  <li>
+                    <Link
+                      to={isAdminOrSuper ? "/hr/assets" : "/me/assets"}
+                      onClick={onCloseMobile}
+                      className={cn((currentPath.startsWith("/hr/assets") || currentPath.startsWith("/me/assets") || currentPath === "/assets") && "active")}
+                    >
+                      Asset Management
+                    </Link>
+                  </li>
+                )}
                 <li>
                   <Link
                     to={isAdminOrSuper ? "/hr/lifecycle/resignations" : "/me/lifecycle/resignation"}
@@ -2400,27 +2441,9 @@ export function DreamsSidebar({
 
             {/* ===================== EXTENSIONS & ADD-ONS ===================== */}
             {(() => {
-              const hasMarketplace = isAdminOrSuper;
-              const hasWoo = isEntitled("woocommerce-sync") && isAdminOrSuper;
-              const hasShopify = isEntitled("shopify-sync") && isAdminOrSuper;
-              const hasGoogle = isEntitled("google-workspace-integration") && isAdminOrSuper;
-              const hasTally = isEntitled("tally-importer") && isAdminOrSuper;
-              const hasWhatsapp = isEntitled("whatsapp-alerts") && isAdminOrSuper;
-              const hasRazorpay = isEntitled("razorpay-gateway") && isAdminOrSuper;
-              const hasStrategy = (isEntitled("swot") || isEntitled("pestel")) && isAdminOrSuper;
-              const hasAiOcr = isEntitled("ai-ocr") && isAdminOrSuper;
-
-              const hasNoticeBoard = isEntitled("notice-board");
-              const hasInternalReminders = isEntitled("internal-reminders");
-              const hasTwoFactor = isEntitled("two-factor-auth");
-              const hasBackupRestore = isEntitled("backup-restore") && isAdminOrSuper;
-              const hasActivityLogs = isEntitled("activity-logs") && isAdminOrSuper;
-              const hasPublicApi = isEntitled("public-api") && isAdminOrSuper;
-              const hasOutboundWebhooks = isEntitled("outbound-webhooks") && isAdminOrSuper;
-              const hasSmsGateway = isEntitled("sms-gateway") && isAdminOrSuper;
-
-              const anyVisible = hasMarketplace || hasWoo || hasShopify || hasGoogle || hasTally || hasWhatsapp || hasRazorpay || hasStrategy || hasAiOcr || hasNoticeBoard || hasInternalReminders || hasTwoFactor || hasBackupRestore || hasActivityLogs || hasPublicApi || hasOutboundWebhooks || hasSmsGateway;
-              if (!anyVisible) return null;
+              const extensionItems = resolveExtensionItems(isEntitled, isAdminOrSuper, currentPath);
+              if (!extensionItems.length) return null;
+              const anyActive = extensionItems.some((i) => i.isActive);
 
               return (
                 <>
@@ -2437,25 +2460,7 @@ export function DreamsSidebar({
                       className={cn(
                         "cursor-pointer",
                         openMenus.extensions && "subdrop",
-                        [
-                          "/marketplace",
-                          "/integrations",
-                          "/shopify",
-                          "/google-workspace",
-                          "/tally-importer",
-                          "/whatsapp-alerts",
-                          "/razorpay-gateway",
-                          "/strategy-studio",
-                          "/ai-ocr",
-                          "/notice-board",
-                          "/internal-reminders",
-                          "/two-factor-auth",
-                          "/backup-restore",
-                          "/activity-logs",
-                          "/public-api",
-                          "/outbound-webhooks",
-                          "/sms-gateway",
-                        ].includes(currentPath) && "active"
+                        anyActive && "active"
                       )}
                     >
                       <i className="ph-duotone ph-sparkle"></i>
@@ -2463,193 +2468,17 @@ export function DreamsSidebar({
                       <span className="menu-arrow"></span>
                     </a>
                     <ul style={{ display: !isMini && openMenus.extensions ? "block" : "none" }}>
-                      {hasMarketplace && (
-                        <li>
+                      {extensionItems.map((item) => (
+                        <li key={item.id}>
                           <Link
-                            to="/marketplace"
+                            to={item.route}
                             onClick={onCloseMobile}
-                            className={cn(currentPath === "/marketplace" && "active")}
+                            className={cn(item.isActive && "active")}
                           >
-                            App Marketplace
+                            {item.label}
                           </Link>
                         </li>
-                      )}
-                      {hasNoticeBoard && (
-                        <li>
-                          <Link
-                            to="/notice-board"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/notice-board" && "active")}
-                          >
-                            Notice Board
-                          </Link>
-                        </li>
-                      )}
-                      {hasInternalReminders && (
-                        <li>
-                          <Link
-                            to="/internal-reminders"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/internal-reminders" && "active")}
-                          >
-                            Internal Reminders
-                          </Link>
-                        </li>
-                      )}
-                      {hasTwoFactor && (
-                        <li>
-                          <Link
-                            to="/two-factor-auth"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/two-factor-auth" && "active")}
-                          >
-                            Two-Factor Auth
-                          </Link>
-                        </li>
-                      )}
-                      {hasBackupRestore && (
-                        <li>
-                          <Link
-                            to="/backup-restore"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/backup-restore" && "active")}
-                          >
-                            Backup & Restore
-                          </Link>
-                        </li>
-                      )}
-                      {hasActivityLogs && (
-                        <li>
-                          <Link
-                            to="/activity-logs"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/activity-logs" && "active")}
-                          >
-                            Activity Logs
-                          </Link>
-                        </li>
-                      )}
-                      {hasPublicApi && (
-                        <li>
-                          <Link
-                            to="/public-api"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/public-api" && "active")}
-                          >
-                            Public API Keys
-                          </Link>
-                        </li>
-                      )}
-                      {hasOutboundWebhooks && (
-                        <li>
-                          <Link
-                            to="/outbound-webhooks"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/outbound-webhooks" && "active")}
-                          >
-                            Outbound Webhooks
-                          </Link>
-                        </li>
-                      )}
-                      {hasSmsGateway && (
-                        <li>
-                          <Link
-                            to="/sms-gateway"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/sms-gateway" && "active")}
-                          >
-                            SMS Gateway
-                          </Link>
-                        </li>
-                      )}
-                      {hasWoo && (
-                        <li>
-                          <Link
-                            to="/integrations"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/integrations" && "active")}
-                          >
-                            WooCommerce Sync
-                          </Link>
-                        </li>
-                      )}
-                      {hasShopify && (
-                        <li>
-                          <Link
-                            to="/shopify"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/shopify" && "active")}
-                          >
-                            Shopify Sync
-                          </Link>
-                        </li>
-                      )}
-                      {hasGoogle && (
-                        <li>
-                          <Link
-                            to="/google-workspace"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/google-workspace" && "active")}
-                          >
-                            Google Workspace
-                          </Link>
-                        </li>
-                      )}
-                      {hasTally && (
-                        <li>
-                          <Link
-                            to="/tally-importer"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/tally-importer" && "active")}
-                          >
-                            Tally Prime Sync
-                          </Link>
-                        </li>
-                      )}
-                      {hasWhatsapp && (
-                        <li>
-                          <Link
-                            to="/whatsapp-alerts"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/whatsapp-alerts" && "active")}
-                          >
-                            WhatsApp Alerts
-                          </Link>
-                        </li>
-                      )}
-                      {hasRazorpay && (
-                        <li>
-                          <Link
-                            to="/razorpay-gateway"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/razorpay-gateway" && "active")}
-                          >
-                            Razorpay Gateway
-                          </Link>
-                        </li>
-                      )}
-                      {hasStrategy && (
-                        <li>
-                          <Link
-                            to="/strategy-studio"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/strategy-studio" && "active")}
-                          >
-                            Strategy Studio
-                          </Link>
-                        </li>
-                      )}
-                      {hasAiOcr && (
-                        <li>
-                          <Link
-                            to="/ai-ocr"
-                            onClick={onCloseMobile}
-                            className={cn(currentPath === "/ai-ocr" && "active")}
-                          >
-                            AI Invoice OCR
-                          </Link>
-                        </li>
-                      )}
+                      ))}
                     </ul>
                   </li>
                 </>

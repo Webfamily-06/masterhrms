@@ -69,8 +69,10 @@ export function isModuleAllowed(
     const isEnabled =
       profile.enabledModules.includes(moduleKey) ||
       (moduleKey === "crm" && profile.enabledModules.includes("product_crm")) ||
-      ((moduleKey === "pos" || moduleKey === "inventory") &&
-        (profile.enabledModules.includes("pos") || profile.enabledModules.includes("product_pos") || profile.enabledModules.includes("inventory"))) ||
+      (moduleKey === "pos" &&
+        (profile.enabledModules.includes("pos") || profile.enabledModules.includes("product_pos"))) ||
+      (moduleKey === "inventory" &&
+        (profile.enabledModules.includes("inventory") || profile.enabledModules.includes("product_inventory") || profile.enabledModules.includes("stock"))) ||
       ((moduleKey === "accounting" || moduleKey === "finance") &&
         (profile.enabledModules.includes("accounting") || profile.enabledModules.includes("finance") || profile.enabledModules.includes("product_finance")));
     if (!isEnabled) {
