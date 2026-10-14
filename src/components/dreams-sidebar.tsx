@@ -128,7 +128,7 @@ export function DreamsSidebar({
 
   const userRoles = profile?.roles || [];
   const normalizedRoles = userRoles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
-  const roleName = String(profile?.workspaceRole?.name || profile?.role || "").toLowerCase();
+  const roleName = String(profile?.workspaceRole?.name || profile?.roles?.[0] || "").toLowerCase();
   const normalizedRoleName = roleName.replace(/[-_ ]/g, "");
   const isSuperAdmin = userRoles.includes("super_admin") || normalizedRoles.includes("superadmin") || roleName.includes("super admin");
   const isTenantAdmin = normalizedRoles.some((r) =>

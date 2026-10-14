@@ -80,14 +80,14 @@ export function WebhookNavHeader({ activeTab }: { activeTab: "endpoints" | "even
           <Layers className="size-3.5" /> Event Catalog
         </Link>
         <Link
-          to="/addons/webhook/logs"
+          to="/addons/webhook/events"
           className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-            activeTab === "logs"
+            activeTab === "logs" || activeTab === "events"
               ? "bg-background text-foreground shadow-xs font-bold"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Activity className="size-3.5" /> Delivery Logs
+          <Activity className="size-3.5" /> Event Logs
         </Link>
         <Link
           to="/addons/webhook/settings"
