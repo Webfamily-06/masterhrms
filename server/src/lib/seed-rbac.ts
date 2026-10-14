@@ -123,7 +123,7 @@ interface DbPermission {
     // 2. HR Manager
     const hrPerms = allDbPerms.filter((p: DbPermission) => p.module === "hrm").map((p: DbPermission) => p.code);
     hrPerms.push("analytics.dashboard.view", "analytics.reports.view");
-    await setupRole(
+    const hrRole = await setupRole(
       "HR Manager",
       "Full access to Human Resources, Employees, Attendance, Leaves and Payroll",
       hrPerms
