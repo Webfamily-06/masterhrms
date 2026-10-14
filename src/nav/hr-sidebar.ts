@@ -371,28 +371,61 @@ export function filterHRSidebar(
   context: {
     isWorkspaceAdmin?: boolean;
     isSuperAdmin?: boolean;
+    isHrAdmin?: boolean;
     permissions?: string[];
     activeAddonSlugs?: string[];
+    isAddonActive?: (slug: string) => boolean;
   }
 ): HRMenuItem[] {
   const {
     isWorkspaceAdmin = false,
     isSuperAdmin = false,
+    isHrAdmin = false,
     permissions = [],
     activeAddonSlugs = [],
+    isAddonActive,
   } = context;
 
-  if (isSuperAdmin || isWorkspaceAdmin) {
+  // Preserve full items if Super Admin or Workspace Admin and no add-on filtering requested
+  if ((isSuperAdmin || isWorkspaceAdmin) && !isAddonActive && activeAddonSlugs.length === 0) {
     return items;
   }
 
   function isItemAllowed(item: HRMenuItem): boolean {
-    if (item.addonSlug && !activeAddonSlugs.includes(item.addonSlug)) {
+    if (item.addonSlug) {
+      if (isAddonActive) {
+        if (!isAddonActive(item.addonSlug)) return false;
+      } else if (activeAddonSlugs.length > 0) {
+        if (!activeAddonSlugs.includes(item.addonSlug)) return false;
+      } else if (!isSuperAdmin && !isWorkspaceAdmin) {
+        return false;
+      }
+    }
+
+    if (item.permission) {
+      if (isSuperAdmin || isWorkspaceAdmin) {
+        return true;
+      }
+      if (isHrAdmin) {
+        const hrPrefixes = ["hrm", "employee", "attendance", "leave", "payroll", "recruitment", "assets", "analytics"];
+        if (hrPrefixes.some((p) => item.permission!.startsWith(p) || item.permission!.includes(p))) {
+          return true;
+        }
+      }
+      if (
+        permissions.includes(item.permission) ||
+        permissions.includes("*") ||
+        permissions.includes("hrm.*") ||
+        permissions.includes("admin") ||
+        (item.permission.startsWith("hrm.") && (permissions.includes("hrm.manage") || permissions.includes("hrm"))) ||
+        (item.permission.startsWith("analytics.") && permissions.includes("analytics.manage")) ||
+        (item.permission.startsWith("assets.") && permissions.includes("assets.manage"))
+      ) {
+        return true;
+      }
       return false;
     }
-    if (item.permission && !permissions.includes(item.permission)) {
-      return false;
-    }
+
     return true;
   }
 

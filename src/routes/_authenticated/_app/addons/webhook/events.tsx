@@ -70,7 +70,7 @@ export function WebhookEventCatalogPage() {
   }
 
   return (
-    <PlanGuard moduleName="Outbound Webhooks" requiredPlan="starter">
+    <PlanGuard moduleName="Outbound Webhooks" addonKey="outbound-webhooks" requiredPlan="starter">
       <div className="space-y-6">
         <WebhookNavHeader activeTab="events" />
 

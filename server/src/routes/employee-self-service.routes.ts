@@ -577,6 +577,16 @@ employeeSelfServiceRouter.post("/leaves/validate", async (req: EmployeeAuthReque
   }
 
   try {
+    const validLeaveType = await db.leaveType.findFirst({
+      where: { id: leaveTypeId, tenantId },
+    });
+    if (!validLeaveType) {
+      return res.status(404).json({
+        valid: false,
+        blockingIssues: ["Leave type not found in this workspace."],
+      });
+    }
+
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (end < start) {
@@ -721,6 +731,13 @@ employeeSelfServiceRouter.post("/leaves", async (req: EmployeeAuthRequest, res: 
   }
 
   try {
+    const validLeaveType = await db.leaveType.findFirst({
+      where: { id: leaveTypeId, tenantId },
+    });
+    if (!validLeaveType) {
+      return res.status(404).json({ error: "Leave type not found in this workspace" });
+    }
+
     const start = new Date(startDate);
     const end = new Date(endDate);
     const calcDays = Number(days) || Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);

@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { WebhookNavHeader } from "./endpoints";
 import { toast } from "sonner";
 import { getAuthHeaders } from "@/lib/api";
+import { PlanGuard } from "@/components/plan-guard";
 
 export const Route = createFileRoute("/_authenticated/_app/addons/webhook/settings")({
   component: WebhookSettingsPage,
@@ -96,8 +97,9 @@ function WebhookSettingsPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-5xl mx-auto">
-      <WebhookNavHeader activeTab="settings" />
+    <PlanGuard moduleName="Outbound Webhooks" addonKey="outbound-webhooks" requiredPlan="starter">
+      <div className="p-6 md:p-8 space-y-6 max-w-5xl mx-auto">
+        <WebhookNavHeader activeTab="settings" />
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Network & Dispatch Card */}
@@ -241,5 +243,6 @@ function WebhookSettingsPage() {
         </Card>
       </form>
     </div>
+  </PlanGuard>
   );
 }
