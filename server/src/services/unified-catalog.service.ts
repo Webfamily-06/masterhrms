@@ -584,6 +584,207 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
       "Employee contract repository",
     ],
   },
+  {
+    id: "addon_two_factor_auth",
+    slug: "two-factor-auth",
+    name: "Two-Factor Authentication (2FA)",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "two-factor-auth",
+    targetEngine: "addon",
+    description: "Enforce multi-factor authentication (TOTP/SMS) for enhanced tenant and user account security.",
+    category: "Security and Authentication",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "Two-Factor Auth",
+    navigationIcon: "ph-shield-check",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 4,
+    navigationRoute: "/two-factor-auth",
+    features: [
+      "Time-based One-Time Password (TOTP) verification",
+      "Authenticator app support (Google/Microsoft Authenticator)",
+      "Role-based multi-factor enforcement & backup codes",
+    ],
+  },
+  {
+    id: "addon_backup_restore",
+    slug: "backup-restore",
+    name: "Tenant Backup & Restore",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "backup-restore",
+    targetEngine: "addon",
+    description: "Automated snapshot scheduling, manual database exports, and point-in-time workspace restore.",
+    category: "Security and Authentication",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "Backup & Restore",
+    navigationIcon: "ph-database",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 5,
+    navigationRoute: "/backup-restore",
+    features: [
+      "Automated tenant snapshot scheduling",
+      "One-click encrypted backup archive download",
+      "Point-in-time disaster recovery restore",
+    ],
+  },
+  {
+    id: "addon_internal_reminders",
+    slug: "internal-reminders",
+    name: "Internal Reminders & Follow-ups",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "internal-reminders",
+    targetEngine: "addon",
+    description: "Automated internal employee alerts, probationary milestone alerts, task follow-ups, and calendar pings.",
+    category: "Operations",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "Internal Reminders",
+    navigationIcon: "ph-bell-ringing",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 3,
+    navigationRoute: "/internal-reminders",
+    features: [
+      "Milestone and event follow-up notifications",
+      "Recurring employee and manager reminders",
+      "Multi-channel push and email dispatches",
+    ],
+  },
+  {
+    id: "addon_public_api",
+    slug: "public-api",
+    name: "Developer Public API & Webhooks",
+    productType: "ADDON_INTEGRATION",
+    entitlementKey: "public-api",
+    targetEngine: "addon",
+    description: "RESTful public APIs, scoped API key provisioning, rate limiting, and secure external integrations.",
+    category: "Mobility and Communication",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "Public API Keys",
+    navigationIcon: "ph-key",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 7,
+    navigationRoute: "/public-api",
+    features: [
+      "Scoped read/write developer API tokens",
+      "Granular permission policies and IP whitelisting",
+      "Interactive Swagger/OpenAPI documentation",
+    ],
+  },
+  {
+    id: "addon_outbound_webhooks",
+    slug: "outbound-webhooks",
+    name: "Outbound Webhooks Gateway",
+    productType: "ADDON_INTEGRATION",
+    entitlementKey: "outbound-webhooks",
+    targetEngine: "addon",
+    description: "Event-driven real-time webhook dispatches with HMAC signature verification, retries, and delivery logs.",
+    category: "Integrations",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "Outbound Webhooks",
+    navigationIcon: "ph-webhooks-logo",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 8,
+    navigationRoute: "/outbound-webhooks",
+    features: [
+      "HMAC SHA-256 event signature validation",
+      "Configurable retry logic with exponential backoff",
+      "Complete delivery audit history and replay tools",
+    ],
+  },
+  {
+    id: "addon_sms_gateway",
+    slug: "sms-gateway",
+    name: "SMS Gateway Integration",
+    productType: "ADDON_INTEGRATION",
+    entitlementKey: "sms-gateway",
+    targetEngine: "addon",
+    description: "Enterprise SMS provider integration for automated OTPs, employee notifications, and alert broadcasts.",
+    category: "Integrations",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "SMS Gateway",
+    navigationIcon: "ph-chats-circle",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 9,
+    navigationRoute: "/sms-gateway",
+    features: [
+      "Multi-provider routing (Twilio, MSG91, Fast2SMS)",
+      "Dynamic SMS templates with personalization tags",
+      "Real-time delivery status tracking and fallback",
+    ],
+  },
+  {
+    id: "addon_custom_fields",
+    slug: "custom-fields",
+    name: "Enterprise Custom Fields",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "custom-fields",
+    targetEngine: "addon",
+    description: "Dynamic custom entity fields across Employees, Invoices, Customers, and Assets with type validation.",
+    category: "Operations",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "extension",
+    navigationLabel: "Custom Fields",
+    navigationIcon: "ph-sliders-horizontal",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 16,
+    navigationRoute: "/custom-fields",
+    features: [
+      "User-defined attributes across core entities",
+      "Text, number, date, select, and file field types",
+      "Dynamic form rendering with validation rules",
+    ],
+  },
+  {
+    id: "addon_training",
+    slug: "training",
+    name: "Employee Training & Certification",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "training",
+    targetEngine: "addon",
+    description: "Corporate training programs, skill gap identification, certification tracking, and trainer scheduling.",
+    category: "HRM",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_1",
+    navigationMode: "integrated",
+    targetParentId: "talent-learning",
+    navigationLabel: "Training Programs",
+    navigationIcon: "ph-certificate",
+    navigationGroup: "HRM SUITE",
+    navigationOrder: 3,
+    navigationRoute: "/training",
+    features: [
+      "Training program authoring and enrollment",
+      "Trainer assignment and venue scheduling",
+      "Certification issuing and renewal alerts",
+    ],
+  },
 
   // ─── Feature Add-Ons (Wave 2: Growth & Integrations) ──────────────────────────
   {
@@ -913,6 +1114,81 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
       "Standard Checkout modal with instant capture",
       "Webhook payment verification with HMAC signatures",
       "Automatic invoice reconciliation upon receipt",
+    ],
+  },
+  {
+    id: "addon_suggestion_box",
+    slug: "suggestion-box",
+    name: "Employee Suggestion Box & Ideation",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "suggestion-box",
+    targetEngine: "addon",
+    description: "Anonymous or attributed employee feedback, company innovation ideation, upvoting, and HR review workflows.",
+    category: "HRM",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_2",
+    navigationMode: "extension",
+    navigationLabel: "Suggestion Box",
+    navigationIcon: "ph-lightbulb",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 17,
+    navigationRoute: "/forms",
+    features: [
+      "Employee idea submissions with anonymous toggle",
+      "Peer upvoting and discussion comments",
+      "Admin triage, review status cards, and feedback loops",
+    ],
+  },
+  {
+    id: "addon_ai_document",
+    slug: "ai-document",
+    name: "AI Document Template & Content Management",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "ai-document",
+    targetEngine: "addon",
+    description: "Generative AI employment contract authoring, policy template generation, and smart document parsing.",
+    category: "AI",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_2",
+    navigationMode: "extension",
+    navigationLabel: "AI Document Templates",
+    navigationIcon: "ph-sparkles",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 19,
+    navigationRoute: "/documents",
+    features: [
+      "AI-assisted contract and policy drafting",
+      "Variable merge tags and document templates",
+      "Version-controlled corporate repository",
+    ],
+  },
+  {
+    id: "addon_ai_assistant",
+    slug: "ai-assistant",
+    name: "Universal AI Assistant",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "ai-assistant",
+    targetEngine: "addon",
+    description: "Company-wide conversational assistant for policy queries, employee self-service, and analytics questions.",
+    category: "AI",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_2",
+    navigationMode: "extension",
+    navigationLabel: "AI Assistant",
+    navigationIcon: "ph-robot",
+    navigationGroup: "EXTENSIONS & ADD-ONS",
+    navigationOrder: 20,
+    navigationRoute: "/ai",
+    features: [
+      "Natural language HR policy Q&A",
+      "Automated employee self-service responses",
+      "Context-aware workspace insights",
     ],
   },
 
@@ -1258,6 +1534,12 @@ export class UnifiedCatalogService {
       "notice-board",
       "outbound-webhooks",
       "sms-gateway",
+      "custom-fields",
+      "smart-dashboard",
+      "smart-reports",
+      "ai-business-advisor",
+      "swot",
+      "pestel",
     ]);
 
     // Query active published dynamic price schedules (OD-1)
@@ -1297,9 +1579,37 @@ export class UnifiedCatalogService {
       // Non-fatal, proceed with template defaults
     }
 
+    // Merge canonical registry templates with any additional active DB addons (deduplicated by canonical slug)
+    const combinedTemplates = [...CANONICAL_CATALOG_REGISTRY];
+    const registeredSlugs = new Set(CANONICAL_CATALOG_REGISTRY.map((t) => t.slug.toLowerCase()));
+
+    // Ignore draft aliases
+    const DRAFT_ALIASES = new Set(["google-workspace-integration"]);
+
+    for (const [slug, dbAddon] of addonMarketingMap.entries()) {
+      if (!registeredSlugs.has(slug) && !DRAFT_ALIASES.has(slug) && dbAddon.status === "active") {
+        combinedTemplates.push({
+          id: `addon_${slug.replace(/-/g, "_")}`,
+          slug: dbAddon.slug,
+          name: dbAddon.name,
+          productType: "ADDON_FEATURE",
+          entitlementKey: dbAddon.slug,
+          targetEngine: "addon",
+          description: dbAddon.description || `Enterprise ${dbAddon.name} integration.`,
+          category: dbAddon.category || "Integrations",
+          isPublic: true,
+          status: "ACTIVE",
+          version: dbAddon.version || "1.0.0",
+          features: Array.isArray(dbAddon.features) && dbAddon.features.length > 0
+            ? dbAddon.features
+            : ["Enterprise Grade Add-on", "Seamless MasterHRMS Integration", "Role-based Security"],
+        });
+      }
+    }
+
     const result: CatalogProductDefinition[] = [];
 
-    for (const template of CANONICAL_CATALOG_REGISTRY) {
+    for (const template of combinedTemplates) {
       // Filter by public status
       if (options?.isPublicOnly && !template.isPublic) {
         continue;
@@ -1324,9 +1634,9 @@ export class UnifiedCatalogService {
         continue;
       }
 
-      // Resolve prices from dynamic published schedule if present, else fallback to config
+      // Resolve prices from dynamic published schedule if present, else fallback to config or marketing DB
       const dbSchedule = publishedSchedulesMap.get(template.slug);
-      const priceConfig: ProductPriceConfig | undefined = dbSchedule
+      let priceConfig: ProductPriceConfig | undefined = dbSchedule
         ? {
             monthly: Number(dbSchedule.amountMonthly),
             annual: dbSchedule.amountAnnual ? Number(dbSchedule.amountAnnual) : null,
@@ -1334,6 +1644,16 @@ export class UnifiedCatalogService {
             includedSeats: undefined,
           }
         : config.products[template.slug];
+
+      if (!priceConfig && marketing) {
+        const mMonthly = marketing.priceMonthly != null ? Number(marketing.priceMonthly) : null;
+        const mYearly = marketing.priceYearly != null ? Number(marketing.priceYearly) : (mMonthly != null ? mMonthly * 10 : null);
+        priceConfig = {
+          monthly: mMonthly,
+          annual: mYearly,
+          pricePerUser: null,
+        };
+      }
 
       const monthlyPrice = priceConfig?.monthly ?? null;
       const annualPrice = priceConfig?.annual ?? null;
@@ -1488,20 +1808,22 @@ export class UnifiedCatalogService {
               ? "install"
               : "purchase";
 
-      const eligibility: CatalogProductDefinition["eligibility"] = {
-        eligible,
-        alreadyOwned,
-        reason,
-        isPlanIncluded,
-        isInstalled,
-        isEnabled,
-        canDisable,
-        canEnable,
-        isEntitled,
-        isFree,
-        lifecycleStatus,
-        allowedAction,
-      };
+      const eligibility: CatalogProductDefinition["eligibility"] = options?.tenantId
+        ? {
+            eligible,
+            alreadyOwned,
+            reason,
+            isPlanIncluded,
+            isInstalled,
+            isEnabled,
+            canDisable,
+            canEnable,
+            isEntitled,
+            isFree,
+            lifecycleStatus,
+            allowedAction,
+          }
+        : undefined;
 
       let image: string | undefined = undefined;
       if (
@@ -1576,6 +1898,7 @@ export class UnifiedCatalogService {
     const db = rawPrisma || prisma;
     const existingAddons = await db.addon.findMany({ select: { slug: true } });
     const existingSlugs = new Set(existingAddons.map((a) => a.slug));
+    const config = getCommercePricingConfig();
 
     const toCreate = CANONICAL_CATALOG_REGISTRY.filter(
       (template) => template.targetEngine === "addon" && !existingSlugs.has(template.slug)
@@ -1590,7 +1913,7 @@ export class UnifiedCatalogService {
           category: template.category,
           version: template.version,
           status: "active",
-          priceMonthly: 0,
+          priceMonthly: config.products[template.slug]?.monthly ?? 0,
           features: template.features,
         })),
         skipDuplicates: true,

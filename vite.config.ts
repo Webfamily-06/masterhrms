@@ -22,16 +22,16 @@ function updateEnvMiddlewarePlugin() {
               let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
 
               const keysToUpdate: Record<string, string> = {
-                VITE_SMTP_HOST: data.smtpHost || "",
-                VITE_SMTP_PORT: data.smtpPort || "",
-                VITE_SMTP_USER: data.smtpUser || "",
-                VITE_SMTP_PASS: data.smtpPass || "",
-                VITE_SMTP_ENCRYPTION: data.smtpEncryption || "",
-                VITE_SMTP_FROM_NAME: data.smtpFromName || "",
-                VITE_SMTP_FROM_EMAIL: data.smtpFromEmail || "",
+                SMTP_HOST: data.smtpHost || "",
+                SMTP_PORT: data.smtpPort || "",
+                SMTP_USER: data.smtpUser || "",
+                SMTP_PASS: data.smtpPass || "",
+                SMTP_ENCRYPTION: data.smtpEncryption || "",
+                SMTP_FROM_NAME: data.smtpFromName || "",
+                SMTP_FROM_EMAIL: data.smtpFromEmail || "",
                 VITE_PUSHER_APP_ID: data.pusherAppId || "",
                 VITE_PUSHER_KEY: data.pusherKey || "",
-                VITE_PUSHER_SECRET: data.pusherSecret || "",
+                PUSHER_SECRET: data.pusherSecret || "",
                 VITE_PUSHER_CLUSTER: data.pusherCluster || "",
                 VITE_PUSHER_ENABLED: String(data.pusherEnabled),
               };

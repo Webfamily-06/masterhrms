@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, Link, notFound } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, setToken, clearToken } from "@/lib/api";
+import { TurnstileWidget, TurnstileWidgetRef } from "@/components/security/turnstile-widget";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
@@ -69,6 +70,8 @@ export function Super06LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Sync token from URL query params
   useEffect(() => {
@@ -131,6 +134,7 @@ export function Super06LoginPage() {
         email: cleanEmail,
         password,
         portal: "super", // Backend gate: strictly rejects non-super_admin accounts
+        turnstileToken: turnstileToken || undefined,
       });
 
       // Handle 2FA Challenge
@@ -171,6 +175,8 @@ export function Super06LoginPage() {
           ? "Access Denied: Only Super Administrators can log in through this portal."
           : err?.message || "Invalid Super Administrator credentials.";
       toast.error(msg);
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       setLoading(false);
     }
   }
@@ -597,6 +603,14 @@ export function Super06LoginPage() {
                 </label>
               </div>
             </div>
+
+            <TurnstileWidget
+              ref={turnstileRef}
+              action="super_login"
+              onSuccess={(t) => setTurnstileToken(t)}
+              onExpire={() => setTurnstileToken("")}
+              onError={() => {}}
+            />
 
             <button
               type="submit"

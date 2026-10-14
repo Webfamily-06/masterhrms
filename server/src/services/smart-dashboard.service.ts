@@ -238,7 +238,7 @@ export class SmartDashboardService {
           select: { stage: true },
         }).catch(() => []),
       ]);
-      pipelineValue = deals.reduce((sum, d) => sum + Number(d.value || 0), 0);
+      pipelineValue = (deals as any[]).reduce((sum: number, d: any) => sum + Number(d.value || 0), 0);
       leadsCount = leads.length;
       const converted = leads.filter((l) => l.stage === "converted").length;
       conversionRate = leadsCount > 0 ? Number(((converted / leadsCount) * 100).toFixed(1)) : 0;

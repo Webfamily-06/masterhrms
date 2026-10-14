@@ -54,6 +54,17 @@ export const ADDON_ALIASES: Record<string, string[]> = {
   "sales": ["sales", "invoicing", "product_sales"],
   "finance": ["finance", "product_finance", "accounting", "product_accounting"],
   "hrms": ["hrm", "hrms", "product_hrms", "core_platform", "core-platform"],
+  "suggestion-box": ["suggestion-box", "suggestions"],
+  "custom-fields": ["custom-fields", "custom_fields"],
+  "ai-document": ["ai-document", "ai-docs", "ai-template"],
+  "ai-assistant": ["ai-assistant", "ai-bot"],
+  "training": ["training", "certifications", "employee-training"],
+  "support": ["support", "helpdesk", "tickets"],
+  "documents": ["documents", "docs", "file-storage"],
+  "quickbooks": ["quickbooks", "quickbooks-online"],
+  "xero": ["xero", "xero-sync"],
+  "plaid": ["plaid", "open-banking"],
+  "financial-goal": ["financial-goal", "financial-targets"],
 };
 
 /**
@@ -74,6 +85,7 @@ export const ROUTE_ENTITLEMENT_MAP: Record<string, string> = {
   "/learning-lms": "learning-lms",
   "/procurement": "procurement",
   "/contracts": "contracts",
+  "/hr/documents/contracts": "contracts",
   "/smart-reports": "smart-reports",
   "/smart-reports/attendance-summary": "smart-reports",
   "/smart-reports/payroll-sheet": "smart-reports",
@@ -100,6 +112,12 @@ export const ROUTE_ENTITLEMENT_MAP: Record<string, string> = {
   "/notice-board": "notice-board",
   "/outbound-webhooks": "outbound-webhooks",
   "/sms-gateway": "sms-gateway",
+  "/custom-fields": "custom-fields",
+  "/documents": "documents",
+  "/support": "support",
+  "/training": "training",
+  "/ai-writer": "ai-document",
+  "/ai": "ai-assistant",
 };
 
 export interface EntitlementResolverContext {
@@ -133,6 +151,20 @@ export function checkEntitlementByKey(
   }
 
   const key = rawKey.trim().toLowerCase();
+
+  // Core HRMS platform modules remain always available to tenants regardless of add-ons
+  const CORE_PLATFORM_KEYS = new Set([
+    "core",
+    "overview",
+    "settings",
+    "platform",
+    "core_platform",
+    "hrm",
+    "hrms",
+  ]);
+  if (CORE_PLATFORM_KEYS.has(key)) {
+    return true;
+  }
 
   // Find all candidate slugs/aliases for this key
   const candidates = new Set<string>([key]);

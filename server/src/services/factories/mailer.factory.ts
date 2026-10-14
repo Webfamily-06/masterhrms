@@ -86,10 +86,10 @@ export class MailerFactory {
     tenantId?: string | null
   ): Promise<ResolvedSmtpSettings> {
     let providerType = "smtp";
-    let host = process.env.SMTP_HOST || process.env.VITE_SMTP_HOST || "";
-    let port = parseInt(process.env.SMTP_PORT || process.env.VITE_SMTP_PORT || "587", 10);
-    let user = process.env.SMTP_USER || process.env.VITE_SMTP_USER || "";
-    let pass = process.env.SMTP_PASS || process.env.VITE_SMTP_PASS || "";
+    let host = process.env.SMTP_HOST || "";
+    let port = parseInt(process.env.SMTP_PORT || "587", 10);
+    let user = process.env.SMTP_USER || "";
+    let pass = process.env.SMTP_PASS || "";
     let encryption: "ssl" | "tls" | "none" = (process.env.SMTP_ENCRYPTION || "tls") as any;
     let fromName = process.env.SMTP_FROM_NAME || "Master HRMS";
     let fromEmail = process.env.SMTP_FROM_EMAIL || user || `notifications@${getBaseDomain()}`;

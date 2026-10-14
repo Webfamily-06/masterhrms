@@ -32,6 +32,7 @@ import { Route as OgPreviewRouteImport } from './routes/og-preview'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProductRouteImport } from './routes/product'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as SolutionsRouteImport } from './routes/solutions'
@@ -571,6 +572,11 @@ const PricingRoute = PricingRouteImport.update({
 const ProductRoute = ProductRouteImport.update({
   id: '/product',
   path: '/product',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResourcesRoute = ResourcesRouteImport.update({
@@ -3075,6 +3081,7 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/register': typeof RegisterRoute
   '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
@@ -3524,6 +3531,7 @@ export interface FileRoutesByTo {
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/register': typeof RegisterRoute
   '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
@@ -3971,6 +3979,7 @@ export interface FileRoutesById {
   '/portal': typeof PortalRouteWithChildren
   '/pricing': typeof PricingRoute
   '/product': typeof ProductRoute
+  '/register': typeof RegisterRoute
   '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
   '/solutions': typeof SolutionsRoute
@@ -4423,6 +4432,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/pricing'
     | '/product'
+    | '/register'
     | '/resources'
     | '/session-expired'
     | '/solutions'
@@ -4872,6 +4882,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/pricing'
     | '/product'
+    | '/register'
     | '/resources'
     | '/session-expired'
     | '/solutions'
@@ -5318,6 +5329,7 @@ export interface FileRouteTypes {
     | '/portal'
     | '/pricing'
     | '/product'
+    | '/register'
     | '/resources'
     | '/session-expired'
     | '/solutions'
@@ -5770,6 +5782,7 @@ export interface RootRouteChildren {
   PortalRoute: typeof PortalRouteWithChildren
   PricingRoute: typeof PricingRoute
   ProductRoute: typeof ProductRoute
+  RegisterRoute: typeof RegisterRoute
   ResourcesRoute: typeof ResourcesRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
   SolutionsRoute: typeof SolutionsRoute
@@ -5950,6 +5963,13 @@ declare module '@tanstack/react-router' {
       path: '/product'
       fullPath: '/product'
       preLoaderRoute: typeof ProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/resources': {
@@ -10032,6 +10052,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRouteWithChildren,
   PricingRoute: PricingRoute,
   ProductRoute: ProductRoute,
+  RegisterRoute: RegisterRoute,
   ResourcesRoute: ResourcesRoute,
   SessionExpiredRoute: SessionExpiredRoute,
   SolutionsRoute: SolutionsRoute,

@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
+import { TurnstileWidget, TurnstileWidgetRef } from "@/components/security/turnstile-widget";
 import { formatSystemAmount } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,8 @@ function PublicCareersPage() {
     resumeUrl: "",
     coverLetter: "",
   });
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Query Public Careers data for tenant
   const { data: careersData, isLoading } = useQuery({
@@ -106,6 +109,8 @@ function PublicCareersPage() {
     onSuccess: (res: any) => {
       toast.success(res.message || "Application submitted successfully!");
       setIsApplyModalOpen(false);
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       setApplyForm({
         fullName: "",
         email: "",
@@ -118,7 +123,11 @@ function PublicCareersPage() {
         coverLetter: "",
       });
     },
-    onError: (e: any) => toast.error(e.message || "Failed to submit application"),
+    onError: (e: any) => {
+      toast.error(e.message || "Failed to submit application");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
+    },
   });
 
   // Extract unique departments
@@ -322,7 +331,13 @@ function PublicCareersPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                applyMut.mutate({ jobId: selectedJob.id, payload: applyForm });
+                applyMut.mutate({
+                  jobId: selectedJob.id,
+                  payload: {
+                    ...applyForm,
+                    turnstileToken: turnstileToken || undefined,
+                  },
+                });
               }}
               className="space-y-3.5 py-2 text-xs"
             >
@@ -427,6 +442,13 @@ function PublicCareersPage() {
                   className="text-xs"
                 />
               </div>
+
+              <TurnstileWidget
+                ref={turnstileRef}
+                action="job_apply"
+                onSuccess={(token) => setTurnstileToken(token)}
+                onExpire={() => setTurnstileToken("")}
+              />
 
               <DialogFooter className="pt-2 border-t">
                 <Button type="button" size="sm" variant="outline" onClick={() => setIsApplyModalOpen(false)}>

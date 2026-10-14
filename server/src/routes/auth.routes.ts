@@ -25,6 +25,7 @@ import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth"
 import { SettingsService } from "../services/settings/settings.service";
 import { OAuthFactory } from "../services/factories/oauth.factory";
 import { TwoFactorService } from "../modules/two-factor-auth/two-factor.service";
+import { requireTurnstile } from "../middleware/turnstile.middleware";
 
 export { OAuthFactory };
 export const authRouter = Router();
@@ -284,7 +285,7 @@ authRouter.get("/public/tenant/credentials", async (req, res) => {
 });
 
 // POST /api/auth/register
-authRouter.post("/register", async (req, res) => {
+authRouter.post("/register", requireTurnstile("signup"), async (req, res) => {
   try {
     const { email, password, fullName, companyName, workspaceSlug } = registerSchema.parse(req.body);
 
@@ -467,8 +468,7 @@ authRouter.post("/unlock", async (req, res) => {
   }
 });
 
-// POST /api/auth/login
-authRouter.post("/login", async (req, res) => {
+const loginHandler = async (req: any, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
@@ -660,7 +660,30 @@ authRouter.post("/login", async (req, res) => {
     }
     return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
   }
-});
+};
+
+// POST /api/auth/login
+authRouter.post(
+  "/login",
+  requireTurnstile((req) =>
+    req.body?.portal === "super" || req.headers["x-auth-portal"] === "super"
+      ? "super_login"
+      : "login"
+  ),
+  loginHandler
+);
+
+// POST /api/auth/super-login (Dedicated Super Admin entry point)
+authRouter.post(
+  "/super-login",
+  (req, _res, next) => {
+    req.body = req.body || {};
+    req.body.portal = "super";
+    next();
+  },
+  requireTurnstile("super_login"),
+  loginHandler
+);
 
 // POST /api/auth/forgot-password
 authRouter.post("/forgot-password", async (req, res) => {

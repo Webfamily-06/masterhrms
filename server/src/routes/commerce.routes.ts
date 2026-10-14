@@ -99,8 +99,8 @@ commerceRouter.get("/catalog", async (req: Request, res: Response) => {
         }
       }
     } else {
-      // Unauthenticated caller: generic public catalog only. Strips tenant entitlement evaluation.
-      tenantId = undefined;
+      // Unauthenticated caller: generic public catalog by default; or previewing for a specific tenantId if requested
+      tenantId = requestedTenantId || undefined;
     }
 
     const catalog = await UnifiedCatalogService.getCatalog({

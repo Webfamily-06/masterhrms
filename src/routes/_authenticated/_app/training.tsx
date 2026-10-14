@@ -1,10 +1,9 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { extractRolesFromToken } from "@/lib/auth-navigation";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile, useSession } from "@/lib/session";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,49 +44,34 @@ import {
   Users,
   Plus,
   Search,
-  Download,
-  Eye,
   Calendar,
   Sparkles,
-  ShieldCheck,
-  AlertTriangle,
   PlayCircle,
   FileCheck,
-  Video,
-  FileText,
   UserPlus,
   Trash2,
   Edit2,
-  ArrowRight,
-  Filter,
   Check,
   Phone,
   Mail,
   TrendingUp,
   BarChart3,
   PieChart,
-  UserCheck,
+  ListTodo,
+  Star,
+  Building,
+  DollarSign,
+  MapPin,
+  MessageSquare,
+  Receipt,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/training")({
-  beforeLoad: () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null;
-    const { roles } = extractRolesFromToken(token);
-    const isHrOrAdmin = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin", "hr"].includes(r));
-    throw redirect({ to: isHrOrAdmin ? "/hr/training/employee-trainings" : "/me/training/trainings" });
-  },
   component: TrainingPage,
-  head: () => ({ meta: [{ title: "LMS Training & Certifications — Master HRMS" }] }),
+  head: () => ({ meta: [{ title: "LMS Training & Academy — Master HRMS" }] }),
 });
-
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "Compliance & Security": { bg: "bg-rose-500/10", text: "text-rose-600 dark:text-rose-400", border: "border-rose-500/30" },
-  "Engineering & DevOps": { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/30" },
-  "Sales & Marketing": { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", border: "border-amber-500/30" },
-  "Leadership & Management": { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", border: "border-purple-500/30" },
-};
 
 export function TrainingPage() {
   const { user } = useSession();
@@ -95,11 +79,28 @@ export function TrainingPage() {
   const tenantId = profile?.tenant_id;
   const qc = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<string>("courses");
+  const [activeTab, setActiveTab] = useState<string>("sessions");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Modals
+  // Modals & Active Selections
+  const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
+  const [selectedSessionToEdit, setSelectedSessionToEdit] = useState<any>(null);
+  const [selectedSessionForTasks, setSelectedSessionForTasks] = useState<any>(null);
+
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [selectedTaskToEdit, setSelectedTaskToEdit] = useState<any>(null);
+  const [selectedTaskForFeedback, setSelectedTaskForFeedback] = useState<any>(null);
+  const [isAddFeedbackOpen, setIsAddFeedbackOpen] = useState(false);
+
+  const [isAddTrainerOpen, setIsAddTrainerOpen] = useState(false);
+  const [selectedTrainerToEdit, setSelectedTrainerToEdit] = useState<any>(null);
+
+  const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
+  const [selectedTypeToEdit, setSelectedTypeToEdit] = useState<any>(null);
+
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
   const [selectedCoursePassport, setSelectedCoursePassport] = useState<any>(null);
@@ -107,7 +108,57 @@ export function TrainingPage() {
   const [isUpdateProgressOpen, setIsUpdateProgressOpen] = useState(false);
   const [enrollmentToUpdate, setEnrollmentToUpdate] = useState<any>(null);
 
-  // Forms
+  // ─── FORMS ──────────────────────────────────────────────────
+  const [sessionForm, setSessionForm] = useState({
+    title: "",
+    trainingTypeId: "",
+    trainerId: "",
+    trainer: "",
+    branchId: "",
+    departmentId: "",
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
+    startTime: "09:00",
+    endTime: "17:00",
+    capacity: "25",
+    location: "Main HQ Training Room & Virtual Classroom",
+    cost: "0",
+    description: "",
+    status: "scheduled",
+  });
+
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    assignedToId: "",
+    dueDate: new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0],
+    description: "",
+  });
+
+  const [feedbackForm, setFeedbackForm] = useState({
+    rating: 5,
+    comments: "",
+  });
+
+  const [trainerForm, setTrainerForm] = useState({
+    name: "",
+    contactNumber: "",
+    email: "",
+    experience: "5",
+    expertise: "",
+    qualifications: "",
+    branchId: "",
+    departmentId: "",
+    trainerType: "internal",
+    bio: "",
+  });
+
+  const [typeForm, setTypeForm] = useState({
+    name: "",
+    description: "",
+    branchId: "",
+    departmentId: "",
+  });
+
   const [courseForm, setCourseForm] = useState({
     title: "",
     category: "Compliance & Security",
@@ -116,10 +167,6 @@ export function TrainingPage() {
     isMandatory: false,
     passingScore: "80",
     description: "",
-    modules: [
-      { orderIndex: 1, title: "Module 1: Introduction & Fundamentals", durationMinutes: 45, content: "" },
-      { orderIndex: 2, title: "Module 2: Practical Implementation", durationMinutes: 60, content: "" },
-    ],
   });
 
   const [enrollForm, setEnrollForm] = useState({
@@ -133,41 +180,46 @@ export function TrainingPage() {
     score: "85",
   });
 
-  // Additional Modals & State for Trainers, Types & Analytics
-  const [isAddTrainerOpen, setIsAddTrainerOpen] = useState(false);
-  const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
-  const [selectedTrainerToEdit, setSelectedTrainerToEdit] = useState<any>(null);
-  const [selectedTypeToEdit, setSelectedTypeToEdit] = useState<any>(null);
-
-  // Database / Tenant State for Trainers Directory
-  const [trainersList, setTrainersList] = useState<any[]>([]);
-
-  // Database / Tenant State for Training Types
-  const [trainingTypesList, setTrainingTypesList] = useState<any[]>([]);
-
-  // Trainer Form
-  const [trainerForm, setTrainerForm] = useState({
-    name: "",
-    role: "",
-    phone: "",
-    email: "",
-    description: "",
-    status: "Active",
-  });
-
-  // Type Form
-  const [typeForm, setTypeForm] = useState({
-    type: "",
-    description: "",
-    status: "Active",
-  });
-
-  // Queries
-  const { data: departments = [] } = useQuery({
-    queryKey: ["departments"],
+  // ─── QUERIES ────────────────────────────────────────────────
+  // 1. Meta (Branches, Departments, Types, Trainers, Courses, Employees)
+  const { data: metaData } = useQuery({
+    queryKey: ["hr-training-meta", tenantId],
     queryFn: async () => {
       try {
-        const res = await api.get("/employees/departments");
+        const res: any = await api.get("/hr/training/meta");
+        return res || { branches: [], departments: [], types: [], trainers: [], courses: [], employees: [] };
+      } catch {
+        return { branches: [], departments: [], types: [], trainers: [], courses: [], employees: [] };
+      }
+    },
+  });
+
+  const branches: any[] = metaData?.branches || [];
+  const departments: any[] = metaData?.departments || [];
+  const employees: any[] = metaData?.employees || [];
+
+  // Filter departments by branch in forms
+  const filteredDeptsForSession = useMemo(() => {
+    if (!sessionForm.branchId) return departments;
+    return departments.filter((d) => !d.branchId || d.branchId === sessionForm.branchId);
+  }, [departments, sessionForm.branchId]);
+
+  const filteredDeptsForTrainer = useMemo(() => {
+    if (!trainerForm.branchId) return departments;
+    return departments.filter((d) => !d.branchId || d.branchId === trainerForm.branchId);
+  }, [departments, trainerForm.branchId]);
+
+  const filteredDeptsForType = useMemo(() => {
+    if (!typeForm.branchId) return departments;
+    return departments.filter((d) => !d.branchId || d.branchId === typeForm.branchId);
+  }, [departments, typeForm.branchId]);
+
+  // 2. Training Sessions / List
+  const { data: sessions = [], isLoading: isSessionsLoading } = useQuery({
+    queryKey: ["hr-training-sessions", tenantId],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/hr/training/sessions");
         return Array.isArray(res) ? res : [];
       } catch {
         return [];
@@ -175,11 +227,12 @@ export function TrainingPage() {
     },
   });
 
-  const { data: employees = [] } = useQuery({
-    queryKey: ["employees"],
+  // 3. Training Types
+  const { data: trainingTypes = [], isLoading: isTypesLoading } = useQuery({
+    queryKey: ["hr-training-types", tenantId],
     queryFn: async () => {
       try {
-        const res = await api.get("/employees");
+        const res: any = await api.get("/hr/training/types");
         return Array.isArray(res) ? res : [];
       } catch {
         return [];
@@ -187,13 +240,55 @@ export function TrainingPage() {
     },
   });
 
+  // 4. Trainers
+  const { data: trainers = [], isLoading: isTrainersLoading } = useQuery({
+    queryKey: ["hr-training-trainers", tenantId],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/hr/training/trainers");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // 5. Tasks for selected session
+  const { data: sessionTasks = [], isLoading: isTasksLoading } = useQuery({
+    queryKey: ["hr-training-tasks", selectedSessionForTasks?.id],
+    enabled: !!selectedSessionForTasks?.id,
+    queryFn: async () => {
+      try {
+        const res: any = await api.get(`/hr/training/sessions/${selectedSessionForTasks.id}/tasks`);
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // 6. Feedbacks for selected task
+  const { data: taskFeedbacks = [], isLoading: isFeedbacksLoading } = useQuery({
+    queryKey: ["hr-task-feedbacks", selectedTaskForFeedback?.id],
+    enabled: !!selectedTaskForFeedback?.id,
+    queryFn: async () => {
+      try {
+        const res: any = await api.get(`/hr/training/tasks/${selectedTaskForFeedback.id}/feedbacks`);
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // 7. LMS Courses
   const { data: courses = [], isLoading: isCoursesLoading } = useQuery({
     queryKey: ["training-courses", tenantId, selectedCategory, searchQuery],
     queryFn: async () => {
       try {
         let url = `/training/courses?category=${selectedCategory}`;
         if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
-        const res = await api.get(url);
+        const res: any = await api.get(url);
         return Array.isArray(res) ? res : [];
       } catch {
         return [];
@@ -201,11 +296,12 @@ export function TrainingPage() {
     },
   });
 
-  const { data: enrollments = [], isLoading: isEnrollmentsLoading } = useQuery({
+  // 8. Enrollments
+  const { data: enrollments = [] } = useQuery({
     queryKey: ["training-enrollments", tenantId],
     queryFn: async () => {
       try {
-        const res = await api.get("/training/enrollments");
+        const res: any = await api.get("/training/enrollments");
         return Array.isArray(res) ? res : [];
       } catch {
         return [];
@@ -213,50 +309,187 @@ export function TrainingPage() {
     },
   });
 
-  const { data: myTrainings = [], isLoading: isMyTrainingsLoading } = useQuery({
+  // 9. My Trainings
+  const { data: myTrainings = [] } = useQuery({
     queryKey: ["my-training-enrollments"],
     queryFn: async () => {
       try {
         const res: any = await api.get("/api/v1/me/trainings");
-        return Array.isArray(res?.data) ? res.data : [];
+        return Array.isArray(res) ? res : [];
       } catch {
         return [];
       }
     },
   });
 
+  // 10. Training Overview Stats
   const { data: summary } = useQuery({
-    queryKey: ["training-summary", tenantId],
+    queryKey: ["hr-training-overview", tenantId],
     queryFn: async () => {
       try {
-        return await api.get("/training/summary");
+        const res: any = await api.get("/hr/training/overview");
+        return res || {};
       } catch {
-        return { totalCourses: 0, totalEnrolled: 0, completedCount: 0, complianceRate: 100 };
+        return {};
       }
     },
   });
 
-  // Mutations
-  const createCourseMut = useMutation({
-    mutationFn: async (payload: any) => api.post("/training/courses", payload),
-    onSuccess: () => {
-      toast.success("Training course published successfully!");
-      qc.invalidateQueries({ queryKey: ["training-courses"] });
-      qc.invalidateQueries({ queryKey: ["training-summary"] });
-      setIsAddCourseOpen(false);
-      resetCourseForm();
+  // ─── MUTATIONS ──────────────────────────────────────────────
+  // Sessions
+  const sessionMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (selectedSessionToEdit) {
+        return api.put(`/hr/training/sessions/${selectedSessionToEdit.id}`, payload);
+      }
+      return api.post("/hr/training/sessions", payload);
     },
-    onError: (e: any) => toast.error(e.message || "Failed to publish course"),
+    onSuccess: () => {
+      toast.success(selectedSessionToEdit ? "Training session updated" : "Training session scheduled successfully");
+      qc.invalidateQueries({ queryKey: ["hr-training-sessions"] });
+      qc.invalidateQueries({ queryKey: ["hr-training-overview"] });
+      setIsAddSessionOpen(false);
+      setSelectedSessionToEdit(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save training session"),
   });
 
-  const deleteCourseMut = useMutation({
-    mutationFn: async (id: string) => api.delete(`/training/courses/${id}`),
+  const deleteSessionMut = useMutation({
+    mutationFn: async (id: string) => api.delete(`/hr/training/sessions/${id}`),
     onSuccess: () => {
-      toast.success("Course deleted");
-      qc.invalidateQueries({ queryKey: ["training-courses"] });
-      qc.invalidateQueries({ queryKey: ["training-summary"] });
+      toast.success("Training session removed");
+      qc.invalidateQueries({ queryKey: ["hr-training-sessions"] });
+      qc.invalidateQueries({ queryKey: ["hr-training-overview"] });
     },
-    onError: (e: any) => toast.error(e.message || "Failed to delete course"),
+    onError: (e: any) => toast.error(e.message || "Failed to remove training session"),
+  });
+
+  // Types
+  const typeMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (selectedTypeToEdit) {
+        return api.put(`/hr/training/types/${selectedTypeToEdit.id}`, payload);
+      }
+      return api.post("/hr/training/types", payload);
+    },
+    onSuccess: () => {
+      toast.success(selectedTypeToEdit ? "Training type updated" : "Training type created");
+      qc.invalidateQueries({ queryKey: ["hr-training-types"] });
+      qc.invalidateQueries({ queryKey: ["hr-training-meta"] });
+      setIsAddTypeOpen(false);
+      setSelectedTypeToEdit(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save training type"),
+  });
+
+  const deleteTypeMut = useMutation({
+    mutationFn: async (id: string) => api.delete(`/hr/training/types/${id}`),
+    onSuccess: () => {
+      toast.success("Training type removed");
+      qc.invalidateQueries({ queryKey: ["hr-training-types"] });
+      qc.invalidateQueries({ queryKey: ["hr-training-meta"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to remove training type"),
+  });
+
+  // Trainers
+  const trainerMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (selectedTrainerToEdit) {
+        return api.put(`/hr/training/trainers/${selectedTrainerToEdit.id}`, payload);
+      }
+      return api.post("/hr/training/trainers", payload);
+    },
+    onSuccess: () => {
+      toast.success(selectedTrainerToEdit ? "Trainer profile updated" : "Trainer registered successfully");
+      qc.invalidateQueries({ queryKey: ["hr-training-trainers"] });
+      qc.invalidateQueries({ queryKey: ["hr-training-meta"] });
+      setIsAddTrainerOpen(false);
+      setSelectedTrainerToEdit(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save trainer"),
+  });
+
+  const deleteTrainerMut = useMutation({
+    mutationFn: async (id: string) => api.delete(`/hr/training/trainers/${id}`),
+    onSuccess: () => {
+      toast.success("Trainer removed");
+      qc.invalidateQueries({ queryKey: ["hr-training-trainers"] });
+      qc.invalidateQueries({ queryKey: ["hr-training-meta"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to remove trainer"),
+  });
+
+  // Tasks
+  const taskMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (selectedTaskToEdit) {
+        return api.put(`/hr/training/tasks/${selectedTaskToEdit.id}`, payload);
+      }
+      return api.post(`/hr/training/sessions/${selectedSessionForTasks.id}/tasks`, payload);
+    },
+    onSuccess: () => {
+      toast.success(selectedTaskToEdit ? "Task updated" : "Task assigned to employee");
+      qc.invalidateQueries({ queryKey: ["hr-training-tasks", selectedSessionForTasks?.id] });
+      qc.invalidateQueries({ queryKey: ["hr-training-sessions"] });
+      setIsAddTaskOpen(false);
+      setSelectedTaskToEdit(null);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save task"),
+  });
+
+  const markTaskCompleteMut = useMutation({
+    mutationFn: async (taskId: string) => api.patch(`/hr/training/tasks/${taskId}/complete`, {}),
+    onSuccess: () => {
+      toast.success("Task marked as completed");
+      qc.invalidateQueries({ queryKey: ["hr-training-tasks", selectedSessionForTasks?.id] });
+      qc.invalidateQueries({ queryKey: ["hr-training-sessions"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to complete task"),
+  });
+
+  const deleteTaskMut = useMutation({
+    mutationFn: async (taskId: string) => api.delete(`/hr/training/tasks/${taskId}`),
+    onSuccess: () => {
+      toast.success("Task deleted");
+      qc.invalidateQueries({ queryKey: ["hr-training-tasks", selectedSessionForTasks?.id] });
+      qc.invalidateQueries({ queryKey: ["hr-training-sessions"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete task"),
+  });
+
+  // Feedbacks
+  const feedbackMutation = useMutation({
+    mutationFn: async (payload: any) => api.post(`/hr/training/tasks/${selectedTaskForFeedback.id}/feedbacks`, payload),
+    onSuccess: () => {
+      toast.success("Feedback submitted successfully");
+      qc.invalidateQueries({ queryKey: ["hr-task-feedbacks", selectedTaskForFeedback?.id] });
+      qc.invalidateQueries({ queryKey: ["hr-training-tasks", selectedSessionForTasks?.id] });
+      setIsAddFeedbackOpen(false);
+      setFeedbackForm({ rating: 5, comments: "" });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to submit feedback"),
+  });
+
+  const deleteFeedbackMut = useMutation({
+    mutationFn: async (feedbackId: string) => api.delete(`/hr/training/feedbacks/${feedbackId}`),
+    onSuccess: () => {
+      toast.success("Feedback removed");
+      qc.invalidateQueries({ queryKey: ["hr-task-feedbacks", selectedTaskForFeedback?.id] });
+      qc.invalidateQueries({ queryKey: ["hr-training-tasks", selectedSessionForTasks?.id] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to remove feedback"),
+  });
+
+  // LMS Course & Enrollments
+  const createCourseMut = useMutation({
+    mutationFn: async (data: any) => api.post("/training/courses", data),
+    onSuccess: () => {
+      toast.success("Course published");
+      qc.invalidateQueries({ queryKey: ["training-courses"] });
+      setIsAddCourseOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to create course"),
   });
 
   const enrollMut = useMutation({
@@ -264,70 +497,58 @@ export function TrainingPage() {
     onSuccess: (res: any) => {
       toast.success(res.message || "Staff enrolled successfully!");
       qc.invalidateQueries({ queryKey: ["training-enrollments"] });
-      qc.invalidateQueries({ queryKey: ["training-courses"] });
-      qc.invalidateQueries({ queryKey: ["training-summary"] });
       setIsEnrollOpen(false);
     },
     onError: (e: any) => toast.error(e.message || "Failed to enroll staff"),
   });
 
   const updateProgressMut = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) =>
-      api.put(`/training/enrollments/${id}/progress`, data),
+    mutationFn: async ({ id, data }: { id: string; data: any }) => api.put(`/training/enrollments/${id}/progress`, data),
     onSuccess: (res: any) => {
       toast.success(res.message || "Learning progress updated!");
       qc.invalidateQueries({ queryKey: ["training-enrollments"] });
-      qc.invalidateQueries({ queryKey: ["training-summary"] });
       setIsUpdateProgressOpen(false);
     },
     onError: (e: any) => toast.error(e.message || "Failed to update progress"),
   });
 
-  function resetCourseForm() {
-    setCourseForm({
-      title: "",
-      category: "Compliance & Security",
-      instructor: "",
-      durationHours: "4.0",
-      isMandatory: false,
-      passingScore: "80",
-      description: "",
-      modules: [
-        { orderIndex: 1, title: "Module 1: Introduction & Fundamentals", durationMinutes: 45, content: "" },
-        { orderIndex: 2, title: "Module 2: Practical Implementation", durationMinutes: 60, content: "" },
-      ],
-    });
-  }
-
-  // Filtered Enrollments
-  const filteredEnrollments = useMemo(() => {
-    return enrollments.filter((en: any) => {
+  // ─── FILTERED DATA ──────────────────────────────────────────
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((s: any) => {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
-        en.course?.title?.toLowerCase().includes(q) ||
-        en.employee?.firstName?.toLowerCase().includes(q) ||
-        en.employee?.lastName?.toLowerCase().includes(q) ||
-        en.certificateId?.toLowerCase().includes(q);
-      return matchesSearch;
+        s.title?.toLowerCase().includes(q) ||
+        s.trainer?.toLowerCase().includes(q) ||
+        s.location?.toLowerCase().includes(q) ||
+        s.trainingType?.name?.toLowerCase().includes(q);
+      const matchesBranch = selectedBranchFilter === "all" || s.branchId === selectedBranchFilter;
+      const matchesStatus = selectedStatusFilter === "all" || s.status === selectedStatusFilter;
+      return matchesSearch && matchesBranch && matchesStatus;
     });
-  }, [enrollments, searchQuery]);
+  }, [sessions, searchQuery, selectedBranchFilter, selectedStatusFilter]);
 
-  // Filtered Trainers
   const filteredTrainers = useMemo(() => {
-    return trainersList.filter((tr) => {
+    return trainers.filter((tr: any) => {
       const q = searchQuery.toLowerCase().trim();
-      return !q || tr.name.toLowerCase().includes(q) || tr.role.toLowerCase().includes(q) || tr.email.toLowerCase().includes(q);
+      const matchesSearch =
+        !q ||
+        tr.name?.toLowerCase().includes(q) ||
+        tr.email?.toLowerCase().includes(q) ||
+        tr.expertise?.toLowerCase().includes(q);
+      const matchesBranch = selectedBranchFilter === "all" || tr.branchId === selectedBranchFilter;
+      return matchesSearch && matchesBranch;
     });
-  }, [trainersList, searchQuery]);
+  }, [trainers, searchQuery, selectedBranchFilter]);
 
-  // Filtered Types
   const filteredTypes = useMemo(() => {
-    return trainingTypesList.filter((tt) => {
+    return trainingTypes.filter((tt: any) => {
       const q = searchQuery.toLowerCase().trim();
-      return !q || tt.type.toLowerCase().includes(q) || tt.description.toLowerCase().includes(q);
+      const matchesSearch = !q || tt.name?.toLowerCase().includes(q) || tt.description?.toLowerCase().includes(q);
+      const matchesBranch = selectedBranchFilter === "all" || tt.branchId === selectedBranchFilter;
+      return matchesSearch && matchesBranch;
     });
-  }, [trainingTypesList, searchQuery]);
+  }, [trainingTypes, searchQuery, selectedBranchFilter]);
 
   return (
     <div className="space-y-6 max-w-full pb-12">
@@ -339,23 +560,65 @@ export function TrainingPage() {
             <GraduationCap className="size-6 text-primary" /> Training Academy & Learning LMS
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Enterprise skill development, mandatory compliance certifications, trainers directory, and verified digital credentials.
+            Plan, monitor, and coordinate training programs, internal/external trainers, session tasks, and accounting expense tracking.
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {activeTab === "sessions" && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setSessionForm({
+                  title: "",
+                  trainingTypeId: trainingTypes[0]?.id || "",
+                  trainerId: trainers[0]?.id || "",
+                  trainer: trainers[0]?.name || "",
+                  branchId: branches[0]?.id || "",
+                  departmentId: departments[0]?.id || "",
+                  startDate: new Date().toISOString().split("T")[0],
+                  endDate: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
+                  startTime: "09:00",
+                  endTime: "17:00",
+                  capacity: "25",
+                  location: "Main HQ Training Room & Virtual Classroom",
+                  cost: "0",
+                  description: "",
+                  status: "scheduled",
+                });
+                setSelectedSessionToEdit(null);
+                setIsAddSessionOpen(true);
+              }}
+              className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+            >
+              <Plus className="size-3.5" />
+              <span>Create Training</span>
+            </Button>
+          )}
+
           {activeTab === "trainers" && (
             <Button
               size="sm"
               onClick={() => {
-                setTrainerForm({ name: "", role: "", phone: "", email: "", description: "", status: "Active" });
+                setTrainerForm({
+                  name: "",
+                  contactNumber: "",
+                  email: "",
+                  experience: "5",
+                  expertise: "",
+                  qualifications: "",
+                  branchId: branches[0]?.id || "",
+                  departmentId: departments[0]?.id || "",
+                  trainerType: "internal",
+                  bio: "",
+                });
                 setSelectedTrainerToEdit(null);
                 setIsAddTrainerOpen(true);
               }}
               className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
             >
               <Plus className="size-3.5" />
-              <span>Add Trainer</span>
+              <span>Create Trainer</span>
             </Button>
           )}
 
@@ -363,14 +626,19 @@ export function TrainingPage() {
             <Button
               size="sm"
               onClick={() => {
-                setTypeForm({ type: "", description: "", status: "Active" });
+                setTypeForm({
+                  name: "",
+                  description: "",
+                  branchId: branches[0]?.id || "",
+                  departmentId: departments[0]?.id || "",
+                });
                 setSelectedTypeToEdit(null);
                 setIsAddTypeOpen(true);
               }}
               className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
             >
               <Plus className="size-3.5" />
-              <span>Add Training Type</span>
+              <span>Create Training Type</span>
             </Button>
           )}
 
@@ -396,13 +664,21 @@ export function TrainingPage() {
               <Button
                 size="sm"
                 onClick={() => {
-                  resetCourseForm();
+                  setCourseForm({
+                    title: "",
+                    category: "Compliance & Security",
+                    instructor: "",
+                    durationHours: "4.0",
+                    isMandatory: false,
+                    passingScore: "80",
+                    description: "",
+                  });
                   setIsAddCourseOpen(true);
                 }}
                 className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
               >
                 <Plus className="size-3.5" />
-                <span>Publish New Course</span>
+                <span>Publish Course</span>
               </Button>
             </>
           )}
@@ -413,375 +689,341 @@ export function TrainingPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-1 rounded-xl border">
           <TabsList className="bg-transparent h-8 p-0 gap-1 flex-wrap">
-            <TabsTrigger value="courses" className="text-xs font-bold h-7 gap-1.5">
-              <BookOpen className="size-3.5" />
-              <span>Courses ({courses.length})</span>
-            </TabsTrigger>
-            <TabsTrigger value="my-trainings" className="text-xs font-bold h-7 gap-1.5">
-              <GraduationCap className="size-3.5 text-primary" />
-              <span>My Courses ({myTrainings.length})</span>
-            </TabsTrigger>
-            <TabsTrigger value="enrollments" className="text-xs font-bold h-7 gap-1.5">
-              <Award className="size-3.5" />
-              <span>Enrollments & Certifications ({enrollments.length})</span>
-            </TabsTrigger>
-            <TabsTrigger value="trainers" className="text-xs font-bold h-7 gap-1.5">
-              <Users className="size-3.5" />
-              <span>Trainers ({trainersList.length})</span>
+            <TabsTrigger value="sessions" className="text-xs font-bold h-7 gap-1.5">
+              <Calendar className="size-3.5 text-primary" />
+              <span>Training List ({sessions.length})</span>
             </TabsTrigger>
             <TabsTrigger value="types" className="text-xs font-bold h-7 gap-1.5">
               <Sparkles className="size-3.5" />
-              <span>Training Types ({trainingTypesList.length})</span>
+              <span>Training Types ({trainingTypes.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="trainers" className="text-xs font-bold h-7 gap-1.5">
+              <Users className="size-3.5" />
+              <span>Trainers ({trainers.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="courses" className="text-xs font-bold h-7 gap-1.5">
+              <BookOpen className="size-3.5" />
+              <span>Courses & LMS ({courses.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="enrollments" className="text-xs font-bold h-7 gap-1.5">
+              <Award className="size-3.5" />
+              <span>Enrollments & Certs ({enrollments.length})</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="text-xs font-bold h-7 gap-1.5">
-              <FileCheck className="size-3.5" />
-              <span>Learning Analytics</span>
+              <Receipt className="size-3.5 text-emerald-600" />
+              <span>Accounting & Analytics</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Quick Filters */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search catalog, trainers..."
-                className="h-7 text-xs pl-8 w-44 sm:w-48 bg-background"
+                placeholder="Search training, trainer, location..."
+                className="h-7 text-xs pl-8 w-44 sm:w-52 bg-background"
               />
             </div>
 
-            {activeTab === "courses" && (
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="h-7 text-xs w-40 bg-background">
-                  <SelectValue placeholder="All Categories" />
+            {branches.length > 0 && (
+              <Select value={selectedBranchFilter} onValueChange={setSelectedBranchFilter}>
+                <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                  <SelectValue placeholder="All Branches" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="Compliance & Security">Compliance & Security</SelectItem>
-                  <SelectItem value="Engineering & DevOps">Engineering & DevOps</SelectItem>
-                  <SelectItem value="Sales & Marketing">Sales & Marketing</SelectItem>
-                  <SelectItem value="Leadership & Management">Leadership & Management</SelectItem>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {activeTab === "sessions" && (
+              <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
+                <SelectTrigger className="h-7 text-xs w-32 bg-background">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="ongoing">Ongoing</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             )}
           </div>
         </div>
 
-        {/* ===================== TAB 0: MY PERSONAL TRAININGS ===================== */}
-        <TabsContent value="my-trainings" className="space-y-4 pt-1">
-          {isMyTrainingsLoading ? (
-            <div className="py-20 text-center text-muted-foreground text-xs">
-              Loading your course curriculum...
-            </div>
-          ) : myTrainings.length === 0 ? (
-            <Card className="p-12 text-center space-y-3 border-dashed">
-              <GraduationCap className="size-10 mx-auto text-muted-foreground/50" />
-              <h3 className="font-bold text-base">No Assigned Trainings</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                You are currently up-to-date with all mandatory learning modules. Browse the course catalog to enroll in upcoming skill workshops.
-              </p>
-              <Button size="sm" onClick={() => setActiveTab("courses")} className="text-xs font-bold h-8">
-                Browse Course Catalog
-              </Button>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myTrainings.map((enr: any) => {
-                const c = enr.course || {};
-                const isDone = enr.status === "completed" || enr.progressPercent >= 100;
-
-                return (
-                  <Card key={enr.id} className="p-4 border shadow-2xs bg-card space-y-3 hover:border-primary/40 transition-all flex flex-col justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Badge variant="outline" className="text-[10px] font-mono">
-                          {c.category || "General Training"}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-bold ${
-                            isDone
-                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                              : "bg-blue-500/10 text-blue-600 border-blue-500/30"
-                          }`}
-                        >
-                          {isDone ? "Completed" : "In Progress"}
-                        </Badge>
-                      </div>
-
-                      <h4 className="font-bold text-sm text-foreground">{c.title || "Untitled Course"}</h4>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{c.description || "Interactive skill building curriculum."}</p>
-
-                      <div className="space-y-1.5 pt-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Course Progress</span>
-                          <span className="font-bold font-mono text-foreground">{enr.progressPercent || 0}%</span>
-                        </div>
-                        <Progress value={enr.progressPercent || 0} className="h-2" />
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-mono text-muted-foreground">
-                        {c.durationHours ? `${c.durationHours} Hours` : "Self-paced"}
-                      </span>
-                      {isDone ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            toast.success(`Downloading Certificate of Completion for ${c.title}...`);
-                          }}
-                          className="h-7 text-xs font-bold text-emerald-600 border-emerald-500/30 gap-1.5 shadow-2xs"
-                        >
-                          <Award className="size-3.5" /> Certificate
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            toast.info(`Launching ${c.title} course module...`);
-                          }}
-                          className="h-7 text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-2xs"
-                        >
-                          <PlayCircle className="size-3.5" /> Continue
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ===================== TAB 1: COURSE CATALOG ===================== */}
-        <TabsContent value="courses" className="space-y-4 pt-1">
-          {isCoursesLoading ? (
-            <div className="py-20 text-center text-muted-foreground text-xs">
-              Loading courses...
-            </div>
-          ) : courses.length === 0 ? (
-            <Card className="p-12 text-center space-y-3 border-dashed">
-              <BookOpen className="size-10 mx-auto text-muted-foreground/50" />
-              <h3 className="font-bold text-base">No courses found</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Click "Publish New Course" to add training modules to your company academy.
-              </p>
-            </Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {courses.map((course: any) => {
-                const col = CATEGORY_COLORS[course.category] || CATEGORY_COLORS["Compliance & Security"];
-                return (
-                  <Card
-                    key={course.id}
-                    className="p-5 border shadow-2xs hover:border-primary/50 transition-all bg-card flex flex-col justify-between space-y-4"
-                  >
-                    <div className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <Badge variant="outline" className={`text-[10px] font-bold ${col.bg} ${col.text} ${col.border}`}>
-                          {course.category}
-                        </Badge>
-
-                        {course.isMandatory && (
-                          <Badge className="text-[10px] font-black bg-rose-600 text-white gap-1 shadow-2xs">
-                            <ShieldCheck className="size-3" /> Mandatory
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div>
-                        <h3 className="font-bold text-base text-foreground leading-snug">{course.title}</h3>
-                        <span className="text-xs text-muted-foreground">Instructor: {course.instructor}</span>
-                      </div>
-
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                        {course.description || "Comprehensive enterprise training module."}
-                      </p>
-
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap pt-1 font-mono">
-                        <span className="flex items-center gap-1 font-semibold text-foreground">
-                          <Clock className="size-3.5 text-primary" /> {course.durationHours} Hours
-                        </span>
-                        <span className="flex items-center gap-1 font-semibold text-foreground">
-                          <PlayCircle className="size-3.5 text-amber-500" /> {course.modules?.length || 0} Lessons
-                        </span>
-                        <span className="flex items-center gap-1 font-semibold text-emerald-600">
-                          <Users className="size-3.5" /> {course._count?.enrollments || 0} Enrolled
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t flex items-center justify-between gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSelectedCoursePassport(course)}
-                        className="text-xs font-semibold h-8 gap-1.5 shadow-2xs"
-                      >
-                        <Eye className="size-3.5 text-primary" />
-                        <span>Curriculum Syllabus</span>
-                      </Button>
-
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setEnrollForm({
-                              courseId: course.id,
-                              departmentId: "all",
-                              employeeIds: [],
-                            });
-                            setIsEnrollOpen(true);
-                          }}
-                          className="text-xs font-bold h-8 gap-1.5"
-                        >
-                          <UserPlus className="size-3" />
-                          <span>Enroll Staff</span>
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            if (confirm(`Delete course "${course.title}"?`)) {
-                              deleteCourseMut.mutate(course.id);
-                            }
-                          }}
-                          className="size-8 text-rose-600 hover:bg-rose-50"
-                          title="Delete"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ===================== TAB 2: ENROLLMENTS & CERTIFICATIONS ===================== */}
-        <TabsContent value="enrollments" className="space-y-4 pt-1">
+        {/* ===================== TAB 1: TRAINING LIST (SESSIONS) ===================== */}
+        <TabsContent value="sessions" className="space-y-4 pt-1">
           <Card className="border shadow-2xs">
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40 text-xs">
-                    <TableHead className="text-xs">Staff Learner</TableHead>
-                    <TableHead className="text-xs">Enrolled Course</TableHead>
-                    <TableHead className="text-xs">Learning Progress</TableHead>
-                    <TableHead className="text-xs text-center">Score</TableHead>
-                    <TableHead className="text-xs">Certification Status</TableHead>
-                    <TableHead className="text-xs">Certificate ID</TableHead>
+                    <TableHead className="text-xs">Title & Scope</TableHead>
+                    <TableHead className="text-xs">Training Type</TableHead>
+                    <TableHead className="text-xs">Trainer</TableHead>
+                    <TableHead className="text-xs">Start Date</TableHead>
+                    <TableHead className="text-xs">End Date</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Branch & Location</TableHead>
+                    <TableHead className="text-xs text-right">Cost & Accounting</TableHead>
                     <TableHead className="text-xs text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {isEnrollmentsLoading ? (
+                  {isSessionsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs">
-                        Loading enrollments...
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12 text-xs italic">
+                        Loading training sessions...
                       </TableCell>
                     </TableRow>
-                  ) : filteredEnrollments.length === 0 ? (
+                  ) : filteredSessions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs italic">
-                        No enrollments found. Click "Enroll Staff Members" to assign courses.
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No training programs found matching filters. Click "Create Training" to schedule a session.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredEnrollments.map((en: any) => (
-                      <TableRow key={en.id} className="hover:bg-muted/20 text-xs">
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="size-7 border">
-                              <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
-                                {en.employee?.firstName?.[0]}
-                                {en.employee?.lastName?.[0]}
-                              </AvatarFallback>
-                            </Avatar>
+                    filteredSessions.map((s: any) => {
+                      const isComplete = s.status === "completed";
+                      const isOngoing = s.status === "ongoing";
+                      const isCancelled = s.status === "cancelled";
+
+                      return (
+                        <TableRow key={s.id} className="hover:bg-muted/20 text-xs">
+                          <TableCell className="font-bold text-foreground">
                             <div>
-                              <span className="font-bold text-foreground block">
-                                {en.employee?.firstName} {en.employee?.lastName}
+                              <span>{s.title}</span>
+                              {s.description && (
+                                <p className="text-[11px] font-normal text-muted-foreground line-clamp-1">{s.description}</p>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] font-medium bg-primary/5 text-primary border-primary/20">
+                              {s.trainingType?.name || "General"}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="font-medium text-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <Avatar className="size-6 border">
+                                <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
+                                  {(s.trainerRel?.name || s.trainer || "T")[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span>{s.trainerRel?.name || s.trainer || "Assigned Trainer"}</span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {s.startDate ? new Date(s.startDate).toLocaleDateString() : "-"}
+                          </TableCell>
+
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {s.endDate ? new Date(s.endDate).toLocaleDateString() : "-"}
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-bold ${
+                                isComplete
+                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                  : isOngoing
+                                  ? "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                                  : isCancelled
+                                  ? "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                                  : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                              }`}
+                            >
+                              {s.status?.toUpperCase()}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-muted-foreground">
+                            <div className="flex flex-col text-[11px]">
+                              <span className="font-semibold text-foreground flex items-center gap-1">
+                                <Building className="size-3 text-muted-foreground" />
+                                {s.branch?.name || "All Branches"}
                               </span>
-                              <span className="text-[10px] text-muted-foreground font-mono">
-                                {en.employee?.department?.name || "General"} · {en.employee?.employeeCode}
+                              <span className="truncate max-w-[150px] flex items-center gap-1 text-[10px]">
+                                <MapPin className="size-2.5 text-muted-foreground" />
+                                {s.location || "On-site"}
                               </span>
                             </div>
-                          </div>
-                        </TableCell>
+                          </TableCell>
 
-                        <TableCell>
-                          <div className="space-y-0.5">
-                            <span className="font-bold text-foreground block max-w-[200px] truncate">{en.course?.title}</span>
-                            <span className="text-[10px] text-muted-foreground">{en.course?.category}</span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="w-[180px]">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[10px] font-mono">
-                              <span>{en.progressPercent}% Completed</span>
+                          <TableCell className="text-right font-mono">
+                            <div className="flex flex-col items-end">
+                              <span className="font-bold text-foreground">
+                                {Number(s.cost) > 0 ? `$${Number(s.cost).toLocaleString()}` : "Free"}
+                              </span>
+                              {Number(s.cost) > 0 && isComplete && (
+                                <Badge className="text-[9px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/30 px-1 py-0">
+                                  Auto-Deducted (Acc)
+                                </Badge>
+                              )}
                             </div>
-                            <Progress value={en.progressPercent} className="h-1.5" />
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {/* Tasks Action Button as specified in docs/Addon */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedSessionForTasks(s)}
+                                className="h-6 text-[10px] font-bold gap-1 bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
+                              >
+                                <ListTodo className="size-3" />
+                                <span>Tasks</span>
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedSessionToEdit(s);
+                                  setSessionForm({
+                                    title: s.title,
+                                    trainingTypeId: s.trainingTypeId || "",
+                                    trainerId: s.trainerId || "",
+                                    trainer: s.trainer || "",
+                                    branchId: s.branchId || "",
+                                    departmentId: s.departmentId || "",
+                                    startDate: s.startDate ? new Date(s.startDate).toISOString().split("T")[0] : "",
+                                    endDate: s.endDate ? new Date(s.endDate).toISOString().split("T")[0] : "",
+                                    startTime: s.startTime || "09:00",
+                                    endTime: s.endTime || "17:00",
+                                    capacity: String(s.capacity || 25),
+                                    location: s.location || "",
+                                    cost: String(s.cost || 0),
+                                    description: s.description || "",
+                                    status: s.status || "scheduled",
+                                  });
+                                  setIsAddSessionOpen(true);
+                                }}
+                                className="h-6 text-[10px] font-bold gap-1"
+                              >
+                                <Edit2 className="size-3" /> Edit
+                              </Button>
+
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (confirm(`Remove training session "${s.title}"?`)) {
+                                    deleteSessionMut.mutate(s.id);
+                                  }
+                                }}
+                                className="size-6 text-rose-600 hover:bg-rose-50"
+                              >
+                                <Trash2 className="size-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 2: TRAINING TYPES ===================== */}
+        <TabsContent value="types" className="space-y-4 pt-1">
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Training Type Name</TableHead>
+                    <TableHead className="text-xs">Branch</TableHead>
+                    <TableHead className="text-xs">Department</TableHead>
+                    <TableHead className="text-xs">Scope & Description</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {isTypesLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-12 text-xs italic">
+                        Loading training types...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredTypes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No training types defined. Click "Create Training Type" to add one.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTypes.map((tt: any) => (
+                      <TableRow key={tt.id} className="hover:bg-muted/20 text-xs">
+                        <TableCell className="font-bold text-foreground">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="size-3.5 text-primary shrink-0" />
+                            <span>{tt.name}</span>
                           </div>
                         </TableCell>
 
-                        <TableCell className="text-center font-mono font-bold">
-                          {en.score ? `${en.score}%` : "—"}
+                        <TableCell className="text-muted-foreground">
+                          {tt.branch?.name || (branches.find((b) => b.id === tt.branchId)?.name) || "Global / All Branches"}
                         </TableCell>
 
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-bold capitalize ${
-                              en.status === "completed"
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                                : en.status === "in_progress"
-                                ? "bg-blue-500/10 text-blue-600 border-blue-500/30"
-                                : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {en.status === "completed" ? "Certified" : en.status.replace("_", " ")}
-                          </Badge>
+                        <TableCell className="text-muted-foreground">
+                          {tt.department?.name || (departments.find((d) => d.id === tt.departmentId)?.name) || "All Departments"}
                         </TableCell>
 
-                        <TableCell className="font-mono text-xs font-bold text-primary">
-                          {en.certificateId || "—"}
+                        <TableCell className="text-xs text-muted-foreground max-w-[350px]">
+                          {tt.description || "Comprehensive skill development category."}
                         </TableCell>
 
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {en.status === "completed" && en.certificateId && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setSelectedCertificate(en)}
-                                className="h-6 text-[10px] font-bold text-emerald-600 border-emerald-500/30 gap-1"
-                              >
-                                <Award className="size-3" /> Certificate
-                              </Button>
-                            )}
-
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                setEnrollmentToUpdate(en);
-                                setProgressForm({
-                                  progressPercent: String(en.progressPercent),
-                                  score: String(en.score || 85),
+                                setSelectedTypeToEdit(tt);
+                                setTypeForm({
+                                  name: tt.name,
+                                  description: tt.description || "",
+                                  branchId: tt.branchId || "",
+                                  departmentId: tt.departmentId || "",
                                 });
-                                setIsUpdateProgressOpen(true);
+                                setIsAddTypeOpen(true);
                               }}
                               className="h-6 text-[10px] font-bold gap-1"
                             >
-                              <Edit2 className="size-3" /> Update
+                              <Edit2 className="size-3" /> Edit
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm(`Remove training type "${tt.name}"?`)) {
+                                  deleteTypeMut.mutate(tt.id);
+                                }
+                              }}
+                              className="size-6 text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="size-3" />
                             </Button>
                           </div>
                         </TableCell>
@@ -794,78 +1036,97 @@ export function TrainingPage() {
           </Card>
         </TabsContent>
 
-        {/* ===================== TAB 3: TRAINERS DIRECTORY ===================== */}
+        {/* ===================== TAB 3: TRAINERS ===================== */}
         <TabsContent value="trainers" className="space-y-4 pt-1">
           <Card className="border shadow-2xs">
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40 text-xs">
-                    <TableHead className="text-xs">Trainer Name & Role</TableHead>
-                    <TableHead className="text-xs">Contact Phone</TableHead>
-                    <TableHead className="text-xs">Email Address</TableHead>
-                    <TableHead className="text-xs">Specialization / Bio</TableHead>
-                    <TableHead className="text-xs text-center">Courses</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Trainer Name & Type</TableHead>
+                    <TableHead className="text-xs">Contact</TableHead>
+                    <TableHead className="text-xs">Email</TableHead>
+                    <TableHead className="text-xs">Experience</TableHead>
+                    <TableHead className="text-xs">Branch</TableHead>
+                    <TableHead className="text-xs">Department</TableHead>
+                    <TableHead className="text-xs">Expertise & Qualifications</TableHead>
                     <TableHead className="text-xs text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {filteredTrainers.length === 0 ? (
+                  {isTrainersLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-12 text-xs italic">
-                        No trainers found matching filter.
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12 text-xs italic">
+                        Loading trainers directory...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredTrainers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No trainers registered. Click "Create Trainer" to add instructors.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTrainers.map((tr) => (
+                    filteredTrainers.map((tr: any) => (
                       <TableRow key={tr.id} className="hover:bg-muted/20 text-xs">
                         <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            <Avatar className="size-8 border">
-                              <AvatarFallback className={`text-xs font-bold ${tr.avatarBg || "bg-primary/10 text-primary"}`}>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="size-7 border">
+                              <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
                                 {tr.name.split(" ").map((n: string) => n[0]).join("")}
                               </AvatarFallback>
                             </Avatar>
                             <div>
                               <span className="font-bold text-foreground block">{tr.name}</span>
-                              <span className="text-[10px] text-muted-foreground">{tr.role}</span>
+                              <Badge variant="outline" className="text-[9px] font-mono capitalize">
+                                {tr.trainerType || "Internal"}
+                              </Badge>
                             </div>
                           </div>
                         </TableCell>
 
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Phone className="size-3 text-muted-foreground" />
-                            <span>{tr.phone}</span>
-                          </div>
+                          {tr.contactNumber ? (
+                            <div className="flex items-center gap-1">
+                              <Phone className="size-3 text-muted-foreground" />
+                              <span>{tr.contactNumber}</span>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
 
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Mail className="size-3 text-muted-foreground" />
-                            <span>{tr.email}</span>
+                          {tr.email ? (
+                            <div className="flex items-center gap-1">
+                              <Mail className="size-3 text-muted-foreground" />
+                              <span>{tr.email}</span>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+
+                        <TableCell className="font-mono font-bold text-foreground">
+                          {tr.experience ? `${tr.experience} Yrs` : "5 Yrs"}
+                        </TableCell>
+
+                        <TableCell className="text-muted-foreground">
+                          {tr.branch?.name || (branches.find((b) => b.id === tr.branchId)?.name) || "Global"}
+                        </TableCell>
+
+                        <TableCell className="text-muted-foreground">
+                          {tr.department?.name || (departments.find((d) => d.id === tr.departmentId)?.name) || "All"}
+                        </TableCell>
+
+                        <TableCell className="max-w-[200px]">
+                          <div className="space-y-0.5">
+                            <span className="font-semibold text-foreground block truncate">{tr.expertise || "General"}</span>
+                            {tr.qualifications && (
+                              <span className="text-[10px] text-muted-foreground block truncate">{tr.qualifications}</span>
+                            )}
                           </div>
-                        </TableCell>
-
-                        <TableCell className="max-w-[260px]">
-                          <p className="text-xs text-muted-foreground line-clamp-1">{tr.description}</p>
-                        </TableCell>
-
-                        <TableCell className="text-center font-mono font-bold text-primary">
-                          <Badge variant="outline" className="text-[10px] font-mono">
-                            {tr.coursesCount || 1} Courses
-                          </Badge>
-                        </TableCell>
-
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1"
-                          >
-                            <Check className="size-3" /> {tr.status}
-                          </Badge>
                         </TableCell>
 
                         <TableCell className="text-right">
@@ -877,11 +1138,15 @@ export function TrainingPage() {
                                 setSelectedTrainerToEdit(tr);
                                 setTrainerForm({
                                   name: tr.name,
-                                  role: tr.role,
-                                  phone: tr.phone,
-                                  email: tr.email,
-                                  description: tr.description,
-                                  status: tr.status,
+                                  contactNumber: tr.contactNumber || "",
+                                  email: tr.email || "",
+                                  experience: String(tr.experience || 5),
+                                  expertise: tr.expertise || "",
+                                  qualifications: tr.qualifications || "",
+                                  branchId: tr.branchId || "",
+                                  departmentId: tr.departmentId || "",
+                                  trainerType: tr.trainerType || "internal",
+                                  bio: tr.bio || "",
                                 });
                                 setIsAddTrainerOpen(true);
                               }}
@@ -895,8 +1160,7 @@ export function TrainingPage() {
                               variant="ghost"
                               onClick={() => {
                                 if (confirm(`Remove trainer "${tr.name}"?`)) {
-                                  setTrainersList((prev) => prev.filter((t) => t.id !== tr.id));
-                                  toast.success("Trainer removed");
+                                  deleteTrainerMut.mutate(tr.id);
                                 }
                               }}
                               className="size-6 text-rose-600 hover:bg-rose-50"
@@ -914,93 +1178,168 @@ export function TrainingPage() {
           </Card>
         </TabsContent>
 
-        {/* ===================== TAB 4: TRAINING TYPES ===================== */}
-        <TabsContent value="types" className="space-y-4 pt-1">
+        {/* ===================== TAB 4: COURSES & LMS ===================== */}
+        <TabsContent value="courses" className="space-y-4 pt-1">
+          {isCoursesLoading ? (
+            <div className="py-20 text-center text-muted-foreground text-xs">
+              Loading enterprise course catalog...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {courses.map((course: any) => (
+                <Card
+                  key={course.id}
+                  className="p-4 border shadow-2xs bg-card space-y-3 hover:border-primary/40 transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {course.category}
+                      </Badge>
+                      {course.isMandatory && (
+                        <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/30 text-[10px] font-bold">
+                          Mandatory
+                        </Badge>
+                      )}
+                    </div>
+
+                    <h4 className="font-bold text-sm text-foreground">{course.title}</h4>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{course.description}</p>
+
+                    <div className="pt-2 flex items-center justify-between text-xs text-muted-foreground border-t">
+                      <span>Instructor: {course.instructor || "Lead Faculty"}</span>
+                      <span className="font-mono">{course.durationHours} hrs</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedCoursePassport(course)}
+                      className="text-xs font-bold h-7 gap-1"
+                    >
+                      <BookOpen className="size-3" />
+                      <span>Curriculum</span>
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEnrollForm({
+                          courseId: course.id,
+                          departmentId: "all",
+                          employeeIds: [],
+                        });
+                        setIsEnrollOpen(true);
+                      }}
+                      className="text-xs font-bold h-7 gap-1"
+                    >
+                      <UserPlus className="size-3" />
+                      <span>Enroll</span>
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ===================== TAB 5: ENROLLMENTS & CERTS ===================== */}
+        <TabsContent value="enrollments" className="space-y-4 pt-1">
           <Card className="border shadow-2xs">
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40 text-xs">
-                    <TableHead className="text-xs">Training Type Name</TableHead>
-                    <TableHead className="text-xs">Curriculum Scope & Description</TableHead>
-                    <TableHead className="text-xs text-center">Active Modules</TableHead>
+                    <TableHead className="text-xs">Employee</TableHead>
+                    <TableHead className="text-xs">Course</TableHead>
+                    <TableHead className="text-xs">Progress</TableHead>
+                    <TableHead className="text-xs">Score</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {filteredTypes.length === 0 ? (
+                  {enrollments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-12 text-xs italic">
-                        No training types found.
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No enrollments found. Enroll staff from the Courses tab.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTypes.map((tt) => (
-                      <TableRow key={tt.id} className="hover:bg-muted/20 text-xs">
-                        <TableCell className="font-bold text-foreground">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="size-3.5 text-primary shrink-0" />
-                            <span>{tt.type}</span>
-                          </div>
-                        </TableCell>
+                    enrollments.map((enr: any) => {
+                      const isDone = enr.status === "completed" || enr.progressPercent >= 100;
+                      return (
+                        <TableRow key={enr.id} className="hover:bg-muted/20 text-xs">
+                          <TableCell className="font-bold text-foreground">
+                            {enr.employee ? `${enr.employee.firstName} ${enr.employee.lastName}` : "Staff Member"}
+                          </TableCell>
 
-                        <TableCell className="text-xs text-muted-foreground max-w-[350px]">
-                          {tt.description}
-                        </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {enr.course?.title || "Course"}
+                          </TableCell>
 
-                        <TableCell className="text-center font-mono font-bold">
-                          <Badge variant="outline" className="text-[10px] font-mono">
-                            {tt.coursesCount || 0} Modules
-                          </Badge>
-                        </TableCell>
+                          <TableCell>
+                            <div className="w-28 space-y-1">
+                              <Progress value={enr.progressPercent || 0} className="h-1.5" />
+                              <span className="text-[10px] font-mono text-muted-foreground block">
+                                {enr.progressPercent || 0}%
+                              </span>
+                            </div>
+                          </TableCell>
 
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1"
-                          >
-                            <Check className="size-3" /> {tt.status}
-                          </Badge>
-                        </TableCell>
+                          <TableCell className="font-mono font-bold">
+                            {enr.score !== null ? `${enr.score}%` : "-"}
+                          </TableCell>
 
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              size="sm"
+                          <TableCell>
+                            <Badge
                               variant="outline"
-                              onClick={() => {
-                                setSelectedTypeToEdit(tt);
-                                setTypeForm({
-                                  type: tt.type,
-                                  description: tt.description,
-                                  status: tt.status,
-                                });
-                                setIsAddTypeOpen(true);
-                              }}
-                              className="h-6 text-[10px] font-bold gap-1"
+                              className={`text-[10px] font-bold ${
+                                isDone
+                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                  : "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                              }`}
                             >
-                              <Edit2 className="size-3" /> Edit
-                            </Button>
+                              {isDone ? "Completed" : "In Progress"}
+                            </Badge>
+                          </TableCell>
 
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => {
-                                if (confirm(`Remove training type "${tt.type}"?`)) {
-                                  setTrainingTypesList((prev) => prev.filter((t) => t.id !== tt.id));
-                                  toast.success("Training type removed");
-                                }
-                              }}
-                              className="size-6 text-rose-600 hover:bg-rose-50"
-                            >
-                              <Trash2 className="size-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {isDone && enr.certificateId ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedCertificate(enr)}
+                                  className="h-6 text-[10px] font-bold gap-1 text-emerald-600 border-emerald-500/30"
+                                >
+                                  <Award className="size-3" /> Certificate
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEnrollmentToUpdate(enr);
+                                    setProgressForm({
+                                      progressPercent: String(enr.progressPercent || 50),
+                                      score: String(enr.score || 85),
+                                    });
+                                    setIsUpdateProgressOpen(true);
+                                  }}
+                                  className="h-6 text-[10px] font-bold gap-1"
+                                >
+                                  Update Progress
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1008,144 +1347,767 @@ export function TrainingPage() {
           </Card>
         </TabsContent>
 
-        {/* ===================== TAB 5: LEARNING ANALYTICS ===================== */}
+        {/* ===================== TAB 6: ACCOUNTING & ANALYTICS ===================== */}
         <TabsContent value="analytics" className="space-y-4 pt-1">
-          {/* Analytics KPI Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Card className="p-4 border shadow-2xs bg-card space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Award className="size-4 text-emerald-600" /> Certification Velocity
-                </span>
-                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-bold">
-                  +12% this month
-                </Badge>
-              </div>
-              <div className="text-2xl font-black font-mono text-foreground">
-                {summary?.completedCount || 18} Completed
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Staff successfully certified and validated against enterprise compliance baselines.
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <Card className="p-4 border shadow-2xs bg-card space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Calendar className="size-4 text-primary" /> Active Sessions
+              </span>
+              <div className="text-2xl font-black font-mono text-foreground">{sessions.length}</div>
+              <p className="text-[11px] text-muted-foreground">Scheduled or ongoing training cohorts</p>
             </Card>
 
-            <Card className="p-4 border shadow-2xs bg-card space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <TrendingUp className="size-4 text-primary" /> Average Quiz Score
-                </span>
-                <Badge className="bg-primary/10 text-primary border-primary/30 text-[10px] font-bold">
-                  Passing Baseline 80%
-                </Badge>
-              </div>
-              <div className="text-2xl font-black font-mono text-primary">
-                87.4%
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Mean assessment score across all technical, sales, and compliance evaluations.
-              </p>
+            <Card className="p-4 border shadow-2xs bg-card space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Award className="size-4 text-emerald-600" /> Completion Rate
+              </span>
+              <div className="text-2xl font-black font-mono text-emerald-600">{summary?.completionRate || 92}%</div>
+              <p className="text-[11px] text-muted-foreground">Certified against compliance baselines</p>
             </Card>
 
-            <Card className="p-4 border shadow-2xs bg-card space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="size-4 text-amber-500" /> Total Training Hours Logged
-                </span>
-                <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px] font-bold">
-                  +20% weekly
-                </Badge>
-              </div>
+            <Card className="p-4 border shadow-2xs bg-card space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Users className="size-4 text-purple-600" /> Trainers & Instructors
+              </span>
+              <div className="text-2xl font-black font-mono text-purple-600">{trainers.length}</div>
+              <p className="text-[11px] text-muted-foreground">Internal experts and external partners</p>
+            </Card>
+
+            <Card className="p-4 border shadow-2xs bg-card space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <DollarSign className="size-4 text-amber-600" /> Training Cost Deductions
+              </span>
               <div className="text-2xl font-black font-mono text-amber-600">
-                348.5 Hours
+                ${sessions.reduce((acc: number, s: any) => acc + (Number(s.cost) || 0), 0).toLocaleString()}
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Aggregated workforce upskilling time completed across interactive modules.
-              </p>
+              <p className="text-[11px] text-muted-foreground">Logged & reconciled with Accounting Add-On</p>
             </Card>
           </div>
 
-          {/* Highly Enrolled Courses Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-4 border shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                  <BarChart3 className="size-4 text-primary" /> Top Enrolled Curriculum
-                </h3>
-                <span className="text-[10px] text-muted-foreground font-mono">Real-time Ranking</span>
-              </div>
-              <div className="space-y-2.5">
-                {courses.slice(0, 4).map((c: any, idx: number) => (
-                  <div key={c.id || idx} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-foreground truncate max-w-[240px]">{c.title}</span>
-                      <span className="font-mono text-muted-foreground">{c._count?.enrollments || (idx === 0 ? 14 : idx === 1 ? 9 : 6)} Enrolled</span>
-                    </div>
-                    <Progress value={idx === 0 ? 85 : idx === 1 ? 60 : 40} className="h-1.5" />
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="p-4 border shadow-2xs space-y-3">
-              <div className="flex items-center justify-between border-b pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                  <PieChart className="size-4 text-emerald-600" /> Department Upskilling Index
-                </h3>
-                <span className="text-[10px] text-muted-foreground font-mono">Completion Rate</span>
-              </div>
-              <div className="space-y-2.5">
-                {departments.slice(0, 4).map((dept: any, idx: number) => {
-                  const rate = idx === 0 ? 94 : idx === 1 ? 88 : idx === 2 ? 76 : 65;
-                  return (
-                    <div key={dept.id || idx} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-foreground">{dept.name}</span>
-                        <span className="font-mono text-emerald-600 font-bold">{rate}% Certified</span>
-                      </div>
-                      <Progress value={rate} className="h-1.5" />
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          </div>
+          <Card className="p-4 border shadow-2xs space-y-3">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <Receipt className="size-4 text-emerald-600" /> Accounting Add-On Expense Reconciliation
+              </h3>
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-mono">
+                Automatic Ledger Integration Active
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              When a training program completes, its associated costs are automatically debited against your organizational expense accounts and tagged to the training's branch and department.
+            </p>
+          </Card>
         </TabsContent>
       </Tabs>
 
-      {/* ─── MODAL: ADD / EDIT TRAINER ─── */}
-      <Dialog open={isAddTrainerOpen} onOpenChange={setIsAddTrainerOpen}>
-        <DialogContent className="max-w-md">
+      {/* ─── MODAL: CREATE / EDIT TRAINING SESSION ─── */}
+      <Dialog open={isAddSessionOpen} onOpenChange={setIsAddSessionOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <Users className="size-5 text-primary" />
-              <span>{selectedTrainerToEdit ? "Edit Trainer" : "Add New Trainer"}</span>
+              <Calendar className="size-5 text-primary" />
+              <span>{selectedSessionToEdit ? "Edit Training Program" : "Create Training Program"}</span>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Register certified internal instructors and external domain experts.
+              Schedule training sessions, assign trainers, set locations, and link expense costs.
             </DialogDescription>
           </DialogHeader>
 
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (selectedTrainerToEdit) {
-                setTrainersList((prev) =>
-                  prev.map((t) => (t.id === selectedTrainerToEdit.id ? { ...t, ...trainerForm } : t))
-                );
-                toast.success("Trainer updated successfully!");
-              } else {
-                setTrainersList((prev) => [
-                  ...prev,
-                  {
-                    id: `tr-${Date.now()}`,
-                    ...trainerForm,
-                    avatarBg: "bg-primary/10 text-primary",
-                    coursesCount: 1,
-                  },
-                ]);
-                toast.success("Trainer added to directory!");
-              }
-              setIsAddTrainerOpen(false);
+              sessionMutation.mutate(sessionForm);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Training Title *</Label>
+              <Input
+                required
+                placeholder="e.g. Advanced Cybersecurity & ISO 27001 Compliance Workshop"
+                value={sessionForm.title}
+                onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Training Type *</Label>
+                <Select
+                  value={sessionForm.trainingTypeId}
+                  onValueChange={(v) => setSessionForm({ ...sessionForm, trainingTypeId: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Type" /></SelectTrigger>
+                  <SelectContent>
+                    {trainingTypes.map((t: any) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Trainer *</Label>
+                <Select
+                  value={sessionForm.trainerId}
+                  onValueChange={(v) => {
+                    const sel = trainers.find((t: any) => t.id === v);
+                    setSessionForm({ ...sessionForm, trainerId: v, trainer: sel?.name || "" });
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Trainer" /></SelectTrigger>
+                  <SelectContent>
+                    {trainers.map((tr: any) => (
+                      <SelectItem key={tr.id} value={tr.id}>{tr.name} ({tr.trainerType || "Internal"})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Branch *</Label>
+                <Select
+                  value={sessionForm.branchId}
+                  onValueChange={(v) => setSessionForm({ ...sessionForm, branchId: v, departmentId: "" })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Branch" /></SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b: any) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Department *</Label>
+                <Select
+                  value={sessionForm.departmentId}
+                  onValueChange={(v) => setSessionForm({ ...sessionForm, departmentId: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Department" /></SelectTrigger>
+                  <SelectContent>
+                    {filteredDeptsForSession.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Start Date *</Label>
+                <Input
+                  type="date"
+                  required
+                  value={sessionForm.startDate}
+                  onChange={(e) => setSessionForm({ ...sessionForm, startDate: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">End Date *</Label>
+                <Input
+                  type="date"
+                  required
+                  value={sessionForm.endDate}
+                  onChange={(e) => setSessionForm({ ...sessionForm, endDate: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Start Time</Label>
+                <Input
+                  type="time"
+                  value={sessionForm.startTime}
+                  onChange={(e) => setSessionForm({ ...sessionForm, startTime: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">End Time</Label>
+                <Input
+                  type="time"
+                  value={sessionForm.endTime}
+                  onChange={(e) => setSessionForm({ ...sessionForm, endTime: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Max Participants</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={sessionForm.capacity}
+                  onChange={(e) => setSessionForm({ ...sessionForm, capacity: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Training Cost ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={sessionForm.cost}
+                  onChange={(e) => setSessionForm({ ...sessionForm, cost: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Location / Delivery Mode *</Label>
+              <Input
+                required
+                placeholder="e.g. Executive Boardroom / Zoom Room 482"
+                value={sessionForm.location}
+                onChange={(e) => setSessionForm({ ...sessionForm, location: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Status *</Label>
+              <Select
+                value={sessionForm.status}
+                onValueChange={(v) => setSessionForm({ ...sessionForm, status: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="ongoing">Ongoing</SelectItem>
+                  <SelectItem value="completed">Completed (Deducts Cost to Accounting)</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Description</Label>
+              <Textarea
+                rows={2}
+                placeholder="Session curriculum goals, instructions for attendees..."
+                value={sessionForm.description}
+                onChange={(e) => setSessionForm({ ...sessionForm, description: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddSessionOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={sessionMutation.isPending} className="text-xs font-bold">
+                {selectedSessionToEdit ? "Save Changes" : "Create Training"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL: TRAINING TASKS MANAGEMENT (SPEC-COMPLIANT) ─── */}
+      {selectedSessionForTasks && (
+        <Dialog open={!!selectedSessionForTasks} onOpenChange={(o) => !o && setSelectedSessionForTasks(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center justify-between pr-4">
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <ListTodo className="size-5 text-primary" />
+                  <span>Tasks for: {selectedSessionForTasks.title}</span>
+                </DialogTitle>
+                <Badge variant="outline" className="text-xs font-bold capitalize">
+                  {selectedSessionForTasks.status}
+                </Badge>
+              </div>
+              <DialogDescription className="text-xs">
+                Manage actionable employee assignments, deadlines, completion reviews, and feedback.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-foreground">Assigned Tasks ({sessionTasks.length})</span>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setTaskForm({
+                      title: "",
+                      assignedToId: employees[0]?.id || "",
+                      dueDate: new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0],
+                      description: "",
+                    });
+                    setSelectedTaskToEdit(null);
+                    setIsAddTaskOpen(true);
+                  }}
+                  className="h-7 text-xs font-bold gap-1 bg-primary text-primary-foreground"
+                >
+                  <Plus className="size-3" /> Create Task
+                </Button>
+              </div>
+
+              <Card className="border shadow-2xs">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 text-xs">
+                      <TableHead className="text-xs">Task Title</TableHead>
+                      <TableHead className="text-xs">Assigned To</TableHead>
+                      <TableHead className="text-xs">Due Date</TableHead>
+                      <TableHead className="text-xs">Status</TableHead>
+                      <TableHead className="text-xs text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {isTasksLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8 text-xs italic">
+                          Loading training tasks...
+                        </TableCell>
+                      </TableRow>
+                    ) : sessionTasks.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8 text-xs italic">
+                          No tasks created yet for this training. Click "Create Task" above.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      sessionTasks.map((task: any) => {
+                        const isDone = task.status === "completed";
+                        const feedbackCount = task._count?.feedbacks || 0;
+
+                        return (
+                          <TableRow key={task.id} className="hover:bg-muted/20 text-xs">
+                            <TableCell className="font-bold text-foreground">
+                              <div>
+                                <span>{task.title}</span>
+                                {task.description && (
+                                  <p className="text-[10px] text-muted-foreground font-normal line-clamp-1">
+                                    {task.description}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="text-muted-foreground">
+                              {task.assignee ? `${task.assignee.firstName} ${task.assignee.lastName}` : "Assigned Staff"}
+                            </TableCell>
+
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "-"}
+                            </TableCell>
+
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] font-bold ${
+                                  isDone
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                    : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                }`}
+                              >
+                                {isDone ? "Completed" : "Pending"}
+                              </Badge>
+                            </TableCell>
+
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {!isDone && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => markTaskCompleteMut.mutate(task.id)}
+                                    className="h-6 text-[10px] font-bold gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-50"
+                                  >
+                                    <Check className="size-3" /> Mark Complete
+                                  </Button>
+                                )}
+
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedTaskForFeedback(task)}
+                                  className="h-6 text-[10px] font-bold gap-1 text-primary border-primary/20"
+                                >
+                                  <MessageSquare className="size-3" />
+                                  <span>Feedbacks ({feedbackCount})</span>
+                                </Button>
+
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    if (confirm(`Remove task "${task.title}"?`)) {
+                                      deleteTaskMut.mutate(task.id);
+                                    }
+                                  }}
+                                  className="size-6 text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2 className="size-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </Card>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button size="sm" variant="outline" onClick={() => setSelectedSessionForTasks(null)}>
+                Close Tasks
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ─── MODAL: CREATE / EDIT TASK ─── */}
+      <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <ListTodo className="size-5 text-primary" />
+              <span>Create Training Task</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              taskMutation.mutate(taskForm);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Task Title *</Label>
+              <Input
+                required
+                placeholder="e.g. Complete Risk Assessment Template"
+                value={taskForm.title}
+                onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Assign Employee *</Label>
+              <Select
+                value={taskForm.assignedToId}
+                onValueChange={(v) => setTaskForm({ ...taskForm, assignedToId: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Employee" /></SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp: any) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.firstName} {emp.lastName} ({emp.employeeCode || "HR"})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Due Date *</Label>
+              <Input
+                type="date"
+                required
+                value={taskForm.dueDate}
+                onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
+                className="h-8 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Description</Label>
+              <Textarea
+                rows={2}
+                placeholder="Instructions, deliverable files required..."
+                value={taskForm.description}
+                onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTaskOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={taskMutation.isPending} className="text-xs font-bold">
+                Assign Task
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL: TASK FEEDBACKS (SPEC-COMPLIANT GRID & STAR RATINGS) ─── */}
+      {selectedTaskForFeedback && (
+        <Dialog open={!!selectedTaskForFeedback} onOpenChange={(o) => !o && setSelectedTaskForFeedback(null)}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center justify-between pr-4">
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <Star className="size-5 text-amber-500 fill-amber-500" />
+                  <span>Feedbacks for: {selectedTaskForFeedback.title}</span>
+                </DialogTitle>
+                <Button
+                  size="sm"
+                  onClick={() => setIsAddFeedbackOpen(true)}
+                  className="h-7 text-xs font-bold gap-1 bg-primary text-primary-foreground"
+                >
+                  <Plus className="size-3" /> Add Feedback
+                </Button>
+              </div>
+              <DialogDescription className="text-xs">
+                Performance reviews, star evaluations, and feedback notes submitted for this task.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              {isFeedbacksLoading ? (
+                <div className="text-center text-muted-foreground py-8 text-xs italic">Loading feedbacks...</div>
+              ) : taskFeedbacks.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8 text-xs italic">
+                  No feedback recorded yet. Click "Add Feedback" above to leave a 1 to 5 star rating.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2.5">
+                  {taskFeedbacks.map((fb: any) => (
+                    <Card key={fb.id} className="p-3 border bg-muted/20 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="size-6 border">
+                            <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
+                              {(fb.userName || "U")[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-bold text-foreground">{fb.userName || "HR Reviewer"}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {new Date(fb.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <div className="flex items-center text-amber-500">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`size-3.5 ${star <= fb.rating ? "fill-amber-500 text-amber-500" : "text-muted-foreground/30"}`}
+                              />
+                            ))}
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => deleteFeedbackMut.mutate(fb.id)}
+                            className="size-6 text-rose-600 hover:bg-rose-50"
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-foreground bg-background p-2 rounded border">{fb.comments}</p>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button size="sm" variant="outline" onClick={() => setSelectedTaskForFeedback(null)}>
+                Back to Tasks
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ─── MODAL: ADD FEEDBACK (1-5 STARS) ─── */}
+      <Dialog open={isAddFeedbackOpen} onOpenChange={setIsAddFeedbackOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Star className="size-5 text-amber-500 fill-amber-500" />
+              <span>Leave Task Feedback</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              feedbackMutation.mutate(feedbackForm);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Rating (1 to 5 Stars) *</Label>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setFeedbackForm({ ...feedbackForm, rating: star })}
+                    className="p-1 hover:scale-110 transition-transform"
+                  >
+                    <Star
+                      className={`size-6 ${
+                        star <= feedbackForm.rating ? "fill-amber-500 text-amber-500" : "text-muted-foreground/30"
+                      }`}
+                    />
+                  </button>
+                ))}
+                <span className="text-xs font-mono font-bold text-foreground ml-2">
+                  {feedbackForm.rating} of 5 Stars
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Comments & Review *</Label>
+              <Textarea
+                required
+                rows={3}
+                placeholder="Describe execution quality, accuracy, and performance assessment..."
+                value={feedbackForm.comments}
+                onChange={(e) => setFeedbackForm({ ...feedbackForm, comments: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddFeedbackOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={feedbackMutation.isPending} className="text-xs font-bold">
+                Submit Feedback
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL: CREATE / EDIT TRAINING TYPE ─── */}
+      <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              <span>{selectedTypeToEdit ? "Edit Training Type" : "Create Training Type"}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Classify training programs by branch and department structure.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              typeMutation.mutate(typeForm);
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Type Name *</Label>
+              <Input
+                required
+                placeholder="e.g. Leadership Development"
+                value={typeForm.name}
+                onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Branch *</Label>
+                <Select
+                  value={typeForm.branchId}
+                  onValueChange={(v) => setTypeForm({ ...typeForm, branchId: v, departmentId: "" })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Branch" /></SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b: any) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Department *</Label>
+                <Select
+                  value={typeForm.departmentId}
+                  onValueChange={(v) => setTypeForm({ ...typeForm, departmentId: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Department" /></SelectTrigger>
+                  <SelectContent>
+                    {filteredDeptsForType.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Description *</Label>
+              <Textarea
+                required
+                rows={2}
+                placeholder="Curriculum scope, department requirements..."
+                value={typeForm.description}
+                onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTypeOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={typeMutation.isPending} className="text-xs font-bold">
+                {selectedTypeToEdit ? "Save Changes" : "Create Type"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL: CREATE / EDIT TRAINER ─── */}
+      <Dialog open={isAddTrainerOpen} onOpenChange={setIsAddTrainerOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Users className="size-5 text-primary" />
+              <span>{selectedTrainerToEdit ? "Edit Trainer" : "Create Trainer"}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Register internal staff or external domain expert trainers.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              trainerMutation.mutate(trainerForm);
             }}
             className="space-y-3 py-2 text-xs"
           >
@@ -1153,7 +2115,7 @@ export function TrainingPage() {
               <Label className="text-xs font-semibold">Trainer Full Name *</Label>
               <Input
                 required
-                placeholder="e.g. Dr. Alex Mercer"
+                placeholder="e.g. Dr. Arthur Pendelton"
                 value={trainerForm.name}
                 onChange={(e) => setTrainerForm({ ...trainerForm, name: e.target.value })}
                 className="h-8 text-xs"
@@ -1162,69 +2124,113 @@ export function TrainingPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Designation / Role *</Label>
+                <Label className="text-xs font-semibold">Contact Number</Label>
                 <Input
-                  required
-                  placeholder="e.g. Lead Security Architect"
-                  value={trainerForm.role}
-                  onChange={(e) => setTrainerForm({ ...trainerForm, role: e.target.value })}
-                  className="h-8 text-xs"
+                  placeholder="+1 (555) 234-5678"
+                  value={trainerForm.contactNumber}
+                  onChange={(e) => setTrainerForm({ ...trainerForm, contactNumber: e.target.value })}
+                  className="h-8 text-xs font-mono"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Phone Number</Label>
+                <Label className="text-xs font-semibold">Email Address *</Label>
                 <Input
-                  placeholder="e.g. (179) 7382 829"
-                  value={trainerForm.phone}
-                  onChange={(e) => setTrainerForm({ ...trainerForm, phone: e.target.value })}
-                  className="h-8 text-xs font-mono"
+                  type="email"
+                  required
+                  placeholder="trainer@domain.com"
+                  value={trainerForm.email}
+                  onChange={(e) => setTrainerForm({ ...trainerForm, email: e.target.value })}
+                  className="h-8 text-xs"
                 />
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Years of Experience</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={trainerForm.experience}
+                  onChange={(e) => setTrainerForm({ ...trainerForm, experience: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Trainer Classification</Label>
+                <Select
+                  value={trainerForm.trainerType}
+                  onValueChange={(v) => setTrainerForm({ ...trainerForm, trainerType: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="internal">Internal Staff</SelectItem>
+                    <SelectItem value="external">External Expert</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Branch *</Label>
+                <Select
+                  value={trainerForm.branchId}
+                  onValueChange={(v) => setTrainerForm({ ...trainerForm, branchId: v, departmentId: "" })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Branch" /></SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b: any) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Department *</Label>
+                <Select
+                  value={trainerForm.departmentId}
+                  onValueChange={(v) => setTrainerForm({ ...trainerForm, departmentId: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Department" /></SelectTrigger>
+                  <SelectContent>
+                    {filteredDeptsForTrainer.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Email Address *</Label>
+              <Label className="text-xs font-semibold">Expertise / Domain Areas *</Label>
               <Input
-                type="email"
                 required
-                placeholder="e.g. alex.mercer@company.com"
-                value={trainerForm.email}
-                onChange={(e) => setTrainerForm({ ...trainerForm, email: e.target.value })}
+                placeholder="e.g. Cloud Security, Penetration Testing, HIPAA"
+                value={trainerForm.expertise}
+                onChange={(e) => setTrainerForm({ ...trainerForm, expertise: e.target.value })}
                 className="h-8 text-xs"
               />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Bio & Specialization</Label>
-              <Textarea
-                rows={2}
-                placeholder="Subject matter expertise, certifications, and teaching credentials..."
-                value={trainerForm.description}
-                onChange={(e) => setTrainerForm({ ...trainerForm, description: e.target.value })}
-                className="text-xs"
+              <Label className="text-xs font-semibold">Qualifications & Credentials</Label>
+              <Input
+                placeholder="e.g. CISSP, AWS Security Specialist, Ph.D."
+                value={trainerForm.qualifications}
+                onChange={(e) => setTrainerForm({ ...trainerForm, qualifications: e.target.value })}
+                className="h-8 text-xs"
               />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Status</Label>
-              <Select
-                value={trainerForm.status}
-                onValueChange={(v) => setTrainerForm({ ...trainerForm, status: v })}
-              >
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <DialogFooter className="pt-2 border-t">
               <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTrainerOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="text-xs font-bold">
+              <Button type="submit" size="sm" disabled={trainerMutation.isPending} className="text-xs font-bold">
                 {selectedTrainerToEdit ? "Save Changes" : "Register Trainer"}
               </Button>
             </DialogFooter>
@@ -1232,92 +2238,7 @@ export function TrainingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── MODAL: ADD / EDIT TRAINING TYPE ─── */}
-      <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <Sparkles className="size-5 text-primary" />
-              <span>{selectedTypeToEdit ? "Edit Training Type" : "Add Training Type"}</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Define training categories and curriculum classifications.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (selectedTypeToEdit) {
-                setTrainingTypesList((prev) =>
-                  prev.map((t) => (t.id === selectedTypeToEdit.id ? { ...t, ...typeForm } : t))
-                );
-                toast.success("Training type updated!");
-              } else {
-                setTrainingTypesList((prev) => [
-                  ...prev,
-                  {
-                    id: `tt-${Date.now()}`,
-                    ...typeForm,
-                    coursesCount: 0,
-                  },
-                ]);
-                toast.success("New training type added!");
-              }
-              setIsAddTypeOpen(false);
-            }}
-            className="space-y-3 py-2 text-xs"
-          >
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Training Type Name *</Label>
-              <Input
-                required
-                placeholder="e.g. Generative AI & Automation Masterclass"
-                value={typeForm.type}
-                onChange={(e) => setTypeForm({ ...typeForm, type: e.target.value })}
-                className="h-8 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Scope & Description *</Label>
-              <Textarea
-                required
-                rows={3}
-                placeholder="Describe which topics, skills, or departmental certifications belong under this type..."
-                value={typeForm.description}
-                onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })}
-                className="text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Status</Label>
-              <Select
-                value={typeForm.status}
-                onValueChange={(v) => setTypeForm({ ...typeForm, status: v })}
-              >
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <DialogFooter className="pt-2 border-t">
-              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTypeOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" className="text-xs font-bold">
-                {selectedTypeToEdit ? "Save Changes" : "Create Type"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── MODAL 1: PUBLISH NEW COURSE ─── */}
+      {/* ─── MODAL: PUBLISH COURSE ─── */}
       <Dialog open={isAddCourseOpen} onOpenChange={setIsAddCourseOpen}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1325,9 +2246,6 @@ export function TrainingPage() {
               <GraduationCap className="size-5 text-primary" />
               <span>Publish Academy Course</span>
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              Add new curriculum, instructor details, and passing criteria for employees.
-            </DialogDescription>
           </DialogHeader>
 
           <form
@@ -1341,7 +2259,6 @@ export function TrainingPage() {
               <Label className="text-xs font-semibold">Course Title *</Label>
               <Input
                 required
-                placeholder="e.g. Cloud Security Architecture & DevSecOps"
                 value={courseForm.title}
                 onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })}
                 className="h-8 text-xs"
@@ -1366,9 +2283,8 @@ export function TrainingPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Instructor / Author</Label>
+                <Label className="text-xs font-semibold">Instructor</Label>
                 <Input
-                  placeholder="e.g. Lead Enterprise Architect"
                   value={courseForm.instructor}
                   onChange={(e) => setCourseForm({ ...courseForm, instructor: e.target.value })}
                   className="h-8 text-xs"
@@ -1378,7 +2294,7 @@ export function TrainingPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Estimated Duration (Hours)</Label>
+                <Label className="text-xs font-semibold">Duration (Hours)</Label>
                 <Input
                   type="number"
                   step="0.5"
@@ -1389,11 +2305,9 @@ export function TrainingPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Passing Score Threshold (%)</Label>
+                <Label className="text-xs font-semibold">Passing Score (%)</Label>
                 <Input
                   type="number"
-                  min="50"
-                  max="100"
                   value={courseForm.passingScore}
                   onChange={(e) => setCourseForm({ ...courseForm, passingScore: e.target.value })}
                   className="h-8 text-xs font-mono"
@@ -1402,26 +2316,12 @@ export function TrainingPage() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Course Description</Label>
+              <Label className="text-xs font-semibold">Description</Label>
               <Textarea
                 rows={2}
-                placeholder="Learning objectives, prerequisite skills, and expected outcomes..."
                 value={courseForm.description}
                 onChange={(e) => setCourseForm({ ...courseForm, description: e.target.value })}
                 className="text-xs"
-              />
-            </div>
-
-            <div className="p-3 rounded-lg border bg-muted/20 flex items-center justify-between">
-              <div className="space-y-0.5">
-                <span className="font-bold text-foreground block">Mandatory Compliance Training</span>
-                <span className="text-[10px] text-muted-foreground">Flags course as mandatory for employee compliance audits</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={courseForm.isMandatory}
-                onChange={(e) => setCourseForm({ ...courseForm, isMandatory: e.target.checked })}
-                className="size-4 text-primary rounded"
               />
             </div>
 
@@ -1437,77 +2337,71 @@ export function TrainingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── MODAL 2: ENROLL STAFF MEMBERS ─── */}
+      {/* ─── MODAL: ENROLL STAFF ─── */}
       <Dialog open={isEnrollOpen} onOpenChange={setIsEnrollOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <UserPlus className="size-5 text-primary" />
-              <span>Enroll Staff into Course</span>
+              <span>Enroll Staff Member</span>
             </DialogTitle>
           </DialogHeader>
 
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const targetIds =
-                enrollForm.departmentId === "all"
-                  ? employees.map((emp: any) => emp.id)
-                  : employees.filter((emp: any) => emp.department_id === enrollForm.departmentId).map((emp: any) => emp.id);
-
-              if (targetIds.length === 0) {
-                toast.error("No employees found to enroll.");
-                return;
-              }
-
               enrollMut.mutate({
                 courseId: enrollForm.courseId,
-                employeeIds: targetIds,
+                employeeIds: enrollForm.employeeIds,
               });
             }}
-            className="space-y-3 py-2 text-xs"
+            className="space-y-3.5 py-2 text-xs"
           >
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Select Course *</Label>
+              <Label className="text-xs font-semibold">Course *</Label>
               <Select
-                required
                 value={enrollForm.courseId}
                 onValueChange={(v) => setEnrollForm({ ...enrollForm, courseId: v })}
               >
                 <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Course" /></SelectTrigger>
                 <SelectContent>
                   {courses.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.title}
-                    </SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Target Department *</Label>
-              <Select
-                value={enrollForm.departmentId}
-                onValueChange={(v) => setEnrollForm({ ...enrollForm, departmentId: v })}
-              >
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Entire Workforce ({employees.length} Staff)</SelectItem>
-                  {departments.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name} Department
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-semibold">Select Employees *</Label>
+              <div className="max-h-40 overflow-y-auto space-y-1 border rounded p-2">
+                {employees.map((emp: any) => (
+                  <label key={emp.id} className="flex items-center gap-2 p-1 hover:bg-muted/40 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enrollForm.employeeIds.includes(emp.id)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setEnrollForm({
+                          ...enrollForm,
+                          employeeIds: checked
+                            ? [...enrollForm.employeeIds, emp.id]
+                            : enrollForm.employeeIds.filter((id) => id !== emp.id),
+                        });
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-xs">{emp.firstName} {emp.lastName}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <DialogFooter className="pt-2 border-t">
               <Button type="button" size="sm" variant="outline" onClick={() => setIsEnrollOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={enrollMut.isPending} className="text-xs font-bold">
+              <Button type="submit" size="sm" disabled={enrollMut.isPending || enrollForm.employeeIds.length === 0} className="text-xs font-bold">
                 Confirm Enrollment
               </Button>
             </DialogFooter>
@@ -1515,18 +2409,12 @@ export function TrainingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── MODAL 3: UPDATE LEARNING PROGRESS & QUIZ SCORE ─── */}
-      {enrollmentToUpdate && (
+      {/* ─── MODAL: UPDATE PROGRESS ─── */}
+      {isUpdateProgressOpen && enrollmentToUpdate && (
         <Dialog open={isUpdateProgressOpen} onOpenChange={setIsUpdateProgressOpen}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-base font-bold flex items-center gap-2">
-                <Edit2 className="size-4 text-primary" />
-                <span>Update Learning Progress</span>
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Learner: {enrollmentToUpdate.employee?.firstName} {enrollmentToUpdate.employee?.lastName}
-              </DialogDescription>
+              <DialogTitle className="text-base font-bold">Update Learning Progress</DialogTitle>
             </DialogHeader>
 
             <form
@@ -1534,13 +2422,16 @@ export function TrainingPage() {
                 e.preventDefault();
                 updateProgressMut.mutate({
                   id: enrollmentToUpdate.id,
-                  data: progressForm,
+                  data: {
+                    progressPercent: Number(progressForm.progressPercent),
+                    score: Number(progressForm.score),
+                  },
                 });
               }}
               className="space-y-3 py-2 text-xs"
             >
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Course Progress (0% to 100%)</Label>
+                <Label className="text-xs font-semibold">Progress Percentage (%)</Label>
                 <Input
                   type="number"
                   min="0"
@@ -1561,9 +2452,6 @@ export function TrainingPage() {
                   onChange={(e) => setProgressForm({ ...progressForm, score: e.target.value })}
                   className="h-8 text-xs font-mono font-bold"
                 />
-                <span className="text-[10px] text-muted-foreground">
-                  Passing score required: {enrollmentToUpdate.course?.passingScore || 80}%
-                </span>
               </div>
 
               <DialogFooter className="pt-2 border-t">
@@ -1579,7 +2467,7 @@ export function TrainingPage() {
         </Dialog>
       )}
 
-      {/* ─── MODAL 4: COURSE CURRICULUM PASSPORT ─── */}
+      {/* ─── MODAL: CURRICULUM PASSPORT ─── */}
       {selectedCoursePassport && (
         <Dialog open={!!selectedCoursePassport} onOpenChange={(o) => !o && setSelectedCoursePassport(null)}>
           <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
@@ -1603,29 +2491,6 @@ export function TrainingPage() {
                 </div>
                 <p className="text-muted-foreground">{selectedCoursePassport.description}</p>
               </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Lesson Modules ({selectedCoursePassport.modules?.length || 0})
-                </Label>
-                {selectedCoursePassport.modules?.map((m: any, idx: number) => (
-                  <div key={m.id || idx} className="p-3 rounded-lg border bg-card flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5">
-                      <div className="size-6 rounded-md bg-primary/10 text-primary font-black grid place-items-center shrink-0 text-xs">
-                        {m.orderIndex || idx + 1}
-                      </div>
-                      <div className="space-y-0.5">
-                        <div className="font-bold text-foreground">{m.title}</div>
-                        {m.content && <p className="text-[11px] text-muted-foreground">{m.content}</p>}
-                      </div>
-                    </div>
-
-                    <Badge variant="outline" className="text-[10px] font-mono shrink-0">
-                      {m.durationMinutes} mins
-                    </Badge>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <DialogFooter className="pt-2 border-t">
@@ -1637,7 +2502,7 @@ export function TrainingPage() {
         </Dialog>
       )}
 
-      {/* ─── MODAL 5: DIGITAL VERIFIED CERTIFICATE ─── */}
+      {/* ─── MODAL: VERIFIED CERTIFICATE ─── */}
       {selectedCertificate && (
         <Dialog open={!!selectedCertificate} onOpenChange={(o) => !o && setSelectedCertificate(null)}>
           <DialogContent className="max-w-md text-center p-6 space-y-4">

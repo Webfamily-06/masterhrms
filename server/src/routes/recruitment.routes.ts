@@ -7,6 +7,7 @@ import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { AuditService } from "../services/audit.service";
 import { OutboxService } from "../services/outbox.service";
+import { requireTurnstile } from "../middleware/turnstile.middleware";
 
 export const recruitmentRouter = Router();
 export const publicJobsRouter = Router();
@@ -896,7 +897,7 @@ publicJobsRouter.get("/:tenantSlug/:jobSlug", async (req, res) => {
 });
 
 // POST /api/public/jobs/:jobId/apply (Public candidate application submission)
-publicJobsRouter.post("/:jobId/apply", async (req, res) => {
+publicJobsRouter.post("/:jobId/apply", requireTurnstile("job_apply"), async (req, res) => {
   try {
     const { jobId } = req.params;
     const {

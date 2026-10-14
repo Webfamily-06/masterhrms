@@ -40,14 +40,15 @@ export async function getDynamicEmailConfig(options: EmailConfigOptions = {}): P
     baseUrl: options.baseUrl,
   });
 
-  let host = process.env.SMTP_HOST || process.env.VITE_SMTP_HOST || "";
-  let port = parseInt(process.env.SMTP_PORT || process.env.VITE_SMTP_PORT || "465", 10);
-  let user = process.env.SMTP_USER || process.env.VITE_SMTP_USER || "";
-  let pass = process.env.SMTP_PASS || process.env.VITE_SMTP_PASS || "";
-  let encryption = (process.env.SMTP_ENCRYPTION || process.env.VITE_SMTP_ENCRYPTION || "ssl") as any;
-  let fromName = branding.appName || process.env.SMTP_FROM_NAME || process.env.VITE_SMTP_FROM_NAME || "Master HRMS System";
-  let fromEmail = branding.supportEmail || process.env.SMTP_FROM_EMAIL || process.env.VITE_SMTP_FROM_EMAIL || user || `support@${getBaseDomain()}`;
-  let ignoreTls = process.env.SMTP_IGNORE_TLS === "true" || process.env.VITE_SMTP_IGNORE_TLS === "true";
+  // Strictly server-side SMTP credentials. Never read or fall back to client-visible VITE_* variables.
+  let host = process.env.SMTP_HOST || "";
+  let port = parseInt(process.env.SMTP_PORT || "465", 10);
+  let user = process.env.SMTP_USER || "";
+  let pass = process.env.SMTP_PASS || "";
+  let encryption = (process.env.SMTP_ENCRYPTION || "ssl") as any;
+  let fromName = branding.appName || process.env.SMTP_FROM_NAME || "Master HRMS System";
+  let fromEmail = branding.supportEmail || process.env.SMTP_FROM_EMAIL || user || `support@${getBaseDomain()}`;
+  let ignoreTls = process.env.SMTP_IGNORE_TLS === "true";
   let otpEmailSubject: string | undefined = undefined;
   let otpEmailTemplate: string | undefined = undefined;
 

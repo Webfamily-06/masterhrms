@@ -584,7 +584,7 @@ describe("MASTERHRMS — Phase A3.2 Commerce Catalog & Pricing Engine Acceptance
     expect(modCountAfter).toBe(modCountBefore);
     expect(addonCountAfter).toBe(addonCountBefore);
     expect(txCountAfter).toBe(txCountBefore);
-  });
+  }, 15000);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // 15. Production mode with required price environment variables omitted

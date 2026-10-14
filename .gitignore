@@ -111,3 +111,6 @@ server/uploads/
 uploads/
 server/test_out.pdf
 *.traineddata
+
+# Raw Word reference specs and temporary extractions
+docs/Addon/

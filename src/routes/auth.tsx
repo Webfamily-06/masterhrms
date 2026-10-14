@@ -31,6 +31,8 @@ import { useTenantBranding } from "@/lib/useTenantBranding";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { resolveDefaultRoute, extractRolesFromToken } from "@/lib/auth-navigation";
+import { TurnstileWidget, TurnstileWidgetRef } from "@/components/security/turnstile-widget";
+import { useRef } from "react";
 
 const searchSchema = z.object({
   mode: z.enum(["signin", "signup", "forgot", "reset", "verify"]).optional(),
@@ -71,6 +73,8 @@ function AuthPage() {
   const [companyName, setCompanyName] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Sync token from URL query params (only when arriving via an explicit password reset link)
   useEffect(() => {
@@ -268,6 +272,7 @@ function AuthPage() {
           password: cleanPassword,
           fullName: fullName.trim() || cleanEmail.split("@")[0],
           companyName: companyName.trim() || undefined,
+          turnstileToken: turnstileToken || undefined,
         });
 
         if (res.token) {
@@ -283,6 +288,7 @@ function AuthPage() {
         const res = await api.post("/auth/login", {
           email: cleanEmail,
           password: cleanPassword,
+          turnstileToken: turnstileToken || undefined,
         });
 
         if (res.requires2FA) {
@@ -330,6 +336,8 @@ function AuthPage() {
       }
     } catch (err: any) {
       toast.error(err.message || "Authentication failed. Please check your credentials.");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     } finally {
       setLoading(false);
     }
@@ -938,6 +946,14 @@ function AuthPage() {
                 </button>
               </div>
             )}
+
+            <TurnstileWidget
+              ref={turnstileRef}
+              action={mode === "signup" ? "signup" : "login"}
+              onSuccess={(t) => setTurnstileToken(t)}
+              onExpire={() => setTurnstileToken("")}
+              onError={() => {}}
+            />
 
             <button
               type="submit"

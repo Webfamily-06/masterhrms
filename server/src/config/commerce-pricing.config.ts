@@ -297,6 +297,156 @@ export function buildCommercePricingConfig(overrides?: Partial<CommercePricingCo
       monthly: p(process.env.COMMERCE_PRICE_AI_BUSINESS_ADVISOR_MONTHLY, 0, true),
       annual: p(process.env.COMMERCE_PRICE_AI_BUSINESS_ADVISOR_ANNUAL, 0, true),
     },
+
+    // Wave 1 HRMS, Security & Operations Add-ons
+    "time-tracker": {
+      monthly: p(process.env.COMMERCE_PRICE_TIME_TRACKER_MONTHLY, 79),
+      annual: p(process.env.COMMERCE_PRICE_TIME_TRACKER_ANNUAL, 790),
+    },
+    "recruitment-ats": {
+      monthly: p(process.env.COMMERCE_PRICE_RECRUITMENT_ATS_MONTHLY, 199),
+      annual: p(process.env.COMMERCE_PRICE_RECRUITMENT_ATS_ANNUAL, 1990),
+    },
+    "support": {
+      monthly: p(process.env.COMMERCE_PRICE_SUPPORT_MONTHLY, 79),
+      annual: p(process.env.COMMERCE_PRICE_SUPPORT_ANNUAL, 790),
+    },
+    "activity-logs": {
+      monthly: p(process.env.COMMERCE_PRICE_ACTIVITY_LOGS_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_ACTIVITY_LOGS_ANNUAL, 0, true),
+    },
+    "notice-board": {
+      monthly: p(process.env.COMMERCE_PRICE_NOTICE_BOARD_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_NOTICE_BOARD_ANNUAL, 0, true),
+    },
+    "documents": {
+      monthly: p(process.env.COMMERCE_PRICE_DOCUMENTS_MONTHLY, 99),
+      annual: p(process.env.COMMERCE_PRICE_DOCUMENTS_ANNUAL, 990),
+    },
+    "two-factor-auth": {
+      monthly: p(process.env.COMMERCE_PRICE_TWO_FACTOR_AUTH_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_TWO_FACTOR_AUTH_ANNUAL, 0, true),
+    },
+    "backup-restore": {
+      monthly: p(process.env.COMMERCE_PRICE_BACKUP_RESTORE_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_BACKUP_RESTORE_ANNUAL, 0, true),
+    },
+    "internal-reminders": {
+      monthly: p(process.env.COMMERCE_PRICE_INTERNAL_REMINDERS_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_INTERNAL_REMINDERS_ANNUAL, 0, true),
+    },
+    "public-api": {
+      monthly: p(process.env.COMMERCE_PRICE_PUBLIC_API_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_PUBLIC_API_ANNUAL, 0, true),
+    },
+    "outbound-webhooks": {
+      monthly: p(process.env.COMMERCE_PRICE_OUTBOUND_WEBHOOKS_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_OUTBOUND_WEBHOOKS_ANNUAL, 0, true),
+    },
+    "sms-gateway": {
+      monthly: p(process.env.COMMERCE_PRICE_SMS_GATEWAY_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_SMS_GATEWAY_ANNUAL, 0, true),
+    },
+    "custom-fields": {
+      monthly: p(process.env.COMMERCE_PRICE_CUSTOM_FIELDS_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_CUSTOM_FIELDS_ANNUAL, 0, true),
+    },
+    "training": {
+      monthly: p(process.env.COMMERCE_PRICE_TRAINING_MONTHLY, 119),
+      annual: p(process.env.COMMERCE_PRICE_TRAINING_ANNUAL, 1190),
+    },
+
+    // Wave 2 Learning, Strategy & AI Add-ons
+    "learning-lms": {
+      monthly: p(process.env.COMMERCE_PRICE_LEARNING_LMS_MONTHLY, 149),
+      annual: p(process.env.COMMERCE_PRICE_LEARNING_LMS_ANNUAL, 1490),
+    },
+    "team-workload": {
+      monthly: p(process.env.COMMERCE_PRICE_TEAM_WORKLOAD_MONTHLY, 99),
+      annual: p(process.env.COMMERCE_PRICE_TEAM_WORKLOAD_ANNUAL, 990),
+    },
+    "contracts": {
+      monthly: p(process.env.COMMERCE_PRICE_CONTRACTS_MONTHLY, 89),
+      annual: p(process.env.COMMERCE_PRICE_CONTRACTS_ANNUAL, 890),
+    },
+    "budget-planner": {
+      monthly: p(process.env.COMMERCE_PRICE_BUDGET_PLANNER_MONTHLY, 99),
+      annual: p(process.env.COMMERCE_PRICE_BUDGET_PLANNER_ANNUAL, 990),
+    },
+    "quickbooks": {
+      monthly: p(process.env.COMMERCE_PRICE_QUICKBOOKS_MONTHLY, 149),
+      annual: p(process.env.COMMERCE_PRICE_QUICKBOOKS_ANNUAL, 1490),
+    },
+    "xero": {
+      monthly: p(process.env.COMMERCE_PRICE_XERO_MONTHLY, 149),
+      annual: p(process.env.COMMERCE_PRICE_XERO_ANNUAL, 1490),
+    },
+    "razorpay-gateway": {
+      monthly: p(process.env.COMMERCE_PRICE_RAZORPAY_GATEWAY_MONTHLY, 0, true),
+      annual: p(process.env.COMMERCE_PRICE_RAZORPAY_GATEWAY_ANNUAL, 0, true),
+    },
+    "suggestion-box": {
+      monthly: p(process.env.COMMERCE_PRICE_SUGGESTION_BOX_MONTHLY, 49),
+      annual: p(process.env.COMMERCE_PRICE_SUGGESTION_BOX_ANNUAL, 490),
+    },
+    "ai-document": {
+      monthly: p(process.env.COMMERCE_PRICE_AI_DOCUMENT_MONTHLY, 149),
+      annual: p(process.env.COMMERCE_PRICE_AI_DOCUMENT_ANNUAL, 1490),
+    },
+    "ai-assistant": {
+      monthly: p(process.env.COMMERCE_PRICE_AI_ASSISTANT_MONTHLY, 99),
+      annual: p(process.env.COMMERCE_PRICE_AI_ASSISTANT_ANNUAL, 990),
+    },
+
+    // Wave 3 Strategy & Regional Add-ons
+    "swot": {
+      monthly: p(process.env.COMMERCE_PRICE_SWOT_MONTHLY, 79),
+      annual: p(process.env.COMMERCE_PRICE_SWOT_ANNUAL, 790),
+    },
+    "pestel": {
+      monthly: p(process.env.COMMERCE_PRICE_PESTEL_MONTHLY, 79),
+      annual: p(process.env.COMMERCE_PRICE_PESTEL_ANNUAL, 790),
+    },
+    "porters-five-forces": {
+      monthly: p(process.env.COMMERCE_PRICE_PORTERS_MONTHLY, 69),
+      annual: p(process.env.COMMERCE_PRICE_PORTERS_ANNUAL, 690),
+    },
+    "pest": {
+      monthly: p(process.env.COMMERCE_PRICE_PEST_MONTHLY, 59),
+      annual: p(process.env.COMMERCE_PRICE_PEST_ANNUAL, 590),
+    },
+    "mckinsey-7s": {
+      monthly: p(process.env.COMMERCE_PRICE_MCKINSEY_MONTHLY, 69),
+      annual: p(process.env.COMMERCE_PRICE_MCKINSEY_ANNUAL, 690),
+    },
+    "business-model": {
+      monthly: p(process.env.COMMERCE_PRICE_BUSINESS_MODEL_MONTHLY, 89),
+      annual: p(process.env.COMMERCE_PRICE_BUSINESS_MODEL_ANNUAL, 890),
+    },
+    "business-plan": {
+      monthly: p(process.env.COMMERCE_PRICE_BUSINESS_PLAN_MONTHLY, 99),
+      annual: p(process.env.COMMERCE_PRICE_BUSINESS_PLAN_ANNUAL, 990),
+    },
+    "marketing-plan": {
+      monthly: p(process.env.COMMERCE_PRICE_MARKETING_PLAN_MONTHLY, 89),
+      annual: p(process.env.COMMERCE_PRICE_MARKETING_PLAN_ANNUAL, 890),
+    },
+    "zatca": {
+      monthly: p(process.env.COMMERCE_PRICE_ZATCA_MONTHLY, 99),
+      annual: p(process.env.COMMERCE_PRICE_ZATCA_ANNUAL, 990),
+    },
+    "einvoice-eu": {
+      monthly: p(process.env.COMMERCE_PRICE_EINVOICE_EU_MONTHLY, 99),
+      annual: p(process.env.COMMERCE_PRICE_EINVOICE_EU_ANNUAL, 990),
+    },
+    "plaid": {
+      monthly: p(process.env.COMMERCE_PRICE_PLAID_MONTHLY, 129),
+      annual: p(process.env.COMMERCE_PRICE_PLAID_ANNUAL, 1290),
+    },
+    "financial-goal": {
+      monthly: p(process.env.COMMERCE_PRICE_FINANCIAL_GOAL_MONTHLY, 49),
+      annual: p(process.env.COMMERCE_PRICE_FINANCIAL_GOAL_ANNUAL, 490),
+    },
   };
 
   return {
