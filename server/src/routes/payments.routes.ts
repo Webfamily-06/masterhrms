@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
+const db = rawPrisma || prisma;
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { autoPostSaleToLedger } from "../services/ledger-posting.service";
 import { broadcastToTenant } from "../socket";
@@ -551,8 +552,16 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
     if (typeof tenantId !== "string" || !tenantId || typeof signature !== "string") {
       return res.status(400).json({ error: "Webhook is missing workspace routing or signature data." });
     }
-    const page = await prisma.cmsPage.findUnique({ where: { slug: `system-razorpay-gateway-${tenantId}` } });
-    const config: any = (page?.content as any)?.config || {};
+    const page = await db.cmsPage.findUnique({ where: { slug: `system-razorpay-gateway-${tenantId}` } });
+    let pageContent: any = {};
+    if (page?.content) {
+      try {
+        pageContent = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+      } catch {
+        pageContent = {};
+      }
+    }
+    const config: any = pageContent?.config || {};
     const secret = config.webhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET;
     if (!secret) return res.status(503).json({ error: "Webhook signing is not configured for this workspace." });
     const expected = crypto.createHmac("sha256", secret).update(raw).digest("hex");
@@ -560,9 +569,9 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
     if (!signatureOk) return res.status(400).json({ error: "Invalid webhook signature." });
 
     const deliveryKey = crypto.createHash("sha256").update(raw).digest("hex");
-    const existing = await prisma.paymentWebhookEvent.findUnique({ where: { deliveryKey } });
+    const existing = await db.paymentWebhookEvent.findUnique({ where: { deliveryKey } });
     if (existing) return res.json({ status: "duplicate" });
-    await prisma.$transaction(async (tx) => {
+    await db.$transaction(async (tx) => {
       await tx.paymentWebhookEvent.create({ data: { tenantId, provider: "razorpay", deliveryKey, eventType: body.event || "unknown", signatureOk: true, payload: body } });
       if (payment?.order_id) {
         const captured = body.event === "payment.captured";
