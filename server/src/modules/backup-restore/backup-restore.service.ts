@@ -5,7 +5,25 @@ import { prisma, rawPrisma } from "../../prisma";
 import { AuditService } from "../../services/audit.service";
 import { OutboxService } from "../../services/outbox.service";
 
-const TENANT_BACKUPS_ROOT = path.resolve(__dirname, "../../../backups/tenants");
+import os from "os";
+
+export function getTenantBackupsRoot(): string {
+  if (process.env.TENANT_BACKUPS_ROOT) {
+    return path.resolve(process.env.TENANT_BACKUPS_ROOT);
+  }
+  if (
+    process.env.VERCEL ||
+    process.env.VERCEL_ENV ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT ||
+    (process.env.NODE_ENV === "production" && process.cwd().startsWith("/var/task"))
+  ) {
+    return path.resolve(os.tmpdir(), "backups", "tenants");
+  }
+  return path.resolve(__dirname, "../../../backups/tenants");
+}
+
+const TENANT_BACKUPS_ROOT = getTenantBackupsRoot();
 
 export interface BackupManifest {
   version: string;

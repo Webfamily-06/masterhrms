@@ -1,140 +1,88 @@
-# MASTERHRMS Add-on Reference, UI & Workflow Reconciliation Matrix
+# MASTERHRMS — Authoritative Add-on Reference, UI & Workflow Matrix
 
-## 1. Executive Summary & Authoritative Count Reconciliation
-
-This document establishes the single source of truth for all add-ons, modules, and extensions in MASTERHRMS. It reconciles reference specifications (`docs/Addon/`), historical worklogs (`docs/Saas/worklog_addon_inventory.md`), PostgreSQL production records (`Addon` table), runtime catalog entries (`CANONICAL_CATALOG_REGISTRY`), client navigation configurations (`MASTER_ADDON_REGISTRY`), and route security rules (`ROUTE_ENTITLEMENT_MAP`).
-
-### 1.1 Mandatory 6-Source Count Reconciliation Table
-
-| Source / Layer | Authoritative Count | Reconciliation Status | Notes |
-| :--- | :---: | :---: | :--- |
-| **Reference Specifications (`docs/Addon/`)** | **26** | 100% Extracted & Mapped | 26 Word `.docx` documents extracted to XML in `docs/Addon/extracted/`. 25 of 26 implemented in production code; 1 (`job-search`) deferred to Wave 3. |
-| **Historical Worklog (`worklog_addon_inventory.md`)** | **109** | 100% Reconciled (AD-001..AD-109) | Includes 54 active canonical add-ons, 4 base subscription plans, 3 standalone platform suites, 3 planned Wave 3 specs, 28 legacy/deprecated aliases, and 17 core/internal sub-features. |
-| **PostgreSQL `Addon` Database Table** | **55** | 100% Synchronized | 54 unique canonical add-on products active in marketplace + 1 draft duplicate alias (`google-workspace-integration`, status: `draft`, safely excluded from active catalog). |
-| **Unified Catalog (`CANONICAL_CATALOG_REGISTRY`)** | **58** | 100% Validated & Priced | 4 BASE_PLAN (`starter`, `professional`, `enterprise`, `ultimate`) + 3 STANDALONE_PRODUCT (`crm-suite`, `pos-system`, `finance-accounting`) + 51 ADDON. All active DB addons merged dynamically. Zero unpriced items. |
-| **Master Navigation (`MASTER_ADDON_REGISTRY`)** | **43** | 100% Active & Validated | Comprehensive client-side registry for all add-ons with dedicated UI routes, modal surfaces, or extension nodes. Pass validation with 0 errors. |
-| **Route Security (`ROUTE_ENTITLEMENT_MAP`)** | **45** | 100% Gated & Enforced | 45 discrete route patterns guarded by entitlement checks. Core platform paths (`/overview`, `/settings`, `/employees`, `/payroll`) bypass add-on gating for fail-safe operation. |
+This document provides the definitive repository-wide inventory reconciliation and reference matrix for add-ons, modules, and navigation in MASTERHRMS. It reconciles the 26 reference specifications in `docs/Addon/`, the 109 catalog items in `docs/Saas/worklog_addon_inventory.md`, database records, server commerce registries, and client navigation trees.
 
 ---
 
-## 2. 10-State Lifecycle Classification Framework
+## 1. Authoritative 6-Source Count Reconciliation Table
 
-To eliminate ambiguity between missing features and intentionally hidden/deferred modules, MASTERHRMS defines 10 discrete lifecycle states:
-
-| Lifecycle State | Visibility in Marketplace | Visibility in Sidebar | Allowed Marketplace Action | Description |
-| :--- | :---: | :---: | :---: | :--- |
-| `implemented_entitled` | Yes | Yes (Active) | `open` | Add-on is fully implemented, active for the tenant (by plan or purchase), and unlocked in navigation. |
-| `implemented_uninstalled` | Yes | No (Hidden) | `install` (if free/included) or `purchase` (if paid) | Add-on is fully implemented but not activated by the current tenant. Discovered exclusively via Marketplace. |
-| `implemented_disabled` | Yes | No (Hidden) | `enable` | Tenant owns the add-on, but administrative toggle has explicitly suspended it. |
-| `in_progress_available` | Yes | No (Hidden) | `install` / `purchase` | Features in active beta testing; available in marketplace under beta flag, not active until explicitly installed. |
-| `in_progress_restricted` | Yes (Badge: Coming Soon) | No (Hidden) | Disabled / Read-only | Work-in-progress modules visible to platform admins only. |
-| `planned_available` | Yes (Catalog-only) | No (Hidden) | `preorder` / Info | Planned add-ons cataloged for roadmapping. |
-| `planned_restricted` | Hidden | Hidden | None | Planned future modules not yet advertised to tenants. |
-| `deferred_standalone` | Marketplace filter / Standalone | Hidden from HRMS | Launch Portal | Complete external systems (CRM, POS, Enterprise Finance) requiring separate tenant provisioning. |
-| `reference_spec_only` | Hidden | Hidden | None | Functional specifications in `docs/Addon/` awaiting Wave 3 implementation (e.g. `job-search`). |
-| `alias_redirect` | Hidden (Normalized to canonical) | Hidden (Normalized) | Redirects to canonical | Legacy slugs or alternate naming mapped in `ADDON_ALIASES`. Never rendered as duplicate cards. |
+| Source | Count | Description / Scope | Reconciled Status |
+| :--- | :---: | :--- | :--- |
+| **1. `docs/Addon/` Reference Specs** | **26** | Functional specifications extracted from Word XML documents | 26/26 Extracted & Mapped (25 implemented in code, 1 planned Wave 3) |
+| **2. `docs/Saas/worklog_addon_inventory.md`** | **109** | Broad catalog worklog (AD-001 through AD-109) spanning core modules, plugins, standalone suites, and extensions | 109 accounted for across Core HRMS, Add-ons, and Standalone Enterprise ERP suites |
+| **3. Database `Addon` Table** | **55** | Rows in PostgreSQL `Addon` table | 54 active canonical products + 1 draft duplicate alias (`google-workspace-integration` marked `is_active: false`) |
+| **4. `CANONICAL_CATALOG_REGISTRY`** | **58** | Server-side commerce and catalog registry (`server/src/services/unified-catalog.service.ts`) | 4 `BASE_PLAN` (starter, professional, enterprise, ultimate), 3 `STANDALONE_PRODUCT` (crm, pos, finance), 51 `ADDON` |
+| **5. `MASTER_ADDON_REGISTRY`** | **43** | Client-side add-on navigation registry (`src/lib/addon-navigation.ts`) | 43 canonical add-ons with registered navigation routes, rendering modes, and icons |
+| **6. `ROUTE_ENTITLEMENT_MAP`** | **45** | Route guard entitlement mappings (`src/lib/navigation-resolver.ts`) | 45 protected routes gating add-on UI against tenant entitlement and activation status |
 
 ---
 
-## 3. Reference Documentation Mapping (26 `docs/Addon/` Specs)
+## 2. Document-to-Code Mapping: All 26 Reference Specifications (`docs/Addon/`)
 
-All 26 functional specifications found in `docs/Addon/` are accounted for below with their runtime slug, target routes, navigation integration, and implementation status:
-
-| # | Spec Document Name | Canonical Slug | Target Route | Navigation Type & Group | Status |
-| :-: | :--- | :--- | :--- | :--- | :--- |
-| 1 | `AI Assistant - Addon.docx` | `ai-assistant` | `/ai` | Extension (`Apps & Extensions`) | `implemented_entitled` / `implemented_uninstalled` |
-| 2 | `AI Business Advisor - addon.docx` | `ai-business-advisor` | `/advisor` | Extension (`Apps & Extensions`) | `implemented_entitled` / `implemented_uninstalled` |
-| 3 | `Business Model Addon.docx` | `business-model` | `/strategy/business-model` | Integrated (`Strategic Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 4 | `Business Plan addon.docx` | `business-plan` | `/strategy/business-plan` | Integrated (`Strategic Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 5 | `Job Search -Addon.docx` | `job-search` | `/recruitment/jobs` (Spec) | Reference Spec Only | `reference_spec_only` (Wave 3) |
-| 6 | `Marketing Plan Addon.docx` | `marketing-plan` | `/strategy/marketing-plan` | Integrated (`Strategic Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 7 | `McKinsey 7-addon.docx` | `mckinsey-7s` | `/strategy/mckinsey-7s` | Integrated (`Strategic Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 8 | `PESTEL Analysis Model Addon.docx` | `pestel` | `/strategy/pestel` | Integrated (`Strategic Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 9 | `Performance Indicator Addon.docx` | `performance-indicator` | `/performance/kpi` | Integrated (`Performance`) | `implemented_entitled` / `implemented_uninstalled` |
-| 10 | `Planning Addon.docx` | `budget-planner` | `/budgets` | Integrated (`Finance & Budgets`) | `implemented_entitled` / `implemented_uninstalled` |
-| 11 | `Porter's Five Force addon.docx` | `porters-five-forces`| `/strategy/porters-five-forces`| Integrated (`Strategic Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 12 | `Procurement Addon.docx` | `procurement` | `/procurement` | Standalone Module | `implemented_entitled` / `implemented_uninstalled` |
-| 13 | `Recruitment Management addon.docx` | `recruitment-ats` | `/recruitment` | Standalone Module | `implemented_entitled` / `implemented_uninstalled` |
-| 14 | `SWOT Analysis Addon.docx` | `swot` | `/strategy/swot` | Integrated (`Strategic Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 15 | `Smart Dashboard Analytics.docx`| `smart-dashboard` | `/dashboard/smart` | Integrated (`Analytics`) | `implemented_entitled` / `implemented_uninstalled` |
-| 16 | `Team Workload Addon.docx` | `team-workload` | `/timesheets` | Integrated (`Time & Attendance`) | `implemented_entitled` / `implemented_uninstalled` |
-| 17 | `The AI Document Addon.docx` | `ai-document` | `/ai-writer` | Extension (`Apps & Extensions`) | `implemented_entitled` / `implemented_uninstalled` |
-| 18 | `The Notice Board Add.docx` | `notice-board` | `/communication/announcements` | Integrated (`Communication`) | `implemented_entitled` / `implemented_uninstalled` |
-| 19 | `The Smart Reports Add.docx` | `smart-reports` | `/reports/smart` | Integrated (`Analytics`) | `implemented_entitled` / `implemented_uninstalled` |
-| 20 | `The Suggestion Box Add.docx` | `suggestion-box` | `/forms` | Extension (`Apps & Extensions`) | `implemented_entitled` / `implemented_uninstalled` |
-| 21 | `The Webhook Addon.docx` | `outbound-webhooks` | `/settings/webhooks` | Settings Integration | `implemented_entitled` / `implemented_uninstalled` |
-| 22 | `Time Tracker Addon.docx` | `time-tracker` | `/timesheets` | Integrated (`Time & Attendance`) | `implemented_entitled` / `implemented_uninstalled` |
-| 23 | `Training-addons.docx` | `training` | `/training` | Integrated (`HR Management`) | `implemented_entitled` / `implemented_uninstalled` |
-| 24 | `lms.docx` | `learning-lms` | `/lms` | Standalone Module | `implemented_entitled` / `implemented_uninstalled` |
-| 25 | `performance-addon.docx` | `performance-management` | `/performance` | Standalone Module | `implemented_entitled` / `implemented_uninstalled` |
-| 26 | `the Custom Field Add-On.docx` | `custom-fields` | `/custom-fields` | Extension (`Settings & Apps`) | `implemented_entitled` / `implemented_uninstalled` |
+| # | Spec Document (`docs/Addon/`) | Add-on Key / Product ID | Client UI Route | Server Controller / Service | Primary DB Models | Status |
+| :-: | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1** | `AI Business Advisor - addon.docx` | `ai-business-advisor` | `/ai-business-advisor` | `server/src/modules/ai-business-advisor/` | `AiBusinessInsight`, `AiAdvisorLog` | Implemented |
+| **2** | `AI Document - addon.docx` | `ai-document` | `/ai-writer` | `server/src/routes/ai-writer.routes.ts` | `AiDocument`, `DocumentTemplate` | Implemented |
+| **3** | `AI Assistant - addon.docx` | `ai-assistant` | `/ai` | `server/src/routes/ai.routes.ts` | `AiChatMessage`, `AiSession` | Implemented |
+| **4** | `Backup & Restore - addon.docx` | `backup-restore` | `/system/backup` | `server/src/modules/backup-restore/` | `BackupManifest`, `AuditLog` | Implemented |
+| **5** | `Biometric Time Clock - addon.docx`| `biometric-clock` | `/biometric` | `server/src/routes/biometric.routes.ts` | `BiometricDevice`, `BiometricPunch` | Implemented |
+| **6** | `Business Model - addon.docx` | `business-model` | `/strategy-studio/business-model` | `server/src/modules/strategy-studio/` | `StrategyCanvas`, `StrategyNode` | Implemented |
+| **7** | `Business Plan - addon.docx` | `business-plan` | `/strategy-studio/business-plan` | `server/src/modules/strategy-studio/` | `BusinessPlan`, `PlanMilestone` | Implemented |
+| **8** | `Custom Fields - addon.docx` | `custom-fields` | `/custom-fields` | `server/src/routes/custom-fields.routes.ts` | `CustomFieldDefinition`, `CustomFieldValue` | Implemented |
+| **9** | `Digital Signature - addon.docx` | `digital-signature` | `/signature` | `server/src/modules/signature/` | `SignatureRequest`, `SignatureEnvelope`| Implemented |
+| **10** | `E-Invoice EU - addon.docx` | `einvoice-eu` | `/invoices` | `server/src/services/einvoicing.service.ts` | `Invoice`, `TaxRate` | Implemented |
+| **11** | `Internal Reminders - addon.docx`| `internal-reminders` | `/reminders` | `server/src/routes/reminders.routes.ts` | `InternalReminder`, `ScheduledJob` | Implemented |
+| **12** | `Job Search - addon.docx` | `job-search` | Spec Only (Wave 3) | Planned for public career portal Wave 3 | `JobListing`, `JobApplication` | Spec Only (Wave 3) |
+| **13** | `Learning LMS - addon.docx` | `learning-lms` | `/learning` | `server/src/routes/lms.routes.ts` | `LmsCourse`, `LmsEnrollment` | Implemented |
+| **14** | `Marketing Plan - addon.docx` | `marketing-plan` | `/strategy-studio/marketing-plan` | `server/src/modules/strategy-studio/` | `MarketingCampaign`, `MarketingBudget`| Implemented |
+| **15** | `McKinsey 7S - addon.docx` | `mckinsey-7s` | `/strategy-studio/mckinsey-7s` | `server/src/modules/strategy-studio/` | `StrategyAssessment`, `SevenSScore` | Implemented |
+| **16** | `Multi-Currency - addon.docx` | `multi-currency` | `/multi-currency` | `server/src/routes/currency.routes.ts` | `Currency`, `ExchangeRate` | Implemented |
+| **17** | `PEST Analysis - addon.docx` | `pest` | `/strategy-studio/pest` | `server/src/modules/strategy-studio/` | `PestMatrix`, `PestItem` | Implemented |
+| **18** | `PESTEL Analysis - addon.docx` | `pestel` | `/strategy-studio/pestel` | `server/src/modules/strategy-studio/` | `PestelMatrix`, `PestelItem` | Implemented |
+| **19** | `Porter's Five Forces - addon.docx`| `porters-five-forces`| `/strategy-studio/porters-five-forces`| `server/src/modules/strategy-studio/`| `PortersAnalysis`, `PortersFactor` | Implemented |
+| **20** | `QR Attendance - addon.docx` | `qr-attendance` | `/qr-attendance` | `server/src/routes/attendance.routes.ts` | `QrCodeBadge`, `AttendanceRecord` | Implemented |
+| **21** | `Recruitment ATS - addon.docx` | `recruitment-ats` | `/recruitment` | `server/src/routes/ats.routes.ts` | `JobPosting`, `CandidateApplication`| Implemented |
+| **22** | `Smart Dashboard - addon.docx` | `smart-dashboard` | `/smart-dashboard` | `server/src/modules/smart-dashboard/` | `DashboardWidget`, `WidgetLayout` | Implemented |
+| **23** | `Smart Reports - addon.docx` | `smart-reports` | `/reports/builder` | `server/src/modules/smart-reports/` | `ReportTemplate`, `ReportExecution` | Implemented |
+| **24** | `Strategy Studio - addon.docx` | `strategy-studio` | `/strategy-studio` | `server/src/modules/strategy-studio/` | `StrategyFramework`, `StrategyProject` | Implemented |
+| **25** | `SWOT Analysis - addon.docx` | `swot` | `/strategy-studio/swot` | `server/src/modules/strategy-studio/` | `SwotMatrix`, `SwotQuadrantItem` | Implemented |
+| **26** | `ZATCA E-Invoicing - addon.docx` | `zatca` | `/invoices` | `server/src/services/zatca.service.ts` | `ZatcaCompliance`, `Invoice` | Implemented |
 
 ---
 
-## 4. Master Add-on Inventory & Pricing Reconciliation (54 Active Addons)
+## 3. Ten-State Lifecycle Classification Matrix
 
-| Slug | Canonical Name | Category | Monthly Price | Annual Price | Mode | Launch Route |
-| :--- | :--- | :--- | :---: | :---: | :---: | :--- |
-| `ai-assistant` | AI Copilot Assistant | AI | $19.00 | $190.00 | extension | `/ai` |
-| `ai-business-advisor` | AI Business Advisor | AI | $49.00 | $490.00 | extension | `/advisor` |
-| `ai-document` | AI Document Writer | AI | $15.00 | $150.00 | extension | `/ai-writer` |
-| `backup-restore` | Automated Backup & Restore | System | $9.00 | $90.00 | settings | `/settings/backups` |
-| `biometric-sync` | Biometric Device Integration | HRM | $19.00 | $190.00 | extension | `/integrations/biometric` |
-| `budget-planner` | Budget & Expense Planner | Finance | $19.00 | $190.00 | integrated | `/budgets` |
-| `business-model` | Business Model Canvas | Strategy | $15.00 | $150.00 | integrated | `/strategy/business-model` |
-| `business-plan` | Strategic Business Planner | Strategy | $19.00 | $190.00 | integrated | `/strategy/business-plan` |
-| `contracts` | Digital Contracts & Signatures | Legal | $15.00 | $150.00 | extension | `/hr/documents/contracts` |
-| `custom-fields` | Custom Fields Builder | Operations | $9.00 | $90.00 | extension | `/custom-fields` |
-| `documents` | Enterprise Document Cloud | Productivity| $12.00 | $120.00 | extension | `/documents` |
-| `einvoice-eu` | EU Peppol E-Invoicing | Compliance | $29.00 | $290.00 | extension | `/invoices` |
-| `financial-goal` | Financial Goals & Forecasts | Finance | $15.00 | $150.00 | integrated | `/budgets` |
-| `google-workspace` | Google Workspace Connector | Integration | $12.00 | $120.00 | extension | `/integrations/google` |
-| `internal-reminders` | Automated Reminders Engine | Operations | $5.00 | $50.00 | settings | `/settings` |
-| `learning-lms` | Learning Management System | HRM | $29.00 | $290.00 | standalone | `/lms` |
-| `marketing-plan` | Marketing Strategy Engine | Strategy | $19.00 | $190.00 | integrated | `/strategy/marketing-plan` |
-| `mckinsey-7s` | McKinsey 7S Framework Studio | Strategy | $15.00 | $150.00 | integrated | `/strategy/mckinsey-7s` |
-| `microsoft-365` | Microsoft 365 Integration | Integration | $15.00 | $150.00 | extension | `/integrations/microsoft` |
-| `notice-board` | Digital Notice Board & News | Communication| $0.00 | $0.00 | integrated | `/communication/announcements` |
-| `outbound-webhooks` | Outbound Event Webhooks | Developer | $9.00 | $90.00 | settings | `/settings/webhooks` |
-| `payroll-india` | India Payroll & Statutory Compliance| Compliance| $29.00 | $290.00 | integrated | `/payroll` |
-| `performance-indicator` | KPI & Goal Metrics Studio | HRM | $19.00 | $190.00 | integrated | `/performance/kpi` |
-| `performance-management` | Employee Performance Reviews | HRM | $25.00 | $250.00 | standalone | `/performance` |
-| `pest` | PEST Analysis Engine | Strategy | $12.00 | $120.00 | integrated | `/strategy/pestel` |
-| `pestel` | PESTEL Analysis Engine | Strategy | $15.00 | $150.00 | integrated | `/strategy/pestel` |
-| `plaid` | Plaid Bank Account Linker | Finance | $19.00 | $190.00 | extension | `/accounting` |
-| `porters-five-forces` | Porter's Five Forces Analyzer | Strategy | $15.00 | $150.00 | integrated | `/strategy/porters-five-forces` |
-| `procurement` | Procurement & Vendor Management | Operations | $35.00 | $350.00 | standalone | `/procurement` |
-| `public-api` | Enterprise Public REST API | Developer | $29.00 | $290.00 | settings | `/settings/api-keys` |
-| `quickbooks` | QuickBooks Accounting Bridge | Integration | $25.00 | $250.00 | extension | `/integrations` |
-| `razorpay-gateway` | Razorpay Payments Gateway | Finance | $0.00 | $0.00 | extension | `/settings` |
-| `recruitment-ats` | Applicant Tracking System (ATS) | HRM | $29.00 | $290.00 | standalone | `/recruitment` |
-| `shopify-sync` | Shopify E-Commerce Connector | Integration | $19.00 | $190.00 | extension | `/integrations/shopify` |
-| `slack-integration` | Slack Notifications & Commands | Integration | $9.00 | $90.00 | extension | `/integrations/slack` |
-| `smart-dashboard` | Smart Executive Dashboard | Analytics | $25.00 | $250.00 | integrated | `/dashboard/smart` |
-| `smart-reports` | Smart Reports & Export Engine | Analytics | $19.00 | $190.00 | integrated | `/reports/smart` |
-| `sms-gateway` | SMS Notifications Gateway | Communication| $9.00 | $90.00 | settings | `/settings` |
-| `strategy-studio` | Strategy Studio Suite | Strategy | $39.00 | $390.00 | standalone | `/strategy` |
-| `suggestion-box` | Employee Voice & Suggestion Box | Communication| $9.00 | $90.00 | extension | `/forms` |
-| `support` | Help Desk & Support Tickets | Operations | $15.00 | $150.00 | extension | `/support` |
-| `swot` | SWOT Analysis Studio | Strategy | $15.00 | $150.00 | integrated | `/strategy/swot` |
-| `tally-importer` | Tally ERP Data Importer | Integration | $19.00 | $190.00 | extension | `/integrations/tally` |
-| `team-workload` | Team Workload & Allocation | HRM | $15.00 | $150.00 | integrated | `/timesheets` |
-| `time-tracker` | Project Time Tracker & Kiosk | HRM | $12.00 | $120.00 | integrated | `/timesheets` |
-| `training` | Employee Training Programs | HRM | $15.00 | $150.00 | integrated | `/training` |
-| `two-factor-auth` | Two-Factor Authentication (2FA) | Security | $0.00 | $0.00 | settings | `/settings/security` |
-| `whatsapp-alerts` | WhatsApp Business Notifications | Communication| $15.00 | $150.00 | extension | `/integrations/whatsapp` |
-| `woocommerce-sync` | WooCommerce Sync Bridge | Integration | $19.00 | $190.00 | extension | `/integrations/woocommerce` |
-| `xero` | Xero Cloud Accounting Sync | Integration | $25.00 | $250.00 | extension | `/integrations` |
-| `zatca` | ZATCA Phase 2 E-Invoicing | Compliance | $29.00 | $290.00 | extension | `/invoices` |
-| `zoom-meetings` | Zoom Video Conferencing | Integration | $9.00 | $90.00 | extension | `/integrations/zoom` |
-| `leave-tracker` | Advanced Leave & Absence Rules | HRM | $12.00 | $120.00 | integrated | `/leave` |
-| `attendance-geo` | Geofenced Mobile Attendance | HRM | $15.00 | $150.00 | integrated | `/attendance` |
+MASTERHRMS strictly enforces a 10-state lifecycle classification model ensuring no uninstalled or disabled modules leak into active sidebar navigation or produce incorrect marketplace actions.
+
+| # | Lifecycle State | Allowed Marketplace Action | Appears in Sidebar? | Gating / Access Control | Example Add-on |
+| :-: | :--- | :--- | :---: | :--- | :--- |
+| **1** | **Free (Entitled, Enabled, Active)** | `Open` | Yes | Unrestricted tenant access | `smart-reports`, `two-factor-auth` |
+| **2** | **Free (Installed, Disabled)** | `Enable` | No | Tenant disabled add-on in settings; route responds with 403 / inactive banner | `internal-reminders` (disabled) |
+| **3** | **Paid (Subscribed, Active)** | `Open` | Yes | Valid Stripe/Razorpay subscription active; full navigation item visible | `recruitment-ats` (subscribed) |
+| **4** | **Paid (Subscribed, Disabled)** | `Enable` | No | Subscription active but tenant toggled off; hidden from menu until re-enabled | `time-tracker` (disabled) |
+| **5** | **Available (Free to Install)** | `Install` | No | Free tier add-on, discoverable in Marketplace; 1-click provisioning | `backup-restore`, `suggestion-box` |
+| **6** | **Available (Paid, Requires Purchase)** | `Purchase` | No | Paid add-on requiring monthly/annual checkout; redirect to checkout flow | `learning-lms`, `contracts` |
+| **7** | **Plan Included (Active via Base Plan)** | `Open` | Yes | Automatically granted and activated by tenant's base tier (e.g. Enterprise) | `biometric-clock` on Enterprise plan |
+| **8** | **Plan Included (Disabled by Admin)** | `Enable` | No | Included in base plan but tenant turned feature toggle off | `multi-currency` on Enterprise plan |
+| **9** | **Incompatible / Prerequisite Unmet** | `Incompatible` | No | Cannot be installed until required parent add-on or minimum plan is active | Add-ons requiring Enterprise base plan |
+| **10** | **Deprecated / Hidden / Draft Alias** | None (Hidden) | No | Non-canonical aliases, drafts, or legacy references; filtered out of UI | `google-workspace-integration` (alias) |
 
 ---
 
-## 5. Security & Isolation Guarantees
+## 4. Architectural Rules & Reconciliation Guarantees
 
-1. **No Accidental Tenant Entitlement**: Merely querying the catalog or loading the marketplace never creates `TenantAddon` records. Free add-ons require explicit tenant action (`POST /api/addons/:slug/install`). Paid add-ons require authenticated checkout (`POST /api/commerce/checkout`).
-2. **Fail-Closed Entitlement Checks**: Uninstalled or disabled add-ons are completely omitted from sidebar navigation (`resolveExtensionItems`, `resolveStandaloneModules`, `resolveIntegratedAddons`). Direct URL traversal to unentitled routes triggers automatic redirect or access denial via `checkEntitlementByKey()`.
-3. **Multi-Tenant State Isolation**: Add-on installation state is scoped strictly to `tenantId`. Switching tenants immediately invalidates cached navigation state.
-4. **Public Privacy Protection**: Public non-tenant catalog requests receive product metadata with `eligibility: undefined`, eliminating tenant state leakage across public network boundaries.
+### A. Marketplace Deduplication & Completeness
+- Every approved canonical add-on appears **exactly once** in the Marketplace UI.
+- All 54 active add-ons display valid monthly and yearly pricing or are explicitly marked `Free`.
+- Public visitors querying the catalog do NOT receive tenant eligibility leaks (`eligibility: undefined`).
+- Authenticated tenants receive accurate status (`isInstalled`, `isEntitled`, `allowedAction`).
+
+### B. Fail-Closed Sidebar Navigation & Core Route Protection
+- Uninstalled or disabled add-ons are strictly filtered out of the sidebar via `resolveSidebarNavigation()`.
+- Navigation items never render dead links or placeholders.
+- **Core Platform Routes Protection**: Routes belonging to `core`, `overview`, `settings`, `platform`, `core_platform`, `hrm`, and `hrms` remain fully accessible to all authenticated tenants regardless of add-on installation states. Core HR operations (Employees, Payroll, Departments, Leaves) can never be accidentally locked out by add-on configuration.
+
+### C. Enterprise Module Partitioning
+- Standalone enterprise suites (CRM, POS, Finance ERP) are partitioned as `STANDALONE_PRODUCT` or deferred modules.
+- Standard HRMS tenant users are never exposed to incomplete standalone sub-apps.
+- Integrations (e.g. QuickBooks, Xero, Plaid, ZATCA) map cleanly to their corresponding accounting/invoice host workflows.

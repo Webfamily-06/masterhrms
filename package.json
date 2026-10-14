@@ -106,5 +106,11 @@
   },
   "optionalDependencies": {
     "@rolldown/binding-darwin-arm64": "^1.2.11"
+  },
+  "allowScripts": {
+    "core-js@3.50.0": true,
+    "esbuild@0.28.2": true,
+    "msgpackr-extract@3.0.4": true,
+    "workerd@1.20260704.1": true
   }
 }

@@ -7,12 +7,34 @@ import { IStorageService, StorageFile, StoredFileMetadata } from './storage.type
 import { computeSha256 } from './integrity-hasher';
 import { validateFileBuffer } from './file-validator';
 
-// Base directory for stored files (strictly outside public directory)
-const STORAGE_ROOT_DIR = path.resolve(process.cwd(), 'storage', 'tenants');
+import os from 'os';
 
-// Ensure base storage directory exists
-if (!fs.existsSync(STORAGE_ROOT_DIR)) {
-  fs.mkdirSync(STORAGE_ROOT_DIR, { recursive: true, mode: 0o700 });
+// Base directory for stored files (strictly outside public directory)
+export function getStorageRootDir(): string {
+  if (process.env.STORAGE_ROOT_DIR) {
+    return path.resolve(process.env.STORAGE_ROOT_DIR);
+  }
+  if (
+    process.env.VERCEL ||
+    process.env.VERCEL_ENV ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT ||
+    (process.env.NODE_ENV === 'production' && process.cwd().startsWith('/var/task'))
+  ) {
+    return path.resolve(os.tmpdir(), 'storage', 'tenants');
+  }
+  return path.resolve(process.cwd(), 'storage', 'tenants');
+}
+
+export const STORAGE_ROOT_DIR = getStorageRootDir();
+
+// Ensure base storage directory exists safely without crashing module load in read-only filesystems
+try {
+  if (!fs.existsSync(STORAGE_ROOT_DIR)) {
+    fs.mkdirSync(STORAGE_ROOT_DIR, { recursive: true, mode: 0o700 });
+  }
+} catch (err: any) {
+  console.warn(`[STORAGE WARNING]: Could not initialize base storage directory at ${STORAGE_ROOT_DIR}: ${err?.message}`);
 }
 
 /**
