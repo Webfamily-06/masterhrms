@@ -198,7 +198,7 @@ const LAUNCH_URLS: Record<string, string> = {
   support: "/support",
   documents: "/documents",
   "custom-fields": "/custom-fields",
-  "suggestion-box": "/forms",
+  "suggestion-box": "/suggestion-box",
   contracts: "/hr/documents/contracts",
   "ai-document": "/ai-writer",
   "ai-assistant": "/ai",

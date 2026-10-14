@@ -448,7 +448,7 @@ export function ExpensesPage() {
       const formData = new FormData();
       formData.append("receipt", file);
 
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+      const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("token") || sessionStorage.getItem("token");
       const res = await fetch("/api/expenses/claims/upload-receipt", {
         method: "POST",
         headers: {

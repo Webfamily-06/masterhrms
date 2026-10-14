@@ -68,13 +68,25 @@ export class SmartDashboardService {
 
     // 2. User-level Role & Permission checks (RBAC)
     if (user && !isSuperAdmin && !isWorkspaceAdmin) {
+      const userRoles: string[] = Array.isArray(user.roles)
+        ? user.roles.map((r: any) => String(r).toLowerCase())
+        : [];
       const userPerms: string[] = Array.isArray(user.permissions)
         ? user.permissions.map((p: any) => String(p).toLowerCase())
         : [];
 
-      if (userPerms.length > 0) {
-        const hasPerm = (prefix: string) => userPerms.some((p) => p.includes(prefix) || p === "*");
+      const hasPerm = (prefix: string) => userPerms.some((p) => p.includes(prefix) || p === "*");
+      const hasRole = (roleList: string[]) => userRoles.some((r) => roleList.includes(r));
 
+      const isHrUser = hasRole(["hr", "hr_admin", "hr_manager"]);
+      const isSalesUser = hasRole(["sales", "sales_admin", "sales_manager", "sales_agent", "crm_admin"]);
+      const isPosUser = hasRole(["pos_admin", "pos_manager", "cashier", "store_keeper", "retail_staff"]);
+      const isFinanceUser = hasRole(["finance_admin", "finance_manager", "accountant", "payroll_manager", "bookkeeper"]);
+      const isInventoryUser = hasRole(["inventory_admin", "inventory_manager", "warehouse_manager", "stock_keeper"]);
+      const isProjectUser = hasRole(["project_admin", "project_manager", "scrum_master", "developer"]);
+      const isProcurementUser = hasRole(["purchase_admin", "purchase_manager", "procurement_manager", "buyer"]);
+
+      if (userPerms.length > 0) {
         if (!hasPerm("hrm") && !hasPerm("employee") && !hasPerm("staff")) {
           hrm = false;
         }
@@ -97,6 +109,32 @@ export class SmartDashboardService {
           projects = false;
         }
         if (!hasPerm("purchase") && !hasPerm("procurement") && !hasPerm("vendor")) {
+          purchases = false;
+        }
+      } else if (userRoles.length > 0) {
+        // Role-based boundary enforcement (e.g. HR-only roles never leak CRM or POS)
+        if (!isHrUser) {
+          hrm = false;
+        }
+        if (!isFinanceUser) {
+          financial = false;
+        }
+        if (!isSalesUser) {
+          sales = false;
+        }
+        if (!isSalesUser) {
+          crm = false;
+        }
+        if (!isPosUser) {
+          pos = false;
+        }
+        if (!isInventoryUser && !isPosUser) {
+          inventory = false;
+        }
+        if (!isProjectUser) {
+          projects = false;
+        }
+        if (!isProcurementUser) {
           purchases = false;
         }
       }

@@ -200,7 +200,7 @@ export function BankDisbursementWorkspace({ runs }: BankDisbursementWorkspacePro
 
   // Helper to trigger file download
   const downloadFile = (batchId: string, fileName: string) => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("token");
     const downloadUrl = `${API_BASE}/payroll/disbursement/batches/${batchId}/download${token ? `?token=${token}` : ""}`;
     window.open(downloadUrl, "_blank");
   };

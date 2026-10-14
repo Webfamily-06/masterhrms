@@ -71,6 +71,20 @@ export function DreamsSidebar({
     meMeetings: false,
     meDocs: false,
     meMedia: false,
+    // HR portal submenus
+    hrOrg: false,
+    hrAttendance: false,
+    hrLeave: false,
+    hrRecruitment: false,
+    hrLifecycle: false,
+    hrPerformance: false,
+    hrTraining: false,
+    hrPayroll: false,
+    hrAssets: false,
+    hrMeetings: false,
+    hrDocs: false,
+    hrPlanning: false,
+    tenantWorkspace: true,
   });
 
   const toggleSubmenu = (menuKey: string) => {
@@ -80,7 +94,7 @@ export function DreamsSidebar({
     }));
   };
 
-  // Auto-expand matching employee submenu on route navigation
+  // Auto-expand matching employee and HR submenus on route navigation
   useEffect(() => {
     if (currentPath.startsWith("/me/organization")) setOpenMenus((p) => ({ ...p, meOrg: true }));
     if (currentPath.startsWith("/me/attendance")) setOpenMenus((p) => ({ ...p, meAttendance: true }));
@@ -94,20 +108,44 @@ export function DreamsSidebar({
     if (currentPath.startsWith("/me/meetings")) setOpenMenus((p) => ({ ...p, meMeetings: true }));
     if (currentPath.startsWith("/me/documents")) setOpenMenus((p) => ({ ...p, meDocs: true }));
     if (currentPath.startsWith("/me/media")) setOpenMenus((p) => ({ ...p, meMedia: true }));
+    if (currentPath.startsWith("/hr/organization")) setOpenMenus((p) => ({ ...p, hrOrg: true }));
+    if (currentPath.startsWith("/hr/attendance")) setOpenMenus((p) => ({ ...p, hrAttendance: true }));
+    if (currentPath.startsWith("/hr/leave")) setOpenMenus((p) => ({ ...p, hrLeave: true }));
+    if (currentPath.startsWith("/hr/recruitment")) setOpenMenus((p) => ({ ...p, hrRecruitment: true }));
+    if (currentPath.startsWith("/hr/lifecycle")) setOpenMenus((p) => ({ ...p, hrLifecycle: true }));
+    if (currentPath.startsWith("/hr/performance")) setOpenMenus((p) => ({ ...p, hrPerformance: true }));
+    if (currentPath.startsWith("/hr/training")) setOpenMenus((p) => ({ ...p, hrTraining: true }));
+    if (currentPath.startsWith("/hr/payroll")) setOpenMenus((p) => ({ ...p, hrPayroll: true }));
+    if (currentPath.startsWith("/hr/assets")) setOpenMenus((p) => ({ ...p, hrAssets: true }));
+    if (currentPath.startsWith("/hr/meetings")) setOpenMenus((p) => ({ ...p, hrMeetings: true }));
+    if (currentPath.startsWith("/hr/documents")) setOpenMenus((p) => ({ ...p, hrDocs: true }));
+    if (currentPath.startsWith("/addons/planning")) setOpenMenus((p) => ({ ...p, hrPlanning: true }));
+    if (currentPath.startsWith("/tenant")) setOpenMenus((p) => ({ ...p, tenantWorkspace: true }));
     if (currentPath === "/integrations" || currentPath === "/shopify") {
       setOpenMenus((p) => ({ ...p, ecommerce: true }));
     }
   }, [currentPath]);
 
   const userRoles = profile?.roles || [];
-  const isSuperAdmin = userRoles.includes("super_admin");
-  const isHrAdmin = userRoles.some((r) => ["hr_admin", "hr"].includes(r));
-  const isAdminOrSuper = userRoles.some((r) =>
-    ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r)
-  );
-  const isManager = userRoles.includes("manager");
-  const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
-  const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
+  const normalizedRoles = userRoles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
+  const roleName = String(profile?.workspaceRole?.name || profile?.role || "").toLowerCase();
+  const normalizedRoleName = roleName.replace(/[-_ ]/g, "");
+  const isSuperAdmin = userRoles.includes("super_admin") || normalizedRoles.includes("superadmin") || roleName.includes("super admin");
+  const isTenantAdmin = normalizedRoles.some((r) =>
+    ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
+  ) || normalizedRoleName.includes("workspaceadmin") || normalizedRoleName.includes("tenantadmin") || normalizedRoleName.includes("organizationadmin") || normalizedRoleName === "admin" || normalizedRoleName.includes("owner");
+  const isHrAdmin = normalizedRoles.some((r) => ["hradmin", "hr", "hrmanager"].includes(r)) || roleName.includes("hr");
+  const isAdminOrSuper = isSuperAdmin || isTenantAdmin || isHrAdmin;
+  const isManager = normalizedRoles.includes("manager") || roleName.includes("manager");
+  const isClientOnly = normalizedRoles.includes("client") && !isTenantAdmin && !isHrAdmin && !isSuperAdmin;
+  const isEmployeeOnly = (normalizedRoles.includes("employee") || isManager) && !isTenantAdmin && !isHrAdmin && !isSuperAdmin;
+  const isHrRoute = currentPath === "/hr" || currentPath.startsWith("/hr/");
+  const isTenantRoute = currentPath === "/tenant" || currentPath.startsWith("/tenant/");
+  // A Tenant Admin is the administrator of the organization, so they see the complete ERP pages.
+  // Super Admin also sees complete pages.
+  // /tenant/* is the Tenant Admin portal.
+  // isHrView is strictly for non-tenant-admin HR staff on HR routes.
+  const isHrView = !isTenantAdmin && !isSuperAdmin && !isTenantRoute && ((isHrAdmin && !isEmployeeOnly) || isHrRoute);
 
   const hasDirectReports = Boolean(
     (profile as any)?.hasDirectReports ||
@@ -137,27 +175,22 @@ export function DreamsSidebar({
   const enabledModules = profile?.enabledModules || (profile as any)?.tenant?.enabledModules || [];
 
   const isPosUnlocked = isSuperAdmin ||
-    isEntitled("pos") ||
-    isEntitled("product_pos");
+    ((isEntitled("pos") || isEntitled("product_pos")) && isModuleAllowed("pos", profile));
 
   const isFinanceUnlocked = isSuperAdmin ||
-    isEntitled("accounting") ||
-    isEntitled("finance") ||
-    isEntitled("product_finance");
+    ((isEntitled("accounting") || isEntitled("finance") || isEntitled("product_finance")) && isModuleAllowed("finance", profile));
 
   const isCrmUnlocked = isSuperAdmin ||
-    isEntitled("crm") ||
-    isEntitled("product_crm");
+    ((isEntitled("crm") || isEntitled("product_crm")) && isModuleAllowed("crm", profile));
 
   const isHrmsUnlocked = isSuperAdmin ||
-    isEntitled("hrm") ||
-    isEntitled("hrms") ||
-    isEntitled("product_hrms") ||
-    isEntitled("core_platform");
+    ((isEntitled("hrm") || isEntitled("hrms") || isEntitled("product_hrms") || isEntitled("core_platform")) && isModuleAllowed("hrm", profile));
 
   const homeRoute = isSuperAdmin
     ? "/super"
-    : isClientOnly
+    : isTenantAdmin
+      ? "/tenant/dashboard"
+      : isClientOnly
       ? "/client-dashboard"
       : isEmployeeOnly
         ? "/me/dashboard"
@@ -1231,6 +1264,869 @@ export function DreamsSidebar({
                 </>
               )}
             </ul>
+          ) : isHrView ? (
+            <ul>
+              {/* OVERVIEW */}
+              <li className="menu-title">
+                <span>OVERVIEW</span>
+              </li>
+              <li>
+                <Link
+                  to="/hr/dashboard"
+                  onClick={onCloseMobile}
+                  className={cn((currentPath === "/hr/dashboard" || currentPath === "/hr") && "active")}
+                >
+                  <i className="ph-duotone ph-squares-four"></i>
+                  <span>Dashboard</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/hr/calendar"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/hr/calendar" && "active")}
+                >
+                  <i className="ph-duotone ph-calendar"></i>
+                  <span>Calendar</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/hr/todo"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/hr/todo" && "active")}
+                >
+                  <i className="ph-duotone ph-check-square"></i>
+                  <span>Todo</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/hr/chat"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/hr/chat" && "active")}
+                >
+                  <i className="ph-duotone ph-chat-circle-dots"></i>
+                  <span>Chat</span>
+                </Link>
+              </li>
+              {isEntitled("ai-assistant") && (
+                <li>
+                  <Link
+                    to="/addons/ai-assistant/usage"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath.startsWith("/addons/ai-assistant") && "active")}
+                  >
+                    <i className="ph-duotone ph-robot"></i>
+                    <span>AI Assistant</span>
+                  </Link>
+                </li>
+              )}
+
+              {/* WORKSPACE MANAGEMENT */}
+              <li className="menu-title">
+                <span>WORKSPACE MANAGEMENT</span>
+              </li>
+              <li>
+                <Link
+                  to="/hr/employees"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath.startsWith("/hr/employees") && "active")}
+                >
+                  <i className="ph-duotone ph-users"></i>
+                  <span>Employee</span>
+                </Link>
+              </li>
+
+              {/* Organization Structure Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrOrg");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrOrg && "subdrop",
+                    currentPath.startsWith("/hr/organization") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-tree-structure"></i>
+                  <span>Organization Structure</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrOrg ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/organization/holidays"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/organization/holidays" && "active")}
+                    >
+                      Holiday
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/organization/announcements"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/organization/announcements" && "active")}
+                    >
+                      Announcements
+                    </Link>
+                  </li>
+                  {isEntitled("notice-board") && (
+                    <li>
+                      <Link
+                        to="/notice-board"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/notice-board" && "active")}
+                      >
+                        Notice Board
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              </li>
+
+              {/* Attendance Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrAttendance");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrAttendance && "subdrop",
+                    currentPath.startsWith("/hr/attendance") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-clock"></i>
+                  <span>Attendance</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrAttendance ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/attendance/records"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/attendance/records" && "active")}
+                    >
+                      Attendance Records
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/attendance/timesheets"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/hr/attendance/timesheets" || currentPath === "/hr/attendance/timesheet") && "active")}
+                    >
+                      Timesheet
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/attendance/regularizations"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/attendance/regularizations" && "active")}
+                    >
+                      Attendance Regularizations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/attendance/shifts"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/attendance/shifts" && "active")}
+                    >
+                      Shift
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/attendance/policies"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/attendance/policies" && "active")}
+                    >
+                      Attendance Policies
+                    </Link>
+                  </li>
+                  {isEntitled("biometric-sync") && (
+                    <li>
+                      <Link
+                        to="/biometric-sync"
+                        onClick={onCloseMobile}
+                        className={cn((currentPath === "/biometric-sync" || currentPath === "/biometric") && "active")}
+                      >
+                        Biometric Hardware Sync
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              </li>
+
+              {/* Leave Management Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrLeave");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrLeave && "subdrop",
+                    currentPath.startsWith("/hr/leave") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-calendar-blank"></i>
+                  <span>Leave Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrLeave ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/leave/applications"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/leave/applications" && "active")}
+                    >
+                      Leave Applications
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/leave/balances"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/leave/balances" && "active")}
+                    >
+                      Leave Balance
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/leave/policies"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/leave/policies" && "active")}
+                    >
+                      Leave Policies
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* TALENT & GROWTH */}
+              <li className="menu-title">
+                <span>TALENT & GROWTH</span>
+              </li>
+
+              {/* Recruitment Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrRecruitment");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrRecruitment && "subdrop",
+                    currentPath.startsWith("/hr/recruitment") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-briefcase"></i>
+                  <span>Recruitment</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrRecruitment ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/recruitment/job-postings"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/recruitment/job-postings" && "active")}
+                    >
+                      Job Postings
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/recruitment/interviews"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/recruitment/interviews" && "active")}
+                    >
+                      Interviews
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/recruitment/candidate-onboarding"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/recruitment/candidate-onboarding" && "active")}
+                    >
+                      Candidate Onboarding
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/recruitment/assessments"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/recruitment/assessments" && "active")}
+                    >
+                      Candidate Assessments
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/recruitment/career"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/hr/recruitment/career" || currentPath === "/hr/recruitment/career-site") && "active")}
+                    >
+                      Career
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/recruitment/job-locations"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/recruitment/job-locations" && "active")}
+                    >
+                      Job Locations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/recruitment/interview-rounds"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/recruitment/interview-rounds" && "active")}
+                    >
+                      Interview Rounds
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* Employee Lifecycle Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrLifecycle");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrLifecycle && "subdrop",
+                    currentPath.startsWith("/hr/lifecycle") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-arrows-clockwise"></i>
+                  <span>Employee Lifecycle</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrLifecycle ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/awards"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/awards" && "active")}
+                    >
+                      Awards
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/promotions"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/promotions" && "active")}
+                    >
+                      Promotions
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/transfers"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/transfers" && "active")}
+                    >
+                      Transfers
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/warnings"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/warnings" && "active")}
+                    >
+                      Warning
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/resignations"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/resignations" && "active")}
+                    >
+                      Resignations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/terminations"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/terminations" && "active")}
+                    >
+                      Terminations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/trips"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/trips" && "active")}
+                    >
+                      Trips
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/complaints"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/lifecycle/complaints" && "active")}
+                    >
+                      Complaints
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* Performance Management Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrPerformance");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrPerformance && "subdrop",
+                    currentPath.startsWith("/hr/performance") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-chart-line-up"></i>
+                  <span>Performance Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrPerformance ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/performance/reviews"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/performance/reviews" && "active")}
+                    >
+                      Employee Reviews
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/performance/goals"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/performance/goals" && "active")}
+                    >
+                      Employee Goals
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/performance/cycles"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/performance/cycles" && "active")}
+                    >
+                      Review Cycles
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/performance/indicators"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/performance/indicators" && "active")}
+                    >
+                      Indicators
+                    </Link>
+                  </li>
+                  {isEntitled("okr-performance") && (
+                    <li>
+                      <Link
+                        to="/okr"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/okr" && "active")}
+                      >
+                        Strategic OKRs & Goals
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              </li>
+
+              {/* Training & Development Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrTraining");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrTraining && "subdrop",
+                    currentPath.startsWith("/hr/training") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-graduation-cap"></i>
+                  <span>Training & Development</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrTraining ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/training/employee-trainings"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/hr/training/employee-trainings" || currentPath === "/hr/training/trainings") && "active")}
+                    >
+                      Employee Trainings
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/training/sessions"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/training/sessions" && "active")}
+                    >
+                      Training Sessions
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/training/programs"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/training/programs" && "active")}
+                    >
+                      Training Programs
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* Strategic Planning Submenu (Add-on) */}
+              {isEntitled("planning") && (
+                <li className="submenu">
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu("hrPlanning");
+                    }}
+                    className={cn(
+                      "cursor-pointer",
+                      openMenus.hrPlanning && "subdrop",
+                      currentPath.startsWith("/addons/planning") && "active"
+                    )}
+                  >
+                    <i className="ph-duotone ph-target"></i>
+                    <span>Strategic Planning</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul style={{ display: !isMini && openMenus.hrPlanning ? "block" : "none" }}>
+                    <li>
+                      <Link
+                        to="/addons/planning/dashboard"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/addons/planning/dashboard" && "active")}
+                      >
+                        Planning Dashboard
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/addons/planning/challenges"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/addons/planning/challenges" && "active")}
+                      >
+                        Strategic Challenges
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/addons/planning/charters"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/addons/planning/charters" && "active")}
+                      >
+                        Project Charters
+                      </Link>
+                    </li>
+                  </ul>
+                </li>
+              )}
+
+              {/* FINANCE & ASSETS */}
+              <li className="menu-title">
+                <span>FINANCE & ASSETS</span>
+              </li>
+
+              {/* Payroll Management Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrPayroll");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrPayroll && "subdrop",
+                    currentPath.startsWith("/hr/payroll") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-wallet"></i>
+                  <span>Payroll Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrPayroll ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/payroll/payslips"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/payroll/payslips" && "active")}
+                    >
+                      Payslip
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/payroll/employee-salaries"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/hr/payroll/employee-salaries" || currentPath === "/hr/payroll/salaries") && "active")}
+                    >
+                      Employee Salaries
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* Assets Management Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrAssets");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrAssets && "subdrop",
+                    currentPath.startsWith("/hr/assets") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-package"></i>
+                  <span>Assets Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrAssets ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/assets/dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/assets/dashboard" && "active")}
+                    >
+                      Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/assets"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/assets" && "active")}
+                    >
+                      Assets
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/assets/depreciation"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/assets/depreciation" && "active")}
+                    >
+                      Depreciations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/assets/types"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/assets/types" && "active")}
+                    >
+                      Asset Types
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* COMMUNICATIONS & CONTENT */}
+              <li className="menu-title">
+                <span>COMMUNICATIONS & CONTENT</span>
+              </li>
+
+              {/* Meetings Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrMeetings");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrMeetings && "subdrop",
+                    currentPath.startsWith("/hr/meetings") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-video-camera"></i>
+                  <span>Meetings</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrMeetings ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/meetings"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/meetings" && "active")}
+                    >
+                      Meetings
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/meetings/action-items"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/meetings/action-items" && "active")}
+                    >
+                      Action Items
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+
+              {/* Documents & Contracts Submenu */}
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("hrDocs");
+                  }}
+                  className={cn(
+                    "cursor-pointer",
+                    openMenus.hrDocs && "subdrop",
+                    currentPath.startsWith("/hr/documents") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-file-text"></i>
+                  <span>Documents & Contracts</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.hrDocs ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/hr/documents"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/documents" && "active")}
+                    >
+                      HR Documents
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/documents/contracts"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/documents/contracts" && "active")}
+                    >
+                      Employee Contracts
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/hr/documents/acknowledgements"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/hr/documents/acknowledgements" && "active")}
+                    >
+                      Acknowledgements
+                    </Link>
+                  </li>
+                  {isEntitled("ai-document") && (
+                    <li>
+                      <Link
+                        to="/addons/ai-document/generate"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath.startsWith("/addons/ai-document") && "active")}
+                      >
+                        AI Document Generator
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              </li>
+
+              {isEntitled("suggestion-box") && (
+                <li>
+                  <Link
+                    to="/suggestion-box"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/suggestion-box" && "active")}
+                  >
+                    <i className="ph-duotone ph-lightbulb"></i>
+                    <span>Suggestion Box</span>
+                  </Link>
+                </li>
+              )}
+
+              {isEntitled("outbound-webhooks") && (
+                <li>
+                  <Link
+                    to="/addons/webhook/endpoints"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath.startsWith("/addons/webhook") && "active")}
+                  >
+                    <i className="ph-duotone ph-webhooks-logo"></i>
+                    <span>Outbound Webhooks</span>
+                  </Link>
+                </li>
+              )}
+
+              {/* Media Library */}
+              <li>
+                <Link
+                  to="/hr/media"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/hr/media" && "active")}
+                >
+                  <i className="ph-duotone ph-image"></i>
+                  <span>Media Library</span>
+                </Link>
+              </li>
+
+              {/* My Profile */}
+              <li>
+                <Link
+                  to="/hr/profile"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/hr/profile" && "active")}
+                >
+                  <i className="ph-duotone ph-user"></i>
+                  <span>My Profile</span>
+                </Link>
+              </li>
+            </ul>
           ) : (
             <ul>
               {/* ===================== MAIN ===================== */}
@@ -1266,6 +2162,17 @@ export function DreamsSidebar({
                 <span className="menu-arrow"></span>
               </a>
               <ul style={{ display: !isMini && openMenus.dashboards ? "block" : "none" }}>
+                {(isTenantAdmin || isSuperAdmin) && (
+                  <li>
+                    <Link
+                      to="/tenant/dashboard"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/tenant/dashboard" || currentPath === "/tenant") && "active")}
+                    >
+                      Tenant Workspace Dashboard
+                    </Link>
+                  </li>
+                )}
                 {isModuleAllowed("hrm", profile) && (<li>
                   <Link
                     to={isAdminOrSuper ? "/hr/dashboard" : "/hrm-dashboard"}
@@ -1540,6 +2447,152 @@ export function DreamsSidebar({
               </ul>
             </li>
 
+            {/* ===================== TENANT ADMINISTRATION ===================== */}
+            {(isTenantAdmin || isSuperAdmin || currentPath.startsWith("/tenant")) && (
+              <>
+                <li className="menu-title">
+                  <span>TENANT ADMINISTRATION</span>
+                </li>
+                <li className="submenu">
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu("tenantWorkspace");
+                    }}
+                    className={cn(
+                      "cursor-pointer",
+                      openMenus.tenantWorkspace && "subdrop",
+                      currentPath.startsWith("/tenant") && "active"
+                    )}
+                  >
+                    <i className="ph-duotone ph-buildings"></i>
+                    <span>Workspace Control</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul style={{ display: !isMini && openMenus.tenantWorkspace ? "block" : "none" }}>
+                    <li>
+                      <Link
+                        to="/tenant/dashboard"
+                        onClick={onCloseMobile}
+                        className={cn((currentPath === "/tenant/dashboard" || currentPath === "/tenant") && "active")}
+                      >
+                        Workspace Overview
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/company-profile"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/company-profile" && "active")}
+                      >
+                        Company Profile
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/users"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/users" && "active")}
+                      >
+                        Users & Access
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/roles"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/roles" && "active")}
+                      >
+                        Roles & Permissions
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/modules"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/modules" && "active")}
+                      >
+                        Modules & Subscriptions
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/subscription"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/subscription" && "active")}
+                      >
+                        Plan & Subscription
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/billing"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/billing" && "active")}
+                      >
+                        Invoices & Billing
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/branding"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/branding" && "active")}
+                      >
+                        Branding & White-label
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/domain"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/domain" && "active")}
+                      >
+                        Custom Domains
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/integrations"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/integrations" && "active")}
+                      >
+                        Integrations Hub
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/data"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/data" && "active")}
+                      >
+                        Data & Backups
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/audit-logs"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/audit-logs" && "active")}
+                      >
+                        Security Audit Logs
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        to="/tenant/support"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/support" && "active")}
+                      >
+                        Priority Support
+                      </Link>
+                    </li>
+                  </ul>
+                </li>
+              </>
+            )}
+
             {/* Applications Submenu */}
             <li className="submenu">
               <a
@@ -1725,7 +2778,7 @@ export function DreamsSidebar({
             )}
 
             {/* ===================== PURCHASES & PROCUREMENT ===================== */}
-            {isEntitled("procurement") && (
+            {(isSuperAdmin || (isEntitled("procurement") && isModuleAllowed("purchases", profile))) && (
               <>
                 <li className="menu-title">
                   <span>PROCUREMENT</span>
@@ -2539,39 +3592,6 @@ export function DreamsSidebar({
                 <span>Plan & Subscription</span>
               </Link>
             </li>
-            <li>
-              <Link
-                to="/ban-ip-address"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/ban-ip-address" && "active")}
-              >
-                <i className="ph-duotone ph-shield-warning"></i>
-                <span>Ban IP Address</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/clear-cache"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/clear-cache" && "active")}
-                title="Clear Cache & Maintenance"
-                aria-label="Clear Cache and Maintenance"
-              >
-                <i className="ph-duotone ph-broom" aria-hidden="true"></i>
-                <span>System Cache</span>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/cronjob"
-                onClick={onCloseMobile}
-                className={cn(currentPath === "/cronjob" && "active")}
-              >
-                <i className="ph-duotone ph-clock-counter-clockwise"></i>
-                <span>Cronjob Management</span>
-              </Link>
-            </li>
-
             {/* Developer Docs Portal */}
             <li>
               <Link
@@ -2596,21 +3616,58 @@ export function DreamsSidebar({
               </Link>
             </li>
 
-            {/* Super Admin Console (Conditional) */}
+            {/* Super Admin Platform Operations (STRICTLY HIDDEN for Tenant Admin) */}
             {isSuperAdmin && (
-              <li>
-                <Link
-                  to="/super"
-                  onClick={onCloseMobile}
-                  className={cn(
-                    "text-primary font-semibold",
-                    currentPath.startsWith("/super") && "active"
-                  )}
-                >
-                  <i className="ph-duotone ph-shield-check"></i>
-                  <span>Super Admin Console</span>
-                </Link>
-              </li>
+              <>
+                <li className="menu-title">
+                  <span>PLATFORM CONTROL PLANE</span>
+                </li>
+                <li>
+                  <Link
+                    to="/ban-ip-address"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/ban-ip-address" && "active")}
+                  >
+                    <i className="ph-duotone ph-shield-warning"></i>
+                    <span>Ban IP Address</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/clear-cache"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/clear-cache" && "active")}
+                    title="Clear Cache & Maintenance"
+                    aria-label="Clear Cache and Maintenance"
+                  >
+                    <i className="ph-duotone ph-broom" aria-hidden="true"></i>
+                    <span>System Cache</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/cronjob"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/cronjob" && "active")}
+                  >
+                    <i className="ph-duotone ph-clock-counter-clockwise"></i>
+                    <span>Cronjob Management</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/super"
+                    onClick={onCloseMobile}
+                    className={cn(
+                      "text-primary font-semibold",
+                      currentPath.startsWith("/super") && "active"
+                    )}
+                  >
+                    <i className="ph-duotone ph-shield-check"></i>
+                    <span>Super Admin Console</span>
+                  </Link>
+                </li>
+              </>
             )}
           </ul>
           )}

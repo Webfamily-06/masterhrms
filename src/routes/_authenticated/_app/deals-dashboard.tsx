@@ -13,6 +13,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+import { usePermissions } from "@/lib/permissions";
+import { AccessDenied } from "@/components/access-denied";
+import { Loader2 } from "lucide-react";
+
 const Chart = lazy(() => import("react-apexcharts"));
 
 export const Route = createFileRoute("/_authenticated/_app/deals-dashboard")({
@@ -117,6 +121,7 @@ const INITIAL_DEALS: DealItem[] = [
 ];
 
 export default function DealsDashboardPage() {
+  const { canAccessModule, loading } = usePermissions();
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
@@ -336,6 +341,25 @@ export default function DealsDashboardPage() {
     }),
     []
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-xs text-muted-foreground font-medium animate-pulse">Verifying workspace permissions...</p>
+      </div>
+    );
+  }
+
+  if (!canAccessModule("crm")) {
+    return (
+      <AccessDenied
+        moduleName="Deals & CRM Dashboard"
+        requiredPermission="crm.dashboard.view"
+        message="You do not have permission to access the Deals & CRM Dashboard."
+      />
+    );
+  }
 
   return (
     <div className="p-0">

@@ -46,6 +46,7 @@ import { Route as AuthenticatedMeRouteImport } from './routes/_authenticated/me'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedSuperRouteRouteImport } from './routes/_authenticated/super/route'
 import { Route as AuthenticatedTenantRouteImport } from './routes/_authenticated/tenant'
+import { Route as AuthenticatedTenetRouteImport } from './routes/_authenticated/tenet'
 import { Route as ATagRouteImport } from './routes/a.$tag'
 import { Route as AddonsIndexRouteImport } from './routes/addons.index'
 import { Route as AddonsSlugRouteImport } from './routes/addons_.$slug'
@@ -179,6 +180,7 @@ import { Route as AuthenticatedAppSmartReportsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAppSmsGatewayRouteImport } from './routes/_authenticated/_app/sms-gateway'
 import { Route as AuthenticatedAppStrategyStudioRouteImport } from './routes/_authenticated/_app/strategy-studio'
 import { Route as AuthenticatedAppSubscriptionRouteImport } from './routes/_authenticated/_app/subscription'
+import { Route as AuthenticatedAppSuggestionBoxRouteImport } from './routes/_authenticated/_app/suggestion-box'
 import { Route as AuthenticatedAppSuppliersRouteImport } from './routes/_authenticated/_app/suppliers'
 import { Route as AuthenticatedAppSupportRouteImport } from './routes/_authenticated/_app/support'
 import { Route as AuthenticatedAppSupportDashboardRouteImport } from './routes/_authenticated/_app/support-dashboard'
@@ -272,12 +274,14 @@ import { Route as AuthenticatedTenantSettingsRouteImport } from './routes/_authe
 import { Route as AuthenticatedTenantSubscriptionRouteImport } from './routes/_authenticated/tenant/subscription'
 import { Route as AuthenticatedTenantSupportRouteImport } from './routes/_authenticated/tenant/support'
 import { Route as AuthenticatedTenantUsersRouteImport } from './routes/_authenticated/tenant/users'
+import { Route as AuthenticatedTenetSplatRouteImport } from './routes/_authenticated/tenet/$'
 import { Route as PortalInvoicesIdRouteImport } from './routes/portal.invoices.$id'
 import { Route as PortalProposalsIdRouteImport } from './routes/portal.proposals.$id'
 import { Route as AuthenticatedAppInvoiceIdRouteImport } from './routes/_authenticated/_app/invoice.$id'
 import { Route as AuthenticatedAppInvoiceCreateRouteImport } from './routes/_authenticated/_app/invoice.create'
 import { Route as AuthenticatedAppProjectIdRouteImport } from './routes/_authenticated/_app/project.$id'
 import { Route as AuthenticatedAppSettingsCustomDomainRouteImport } from './routes/_authenticated/_app/settings.custom-domain'
+import { Route as AuthenticatedAppSettingsWebhookRouteImport } from './routes/_authenticated/_app/settings.webhook'
 import { Route as AuthenticatedAppSmartDashboardFinancialRouteImport } from './routes/_authenticated/_app/smart-dashboard.financial'
 import { Route as AuthenticatedAppSmartDashboardOperationalRouteImport } from './routes/_authenticated/_app/smart-dashboard.operational'
 import { Route as AuthenticatedAppSmartDashboardSalesRouteImport } from './routes/_authenticated/_app/smart-dashboard.sales'
@@ -458,7 +462,45 @@ import { Route as AuthenticatedMeTrainingProgramsRouteImport } from './routes/_a
 import { Route as AuthenticatedMeTrainingSessionsRouteImport } from './routes/_authenticated/me/training/sessions'
 import { Route as AuthenticatedMeTrainingTrainingsRouteImport } from './routes/_authenticated/me/training/trainings'
 import { Route as AuthenticatedSuperDomainsDocumentationRouteImport } from './routes/_authenticated/super/domains.documentation'
+import { Route as AuthenticatedAppAddonsAiAssistantFieldsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/fields'
+import { Route as AuthenticatedAppAddonsAiAssistantSettingsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/settings'
+import { Route as AuthenticatedAppAddonsAiAssistantUsageRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/usage'
+import { Route as AuthenticatedAppAddonsAiDocumentAnalyticsRouteImport } from './routes/_authenticated/_app/addons/ai-document/analytics'
+import { Route as AuthenticatedAppAddonsAiDocumentGenerateRouteImport } from './routes/_authenticated/_app/addons/ai-document/generate'
+import { Route as AuthenticatedAppAddonsAiDocumentSettingsRouteImport } from './routes/_authenticated/_app/addons/ai-document/settings'
+import { Route as AuthenticatedAppAddonsAiDocumentTemplateCategoriesRouteImport } from './routes/_authenticated/_app/addons/ai-document/template-categories'
+import { Route as AuthenticatedAppAddonsAiDocumentTonesRouteImport } from './routes/_authenticated/_app/addons/ai-document/tones'
+import { Route as AuthenticatedAppAddonsPlanningDashboardRouteImport } from './routes/_authenticated/_app/addons/planning/dashboard'
+import { Route as AuthenticatedAppAddonsWebhookEventsRouteImport } from './routes/_authenticated/_app/addons/webhook/events'
+import { Route as AuthenticatedAppAddonsWebhookSettingsRouteImport } from './routes/_authenticated/_app/addons/webhook/settings'
 import { Route as AuthenticatedAppInvoiceIdPrintRouteImport } from './routes/_authenticated/_app/invoice.$id.print'
+import { Route as AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/history/index'
+import { Route as AuthenticatedAppAddonsAiAssistantHistoryIdRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/history/$id'
+import { Route as AuthenticatedAppAddonsAiDocumentHistoryIndexRouteImport } from './routes/_authenticated/_app/addons/ai-document/history/index'
+import { Route as AuthenticatedAppAddonsAiDocumentHistoryIdRouteImport } from './routes/_authenticated/_app/addons/ai-document/history/$id'
+import { Route as AuthenticatedAppAddonsAiDocumentTemplatesIndexRouteImport } from './routes/_authenticated/_app/addons/ai-document/templates/index'
+import { Route as AuthenticatedAppAddonsAiDocumentTemplatesNewRouteImport } from './routes/_authenticated/_app/addons/ai-document/templates/new'
+import { Route as AuthenticatedAppAddonsPlanningChallengesIndexRouteImport } from './routes/_authenticated/_app/addons/planning/challenges/index'
+import { Route as AuthenticatedAppAddonsPlanningChallengesNewRouteImport } from './routes/_authenticated/_app/addons/planning/challenges/new'
+import { Route as AuthenticatedAppAddonsPlanningChartersIndexRouteImport } from './routes/_authenticated/_app/addons/planning/charters/index'
+import { Route as AuthenticatedAppAddonsPlanningChartersGridRouteImport } from './routes/_authenticated/_app/addons/planning/charters/grid'
+import { Route as AuthenticatedAppAddonsPlanningChartersKanbanRouteImport } from './routes/_authenticated/_app/addons/planning/charters/kanban'
+import { Route as AuthenticatedAppAddonsPlanningChartersNewRouteImport } from './routes/_authenticated/_app/addons/planning/charters/new'
+import { Route as AuthenticatedAppAddonsPlanningChartersTreeRouteImport } from './routes/_authenticated/_app/addons/planning/charters/tree'
+import { Route as AuthenticatedAppAddonsPlanningSetupCategoriesRouteImport } from './routes/_authenticated/_app/addons/planning/setup/categories'
+import { Route as AuthenticatedAppAddonsPlanningSetupStagesRouteImport } from './routes/_authenticated/_app/addons/planning/setup/stages'
+import { Route as AuthenticatedAppAddonsPlanningSetupStatusesRouteImport } from './routes/_authenticated/_app/addons/planning/setup/statuses'
+import { Route as AuthenticatedAppAddonsWebhookEndpointsIndexRouteImport } from './routes/_authenticated/_app/addons/webhook/endpoints/index'
+import { Route as AuthenticatedAppAddonsWebhookEndpointsNewRouteImport } from './routes/_authenticated/_app/addons/webhook/endpoints/new'
+import { Route as AuthenticatedAppAddonsWebhookLogsIndexRouteImport } from './routes/_authenticated/_app/addons/webhook/logs/index'
+import { Route as AuthenticatedAppAddonsWebhookLogsIdRouteImport } from './routes/_authenticated/_app/addons/webhook/logs/$id'
+import { Route as AuthenticatedAppAddonsAiDocumentTemplatesIdEditRouteImport } from './routes/_authenticated/_app/addons/ai-document/templates/$id/edit'
+import { Route as AuthenticatedAppAddonsPlanningChallengesIdIndexRouteImport } from './routes/_authenticated/_app/addons/planning/challenges/$id/index'
+import { Route as AuthenticatedAppAddonsPlanningChallengesIdEditRouteImport } from './routes/_authenticated/_app/addons/planning/challenges/$id/edit'
+import { Route as AuthenticatedAppAddonsPlanningChartersIdIndexRouteImport } from './routes/_authenticated/_app/addons/planning/charters/$id/index'
+import { Route as AuthenticatedAppAddonsPlanningChartersIdEditRouteImport } from './routes/_authenticated/_app/addons/planning/charters/$id/edit'
+import { Route as AuthenticatedAppAddonsWebhookEndpointsIdIndexRouteImport } from './routes/_authenticated/_app/addons/webhook/endpoints/$id/index'
+import { Route as AuthenticatedAppAddonsWebhookEndpointsIdEditRouteImport } from './routes/_authenticated/_app/addons/webhook/endpoints/$id/edit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -641,6 +683,11 @@ const AuthenticatedSuperRouteRoute = AuthenticatedSuperRouteRouteImport.update({
 const AuthenticatedTenantRoute = AuthenticatedTenantRouteImport.update({
   id: '/tenant',
   path: '/tenant',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTenetRoute = AuthenticatedTenetRouteImport.update({
+  id: '/tenet',
+  path: '/tenet',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const ATagRoute = ATagRouteImport.update({
@@ -1410,6 +1457,12 @@ const AuthenticatedAppSubscriptionRoute =
     path: '/subscription',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppSuggestionBoxRoute =
+  AuthenticatedAppSuggestionBoxRouteImport.update({
+    id: '/suggestion-box',
+    path: '/suggestion-box',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppSuppliersRoute =
   AuthenticatedAppSuppliersRouteImport.update({
     id: '/suppliers',
@@ -1937,6 +1990,11 @@ const AuthenticatedTenantUsersRoute =
     path: '/users',
     getParentRoute: () => AuthenticatedTenantRoute,
   } as any)
+const AuthenticatedTenetSplatRoute = AuthenticatedTenetSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => AuthenticatedTenetRoute,
+} as any)
 const PortalInvoicesIdRoute = PortalInvoicesIdRouteImport.update({
   id: '/invoices/$id',
   path: '/invoices/$id',
@@ -1969,6 +2027,12 @@ const AuthenticatedAppSettingsCustomDomainRoute =
   AuthenticatedAppSettingsCustomDomainRouteImport.update({
     id: '/custom-domain',
     path: '/custom-domain',
+    getParentRoute: () => AuthenticatedAppSettingsRoute,
+  } as any)
+const AuthenticatedAppSettingsWebhookRoute =
+  AuthenticatedAppSettingsWebhookRouteImport.update({
+    id: '/webhook',
+    path: '/webhook',
     getParentRoute: () => AuthenticatedAppSettingsRoute,
   } as any)
 const AuthenticatedAppSmartDashboardFinancialRoute =
@@ -3051,11 +3115,239 @@ const AuthenticatedSuperDomainsDocumentationRoute =
     path: '/documentation',
     getParentRoute: () => AuthenticatedSuperDomainsRoute,
   } as any)
+const AuthenticatedAppAddonsAiAssistantFieldsRoute =
+  AuthenticatedAppAddonsAiAssistantFieldsRouteImport.update({
+    id: '/addons/ai-assistant/fields',
+    path: '/addons/ai-assistant/fields',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiAssistantSettingsRoute =
+  AuthenticatedAppAddonsAiAssistantSettingsRouteImport.update({
+    id: '/addons/ai-assistant/settings',
+    path: '/addons/ai-assistant/settings',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiAssistantUsageRoute =
+  AuthenticatedAppAddonsAiAssistantUsageRouteImport.update({
+    id: '/addons/ai-assistant/usage',
+    path: '/addons/ai-assistant/usage',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentAnalyticsRoute =
+  AuthenticatedAppAddonsAiDocumentAnalyticsRouteImport.update({
+    id: '/addons/ai-document/analytics',
+    path: '/addons/ai-document/analytics',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentGenerateRoute =
+  AuthenticatedAppAddonsAiDocumentGenerateRouteImport.update({
+    id: '/addons/ai-document/generate',
+    path: '/addons/ai-document/generate',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentSettingsRoute =
+  AuthenticatedAppAddonsAiDocumentSettingsRouteImport.update({
+    id: '/addons/ai-document/settings',
+    path: '/addons/ai-document/settings',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute =
+  AuthenticatedAppAddonsAiDocumentTemplateCategoriesRouteImport.update({
+    id: '/addons/ai-document/template-categories',
+    path: '/addons/ai-document/template-categories',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentTonesRoute =
+  AuthenticatedAppAddonsAiDocumentTonesRouteImport.update({
+    id: '/addons/ai-document/tones',
+    path: '/addons/ai-document/tones',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningDashboardRoute =
+  AuthenticatedAppAddonsPlanningDashboardRouteImport.update({
+    id: '/addons/planning/dashboard',
+    path: '/addons/planning/dashboard',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookEventsRoute =
+  AuthenticatedAppAddonsWebhookEventsRouteImport.update({
+    id: '/addons/webhook/events',
+    path: '/addons/webhook/events',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookSettingsRoute =
+  AuthenticatedAppAddonsWebhookSettingsRouteImport.update({
+    id: '/addons/webhook/settings',
+    path: '/addons/webhook/settings',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppInvoiceIdPrintRoute =
   AuthenticatedAppInvoiceIdPrintRouteImport.update({
     id: '/print',
     path: '/print',
     getParentRoute: () => AuthenticatedAppInvoiceIdRoute,
+  } as any)
+const AuthenticatedAppAddonsAiAssistantHistoryIndexRoute =
+  AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport.update({
+    id: '/addons/ai-assistant/history/',
+    path: '/addons/ai-assistant/history/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiAssistantHistoryIdRoute =
+  AuthenticatedAppAddonsAiAssistantHistoryIdRouteImport.update({
+    id: '/addons/ai-assistant/history/$id',
+    path: '/addons/ai-assistant/history/$id',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentHistoryIndexRoute =
+  AuthenticatedAppAddonsAiDocumentHistoryIndexRouteImport.update({
+    id: '/addons/ai-document/history/',
+    path: '/addons/ai-document/history/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentHistoryIdRoute =
+  AuthenticatedAppAddonsAiDocumentHistoryIdRouteImport.update({
+    id: '/addons/ai-document/history/$id',
+    path: '/addons/ai-document/history/$id',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute =
+  AuthenticatedAppAddonsAiDocumentTemplatesIndexRouteImport.update({
+    id: '/addons/ai-document/templates/',
+    path: '/addons/ai-document/templates/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentTemplatesNewRoute =
+  AuthenticatedAppAddonsAiDocumentTemplatesNewRouteImport.update({
+    id: '/addons/ai-document/templates/new',
+    path: '/addons/ai-document/templates/new',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChallengesIndexRoute =
+  AuthenticatedAppAddonsPlanningChallengesIndexRouteImport.update({
+    id: '/addons/planning/challenges/',
+    path: '/addons/planning/challenges/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChallengesNewRoute =
+  AuthenticatedAppAddonsPlanningChallengesNewRouteImport.update({
+    id: '/addons/planning/challenges/new',
+    path: '/addons/planning/challenges/new',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChartersIndexRoute =
+  AuthenticatedAppAddonsPlanningChartersIndexRouteImport.update({
+    id: '/addons/planning/charters/',
+    path: '/addons/planning/charters/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChartersGridRoute =
+  AuthenticatedAppAddonsPlanningChartersGridRouteImport.update({
+    id: '/addons/planning/charters/grid',
+    path: '/addons/planning/charters/grid',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChartersKanbanRoute =
+  AuthenticatedAppAddonsPlanningChartersKanbanRouteImport.update({
+    id: '/addons/planning/charters/kanban',
+    path: '/addons/planning/charters/kanban',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChartersNewRoute =
+  AuthenticatedAppAddonsPlanningChartersNewRouteImport.update({
+    id: '/addons/planning/charters/new',
+    path: '/addons/planning/charters/new',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChartersTreeRoute =
+  AuthenticatedAppAddonsPlanningChartersTreeRouteImport.update({
+    id: '/addons/planning/charters/tree',
+    path: '/addons/planning/charters/tree',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningSetupCategoriesRoute =
+  AuthenticatedAppAddonsPlanningSetupCategoriesRouteImport.update({
+    id: '/addons/planning/setup/categories',
+    path: '/addons/planning/setup/categories',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningSetupStagesRoute =
+  AuthenticatedAppAddonsPlanningSetupStagesRouteImport.update({
+    id: '/addons/planning/setup/stages',
+    path: '/addons/planning/setup/stages',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningSetupStatusesRoute =
+  AuthenticatedAppAddonsPlanningSetupStatusesRouteImport.update({
+    id: '/addons/planning/setup/statuses',
+    path: '/addons/planning/setup/statuses',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookEndpointsIndexRoute =
+  AuthenticatedAppAddonsWebhookEndpointsIndexRouteImport.update({
+    id: '/addons/webhook/endpoints/',
+    path: '/addons/webhook/endpoints/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookEndpointsNewRoute =
+  AuthenticatedAppAddonsWebhookEndpointsNewRouteImport.update({
+    id: '/addons/webhook/endpoints/new',
+    path: '/addons/webhook/endpoints/new',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookLogsIndexRoute =
+  AuthenticatedAppAddonsWebhookLogsIndexRouteImport.update({
+    id: '/addons/webhook/logs/',
+    path: '/addons/webhook/logs/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookLogsIdRoute =
+  AuthenticatedAppAddonsWebhookLogsIdRouteImport.update({
+    id: '/addons/webhook/logs/$id',
+    path: '/addons/webhook/logs/$id',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute =
+  AuthenticatedAppAddonsAiDocumentTemplatesIdEditRouteImport.update({
+    id: '/addons/ai-document/templates/$id/edit',
+    path: '/addons/ai-document/templates/$id/edit',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChallengesIdIndexRoute =
+  AuthenticatedAppAddonsPlanningChallengesIdIndexRouteImport.update({
+    id: '/addons/planning/challenges/$id/',
+    path: '/addons/planning/challenges/$id/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChallengesIdEditRoute =
+  AuthenticatedAppAddonsPlanningChallengesIdEditRouteImport.update({
+    id: '/addons/planning/challenges/$id/edit',
+    path: '/addons/planning/challenges/$id/edit',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChartersIdIndexRoute =
+  AuthenticatedAppAddonsPlanningChartersIdIndexRouteImport.update({
+    id: '/addons/planning/charters/$id/',
+    path: '/addons/planning/charters/$id/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsPlanningChartersIdEditRoute =
+  AuthenticatedAppAddonsPlanningChartersIdEditRouteImport.update({
+    id: '/addons/planning/charters/$id/edit',
+    path: '/addons/planning/charters/$id/edit',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute =
+  AuthenticatedAppAddonsWebhookEndpointsIdIndexRouteImport.update({
+    id: '/addons/webhook/endpoints/$id/',
+    path: '/addons/webhook/endpoints/$id/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookEndpointsIdEditRoute =
+  AuthenticatedAppAddonsWebhookEndpointsIdEditRouteImport.update({
+    id: '/addons/webhook/endpoints/$id/edit',
+    path: '/addons/webhook/endpoints/$id/edit',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -3094,6 +3386,7 @@ export interface FileRoutesByFullPath {
   '/me': typeof AuthenticatedMeRouteWithChildren
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/tenant': typeof AuthenticatedTenantRouteWithChildren
+  '/tenet': typeof AuthenticatedTenetRouteWithChildren
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
   '/cms/$': typeof CmsSplatRoute
@@ -3227,6 +3520,7 @@ export interface FileRoutesByFullPath {
   '/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
+  '/suggestion-box': typeof AuthenticatedAppSuggestionBoxRoute
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/support': typeof AuthenticatedAppSupportRoute
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
@@ -3314,6 +3608,7 @@ export interface FileRoutesByFullPath {
   '/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
   '/tenant/support': typeof AuthenticatedTenantSupportRoute
   '/tenant/users': typeof AuthenticatedTenantUsersRoute
+  '/tenet/$': typeof AuthenticatedTenetSplatRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
   '/client/': typeof AuthenticatedClientIndexRoute
@@ -3326,6 +3621,7 @@ export interface FileRoutesByFullPath {
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/settings/webhook': typeof AuthenticatedAppSettingsWebhookRoute
   '/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
   '/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
   '/smart-dashboard/sales': typeof AuthenticatedAppSmartDashboardSalesRoute
@@ -3506,7 +3802,45 @@ export interface FileRoutesByFullPath {
   '/me/performance/': typeof AuthenticatedMePerformanceIndexRoute
   '/me/recruitment/': typeof AuthenticatedMeRecruitmentIndexRoute
   '/me/training/': typeof AuthenticatedMeTrainingIndexRoute
+  '/addons/ai-assistant/fields': typeof AuthenticatedAppAddonsAiAssistantFieldsRoute
+  '/addons/ai-assistant/settings': typeof AuthenticatedAppAddonsAiAssistantSettingsRoute
+  '/addons/ai-assistant/usage': typeof AuthenticatedAppAddonsAiAssistantUsageRoute
+  '/addons/ai-document/analytics': typeof AuthenticatedAppAddonsAiDocumentAnalyticsRoute
+  '/addons/ai-document/generate': typeof AuthenticatedAppAddonsAiDocumentGenerateRoute
+  '/addons/ai-document/settings': typeof AuthenticatedAppAddonsAiDocumentSettingsRoute
+  '/addons/ai-document/template-categories': typeof AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute
+  '/addons/ai-document/tones': typeof AuthenticatedAppAddonsAiDocumentTonesRoute
+  '/addons/planning/dashboard': typeof AuthenticatedAppAddonsPlanningDashboardRoute
+  '/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
+  '/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
+  '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
+  '/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
+  '/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
+  '/addons/planning/challenges/new': typeof AuthenticatedAppAddonsPlanningChallengesNewRoute
+  '/addons/planning/charters/grid': typeof AuthenticatedAppAddonsPlanningChartersGridRoute
+  '/addons/planning/charters/kanban': typeof AuthenticatedAppAddonsPlanningChartersKanbanRoute
+  '/addons/planning/charters/new': typeof AuthenticatedAppAddonsPlanningChartersNewRoute
+  '/addons/planning/charters/tree': typeof AuthenticatedAppAddonsPlanningChartersTreeRoute
+  '/addons/planning/setup/categories': typeof AuthenticatedAppAddonsPlanningSetupCategoriesRoute
+  '/addons/planning/setup/stages': typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
+  '/addons/planning/setup/statuses': typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
+  '/addons/webhook/endpoints/new': typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  '/addons/webhook/logs/$id': typeof AuthenticatedAppAddonsWebhookLogsIdRoute
+  '/addons/ai-assistant/history/': typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
+  '/addons/ai-document/history/': typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
+  '/addons/ai-document/templates/': typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
+  '/addons/planning/challenges/': typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
+  '/addons/planning/charters/': typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
+  '/addons/webhook/endpoints/': typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  '/addons/webhook/logs/': typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
+  '/addons/ai-document/templates/$id/edit': typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
+  '/addons/planning/challenges/$id/edit': typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
+  '/addons/planning/charters/$id/edit': typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
+  '/addons/webhook/endpoints/$id/edit': typeof AuthenticatedAppAddonsWebhookEndpointsIdEditRoute
+  '/addons/planning/challenges/$id/': typeof AuthenticatedAppAddonsPlanningChallengesIdIndexRoute
+  '/addons/planning/charters/$id/': typeof AuthenticatedAppAddonsPlanningChartersIdIndexRoute
+  '/addons/webhook/endpoints/$id/': typeof AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -3540,6 +3874,7 @@ export interface FileRoutesByTo {
   '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/tenet': typeof AuthenticatedTenetRouteWithChildren
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
   '/cms/$': typeof CmsSplatRoute
@@ -3673,6 +4008,7 @@ export interface FileRoutesByTo {
   '/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/subscription': typeof AuthenticatedAppSubscriptionRoute
+  '/suggestion-box': typeof AuthenticatedAppSuggestionBoxRoute
   '/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/support': typeof AuthenticatedAppSupportRoute
   '/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
@@ -3760,6 +4096,7 @@ export interface FileRoutesByTo {
   '/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
   '/tenant/support': typeof AuthenticatedTenantSupportRoute
   '/tenant/users': typeof AuthenticatedTenantUsersRoute
+  '/tenet/$': typeof AuthenticatedTenetSplatRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
   '/client': typeof AuthenticatedClientIndexRoute
@@ -3772,6 +4109,7 @@ export interface FileRoutesByTo {
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/settings/webhook': typeof AuthenticatedAppSettingsWebhookRoute
   '/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
   '/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
   '/smart-dashboard/sales': typeof AuthenticatedAppSmartDashboardSalesRoute
@@ -3952,7 +4290,45 @@ export interface FileRoutesByTo {
   '/me/performance': typeof AuthenticatedMePerformanceIndexRoute
   '/me/recruitment': typeof AuthenticatedMeRecruitmentIndexRoute
   '/me/training': typeof AuthenticatedMeTrainingIndexRoute
+  '/addons/ai-assistant/fields': typeof AuthenticatedAppAddonsAiAssistantFieldsRoute
+  '/addons/ai-assistant/settings': typeof AuthenticatedAppAddonsAiAssistantSettingsRoute
+  '/addons/ai-assistant/usage': typeof AuthenticatedAppAddonsAiAssistantUsageRoute
+  '/addons/ai-document/analytics': typeof AuthenticatedAppAddonsAiDocumentAnalyticsRoute
+  '/addons/ai-document/generate': typeof AuthenticatedAppAddonsAiDocumentGenerateRoute
+  '/addons/ai-document/settings': typeof AuthenticatedAppAddonsAiDocumentSettingsRoute
+  '/addons/ai-document/template-categories': typeof AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute
+  '/addons/ai-document/tones': typeof AuthenticatedAppAddonsAiDocumentTonesRoute
+  '/addons/planning/dashboard': typeof AuthenticatedAppAddonsPlanningDashboardRoute
+  '/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
+  '/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
+  '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
+  '/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
+  '/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
+  '/addons/planning/challenges/new': typeof AuthenticatedAppAddonsPlanningChallengesNewRoute
+  '/addons/planning/charters/grid': typeof AuthenticatedAppAddonsPlanningChartersGridRoute
+  '/addons/planning/charters/kanban': typeof AuthenticatedAppAddonsPlanningChartersKanbanRoute
+  '/addons/planning/charters/new': typeof AuthenticatedAppAddonsPlanningChartersNewRoute
+  '/addons/planning/charters/tree': typeof AuthenticatedAppAddonsPlanningChartersTreeRoute
+  '/addons/planning/setup/categories': typeof AuthenticatedAppAddonsPlanningSetupCategoriesRoute
+  '/addons/planning/setup/stages': typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
+  '/addons/planning/setup/statuses': typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
+  '/addons/webhook/endpoints/new': typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  '/addons/webhook/logs/$id': typeof AuthenticatedAppAddonsWebhookLogsIdRoute
+  '/addons/ai-assistant/history': typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
+  '/addons/ai-document/history': typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
+  '/addons/ai-document/templates': typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
+  '/addons/planning/challenges': typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
+  '/addons/planning/charters': typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
+  '/addons/webhook/endpoints': typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  '/addons/webhook/logs': typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
+  '/addons/ai-document/templates/$id/edit': typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
+  '/addons/planning/challenges/$id/edit': typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
+  '/addons/planning/charters/$id/edit': typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
+  '/addons/webhook/endpoints/$id/edit': typeof AuthenticatedAppAddonsWebhookEndpointsIdEditRoute
+  '/addons/planning/challenges/$id': typeof AuthenticatedAppAddonsPlanningChallengesIdIndexRoute
+  '/addons/planning/charters/$id': typeof AuthenticatedAppAddonsPlanningChartersIdIndexRoute
+  '/addons/webhook/endpoints/$id': typeof AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -3993,6 +4369,7 @@ export interface FileRoutesById {
   '/_authenticated/me': typeof AuthenticatedMeRouteWithChildren
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/tenant': typeof AuthenticatedTenantRouteWithChildren
+  '/_authenticated/tenet': typeof AuthenticatedTenetRouteWithChildren
   '/a/$tag': typeof ATagRoute
   '/addons_/$slug': typeof AddonsSlugRoute
   '/cms/$': typeof CmsSplatRoute
@@ -4126,6 +4503,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/sms-gateway': typeof AuthenticatedAppSmsGatewayRoute
   '/_authenticated/_app/strategy-studio': typeof AuthenticatedAppStrategyStudioRoute
   '/_authenticated/_app/subscription': typeof AuthenticatedAppSubscriptionRoute
+  '/_authenticated/_app/suggestion-box': typeof AuthenticatedAppSuggestionBoxRoute
   '/_authenticated/_app/suppliers': typeof AuthenticatedAppSuppliersRoute
   '/_authenticated/_app/support': typeof AuthenticatedAppSupportRoute
   '/_authenticated/_app/support-dashboard': typeof AuthenticatedAppSupportDashboardRoute
@@ -4213,6 +4591,7 @@ export interface FileRoutesById {
   '/_authenticated/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
   '/_authenticated/tenant/support': typeof AuthenticatedTenantSupportRoute
   '/_authenticated/tenant/users': typeof AuthenticatedTenantUsersRoute
+  '/_authenticated/tenet/$': typeof AuthenticatedTenetSplatRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
   '/portal/proposals/$id': typeof PortalProposalsIdRoute
   '/_authenticated/client/': typeof AuthenticatedClientIndexRoute
@@ -4225,6 +4604,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/_authenticated/_app/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/_authenticated/_app/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/_authenticated/_app/settings/webhook': typeof AuthenticatedAppSettingsWebhookRoute
   '/_authenticated/_app/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
   '/_authenticated/_app/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
   '/_authenticated/_app/smart-dashboard/sales': typeof AuthenticatedAppSmartDashboardSalesRoute
@@ -4405,7 +4785,45 @@ export interface FileRoutesById {
   '/_authenticated/me/performance/': typeof AuthenticatedMePerformanceIndexRoute
   '/_authenticated/me/recruitment/': typeof AuthenticatedMeRecruitmentIndexRoute
   '/_authenticated/me/training/': typeof AuthenticatedMeTrainingIndexRoute
+  '/_authenticated/_app/addons/ai-assistant/fields': typeof AuthenticatedAppAddonsAiAssistantFieldsRoute
+  '/_authenticated/_app/addons/ai-assistant/settings': typeof AuthenticatedAppAddonsAiAssistantSettingsRoute
+  '/_authenticated/_app/addons/ai-assistant/usage': typeof AuthenticatedAppAddonsAiAssistantUsageRoute
+  '/_authenticated/_app/addons/ai-document/analytics': typeof AuthenticatedAppAddonsAiDocumentAnalyticsRoute
+  '/_authenticated/_app/addons/ai-document/generate': typeof AuthenticatedAppAddonsAiDocumentGenerateRoute
+  '/_authenticated/_app/addons/ai-document/settings': typeof AuthenticatedAppAddonsAiDocumentSettingsRoute
+  '/_authenticated/_app/addons/ai-document/template-categories': typeof AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute
+  '/_authenticated/_app/addons/ai-document/tones': typeof AuthenticatedAppAddonsAiDocumentTonesRoute
+  '/_authenticated/_app/addons/planning/dashboard': typeof AuthenticatedAppAddonsPlanningDashboardRoute
+  '/_authenticated/_app/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
+  '/_authenticated/_app/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
   '/_authenticated/_app/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
+  '/_authenticated/_app/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
+  '/_authenticated/_app/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
+  '/_authenticated/_app/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
+  '/_authenticated/_app/addons/planning/challenges/new': typeof AuthenticatedAppAddonsPlanningChallengesNewRoute
+  '/_authenticated/_app/addons/planning/charters/grid': typeof AuthenticatedAppAddonsPlanningChartersGridRoute
+  '/_authenticated/_app/addons/planning/charters/kanban': typeof AuthenticatedAppAddonsPlanningChartersKanbanRoute
+  '/_authenticated/_app/addons/planning/charters/new': typeof AuthenticatedAppAddonsPlanningChartersNewRoute
+  '/_authenticated/_app/addons/planning/charters/tree': typeof AuthenticatedAppAddonsPlanningChartersTreeRoute
+  '/_authenticated/_app/addons/planning/setup/categories': typeof AuthenticatedAppAddonsPlanningSetupCategoriesRoute
+  '/_authenticated/_app/addons/planning/setup/stages': typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
+  '/_authenticated/_app/addons/planning/setup/statuses': typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
+  '/_authenticated/_app/addons/webhook/endpoints/new': typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  '/_authenticated/_app/addons/webhook/logs/$id': typeof AuthenticatedAppAddonsWebhookLogsIdRoute
+  '/_authenticated/_app/addons/ai-assistant/history/': typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
+  '/_authenticated/_app/addons/ai-document/history/': typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
+  '/_authenticated/_app/addons/ai-document/templates/': typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
+  '/_authenticated/_app/addons/planning/challenges/': typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
+  '/_authenticated/_app/addons/planning/charters/': typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
+  '/_authenticated/_app/addons/webhook/endpoints/': typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  '/_authenticated/_app/addons/webhook/logs/': typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
+  '/_authenticated/_app/addons/ai-document/templates/$id/edit': typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
+  '/_authenticated/_app/addons/planning/challenges/$id/edit': typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
+  '/_authenticated/_app/addons/planning/charters/$id/edit': typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
+  '/_authenticated/_app/addons/webhook/endpoints/$id/edit': typeof AuthenticatedAppAddonsWebhookEndpointsIdEditRoute
+  '/_authenticated/_app/addons/planning/challenges/$id/': typeof AuthenticatedAppAddonsPlanningChallengesIdIndexRoute
+  '/_authenticated/_app/addons/planning/charters/$id/': typeof AuthenticatedAppAddonsPlanningChartersIdIndexRoute
+  '/_authenticated/_app/addons/webhook/endpoints/$id/': typeof AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -4445,6 +4863,7 @@ export interface FileRouteTypes {
     | '/me'
     | '/onboarding'
     | '/tenant'
+    | '/tenet'
     | '/a/$tag'
     | '/addons/$slug'
     | '/cms/$'
@@ -4578,6 +4997,7 @@ export interface FileRouteTypes {
     | '/sms-gateway'
     | '/strategy-studio'
     | '/subscription'
+    | '/suggestion-box'
     | '/suppliers'
     | '/support'
     | '/support-dashboard'
@@ -4665,6 +5085,7 @@ export interface FileRouteTypes {
     | '/tenant/subscription'
     | '/tenant/support'
     | '/tenant/users'
+    | '/tenet/$'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
     | '/client/'
@@ -4677,6 +5098,7 @@ export interface FileRouteTypes {
     | '/invoice/create'
     | '/project/$id'
     | '/settings/custom-domain'
+    | '/settings/webhook'
     | '/smart-dashboard/financial'
     | '/smart-dashboard/operational'
     | '/smart-dashboard/sales'
@@ -4857,7 +5279,45 @@ export interface FileRouteTypes {
     | '/me/performance/'
     | '/me/recruitment/'
     | '/me/training/'
+    | '/addons/ai-assistant/fields'
+    | '/addons/ai-assistant/settings'
+    | '/addons/ai-assistant/usage'
+    | '/addons/ai-document/analytics'
+    | '/addons/ai-document/generate'
+    | '/addons/ai-document/settings'
+    | '/addons/ai-document/template-categories'
+    | '/addons/ai-document/tones'
+    | '/addons/planning/dashboard'
+    | '/addons/webhook/events'
+    | '/addons/webhook/settings'
     | '/invoice/$id/print'
+    | '/addons/ai-assistant/history/$id'
+    | '/addons/ai-document/history/$id'
+    | '/addons/ai-document/templates/new'
+    | '/addons/planning/challenges/new'
+    | '/addons/planning/charters/grid'
+    | '/addons/planning/charters/kanban'
+    | '/addons/planning/charters/new'
+    | '/addons/planning/charters/tree'
+    | '/addons/planning/setup/categories'
+    | '/addons/planning/setup/stages'
+    | '/addons/planning/setup/statuses'
+    | '/addons/webhook/endpoints/new'
+    | '/addons/webhook/logs/$id'
+    | '/addons/ai-assistant/history/'
+    | '/addons/ai-document/history/'
+    | '/addons/ai-document/templates/'
+    | '/addons/planning/challenges/'
+    | '/addons/planning/charters/'
+    | '/addons/webhook/endpoints/'
+    | '/addons/webhook/logs/'
+    | '/addons/ai-document/templates/$id/edit'
+    | '/addons/planning/challenges/$id/edit'
+    | '/addons/planning/charters/$id/edit'
+    | '/addons/webhook/endpoints/$id/edit'
+    | '/addons/planning/challenges/$id/'
+    | '/addons/planning/charters/$id/'
+    | '/addons/webhook/endpoints/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -4891,6 +5351,7 @@ export interface FileRouteTypes {
     | '/super06'
     | '/verify-2fa'
     | '/onboarding'
+    | '/tenet'
     | '/a/$tag'
     | '/addons/$slug'
     | '/cms/$'
@@ -5024,6 +5485,7 @@ export interface FileRouteTypes {
     | '/sms-gateway'
     | '/strategy-studio'
     | '/subscription'
+    | '/suggestion-box'
     | '/suppliers'
     | '/support'
     | '/support-dashboard'
@@ -5111,6 +5573,7 @@ export interface FileRouteTypes {
     | '/tenant/subscription'
     | '/tenant/support'
     | '/tenant/users'
+    | '/tenet/$'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
     | '/client'
@@ -5123,6 +5586,7 @@ export interface FileRouteTypes {
     | '/invoice/create'
     | '/project/$id'
     | '/settings/custom-domain'
+    | '/settings/webhook'
     | '/smart-dashboard/financial'
     | '/smart-dashboard/operational'
     | '/smart-dashboard/sales'
@@ -5303,7 +5767,45 @@ export interface FileRouteTypes {
     | '/me/performance'
     | '/me/recruitment'
     | '/me/training'
+    | '/addons/ai-assistant/fields'
+    | '/addons/ai-assistant/settings'
+    | '/addons/ai-assistant/usage'
+    | '/addons/ai-document/analytics'
+    | '/addons/ai-document/generate'
+    | '/addons/ai-document/settings'
+    | '/addons/ai-document/template-categories'
+    | '/addons/ai-document/tones'
+    | '/addons/planning/dashboard'
+    | '/addons/webhook/events'
+    | '/addons/webhook/settings'
     | '/invoice/$id/print'
+    | '/addons/ai-assistant/history/$id'
+    | '/addons/ai-document/history/$id'
+    | '/addons/ai-document/templates/new'
+    | '/addons/planning/challenges/new'
+    | '/addons/planning/charters/grid'
+    | '/addons/planning/charters/kanban'
+    | '/addons/planning/charters/new'
+    | '/addons/planning/charters/tree'
+    | '/addons/planning/setup/categories'
+    | '/addons/planning/setup/stages'
+    | '/addons/planning/setup/statuses'
+    | '/addons/webhook/endpoints/new'
+    | '/addons/webhook/logs/$id'
+    | '/addons/ai-assistant/history'
+    | '/addons/ai-document/history'
+    | '/addons/ai-document/templates'
+    | '/addons/planning/challenges'
+    | '/addons/planning/charters'
+    | '/addons/webhook/endpoints'
+    | '/addons/webhook/logs'
+    | '/addons/ai-document/templates/$id/edit'
+    | '/addons/planning/challenges/$id/edit'
+    | '/addons/planning/charters/$id/edit'
+    | '/addons/webhook/endpoints/$id/edit'
+    | '/addons/planning/challenges/$id'
+    | '/addons/planning/charters/$id'
+    | '/addons/webhook/endpoints/$id'
   id:
     | '__root__'
     | '/'
@@ -5343,6 +5845,7 @@ export interface FileRouteTypes {
     | '/_authenticated/me'
     | '/_authenticated/onboarding'
     | '/_authenticated/tenant'
+    | '/_authenticated/tenet'
     | '/a/$tag'
     | '/addons_/$slug'
     | '/cms/$'
@@ -5476,6 +5979,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/sms-gateway'
     | '/_authenticated/_app/strategy-studio'
     | '/_authenticated/_app/subscription'
+    | '/_authenticated/_app/suggestion-box'
     | '/_authenticated/_app/suppliers'
     | '/_authenticated/_app/support'
     | '/_authenticated/_app/support-dashboard'
@@ -5563,6 +6067,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tenant/subscription'
     | '/_authenticated/tenant/support'
     | '/_authenticated/tenant/users'
+    | '/_authenticated/tenet/$'
     | '/portal/invoices/$id'
     | '/portal/proposals/$id'
     | '/_authenticated/client/'
@@ -5575,6 +6080,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/invoice/create'
     | '/_authenticated/_app/project/$id'
     | '/_authenticated/_app/settings/custom-domain'
+    | '/_authenticated/_app/settings/webhook'
     | '/_authenticated/_app/smart-dashboard/financial'
     | '/_authenticated/_app/smart-dashboard/operational'
     | '/_authenticated/_app/smart-dashboard/sales'
@@ -5755,7 +6261,45 @@ export interface FileRouteTypes {
     | '/_authenticated/me/performance/'
     | '/_authenticated/me/recruitment/'
     | '/_authenticated/me/training/'
+    | '/_authenticated/_app/addons/ai-assistant/fields'
+    | '/_authenticated/_app/addons/ai-assistant/settings'
+    | '/_authenticated/_app/addons/ai-assistant/usage'
+    | '/_authenticated/_app/addons/ai-document/analytics'
+    | '/_authenticated/_app/addons/ai-document/generate'
+    | '/_authenticated/_app/addons/ai-document/settings'
+    | '/_authenticated/_app/addons/ai-document/template-categories'
+    | '/_authenticated/_app/addons/ai-document/tones'
+    | '/_authenticated/_app/addons/planning/dashboard'
+    | '/_authenticated/_app/addons/webhook/events'
+    | '/_authenticated/_app/addons/webhook/settings'
     | '/_authenticated/_app/invoice/$id/print'
+    | '/_authenticated/_app/addons/ai-assistant/history/$id'
+    | '/_authenticated/_app/addons/ai-document/history/$id'
+    | '/_authenticated/_app/addons/ai-document/templates/new'
+    | '/_authenticated/_app/addons/planning/challenges/new'
+    | '/_authenticated/_app/addons/planning/charters/grid'
+    | '/_authenticated/_app/addons/planning/charters/kanban'
+    | '/_authenticated/_app/addons/planning/charters/new'
+    | '/_authenticated/_app/addons/planning/charters/tree'
+    | '/_authenticated/_app/addons/planning/setup/categories'
+    | '/_authenticated/_app/addons/planning/setup/stages'
+    | '/_authenticated/_app/addons/planning/setup/statuses'
+    | '/_authenticated/_app/addons/webhook/endpoints/new'
+    | '/_authenticated/_app/addons/webhook/logs/$id'
+    | '/_authenticated/_app/addons/ai-assistant/history/'
+    | '/_authenticated/_app/addons/ai-document/history/'
+    | '/_authenticated/_app/addons/ai-document/templates/'
+    | '/_authenticated/_app/addons/planning/challenges/'
+    | '/_authenticated/_app/addons/planning/charters/'
+    | '/_authenticated/_app/addons/webhook/endpoints/'
+    | '/_authenticated/_app/addons/webhook/logs/'
+    | '/_authenticated/_app/addons/ai-document/templates/$id/edit'
+    | '/_authenticated/_app/addons/planning/challenges/$id/edit'
+    | '/_authenticated/_app/addons/planning/charters/$id/edit'
+    | '/_authenticated/_app/addons/webhook/endpoints/$id/edit'
+    | '/_authenticated/_app/addons/planning/challenges/$id/'
+    | '/_authenticated/_app/addons/planning/charters/$id/'
+    | '/_authenticated/_app/addons/webhook/endpoints/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -6061,6 +6605,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant'
       fullPath: '/tenant'
       preLoaderRoute: typeof AuthenticatedTenantRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tenet': {
+      id: '/_authenticated/tenet'
+      path: '/tenet'
+      fullPath: '/tenet'
+      preLoaderRoute: typeof AuthenticatedTenetRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/a/$tag': {
@@ -6994,6 +7545,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppSubscriptionRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/suggestion-box': {
+      id: '/_authenticated/_app/suggestion-box'
+      path: '/suggestion-box'
+      fullPath: '/suggestion-box'
+      preLoaderRoute: typeof AuthenticatedAppSuggestionBoxRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/suppliers': {
       id: '/_authenticated/_app/suppliers'
       path: '/suppliers'
@@ -7645,6 +8203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTenantUsersRouteImport
       parentRoute: typeof AuthenticatedTenantRoute
     }
+    '/_authenticated/tenet/$': {
+      id: '/_authenticated/tenet/$'
+      path: '/$'
+      fullPath: '/tenet/$'
+      preLoaderRoute: typeof AuthenticatedTenetSplatRouteImport
+      parentRoute: typeof AuthenticatedTenetRoute
+    }
     '/portal/invoices/$id': {
       id: '/portal/invoices/$id'
       path: '/invoices/$id'
@@ -7685,6 +8250,13 @@ declare module '@tanstack/react-router' {
       path: '/custom-domain'
       fullPath: '/settings/custom-domain'
       preLoaderRoute: typeof AuthenticatedAppSettingsCustomDomainRouteImport
+      parentRoute: typeof AuthenticatedAppSettingsRoute
+    }
+    '/_authenticated/_app/settings/webhook': {
+      id: '/_authenticated/_app/settings/webhook'
+      path: '/webhook'
+      fullPath: '/settings/webhook'
+      preLoaderRoute: typeof AuthenticatedAppSettingsWebhookRouteImport
       parentRoute: typeof AuthenticatedAppSettingsRoute
     }
     '/_authenticated/_app/smart-dashboard/financial': {
@@ -8947,6 +9519,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperDomainsDocumentationRouteImport
       parentRoute: typeof AuthenticatedSuperDomainsRoute
     }
+    '/_authenticated/_app/addons/ai-assistant/fields': {
+      id: '/_authenticated/_app/addons/ai-assistant/fields'
+      path: '/addons/ai-assistant/fields'
+      fullPath: '/addons/ai-assistant/fields'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiAssistantFieldsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-assistant/settings': {
+      id: '/_authenticated/_app/addons/ai-assistant/settings'
+      path: '/addons/ai-assistant/settings'
+      fullPath: '/addons/ai-assistant/settings'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiAssistantSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-assistant/usage': {
+      id: '/_authenticated/_app/addons/ai-assistant/usage'
+      path: '/addons/ai-assistant/usage'
+      fullPath: '/addons/ai-assistant/usage'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiAssistantUsageRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/analytics': {
+      id: '/_authenticated/_app/addons/ai-document/analytics'
+      path: '/addons/ai-document/analytics'
+      fullPath: '/addons/ai-document/analytics'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/generate': {
+      id: '/_authenticated/_app/addons/ai-document/generate'
+      path: '/addons/ai-document/generate'
+      fullPath: '/addons/ai-document/generate'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentGenerateRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/settings': {
+      id: '/_authenticated/_app/addons/ai-document/settings'
+      path: '/addons/ai-document/settings'
+      fullPath: '/addons/ai-document/settings'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/template-categories': {
+      id: '/_authenticated/_app/addons/ai-document/template-categories'
+      path: '/addons/ai-document/template-categories'
+      fullPath: '/addons/ai-document/template-categories'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentTemplateCategoriesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/tones': {
+      id: '/_authenticated/_app/addons/ai-document/tones'
+      path: '/addons/ai-document/tones'
+      fullPath: '/addons/ai-document/tones'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentTonesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/dashboard': {
+      id: '/_authenticated/_app/addons/planning/dashboard'
+      path: '/addons/planning/dashboard'
+      fullPath: '/addons/planning/dashboard'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/events': {
+      id: '/_authenticated/_app/addons/webhook/events'
+      path: '/addons/webhook/events'
+      fullPath: '/addons/webhook/events'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookEventsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/settings': {
+      id: '/_authenticated/_app/addons/webhook/settings'
+      path: '/addons/webhook/settings'
+      fullPath: '/addons/webhook/settings'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/invoice/$id/print': {
       id: '/_authenticated/_app/invoice/$id/print'
       path: '/print'
@@ -8954,17 +9603,208 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppInvoiceIdPrintRouteImport
       parentRoute: typeof AuthenticatedAppInvoiceIdRoute
     }
+    '/_authenticated/_app/addons/ai-assistant/history/': {
+      id: '/_authenticated/_app/addons/ai-assistant/history/'
+      path: '/addons/ai-assistant/history'
+      fullPath: '/addons/ai-assistant/history/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-assistant/history/$id': {
+      id: '/_authenticated/_app/addons/ai-assistant/history/$id'
+      path: '/addons/ai-assistant/history/$id'
+      fullPath: '/addons/ai-assistant/history/$id'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiAssistantHistoryIdRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/history/': {
+      id: '/_authenticated/_app/addons/ai-document/history/'
+      path: '/addons/ai-document/history'
+      fullPath: '/addons/ai-document/history/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/history/$id': {
+      id: '/_authenticated/_app/addons/ai-document/history/$id'
+      path: '/addons/ai-document/history/$id'
+      fullPath: '/addons/ai-document/history/$id'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentHistoryIdRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/templates/': {
+      id: '/_authenticated/_app/addons/ai-document/templates/'
+      path: '/addons/ai-document/templates'
+      fullPath: '/addons/ai-document/templates/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/templates/new': {
+      id: '/_authenticated/_app/addons/ai-document/templates/new'
+      path: '/addons/ai-document/templates/new'
+      fullPath: '/addons/ai-document/templates/new'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/challenges/': {
+      id: '/_authenticated/_app/addons/planning/challenges/'
+      path: '/addons/planning/challenges'
+      fullPath: '/addons/planning/challenges/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChallengesIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/challenges/new': {
+      id: '/_authenticated/_app/addons/planning/challenges/new'
+      path: '/addons/planning/challenges/new'
+      fullPath: '/addons/planning/challenges/new'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChallengesNewRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/charters/': {
+      id: '/_authenticated/_app/addons/planning/charters/'
+      path: '/addons/planning/charters'
+      fullPath: '/addons/planning/charters/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChartersIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/charters/grid': {
+      id: '/_authenticated/_app/addons/planning/charters/grid'
+      path: '/addons/planning/charters/grid'
+      fullPath: '/addons/planning/charters/grid'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChartersGridRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/charters/kanban': {
+      id: '/_authenticated/_app/addons/planning/charters/kanban'
+      path: '/addons/planning/charters/kanban'
+      fullPath: '/addons/planning/charters/kanban'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChartersKanbanRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/charters/new': {
+      id: '/_authenticated/_app/addons/planning/charters/new'
+      path: '/addons/planning/charters/new'
+      fullPath: '/addons/planning/charters/new'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChartersNewRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/charters/tree': {
+      id: '/_authenticated/_app/addons/planning/charters/tree'
+      path: '/addons/planning/charters/tree'
+      fullPath: '/addons/planning/charters/tree'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChartersTreeRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/setup/categories': {
+      id: '/_authenticated/_app/addons/planning/setup/categories'
+      path: '/addons/planning/setup/categories'
+      fullPath: '/addons/planning/setup/categories'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningSetupCategoriesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/setup/stages': {
+      id: '/_authenticated/_app/addons/planning/setup/stages'
+      path: '/addons/planning/setup/stages'
+      fullPath: '/addons/planning/setup/stages'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningSetupStagesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/setup/statuses': {
+      id: '/_authenticated/_app/addons/planning/setup/statuses'
+      path: '/addons/planning/setup/statuses'
+      fullPath: '/addons/planning/setup/statuses'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningSetupStatusesRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/endpoints/': {
+      id: '/_authenticated/_app/addons/webhook/endpoints/'
+      path: '/addons/webhook/endpoints'
+      fullPath: '/addons/webhook/endpoints/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookEndpointsIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/endpoints/new': {
+      id: '/_authenticated/_app/addons/webhook/endpoints/new'
+      path: '/addons/webhook/endpoints/new'
+      fullPath: '/addons/webhook/endpoints/new'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookEndpointsNewRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/logs/': {
+      id: '/_authenticated/_app/addons/webhook/logs/'
+      path: '/addons/webhook/logs'
+      fullPath: '/addons/webhook/logs/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookLogsIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/logs/$id': {
+      id: '/_authenticated/_app/addons/webhook/logs/$id'
+      path: '/addons/webhook/logs/$id'
+      fullPath: '/addons/webhook/logs/$id'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookLogsIdRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/ai-document/templates/$id/edit': {
+      id: '/_authenticated/_app/addons/ai-document/templates/$id/edit'
+      path: '/addons/ai-document/templates/$id/edit'
+      fullPath: '/addons/ai-document/templates/$id/edit'
+      preLoaderRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/challenges/$id/': {
+      id: '/_authenticated/_app/addons/planning/challenges/$id/'
+      path: '/addons/planning/challenges/$id'
+      fullPath: '/addons/planning/challenges/$id/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChallengesIdIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/challenges/$id/edit': {
+      id: '/_authenticated/_app/addons/planning/challenges/$id/edit'
+      path: '/addons/planning/challenges/$id/edit'
+      fullPath: '/addons/planning/challenges/$id/edit'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChallengesIdEditRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/charters/$id/': {
+      id: '/_authenticated/_app/addons/planning/charters/$id/'
+      path: '/addons/planning/charters/$id'
+      fullPath: '/addons/planning/charters/$id/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChartersIdIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/planning/charters/$id/edit': {
+      id: '/_authenticated/_app/addons/planning/charters/$id/edit'
+      path: '/addons/planning/charters/$id/edit'
+      fullPath: '/addons/planning/charters/$id/edit'
+      preLoaderRoute: typeof AuthenticatedAppAddonsPlanningChartersIdEditRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/endpoints/$id/': {
+      id: '/_authenticated/_app/addons/webhook/endpoints/$id/'
+      path: '/addons/webhook/endpoints/$id'
+      fullPath: '/addons/webhook/endpoints/$id/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookEndpointsIdIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/endpoints/$id/edit': {
+      id: '/_authenticated/_app/addons/webhook/endpoints/$id/edit'
+      path: '/addons/webhook/endpoints/$id/edit'
+      fullPath: '/addons/webhook/endpoints/$id/edit'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookEndpointsIdEditRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
   }
 }
 
 interface AuthenticatedAppSettingsRouteChildren {
   AuthenticatedAppSettingsCustomDomainRoute: typeof AuthenticatedAppSettingsCustomDomainRoute
+  AuthenticatedAppSettingsWebhookRoute: typeof AuthenticatedAppSettingsWebhookRoute
 }
 
 const AuthenticatedAppSettingsRouteChildren: AuthenticatedAppSettingsRouteChildren =
   {
     AuthenticatedAppSettingsCustomDomainRoute:
       AuthenticatedAppSettingsCustomDomainRoute,
+    AuthenticatedAppSettingsWebhookRoute: AuthenticatedAppSettingsWebhookRoute,
   }
 
 const AuthenticatedAppSettingsRouteWithChildren =
@@ -9170,6 +10010,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppSmsGatewayRoute: typeof AuthenticatedAppSmsGatewayRoute
   AuthenticatedAppStrategyStudioRoute: typeof AuthenticatedAppStrategyStudioRoute
   AuthenticatedAppSubscriptionRoute: typeof AuthenticatedAppSubscriptionRoute
+  AuthenticatedAppSuggestionBoxRoute: typeof AuthenticatedAppSuggestionBoxRoute
   AuthenticatedAppSuppliersRoute: typeof AuthenticatedAppSuppliersRoute
   AuthenticatedAppSupportRoute: typeof AuthenticatedAppSupportRoute
   AuthenticatedAppSupportDashboardRoute: typeof AuthenticatedAppSupportDashboardRoute
@@ -9194,6 +10035,44 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppInvoiceIdRoute: typeof AuthenticatedAppInvoiceIdRouteWithChildren
   AuthenticatedAppInvoiceCreateRoute: typeof AuthenticatedAppInvoiceCreateRoute
   AuthenticatedAppProjectIdRoute: typeof AuthenticatedAppProjectIdRoute
+  AuthenticatedAppAddonsAiAssistantFieldsRoute: typeof AuthenticatedAppAddonsAiAssistantFieldsRoute
+  AuthenticatedAppAddonsAiAssistantSettingsRoute: typeof AuthenticatedAppAddonsAiAssistantSettingsRoute
+  AuthenticatedAppAddonsAiAssistantUsageRoute: typeof AuthenticatedAppAddonsAiAssistantUsageRoute
+  AuthenticatedAppAddonsAiDocumentAnalyticsRoute: typeof AuthenticatedAppAddonsAiDocumentAnalyticsRoute
+  AuthenticatedAppAddonsAiDocumentGenerateRoute: typeof AuthenticatedAppAddonsAiDocumentGenerateRoute
+  AuthenticatedAppAddonsAiDocumentSettingsRoute: typeof AuthenticatedAppAddonsAiDocumentSettingsRoute
+  AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute: typeof AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute
+  AuthenticatedAppAddonsAiDocumentTonesRoute: typeof AuthenticatedAppAddonsAiDocumentTonesRoute
+  AuthenticatedAppAddonsPlanningDashboardRoute: typeof AuthenticatedAppAddonsPlanningDashboardRoute
+  AuthenticatedAppAddonsWebhookEventsRoute: typeof AuthenticatedAppAddonsWebhookEventsRoute
+  AuthenticatedAppAddonsWebhookSettingsRoute: typeof AuthenticatedAppAddonsWebhookSettingsRoute
+  AuthenticatedAppAddonsAiAssistantHistoryIdRoute: typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
+  AuthenticatedAppAddonsAiDocumentHistoryIdRoute: typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
+  AuthenticatedAppAddonsAiDocumentTemplatesNewRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
+  AuthenticatedAppAddonsPlanningChallengesNewRoute: typeof AuthenticatedAppAddonsPlanningChallengesNewRoute
+  AuthenticatedAppAddonsPlanningChartersGridRoute: typeof AuthenticatedAppAddonsPlanningChartersGridRoute
+  AuthenticatedAppAddonsPlanningChartersKanbanRoute: typeof AuthenticatedAppAddonsPlanningChartersKanbanRoute
+  AuthenticatedAppAddonsPlanningChartersNewRoute: typeof AuthenticatedAppAddonsPlanningChartersNewRoute
+  AuthenticatedAppAddonsPlanningChartersTreeRoute: typeof AuthenticatedAppAddonsPlanningChartersTreeRoute
+  AuthenticatedAppAddonsPlanningSetupCategoriesRoute: typeof AuthenticatedAppAddonsPlanningSetupCategoriesRoute
+  AuthenticatedAppAddonsPlanningSetupStagesRoute: typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
+  AuthenticatedAppAddonsPlanningSetupStatusesRoute: typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
+  AuthenticatedAppAddonsWebhookEndpointsNewRoute: typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  AuthenticatedAppAddonsWebhookLogsIdRoute: typeof AuthenticatedAppAddonsWebhookLogsIdRoute
+  AuthenticatedAppAddonsAiAssistantHistoryIndexRoute: typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
+  AuthenticatedAppAddonsAiDocumentHistoryIndexRoute: typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
+  AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
+  AuthenticatedAppAddonsPlanningChallengesIndexRoute: typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
+  AuthenticatedAppAddonsPlanningChartersIndexRoute: typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
+  AuthenticatedAppAddonsWebhookEndpointsIndexRoute: typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  AuthenticatedAppAddonsWebhookLogsIndexRoute: typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
+  AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
+  AuthenticatedAppAddonsPlanningChallengesIdEditRoute: typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
+  AuthenticatedAppAddonsPlanningChartersIdEditRoute: typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
+  AuthenticatedAppAddonsWebhookEndpointsIdEditRoute: typeof AuthenticatedAppAddonsWebhookEndpointsIdEditRoute
+  AuthenticatedAppAddonsPlanningChallengesIdIndexRoute: typeof AuthenticatedAppAddonsPlanningChallengesIdIndexRoute
+  AuthenticatedAppAddonsPlanningChartersIdIndexRoute: typeof AuthenticatedAppAddonsPlanningChartersIdIndexRoute
+  AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute: typeof AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute
 }
 
 const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
@@ -9341,6 +10220,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppSmsGatewayRoute: AuthenticatedAppSmsGatewayRoute,
   AuthenticatedAppStrategyStudioRoute: AuthenticatedAppStrategyStudioRoute,
   AuthenticatedAppSubscriptionRoute: AuthenticatedAppSubscriptionRoute,
+  AuthenticatedAppSuggestionBoxRoute: AuthenticatedAppSuggestionBoxRoute,
   AuthenticatedAppSuppliersRoute: AuthenticatedAppSuppliersRoute,
   AuthenticatedAppSupportRoute: AuthenticatedAppSupportRoute,
   AuthenticatedAppSupportDashboardRoute: AuthenticatedAppSupportDashboardRoute,
@@ -9365,6 +10245,82 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppInvoiceIdRoute: AuthenticatedAppInvoiceIdRouteWithChildren,
   AuthenticatedAppInvoiceCreateRoute: AuthenticatedAppInvoiceCreateRoute,
   AuthenticatedAppProjectIdRoute: AuthenticatedAppProjectIdRoute,
+  AuthenticatedAppAddonsAiAssistantFieldsRoute:
+    AuthenticatedAppAddonsAiAssistantFieldsRoute,
+  AuthenticatedAppAddonsAiAssistantSettingsRoute:
+    AuthenticatedAppAddonsAiAssistantSettingsRoute,
+  AuthenticatedAppAddonsAiAssistantUsageRoute:
+    AuthenticatedAppAddonsAiAssistantUsageRoute,
+  AuthenticatedAppAddonsAiDocumentAnalyticsRoute:
+    AuthenticatedAppAddonsAiDocumentAnalyticsRoute,
+  AuthenticatedAppAddonsAiDocumentGenerateRoute:
+    AuthenticatedAppAddonsAiDocumentGenerateRoute,
+  AuthenticatedAppAddonsAiDocumentSettingsRoute:
+    AuthenticatedAppAddonsAiDocumentSettingsRoute,
+  AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute:
+    AuthenticatedAppAddonsAiDocumentTemplateCategoriesRoute,
+  AuthenticatedAppAddonsAiDocumentTonesRoute:
+    AuthenticatedAppAddonsAiDocumentTonesRoute,
+  AuthenticatedAppAddonsPlanningDashboardRoute:
+    AuthenticatedAppAddonsPlanningDashboardRoute,
+  AuthenticatedAppAddonsWebhookEventsRoute:
+    AuthenticatedAppAddonsWebhookEventsRoute,
+  AuthenticatedAppAddonsWebhookSettingsRoute:
+    AuthenticatedAppAddonsWebhookSettingsRoute,
+  AuthenticatedAppAddonsAiAssistantHistoryIdRoute:
+    AuthenticatedAppAddonsAiAssistantHistoryIdRoute,
+  AuthenticatedAppAddonsAiDocumentHistoryIdRoute:
+    AuthenticatedAppAddonsAiDocumentHistoryIdRoute,
+  AuthenticatedAppAddonsAiDocumentTemplatesNewRoute:
+    AuthenticatedAppAddonsAiDocumentTemplatesNewRoute,
+  AuthenticatedAppAddonsPlanningChallengesNewRoute:
+    AuthenticatedAppAddonsPlanningChallengesNewRoute,
+  AuthenticatedAppAddonsPlanningChartersGridRoute:
+    AuthenticatedAppAddonsPlanningChartersGridRoute,
+  AuthenticatedAppAddonsPlanningChartersKanbanRoute:
+    AuthenticatedAppAddonsPlanningChartersKanbanRoute,
+  AuthenticatedAppAddonsPlanningChartersNewRoute:
+    AuthenticatedAppAddonsPlanningChartersNewRoute,
+  AuthenticatedAppAddonsPlanningChartersTreeRoute:
+    AuthenticatedAppAddonsPlanningChartersTreeRoute,
+  AuthenticatedAppAddonsPlanningSetupCategoriesRoute:
+    AuthenticatedAppAddonsPlanningSetupCategoriesRoute,
+  AuthenticatedAppAddonsPlanningSetupStagesRoute:
+    AuthenticatedAppAddonsPlanningSetupStagesRoute,
+  AuthenticatedAppAddonsPlanningSetupStatusesRoute:
+    AuthenticatedAppAddonsPlanningSetupStatusesRoute,
+  AuthenticatedAppAddonsWebhookEndpointsNewRoute:
+    AuthenticatedAppAddonsWebhookEndpointsNewRoute,
+  AuthenticatedAppAddonsWebhookLogsIdRoute:
+    AuthenticatedAppAddonsWebhookLogsIdRoute,
+  AuthenticatedAppAddonsAiAssistantHistoryIndexRoute:
+    AuthenticatedAppAddonsAiAssistantHistoryIndexRoute,
+  AuthenticatedAppAddonsAiDocumentHistoryIndexRoute:
+    AuthenticatedAppAddonsAiDocumentHistoryIndexRoute,
+  AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute:
+    AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute,
+  AuthenticatedAppAddonsPlanningChallengesIndexRoute:
+    AuthenticatedAppAddonsPlanningChallengesIndexRoute,
+  AuthenticatedAppAddonsPlanningChartersIndexRoute:
+    AuthenticatedAppAddonsPlanningChartersIndexRoute,
+  AuthenticatedAppAddonsWebhookEndpointsIndexRoute:
+    AuthenticatedAppAddonsWebhookEndpointsIndexRoute,
+  AuthenticatedAppAddonsWebhookLogsIndexRoute:
+    AuthenticatedAppAddonsWebhookLogsIndexRoute,
+  AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute:
+    AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute,
+  AuthenticatedAppAddonsPlanningChallengesIdEditRoute:
+    AuthenticatedAppAddonsPlanningChallengesIdEditRoute,
+  AuthenticatedAppAddonsPlanningChartersIdEditRoute:
+    AuthenticatedAppAddonsPlanningChartersIdEditRoute,
+  AuthenticatedAppAddonsWebhookEndpointsIdEditRoute:
+    AuthenticatedAppAddonsWebhookEndpointsIdEditRoute,
+  AuthenticatedAppAddonsPlanningChallengesIdIndexRoute:
+    AuthenticatedAppAddonsPlanningChallengesIdIndexRoute,
+  AuthenticatedAppAddonsPlanningChartersIdIndexRoute:
+    AuthenticatedAppAddonsPlanningChartersIdIndexRoute,
+  AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute:
+    AuthenticatedAppAddonsWebhookEndpointsIdIndexRoute,
 }
 
 const AuthenticatedAppRouteRouteWithChildren =
@@ -9986,6 +10942,17 @@ const AuthenticatedTenantRouteChildren: AuthenticatedTenantRouteChildren = {
 const AuthenticatedTenantRouteWithChildren =
   AuthenticatedTenantRoute._addFileChildren(AuthenticatedTenantRouteChildren)
 
+interface AuthenticatedTenetRouteChildren {
+  AuthenticatedTenetSplatRoute: typeof AuthenticatedTenetSplatRoute
+}
+
+const AuthenticatedTenetRouteChildren: AuthenticatedTenetRouteChildren = {
+  AuthenticatedTenetSplatRoute: AuthenticatedTenetSplatRoute,
+}
+
+const AuthenticatedTenetRouteWithChildren =
+  AuthenticatedTenetRoute._addFileChildren(AuthenticatedTenetRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAppRouteRoute: typeof AuthenticatedAppRouteRouteWithChildren
   AuthenticatedSuperRouteRoute: typeof AuthenticatedSuperRouteRouteWithChildren
@@ -9993,6 +10960,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMeRoute: typeof AuthenticatedMeRouteWithChildren
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedTenantRoute: typeof AuthenticatedTenantRouteWithChildren
+  AuthenticatedTenetRoute: typeof AuthenticatedTenetRouteWithChildren
   AuthenticatedClientDashboardRoute: typeof AuthenticatedClientDashboardRoute
   AuthenticatedEmployeeDashboardRoute: typeof AuthenticatedEmployeeDashboardRoute
   AuthenticatedClientIndexRoute: typeof AuthenticatedClientIndexRoute
@@ -10006,6 +10974,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMeRoute: AuthenticatedMeRouteWithChildren,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedTenantRoute: AuthenticatedTenantRouteWithChildren,
+  AuthenticatedTenetRoute: AuthenticatedTenetRouteWithChildren,
   AuthenticatedClientDashboardRoute: AuthenticatedClientDashboardRoute,
   AuthenticatedEmployeeDashboardRoute: AuthenticatedEmployeeDashboardRoute,
   AuthenticatedClientIndexRoute: AuthenticatedClientIndexRoute,

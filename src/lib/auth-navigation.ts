@@ -58,12 +58,21 @@ export function resolveDefaultRoute(
     return "/super";
   }
 
+  // Tenant / Workspace Administrator -> Lands directly on Tenant Admin Command Center (/tenant/dashboard)
+  const normalized = roles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
+  const isTenantAdmin = normalized.some((r) =>
+    ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
+  );
+  if (isTenantAdmin) {
+    return "/tenant/dashboard";
+  }
+
   // Client Portal (B2B Customers)
   if (roles.includes("client")) {
     return "/client-dashboard";
   }
 
-  // HR Admin Portal (Canonical HR Namespace)
+  // HR Admin Portal (Canonical HR Namespace - strictly for non-tenant-admin HR staff)
   if (roles.includes("hr_admin") || roles.includes("hr")) {
     return "/hr/dashboard";
   }
@@ -73,6 +82,6 @@ export function resolveDefaultRoute(
     return "/me/dashboard";
   }
 
-  // Tenant / Vendor Admin (Default ERP Command Center)
-  return "/hrm-dashboard";
+  // Tenant Admin Fallback
+  return "/tenant/dashboard";
 }

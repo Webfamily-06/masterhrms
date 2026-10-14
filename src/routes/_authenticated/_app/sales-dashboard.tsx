@@ -8,12 +8,16 @@ import { initSalesCharts } from "@/lib/dashboard-charts";
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, ShoppingCart, Users, FileText, ArrowUpRight, TrendingUp, Package, Compass } from "lucide-react";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
+import { usePermissions } from "@/lib/permissions";
+import { AccessDenied } from "@/components/access-denied";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/_app/sales-dashboard")({
   component: SalesDashboardPage,
 });
 
 export default function SalesDashboardPage() {
+  const { canAccessModule, loading } = usePermissions();
   // 1. Fetch live CRM & Sales Dashboard Metrics
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ["dashboard-sales-crm-metrics"],
@@ -51,6 +55,25 @@ export default function SalesDashboardPage() {
   const topCustomers = salesData?.topCustomers || [];
   const recentOrders = salesData?.recentOrders || [];
   const topProducts = posData?.topProducts || [];
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-xs text-muted-foreground font-medium animate-pulse">Verifying workspace permissions...</p>
+      </div>
+    );
+  }
+
+  if (!canAccessModule("sales") && !canAccessModule("crm")) {
+    return (
+      <AccessDenied
+        moduleName="Sales & CRM Analytics"
+        requiredPermission="sales.dashboard.view"
+        message="You do not have permission to access Sales & CRM Analytics."
+      />
+    );
+  }
 
   return (
     <div className="w-full min-w-0 flex-1">

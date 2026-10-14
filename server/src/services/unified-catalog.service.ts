@@ -1194,6 +1194,31 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
 
   // ─── Feature Add-Ons (Wave 3: Strategy & Regional) ────────────────────────────
   {
+    id: "addon_planning",
+    slug: "planning",
+    name: "Strategic Planning & Execution Engine",
+    productType: "ADDON_FEATURE",
+    entitlementKey: "planning",
+    targetEngine: "addon",
+    description: "Enterprise strategic challenge framing, multi-view project charters (list, grid, kanban, tree), and executive KPI dashboards.",
+    category: "Strategy",
+    isPublic: true,
+    status: "ACTIVE",
+    version: "1.0.0",
+    wave: "WAVE_3",
+    navigationMode: "standalone_with_submenu",
+    navigationLabel: "Planning",
+    navigationIcon: "ph-target",
+    navigationGroup: "STRATEGY",
+    navigationOrder: 1,
+    navigationRoute: "/addons/planning/dashboard",
+    features: [
+      "Strategic challenge tracking with category, status, and deadline validation",
+      "Interactive multi-view project charters (List, Grid, Kanban, and Tree hierarchies)",
+      "Real-time stakeholder ratings, threaded discussions, and milestone audit logs",
+    ],
+  },
+  {
     id: "addon_swot",
     slug: "swot",
     name: "SWOT Analysis Matrix (Strategy Studio)",

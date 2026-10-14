@@ -87,13 +87,17 @@ export function getClientAuthState(): AuthUserState {
     : (Array.isArray(tokenPayload?.permissions) ? tokenPayload.permissions : []);
 
   const enabledModules: string[] = user?.enabledModules || [];
-  const isSuperAdmin = roles.includes("super_admin");
+  const normalizedRoles = roles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
+  const roleName = String(user?.workspaceRole?.name || user?.role || "").toLowerCase().replace(/[-_ ]/g, "");
+  const isSuperAdmin = roles.includes("super_admin") || normalizedRoles.includes("superadmin") || roleName.includes("superadmin");
   const isTenantAdmin =
     isSuperAdmin ||
-    roles.includes("admin") ||
-    roles.includes("workspace_admin") ||
-    roles.includes("tenant_admin") ||
-    roles.includes("Workspace Admin");
+    normalizedRoles.some((r) =>
+      ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
+    ) ||
+    roleName.includes("admin") ||
+    roleName.includes("owner") ||
+    roleName.includes("tenant");
 
   const resolvedTenantId =
     user?.tenantId ||

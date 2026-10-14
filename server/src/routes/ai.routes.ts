@@ -8,6 +8,7 @@ import { InventoryMovementService } from "../services/inventory-movement.service
 import { STOCK_MOVEMENT_TYPES } from "../services/inventory-movement.types";
 import { requireEntitlement } from "../middleware/entitlements";
 import { AiAutomationService } from "../services/ai-automation.service";
+import { AiDocumentService } from "../services/ai-document.service";
 
 export const aiRouter = Router();
 
@@ -102,15 +103,43 @@ aiRouter.post("/generate-content", requireAuth, async (req: AuthRequest, res: Re
       description = "",
       provider = "openai",
       model = "gpt-4o",
+      keywords = [],
+      promptTemplate = "",
+      additionalInstructions = "",
     } = req.body;
 
     const results: string[] = [];
     const count = Math.min(Math.max(1, Number(numResults) || 1), 3);
+    const keywordsStr = Array.isArray(keywords) ? keywords.join(", ") : String(keywords || "");
 
     for (let i = 1; i <= count; i++) {
       let content = "";
 
-      if (contentType === "job_description") {
+      if (promptTemplate && promptTemplate.trim()) {
+        let compiledPrompt = promptTemplate
+          .replace(/\{title\}/gi, topic)
+          .replace(/\{keywords\}/gi, keywordsStr || "N/A")
+          .replace(/\{tone\}/gi, tone)
+          .replace(/\{language\}/gi, language);
+
+        content = `# ${topic}
+**Generated in**: ${language} | **Tone**: ${tone} | **Creativity**: ${creativity}
+${keywordsStr ? `**Focus Keywords**: ${keywordsStr}\n` : ""}
+${additionalInstructions ? `> **Custom Context**: ${additionalInstructions}\n` : ""}
+
+### AI Output
+${compiledPrompt}
+
+---
+In today's fast-moving business landscape, organizations that prioritize structured workflows, AI-assisted productivity, and data-driven decisions consistently outperform their peers. 
+
+### Core Takeaways & Strategy
+- **Target Audience Relevance**: Specifically tailored for ${audience || "global stakeholders"}.
+- **Precision & Alignment**: Formatted in a ${tone.toLowerCase()} cadence to drive high engagement.
+- **Operational Execution**: Designed for immediate publishing, distribution, or internal rollout.
+
+*Generated with Master ERP AI Document Studio.*`;
+      } else if (contentType === "job_description") {
         content = `# Job Opportunity: ${topic}
 **Department**: Operations & Strategy  
 **Location**: Hybrid / Remote  
@@ -249,6 +278,150 @@ By adopting these best practices, teams can unlock sustainable growth and delive
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to generate AI content" });
+  }
+});
+
+// -------------------------------------------------------------
+// 2B. AI DOCUMENT PROMPT TEMPLATES CRUD
+// -------------------------------------------------------------
+
+aiRouter.get("/templates", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { category, status, search } = req.query;
+    const templates = await AiDocumentService.getTemplates(tenantId, {
+      category: category ? String(category) : undefined,
+      status: status ? String(status) : undefined,
+      search: search ? String(search) : undefined,
+    });
+
+    return res.json({ success: true, data: templates });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch prompt templates" });
+  }
+});
+
+aiRouter.post("/templates", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { title, category, status, description, promptTemplate } = req.body;
+    if (!title || !promptTemplate) {
+      return res.status(400).json({ error: "Title and Prompt Template are required." });
+    }
+
+    const template = await AiDocumentService.createTemplate(tenantId, {
+      title,
+      category: category || "Content",
+      status: status || "Active",
+      description: description || "",
+      promptTemplate,
+    });
+
+    return res.status(201).json({ success: true, data: template });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to create prompt template" });
+  }
+});
+
+aiRouter.put("/templates/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const template = await AiDocumentService.updateTemplate(tenantId, req.params.id, req.body);
+    if (!template) {
+      return res.status(404).json({ error: "Prompt template not found" });
+    }
+
+    return res.json({ success: true, data: template });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update prompt template" });
+  }
+});
+
+aiRouter.delete("/templates/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const deleted = await AiDocumentService.deleteTemplate(tenantId, req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Prompt template not found" });
+    }
+
+    return res.json({ success: true, message: "Prompt template deleted successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete prompt template" });
+  }
+});
+
+// -------------------------------------------------------------
+// 2C. AI DOCUMENT HISTORY & ARCHIVE CRUD
+// -------------------------------------------------------------
+
+aiRouter.get("/history", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { search, category } = req.query;
+    const history = await AiDocumentService.getHistory(tenantId, {
+      search: search ? String(search) : undefined,
+      category: category ? String(category) : undefined,
+    });
+
+    return res.json({ success: true, data: history });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch document history" });
+  }
+});
+
+aiRouter.post("/history", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { title, templateId, templateName, category, language, tone, creativity, keywords, content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: "Document content is required" });
+    }
+
+    const item = await AiDocumentService.saveHistoryItem(tenantId, {
+      title: title || "Untitled Document",
+      templateId,
+      templateName: templateName || "Custom Template",
+      category,
+      language,
+      tone,
+      creativity,
+      keywords,
+      content,
+      createdBy: req.user?.userId,
+    });
+
+    return res.status(201).json({ success: true, data: item });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to save document to history" });
+  }
+});
+
+aiRouter.delete("/history/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const deleted = await AiDocumentService.deleteHistoryItem(tenantId, req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Document not found in history" });
+    }
+
+    return res.json({ success: true, message: "Document deleted from history successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete document from history" });
   }
 });
 

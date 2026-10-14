@@ -71,7 +71,7 @@ function BackupRestoreAdmin() {
 
   async function handleDownload(filename: string) {
     try {
-      const token = localStorage.getItem("token") || "";
+      const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("token") || "";
       const downloadUrl = `/api/super/backup/download/${encodeURIComponent(filename)}`;
       
       const response = await fetch(downloadUrl, {

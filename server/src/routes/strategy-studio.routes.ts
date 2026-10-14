@@ -9,6 +9,24 @@ export const strategyStudioRouter = Router();
 
 strategyStudioRouter.use(requireAuth, resolveTenantContext);
 
+// Enforce Planning & Strategy engine dependency across all Strategy Studio tools
+strategyStudioRouter.use(async (req: AuthRequest, res: Response, next) => {
+  const tenantId = resolveTenantId(req, res);
+  if (!tenantId) return;
+
+  const isSuper = req.user?.roles?.includes("super_admin") || false;
+  const planningCheck = await checkTenantEntitlement(tenantId, "planning", isSuper);
+  if (!planningCheck.entitled) {
+    return res.status(403).json({
+      error: "Planning & Strategy Engine is required and is currently not active or expired on this workspace.",
+      code: "DEPENDENCY_UNAVAILABLE",
+      requiredAddon: "planning",
+      status: planningCheck.status,
+    });
+  }
+  next();
+});
+
 /**
  * GET /api/strategy-studio/templates/:type
  * Get matrix template structure

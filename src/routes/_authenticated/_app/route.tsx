@@ -31,7 +31,7 @@ import {
   ShoppingCart, Landmark, Kanban, MessageSquare, Package, Store, Compass,
   Fingerprint, ScanLine, HardDrive, Target, ArrowRightLeft, Truck, Building2, SlidersHorizontal,
   CalendarDays, Trophy, ShieldAlert, Timer, TrendingUp, UserCheck, UserX, PiggyBank, Percent, GitBranch, Coins, RefreshCw, Award, Gift, Phone, Repeat, Megaphone,
-  Bell, History, Database, Code, Webhook
+  Bell, History, Database, Code, Webhook, Lightbulb, Bot
 } from "lucide-react";
 import { api, clearToken, setToken } from "@/lib/api";
 import { toast } from "sonner";
@@ -204,7 +204,14 @@ const ALL_SEARCH_ITEMS = [
   { title: "Backup & Restore", url: "/backup-restore", group: "Platform", icon: Database },
   { title: "Activity Logs", url: "/activity-logs", group: "Platform", icon: History },
   { title: "Public REST API", url: "/public-api", group: "Extensions", icon: Code },
-  { title: "Outbound Webhooks", url: "/outbound-webhooks", group: "Extensions", icon: Webhook },
+  { title: "Outbound Webhooks", url: "/addons/webhook/endpoints", group: "Extensions", icon: Webhook },
+  { title: "AI Assistant", url: "/addons/ai-assistant/settings", group: "Extensions", icon: Bot },
+  { title: "AI Document Studio", url: "/addons/ai-document/generate", group: "Extensions", icon: Sparkles },
+  { title: "Planning Dashboard", url: "/addons/planning/dashboard", group: "Strategy", icon: Target },
+  { title: "Strategic Challenges", url: "/addons/planning/challenges", group: "Strategy", icon: Target },
+  { title: "Initiative Charters", url: "/addons/planning/charters", group: "Strategy", icon: FileText },
+  { title: "Charters Kanban", url: "/addons/planning/charters/kanban", group: "Strategy", icon: Kanban },
+  { title: "Suggestion Box", url: "/suggestion-box", group: "Extensions", icon: Lightbulb },
   { title: "SMS Gateway Integration", url: "/sms-gateway", group: "Extensions", icon: MessageSquare },
   { title: "Workspace Settings", url: "/settings", group: "Platform", icon: Settings },
   { title: "Primary Custom Domain", url: "/settings/custom-domain", group: "Platform", icon: Globe },
@@ -212,6 +219,18 @@ const ALL_SEARCH_ITEMS = [
   { title: "Marketing Campaigns", url: "/campaigns", group: "CRM & Growth", icon: Megaphone },
   { title: "Users & Roles", url: "/users", group: "Platform", icon: Users },
   { title: "Subscription & Plan", url: "/subscription", group: "Platform", icon: CreditCard },
+  { title: "Tenant Administration", url: "/tenant/dashboard", group: "Platform", icon: Building2 },
+  { title: "Tenant Company Profile", url: "/tenant/company-profile", group: "Platform", icon: Building2 },
+  { title: "Tenant Users & Access", url: "/tenant/users", group: "Platform", icon: Users },
+  { title: "Tenant Roles & Permissions", url: "/tenant/roles", group: "Platform", icon: ShieldCheck },
+  { title: "Tenant Modules & Subscriptions", url: "/tenant/modules", group: "Platform", icon: Layers },
+  { title: "Tenant Invoices & Billing", url: "/tenant/billing", group: "Platform", icon: Receipt },
+  { title: "Tenant Branding & Customization", url: "/tenant/branding", group: "Platform", icon: Sparkles },
+  { title: "Tenant Custom Domains", url: "/tenant/domain", group: "Platform", icon: Globe },
+  { title: "Tenant Integrations Hub", url: "/tenant/integrations", group: "Platform", icon: Sparkles },
+  { title: "Tenant Data & Backups", url: "/tenant/data", group: "Platform", icon: Database },
+  { title: "Tenant Security Audit Logs", url: "/tenant/audit-logs", group: "Platform", icon: History },
+  { title: "Tenant Priority Support", url: "/tenant/support", group: "Platform", icon: HelpCircle },
   { title: "Ban IP Address", url: "/ban-ip-address", group: "Platform", icon: ShieldAlert },
   { title: "Clear Cache & Maintenance", url: "/clear-cache", group: "Platform", icon: RefreshCw },
   { title: "Cronjob Management", url: "/cronjob", group: "Platform", icon: Clock },
@@ -227,12 +246,14 @@ export function AppShell() {
   const path = useRouterState({ select: (r) => r.location.pathname });
 
   const userRoles = profile?.roles || [];
-  const isAdminOrSuper = userRoles.some((r) =>
+  const isSuperAdmin = isSuperAdminUser(profile);
+  const isWorkspaceAdmin = isWorkspaceAdminUser(profile);
+  const normalizedUserRoles = userRoles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
+  const isTenantAdmin = isWorkspaceAdmin || normalizedUserRoles.some((r) => ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r));
+  const isAdminOrSuper = isSuperAdmin || isWorkspaceAdmin || userRoles.some((r) =>
     ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r)
   );
   const isManager = userRoles.includes("manager");
-  const isSuperAdmin = isSuperAdminUser(profile);
-  const isWorkspaceAdmin = isWorkspaceAdminUser(profile);
   const canAccessPos = isModuleAllowed("pos", profile) || hasPermission("pos.terminal.view", profile) || hasPermission("pos.dashboard.view", profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
@@ -282,7 +303,9 @@ export function AppShell() {
 
   const homeRoute = isSuperAdmin
     ? "/super"
-    : isClientOnly
+    : isTenantAdmin
+      ? "/tenant/dashboard"
+      : isClientOnly
       ? "/client-dashboard"
       : isEmployeeOnly
         ? "/me/dashboard"
@@ -1180,7 +1203,13 @@ export function AppShell() {
         <CommandList className="max-h-[380px]">
           <CommandEmpty>No matching modules found.</CommandEmpty>
           {["ERP Core", "Sales & Finance", "HRM Suite", "Collaboration", "Extensions", "Platform"].map((group) => {
-            const items = filterSearchItems(ALL_SEARCH_ITEMS).filter((i) => i.group === group);
+            const items = filterSearchItems(ALL_SEARCH_ITEMS).filter((i) => {
+              if (i.group !== group) return false;
+              if (!isSuperAdmin && ["/super", "/ban-ip-address", "/clear-cache", "/cronjob"].includes(i.url)) {
+                return false;
+              }
+              return true;
+            });
             if (!items.length) return null;
             return (
               <CommandGroup key={group} heading={group}>

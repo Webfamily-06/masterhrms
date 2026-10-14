@@ -46,17 +46,26 @@ export function useWorkspaceDashboardCapabilities() {
   // Client-side fallback / optimistic resolution derived from navigation resolver & user profile
   const clientDerived = useMemo<DashboardCapabilitiesState>(() => {
     const isSuper = navResolver.isSuperAdmin;
+    const roles = profile?.roles || [];
+    const isWorkspaceAdmin = Boolean(
+      isSuper ||
+      roles.includes("admin") ||
+      roles.includes("workspace_admin") ||
+      roles.includes("tenant_admin")
+    );
+    const isHrOnly = roles.some((r) => ["hr", "hr_admin", "hr_manager"].includes(r)) && !isWorkspaceAdmin;
+
     return {
       hrm: true, // Core HRMS is always present for valid workspaces
-      financial: isSuper || navResolver.isEntitled("finance"),
-      sales: isSuper || navResolver.isEntitled("sales") || navResolver.isEntitled("crm"),
-      crm: isSuper || navResolver.isEntitled("crm"),
-      pos: isSuper || navResolver.isEntitled("pos"),
-      inventory: isSuper || navResolver.isEntitled("inventory"),
-      projects: isSuper || navResolver.isEntitled("projects"),
-      purchases: isSuper || navResolver.isEntitled("purchases") || navResolver.isEntitled("procurement"),
+      financial: !isHrOnly && (isWorkspaceAdmin || navResolver.isEntitled("finance")),
+      sales: !isHrOnly && (isWorkspaceAdmin || navResolver.isEntitled("sales") || navResolver.isEntitled("crm")),
+      crm: !isHrOnly && (isWorkspaceAdmin || navResolver.isEntitled("crm")),
+      pos: !isHrOnly && (isWorkspaceAdmin || navResolver.isEntitled("pos")),
+      inventory: !isHrOnly && (isWorkspaceAdmin || navResolver.isEntitled("inventory")),
+      projects: isWorkspaceAdmin || navResolver.isEntitled("projects"),
+      purchases: !isHrOnly && (isWorkspaceAdmin || navResolver.isEntitled("purchases") || navResolver.isEntitled("procurement")),
     };
-  }, [navResolver]);
+  }, [navResolver, profile]);
 
   // Authoritative capabilities: prefer server evaluation once resolved
   const capabilities: DashboardCapabilitiesState = useMemo(() => {

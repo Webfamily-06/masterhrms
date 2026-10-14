@@ -188,6 +188,30 @@ export async function checkTenantEntitlement(
     candidateAddonSlugs.add("addon_ai_business_advisor");
     candidateAddonSlugs.add("module-ai-business-advisor");
   }
+  if (normalized.includes("webhook") || normalized.includes("outbound")) {
+    candidateAddonSlugs.add("webhook");
+    candidateAddonSlugs.add("outbound-webhooks");
+    candidateAddonSlugs.add("outbound_webhooks");
+    candidateAddonSlugs.add("addon_outbound_webhooks");
+  }
+  if (normalized.includes("ai-assistant") || normalized.includes("ai_assistant")) {
+    candidateAddonSlugs.add("ai-assistant");
+    candidateAddonSlugs.add("ai_assistant");
+    candidateAddonSlugs.add("universal-ai-assistant");
+    candidateAddonSlugs.add("addon_ai_assistant");
+  }
+  if (normalized.includes("ai-document") || normalized.includes("ai_document")) {
+    candidateAddonSlugs.add("ai-document");
+    candidateAddonSlugs.add("ai_document");
+    candidateAddonSlugs.add("ai-document-templates");
+    candidateAddonSlugs.add("addon_ai_document");
+  }
+  if (normalized.includes("planning") || normalized.includes("strategic")) {
+    candidateAddonSlugs.add("planning");
+    candidateAddonSlugs.add("planning-strategy");
+    candidateAddonSlugs.add("strategic-planning");
+    candidateAddonSlugs.add("addon_planning");
+  }
 
   try {
 

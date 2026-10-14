@@ -20,7 +20,7 @@ export default function FinanceDashboardPage() {
   const { data: profile, isLoading: isProfileLoading } = useCurrentProfile();
   const isFinanceUser = isWorkspaceAdminUser(profile) ||
     (profile?.roles ?? []).some((r: string) =>
-      ["admin", "super_admin", "hr_admin", "finance_admin", "payroll_manager"].includes(r)
+      ["admin", "super_admin", "finance_admin", "payroll_manager", "accountant"].includes(r)
     );
   const [isMounted, setIsMounted] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);

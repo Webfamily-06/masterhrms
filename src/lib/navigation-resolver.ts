@@ -64,6 +64,7 @@ export const ADDON_ALIASES: Record<string, string[]> = {
   "quickbooks": ["quickbooks", "quickbooks-online"],
   "xero": ["xero", "xero-sync"],
   "plaid": ["plaid", "open-banking"],
+  "planning": ["planning", "planning-strategy", "strategy-planning", "strategy"],
   "financial-goal": ["financial-goal", "financial-targets"],
 };
 

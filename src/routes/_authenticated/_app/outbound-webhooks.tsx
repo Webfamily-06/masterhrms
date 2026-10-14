@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -37,6 +37,9 @@ import { toast } from "sonner";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export const Route = createFileRoute("/_authenticated/_app/outbound-webhooks")({
+  beforeLoad: () => {
+    throw redirect({ to: "/addons/webhook/endpoints" });
+  },
   component: OutboundWebhooksPage,
   head: () => ({
     meta: [{ title: "Outbound Webhooks & Event Streams — Master ERP" }],

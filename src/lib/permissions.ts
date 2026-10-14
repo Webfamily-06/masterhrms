@@ -9,13 +9,27 @@ export function isSuperAdminUser(profile: ProfileWithRoles | null | undefined): 
 
 export function isWorkspaceAdminUser(profile: ProfileWithRoles | null | undefined): boolean {
   if (!profile) return false;
+  const roles = (profile.roles || []).map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
+  const roleName = String(profile.workspaceRole?.name || "").toLowerCase().replace(/[-_ ]/g, "");
   if (
-    profile.roles?.includes("admin") ||
-    profile.roles?.includes("workspace_admin") ||
-    profile.roles?.includes("tenant_admin") ||
-    profile.roles?.includes("hr_admin")
+    roles.some((r) => ["admin", "workspaceadmin", "tenantadmin", "organizationadmin", "owner"].includes(r))
   ) return true;
-  return profile.workspaceRole?.name === "Workspace Admin" && profile.workspaceRole?.isActive === true;
+  return (
+    roleName.includes("workspaceadmin") ||
+    roleName.includes("tenantadmin") ||
+    roleName.includes("organizationadmin") ||
+    roleName === "admin" ||
+    roleName.includes("owner")
+  );
+}
+
+export function isHrAdminUser(profile: ProfileWithRoles | null | undefined): boolean {
+  if (!profile) return false;
+  return Boolean(
+    profile.roles?.includes("hr_admin") ||
+    profile.roles?.includes("hr") ||
+    profile.roles?.includes("hr_manager")
+  );
 }
 
 export function hasPermission(
@@ -24,6 +38,20 @@ export function hasPermission(
 ): boolean {
   if (!profile) return false;
   if (isWorkspaceAdminUser(profile)) return true;
+
+  // HR Administrator has authoritative permissions across all HRM resources
+  if (isHrAdminUser(profile)) {
+    const hrPrefixes = [
+      "hrm", "employee", "attendance", "leave", "payroll", "recruitment",
+      "department", "designation", "shift", "holiday", "award", "warning",
+      "termination", "resignation", "promotion", "overtime", "provident",
+      "wfh", "document", "notice", "suggestion", "training", "performance",
+      "onboarding", "offboarding", "biometric"
+    ];
+    if (hrPrefixes.some((prefix) => code.startsWith(prefix) || code.includes(prefix))) {
+      return true;
+    }
+  }
 
   // Check if parent module is disabled in workspace
   const moduleKey = code.split(".")[0];
@@ -82,6 +110,7 @@ export function isModuleAllowed(
 
   // Check role permission
   if (isWorkspaceAdminUser(profile)) return true;
+  if (moduleKey === "hrm" && isHrAdminUser(profile)) return true;
   return (profile.permissions || []).includes(mod.permission);
 }
 
@@ -120,6 +149,7 @@ export function usePermissions() {
 
   const isSuperAdmin = useMemo(() => isSuperAdminUser(profile), [profile]);
   const isWorkspaceAdmin = useMemo(() => isWorkspaceAdminUser(profile), [profile]);
+  const isHrAdmin = useMemo(() => isHrAdminUser(profile), [profile]);
 
   const permissions = useMemo(() => profile?.permissions || [], [profile]);
   const enabledModules = useMemo(() => profile?.enabledModules || [], [profile]);
@@ -136,6 +166,7 @@ export function usePermissions() {
     workspaceRole: profile?.workspaceRole || null,
     isSuperAdmin,
     isWorkspaceAdmin,
+    isHrAdmin,
     permissions,
     enabledModules,
     allowedDashboards,

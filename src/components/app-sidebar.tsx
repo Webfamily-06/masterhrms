@@ -51,6 +51,7 @@ import {
   History,
   Code,
   Webhook,
+  Bot,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -61,6 +62,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAppConfig } from "@/lib/useAppConfig";
 import { useThemeMode } from "@/lib/theme";
+import { isModuleAllowed } from "@/lib/permissions";
 
 export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
   const { state } = useSidebar();
@@ -132,22 +134,25 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
 
   const isPosUnlocked = Boolean(
     profile?.roles?.includes("super_admin") ||
-    profile?.enabledModules?.includes("pos") ||
-    profile?.enabledModules?.includes("product_pos") ||
-    profile?.enabledModules?.includes("inventory")
+    ((profile?.enabledModules?.includes("pos") ||
+      profile?.enabledModules?.includes("product_pos") ||
+      profile?.enabledModules?.includes("inventory")) &&
+      isModuleAllowed("pos", profile))
   );
 
   const isFinanceUnlocked = Boolean(
     profile?.roles?.includes("super_admin") ||
-    profile?.enabledModules?.includes("accounting") ||
-    profile?.enabledModules?.includes("finance") ||
-    profile?.enabledModules?.includes("product_finance")
+    ((profile?.enabledModules?.includes("accounting") ||
+      profile?.enabledModules?.includes("finance") ||
+      profile?.enabledModules?.includes("product_finance")) &&
+      isModuleAllowed("finance", profile))
   );
 
   const isCrmUnlocked = Boolean(
     profile?.roles?.includes("super_admin") ||
-    profile?.enabledModules?.includes("crm") ||
-    profile?.enabledModules?.includes("product_crm")
+    ((profile?.enabledModules?.includes("crm") ||
+      profile?.enabledModules?.includes("product_crm")) &&
+      isModuleAllowed("crm", profile))
   );
 
   type NavItem = { title: string; url: string; icon: any };
@@ -393,12 +398,15 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
               {isAddonUnlocked("backup-restore") && <SimpleNavItem item={{ title: "Backup & Restore", url: "/backup-restore", icon: RotateCcw }} />}
               {isAddonUnlocked("activity-logs") && <SimpleNavItem item={{ title: "Activity Logs", url: "/activity-logs", icon: History }} />}
               {isAddonUnlocked("public-api") && <SimpleNavItem item={{ title: "Public API Keys", url: "/public-api", icon: Code }} />}
-              {isAddonUnlocked("outbound-webhooks") && <SimpleNavItem item={{ title: "Outbound Webhooks", url: "/outbound-webhooks", icon: Webhook }} />}
+              {(isAddonUnlocked("outbound-webhooks") || isAddonUnlocked("webhook")) && <SimpleNavItem item={{ title: "Outbound Webhooks", url: "/addons/webhook/endpoints", icon: Webhook }} />}
               {isAddonUnlocked("sms-gateway") && <SimpleNavItem item={{ title: "SMS Gateway", url: "/sms-gateway", icon: MessageSquare }} />}
               {isAddonUnlocked("biometric-sync") && <SimpleNavItem item={{ title: "Biometric Sync Hub", url: "/biometric-sync", icon: Fingerprint }} />}
               {isAddonUnlocked("ai-ocr") && <SimpleNavItem item={{ title: "AI Invoice OCR", url: "/ai-ocr", icon: ScanLine }} />}
-              {(isAddonUnlocked("ai-content-generator") || isAddonUnlocked("ai-writer")) && (
-                <SimpleNavItem item={{ title: "AI Content Studio", url: "/ai-writer", icon: Sparkles }} />
+              {(isAddonUnlocked("ai-assistant") || isAddonUnlocked("ai-helper") || isAddonUnlocked("ai")) && (
+                <SimpleNavItem item={{ title: "AI Assistant", url: "/addons/ai-assistant/settings", icon: Bot }} />
+              )}
+              {(isAddonUnlocked("ai-content-generator") || isAddonUnlocked("ai-writer") || isAddonUnlocked("ai-document")) && (
+                <SimpleNavItem item={{ title: "AI Document Studio", url: "/addons/ai-document/generate", icon: Sparkles }} />
               )}
             </SidebarMenu>
           </SidebarGroupContent>

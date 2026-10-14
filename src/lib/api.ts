@@ -4,8 +4,33 @@
 
 export const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:4000/api";
 
+export function getAuthToken(): string {
+  if (typeof window === "undefined") return "";
+  return (
+    localStorage.getItem("hrms_auth_token") ||
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    ""
+  );
+}
+
 function getToken(): string | null {
-  return localStorage.getItem("hrms_auth_token");
+  const token = getAuthToken();
+  return token || null;
+}
+
+export function getAuthHeaders(extraHeaders?: HeadersInit): HeadersInit {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return {
+    ...headers,
+    ...extraHeaders,
+  };
 }
 
 export function setToken(token: string) {

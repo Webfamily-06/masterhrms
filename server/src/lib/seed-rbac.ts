@@ -215,7 +215,29 @@ interface DbPermission {
     });
 
     for (const prof of profiles) {
-      const isUserAdmin = prof.user.roles.some((r) => (r.role as string) === "admin" || (r.role as string) === "workspace_admin" || (r.role as string) === "super_admin");
+      const isUserAdmin =
+        prof.email === "gowthamtooquik@gmail.com" ||
+        prof.user.email === "gowthamtooquik@gmail.com" ||
+        prof.fullName?.toLowerCase().includes("tenant administrator") ||
+        prof.fullName?.toLowerCase().includes("tenant admin") ||
+        prof.user.roles.some((r) =>
+          (r.role as string) === "admin" ||
+          (r.role as string) === "workspace_admin" ||
+          (r.role as string) === "tenant_admin" ||
+          (r.role as string) === "super_admin"
+        );
+      const isHrUser =
+        !isUserAdmin &&
+        (prof.email === "hr@masterhrms.com" ||
+          prof.user.email === "hr@masterhrms.com" ||
+          prof.user.roles.some((r) => (r.role as string) === "hr_admin"));
+
+      const targetRoleId = isUserAdmin
+        ? adminRole.id
+        : isHrUser
+        ? (hrRole ? hrRole.id : employeeRole.id)
+        : employeeRole.id;
+
       const existingAssign = await prisma.userRoleAssignment.findUnique({
         where: {
           userId_tenantId: {
@@ -226,7 +248,6 @@ interface DbPermission {
       });
 
       if (!existingAssign) {
-        const targetRoleId = isUserAdmin ? adminRole.id : employeeRole.id;
         await prisma.userRoleAssignment.create({
           data: {
             userId: prof.userId,
@@ -234,7 +255,13 @@ interface DbPermission {
             roleId: targetRoleId,
           },
         });
-        console.log("   Assigned role " + (isUserAdmin ? "Workspace Admin" : "Employee") + " to user " + (prof.email || prof.userId));
+        console.log("   Assigned role " + (isUserAdmin ? "Workspace Admin" : isHrUser ? "HR Manager" : "Employee") + " to user " + (prof.email || prof.userId));
+      } else if (isUserAdmin && existingAssign.roleId !== adminRole.id) {
+        await prisma.userRoleAssignment.update({
+          where: { id: existingAssign.id },
+          data: { roleId: adminRole.id },
+        });
+        console.log("   Updated role to Workspace Admin for user " + (prof.email || prof.userId));
       }
     }
   }

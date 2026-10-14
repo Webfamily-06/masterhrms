@@ -1,4 +1,4 @@
-import { prisma } from '../prisma';
+import { rawPrisma, prisma } from '../prisma';
 import { pullAttendanceLogsFromZkDevice } from '../services/zk-protocol';
 import { processBiometricPunch } from '../routes/biometric.routes';
 import { tenantStorage } from '../context/tenant-context';
@@ -7,7 +7,8 @@ import { TenantConnectionManager } from '../services/tenant-connection-manager.s
 export async function runBiometricAutoSync() {
   console.log('[CRON] Starting biometric auto-sync...');
   try {
-    const devices = await prisma.biometricDevice.findMany({
+    const db = rawPrisma || prisma;
+    const devices = await db.biometricDevice.findMany({
       where: { 
         status: 'online',
         autoAttendanceSync: true

@@ -155,25 +155,35 @@ export class OutboxService {
           }
 
           // Mark event as processed
-          await db.outboxEvent.update({
-            where: { id: event.id },
-            data: {
-              status: "PROCESSED",
-              processedAt: new Date(),
-            },
-          });
-
-          processedCount++;
+          try {
+            await db.outboxEvent.update({
+              where: { id: event.id },
+              data: {
+                status: "PROCESSED",
+                processedAt: new Date(),
+              },
+            });
+            processedCount++;
+          } catch (updateErr: any) {
+            if (updateErr.code !== "P2025") throw updateErr;
+          }
         } catch (err: any) {
+          if (err.code === "P2025") continue;
           console.error(`[OutboxService] Failed processing event ${event.id}:`, err.message);
-          await db.outboxEvent.update({
-            where: { id: event.id },
-            data: {
-              retryCount: { increment: 1 },
-              error: err.message,
-              status: event.retryCount >= 4 ? "FAILED" : "PENDING",
-            },
-          });
+          try {
+            await db.outboxEvent.update({
+              where: { id: event.id },
+              data: {
+                retryCount: { increment: 1 },
+                error: err.message,
+                status: event.retryCount >= 4 ? "FAILED" : "PENDING",
+              },
+            });
+          } catch (e: any) {
+            if (e.code !== "P2025") {
+              console.error("[OutboxService] Failed updating retry status:", e.message);
+            }
+          }
         }
       }
     } catch (err: any) {

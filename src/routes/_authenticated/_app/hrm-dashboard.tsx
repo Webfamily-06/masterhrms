@@ -23,6 +23,10 @@ export const Route = createFileRoute("/_authenticated/_app/hrm-dashboard")({
     if (isEmployee) {
       throw redirect({ to: "/me/dashboard", replace: true });
     }
+    const isTenantAdmin = roles.some((r) => ["admin", "tenant_admin", "workspace_admin", "super_admin"].includes(r));
+    if (isTenantAdmin) {
+      throw redirect({ to: "/tenant/dashboard", replace: true });
+    }
     throw redirect({ to: "/hr/dashboard", replace: true });
   },
   component: DashboardPage,

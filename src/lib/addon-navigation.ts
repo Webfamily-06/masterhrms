@@ -137,6 +137,31 @@ export const MASTER_ADDON_REGISTRY: MasterAddonNavDefinition[] = [
     ],
   },
 
+  // ─── Pattern 3: Standalone With Submenu (Strategic Planning) ─────────────────
+  {
+    id: "module-planning",
+    slug: "planning",
+    aliases: ["planning", "strategy-planning", "charters", "strategic-planning"],
+    name: "Strategic Planning",
+    category: "Strategy",
+    navigationMode: "standalone_with_submenu",
+    navigationLabel: "Planning",
+    navigationIcon: "ph-target",
+    navigationGroup: "STRATEGY",
+    navigationOrder: 1,
+    route: "/addons/planning/dashboard",
+    requiredAddonSlugs: ["planning", "strategy-studio", "swot"],
+    adminOnly: false,
+    children: [
+      { id: "planning-dashboard", label: "Dashboard", route: "/addons/planning/dashboard", requiredAddonKey: "planning", order: 1 },
+      { id: "planning-challenges", label: "Challenges", route: "/addons/planning/challenges", requiredAddonKey: "planning", order: 2 },
+      { id: "planning-charters", label: "Charters", route: "/addons/planning/charters", requiredAddonKey: "planning", order: 3 },
+      { id: "planning-setup-categories", label: "Categories", route: "/addons/planning/setup/categories", requiredAddonKey: "planning", order: 4 },
+      { id: "planning-setup-stages", label: "Stages", route: "/addons/planning/setup/stages", requiredAddonKey: "planning", order: 5 },
+      { id: "planning-setup-statuses", label: "Statuses", route: "/addons/planning/setup/statuses", requiredAddonKey: "planning", order: 6 },
+    ],
+  },
+
   // ─── Pattern 2: Standalone Main Menu (Strategy Studio) ─────────────────────────
   {
     id: "module-strategy-studio",
@@ -494,7 +519,7 @@ export const MASTER_ADDON_REGISTRY: MasterAddonNavDefinition[] = [
   {
     id: "ext-outbound-webhooks",
     slug: "outbound-webhooks",
-    aliases: ["outbound-webhooks", "webhooks"],
+    aliases: ["outbound-webhooks", "webhooks", "webhook"],
     name: "Outbound Webhooks",
     category: "Developer",
     navigationMode: "extension",
@@ -502,8 +527,8 @@ export const MASTER_ADDON_REGISTRY: MasterAddonNavDefinition[] = [
     navigationIcon: "ph-webhooks-logo",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 8,
-    route: "/outbound-webhooks",
-    requiredAddonSlugs: ["outbound-webhooks"],
+    route: "/addons/webhook/endpoints",
+    requiredAddonSlugs: ["outbound-webhooks", "webhook"],
     adminOnly: true,
   },
   {
@@ -637,7 +662,7 @@ export const MASTER_ADDON_REGISTRY: MasterAddonNavDefinition[] = [
     navigationIcon: "ph-lightbulb",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 17,
-    route: "/forms",
+    route: "/suggestion-box",
     requiredAddonSlugs: ["suggestion-box"],
     adminOnly: false,
   },
@@ -667,7 +692,7 @@ export const MASTER_ADDON_REGISTRY: MasterAddonNavDefinition[] = [
     navigationIcon: "ph-sparkles",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 19,
-    route: "/ai-writer",
+    route: "/addons/ai-document/generate",
     requiredAddonSlugs: ["ai-document"],
     adminOnly: true,
   },
@@ -682,7 +707,7 @@ export const MASTER_ADDON_REGISTRY: MasterAddonNavDefinition[] = [
     navigationIcon: "ph-robot",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 20,
-    route: "/ai",
+    route: "/addons/ai-assistant/settings",
     requiredAddonSlugs: ["ai-assistant"],
     adminOnly: false,
   },

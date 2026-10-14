@@ -139,7 +139,7 @@ export function StatutoryReturnsWorkspace({ runs }: StatutoryReturnsWorkspacePro
 
   // Download Return File
   const downloadReturn = (filingId: string) => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("token");
     const downloadUrl = `${API_BASE}/payroll/statutory/filings/${filingId}/download${token ? `?token=${token}` : ""}`;
     window.open(downloadUrl, "_blank");
   };

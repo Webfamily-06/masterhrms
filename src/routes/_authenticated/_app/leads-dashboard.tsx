@@ -13,6 +13,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+import { usePermissions } from "@/lib/permissions";
+import { AccessDenied } from "@/components/access-denied";
+import { Loader2 } from "lucide-react";
+
 const Chart = lazy(() => import("react-apexcharts"));
 
 export const Route = createFileRoute("/_authenticated/_app/leads-dashboard")({
@@ -110,6 +114,7 @@ const INITIAL_LEADS: LeadItem[] = [
 ];
 
 export default function LeadsDashboardPage() {
+  const { canAccessModule, loading } = usePermissions();
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -238,6 +243,25 @@ export default function LeadsDashboardPage() {
     }),
     []
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-xs text-muted-foreground font-medium animate-pulse">Verifying workspace permissions...</p>
+      </div>
+    );
+  }
+
+  if (!canAccessModule("crm")) {
+    return (
+      <AccessDenied
+        moduleName="Leads Dashboard"
+        requiredPermission="crm.dashboard.view"
+        message="You do not have permission to access the Leads Dashboard."
+      />
+    );
+  }
 
   return (
     <div className="p-0">
