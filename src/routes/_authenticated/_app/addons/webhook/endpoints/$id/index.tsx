@@ -296,8 +296,8 @@ function WebhookEndpointDetailPage() {
               <CardDescription className="text-xs">Audit log of outbound HTTP dispatches to this endpoint</CardDescription>
             </div>
             <Button asChild variant="outline" size="sm">
-              <Link to="/addons/webhook/logs" search={{ endpointId: endpoint.id }}>
-                View All in Delivery Logs
+              <Link to="/addons/webhook/events">
+                View All in Event Catalog
               </Link>
             </Button>
           </CardHeader>
@@ -325,11 +325,6 @@ function WebhookEndpointDetailPage() {
                       <span className="font-mono">{log.httpStatus || "N/A"}</span>
                       <span className="text-muted-foreground">{log.durationMs ? `${log.durationMs}ms` : "—"}</span>
                       <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleTimeString()}</span>
-                      <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-                        <Link to="/addons/webhook/logs/$id" params={{ id: log.id }}>
-                          View
-                        </Link>
-                      </Button>
                     </div>
                   </div>
                 ))}
