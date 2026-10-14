@@ -606,7 +606,8 @@ const loginHandler = async (req: any, res: Response) => {
     // Optional: Allow disabling mandatory 2FA via environment variable (e.g. for staging or when SMTP is in maintenance)
     const is2faDisabled = process.env.ENABLE_2FA === "false" || process.env.MANDATORY_2FA === "false";
     if (is2faDisabled) {
-      const roles = await resolveEffectiveUserRoles(user, effectiveTenantId);
+      const userTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId;
+      const roles = await resolveEffectiveUserRoles(user, userTenantId);
       const token = generateToken({
         userId: user.id,
         email: user.email,
@@ -620,7 +621,7 @@ const loginHandler = async (req: any, res: Response) => {
       let workspaceUrl: string | undefined;
       let tenantSlug: string | undefined;
       const isSuperAdminUser = roles.includes("super_admin") || Boolean(isSuperPortal);
-      const effectiveTenantId = !isSuperAdminUser ? (user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId) : undefined;
+      const effectiveTenantId = !isSuperAdminUser ? userTenantId : undefined;
       if (effectiveTenantId) {
         const tenant = await prisma.tenant.findUnique({
           where: { id: effectiveTenantId },
@@ -1104,7 +1105,8 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
     }
 
     // Create full authenticated session token
-    const roles = await resolveEffectiveUserRoles(user, effectiveTenantId);
+    const userTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId;
+    const roles = await resolveEffectiveUserRoles(user, userTenantId);
     const token = generateToken({
       userId: user.id,
       email: user.email,
@@ -1118,7 +1120,7 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
     let workspaceUrl: string | undefined;
     let tenantSlug: string | undefined;
     const isSuperAdminUser = roles.includes("super_admin") || Boolean(isSuperPortal);
-    const effectiveTenantId = !isSuperAdminUser ? (user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId) : undefined;
+    const effectiveTenantId = !isSuperAdminUser ? userTenantId : undefined;
     if (effectiveTenantId) {
       const tenant = await prisma.tenant.findUnique({
         where: { id: effectiveTenantId },
