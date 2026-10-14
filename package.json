@@ -108,9 +108,13 @@
     "@rolldown/binding-darwin-arm64": "^1.2.11"
   },
   "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
     "core-js@3.50.0": true,
     "esbuild@0.28.2": true,
     "msgpackr-extract@3.0.4": true,
+    "prisma@5.22.0": true,
+    "tesseract.js@7.0.0": true,
     "workerd@1.20260704.1": true
   }
 }
