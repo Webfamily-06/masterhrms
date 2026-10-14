@@ -118,6 +118,31 @@ async function run() {
     assert.equal(res.status, "completed");
   });
 
+  test("1.7 Scheduled maintenance with missing end time evaluates to active after start time", () => {
+    const pastStart = new Date(Date.now() - 1800 * 1000).toISOString();
+    const res = evaluateMaintenanceStatus({
+      maintenanceMode: false,
+      maintenanceScheduled: true,
+      maintenanceStartTime: pastStart,
+    });
+    assert.equal(res.isActive, true, "ongoing scheduled maintenance without end time must be active");
+    assert.equal(res.status, "active");
+    assert.equal(res.retryAfterSeconds, null, "missing end time must yield null retryAfterSeconds");
+  });
+
+  test("1.8 Scheduled maintenance with invalid end time string evaluates safely without crash", () => {
+    const pastStart = new Date(Date.now() - 1800 * 1000).toISOString();
+    const res = evaluateMaintenanceStatus({
+      maintenanceMode: false,
+      maintenanceScheduled: true,
+      maintenanceStartTime: pastStart,
+      maintenanceEndTime: "NOT_A_VALID_DATE_STRING",
+    });
+    assert.equal(res.isActive, true, "invalid end time should be ignored and evaluated as active without crash");
+    assert.equal(res.status, "active");
+    assert.equal(res.retryAfterSeconds, null, "invalid end time must yield null retryAfterSeconds");
+  });
+
   // ─── 2. Backend Middleware Enforcement ───────────────────────────────────
   console.log("\n▶ [Category 2] Middleware Protection & Endpoint Whitelisting:");
 
@@ -278,6 +303,41 @@ async function run() {
     assert.equal(r.jsonBody?.code, "SYSTEM_MAINTENANCE");
   });
 
+  await test("2.8 Verified payment webhooks pass through maintenance whitelist", async () => {
+    for (const webhookUrl of [
+      "/api/payments/razorpay/webhook",
+      "/api/webhooks/razorpay",
+      "/api/billing/webhook",
+      "/api/commerce/webhook",
+    ]) {
+      const ctx = createMockContext(webhookUrl);
+      await maintenanceMiddleware(ctx.req, ctx.res, ctx.next);
+      const r = ctx.getResult();
+      assert.equal(r.nextCalled, true, `Payment webhook ${webhookUrl} must be whitelisted`);
+      assert.equal(r.statusCode, 200);
+    }
+  });
+
+  await test("2.9 Arbitrary untrusted webhooks are strictly blocked with HTTP 503", async () => {
+    const ctx = createMockContext("/api/webhooks/untrusted-listener");
+    await maintenanceMiddleware(ctx.req, ctx.res, ctx.next);
+    const r = ctx.getResult();
+    assert.equal(r.nextCalled, false, "Arbitrary webhook must NOT be whitelisted");
+    assert.equal(r.statusCode, 503);
+    assert.equal(r.jsonBody?.code, "SYSTEM_MAINTENANCE");
+  });
+
+  await test("2.10 Forged Super Admin token (signed with invalid secret) is rejected with HTTP 503", async () => {
+    const forgedToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJmYWtlLXN1cGVyLWFkbWluIiwicm9sZXMiOlsic3VwZXJfYWRtaW4iXX0.INVALID_SIGNATURE";
+    const ctx = createMockContext("/api/super/tenants", {
+      authorization: `Bearer ${forgedToken}`,
+    });
+    await maintenanceMiddleware(ctx.req, ctx.res, ctx.next);
+    const r = ctx.getResult();
+    assert.equal(r.nextCalled, false, "Forged token must NOT bypass maintenance");
+    assert.equal(r.statusCode, 503);
+  });
+
   // Restore DB settings to operational state
   await prisma.cmsPage.update({
     where: { slug: "system-platform-settings" },
@@ -291,7 +351,7 @@ async function run() {
   });
   invalidateMaintenanceCache();
 
-  await test("2.7 Restoring operational mode allows protected API requests normally", async () => {
+  await test("2.11 Restoring operational mode allows protected API requests normally", async () => {
     const ctx = createMockContext("/api/dashboard");
     await maintenanceMiddleware(ctx.req, ctx.res, ctx.next);
     const r = ctx.getResult();

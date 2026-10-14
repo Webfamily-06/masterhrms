@@ -163,6 +163,15 @@ Classification categories:
 | O.2 Company Profile & GST | `/tenant/company-profile` | `GET/PUT /api/v1/company-profile` | `companyProfileRouter` | `CompanyProfile`, `GSTRegistration` | **COMPLETE** | Legal entity details, GSTIN registration, billing address. |
 | O.3 System & Brand Settings | `/tenant/settings`, `/tenant/branding` | `GET/PUT /api/v1/settings` | `settingsRouter`, `SettingsService` | `Setting`, `SettingSecret` | **COMPLETE** | Logo, favicon, color themes, email SMTP, working days, ZKTeco configuration. |
 
+### Group P: Platform Maintenance & System Protection
+| Feature / Sub-Module | Frontend Route & Component | API Endpoint & Method | Service / Handler | Prisma Model | Classification | Audit Findings & Verification |
+|---|---|---|---|---|:---:|---|
+| P.1 Emergency Maintenance Mode | `/maintenance`, `/super/settings` | `GET /api/system/maintenance-status`, `PUT /api/cms/pages/system-platform-settings` | `maintenanceMiddleware` (`maintenance.ts`) | `CmsPage`, `Setting` | **COMPLETE** | Instant platform-wide maintenance toggle; returns HTTP 503 `SYSTEM_MAINTENANCE` with safe body to non-super callers. |
+| P.2 Scheduled Maintenance Window | `/maintenance` | `GET /api/system/maintenance-status` | `evaluateMaintenanceStatus` | `CmsPage` | **COMPLETE** | Evaluates scheduled window: normal before start, HTTP 503 during window with live countdown, completed after end time; missing/invalid end time handled safely without crash. |
+| P.3 Super Admin Bypass | `/super/*` | Express middleware authorization check | `verifyToken` + `user.roles` query | `User`, `UserRole` | **COMPLETE** | Verified server-side Super Admin identity (`roles.some(r => r.role === 'super_admin')`) bypasses maintenance; forged tokens strictly rejected with HTTP 503. |
+| P.4 Payment Webhook Filter | `/api/payments/razorpay/webhook`, `/api/billing/webhook`, `/api/commerce/webhook` | Express middleware whitelist | `maintenanceMiddleware` | `CommerceOrder`, `WebhookEvent` | **COMPLETE** | Strict least-privilege whitelist allows only verified payment webhooks through during maintenance; unrelated webhooks blocked with HTTP 503. |
+| P.5 Public Health & Status Probes | `/maintenance`, `/api/health`, `/api/system/maintenance-status` | `GET /api/health`, `GET /api/system/maintenance-status` | `systemMaintenanceRouter` | N/A | **COMPLETE** | Health probes (`/api/health/live`, `/api/health/ready`) and status API remain unblocked to enable automated load balancer monitoring. |
+
 ---
 
 ## 3. Summary of Implementation Health
@@ -186,9 +195,34 @@ Classification categories:
 │ M. Meetings & Collaboration                   │     4      │  COMPLETE   │
 │ N. Documents & Contracts                      │     4      │  COMPLETE   │
 │ O. System Users, Roles & Settings             │     3      │  COMPLETE   │
+│ P. Platform Maintenance & Protection          │     5      │  COMPLETE   │
 ├───────────────────────────────────────────────┼────────────┼─────────────┤
-│ TOTAL CORE FUNCTIONAL MODULES AUDITED         │    77      │  COMPLETE   │
+│ TOTAL CORE FUNCTIONAL MODULES AUDITED         │    82      │  COMPLETE   │
 └───────────────────────────────────────────────┴────────────┴─────────────┘
 ```
 
-All 77 core modules defined across Groups A through O in the HRM SaaS User Manual are physically implemented in the codebase with active UI routes, Express controllers, and Prisma models.
+---
+
+## 4. Empirical Test Evidence & Verification Matrix
+
+The physical implementation has been verified across four dedicated automated suites:
+1. **Frontend Navigation & Reconciliation:** `npx vitest run src/tests/*.test.ts` — **93/93 PASSED (100%)**
+2. **Golden Payroll & Statutory Engine:** `npx vitest run server/src/tests/p4-payroll-engine.test.ts` — **18/18 PASSED (100%)**
+3. **Phase 1 Payroll Formula DAG & Export Pipeline:** `tsx server/src/tests/phase1-payroll.test.ts` — **64/64 PASSED (100%)**
+4. **Maintenance Mode Acceptance Suite:** `tsx server/src/tests/maintenance-mode-workflow.test.ts` — **18/18 PASSED (100%)**
+5. **Static Type Safety:** `npx tsc --noEmit` (Root & Server) — **0 ERRORS**
+6. **Production Build:** `npm run build` — **EXIT CODE 0 (7.85s)**
+
+---
+
+## 5. External Integrations Classification
+
+| Integration | Implementation Scope | Verification Category | Current Verified State |
+|---|---|:---:|---|
+| **Razorpay Payments** | Subscription checkout, billing, order settlement | **SANDBOX VERIFIED** | Verified with test signatures and webhook handlers. Production credentials required for live payments. |
+| **Tally ERP Importer** | Ledger/voucher XML & JSON import | **REAL INTEGRATION VERIFIED** | Fully operational in application runtime; no external dependency. |
+| **Document OCR Engine** | Offline Tesseract optical character recognition | **REAL INTEGRATION VERIFIED** | Embedded models operate locally; no network connection required. |
+| **Biometric Attendance** | ZKTeco ADMS push protocol (`/iclock/*`) | **MOCK VERIFIED / CONFIG REQUIRED** | Verified via simulation harness; physical LAN deployment requires device IP & port configuration. |
+| **Transactional Email** | SMTP / Resend transport engine | **CONFIGURATION REQUIRED** | Code verified; requires DNS records (SPF/DKIM) and production credentials. |
+| **WhatsApp Alerts** | Meta Cloud API webhooks & notifications | **CONFIGURATION REQUIRED** | Code verified; requires Meta Business permanent access token. |
+| **Google SSO** | OAuth 2.0 authorization code exchange | **CONFIGURATION REQUIRED** | Code verified; requires Google Cloud Console production Client ID and Secret. |

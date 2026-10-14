@@ -24,38 +24,35 @@ export async function getPlatformMaintenanceConfig(): Promise<MaintenanceConfig>
   }
 
   try {
-    // 1. Authoritative SettingsService check
-    const [modeVal, msgVal] = await Promise.all([
+    const [page, modeVal, msgVal] = await Promise.all([
+      (rawPrisma || prisma).cmsPage.findUnique({
+        where: { slug: "system-platform-settings" },
+      }).catch(() => null),
       SettingsService.get("PLATFORM", null, "system.maintenance_mode").catch(() => null),
       SettingsService.get("PLATFORM", null, "system.maintenance_message").catch(() => null),
     ]);
 
-    if (modeVal !== null && modeVal !== undefined) {
-      cachedConfig = {
-        maintenanceMode: Boolean(modeVal),
-        maintenanceScheduled: false,
-        maintenanceNoticeMessage: msgVal ? String(msgVal) : undefined,
-        defaultTimezone: "Asia/Kolkata",
-        supportEmail: `support@${getBaseDomain()}`,
-        cachedAt: now,
-      };
-      return cachedConfig;
-    }
-
-    const page = await (rawPrisma || prisma).cmsPage.findUnique({
-      where: { slug: "system-platform-settings" },
-    });
     const content = (page?.content as any) || {};
+
+    const maintenanceMode = Boolean(content.maintenanceMode) || Boolean(modeVal);
+    const maintenanceScheduled = Boolean(content.maintenanceScheduled);
+    const maintenanceNoticeMessage = content.maintenanceNoticeMessage || (msgVal ? String(msgVal) : undefined);
+    const maintenanceStartTime = content.maintenanceStartTime || undefined;
+    const maintenanceEndTime = content.maintenanceEndTime || undefined;
+    const defaultTimezone = content.defaultTimezone || "Asia/Kolkata";
+    const supportEmail = content.supportEmail || `support@${getBaseDomain()}`;
+
     cachedConfig = {
-      maintenanceMode: Boolean(content.maintenanceMode),
-      maintenanceScheduled: Boolean(content.maintenanceScheduled),
-      maintenanceNoticeMessage: content.maintenanceNoticeMessage || undefined,
-      maintenanceStartTime: content.maintenanceStartTime || undefined,
-      maintenanceEndTime: content.maintenanceEndTime || undefined,
-      defaultTimezone: content.defaultTimezone || "Asia/Kolkata",
-      supportEmail: content.supportEmail || `support@${getBaseDomain()}`,
+      maintenanceMode,
+      maintenanceScheduled,
+      maintenanceNoticeMessage,
+      maintenanceStartTime,
+      maintenanceEndTime,
+      defaultTimezone,
+      supportEmail,
       cachedAt: now,
     };
+    return cachedConfig;
   } catch (err) {
     if (cachedConfig) return cachedConfig;
     return {
@@ -65,7 +62,6 @@ export async function getPlatformMaintenanceConfig(): Promise<MaintenanceConfig>
       supportEmail: `support@${getBaseDomain()}`,
     };
   }
-  return cachedConfig;
 }
 
 export function invalidateMaintenanceCache(): void {
@@ -106,29 +102,48 @@ export function evaluateMaintenanceStatus(config: MaintenanceConfig): {
   }
 
   // 2. Scheduled maintenance window check
-  if (config.maintenanceScheduled && startTimeMs && endTimeMs) {
-    if (now >= startTimeMs && now < endTimeMs) {
-      const retryAfterSeconds = Math.ceil((endTimeMs - now) / 1000);
-      return {
-        isActive: true,
-        isScheduled: true,
-        status: "active",
-        retryAfterSeconds,
-      };
-    } else if (now < startTimeMs) {
-      return {
-        isActive: false,
-        isScheduled: true,
-        status: "scheduled",
-        retryAfterSeconds: null,
-      };
-    } else if (now >= endTimeMs) {
-      return {
-        isActive: false,
-        isScheduled: false,
-        status: "completed",
-        retryAfterSeconds: null,
-      };
+  if (config.maintenanceScheduled && startTimeMs) {
+    if (endTimeMs) {
+      if (now >= startTimeMs && now < endTimeMs) {
+        const retryAfterSeconds = Math.ceil((endTimeMs - now) / 1000);
+        return {
+          isActive: true,
+          isScheduled: true,
+          status: "active",
+          retryAfterSeconds,
+        };
+      } else if (now < startTimeMs) {
+        return {
+          isActive: false,
+          isScheduled: true,
+          status: "scheduled",
+          retryAfterSeconds: null,
+        };
+      } else if (now >= endTimeMs) {
+        return {
+          isActive: false,
+          isScheduled: false,
+          status: "completed",
+          retryAfterSeconds: null,
+        };
+      }
+    } else {
+      // Scheduled maintenance started without configured or valid end time
+      if (now >= startTimeMs) {
+        return {
+          isActive: true,
+          isScheduled: true,
+          status: "active",
+          retryAfterSeconds: null,
+        };
+      } else {
+        return {
+          isActive: false,
+          isScheduled: true,
+          status: "scheduled",
+          retryAfterSeconds: null,
+        };
+      }
     }
   }
 
@@ -146,7 +161,7 @@ export async function maintenanceMiddleware(req: Request, res: Response, next: N
 
   const url = req.originalUrl || req.url;
 
-  // 1. Whitelisted Public Endpoints
+  // 1. Whitelisted Public Endpoints (Least Privilege)
   const isWhitelisted =
     url.startsWith("/api/health") ||
     url.startsWith("/api/system/maintenance-status") ||
@@ -161,7 +176,11 @@ export async function maintenanceMiddleware(req: Request, res: Response, next: N
     url.startsWith("/api/auth/me") ||
     url.startsWith("/api/auth/oauth") ||
     url.startsWith("/api/auth/check-domain") ||
-    url.startsWith("/api/webhooks") ||
+    // Specific payment webhook endpoints with signature validation
+    url.startsWith("/api/payments/razorpay/webhook") ||
+    url.startsWith("/api/webhooks/razorpay") ||
+    url.startsWith("/api/billing/webhook") ||
+    url.startsWith("/api/commerce/webhook") ||
     url.startsWith("/ui-assets") ||
     url.startsWith("/assets") ||
     url.startsWith("/favicon") ||

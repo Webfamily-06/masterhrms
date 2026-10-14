@@ -108,3 +108,16 @@ This document establishes the verified mappings connecting Frontend Routes, REST
 | `/hr/documents/contracts` | `GET/POST /api/v1/hr/documents/contracts` | `hr-documents.routes.ts` | `EmployeeContract`, `ContractType` |
 | `/hr/documents/templates` | `GET/POST /api/v1/hr/documents/templates` | `hr-documents.routes.ts` | `DocumentTemplate`, `GeneratedLetter` |
 | `/tenant/settings` | `GET/PUT /api/v1/settings` | `settings.routes.ts`<br>`SettingsService` | `Setting`, `SettingSecret` |
+
+---
+
+## 8. Platform Maintenance & Payment Webhooks
+
+| Frontend Route / Inbound Path | REST API Endpoint | Controller / Service | Primary Prisma Models | RBAC / Permission Scope |
+|---|---|---|---|---|
+| `/maintenance` | `GET /api/system/maintenance-status` | `hrm-extensions.routes.ts`<br>`systemMaintenanceRouter` | `CmsPage`, `Setting` | Public Unauthenticated Probe |
+| `/super/settings` | `PUT /api/cms/pages/system-platform-settings` | `cms.routes.ts`<br>`cmsRouter` | `CmsPage` | `super_admin` Only |
+| `/api/health` | `GET /api/health/live`, `GET /api/health/ready` | `server/src/index.ts` | Process & Database Ping | Public Monitoring / Load Balancer |
+| `/api/payments/razorpay/webhook` | `POST /api/payments/razorpay/webhook` | `index.ts` / `razorpayWebhookHandler` | `TenantSubscription`, `Transaction` | Cryptographic HMAC SHA256 Signature Header |
+| `/api/billing/webhook` | `POST /api/billing/webhook` | `billing.routes.ts`<br>`handleRazorpayWebhook` | `TenantSubscription`, `WebhookEvent` | HMAC SHA256 (`x-razorpay-signature`) |
+| `/api/commerce/webhook` | `POST /api/commerce/webhook` | `commerce.routes.ts` | `CommerceOrder`, `OrderEvent` | HMAC SHA256 Signature + Idempotency Replay Guard |

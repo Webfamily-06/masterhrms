@@ -344,6 +344,58 @@ async function runAllTests() {
       }) || await prisma.tenant.findFirst();
       const tenantId = tenant ? tenant.id : 'tenant-default-001';
 
+      // Seed statutory rules & Section 9A formulas for tenant
+      const { seedStatutoryRules } = await import('../seeds/statutory-rules.seed');
+      const { seedPayrollFormulas } = await import('../services/formula-engine/standard-formulas');
+      await seedStatutoryRules(prisma, tenantId);
+      await seedPayrollFormulas(prisma, tenantId);
+
+      // Ensure test tenant has a salary structure and assignment for pipeline tests
+      let structure = await prisma.salaryStructure.findFirst({ where: { tenantId } });
+      if (!structure) {
+        structure = await prisma.salaryStructure.create({
+          data: {
+            tenantId,
+            name: 'Standard Executive CTC Structure',
+            description: 'Standard formula-based salary structure',
+            isDefault: true,
+          },
+        });
+      }
+
+      const employees = await prisma.employee.findMany({
+        where: { tenantId },
+        include: { salaryAssignments: { where: { isCurrent: true } } },
+      });
+      for (const emp of employees) {
+        if (!emp.bankAccount || !emp.bankIfsc) {
+          await prisma.employee.update({
+            where: { id: emp.id },
+            data: {
+              bankAccount: emp.bankAccount || '91820000014491',
+              bankIfsc: emp.bankIfsc || 'HDFC0001234',
+              bankName: emp.bankName || 'HDFC Bank',
+              workStateCode: emp.workStateCode || 'TN',
+            },
+          });
+        }
+        if (emp.salaryAssignments.length === 0) {
+          await prisma.employeeSalaryAssignment.create({
+            data: {
+              tenantId,
+              employeeId: emp.id,
+              structureId: structure.id,
+              ctcMonthly: 50000,
+              ctcAnnual: 600000,
+              effectiveFrom: new Date('2026-01-01'),
+              isCurrent: true,
+              taxRegime: emp.taxRegime || 'new',
+              remarks: 'Phase 1 test salary assignment',
+            },
+          });
+        }
+      }
+
       // 1. Preflight Check
       const batchService = new PayrollBatchService(prisma);
       const preflight = await batchService.runPreflight(tenantId);
