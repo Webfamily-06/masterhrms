@@ -221,9 +221,13 @@ const DEFAULT_VERSIONED_STATUTORY_RULES = [
     stateCode: "ALL",
     configJson: {
       act: "Income-tax Act, 2025",
-      section: "392",
+      salaryWithholdingSection: "392",
+      rebateSection: "156",
+      legacyWithholdingSection: "192",
+      legacyRebateSection: "87A",
       standardDeduction: 75000,
-      rebate87ALimit: 700000,
+      section156RebateLimit: 1200000,
+      rebate87ALimit: 1200000,
       cessRate: 4,
     },
     effectiveFrom: new Date("2026-04-01"),
@@ -1343,6 +1347,9 @@ payrollRouter.post(["/generate", "/calculate"], requireAuth, async (req: AuthReq
       const baseMonthlyCtc = assignment
         ? Number(assignment.ctcMonthly)
         : Number(emp.salary || 35000);
+      const annualCtc = assignment?.ctcAnnual
+        ? Number(assignment.ctcAnnual)
+        : (emp.salary ? Number(emp.salary) * 12 : undefined);
 
       // Attendance Metrics: If attendance tracking is enabled and punch records exist for this employee,
       // calculate proration based on actual attendance/leaves. If no attendance records exist for this period,
@@ -1381,6 +1388,63 @@ payrollRouter.post(["/generate", "/calculate"], requireAuth, async (req: AuthReq
       const empClaims = approvedExpenseClaims.filter((c: any) => c.employeeId === emp.id);
       const totalReimbursements = empClaims.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
 
+      // Indian Financial Year boundaries (April 1 to March 31):
+      const fyStartYear = periodMonth >= 4 ? periodYear : periodYear - 1;
+      const fyEndYear = fyStartYear + 1;
+      const isFinalPeriod = periodMonth === 3;
+      const elapsedMonthsInFy = periodMonth >= 4 ? (periodMonth - 4) : (8 + periodMonth);
+      const remainingPeriods = Math.max(1, 12 - elapsedMonthsInFy);
+
+      // Prior authoritative payslips in current FY (exclude current run, require completed/paid status)
+      const priorPayslips = await prisma.payslip.findMany({
+        where: {
+          tenantId,
+          employeeId: emp.id,
+          payrollRunId: { not: payrollRun.id },
+          OR: [
+            {
+              periodYear: fyStartYear,
+              periodMonth: { gte: 4, ...(periodYear === fyStartYear ? { lt: periodMonth } : {}) },
+            },
+            ...(periodYear === fyEndYear ? [{
+              periodYear: fyEndYear,
+              periodMonth: { lte: periodMonth - 1, gte: 1 },
+            }] : []),
+          ],
+          payrollRun: {
+            status: { in: ["completed", "paid"] },
+          },
+        },
+      });
+
+      let priorTdsDeducted = 0;
+      let priorGrossEarned = 0;
+      for (const p of priorPayslips) {
+        priorGrossEarned += Number(p.grossSalary || 0);
+        let slipTds = 0;
+        if (p.breakdown) {
+          const b = typeof p.breakdown === "string" ? JSON.parse(p.breakdown) : p.breakdown;
+          slipTds = Number(b?.deductions?.tds ?? b?.taxation?.monthlyTdsDeduction ?? 0);
+        }
+        if (isNaN(slipTds) || slipTds < 0) {
+          throw new Error(`Inconsistent TDS record detected in prior payslip ${p.id} for employee ${emp.employeeCode}. Manual audit required before payroll generation.`);
+        }
+        priorTdsDeducted += slipTds;
+      }
+
+      // Check for mid-year joiner
+      let employmentMonthsInFy: number | undefined;
+      if (emp.joinedAt) {
+        const joinDate = new Date(emp.joinedAt);
+        const fyStartDate = new Date(fyStartYear, 3, 1);
+        if (joinDate > fyStartDate) {
+          const joinMonth = joinDate.getMonth() + 1;
+          const joinYear = joinDate.getFullYear();
+          const startMonthInFy = joinYear === fyStartYear ? Math.max(4, joinMonth) : (joinYear === fyEndYear ? joinMonth : 4);
+          employmentMonthsInFy = joinYear === fyStartYear ? (12 - startMonthInFy + 1 + 3) : Math.max(1, 3 - startMonthInFy + 1);
+        }
+      }
+
       const empContext = {
         id: emp.id,
         employeeCode: emp.employeeCode,
@@ -1404,6 +1468,8 @@ payrollRouter.post(["/generate", "/calculate"], requireAuth, async (req: AuthReq
         ptEligible: emp.ptEligible,
         tdsEligible: emp.tdsEligible,
         baseMonthlyCtc,
+        annualCtc,
+        joinedAt: emp.joinedAt,
       };
 
       const attContext = {
@@ -1421,6 +1487,11 @@ payrollRouter.post(["/generate", "/calculate"], requireAuth, async (req: AuthReq
         statutoryRules: dbStatutoryRules as any,
         periodMonth,
         periodYear,
+        tdsAlreadyDeducted: Math.round(priorTdsDeducted * 100) / 100,
+        priorGrossEarned: Math.round(priorGrossEarned * 100) / 100,
+        isFinalPeriod,
+        remainingPeriods,
+        employmentMonthsInFy,
       });
 
       totalPayrollGross += breakdown.earnings.totalGross;

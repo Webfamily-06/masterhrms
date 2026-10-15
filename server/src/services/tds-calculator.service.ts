@@ -45,9 +45,9 @@ export interface DualRegimeComparisonResult {
 export class TdsCalculatorService {
   private prisma: PrismaClient;
 
-  // New Regime constants (Finance Act FY 2024-25 / FY 2025-26 / FY 2026-27)
+  // New Regime constants (AY 2026-27 / TY 2026-27 under Income-tax Act, 2025 Section 392)
   public static readonly NEW_STANDARD_DEDUCTION = 75000;
-  public static readonly NEW_REBATE_87A_THRESHOLD = 700000;
+  public static readonly NEW_REBATE_87A_THRESHOLD = 1200000;
 
   // Old Regime constants
   public static readonly OLD_STANDARD_DEDUCTION = 50000;
@@ -149,64 +149,77 @@ export class TdsCalculatorService {
     let tax = 0;
     const slabs: TaxBreakdownResult["slabBreakdown"] = [];
 
-    // Slabs:
-    // 0 - 3,00,000: Nil
-    // 3,00,001 - 6,00,000: 5%
-    // 6,00,001 - 9,00,000: 10%
-    // 9,00,001 - 12,00,000: 15%
-    // 12,00,001 - 15,00,000: 20%
-    // Above 15,00,000: 30%
+    // Slabs (AY 2026-27 / TY 2026-27 under Income-tax Act, 2025 Section 392):
+    // 0 - 4,00,000: Nil
+    // 4,00,001 - 8,00,000: 5%
+    // 8,00,001 - 12,00,000: 10%
+    // 12,00,001 - 16,00,000: 15%
+    // 16,00,001 - 20,00,000: 20%
+    // 20,00,001 - 24,00,000: 25%
+    // Above 24,00,000: 30%
 
     let rem = netTaxableIncome;
 
-    // Slab 1: Up to 3,00,000 (Nil)
-    const s1 = Math.min(rem, 300000);
-    slabs.push({ slab: "₹0 – ₹3,00,000", rate: "0%", taxableAmount: s1, tax: 0 });
-    rem = Math.max(0, rem - 300000);
+    // Slab 1: Up to 4,00,000 (Nil)
+    const s1 = Math.min(rem, 400000);
+    slabs.push({ slab: "₹0 – ₹4,00,000", rate: "0%", taxableAmount: s1, tax: 0 });
+    rem = Math.max(0, rem - 400000);
 
-    // Slab 2: 3,00,001 - 6,00,000 (5%)
-    const s2 = Math.min(rem, 300000);
+    // Slab 2: 4,00,001 - 8,00,000 (5%)
+    const s2 = Math.min(rem, 400000);
     const tax2 = s2 * 0.05;
-    slabs.push({ slab: "₹3,00,001 – ₹6,00,000", rate: "5%", taxableAmount: s2, tax: tax2 });
+    slabs.push({ slab: "₹4,00,001 – ₹8,00,000", rate: "5%", taxableAmount: s2, tax: tax2 });
     tax += tax2;
-    rem = Math.max(0, rem - 300000);
+    rem = Math.max(0, rem - 400000);
 
-    // Slab 3: 6,00,001 - 9,00,000 (10%)
-    const s3 = Math.min(rem, 300000);
+    // Slab 3: 8,00,001 - 12,00,000 (10%)
+    const s3 = Math.min(rem, 400000);
     const tax3 = s3 * 0.10;
-    slabs.push({ slab: "₹6,00,001 – ₹9,00,000", rate: "10%", taxableAmount: s3, tax: tax3 });
+    slabs.push({ slab: "₹8,00,001 – ₹12,00,000", rate: "10%", taxableAmount: s3, tax: tax3 });
     tax += tax3;
-    rem = Math.max(0, rem - 300000);
+    rem = Math.max(0, rem - 400000);
 
-    // Slab 4: 9,00,001 - 12,00,000 (15%)
-    const s4 = Math.min(rem, 300000);
+    // Slab 4: 12,00,001 - 16,00,000 (15%)
+    const s4 = Math.min(rem, 400000);
     const tax4 = s4 * 0.15;
-    slabs.push({ slab: "₹9,00,001 – ₹12,00,000", rate: "15%", taxableAmount: s4, tax: tax4 });
+    slabs.push({ slab: "₹12,00,001 – ₹16,00,000", rate: "15%", taxableAmount: s4, tax: tax4 });
     tax += tax4;
-    rem = Math.max(0, rem - 300000);
+    rem = Math.max(0, rem - 400000);
 
-    // Slab 5: 12,00,001 - 15,00,000 (20%)
-    const s5 = Math.min(rem, 300000);
+    // Slab 5: 16,00,001 - 20,00,000 (20%)
+    const s5 = Math.min(rem, 400000);
     const tax5 = s5 * 0.20;
-    slabs.push({ slab: "₹12,00,001 – ₹15,00,000", rate: "20%", taxableAmount: s5, tax: tax5 });
+    slabs.push({ slab: "₹16,00,001 – ₹20,00,000", rate: "20%", taxableAmount: s5, tax: tax5 });
     tax += tax5;
-    rem = Math.max(0, rem - 300000);
+    rem = Math.max(0, rem - 400000);
 
-    // Slab 6: Above 15,00,000 (30%)
+    // Slab 6: 20,00,001 - 24,00,000 (25%)
+    const s6 = Math.min(rem, 400000);
+    const tax6 = s6 * 0.25;
+    slabs.push({ slab: "₹20,00,001 – ₹24,00,000", rate: "25%", taxableAmount: s6, tax: tax6 });
+    tax += tax6;
+    rem = Math.max(0, rem - 400000);
+
+    // Slab 7: Above 24,00,000 (30%)
     if (rem > 0) {
-      const tax6 = rem * 0.30;
-      slabs.push({ slab: "Above ₹15,00,000", rate: "30%", taxableAmount: rem, tax: tax6 });
-      tax += tax6;
+      const tax7 = rem * 0.30;
+      slabs.push({ slab: "Above ₹24,00,000", rate: "30%", taxableAmount: rem, tax: tax7 });
+      tax += tax7;
     }
 
-    // Section 87A Rebate: Full tax rebate if taxable income <= ₹7,00,000
+    // Section 87A Rebate: Full tax rebate if taxable income <= ₹12,00,000, with marginal relief
     let rebate = 0;
     if (netTaxableIncome <= TdsCalculatorService.NEW_REBATE_87A_THRESHOLD) {
       rebate = tax;
+    } else {
+      const excessIncome = netTaxableIncome - TdsCalculatorService.NEW_REBATE_87A_THRESHOLD;
+      if (tax > excessIncome) {
+        rebate = Math.round((tax - excessIncome) * 100) / 100;
+      }
     }
     const taxAfterRebate = Math.max(0, tax - rebate);
-    const cess = Math.round(taxAfterRebate * 0.04);
-    const totalTax = taxAfterRebate + cess;
+    const cess = Math.round(taxAfterRebate * 0.04 * 100) / 100;
+    const totalTax = Math.round((taxAfterRebate + cess) * 100) / 100;
 
     return {
       regime: "new",

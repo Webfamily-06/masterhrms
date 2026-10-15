@@ -292,15 +292,22 @@ export const OFFICIAL_STATUTORY_RULE_PACKS: StatutoryRuleSeed[] = [
     effectiveFrom: new Date("2025-04-01"),
     effectiveTo: null,
     sourceAuthority: "Central Board of Direct Taxes (CBDT) / Ministry of Finance",
-    notificationRef: "Finance Act 2025 / Section 115BAC & Section 392 Withholding Tables",
+    notificationRef: "Income-tax Act, 2025 Section 392 (Withholding) & Section 156 (Rebate)",
     isVerified: true,
     status: "active",
     configJson: {
+      act: "Income-tax Act, 2025",
+      salaryWithholdingSection: "392",
+      rebateSection: "156",
+      legacyWithholdingSection: "192",
+      legacyRebateSection: "87A",
+      taxYear: "2026-2027",
       financialYear: "2026-2027",
       assessmentYear: "2027-2028",
       cessRate: 0.04,
       newRegime: {
         standardDeduction: 75000,
+        section156RebateThreshold: 1200000,
         section87ARebateThreshold: 1200000,
         slabs: [
           { min: 0, max: 400000, rate: 0.0 },
@@ -314,6 +321,7 @@ export const OFFICIAL_STATUTORY_RULE_PACKS: StatutoryRuleSeed[] = [
       },
       oldRegime: {
         standardDeduction: 50000,
+        section156RebateThreshold: 500000,
         section87ARebateThreshold: 500000,
         section80CLimit: 150000,
         section80DLimit: 25000,

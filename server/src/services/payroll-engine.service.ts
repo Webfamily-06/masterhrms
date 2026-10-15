@@ -1,3 +1,5 @@
+import Decimal from "decimal.js";
+
 /**
  * Master ERP HRMS — Global Statutory & Payroll Calculation Engine
  * 
@@ -31,7 +33,11 @@ export interface EmployeePayrollContext {
   esiEligible?: boolean;
   ptEligible?: boolean;
   tdsEligible?: boolean;
+  isResident?: boolean;
   baseMonthlyCtc: number;
+  annualCtc?: number;
+  joinedAt?: Date | string | null;
+  relievedAt?: Date | string | null;
 }
 
 export interface AttendanceContext {
@@ -54,6 +60,7 @@ export interface TaxDeclarationContext {
   section80G?: number | any;
   homeLoanInterest?: number | any;
   otherIncome?: number | any;
+  specialRateIncome?: number | any; // Special-rate income (capital gains, winnings) excluded from Sec 156 rebate
   totalDeductionApproved?: number | any;
 }
 
@@ -110,7 +117,13 @@ export interface SalaryBreakdownResult {
     hraExemption: number;
     netTaxableIncome: number;
     annualTaxCalculated: number;
-    rebate87A: number;
+    rebate87A: number; // Retained for backwards-compatibility
+    section156Rebate?: number; // Canonical Income-tax Act, 2025 citation
+    statutoryAct?: string;
+    salaryWithholdingSection?: string;
+    rebateSection?: string;
+    taxYear?: string;
+    ruleVersion?: number;
     netTaxAfterRebate: number;
     cessAmount: number;
     totalAnnualTds: number;
@@ -274,93 +287,204 @@ export function calculateStatutoryESI(monthlyEarnedGross: number) {
   };
 }
 
+export interface TaxCalculationOptions {
+  isResident?: boolean;
+  statutoryRules?: StatutoryRuleRecord[];
+  periodMonth?: number;
+  periodYear?: number;
+  financialYear?: string;
+  tdsAlreadyDeducted?: number; // Prior cumulative TDS deducted across earlier periods in tax year
+  isFinalPeriod?: boolean; // Flag to indicate final reconciliation period (e.g. Month 12 / March)
+  remainingPeriods?: number; // Remaining periods in tax year over which to distribute remaining liability
+  redistributeRemaining?: boolean; // Whether to dynamically redistribute remaining liability across remaining periods
+}
+
 // -------------------------------------------------------------
 // 3. INCOME-TAX ACT, 2025 SECTION 392 WITHHOLDING TAX (TDS) ENGINE
 // -------------------------------------------------------------
 export function calculateAnnualTDS(
   projectedAnnualGross: number,
   regime: "new" | "old" = "new",
-  declarations?: Partial<TaxDeclarationContext>
+  declarations?: Partial<TaxDeclarationContext>,
+  options?: TaxCalculationOptions
 ) {
   let standardDeduction = 0;
   let section80C = 0;
   let section80D = 0;
   let section24b = 0;
   let hraExemption = 0;
-  let otherIncome = declarations?.otherIncome || 0;
+  const otherIncome = Number(declarations?.otherIncome || 0);
+  const specialRateIncome = Number(declarations?.specialRateIncome || 0);
 
-  let totalTaxableIncome = projectedAnnualGross + otherIncome;
+  const isResident = options?.isResident !== false; // Resident individual by default
+
+  // Check if custom or versioned statutory rule exists in database rule pack
+  const tdsRule = options?.statutoryRules?.find(
+    (r) => r.ruleType === "TDS_ITA2025" || r.ruleType === "TDS_115BAC"
+  );
+  const newRuleConfig = tdsRule?.configJson?.newRegime;
+  const oldRuleConfig = tdsRule?.configJson?.oldRegime;
 
   if (regime === "new") {
-    // Under Income-tax Act, 2025 / Budget 2025-26: Standard deduction is ₹75,000
-    standardDeduction = 75000;
-    totalTaxableIncome = Math.max(0, totalTaxableIncome - standardDeduction);
+    // Standard deduction under Income-tax Act, 2025 / Budget 2025-26: ₹75,000
+    standardDeduction = newRuleConfig?.standardDeduction || 75000;
+    const stdDeductDec = new Decimal(standardDeduction);
+    const taxableSalaryDec = Decimal.max(0, new Decimal(projectedAnnualGross).minus(stdDeductDec));
+    const totalTaxableDec = taxableSalaryDec.plus(otherIncome).plus(specialRateIncome);
+    const totalTaxableIncome = totalTaxableDec.toNumber();
 
-    // New Tax Slabs (FY 2025-26 & 2026-27 under ITA 2025 Sec 392):
-    // 0 - 3,00,000 : 0%
-    // 3,00,001 - 7,00,000 : 5%
-    // 7,00,001 - 10,00,000 : 10%
-    // 10,00,001 - 12,00,000 : 15%
-    // 12,00,001 - 15,00,000 : 20%
-    // > 15,00,000 : 30%
+    // Slabs (AY 2026-27 / TY 2026-27 under Income-tax Act, 2025 Section 392 withholding):
+    // Slab 1: ₹0 – ₹4,00,000 : 0%
+    // Slab 2: ₹4,00,001 – ₹8,00,000 : 5%
+    // Slab 3: ₹8,00,001 – ₹12,00,000 : 10%
+    // Slab 4: ₹12,00,001 – ₹16,00,000 : 15%
+    // Slab 5: ₹16,00,001 – ₹20,00,000 : 20%
+    // Slab 6: ₹20,00,001 – ₹24,00,000 : 25%
+    // Slab 7: Above ₹24,00,000 : 30%
 
-    let rawTax = 0;
-    if (totalTaxableIncome > 1500000) {
-      rawTax += (totalTaxableIncome - 1500000) * 0.30;
-      rawTax += 300000 * 0.20; // 12L-15L = 60,000
-      rawTax += 200000 * 0.15; // 10L-12L = 30,000
-      rawTax += 300000 * 0.10; // 7L-10L = 30,000
-      rawTax += 400000 * 0.05; // 3L-7L = 20,000
-    } else if (totalTaxableIncome > 1200000) {
-      rawTax += (totalTaxableIncome - 1200000) * 0.20;
-      rawTax += 200000 * 0.15;
-      rawTax += 300000 * 0.10;
-      rawTax += 400000 * 0.05;
-    } else if (totalTaxableIncome > 1000000) {
-      rawTax += (totalTaxableIncome - 1000000) * 0.15;
-      rawTax += 300000 * 0.10;
-      rawTax += 400000 * 0.05;
-    } else if (totalTaxableIncome > 700000) {
-      rawTax += (totalTaxableIncome - 700000) * 0.10;
-      rawTax += 400000 * 0.05;
-    } else if (totalTaxableIncome > 300000) {
-      rawTax += (totalTaxableIncome - 300000) * 0.05;
+    const customSlabs = newRuleConfig?.slabs;
+    let rawTaxDec = new Decimal(0);
+
+    if (Array.isArray(customSlabs) && customSlabs.length > 0) {
+      let rem = totalTaxableDec;
+      for (const slab of customSlabs) {
+        if (rem.lessThanOrEqualTo(0)) break;
+        const slabSpan = slab.max !== null && slab.max !== undefined
+          ? new Decimal(slab.max).minus(slab.min)
+          : new Decimal(Infinity);
+        const taxableInSlab = Decimal.min(rem, slabSpan);
+        if (taxableInSlab.greaterThan(0) && slab.rate > 0) {
+          rawTaxDec = rawTaxDec.plus(taxableInSlab.times(slab.rate));
+        }
+        rem = Decimal.max(0, rem.minus(taxableInSlab));
+      }
+    } else {
+      // Default official Income-tax Act, 2025 Section 392 slabs (AY 2026-27)
+      if (totalTaxableDec.greaterThan(2400000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(2400000).times(0.30))
+          .plus(new Decimal(400000).times(0.25)) // 20L-24L = 100,000
+          .plus(new Decimal(400000).times(0.20)) // 16L-20L = 80,000
+          .plus(new Decimal(400000).times(0.15)) // 12L-16L = 60,000
+          .plus(new Decimal(400000).times(0.10)) // 8L-12L = 40,000
+          .plus(new Decimal(400000).times(0.05)); // 4L-8L = 20,000
+      } else if (totalTaxableDec.greaterThan(2000000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(2000000).times(0.25))
+          .plus(new Decimal(400000).times(0.20))
+          .plus(new Decimal(400000).times(0.15))
+          .plus(new Decimal(400000).times(0.10))
+          .plus(new Decimal(400000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(1600000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(1600000).times(0.20))
+          .plus(new Decimal(400000).times(0.15))
+          .plus(new Decimal(400000).times(0.10))
+          .plus(new Decimal(400000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(1200000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(1200000).times(0.15))
+          .plus(new Decimal(400000).times(0.10))
+          .plus(new Decimal(400000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(800000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(800000).times(0.10))
+          .plus(new Decimal(400000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(400000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(400000).times(0.05));
+      }
     }
 
-    // Section 87A Rebate: Under New Regime, full tax rebate up to ₹7,00,000 taxable income
-    let rebate87A = 0;
-    if (totalTaxableIncome <= 700000) {
-      rebate87A = rawTax;
-      rawTax = 0;
+    rawTaxDec = rawTaxDec.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const rawTax = rawTaxDec.toNumber();
+
+    // Section 156(2) Rebate (formerly Section 87A of Income-tax Act, 1961):
+    // Available exclusively to Resident Individuals.
+    // Under Income-tax Act, 2025 Section 156(2) (AY 2026-27 / TY 2026-27):
+    // Full rebate of tax payable up to ₹60,000 for taxable income up to ₹12,00,000.
+    const rebateThreshold =
+      newRuleConfig?.section156RebateThreshold ||
+      newRuleConfig?.section87ARebateThreshold ||
+      1200000;
+    const rebateThresholdDec = new Decimal(rebateThreshold);
+    let rebateDec = new Decimal(0);
+    let taxAfterRebateDec = rawTaxDec;
+
+    if (isResident) {
+      if (totalTaxableDec.lessThanOrEqualTo(rebateThresholdDec)) {
+        // Full rebate under Section 156(2)
+        rebateDec = rawTaxDec;
+        taxAfterRebateDec = new Decimal(0);
+      } else {
+        // Marginal Relief: Tax payable cannot exceed excess taxable income over the rebate threshold
+        const excessIncomeDec = totalTaxableDec.minus(rebateThresholdDec);
+        if (rawTaxDec.greaterThan(excessIncomeDec)) {
+          rebateDec = rawTaxDec.minus(excessIncomeDec).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+          taxAfterRebateDec = excessIncomeDec.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        } else {
+          rebateDec = new Decimal(0);
+          taxAfterRebateDec = rawTaxDec;
+        }
+      }
+    } else {
+      // Non-resident / NRI: Ineligible for Section 156 / 87A rebate
+      rebateDec = new Decimal(0);
+      taxAfterRebateDec = rawTaxDec;
     }
 
-    const cess = Math.round(rawTax * 0.04 * 100) / 100;
-    const totalAnnualTds = Math.round((rawTax + cess) * 100) / 100;
-    const monthlyTds = Math.round((totalAnnualTds / 12) * 100) / 100;
+    const cessRateDec = new Decimal(tdsRule?.configJson?.cessRate || 0.04);
+    const cessDec = taxAfterRebateDec.times(cessRateDec).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const totalAnnualTdsDec = taxAfterRebateDec.plus(cessDec).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const totalAnnualTds = totalAnnualTdsDec.toNumber();
+
+    let monthlyTdsDec: Decimal;
+    const isFinal = Boolean(options?.isFinalPeriod || (options?.remainingPeriods !== undefined && options.remainingPeriods === 1));
+
+    // Period-based cumulative withholding adjustment policy (Section 392):
+    // Standard periods (Months 1–11) withhold rounded monthly average;
+    // Final reconciliation period (isFinalPeriod === true) absorbs rounding variance so cumulative sum equals annual liability exactly.
+    if (options?.tdsAlreadyDeducted !== undefined && isFinal) {
+      monthlyTdsDec = Decimal.max(0, totalAnnualTdsDec.minus(new Decimal(options.tdsAlreadyDeducted)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP));
+    } else if (options?.redistributeRemaining && options?.tdsAlreadyDeducted !== undefined && options?.remainingPeriods && options.remainingPeriods > 1) {
+      // In-year dynamic redistribution for salary revisions, LOPs, or mid-year adjustments
+      const remainingLiability = Decimal.max(0, totalAnnualTdsDec.minus(new Decimal(options.tdsAlreadyDeducted)));
+      monthlyTdsDec = remainingLiability.dividedBy(options.remainingPeriods).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    } else {
+      monthlyTdsDec = totalAnnualTdsDec.dividedBy(12).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    }
+
+    let rebateSection = "Section 156(2)";
+    if (!isResident) {
+      rebateSection = "N/A (Ineligible Non-Resident)";
+    } else if (rebateDec.isZero() && totalTaxableDec.greaterThan(rebateThresholdDec)) {
+      rebateSection = "Section 156(2) (Exceeded Threshold)";
+    }
 
     return {
       annualProjectedGross: projectedAnnualGross,
       taxRegime: "new" as const,
+      isResident,
       standardDeduction,
       section80CDeduction: 0,
       section80DDeduction: 0,
       section24bDeduction: 0,
       hraExemption: 0,
       netTaxableIncome: totalTaxableIncome,
-      annualTaxCalculated: Math.round(rawTax * 100) / 100,
-      rebate87A,
-      netTaxAfterRebate: rawTax,
-      cessAmount: cess,
+      annualTaxCalculated: rawTax,
+      rebate87A: rebateDec.toNumber(), // Legacy alias for backward compatibility
+      section156Rebate: rebateDec.toNumber(), // Canonical ITA 2025 provision
+      statutoryAct: "Income-tax Act, 2025",
+      salaryWithholdingSection: "392",
+      rebateSection,
+      taxYear: tdsRule?.configJson?.taxYear || "2026-2027",
+      ruleVersion: (tdsRule as any)?.version || 1,
+      netTaxAfterRebate: taxAfterRebateDec.toNumber(),
+      cessAmount: cessDec.toNumber(),
       totalAnnualTds,
-      monthlyTdsDeduction: monthlyTds,
+      monthlyTdsDeduction: monthlyTdsDec.toNumber(),
     };
   } else {
-    // Old Tax Regime
+    // Old Tax Regime with Decimal precision
     standardDeduction = 50000;
     section80C = Math.min(150000, Number(declarations?.section80C || 0));
     section80D = Math.min(50000, Number(declarations?.section80D || 0));
     section24b = Math.min(200000, Number(declarations?.homeLoanInterest || 0));
-    
+
     // HRA calculation approximation (least of actual rent paid - 10% basic, 40% basic, HRA)
     const annualBasic = projectedAnnualGross * 0.5;
     const annualHra = projectedAnnualGross * 0.2;
@@ -371,50 +495,89 @@ export function calculateAnnualTDS(
     }
 
     const totalOldDeductions = standardDeduction + section80C + section80D + section24b + hraExemption;
-    totalTaxableIncome = Math.max(0, totalTaxableIncome - totalOldDeductions);
+    const totalTaxableDec = Decimal.max(0, new Decimal(projectedAnnualGross).plus(otherIncome).plus(specialRateIncome).minus(totalOldDeductions));
+    const totalTaxableIncome = totalTaxableDec.toNumber();
 
     // Old Slabs:
     // 0 - 2.5L: 0%
     // 2.5L - 5L: 5%
     // 5L - 10L: 20%
     // > 10L: 30%
-    let rawTax = 0;
-    if (totalTaxableIncome > 1000000) {
-      rawTax += (totalTaxableIncome - 1000000) * 0.30;
-      rawTax += 500000 * 0.20; // 1,00,000
-      rawTax += 250000 * 0.05; // 12,500
-    } else if (totalTaxableIncome > 500000) {
-      rawTax += (totalTaxableIncome - 500000) * 0.20;
-      rawTax += 250000 * 0.05;
-    } else if (totalTaxableIncome > 250000) {
-      rawTax += (totalTaxableIncome - 250000) * 0.05;
+    let rawTaxDec = new Decimal(0);
+    if (totalTaxableDec.greaterThan(1000000)) {
+      rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(1000000).times(0.30))
+        .plus(new Decimal(500000).times(0.20)) // 1,00,000
+        .plus(new Decimal(250000).times(0.05)); // 12,500
+    } else if (totalTaxableDec.greaterThan(500000)) {
+      rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(500000).times(0.20))
+        .plus(new Decimal(250000).times(0.05));
+    } else if (totalTaxableDec.greaterThan(250000)) {
+      rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(250000).times(0.05));
     }
 
-    let rebate87A = 0;
-    if (totalTaxableIncome <= 500000) {
-      rebate87A = rawTax;
-      rawTax = 0;
+    rawTaxDec = rawTaxDec.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const rawTax = rawTaxDec.toNumber();
+    let rebateDec = new Decimal(0);
+    let taxAfterRebateDec = rawTaxDec;
+
+    const oldRebateThreshold =
+      oldRuleConfig?.section156RebateThreshold ||
+      oldRuleConfig?.section87ARebateThreshold ||
+      500000;
+    const oldRebateThresholdDec = new Decimal(oldRebateThreshold);
+
+    if (isResident) {
+      if (totalTaxableDec.lessThanOrEqualTo(oldRebateThresholdDec)) {
+        rebateDec = Decimal.min(12500, rawTaxDec);
+        taxAfterRebateDec = Decimal.max(0, rawTaxDec.minus(rebateDec));
+      }
     }
 
-    const cess = Math.round(rawTax * 0.04 * 100) / 100;
-    const totalAnnualTds = Math.round((rawTax + cess) * 100) / 100;
-    const monthlyTds = Math.round((totalAnnualTds / 12) * 100) / 100;
+    const cessDec = taxAfterRebateDec.times(0.04).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const totalAnnualTdsDec = taxAfterRebateDec.plus(cessDec).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const totalAnnualTds = totalAnnualTdsDec.toNumber();
+
+    let monthlyTdsDec: Decimal;
+    const isFinal = Boolean(options?.isFinalPeriod || (options?.remainingPeriods !== undefined && options.remainingPeriods === 1));
+
+    if (options?.tdsAlreadyDeducted !== undefined && isFinal) {
+      monthlyTdsDec = Decimal.max(0, totalAnnualTdsDec.minus(new Decimal(options.tdsAlreadyDeducted)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP));
+    } else if (options?.redistributeRemaining && options?.tdsAlreadyDeducted !== undefined && options?.remainingPeriods && options.remainingPeriods > 1) {
+      const remainingLiability = Decimal.max(0, totalAnnualTdsDec.minus(new Decimal(options.tdsAlreadyDeducted)));
+      monthlyTdsDec = remainingLiability.dividedBy(options.remainingPeriods).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    } else {
+      monthlyTdsDec = totalAnnualTdsDec.dividedBy(12).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    }
+
+    let rebateSection = "Section 156(1)";
+    if (!isResident) {
+      rebateSection = "N/A (Ineligible Non-Resident)";
+    } else if (rebateDec.isZero() && totalTaxableDec.greaterThan(oldRebateThresholdDec)) {
+      rebateSection = "Section 156(1) (Exceeded Threshold)";
+    }
 
     return {
       annualProjectedGross: projectedAnnualGross,
       taxRegime: "old" as const,
+      isResident,
       standardDeduction,
       section80CDeduction: section80C,
       section80DDeduction: section80D,
       section24bDeduction: section24b,
       hraExemption,
       netTaxableIncome: totalTaxableIncome,
-      annualTaxCalculated: Math.round(rawTax * 100) / 100,
-      rebate87A,
-      netTaxAfterRebate: rawTax,
-      cessAmount: cess,
+      annualTaxCalculated: rawTax,
+      rebate87A: rebateDec.toNumber(),
+      section156Rebate: rebateDec.toNumber(),
+      statutoryAct: "Income-tax Act, 2025 (Transitional) / Income-tax Act, 1961",
+      salaryWithholdingSection: "392 (192)",
+      rebateSection,
+      taxYear: "2026-2027",
+      ruleVersion: 1,
+      netTaxAfterRebate: taxAfterRebateDec.toNumber(),
+      cessAmount: cessDec.toNumber(),
       totalAnnualTds,
-      monthlyTdsDeduction: monthlyTds,
+      monthlyTdsDeduction: monthlyTdsDec.toNumber(),
     };
   }
 }
@@ -443,6 +606,12 @@ export function computeEmployeePayrollBreakdown(
     periodYear?: number;
     currency?: string;
     currencySymbol?: string;
+    tdsAlreadyDeducted?: number;
+    priorGrossEarned?: number;
+    isFinalPeriod?: boolean;
+    remainingPeriods?: number;
+    redistributeRemaining?: boolean;
+    employmentMonthsInFy?: number;
   }
 ): SalaryBreakdownResult {
   const proration = attendance.prorationFactor;
@@ -488,10 +657,52 @@ export function computeEmployeePayrollBreakdown(
     : 0;
 
   // Tax Withholding (TDS) Calculation
-  const annualProjectedGross = totalEarnedGross * 12;
+  // Annualization logic:
+  // 1. If priorGrossEarned is provided (authoritative YTD gross from prior completed payslips):
+  //    annualProjectedGross = priorGrossEarned + totalEarnedGross + (baseMonthlyCtc * futurePeriods)
+  // 2. If employmentMonthsInFy is provided (mid-year joiner or exit):
+  //    annualProjectedGross = (annualCtc * activeMonths / 12) or (baseMonthlyCtc * activeMonths)
+  // 3. If exact annualCtc is specified on the employee profile:
+  //    annualProjectedGross = Number(employee.annualCtc)
+  // 4. Otherwise project 12 months from earned gross
+  let annualProjectedGross: number;
+  if (options?.priorGrossEarned !== undefined) {
+    const futurePeriods = Math.max(0, (options.remainingPeriods ?? 1) - 1);
+    annualProjectedGross = new Decimal(options.priorGrossEarned)
+      .plus(totalEarnedGross)
+      .plus(new Decimal(baseMonthlyCtc).times(futurePeriods))
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+      .toNumber();
+  } else if (options?.employmentMonthsInFy !== undefined) {
+    const activeMonths = Math.max(1, Math.min(12, options.employmentMonthsInFy));
+    if (employee.annualCtc) {
+      annualProjectedGross = new Decimal(employee.annualCtc).times(activeMonths).dividedBy(12).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+    } else {
+      annualProjectedGross = new Decimal(baseMonthlyCtc).times(activeMonths).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+    }
+  } else if (employee.annualCtc) {
+    annualProjectedGross = Number(employee.annualCtc);
+  } else {
+    annualProjectedGross = new Decimal(totalEarnedGross).times(12).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+  }
+
   const taxResult = employee.tdsEligible !== false
-    ? calculateAnnualTDS(annualProjectedGross, (employee.taxRegime as any) || "new", options?.declarations)
-    : calculateAnnualTDS(annualProjectedGross, "new");
+    ? calculateAnnualTDS(
+        annualProjectedGross,
+        (employee.taxRegime as any) || "new",
+        options?.declarations,
+        {
+          isResident: employee.isResident !== false,
+          statutoryRules: options?.statutoryRules,
+          periodMonth,
+          periodYear: options?.periodYear,
+          tdsAlreadyDeducted: options?.tdsAlreadyDeducted,
+          isFinalPeriod: options?.isFinalPeriod,
+          remainingPeriods: options?.remainingPeriods,
+          redistributeRemaining: options?.redistributeRemaining,
+        }
+      )
+    : calculateAnnualTDS(annualProjectedGross, "new", undefined, { isResident: true });
 
   const monthlyTds = employee.tdsEligible !== false ? taxResult.monthlyTdsDeduction : 0;
 

@@ -288,7 +288,7 @@ function renderForm16(doc: any, autoTable: any, payload: StatutoryPdfExportPaylo
     ["   (d) Total Chapter VI-A Deductions", fmtINR(m.partB.chapter6ADeductions.totalDeductions)],
     ["7. Total Taxable Income (5 - 6)", fmtINR(m.partB.totalTaxableIncome)],
     ["8. Tax on Total Income calculated under Sec 392", fmtINR(m.partB.taxOnTotalIncome)],
-    ["9. Rebate under Section 87A", fmtINR(m.partB.rebate87A)],
+    ["9. Rebate under Section 156 (formerly Section 87A)", fmtINR(m.partB.rebate87A)],
     ["10. Health and Education Cess (4% on net tax)", fmtINR(m.partB.cess)],
     ["11. Net Tax Liability Deducted & Certified (8 - 9 + 10)", fmtINR(m.partB.netTaxPayable)],
     ["12. Total TDS Withheld by Deductor & Deposited", fmtINR(m.partB.tdsDeducted)],

@@ -516,7 +516,7 @@ export function TaxVerificationWorkspace({ isHR, financialYear = "2026-2027" }: 
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Section 87A Rebate:</span>
+                      <span>Section 156 (87A) Rebate:</span>
                       <span className="font-mono text-emerald-600">
                         ₹{calcComparison.newRegime?.rebate87A?.toLocaleString("en-IN")}
                       </span>

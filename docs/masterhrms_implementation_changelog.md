@@ -85,6 +85,36 @@
   - TypeScript: 0 errors across root and server.
   - Production Build: Exit code 0 (7.85s).
 
+### Wave 9: P0 Critical Defect Resolution — Statutory TDS Engine & Income-tax Act, 2025 Reconciliation
+- **Defect Investigated & Root Cause:**
+  - A potential critical TDS defect was reported where a gross salary of ₹75,000/mo (₹9,00,000 annual gross, standard deduction ₹75,000, taxable ₹8,25,000) incorrectly generated ₹33,800 annual TDS (₹2,816.67/mo) yielding ₹67,483.33 net pay.
+  - Root cause was traced to hardcoded legacy slabs (0-3L, 3L-7L @ 5%, 7L-10L @ 10%) and an obsolete Section 87A rebate threshold of ₹7,00,000 in `server/src/services/payroll-engine.service.ts` and `server/src/services/tds-calculator.service.ts`, bypassing the updated `TDS_ITA2025` database rule pack.
+- **Statutory Provisions Applied (AY 2026-27 / TY 2026-27):**
+  - **Income-tax Act, 2025 Section 392** (salary withholding tables replacing 1961 Act Section 192).
+  - **New Tax Regime Slabs:**
+    - ₹0 to ₹4,00,000: 0%
+    - ₹4,00,001 to ₹8,00,000: 5% (₹20,000)
+    - ₹8,00,001 to ₹12,00,000: 10% (₹40,000)
+    - ₹12,00,001 to ₹16,00,000: 15% (₹60,000)
+    - ₹16,00,001 to ₹20,00,000: 20% (₹80,000)
+    - ₹20,00,001 to ₹24,00,000: 25% (₹1,00,000)
+    - Above ₹24,00,000: 30%
+  - **Section 87A Resident Individual Rebate:** Full rebate up to ₹12,00,000 taxable income for resident individuals. Marginal relief enforced for taxable incomes slightly exceeding ₹12,00,000 (tax payable cannot exceed excess taxable income over ₹12,00,000).
+  - **Non-Resident Individual (NRI) Ineligibility:** NRI employees receive 0% rebate regardless of income.
+- **Files Modified & Hardened:**
+  - `server/src/services/payroll-engine.service.ts`: Updated `calculateAnnualTDS` and `computeEmployeePayrollBreakdown` with full ITA 2025 Section 392 slabs, dynamic DB rule lookup (`TDS_ITA2025`), residency support (`isResident`), marginal relief, and `TaxCalculationOptions`.
+  - `server/src/services/tds-calculator.service.ts`: Updated `NEW_REBATE_87A_THRESHOLD = 1200000`, 4L slab intervals, and marginal relief calculation.
+  - `server/src/routes/forms.routes.ts`: Updated Form 16 rebate label to ₹12,00,000.
+  - `scratch/staging-lifecycle-e2e-smoke.ts`: Reconciled Step 5 assertion to `netPay === 70300 && tds === 0`.
+  - `server/src/tests/statutory-tds-reconciliation.test.ts` (NEW): 12 comprehensive regression tests.
+- **Historical Payroll Run Audit:**
+  - Audited all existing database payslips: Exactly 7 payslips exist, all synthetic test fixtures (`slip-bob-sec-001`, `slip-red-smoke-001`, etc.) and 1 draft. Zero finalized live production payroll runs exist.
+- **Test Evidence:**
+  - `statutory-tds-reconciliation.test.ts`: 12/12 passed (100%).
+  - `p4-payroll-engine.test.ts`: 18/18 passed (100%).
+  - `staging-lifecycle-e2e-smoke.ts`: 7/7 stages passed (100%).
+  - TypeScript: 0 errors across root and server.
+
 ---
 
 ## 2. Backward Compatibility & Database Migration Notes
@@ -92,3 +122,4 @@
 - **Database Changes:** All models (`LeaveRequest`, `AttendanceRegularization`, `Payslip`, `Employee`, `Tenant`, `SalaryStructure`, `StatutoryRule`) utilize existing database schema tables without destructive migrations.
 - **API Contracts:** No breaking changes introduced. Existing endpoints retain existing response schemas while adding strict multi-tenant validation filters.
 - **Rollback Assurance:** Preceding stable commit `d79bc10` is verified as the rollback target. Tag `v1.0.0-employee-portal` points to `1700cbd`.
+

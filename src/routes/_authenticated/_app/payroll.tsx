@@ -1533,7 +1533,7 @@ function Payroll() {
                                   { label: "HRA Exemption", value: form16Data.partB?.hraExemption, type: "currency" },
                                   { label: "Total Taxable Income", value: form16Data.partB?.totalTaxableIncome, type: "currency" },
                                   { label: "Tax Calculated on Income", value: form16Data.partB?.taxPayable, type: "currency" },
-                                  { label: "Rebate under Section 87A", value: form16Data.partB?.rebate87A, type: "currency" },
+                                  { label: "Rebate under Section 156 (formerly Section 87A)", value: form16Data.partB?.rebate87A, type: "currency" },
                                   { label: "Health & Education Cess (4%)", value: form16Data.partB?.cess, type: "currency" },
                                   { label: "Net Tax Liability Certified", value: form16Data.partB?.netTaxLiability, type: "currency" },
                                 ],

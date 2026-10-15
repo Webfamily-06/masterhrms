@@ -697,7 +697,7 @@ export const OFFICIAL_STATUTORY_FORMS: OfficialStatutoryFormDefinition[] = [
     formNumber: "FORM NO. 16",
     title: "Certificate under Section 392 of the Income-tax Act, 2025 for Tax Deducted at Source on Salary",
     ruleCitation: "[See rule 31(1)(a) & section 392 of Income-tax Act, 2025 (formerly Section 203 of ITA 1961)]",
-    purpose: "Official annual salary TDS certificate issued to employee specifying gross earnings, Section 392 standard deduction (₹75k), rebate u/s 87A, cess, and deposited challan details.",
+    purpose: "Official annual salary TDS certificate issued to employee specifying gross earnings, Section 392 standard deduction (₹75k), rebate u/s 156 (formerly Section 87A), cess, and deposited challan details.",
     sections: [
       {
         id: "part_a",
@@ -725,7 +725,7 @@ export const OFFICIAL_STATUTORY_FORMS: OfficialStatutoryFormDefinition[] = [
           { id: "chapter_6a_deductions", label: "5. Deductions under Chapter VI-A (80C, 80D, 80G, etc.) (₹)", type: "currency", defaultValue: 0 },
           { id: "total_taxable_income", label: "6. Total Taxable Income (₹)", type: "currency", binding: "payroll.taxableIncome", readOnly: true },
           { id: "tax_on_income", label: "7. Tax on Total Income calculated under Sec 392 (₹)", type: "currency", binding: "payroll.rawTax", readOnly: true },
-          { id: "rebate_87a", label: "8. Rebate under Section 87A (Tax nil up to ₹7,00,000) (₹)", type: "currency", binding: "payroll.rebate87A", readOnly: true },
+          { id: "rebate_section_156", label: "8. Rebate under Section 156 (formerly Section 87A; Tax nil up to ₹12,00,000 for resident individuals) (₹)", type: "currency", binding: "payroll.rebate87A", readOnly: true },
           { id: "health_education_cess", label: "9. Health and Education Cess (4% on Tax) (₹)", type: "currency", binding: "payroll.cess", readOnly: true },
           { id: "net_tax_payable", label: "10. Net Tax Liability Deducted & Certified (₹)", type: "currency", binding: "payroll.totalTds", readOnly: true },
         ],
