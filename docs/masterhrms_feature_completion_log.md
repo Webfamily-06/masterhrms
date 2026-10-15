@@ -1300,6 +1300,46 @@ All queried entities inspected and verified in `server/prisma/schema.prisma`:
 - Published Payslips: **6** (Unmodified, exactly equal to baseline).
 - Live Payroll Deductions: Strictly disabled.
 
+---
+
+## 12. Batch 3B: Smart Reports Frontend Integration — Implementation & Verification Report
+
+### 12.1 Implementation Summary & Scope Discipline
+- **Approved Scope:** Batch 3B ONLY (Connecting report catalogue and canonical `report-view.tsx` to Batch 3A backend APIs, elimination of synthetic data, robust TanStack Query caching, RBAC role gating, loading/empty/error states, and authenticated exports).
+- **Prohibited Modifications Strictly Observed:**
+  - Zero backend routes or service files modified.
+  - Zero database schemas, Prisma models, or migrations modified.
+  - Zero payroll calculations, tax rules, or financial-year engines modified.
+  - Finalized payroll runs count locked at **2**; published payslips count locked at **6**.
+  - Subsequent batches (Batch 3C / Batch 4) strictly held.
+
+### 12.2 Component Adaptations & Architecture
+- **Canonical Report Detail View (`src/components/smart-reports/report-view.tsx`):**
+  - Bound directly to `GET /api/smart-reports/:reportId` via TanStack `useQuery({ queryKey: ['smart-report', reportId, filters] })`.
+  - Added domain least-privilege matrix (`REPORT_ROLES` & `isUserAuthorizedForReport()`) with dedicated 403 access-denied security shield.
+  - Implemented responsive filter bar (`startDate`, `endDate`, `status`, `stage`, `periodMonth`, `periodYear`) forwarding criteria directly to backend query.
+  - Dynamic attendance matrix computing `daysInView` and rendering daily status badges for any month.
+  - ApexCharts salary comparison distribution and detailed payroll breakdown.
+  - Real customer/supplier settlement summaries and aging metrics.
+  - Authenticated streaming blob download for CSV and JSON exports forwarding active query parameters.
+- **Smart Reports Catalogue (`src/routes/_authenticated/_app/smart-reports.tsx`):**
+  - Wired live metrics via `GET /api/smart-reports/catalogue`.
+  - Added role permission indicator badges on report cards, skeleton loading states, error retry banner, and empty state.
+
+### 12.3 Verification Results
+- **Batch 3B Frontend Automated Test Suite (`src/tests/batch3b-smart-reports-frontend.test.ts`):** **19 PASSED | 0 FAILED**
+- **Comprehensive Vitest Suite (`src/tests`):** **112 PASSED across 9 test files | 0 FAILED**
+- **Batch 3A Backend Aggregation Suite (`server/src/tests/batch3-smart-reports-aggregation.test.ts`):** **119 PASSED | 0 FAILED**
+- **Batch 2 & Batch 1 Regression Suites:** **98 PASSED | 0 FAILED**
+- **TypeScript Static Verification:** `npx tsc --noEmit` -> **0 ERRORS**
+- **Playwright Headless Browser UI Verification:**
+  - Catalogue live metrics and navigation verified (`playwright_smart_reports_catalogue_verified.png`).
+  - Attendance summary live matrix verified (`playwright_smart_reports_attendance_verified.png`).
+  - Payroll sheet metrics and chart verified (`playwright_smart_reports_payroll_verified.png`).
+  - Zero-record empty states verified (`playwright_smart_reports_project_empty_verified.png`).
+  - CSV and JSON authenticated downloads verified (`.playwright-mcp/project-progress-2026-10-15.csv`, `.playwright-mcp/project-progress-2026-10-15.json`).
+
+
 
 
 
