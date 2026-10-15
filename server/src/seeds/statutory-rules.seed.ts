@@ -283,13 +283,118 @@ export const OFFICIAL_STATUTORY_RULE_PACKS: StatutoryRuleSeed[] = [
   },
 
   // ───────────────────────────────────────────────────────────────────────────
-  // INCOME TAX / TDS (ITA 2025/2026 Slabs) — Central Jurisdiction
+  // HISTORICAL INCOME TAX / TDS — FY 2024–25 (Income-tax Act, 1961 / Finance (No. 2) Act, 2024)
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    ruleType: "TDS_115BAC_FY2425",
+    stateCode: "ALL",
+    version: 1,
+    effectiveFrom: new Date("2024-04-01"),
+    effectiveTo: new Date("2025-03-31"),
+    sourceAuthority: "Central Board of Direct Taxes (CBDT) / Ministry of Finance",
+    notificationRef: "Income-tax Act, 1961 Section 192 (Withholding), Section 115BAC & Section 87A / Finance (No. 2) Act, 2024",
+    isVerified: true,
+    status: "active",
+    configJson: {
+      act: "Income-tax Act, 1961",
+      salaryWithholdingSection: "192",
+      rebateSection: "87A",
+      regimeSection: "115BAC",
+      taxYear: "2024-2025",
+      financialYear: "2024-2025",
+      assessmentYear: "2025-2026",
+      cessRate: 0.04,
+      newRegime: {
+        standardDeduction: 75000,
+        section87ARebateThreshold: 700000,
+        maxRebateAmount: 25000,
+        slabs: [
+          { min: 0, max: 300000, rate: 0.0 },
+          { min: 300001, max: 600000, rate: 0.05 },
+          { min: 600001, max: 900000, rate: 0.10 },
+          { min: 900001, max: 1200000, rate: 0.15 },
+          { min: 1200001, max: 1500000, rate: 0.20 },
+          { min: 1500001, max: null, rate: 0.30 }
+        ]
+      },
+      oldRegime: {
+        standardDeduction: 50000,
+        section87ARebateThreshold: 500000,
+        maxRebateAmount: 12500,
+        section80CLimit: 150000,
+        section80DLimit: 25000,
+        section24bLimit: 200000,
+        slabs: [
+          { min: 0, max: 250000, rate: 0.0 },
+          { min: 250001, max: 500000, rate: 0.05 },
+          { min: 500001, max: 1000000, rate: 0.20 },
+          { min: 1000001, max: null, rate: 0.30 }
+        ]
+      }
+    }
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INCOME TAX / TDS — FY 2025–26 (Income-tax Act, 1961 / Finance Act, 2025)
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    ruleType: "TDS_115BAC",
+    stateCode: "ALL",
+    version: 1,
+    effectiveFrom: new Date("2025-04-01"),
+    effectiveTo: new Date("2026-03-31"),
+    sourceAuthority: "Central Board of Direct Taxes (CBDT) / Ministry of Finance",
+    notificationRef: "Income-tax Act, 1961 Section 192 (Withholding), Section 115BAC & Section 87A / Finance Act, 2025",
+    isVerified: true,
+    status: "active",
+    configJson: {
+      act: "Income-tax Act, 1961",
+      salaryWithholdingSection: "192",
+      rebateSection: "87A",
+      regimeSection: "115BAC",
+      taxYear: "2025-2026",
+      financialYear: "2025-2026",
+      assessmentYear: "2026-2027",
+      cessRate: 0.04,
+      newRegime: {
+        standardDeduction: 75000,
+        section87ARebateThreshold: 1200000,
+        maxRebateAmount: 60000,
+        slabs: [
+          { min: 0, max: 400000, rate: 0.0 },
+          { min: 400001, max: 800000, rate: 0.05 },
+          { min: 800001, max: 1200000, rate: 0.10 },
+          { min: 1200001, max: 1600000, rate: 0.15 },
+          { min: 1600001, max: 2000000, rate: 0.20 },
+          { min: 2000001, max: 2400000, rate: 0.25 },
+          { min: 2400001, max: null, rate: 0.30 }
+        ]
+      },
+      oldRegime: {
+        standardDeduction: 50000,
+        section87ARebateThreshold: 500000,
+        maxRebateAmount: 12500,
+        section80CLimit: 150000,
+        section80DLimit: 25000,
+        section24bLimit: 200000,
+        slabs: [
+          { min: 0, max: 250000, rate: 0.0 },
+          { min: 250001, max: 500000, rate: 0.05 },
+          { min: 500001, max: 1000000, rate: 0.20 },
+          { min: 1000001, max: null, rate: 0.30 }
+        ]
+      }
+    }
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INCOME TAX / TDS — FY 2026–27 / Tax Year 2026–27 (Income-tax Act, 2025)
   // ───────────────────────────────────────────────────────────────────────────
   {
     ruleType: "TDS_ITA2025",
     stateCode: "ALL",
     version: 1,
-    effectiveFrom: new Date("2025-04-01"),
+    effectiveFrom: new Date("2026-04-01"),
     effectiveTo: null,
     sourceAuthority: "Central Board of Direct Taxes (CBDT) / Ministry of Finance",
     notificationRef: "Income-tax Act, 2025 Section 392 (Withholding) & Section 156 (Rebate)",
@@ -309,13 +414,14 @@ export const OFFICIAL_STATUTORY_RULE_PACKS: StatutoryRuleSeed[] = [
         standardDeduction: 75000,
         section156RebateThreshold: 1200000,
         section87ARebateThreshold: 1200000,
+        maxRebateAmount: 60000,
         slabs: [
           { min: 0, max: 400000, rate: 0.0 },
           { min: 400001, max: 800000, rate: 0.05 },
           { min: 800001, max: 1200000, rate: 0.10 },
           { min: 1200001, max: 1600000, rate: 0.15 },
           { min: 1600001, max: 2000000, rate: 0.20 },
-          { min: 2000010, max: 2400000, rate: 0.25 },
+          { min: 2000001, max: 2400000, rate: 0.25 },
           { min: 2400001, max: null, rate: 0.30 }
         ]
       },
@@ -334,19 +440,54 @@ export const OFFICIAL_STATUTORY_RULE_PACKS: StatutoryRuleSeed[] = [
         ]
       }
     }
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // PAYMENT OF GRATUITY — Central Jurisdiction
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    ruleType: "GRATUITY",
+    stateCode: "ALL",
+    version: 1,
+    effectiveFrom: new Date("2018-03-29"),
+    effectiveTo: null,
+    sourceAuthority: "Ministry of Labour and Employment",
+    notificationRef: "Payment of Gratuity (Amendment) Act, 2018 / Act No. 12 of 2018",
+    isVerified: true,
+    status: "active",
+    configJson: {
+      daysFactor: 15,
+      monthDaysDenominator: 26,
+      statutoryMaxCap: 2000000, // ₹20 Lakhs
+      minServiceYearsForEligibility: 5,
+      accrualFrequency: "monthly", // (15 * Basic) / 26 / 12
+    }
   }
 ];
 
-export async function seedStatutoryRules(prisma: PrismaClient, tenantId: string) {
-  console.log(`Seeding official statutory rule packs for tenant: ${tenantId}...`);
+export async function seedStatutoryRules(prisma: PrismaClient, tenantId?: string) {
+  console.log(`Seeding official statutory rule packs for ${tenantId ? `tenant: ${tenantId}` : 'central/global scope'}...`);
   let count = 0;
   for (const pack of OFFICIAL_STATUTORY_RULE_PACKS) {
+    const isCentral = pack.stateCode === "ALL";
+    const jurisdictionLevel = isCentral ? "CENTRAL" : "STATE";
+
+    let category = "CENTRAL_STATUTORY";
+    if (pack.ruleType === "EPF") category = "RETIREMENT_PF";
+    else if (pack.ruleType === "ESI") category = "SOCIAL_SECURITY_ESI";
+    else if (pack.ruleType === "PT") category = "PROFESSIONAL_TAX";
+    else if (pack.ruleType === "LWF") category = "LABOUR_WELFARE";
+    else if (pack.ruleType.includes("TDS")) category = "DIRECT_TAX";
+    else if (pack.ruleType === "GRATUITY") category = "GRATUITY";
+
+    const ruleIdentifier = `${pack.ruleType}_${pack.stateCode}_V${pack.version}`;
+
     const existing = await prisma.statutoryRule.findFirst({
       where: {
-        tenantId,
         ruleType: pack.ruleType,
         stateCode: pack.stateCode,
         version: pack.version,
+        ...(tenantId ? { tenantId } : { isGlobal: true }),
       }
     });
 
@@ -354,6 +495,9 @@ export async function seedStatutoryRules(prisma: PrismaClient, tenantId: string)
       await prisma.statutoryRule.update({
         where: { id: existing.id },
         data: {
+          ruleIdentifier,
+          category,
+          jurisdictionLevel,
           configJson: pack.configJson,
           effectiveFrom: pack.effectiveFrom,
           effectiveTo: pack.effectiveTo,
@@ -361,15 +505,21 @@ export async function seedStatutoryRules(prisma: PrismaClient, tenantId: string)
           notificationRef: pack.notificationRef,
           isVerified: pack.isVerified,
           status: pack.status,
-          isActive: true
+          publicationStatus: "published",
+          isActive: true,
+          isGlobal: !tenantId,
         }
       });
     } else {
       await prisma.statutoryRule.create({
         data: {
-          tenantId,
+          tenantId: tenantId || null,
+          ruleIdentifier,
           ruleType: pack.ruleType,
+          category,
+          jurisdictionLevel,
           stateCode: pack.stateCode,
+          applicableCategory: "ALL",
           configJson: pack.configJson,
           version: pack.version,
           effectiveFrom: pack.effectiveFrom,
@@ -378,7 +528,12 @@ export async function seedStatutoryRules(prisma: PrismaClient, tenantId: string)
           notificationRef: pack.notificationRef,
           isVerified: pack.isVerified,
           status: pack.status,
-          isActive: true
+          publicationStatus: "published",
+          isActive: true,
+          isGlobal: !tenantId,
+          createdBy: "system_seeder",
+          publishedBy: "system_seeder",
+          publishedAt: new Date(),
         }
       });
     }

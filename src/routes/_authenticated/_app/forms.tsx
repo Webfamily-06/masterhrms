@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useCurrentProfile, useSession } from "@/lib/session";
+import { getCurrentFinancialYear, getSelectableFinancialYears } from "@/lib/financial-year";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,7 +113,7 @@ export function FormsPage() {
   const [searchStatutory, setSearchStatutory] = useState("");
   const [selectedFormTemplate, setSelectedFormTemplate] = useState<any | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
-  const [selectedFY, setSelectedFY] = useState<string>("2026-2027");
+  const [selectedFY, setSelectedFY] = useState<string>(getCurrentFinancialYear());
   const [selectedQuarter, setSelectedQuarter] = useState<string>("Q1");
   const [prefilledFormData, setPrefilledFormData] = useState<any | null>(null);
   const [isFormViewerOpen, setIsFormViewerOpen] = useState(false);
@@ -606,9 +607,11 @@ export function FormsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="2026-2027">FY 2026-2027 (ITA 2025)</SelectItem>
-                        <SelectItem value="2025-2026">FY 2025-2026 (Transitional)</SelectItem>
-                        <SelectItem value="2024-2025">FY 2024-2025</SelectItem>
+                        {getSelectableFinancialYears().map((fy) => (
+                          <SelectItem key={fy.value} value={fy.value}>
+                            {fy.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

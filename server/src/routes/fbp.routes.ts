@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { FbpService, STANDARD_FBP_COMPONENTS } from "../services/fbp.service";
+import { normalizeFinancialYear } from "../utils/financial-year";
 
 export const fbpRouter = Router();
 const fbpService = new FbpService(prisma as any);
@@ -60,7 +61,7 @@ fbpRouter.get("/my-declaration", requireAuth, async (req: AuthRequest, res: Resp
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
     const employeeId = (req.user as any)?.employeeId || (req.query.employeeId as string);
-    const financialYear = (req.query.financialYear as string) || "2026-2027";
+    const financialYear = normalizeFinancialYear(req.query.financialYear as string);
 
     if (!employeeId) return res.status(400).json({ error: "Employee ID is required." });
 
@@ -86,7 +87,8 @@ fbpRouter.post("/declarations", requireAuth, async (req: AuthRequest, res: Respo
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
     const employeeId = (req.user as any)?.employeeId || req.body.employeeId;
-    const { financialYear = "2026-2027", items = [], submitImmediately = false } = req.body;
+    const { financialYear: rawFY, items = [], submitImmediately = false } = req.body;
+    const financialYear = normalizeFinancialYear(rawFY);
 
     if (!employeeId) return res.status(400).json({ error: "Employee ID is required." });
 

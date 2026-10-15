@@ -1,9 +1,12 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { LifecycleService } from "../services/lifecycle.service";
 
 export const meLifecycleRouter = Router();
+
+meLifecycleRouter.use(requireAuth, resolveTenantContext);
 
 async function resolveEmployee(req: AuthRequest) {
   const tenantId = req.user?.tenantId!;

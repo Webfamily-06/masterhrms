@@ -134,6 +134,22 @@ export class AssetService {
     const db = getTenantDb();
     const assetTag = data.assetTag || `AST-${Date.now().toString().slice(-6)}`;
 
+    const existingTag = await db.asset.findFirst({
+      where: { tenantId, assetTag },
+    });
+    if (existingTag) {
+      throw new Error(`Asset with tag '${assetTag}' already exists in this organization.`);
+    }
+
+    if (data.categoryId) {
+      const cat = await db.assetCategory.findFirst({
+        where: { id: data.categoryId, tenantId },
+      });
+      if (!cat) {
+        throw new Error("Specified asset category does not exist in this organization.");
+      }
+    }
+
     const asset = await db.asset.create({
       data: {
         tenantId,
@@ -203,38 +219,42 @@ export class AssetService {
       throw new Error("Target employee not found.");
     }
 
-    const assignment = await db.assetAssignment.create({
-      data: {
-        assetId,
-        employeeId,
-        departmentId: employee.departmentId || null,
-        targetType: "employee",
-        quantity: 1,
-        assignedAt: new Date(),
-        expectedReturnDate: expectedReturnDate ? new Date(expectedReturnDate) : null,
-        conditionOnAssign: conditionOnAssign || asset.condition || "good",
-        status: "active",
-        notes: notes || null,
-      },
-    });
+    const assignment = await db.$transaction(async (tx: any) => {
+      const newAssignment = await tx.assetAssignment.create({
+        data: {
+          assetId,
+          employeeId,
+          departmentId: employee.departmentId || null,
+          targetType: "employee",
+          quantity: 1,
+          assignedAt: new Date(),
+          expectedReturnDate: expectedReturnDate ? new Date(expectedReturnDate) : null,
+          conditionOnAssign: conditionOnAssign || asset.condition || "good",
+          status: "active",
+          notes: notes || null,
+        },
+      });
 
-    await db.asset.update({
-      where: { id: assetId },
-      data: {
-        status: "assigned",
-        assignedEmployeeId: employeeId,
-        assignedAt: new Date(),
-      },
-    });
+      await tx.asset.update({
+        where: { id: assetId },
+        data: {
+          status: "assigned",
+          assignedEmployeeId: employeeId,
+          assignedAt: new Date(),
+        },
+      });
 
-    await db.assetActivityLog.create({
-      data: {
-        tenantId,
-        assetId,
-        actionType: "assign",
-        performedBy: actorId,
-        details: `Assigned to ${employee.firstName} ${employee.lastName} (${employee.employeeCode || employee.email})`,
-      },
+      await tx.assetActivityLog.create({
+        data: {
+          tenantId,
+          assetId,
+          actionType: "assign",
+          performedBy: actorId,
+          details: `Assigned to ${employee.firstName} ${employee.lastName} (${employee.employeeCode || employee.email})`,
+        },
+      });
+
+      return newAssignment;
     });
 
     await OutboxService.publish({
@@ -290,34 +310,38 @@ export class AssetService {
       throw new Error("Assignment record not found.");
     }
 
-    const updatedAssignment = await db.assetAssignment.update({
-      where: { id: assignmentId },
-      data: {
-        status: "returned",
-        returnedAt: new Date(),
-        conditionOnReturn: conditionOnReturn || "good",
-        notes: notes || assignment.notes,
-      },
-    });
+    const updatedAssignment = await db.$transaction(async (tx: any) => {
+      const res = await tx.assetAssignment.update({
+        where: { id: assignmentId },
+        data: {
+          status: "returned",
+          returnedAt: new Date(),
+          conditionOnReturn: conditionOnReturn || "good",
+          notes: notes || assignment.notes,
+        },
+      });
 
-    await db.asset.update({
-      where: { id: assignment.assetId },
-      data: {
-        status: "available",
-        assignedEmployeeId: null,
-        assignedAt: null,
-        condition: conditionOnReturn || assignment.asset.condition,
-      },
-    });
+      await tx.asset.update({
+        where: { id: assignment.assetId },
+        data: {
+          status: "available",
+          assignedEmployeeId: null,
+          assignedAt: null,
+          condition: conditionOnReturn || assignment.asset.condition,
+        },
+      });
 
-    await db.assetActivityLog.create({
-      data: {
-        tenantId,
-        assetId: assignment.assetId,
-        actionType: "return",
-        performedBy: actorId,
-        details: `Asset returned with condition '${conditionOnReturn || "good"}'`,
-      },
+      await tx.assetActivityLog.create({
+        data: {
+          tenantId,
+          assetId: assignment.assetId,
+          actionType: "return",
+          performedBy: actorId,
+          details: `Asset returned with condition '${conditionOnReturn || "good"}'`,
+        },
+      });
+
+      return res;
     });
 
     return updatedAssignment;

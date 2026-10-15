@@ -2,7 +2,8 @@ import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { api } from "@/lib/api";
+import { api, unwrapArray } from "@/lib/api";
+
 import { useCurrentProfile } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ export function EmployeeAttendancePage() {
     queryFn: async () => {
       try {
         const res: any = await api.get("/api/v1/me/regularizations");
-        return Array.isArray(res?.data) ? res.data : [];
+        return unwrapArray(res);
       } catch {
         return [];
       }

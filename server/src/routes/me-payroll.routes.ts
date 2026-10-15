@@ -5,6 +5,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { AuditService } from "../services/audit.service";
 import { OutboxService } from "../services/outbox.service";
+import { getCurrentFinancialYear, normalizeFinancialYear } from "../utils/financial-year";
 
 export const mePayrollRouter = Router();
 
@@ -172,9 +173,9 @@ mePayrollRouter.get("/tax", async (req: AuthRequest, res: Response) => {
     const employee = await resolveCurrentEmployee(req);
     if (!employee) return res.status(404).json({ error: "Employee profile not found" });
 
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-    const fy = currentMonth >= 4 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
+    const fy = req.query.financialYear
+      ? normalizeFinancialYear(req.query.financialYear as string)
+      : getCurrentFinancialYear();
 
     const db = getTenantDb();
     const declaration = await db.employeeTaxDeclaration.findFirst({
@@ -217,7 +218,7 @@ mePayrollRouter.post("/tax/declare", async (req: AuthRequest, res: Response) => 
     } = req.body;
 
     const db = getTenantDb();
-    const fy = financialYear || "2026-2027";
+    const fy = normalizeFinancialYear(financialYear);
 
     const totalDeductionClaimed = new Decimal(section80C || 0)
       .plus(new Decimal(section80D || 0))

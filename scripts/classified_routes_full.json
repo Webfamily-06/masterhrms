@@ -1,0 +1,4574 @@
+[
+  {
+    "routeId": "/",
+    "filePath": "src/routes/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 34755,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated",
+    "filePath": "src/routes/_authenticated/route.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 2456,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router layout outlet wrapper (does not render standalone page)",
+    "dependency": null
+  },
+  {
+    "routeId": "/403",
+    "filePath": "src/routes/403.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 322,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/404",
+    "filePath": "src/routes/404.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 309,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/500",
+    "filePath": "src/routes/500.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 506,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/about",
+    "filePath": "src/routes/about.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 3881,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/auth",
+    "filePath": "src/routes/auth.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 44777,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/careers",
+    "filePath": "src/routes/careers.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 18831,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/contact",
+    "filePath": "src/routes/contact.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 8662,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/customer-display",
+    "filePath": "src/routes/customer-display.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 15905,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/developer",
+    "filePath": "src/routes/developer.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 84367,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/docs",
+    "filePath": "src/routes/docs.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 182697,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/error-404",
+    "filePath": "src/routes/error-404.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 310,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/error-500",
+    "filePath": "src/routes/error-500.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 498,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/help-center",
+    "filePath": "src/routes/help-center.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 11269,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/lock-screen",
+    "filePath": "src/routes/lock-screen.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7419,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/login",
+    "filePath": "src/routes/login.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 231,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/maintenance",
+    "filePath": "src/routes/maintenance.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12130,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/offline",
+    "filePath": "src/routes/offline.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 303,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/og-preview",
+    "filePath": "src/routes/og-preview.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19232,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/portal",
+    "filePath": "src/routes/portal.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 17781,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/pricing",
+    "filePath": "src/routes/pricing.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 24667,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/product",
+    "filePath": "src/routes/product.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 6592,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/register",
+    "filePath": "src/routes/register.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 422,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/resources",
+    "filePath": "src/routes/resources.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 15478,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/session-expired",
+    "filePath": "src/routes/session-expired.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 336,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/solutions",
+    "filePath": "src/routes/solutions.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 4937,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/store",
+    "filePath": "src/routes/store.tsx",
+    "module": "Public, Auth, Marketing, Onboarding",
+    "fileSize": 17443,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/super-login",
+    "filePath": "src/routes/super-login.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 23371,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/super06",
+    "filePath": "src/routes/super06.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 26280,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/verify-2fa",
+    "filePath": "src/routes/verify-2fa.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 17498,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app",
+    "filePath": "src/routes/_authenticated/_app/route.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 64957,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router layout outlet wrapper (does not render standalone page)",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super",
+    "filePath": "src/routes/_authenticated/super/route.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 35613,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router layout outlet wrapper (does not render standalone page)",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr",
+    "filePath": "src/routes/_authenticated/hr.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 487,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router layout outlet wrapper (does not render standalone page)",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me",
+    "filePath": "src/routes/_authenticated/me.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 487,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router layout outlet wrapper (does not render standalone page)",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/onboarding",
+    "filePath": "src/routes/_authenticated/onboarding.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 45354,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant",
+    "filePath": "src/routes/_authenticated/tenant.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 495,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router layout outlet wrapper (does not render standalone page)",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenet",
+    "filePath": "src/routes/_authenticated/tenet.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 238,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/a/$tag",
+    "filePath": "src/routes/a.$tag.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10830,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/addons_/$slug",
+    "filePath": "src/routes/addons_.$slug.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20575,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/cms/$",
+    "filePath": "src/routes/cms.$.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 2320,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/legal/$slug",
+    "filePath": "src/routes/legal.$slug.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 1736,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/p/$slug",
+    "filePath": "src/routes/p.$slug.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 3803,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/payment/failed",
+    "filePath": "src/routes/payment.failed.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 5466,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/payment/pending",
+    "filePath": "src/routes/payment.pending.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 5756,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/payment/success",
+    "filePath": "src/routes/payment.success.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 5620,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/addons/",
+    "filePath": "src/routes/addons.index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 13951,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/cms/",
+    "filePath": "src/routes/cms.index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 1235,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/accounting",
+    "filePath": "src/routes/_authenticated/_app/accounting.tsx",
+    "module": "CRM, Accounting, Operations, Addons",
+    "fileSize": 68797,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/activity-logs",
+    "filePath": "src/routes/_authenticated/_app/activity-logs.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 13148,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/adjustments",
+    "filePath": "src/routes/_authenticated/_app/adjustments.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 38279,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai",
+    "filePath": "src/routes/_authenticated/_app/ai.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 29466,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-attendance-insights",
+    "filePath": "src/routes/_authenticated/_app/ai-attendance-insights.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9177,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-business-advisor",
+    "filePath": "src/routes/_authenticated/_app/ai-business-advisor.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 33162,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-configuration",
+    "filePath": "src/routes/_authenticated/_app/ai-configuration.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20136,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-hiring-forecast",
+    "filePath": "src/routes/_authenticated/_app/ai-hiring-forecast.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 37395,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-ocr",
+    "filePath": "src/routes/_authenticated/_app/ai-ocr.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19887,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-payroll-forecast",
+    "filePath": "src/routes/_authenticated/_app/ai-payroll-forecast.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10511,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-settings",
+    "filePath": "src/routes/_authenticated/_app/ai-settings.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9285,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-team-performance-insights",
+    "filePath": "src/routes/_authenticated/_app/ai-team-performance-insights.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9762,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-writer",
+    "filePath": "src/routes/_authenticated/_app/ai-writer.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 65083,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/analytics",
+    "filePath": "src/routes/_authenticated/_app/analytics.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 52581,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/announcements",
+    "filePath": "src/routes/_authenticated/_app/announcements.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 47038,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/asset-dashboard",
+    "filePath": "src/routes/_authenticated/_app/asset-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 614,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/assets",
+    "filePath": "src/routes/_authenticated/_app/assets.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 96905,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/attendance",
+    "filePath": "src/routes/_authenticated/_app/attendance.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 75963,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/attendance-employee",
+    "filePath": "src/routes/_authenticated/_app/attendance-employee.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 27646,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/attendance-report",
+    "filePath": "src/routes/_authenticated/_app/attendance-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 15931,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/awards",
+    "filePath": "src/routes/_authenticated/_app/awards.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 38624,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/backup-restore",
+    "filePath": "src/routes/_authenticated/_app/backup-restore.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 21793,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ban-ip-address",
+    "filePath": "src/routes/_authenticated/_app/ban-ip-address.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19835,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/biometric",
+    "filePath": "src/routes/_authenticated/_app/biometric.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 136767,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/biometric-sync",
+    "filePath": "src/routes/_authenticated/_app/biometric-sync.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 66972,
+    "status": "BLOCKED",
+    "evidence": "Component fully built with LAN ping & ADMS listeners; blocked on physical ZKTeco/Matrix LAN hardware device",
+    "dependency": "Physical Biometric Hardware LAN Controller"
+  },
+  {
+    "routeId": "/_authenticated/_app/budgets",
+    "filePath": "src/routes/_authenticated/_app/budgets.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 26846,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/calendar",
+    "filePath": "src/routes/_authenticated/_app/calendar.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 28042,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/call-history",
+    "filePath": "src/routes/_authenticated/_app/call-history.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19994,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/campaigns",
+    "filePath": "src/routes/_authenticated/_app/campaigns.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 32945,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/campus-hiring",
+    "filePath": "src/routes/_authenticated/_app/campus-hiring.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 36856,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/certification-tracking",
+    "filePath": "src/routes/_authenticated/_app/certification-tracking.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 35330,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/chat",
+    "filePath": "src/routes/_authenticated/_app/chat.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 574,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/clear-cache",
+    "filePath": "src/routes/_authenticated/_app/clear-cache.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 13118,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/client-dashboard",
+    "filePath": "src/routes/_authenticated/_app/client-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 30462,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/clients",
+    "filePath": "src/routes/_authenticated/_app/clients.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 31068,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/companies",
+    "filePath": "src/routes/_authenticated/_app/companies.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 31877,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/contacts",
+    "filePath": "src/routes/_authenticated/_app/contacts.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 58656,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/crm",
+    "filePath": "src/routes/_authenticated/_app/crm.tsx",
+    "module": "CRM, Accounting, Operations, Addons",
+    "fileSize": 47302,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/crm-dashboard",
+    "filePath": "src/routes/_authenticated/_app/crm-dashboard.tsx",
+    "module": "CRM, Accounting, Operations, Addons",
+    "fileSize": 31595,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/cronjob",
+    "filePath": "src/routes/_authenticated/_app/cronjob.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 33612,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/currencies",
+    "filePath": "src/routes/_authenticated/_app/currencies.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20936,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/custom-fields",
+    "filePath": "src/routes/_authenticated/_app/custom-fields.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 32485,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/daily-report",
+    "filePath": "src/routes/_authenticated/_app/daily-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 17309,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/dashboard",
+    "filePath": "src/routes/_authenticated/_app/dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 537,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/deals-dashboard",
+    "filePath": "src/routes/_authenticated/_app/deals-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 40780,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/departments",
+    "filePath": "src/routes/_authenticated/_app/departments.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 26624,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/designations",
+    "filePath": "src/routes/_authenticated/_app/designations.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 31358,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/documents",
+    "filePath": "src/routes/_authenticated/_app/documents.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 53712,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-dashboard",
+    "filePath": "src/routes/_authenticated/_app/employee-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 42669,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-details",
+    "filePath": "src/routes/_authenticated/_app/employee-details.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 63316,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-payslips",
+    "filePath": "src/routes/_authenticated/_app/employee-payslips.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 40381,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-report",
+    "filePath": "src/routes/_authenticated/_app/employee-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 16459,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/employees",
+    "filePath": "src/routes/_authenticated/_app/employees.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 175202,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/expenses",
+    "filePath": "src/routes/_authenticated/_app/expenses.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 104471,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/expenses-report",
+    "filePath": "src/routes/_authenticated/_app/expenses-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 15844,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/finance-dashboard",
+    "filePath": "src/routes/_authenticated/_app/finance-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 32178,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/forms",
+    "filePath": "src/routes/_authenticated/_app/forms.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 70430,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/google-workspace",
+    "filePath": "src/routes/_authenticated/_app/google-workspace.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 21479,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/help-desk-dashboard",
+    "filePath": "src/routes/_authenticated/_app/help-desk-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 32464,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/helpdesk",
+    "filePath": "src/routes/_authenticated/_app/helpdesk.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 303,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/holidays",
+    "filePath": "src/routes/_authenticated/_app/holidays.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 31408,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/hrm",
+    "filePath": "src/routes/_authenticated/_app/hrm.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 40524,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/hrm-dashboard",
+    "filePath": "src/routes/_authenticated/_app/hrm-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 39887,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/integrations",
+    "filePath": "src/routes/_authenticated/_app/integrations.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 61410,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/internal-reminders",
+    "filePath": "src/routes/_authenticated/_app/internal-reminders.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 15896,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/inventory-dashboard",
+    "filePath": "src/routes/_authenticated/_app/inventory-dashboard.tsx",
+    "module": "CRM, Accounting, Operations, Addons",
+    "fileSize": 22937,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice-report",
+    "filePath": "src/routes/_authenticated/_app/invoice-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18913,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/invoices",
+    "filePath": "src/routes/_authenticated/_app/invoices.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 49955,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/it-admin-dashboard",
+    "filePath": "src/routes/_authenticated/_app/it-admin-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 21628,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/leads-dashboard",
+    "filePath": "src/routes/_authenticated/_app/leads-dashboard.tsx",
+    "module": "CRM, Accounting, Operations, Addons",
+    "fileSize": 33120,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/learning-analytics",
+    "filePath": "src/routes/_authenticated/_app/learning-analytics.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 16905,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/leave",
+    "filePath": "src/routes/_authenticated/_app/leave.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 56402,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/leave-report",
+    "filePath": "src/routes/_authenticated/_app/leave-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12445,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/manager-hub",
+    "filePath": "src/routes/_authenticated/_app/manager-hub.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 36074,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/marketplace",
+    "filePath": "src/routes/_authenticated/_app/marketplace.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 80265,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/media",
+    "filePath": "src/routes/_authenticated/_app/media.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 293,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/notes",
+    "filePath": "src/routes/_authenticated/_app/notes.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 26098,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/notice-board",
+    "filePath": "src/routes/_authenticated/_app/notice-board.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18654,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/notice-period-tracker",
+    "filePath": "src/routes/_authenticated/_app/notice-period-tracker.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 31216,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/offboarding",
+    "filePath": "src/routes/_authenticated/_app/offboarding.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 66118,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/okr",
+    "filePath": "src/routes/_authenticated/_app/okr.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 71212,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/outbound-webhooks",
+    "filePath": "src/routes/_authenticated/_app/outbound-webhooks.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19976,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/overtime",
+    "filePath": "src/routes/_authenticated/_app/overtime.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19593,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/payment-report",
+    "filePath": "src/routes/_authenticated/_app/payment-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 14277,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/payroll",
+    "filePath": "src/routes/_authenticated/_app/payroll.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 108731,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/payroll-dashboard",
+    "filePath": "src/routes/_authenticated/_app/payroll-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 34318,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/payslip-report",
+    "filePath": "src/routes/_authenticated/_app/payslip-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 26434,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/performance-appraisal",
+    "filePath": "src/routes/_authenticated/_app/performance-appraisal.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 47970,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/performance-indicator",
+    "filePath": "src/routes/_authenticated/_app/performance-indicator.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 43644,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/performance-review",
+    "filePath": "src/routes/_authenticated/_app/performance-review.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 28955,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/pipeline",
+    "filePath": "src/routes/_authenticated/_app/pipeline.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19667,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/pos",
+    "filePath": "src/routes/_authenticated/_app/pos.tsx",
+    "module": "CRM, Accounting, Operations, Addons",
+    "fileSize": 103135,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/pos-dashboard",
+    "filePath": "src/routes/_authenticated/_app/pos-dashboard.tsx",
+    "module": "CRM, Accounting, Operations, Addons",
+    "fileSize": 26425,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/probation",
+    "filePath": "src/routes/_authenticated/_app/probation.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20228,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/procurement-dashboard",
+    "filePath": "src/routes/_authenticated/_app/procurement-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 35881,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/products",
+    "filePath": "src/routes/_authenticated/_app/products.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 114005,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/profile",
+    "filePath": "src/routes/_authenticated/_app/profile.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 26486,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/project-dashboard",
+    "filePath": "src/routes/_authenticated/_app/project-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 31119,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/project-report",
+    "filePath": "src/routes/_authenticated/_app/project-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 15004,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/projects",
+    "filePath": "src/routes/_authenticated/_app/projects.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 66319,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/promotions",
+    "filePath": "src/routes/_authenticated/_app/promotions.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20539,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/proposals",
+    "filePath": "src/routes/_authenticated/_app/proposals.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 17354,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/provident-fund",
+    "filePath": "src/routes/_authenticated/_app/provident-fund.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 36108,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/public-api",
+    "filePath": "src/routes/_authenticated/_app/public-api.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19099,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/purchases",
+    "filePath": "src/routes/_authenticated/_app/purchases.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 47695,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/razorpay-gateway",
+    "filePath": "src/routes/_authenticated/_app/razorpay-gateway.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 21123,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/recruitment",
+    "filePath": "src/routes/_authenticated/_app/recruitment.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 79883,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/recruitment-dashboard",
+    "filePath": "src/routes/_authenticated/_app/recruitment-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 22719,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/recurring-invoices",
+    "filePath": "src/routes/_authenticated/_app/recurring-invoices.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 71896,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/referrals",
+    "filePath": "src/routes/_authenticated/_app/referrals.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 34779,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/resignation",
+    "filePath": "src/routes/_authenticated/_app/resignation.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 33370,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/returns",
+    "filePath": "src/routes/_authenticated/_app/returns.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 39111,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/sales-dashboard",
+    "filePath": "src/routes/_authenticated/_app/sales-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 21712,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/settings",
+    "filePath": "src/routes/_authenticated/_app/settings.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 557,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/setup-notes",
+    "filePath": "src/routes/_authenticated/_app/setup-notes.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10181,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/shift-swap-requests",
+    "filePath": "src/routes/_authenticated/_app/shift-swap-requests.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20795,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/shifts",
+    "filePath": "src/routes/_authenticated/_app/shifts.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 58710,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/shopify",
+    "filePath": "src/routes/_authenticated/_app/shopify.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 57943,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 2880,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7425,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/sms-gateway",
+    "filePath": "src/routes/_authenticated/_app/sms-gateway.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 16894,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/strategy-studio",
+    "filePath": "src/routes/_authenticated/_app/strategy-studio.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18956,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/subscription",
+    "filePath": "src/routes/_authenticated/_app/subscription.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 51994,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/suggestion-box",
+    "filePath": "src/routes/_authenticated/_app/suggestion-box.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 54603,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/suppliers",
+    "filePath": "src/routes/_authenticated/_app/suppliers.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 25220,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/support",
+    "filePath": "src/routes/_authenticated/_app/support.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 25630,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/support-dashboard",
+    "filePath": "src/routes/_authenticated/_app/support-dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 40440,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/system-states",
+    "filePath": "src/routes/_authenticated/_app/system-states.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19444,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/tally-importer",
+    "filePath": "src/routes/_authenticated/_app/tally-importer.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 22310,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/task-board",
+    "filePath": "src/routes/_authenticated/_app/task-board.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 45024,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/tasks",
+    "filePath": "src/routes/_authenticated/_app/tasks.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20080,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/taxes",
+    "filePath": "src/routes/_authenticated/_app/taxes.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18466,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/termination",
+    "filePath": "src/routes/_authenticated/_app/termination.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 27024,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/ticket-reports",
+    "filePath": "src/routes/_authenticated/_app/ticket-reports.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12617,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/timesheets",
+    "filePath": "src/routes/_authenticated/_app/timesheets.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 32573,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/todo",
+    "filePath": "src/routes/_authenticated/_app/todo.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 23078,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/training",
+    "filePath": "src/routes/_authenticated/_app/training.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 112221,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/transfers",
+    "filePath": "src/routes/_authenticated/_app/transfers.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 38426,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/two-factor-auth",
+    "filePath": "src/routes/_authenticated/_app/two-factor-auth.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20907,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/users",
+    "filePath": "src/routes/_authenticated/_app/users.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18470,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/warnings",
+    "filePath": "src/routes/_authenticated/_app/warnings.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 48120,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/whatsapp-alerts",
+    "filePath": "src/routes/_authenticated/_app/whatsapp-alerts.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 30978,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/work-from-home",
+    "filePath": "src/routes/_authenticated/_app/work-from-home.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18601,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/workflows",
+    "filePath": "src/routes/_authenticated/_app/workflows.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 17768,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/workspace",
+    "filePath": "src/routes/_authenticated/_app/workspace.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9832,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/client/dashboard",
+    "filePath": "src/routes/_authenticated/client/dashboard.tsx",
+    "module": "Client Portal",
+    "fileSize": 257,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/employee/dashboard",
+    "filePath": "src/routes/_authenticated/employee/dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 255,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/approvals",
+    "filePath": "src/routes/_authenticated/hr/approvals.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 13188,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/calendar",
+    "filePath": "src/routes/_authenticated/hr/calendar.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 19476,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/chat",
+    "filePath": "src/routes/_authenticated/hr/chat.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 388,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/dashboard",
+    "filePath": "src/routes/_authenticated/hr/dashboard.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 321,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/media",
+    "filePath": "src/routes/_authenticated/hr/media.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 369,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/notifications",
+    "filePath": "src/routes/_authenticated/hr/notifications.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7788,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/profile",
+    "filePath": "src/routes/_authenticated/hr/profile.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 339,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/settings",
+    "filePath": "src/routes/_authenticated/hr/settings.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 130482,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/todo",
+    "filePath": "src/routes/_authenticated/hr/todo.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 15571,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/account",
+    "filePath": "src/routes/_authenticated/me/account.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 330,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/approvals",
+    "filePath": "src/routes/_authenticated/me/approvals.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 22329,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/calendar",
+    "filePath": "src/routes/_authenticated/me/calendar.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 19032,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/chat",
+    "filePath": "src/routes/_authenticated/me/chat.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 390,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/dashboard",
+    "filePath": "src/routes/_authenticated/me/dashboard.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 355,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/employees",
+    "filePath": "src/routes/_authenticated/me/employees.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4977,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/helpdesk",
+    "filePath": "src/routes/_authenticated/me/helpdesk.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 48770,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/media",
+    "filePath": "src/routes/_authenticated/me/media.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 371,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/notifications",
+    "filePath": "src/routes/_authenticated/me/notifications.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 7862,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/profile",
+    "filePath": "src/routes/_authenticated/me/profile.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 22580,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/team",
+    "filePath": "src/routes/_authenticated/me/team.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 6091,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/todo",
+    "filePath": "src/routes/_authenticated/me/todo.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 15099,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/agents",
+    "filePath": "src/routes/_authenticated/super/agents.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 30078,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/analytics",
+    "filePath": "src/routes/_authenticated/super/analytics.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 20007,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/api-docs",
+    "filePath": "src/routes/_authenticated/super/api-docs.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 26270,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/backup",
+    "filePath": "src/routes/_authenticated/super/backup.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 10475,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/blogs",
+    "filePath": "src/routes/_authenticated/super/blogs.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 27612,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/case-studies",
+    "filePath": "src/routes/_authenticated/super/case-studies.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 28659,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/cms",
+    "filePath": "src/routes/_authenticated/super/cms.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 86181,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/compliance",
+    "filePath": "src/routes/_authenticated/super/compliance.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 50785,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/coupons",
+    "filePath": "src/routes/_authenticated/super/coupons.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 34116,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/developer",
+    "filePath": "src/routes/_authenticated/super/developer.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 29710,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/doc",
+    "filePath": "src/routes/_authenticated/super/doc.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 236,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/docs",
+    "filePath": "src/routes/_authenticated/super/docs.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 235,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/domains",
+    "filePath": "src/routes/_authenticated/super/domains.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 52295,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/email-templates",
+    "filePath": "src/routes/_authenticated/super/email-templates.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 60046,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/escalation-rules",
+    "filePath": "src/routes/_authenticated/super/escalation-rules.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 35661,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/languages",
+    "filePath": "src/routes/_authenticated/super/languages.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 20582,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/marketplace",
+    "filePath": "src/routes/_authenticated/super/marketplace.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 75946,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/media",
+    "filePath": "src/routes/_authenticated/super/media.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 23888,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/notifications",
+    "filePath": "src/routes/_authenticated/super/notifications.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 7023,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/plans",
+    "filePath": "src/routes/_authenticated/super/plans.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 57293,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/profile",
+    "filePath": "src/routes/_authenticated/super/profile.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 21121,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/roles",
+    "filePath": "src/routes/_authenticated/super/roles.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 45613,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/settings",
+    "filePath": "src/routes/_authenticated/super/settings.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 146542,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/sla-policies",
+    "filePath": "src/routes/_authenticated/super/sla-policies.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 30515,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/support",
+    "filePath": "src/routes/_authenticated/super/support.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 23132,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/tenant-support-tickets",
+    "filePath": "src/routes/_authenticated/super/tenant-support-tickets.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 43670,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/tenant-usage-metrics",
+    "filePath": "src/routes/_authenticated/super/tenant-usage-metrics.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 65111,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/tenants",
+    "filePath": "src/routes/_authenticated/super/tenants.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 113741,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/transactions",
+    "filePath": "src/routes/_authenticated/super/transactions.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 98701,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/users",
+    "filePath": "src/routes/_authenticated/super/users.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 47752,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/audit-logs",
+    "filePath": "src/routes/_authenticated/tenant/audit-logs.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 4405,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/billing",
+    "filePath": "src/routes/_authenticated/tenant/billing.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 5343,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/branding",
+    "filePath": "src/routes/_authenticated/tenant/branding.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 6177,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/company-profile",
+    "filePath": "src/routes/_authenticated/tenant/company-profile.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 9403,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/dashboard",
+    "filePath": "src/routes/_authenticated/tenant/dashboard.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 11265,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/data",
+    "filePath": "src/routes/_authenticated/tenant/data.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 4035,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/domain",
+    "filePath": "src/routes/_authenticated/tenant/domain.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 937,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/integrations",
+    "filePath": "src/routes/_authenticated/tenant/integrations.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 5536,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/modules",
+    "filePath": "src/routes/_authenticated/tenant/modules.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 4193,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/roles",
+    "filePath": "src/routes/_authenticated/tenant/roles.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 4568,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/settings",
+    "filePath": "src/routes/_authenticated/tenant/settings.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 1628,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/subscription",
+    "filePath": "src/routes/_authenticated/tenant/subscription.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 485,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/support",
+    "filePath": "src/routes/_authenticated/tenant/support.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 5907,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/users",
+    "filePath": "src/routes/_authenticated/tenant/users.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 10553,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenet/$",
+    "filePath": "src/routes/_authenticated/tenet/$.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 364,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/portal/invoices/$id",
+    "filePath": "src/routes/portal.invoices.$id.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12250,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/portal/proposals/$id",
+    "filePath": "src/routes/portal.proposals.$id.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 20904,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/client/",
+    "filePath": "src/routes/_authenticated/client/index.tsx",
+    "module": "Client Portal",
+    "fileSize": 248,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/employee/",
+    "filePath": "src/routes/_authenticated/employee/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 246,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/",
+    "filePath": "src/routes/_authenticated/hr/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 312,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/",
+    "filePath": "src/routes/_authenticated/me/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 346,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/",
+    "filePath": "src/routes/_authenticated/super/index.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 48206,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/tenant/",
+    "filePath": "src/routes/_authenticated/tenant/index.tsx",
+    "module": "Tenant Portal",
+    "fileSize": 248,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice/$id",
+    "filePath": "src/routes/_authenticated/_app/invoice.$id.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 37517,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice/create",
+    "filePath": "src/routes/_authenticated/_app/invoice.create.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 563,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/project/$id",
+    "filePath": "src/routes/_authenticated/_app/project.$id.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 95983,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/settings/custom-domain",
+    "filePath": "src/routes/_authenticated/_app/settings.custom-domain.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 2322,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/settings/webhook",
+    "filePath": "src/routes/_authenticated/_app/settings.webhook.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 262,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard/financial",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.financial.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 2565,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard/operational",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.operational.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 2561,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard/sales",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.sales.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 2519,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/$reportId",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.$reportId.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 507,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/attendance-summary",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.attendance-summary.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 492,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/deal-pipeline",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.deal-pipeline.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 467,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/leave-report",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.leave-report.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 455,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/payroll-sheet",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.payroll-sheet.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 467,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/product-stock",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.product-stock.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 477,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/project-progress",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.project-progress.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 482,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/purchase-invoice",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.purchase-invoice.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 490,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/sales-invoice",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.sales-invoice.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 475,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/dashboard",
+    "filePath": "src/routes/_authenticated/hr/assets/dashboard.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 617,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/depreciation",
+    "filePath": "src/routes/_authenticated/hr/assets/depreciation.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 5723,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/depreciations",
+    "filePath": "src/routes/_authenticated/hr/assets/depreciations.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 277,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/requests-maintenance",
+    "filePath": "src/routes/_authenticated/hr/assets/requests-maintenance.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10291,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/types",
+    "filePath": "src/routes/_authenticated/hr/assets/types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 6326,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/devices",
+    "filePath": "src/routes/_authenticated/hr/attendance/devices.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 11669,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/live",
+    "filePath": "src/routes/_authenticated/hr/attendance/live.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8239,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/overtime",
+    "filePath": "src/routes/_authenticated/hr/attendance/overtime.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9463,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/policies",
+    "filePath": "src/routes/_authenticated/hr/attendance/policies.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9635,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/records",
+    "filePath": "src/routes/_authenticated/hr/attendance/records.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 20231,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/regularizations",
+    "filePath": "src/routes/_authenticated/hr/attendance/regularizations.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 12283,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/shifts",
+    "filePath": "src/routes/_authenticated/hr/attendance/shifts.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 15687,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/timesheet",
+    "filePath": "src/routes/_authenticated/hr/attendance/timesheet.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 377,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/timesheets",
+    "filePath": "src/routes/_authenticated/hr/attendance/timesheets.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9470,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/acknowledgements",
+    "filePath": "src/routes/_authenticated/hr/documents/acknowledgements.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8745,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/categories",
+    "filePath": "src/routes/_authenticated/hr/documents/categories.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7556,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/contract-templates",
+    "filePath": "src/routes/_authenticated/hr/documents/contract-templates.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 6705,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/contract-types",
+    "filePath": "src/routes/_authenticated/hr/documents/contract-types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7013,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/contracts",
+    "filePath": "src/routes/_authenticated/hr/documents/contracts.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10061,
+    "status": "VERIFIED",
+    "evidence": "Contract CRUD & document viewing verified; legal Aadhaar/DSC eSign gateway flagged as external dependency",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/document-templates",
+    "filePath": "src/routes/_authenticated/hr/documents/document-templates.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7658,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/employee",
+    "filePath": "src/routes/_authenticated/hr/documents/employee.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 275,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/letters",
+    "filePath": "src/routes/_authenticated/hr/documents/letters.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 11032,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/requests",
+    "filePath": "src/routes/_authenticated/hr/documents/requests.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 273,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/templates",
+    "filePath": "src/routes/_authenticated/hr/documents/templates.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 376,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/$id",
+    "filePath": "src/routes/_authenticated/hr/employees/$id.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 17026,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/exits",
+    "filePath": "src/routes/_authenticated/hr/employees/exits.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 242,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/import",
+    "filePath": "src/routes/_authenticated/hr/employees/import.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10673,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/new",
+    "filePath": "src/routes/_authenticated/hr/employees/new.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 32027,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/onboarding",
+    "filePath": "src/routes/_authenticated/hr/employees/onboarding.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 247,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/transfers",
+    "filePath": "src/routes/_authenticated/hr/employees/transfers.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 243,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/applications",
+    "filePath": "src/routes/_authenticated/hr/leave/applications.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 13791,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/balances",
+    "filePath": "src/routes/_authenticated/hr/leave/balances.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10496,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/calendar",
+    "filePath": "src/routes/_authenticated/hr/leave/calendar.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 6188,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/encashment-compoff",
+    "filePath": "src/routes/_authenticated/hr/leave/encashment-compoff.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9386,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/policies",
+    "filePath": "src/routes/_authenticated/hr/leave/policies.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9940,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/types",
+    "filePath": "src/routes/_authenticated/hr/leave/types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8958,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/awards",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/awards.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10587,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/complaints",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/complaints.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9641,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/exits",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/exits.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10284,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/probation",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/probation.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 15534,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/promotions",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/promotions.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 12011,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/resignations",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/resignations.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9741,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/terminations",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/terminations.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10328,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/transfers",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/transfers.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 11503,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/trips",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/trips.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8249,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/warnings",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/warnings.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 11625,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/action-items",
+    "filePath": "src/routes/_authenticated/hr/meetings/action-items.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10878,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/rooms",
+    "filePath": "src/routes/_authenticated/hr/meetings/rooms.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8670,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/types",
+    "filePath": "src/routes/_authenticated/hr/meetings/types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7965,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/announcements",
+    "filePath": "src/routes/_authenticated/hr/organization/announcements.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 15317,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/award-types",
+    "filePath": "src/routes/_authenticated/hr/organization/award-types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7421,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/branches",
+    "filePath": "src/routes/_authenticated/hr/organization/branches.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10438,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/departments",
+    "filePath": "src/routes/_authenticated/hr/organization/departments.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9849,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/designations",
+    "filePath": "src/routes/_authenticated/hr/organization/designations.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9911,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/document-types",
+    "filePath": "src/routes/_authenticated/hr/organization/document-types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 390,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/holidays",
+    "filePath": "src/routes/_authenticated/hr/organization/holidays.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 11988,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/structure",
+    "filePath": "src/routes/_authenticated/hr/organization/structure.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7742,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/tree",
+    "filePath": "src/routes/_authenticated/hr/organization/tree.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 302,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/components",
+    "filePath": "src/routes/_authenticated/hr/payroll/components.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 16307,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/employee-salaries",
+    "filePath": "src/routes/_authenticated/hr/payroll/employee-salaries.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 14633,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/forms",
+    "filePath": "src/routes/_authenticated/hr/payroll/forms.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 4566,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/payslips",
+    "filePath": "src/routes/_authenticated/hr/payroll/payslips.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 15290,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/reimbursements-loans",
+    "filePath": "src/routes/_authenticated/hr/payroll/reimbursements-loans.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 19251,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/runs",
+    "filePath": "src/routes/_authenticated/hr/payroll/runs.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 17544,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/salaries",
+    "filePath": "src/routes/_authenticated/hr/payroll/salaries.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 380,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/settings",
+    "filePath": "src/routes/_authenticated/hr/payroll/settings.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 58443,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/setup",
+    "filePath": "src/routes/_authenticated/hr/payroll/setup.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 13272,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/tax",
+    "filePath": "src/routes/_authenticated/hr/payroll/tax.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 15862,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/cycles",
+    "filePath": "src/routes/_authenticated/hr/performance/cycles.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 12980,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/goal-types",
+    "filePath": "src/routes/_authenticated/hr/performance/goal-types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 6799,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/goals",
+    "filePath": "src/routes/_authenticated/hr/performance/goals.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 15747,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/indicator-categories",
+    "filePath": "src/routes/_authenticated/hr/performance/indicator-categories.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 6877,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/indicators",
+    "filePath": "src/routes/_authenticated/hr/performance/indicators.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 11886,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/pip",
+    "filePath": "src/routes/_authenticated/hr/performance/pip.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 14802,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/reviews",
+    "filePath": "src/routes/_authenticated/hr/performance/reviews.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 12708,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/assessments",
+    "filePath": "src/routes/_authenticated/hr/recruitment/assessments.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 14601,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/candidate-onboarding",
+    "filePath": "src/routes/_authenticated/hr/recruitment/candidate-onboarding.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10360,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/candidate-sources",
+    "filePath": "src/routes/_authenticated/hr/recruitment/candidate-sources.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8046,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/candidates",
+    "filePath": "src/routes/_authenticated/hr/recruitment/candidates.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 29623,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/career",
+    "filePath": "src/routes/_authenticated/hr/recruitment/career.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 357,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/career-site",
+    "filePath": "src/routes/_authenticated/hr/recruitment/career-site.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 6355,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/check-items",
+    "filePath": "src/routes/_authenticated/hr/recruitment/check-items.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9322,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/interview-rounds",
+    "filePath": "src/routes/_authenticated/hr/recruitment/interview-rounds.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7625,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/interview-types",
+    "filePath": "src/routes/_authenticated/hr/recruitment/interview-types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7952,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/interviews",
+    "filePath": "src/routes/_authenticated/hr/recruitment/interviews.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 19066,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-categories",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-categories.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7332,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-locations",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-locations.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8308,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-postings",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-postings.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 19356,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-types",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7273,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/locations",
+    "filePath": "src/routes/_authenticated/hr/recruitment/locations.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 284,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/offer-templates",
+    "filePath": "src/routes/_authenticated/hr/recruitment/offer-templates.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7196,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/offers",
+    "filePath": "src/routes/_authenticated/hr/recruitment/offers.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 13729,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/onboarding",
+    "filePath": "src/routes/_authenticated/hr/recruitment/onboarding.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 389,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/onboarding-checklists",
+    "filePath": "src/routes/_authenticated/hr/recruitment/onboarding-checklists.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7383,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/pipeline",
+    "filePath": "src/routes/_authenticated/hr/recruitment/pipeline.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 11591,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/referrals",
+    "filePath": "src/routes/_authenticated/hr/recruitment/referrals.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10478,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/rounds",
+    "filePath": "src/routes/_authenticated/hr/recruitment/rounds.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 284,
+    "status": "NOT APPLICABLE",
+    "evidence": "TanStack Router internal path redirect or alias",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/attendance",
+    "filePath": "src/routes/_authenticated/hr/reports/attendance.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 411,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/attrition",
+    "filePath": "src/routes/_authenticated/hr/reports/attrition.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 401,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/custom",
+    "filePath": "src/routes/_authenticated/hr/reports/custom.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 402,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/headcount",
+    "filePath": "src/routes/_authenticated/hr/reports/headcount.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 401,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/payroll",
+    "filePath": "src/routes/_authenticated/hr/reports/payroll.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 393,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/performance",
+    "filePath": "src/routes/_authenticated/hr/reports/performance.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 457,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/recruitment",
+    "filePath": "src/routes/_authenticated/hr/reports/recruitment.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 437,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/statutory",
+    "filePath": "src/routes/_authenticated/hr/reports/statutory.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 432,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/training",
+    "filePath": "src/routes/_authenticated/hr/reports/training.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 406,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/training/employee-trainings",
+    "filePath": "src/routes/_authenticated/hr/training/employee-trainings.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9767,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/training/programs",
+    "filePath": "src/routes/_authenticated/hr/training/programs.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 9878,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/training/sessions",
+    "filePath": "src/routes/_authenticated/hr/training/sessions.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10855,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/training/trainings",
+    "filePath": "src/routes/_authenticated/hr/training/trainings.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 375,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/training/types",
+    "filePath": "src/routes/_authenticated/hr/training/types.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 7030,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/assets/dashboard",
+    "filePath": "src/routes/_authenticated/me/assets/dashboard.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4778,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/assets/depreciations",
+    "filePath": "src/routes/_authenticated/me/assets/depreciations.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4024,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/assets/requests",
+    "filePath": "src/routes/_authenticated/me/assets/requests.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 8837,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/assets/types",
+    "filePath": "src/routes/_authenticated/me/assets/types.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3362,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/policies",
+    "filePath": "src/routes/_authenticated/me/attendance/policies.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4376,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/records",
+    "filePath": "src/routes/_authenticated/me/attendance/records.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 370,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/regularizations",
+    "filePath": "src/routes/_authenticated/me/attendance/regularizations.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 9877,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/requests",
+    "filePath": "src/routes/_authenticated/me/attendance/requests.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 13361,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/shifts",
+    "filePath": "src/routes/_authenticated/me/attendance/shifts.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5932,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/timesheet",
+    "filePath": "src/routes/_authenticated/me/attendance/timesheet.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 8136,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/documents/acknowledgements",
+    "filePath": "src/routes/_authenticated/me/documents/acknowledgements.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5549,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/documents/contracts",
+    "filePath": "src/routes/_authenticated/me/documents/contracts.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3705,
+    "status": "VERIFIED",
+    "evidence": "Contract CRUD & document viewing verified; legal Aadhaar/DSC eSign gateway flagged as external dependency",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/documents/requests",
+    "filePath": "src/routes/_authenticated/me/documents/requests.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 7593,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/leave/applications",
+    "filePath": "src/routes/_authenticated/me/leave/applications.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 16423,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/leave/balance",
+    "filePath": "src/routes/_authenticated/me/leave/balance.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5476,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/leave/policies",
+    "filePath": "src/routes/_authenticated/me/leave/policies.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4480,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/leave/team-calendar",
+    "filePath": "src/routes/_authenticated/me/leave/team-calendar.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5580,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/awards",
+    "filePath": "src/routes/_authenticated/me/lifecycle/awards.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3972,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/complaints",
+    "filePath": "src/routes/_authenticated/me/lifecycle/complaints.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 9968,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/exit",
+    "filePath": "src/routes/_authenticated/me/lifecycle/exit.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5242,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/promotions",
+    "filePath": "src/routes/_authenticated/me/lifecycle/promotions.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4107,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/resignation",
+    "filePath": "src/routes/_authenticated/me/lifecycle/resignation.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 9626,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/terminations",
+    "filePath": "src/routes/_authenticated/me/lifecycle/terminations.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 355,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/transfers",
+    "filePath": "src/routes/_authenticated/me/lifecycle/transfers.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 8845,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/trips",
+    "filePath": "src/routes/_authenticated/me/lifecycle/trips.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 15068,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/warnings",
+    "filePath": "src/routes/_authenticated/me/lifecycle/warnings.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 8275,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/meetings/action-items",
+    "filePath": "src/routes/_authenticated/me/meetings/action-items.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5343,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/organization/announcements",
+    "filePath": "src/routes/_authenticated/me/organization/announcements.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 6773,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/organization/holidays",
+    "filePath": "src/routes/_authenticated/me/organization/holidays.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5872,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/organization/structure",
+    "filePath": "src/routes/_authenticated/me/organization/structure.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5280,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/payslips",
+    "filePath": "src/routes/_authenticated/me/payroll/payslips.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 10546,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/reimbursements-loans",
+    "filePath": "src/routes/_authenticated/me/payroll/reimbursements-loans.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 16626,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/salary",
+    "filePath": "src/routes/_authenticated/me/payroll/salary.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 7672,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/statutory-forms",
+    "filePath": "src/routes/_authenticated/me/payroll/statutory-forms.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3794,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/tax",
+    "filePath": "src/routes/_authenticated/me/payroll/tax.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 10891,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/performance/cycles",
+    "filePath": "src/routes/_authenticated/me/performance/cycles.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4146,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/performance/goals",
+    "filePath": "src/routes/_authenticated/me/performance/goals.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 8176,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/performance/indicators",
+    "filePath": "src/routes/_authenticated/me/performance/indicators.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3506,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/performance/reviews",
+    "filePath": "src/routes/_authenticated/me/performance/reviews.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 14258,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/assessments",
+    "filePath": "src/routes/_authenticated/me/recruitment/assessments.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3796,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/career",
+    "filePath": "src/routes/_authenticated/me/recruitment/career.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 7649,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/interview-rounds",
+    "filePath": "src/routes/_authenticated/me/recruitment/interview-rounds.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3294,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/interviews",
+    "filePath": "src/routes/_authenticated/me/recruitment/interviews.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 8366,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/job-locations",
+    "filePath": "src/routes/_authenticated/me/recruitment/job-locations.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3043,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/job-postings",
+    "filePath": "src/routes/_authenticated/me/recruitment/job-postings.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 6058,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/onboarding",
+    "filePath": "src/routes/_authenticated/me/recruitment/onboarding.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4394,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/training/programs",
+    "filePath": "src/routes/_authenticated/me/training/programs.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 3286,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/training/sessions",
+    "filePath": "src/routes/_authenticated/me/training/sessions.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5624,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/training/trainings",
+    "filePath": "src/routes/_authenticated/me/training/trainings.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5879,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/super/domains/documentation",
+    "filePath": "src/routes/_authenticated/super/domains.documentation.tsx",
+    "module": "Super Admin / Platform Control Plane",
+    "fileSize": 31451,
+    "status": "VERIFIED",
+    "evidence": "Interactive UI component with robust client state & validation",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/",
+    "filePath": "src/routes/_authenticated/hr/assets/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 14260,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/",
+    "filePath": "src/routes/_authenticated/hr/attendance/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 337,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/",
+    "filePath": "src/routes/_authenticated/hr/documents/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 10269,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/",
+    "filePath": "src/routes/_authenticated/hr/employees/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 12040,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/",
+    "filePath": "src/routes/_authenticated/hr/leave/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 4760,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 6540,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/",
+    "filePath": "src/routes/_authenticated/hr/meetings/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 13084,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/",
+    "filePath": "src/routes/_authenticated/hr/organization/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 348,
+    "status": "INCOMPLETE",
+    "evidence": "Static presentation template without live API or data persistence",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/",
+    "filePath": "src/routes/_authenticated/hr/payroll/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 4657,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/",
+    "filePath": "src/routes/_authenticated/hr/performance/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 8329,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/",
+    "filePath": "src/routes/_authenticated/hr/recruitment/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 5862,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/hr/training/",
+    "filePath": "src/routes/_authenticated/hr/training/index.tsx",
+    "module": "Tenant Admin / HR & Payroll",
+    "fileSize": 4818,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/assets/",
+    "filePath": "src/routes/_authenticated/me/assets/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 7379,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/",
+    "filePath": "src/routes/_authenticated/me/attendance/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5471,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/documents/",
+    "filePath": "src/routes/_authenticated/me/documents/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4039,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/leave/",
+    "filePath": "src/routes/_authenticated/me/leave/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5245,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/",
+    "filePath": "src/routes/_authenticated/me/lifecycle/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 9305,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/meetings/",
+    "filePath": "src/routes/_authenticated/me/meetings/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 7832,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/",
+    "filePath": "src/routes/_authenticated/me/payroll/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5103,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/performance/",
+    "filePath": "src/routes/_authenticated/me/performance/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4308,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/",
+    "filePath": "src/routes/_authenticated/me/recruitment/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 5039,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/me/training/",
+    "filePath": "src/routes/_authenticated/me/training/index.tsx",
+    "module": "Employee Self Service (/me)",
+    "fileSize": 4534,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/fields",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/fields.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7393,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/settings",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/settings.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12177,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/usage",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/usage.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 8227,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/analytics",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/analytics.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 6777,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/generate",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/generate.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18989,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/settings",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/settings.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10584,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/template-categories",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/template-categories.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10413,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/tones",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/tones.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9414,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/dashboard",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/dashboard.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12950,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/events",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/events.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7402,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/settings",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/settings.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9466,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice/$id/print",
+    "filePath": "src/routes/_authenticated/_app/invoice.$id.print.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 24979,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/history/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/history/$id.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 8056,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/history/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/history/$id.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9231,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/templates/new",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/templates/new.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9077,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/new",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/new.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 8518,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/grid",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/grid.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7938,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/kanban",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/kanban.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9580,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/new",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/new.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 19788,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/tree",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/tree.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 11760,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/setup/categories",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/setup/categories.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 8888,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/setup/stages",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/setup/stages.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 11313,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/setup/statuses",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/setup/statuses.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9600,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/new",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/new.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 18105,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/logs/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/logs/$id.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12227,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/history/",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/history/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7281,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/history/",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/history/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7075,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/templates/",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/templates/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10145,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10338,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 10343,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 17667,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/logs/",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/logs/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 11714,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/templates/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/templates/$id/edit.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 9458,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/$id/edit.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 8311,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/$id/edit.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12060,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/$id/edit.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12983,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/$id/",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/$id/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 7702,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/$id/",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/$id/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 21493,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/$id/",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/$id/index.tsx",
+    "module": "Core App Shell / Sub-routes / Utilities",
+    "fileSize": 12881,
+    "status": "VERIFIED",
+    "evidence": "Full UI with live API client integration & state management",
+    "dependency": null
+  }
+]

@@ -254,9 +254,16 @@ export class PayrollBatchService {
       lopOverrides
     );
 
-    // 4. Fetch all active Statutory Rules for Tenant
+    // 4. Fetch all active Statutory Rules for Tenant and Central / Global scope
     const statutoryRules = await this.prisma.statutoryRule.findMany({
-      where: { tenantId, isActive: true },
+      where: {
+        OR: [
+          { tenantId, isActive: true },
+          { isGlobal: true, isActive: true },
+        ],
+        publicationStatus: 'published',
+      },
+      orderBy: [{ version: 'desc' }, { effectiveFrom: 'desc' }],
     });
 
     // 5. Fetch all Section 9A Payroll Formulas for Tenant
@@ -600,6 +607,20 @@ export class PayrollBatchService {
                 employeeName: name,
                 calculatedValues: execution.formattedResults,
               } as any,
+              statutoryManifest: {
+                engineVersion: "2.0.0-statutory-engine",
+                calculatedAt: new Date().toISOString(),
+                rulesApplied: statutoryRules.map((r) => ({
+                  id: r.id,
+                  ruleIdentifier: r.ruleIdentifier,
+                  type: r.ruleType,
+                  state: r.stateCode,
+                  version: r.version,
+                  effectiveFrom: r.effectiveFrom,
+                  sourceAuthority: r.sourceAuthority,
+                  notificationRef: r.notificationRef,
+                })),
+              } as any,
             },
           });
 
@@ -692,6 +713,20 @@ export class PayrollBatchService {
         status: 'completed',
         approvalStatus: 'calculated',
         processedAt: new Date(),
+        statutoryManifest: {
+          engineVersion: "2.0.0-statutory-engine",
+          calculatedAt: new Date().toISOString(),
+          rulesApplied: statutoryRules.map((r) => ({
+            id: r.id,
+            ruleIdentifier: r.ruleIdentifier,
+            type: r.ruleType,
+            state: r.stateCode,
+            version: r.version,
+            effectiveFrom: r.effectiveFrom,
+            sourceAuthority: r.sourceAuthority,
+            notificationRef: r.notificationRef,
+          })),
+        } as any,
       },
     });
 

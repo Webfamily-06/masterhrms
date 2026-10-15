@@ -441,16 +441,29 @@ async function runWave22Tests() {
     newCalcLow
   );
 
-  // 3.2 New Regime Higher Bracket
-  const newCalcHigh = TdsCalculatorService.computeNewRegime({
+  // 3.2 Historical FY 2024-25 New Regime Bracket (Finance (No. 2) Act, 2024)
+  const newCalcHighFY24 = TdsCalculatorService.computeNewRegime({
+    annualGrossSalary: 1200000,
+    basicSalaryAnnual: 600000,
+    hraReceivedAnnual: 240000,
+    regime: "new",
+    financialYear: "2024-2025",
+  });
+  // FY 2024-25: 1,200,000 - 75,000 = 1,125,000
+  // Slabs: 0-3L: 0, 3-6L: 15k, 6-9L: 30k, 9-11.25L (2.25L @ 15%): 33,750 => Tax: 78,750 + 4% cess (3,150) = 81,900
+  assert(newCalcHighFY24.totalAnnualTax === 81900, "Historical FY 2024-25 correctly computes slab tax + 4% cess for ₹12L gross", newCalcHighFY24);
+
+  // 3.2b Enacted FY 2025-26 (Finance Act, 2025) & FY 2026-27 (Income-tax Act, 2025) Bracket
+  const newCalcHighEnacted = TdsCalculatorService.computeNewRegime({
     annualGrossSalary: 1200000,
     basicSalaryAnnual: 600000,
     hraReceivedAnnual: 240000,
     regime: "new",
   });
-  // 1,200,000 - 75,000 = 1,125,000
-  // Slabs: 0-3L: 0, 3-6L: 15k, 6-9L: 30k, 9-11.25L (2.25L @ 15%): 33,750 => Tax: 78,750 + 4% cess (3,150) = 81,900
-  assert(newCalcHigh.totalAnnualTax === 81900, "New Regime correctly computes slab tax + 4% cess for ₹12L gross", newCalcHigh);
+  // Enacted: 1,200,000 - 75,000 = 1,125,000. Under ₹12,00,000 threshold -> full Section 87A / Section 156(2) rebate -> Tax = 0!
+  // Slab Tax: 0-4L: 0, 4-8L: 20k, 8-11.25L: 32.5k => ₹52,500 - Rebate ₹52,500 = ₹0!
+  assert(newCalcHighEnacted.totalAnnualTax === 0, "Enacted FY 2025-26 & FY 2026-27 yields ₹0 tax for ₹12L gross due to ₹12L rebate threshold", newCalcHighEnacted);
+  assert(newCalcHighEnacted.rebate87A === 52500, "Enacted FY 2025-26 applies full ₹52,500 Section 87A rebate", newCalcHighEnacted);
 
   // 3.3 Old Regime with 80C, 80D, HRA Exemption
   const oldCalc = TdsCalculatorService.computeOldRegime({

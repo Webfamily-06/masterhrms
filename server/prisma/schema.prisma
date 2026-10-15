@@ -73,6 +73,7 @@ model User {
   calendarEvents           CalendarEvent[]
   notifications            Notification[]
   commerceOrders           CommerceOrder[]
+  passwordResetTokens      PasswordResetToken[]
 
   @@map("users")
 }
@@ -654,9 +655,10 @@ model PayrollRun {
   isPublished     Boolean       @default(false) @map("is_published")
   publishedAt     DateTime?     @map("published_at")
   publishedBy     String?       @map("published_by") @db.VarChar(150)
-  varianceSummary Json?         @map("variance_summary")
-  processedAt     DateTime?     @map("processed_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
+  varianceSummary   Json?         @map("variance_summary")
+  statutoryManifest Json?         @map("statutory_manifest")
+  processedAt       DateTime?     @map("processed_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
 
   tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   payslips  Payslip[]
@@ -853,28 +855,78 @@ model EmployeeSalaryItem {
 }
 
 model StatutoryRule {
-  id              String    @id @default(uuid()) @db.VarChar(36)
-  tenantId        String    @map("tenant_id") @db.VarChar(36)
-  ruleType        String    @map("rule_type") @db.VarChar(50) // EPF, ESI, PT, GRATUITY, TDS_ITA2025, LWF, BONUS, MINIMUM_WAGE
-  stateCode       String?   @map("state_code") @db.VarChar(50) // MH, KA, TN, TS, WB, DL, GJ, etc.
-  configJson      Json      @map("config_json")
-  version         Int       @default(1)
-  effectiveFrom   DateTime  @default(now()) @map("effective_from")
-  effectiveTo     DateTime? @map("effective_to") @db.Date
-  sourceAuthority String?   @map("source_authority") @db.VarChar(255)
-  notificationRef String?   @map("notification_ref") @db.VarChar(255)
-  isVerified      Boolean   @default(true) @map("is_verified")
-  verifiedBy      String?   @map("verified_by") @db.VarChar(100)
-  signoffDate     DateTime? @map("signoff_date")
-  status          String    @default("active") @db.VarChar(20)
-  isActive        Boolean   @default(true) @map("is_active")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id                  String    @id @default(uuid()) @db.VarChar(36)
+  tenantId            String?   @map("tenant_id") @db.VarChar(36)
+  ruleIdentifier      String    @default("") @map("rule_identifier") @db.VarChar(100)
+  ruleType            String    @map("rule_type") @db.VarChar(50) // EPF, ESI, PT, GRATUITY, TDS_ITA2025, LWF, BONUS, MINIMUM_WAGE, STATUTORY_BENEFIT
+  category            String    @default("CENTRAL_STATUTORY") @map("category") @db.VarChar(50)
+  jurisdictionLevel   String    @default("CENTRAL") @map("jurisdiction_level") @db.VarChar(20) // CENTRAL, STATE, ESTABLISHMENT
+  stateCode           String?   @map("state_code") @db.VarChar(50) // ALL, MH, KA, TN, TS, WB, DL, GJ, etc.
+  applicableCategory  String    @default("ALL") @map("applicable_category") @db.VarChar(100)
+  configJson          Json      @map("config_json")
+  version             Int       @default(1)
+  effectiveFrom       DateTime  @default(now()) @map("effective_from")
+  effectiveTo         DateTime? @map("effective_to") @db.Date
+  financialYear       String?   @map("financial_year") @db.VarChar(20)
+  sourceAuthority     String?   @map("source_authority") @db.VarChar(255)
+  notificationRef     String?   @map("notification_ref") @db.VarChar(255)
+  sourceUrl           String?   @map("source_url") @db.VarChar(500)
+  publicationStatus   String    @default("published") @map("publication_status") @db.VarChar(30) // draft, under_review, approved, published, superseded, archived
+  isVerified          Boolean   @default(true) @map("is_verified")
+  verifiedBy          String?   @map("verified_by") @db.VarChar(100)
+  createdBy           String?   @map("created_by") @db.VarChar(100)
+  reviewedBy          String?   @map("reviewed_by") @db.VarChar(100)
+  approvedBy          String?   @map("approved_by") @db.VarChar(100)
+  publishedBy         String?   @map("published_by") @db.VarChar(100)
+  publishedAt         DateTime? @map("published_at")
+  signoffDate         DateTime? @map("signoff_date")
+  status              String    @default("active") @db.VarChar(20)
+  isActive            Boolean   @default(true) @map("is_active")
+  isGlobal            Boolean   @default(false) @map("is_global")
+  previousVersionId   String?   @map("previous_version_id") @db.VarChar(36)
+  changeLog           String?   @map("change_log") @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant              Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditLogs           StatutoryRuleAuditLog[]
 
   @@index([tenantId, ruleType, isActive])
+  @@index([ruleType, stateCode, effectiveFrom])
+  @@index([publicationStatus, isActive])
   @@map("statutory_rules")
+}
+
+model StatutoryRuleAuditLog {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  ruleId      String   @map("rule_id") @db.VarChar(36)
+  action      String   @db.VarChar(50) // DRAFT_CREATED, SUBMITTED_FOR_REVIEW, APPROVED, PUBLISHED, SUPERSEDED, ROLLBACK
+  actorId     String?  @map("actor_id") @db.VarChar(100)
+  actorEmail  String?  @map("actor_email") @db.VarChar(255)
+  actorRole   String?  @map("actor_role") @db.VarChar(50)
+  beforeState Json?    @map("before_state")
+  afterState  Json?    @map("after_state")
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rule StatutoryRule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, createdAt])
+  @@map("statutory_rule_audit_logs")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.VarChar(36)
+  userId    String    @map("user_id") @db.VarChar(36)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tokenHash])
+  @@map("password_reset_tokens")
 }
 
 model EmployeeTaxDeclaration {
@@ -981,8 +1033,9 @@ model PayrollSnapshot {
   employeeId      String   @map("employee_id") @db.VarChar(36)
   periodMonth     Int      @map("period_month")
   periodYear      Int      @map("period_year")
-  snapshotData    Json     @map("snapshot_data")
-  ctcAnnual       Decimal  @map("ctc_annual") @db.Decimal(15, 2)
+  snapshotData      Json     @map("snapshot_data")
+  statutoryManifest Json?    @map("statutory_manifest")
+  ctcAnnual         Decimal  @map("ctc_annual") @db.Decimal(15, 2)
   grossEarned     Decimal  @map("gross_earned") @db.Decimal(12, 2)
   totalDeductions Decimal  @map("total_deductions") @db.Decimal(12, 2)
   netPay          Decimal  @map("net_pay") @db.Decimal(12, 2)

@@ -17,6 +17,9 @@ import {
 } from "../services/payroll-engine.service";
 import { TdsCalculatorService } from "../services/tds-calculator.service";
 import { evaluateFormula } from "../services/formula-engine/evaluator";
+import { ALL_INDIA_JURISDICTIONS } from "../constants/jurisdictions";
+import { StatutoryRuleRegistryService, StatutoryRuleDraftInput } from "../services/statutory-rule-registry.service";
+import { StatutoryAmendmentIngestionService } from "../services/statutory-amendment-ingestion.service";
 
 export const hrPayrollRouter = Router();
 
@@ -1091,3 +1094,360 @@ hrPayrollRouter.get("/forms/summary", async (req: AuthRequest, res: Response) =>
     return res.status(500).json({ error: err.message });
   }
 });
+
+// =========================================================================
+// 8. ALL-INDIA STATUTORY REGISTRY & HR PAYROLL SETTINGS
+// =========================================================================
+
+/**
+ * GET /jurisdictions — List all 36 Indian States and Union Territories
+ */
+hrPayrollRouter.get("/jurisdictions", async (_req: AuthRequest, res: Response) => {
+  return res.json({
+    jurisdictions: ALL_INDIA_JURISDICTIONS,
+    totalCount: ALL_INDIA_JURISDICTIONS.length,
+    statesCount: ALL_INDIA_JURISDICTIONS.filter((j) => j.type === "STATE").length,
+    unionTerritoriesCount: ALL_INDIA_JURISDICTIONS.filter((j) => j.type === "UNION_TERRITORY").length,
+  });
+});
+
+/**
+ * GET /jurisdictions/:code/rules — Retrieve statutory rules for a specific jurisdiction
+ */
+hrPayrollRouter.get("/jurisdictions/:code/rules", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const stateCode = req.params.code.toUpperCase();
+    const rules = await StatutoryRuleRegistryService.listRules({
+      stateCode: stateCode === "CENTRAL" || stateCode === "ALL" ? "ALL" : stateCode,
+      tenantId,
+    });
+
+    return res.json({
+      stateCode,
+      rules,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /settings — Fetch current tenant's persisted payroll & statutory setup
+ */
+hrPayrollRouter.get("/settings", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const db = getTenantDb();
+    const settingRecord = await db.setting.findFirst({
+      where: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "payroll",
+        key: "payroll_config",
+      },
+    });
+
+    const defaultSettings = {
+      cutoffDay: 1,
+      cutoffEndDay: 30,
+      payCycle: "monthly",
+      bankFormat: "HDFC_CMS",
+      voluntaryPfAllowed: true,
+      defaultWorkState: "TN",
+      statutoryAutoDeduction: true,
+      lwfEnabled: true,
+      ptEnabled: true,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const currentSettings = settingRecord
+      ? { ...defaultSettings, ...(settingRecord.valueJson as Record<string, any>) }
+      : defaultSettings;
+
+    // Fetch active statutory rule summary for this tenant
+    const activeRules = await StatutoryRuleRegistryService.listRules({
+      publicationStatus: "published",
+      tenantId,
+    });
+
+    return res.json({
+      settings: currentSettings,
+      activeRulesSummary: {
+        totalRules: activeRules.length,
+        epfRule: activeRules.find((r) => r.ruleType === "EPF"),
+        esiRule: activeRules.find((r) => r.ruleType === "ESI"),
+        tdsRule: activeRules.find((r) => r.ruleType === "TDS_ITA2025"),
+        gratuityRule: activeRules.find((r) => r.ruleType === "GRATUITY"),
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /settings — Persist tenant's payroll & statutory configuration parameters
+ */
+hrPayrollRouter.post("/settings", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId || "system";
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const {
+      cutoffDay,
+      cutoffEndDay,
+      payCycle,
+      bankFormat,
+      voluntaryPfAllowed,
+      defaultWorkState,
+      statutoryAutoDeduction,
+      lwfEnabled,
+      ptEnabled,
+    } = req.body;
+
+    const db = getTenantDb();
+    const configPayload = {
+      cutoffDay: Number(cutoffDay) || 1,
+      cutoffEndDay: Number(cutoffEndDay) || 30,
+      payCycle: payCycle || "monthly",
+      bankFormat: bankFormat || "HDFC_CMS",
+      voluntaryPfAllowed: voluntaryPfAllowed !== false,
+      defaultWorkState: defaultWorkState || "TN",
+      statutoryAutoDeduction: statutoryAutoDeduction !== false,
+      lwfEnabled: lwfEnabled !== false,
+      ptEnabled: ptEnabled !== false,
+      updatedAt: new Date().toISOString(),
+      updatedBy: actorId,
+    };
+
+    const setting = await db.setting.upsert({
+      where: {
+        scope_scopeId_key: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          key: "payroll_config",
+        },
+      },
+      create: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "payroll",
+        key: "payroll_config",
+        valueType: "JSON",
+        valueJson: configPayload,
+        updatedBy: actorId,
+      },
+      update: {
+        valueJson: configPayload,
+        updatedBy: actorId,
+      },
+    });
+
+    await AuditService.log({
+      tenantId,
+      actorId,
+      action: "PAYROLL_SETTINGS_UPDATED",
+      resourceType: "Setting",
+      resourceId: setting.id,
+      details: configPayload,
+    });
+
+    return res.json({
+      success: true,
+      message: "Payroll configuration persisted successfully to database",
+      settings: configPayload,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /amendments/sources — List official statutory government sources monitored
+ */
+hrPayrollRouter.get("/amendments/sources", async (_req: AuthRequest, res: Response) => {
+  return res.json({
+    sources: StatutoryAmendmentIngestionService.getOfficialSources(),
+  });
+});
+
+/**
+ * POST /amendments/ingest — Ingest an official government gazette / circular amendment as DRAFT
+ */
+hrPayrollRouter.post("/amendments/ingest", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId || "system";
+    const actorRole = req.user?.roles?.[0] || "hr_admin";
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const result = await StatutoryAmendmentIngestionService.ingestNotificationAsDraft(
+      req.body,
+      actorId,
+      actorRole,
+      tenantId
+    );
+
+    await AuditService.log({
+      tenantId,
+      actorId,
+      action: "STATUTORY_AMENDMENT_INGESTED",
+      resourceType: "StatutoryRule",
+      resourceId: result.draftRule.id,
+      details: {
+        notificationRef: req.body.notificationRef,
+        ruleType: req.body.ruleType,
+        stateCode: req.body.stateCode,
+        diffSummary: result.diff,
+      },
+    });
+
+    return res.status(201).json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /simulate — Interactive payroll calculation simulation with proposed or custom rules
+ */
+hrPayrollRouter.post("/simulate", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const {
+      monthlyGross = 50000,
+      basicSalary = 25000,
+      state = "TN",
+      taxRegime = "new",
+      isResident = true,
+      pfEligible = true,
+      esiEligible = true,
+      ptEligible = true,
+      lwfEligible = true,
+      proposedRuleOverride,
+    } = req.body;
+
+    // Fetch baseline active statutory rules
+    const activeRules = await StatutoryRuleRegistryService.listRules({
+      publicationStatus: "published",
+      tenantId,
+    });
+
+    const statutoryRules = [...activeRules];
+    if (proposedRuleOverride && proposedRuleOverride.ruleType) {
+      // Prepend proposed rule override to test against calculation engine
+      statutoryRules.unshift({
+        id: "SIM_PROPOSAL_" + Date.now(),
+        ruleType: proposedRuleOverride.ruleType,
+        stateCode: proposedRuleOverride.stateCode || "ALL",
+        configJson: proposedRuleOverride.configJson,
+        version: proposedRuleOverride.version || 99,
+        effectiveFrom: new Date(),
+        publicationStatus: "draft",
+        isActive: true,
+      } as any);
+    }
+
+    const syntheticEmployee = {
+      id: "SIM_EMP_001",
+      employeeCode: "SIM001",
+      firstName: "Simulation",
+      lastName: "Subject",
+      baseMonthlyCtc: Number(monthlyGross),
+      state: state.toUpperCase(),
+      taxRegime,
+      isResident,
+      pfEligible,
+      esiEligible,
+      ptEligible,
+      lwfEligible,
+    };
+
+    const attendanceContext = {
+      payableDays: 30,
+      totalDays: 30,
+      prorationFactor: 1.0,
+      lopDays: 0,
+    };
+
+    const breakdown = computeEmployeePayrollBreakdown(
+      syntheticEmployee as any,
+      attendanceContext as any,
+      {
+        statutoryRules: statutoryRules as any,
+        periodMonth: 1,
+        periodYear: 2026,
+      }
+    );
+
+    return res.json({
+      simulation: {
+        input: {
+          monthlyGross: Number(monthlyGross),
+          basicSalary: Number(basicSalary),
+          state: state.toUpperCase(),
+          taxRegime,
+        },
+        breakdown,
+        statutoryManifest: breakdown.statutoryManifest,
+        safetyNotice: "Simulation preview only. Release Gate is BLOCKED. Does not modify or publish live payslips.",
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /rules/draft — Create a tenant-specific draft rule override
+ */
+hrPayrollRouter.post("/rules/draft", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId || "system";
+    const actorRole = req.user?.roles?.[0] || "hr_admin";
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const draft = await StatutoryRuleRegistryService.createDraftRule(
+      req.body,
+      actorId,
+      actorRole,
+      tenantId
+    );
+
+    return res.status(201).json({ draft });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /rules/:id/submit — Submit a draft rule for compliance review
+ */
+hrPayrollRouter.post("/rules/:id/submit", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId || "system";
+    const actorRole = req.user?.roles?.[0] || "hr_admin";
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const rule = await StatutoryRuleRegistryService.submitForReview(
+      req.params.id,
+      actorId,
+      actorRole
+    );
+
+    return res.json({ rule });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+

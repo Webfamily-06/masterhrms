@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapData } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ export default function MeExitClearancePage() {
     queryKey: ["me-lifecycle-exit"],
     queryFn: async () => {
       const res = await api.get("/me/lifecycle/exit");
-      return res.data;
+      return unwrapData(res);
     },
   });
 

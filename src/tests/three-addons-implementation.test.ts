@@ -16,18 +16,23 @@ vi.mock("../../server/src/prisma", () => {
         { id: "sale-2", total: 3500, paidAmount: 2000, date: new Date(), type: "invoice", paymentStatus: "partial", customerName: "Globex" },
       ]),
       count: vi.fn().mockResolvedValue(2),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { total: 5000, paidAmount: 3500 }, _count: 2 }),
+      groupBy: vi.fn().mockResolvedValue([{ paymentStatus: "paid", _count: 1, _sum: { total: 1500 } }]),
     },
     purchase: {
       findMany: vi.fn().mockResolvedValue([
         { id: "pur-1", total: 1200, paidAmount: 1200, date: new Date(), paymentStatus: "paid", supplier: { name: "Supplier A" } },
       ]),
       count: vi.fn().mockResolvedValue(1),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { total: 1200, paidAmount: 1200 }, _count: 1 }),
+      groupBy: vi.fn().mockResolvedValue([{ paymentStatus: "paid", _count: 1, _sum: { total: 1200 } }]),
     },
     payslip: {
       findMany: vi.fn().mockResolvedValue([
         { id: "pay-1", grossSalary: 2500, deductions: 200, netSalary: 2300, periodMonth: 10, periodYear: 2026, status: "published", employee: { id: "e1", firstName: "Jane", lastName: "Doe", employeeCode: "EMP01", department: { name: "Engineering" } } },
       ]),
       count: vi.fn().mockResolvedValue(1),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { grossSalary: 2500, deductions: 200, netSalary: 2300 }, _count: 1 }),
     },
     employee: {
       count: vi.fn().mockImplementation(({ where }) => Promise.resolve(where?.status === "active" ? 15 : 2)),
@@ -43,6 +48,8 @@ vi.mock("../../server/src/prisma", () => {
       findMany: vi.fn().mockResolvedValue([
         { id: "prj-1", name: "ERP Upgrade", budget: 20000, progress: 75, status: "active", tasks: [{ id: "t1", status: "completed" }, { id: "t2", status: "pending" }], milestones: [{ id: "m1", cost: 5000 }] },
       ]),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { budget: 20000 }, _count: 4, _avg: { progress: 75 } }),
+      groupBy: vi.fn().mockResolvedValue([{ status: "active", _count: 4 }]),
     },
     crmDeal: {
       count: vi.fn().mockResolvedValue(5),
@@ -50,6 +57,8 @@ vi.mock("../../server/src/prisma", () => {
         { id: "d1", name: "SaaS Enterprise", value: 12000, stage: "won", closeDate: new Date(), createdAt: new Date() },
         { id: "d2", name: "Consulting", value: 4000, stage: "proposal", closeDate: new Date(), createdAt: new Date() },
       ]),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { value: 16000 }, _count: 2, _avg: { probability: 70 } }),
+      groupBy: vi.fn().mockResolvedValue([{ stage: "won", _count: 1, _sum: { value: 12000 } }]),
     },
     crmLead: {
       count: vi.fn().mockResolvedValue(8),
@@ -73,17 +82,25 @@ vi.mock("../../server/src/prisma", () => {
         { id: "prd-1", name: "Thermal Printer", sku: "PRN-01", purchasePrice: 120, salePrice: 199, lowStockThreshold: 2, category: { name: "Hardware" } },
       ]),
     },
+    productWarehouse: {
+      aggregate: vi.fn().mockResolvedValue({ _sum: { quantity: 50 }, _count: 5 }),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     attendance: {
       count: vi.fn().mockResolvedValue(350),
       findMany: vi.fn().mockResolvedValue([
         { id: "att-1", date: new Date(), status: "present", checkIn: new Date(), checkOut: new Date(), hours: 8, employee: { id: "e1", firstName: "Jane", lastName: "Doe", employeeCode: "EMP01", department: { name: "Engineering" } } },
       ]),
+      groupBy: vi.fn().mockResolvedValue([{ status: "present", _count: 300 }]),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { hours: 2400, overtimeMinutes: 120 } }),
     },
     leaveRequest: {
       count: vi.fn().mockResolvedValue(12),
       findMany: vi.fn().mockResolvedValue([
         { id: "lr-1", status: "approved", startDate: new Date(), endDate: new Date(), days: 2, reason: "Vacation", employee: { id: "e1", firstName: "Jane", lastName: "Doe", employeeCode: "EMP01", department: { name: "Engineering" } }, leaveType: { name: "Paid Leave" } },
       ]),
+      groupBy: vi.fn().mockResolvedValue([{ status: "approved", _count: 10 }, { status: "pending", _count: 2 }]),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { days: 20 } }),
     },
     journalEntry: {
       findMany: vi.fn().mockResolvedValue([

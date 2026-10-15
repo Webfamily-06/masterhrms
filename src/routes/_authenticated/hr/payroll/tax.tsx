@@ -28,6 +28,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { getCurrentFinancialYear, getSelectableFinancialYears } from "@/lib/financial-year";
 
 export const Route = createFileRoute("/_authenticated/hr/payroll/tax")({
   component: HrPayrollTaxPage,
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/_authenticated/hr/payroll/tax")({
 
 export default function HrPayrollTaxPage() {
   const queryClient = useQueryClient();
-  const [selectedFy, setSelectedFy] = useState("2026-2027");
+  const [selectedFy, setSelectedFy] = useState(getCurrentFinancialYear());
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDeclaration, setSelectedDeclaration] = useState<any | null>(null);
   const [selectedProof, setSelectedProof] = useState<any | null>(null);
@@ -131,10 +132,13 @@ export default function HrPayrollTaxPage() {
               <select
                 value={selectedFy}
                 onChange={(e) => setSelectedFy(e.target.value)}
-                className="border rounded-md px-2.5 py-1.5 bg-background text-sm"
+                className="border rounded-md px-2.5 py-1.5 bg-background text-sm font-medium"
               >
-                <option value="2026-2027">FY 2026-2027 (Current)</option>
-                <option value="2025-2026">FY 2025-2026</option>
+                {getSelectableFinancialYears().map((fy) => (
+                  <option key={fy.value} value={fy.value}>
+                    {fy.label}
+                  </option>
+                ))}
               </select>
             </div>
 

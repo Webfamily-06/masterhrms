@@ -17,6 +17,12 @@ import { getStatutoryFormData } from "../services/statutory-form-data.service";
 import { TdsCalculatorService } from "../services/tds-calculator.service";
 import { getBaseDomain } from "../lib/workspace-host";
 import { AuditService } from "../services/audit.service";
+import {
+  getCurrentFinancialYear,
+  getFinancialYearFromPeriod,
+  normalizeFinancialYear,
+  isValidFinancialYear,
+} from "../utils/financial-year";
 
 export const payrollRouter = Router();
 
@@ -887,7 +893,7 @@ payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, re
 
     const {
       employeeId,
-      financialYear = "2026-2027",
+      financialYear: rawFinancialYear,
       taxRegime = "new",
       houseRentPaid = 0,
       landlordPan,
@@ -900,6 +906,8 @@ payrollRouter.post("/tax-declarations", requireAuth, async (req: AuthRequest, re
       otherIncome = 0,
       remarks,
     } = req.body;
+
+    const financialYear = normalizeFinancialYear(rawFinancialYear);
 
     if (!employeeId) return res.status(400).json({ error: "Employee ID is required." });
 
@@ -1051,7 +1059,7 @@ payrollRouter.get("/tax-declarations/regime-status", requireAuth, async (req: Au
     if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
 
     const employeeId = (req.user as any)?.employeeId || (req.query.employeeId as string);
-    const financialYear = (req.query.financialYear as string) || "2026-2027";
+    const financialYear = normalizeFinancialYear(req.query.financialYear as string);
 
     if (!employeeId) return res.status(400).json({ error: "Employee ID is required." });
 
@@ -1251,7 +1259,7 @@ payrollRouter.post(["/generate", "/calculate"], requireAuth, async (req: AuthReq
           take: 1,
         },
         taxDeclarations: {
-          where: { financialYear: `${periodYear}-${periodYear + 1}` },
+          where: { financialYear: getFinancialYearFromPeriod(periodMonth, periodYear) },
           take: 1,
         },
       },
@@ -1302,10 +1310,16 @@ payrollRouter.post(["/generate", "/calculate"], requireAuth, async (req: AuthReq
       }),
     ]);
 
-    // 3. Fetch active versioned statutory rules
+    // 3. Fetch active versioned statutory rules (tenant overrides + global published rules)
     const dbStatutoryRules = await prisma.statutoryRule.findMany({
-      where: { tenantId, isActive: true },
-      orderBy: { effectiveFrom: "desc" },
+      where: {
+        OR: [
+          { tenantId, isActive: true },
+          { isGlobal: true, isActive: true },
+        ],
+        publicationStatus: "published",
+      },
+      orderBy: [{ version: "desc" }, { effectiveFrom: "desc" }],
     });
 
     // 4. Find or create PayrollRun with strict Finalized Immutability Check
@@ -1539,6 +1553,16 @@ payrollRouter.post(["/generate", "/calculate"], requireAuth, async (req: AuthReq
         status: "completed",
         approvalStatus: "calculated",
         processedAt: new Date(),
+        statutoryManifest: {
+          rulesApplied: dbStatutoryRules.map((r) => ({
+            id: r.id,
+            ruleIdentifier: r.ruleIdentifier,
+            type: r.ruleType,
+            state: r.stateCode,
+            version: r.version,
+            effectiveFrom: r.effectiveFrom,
+          })),
+        } as any,
       },
       include: {
         _count: { select: { payslips: true } },
@@ -1607,6 +1631,7 @@ payrollRouter.patch("/runs/:id/status", requireAuth, async (req: AuthRequest, re
               periodMonth: run.periodMonth,
               periodYear: run.periodYear,
               snapshotData: breakdown || {},
+              statutoryManifest: breakdown?.statutoryManifest || null,
               ctcAnnual: Number(breakdown?.baseMonthlyCtc || slip.grossSalary) * 12,
               grossEarned: Number(slip.grossSalary),
               totalDeductions: Number(slip.deductions),
@@ -1830,7 +1855,7 @@ payrollRouter.get("/statutory-forms/form16/:employeeId", requireAuth, async (req
     if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
 
     const { employeeId } = req.params;
-    const financialYear = String(req.query.financialYear || "2026-2027");
+    const financialYear = normalizeFinancialYear(req.query.financialYear as string);
 
     const isEmployeeRoleOnly = req.user?.roles?.includes("employee") && !req.user?.roles?.some((r: string) => ["super_admin", "admin", "hr_admin", "finance_admin", "payroll_manager"].includes(r));
     if (isEmployeeRoleOnly) {
@@ -1914,7 +1939,7 @@ payrollRouter.get("/statutory-forms/form138", requireAuth, async (req: AuthReque
     if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
 
     const qtrStr = String(req.query.quarter || "Q1").toUpperCase();
-    const fyStr = String(req.query.financialYear || "2026-2027");
+    const fyStr = normalizeFinancialYear(req.query.financialYear as string);
 
     const [tenant, employees, payslips] = await Promise.all([
       prisma.tenant.findUnique({ where: { id: tenantId } }),

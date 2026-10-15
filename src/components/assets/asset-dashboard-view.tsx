@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray, unwrapData } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
@@ -206,6 +206,7 @@ export function AssetDashboardView() {
   const [formData, setFormData] = useState({
     name: "",
     user: "",
+    employeeId: "",
     category: "IT Equipment",
     purchaseDate: "",
     warranty: "1 Year",
@@ -217,35 +218,75 @@ export function AssetDashboardView() {
 
   const queryClient = useQueryClient();
 
-  // Load Assets from Backend API or fallback to standard Dreams ERP dataset
-  const { data: assets = INITIAL_ASSETS, isLoading } = useQuery({
+  // Load Assets from Backend API
+  const { data: rawAssets = [], isLoading, isError, error } = useQuery({
     queryKey: ["assets-list-data"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/hr/assets");
-        if (Array.isArray(res) && res.length > 0) {
-          return res.map((item: any, idx: number) => ({
-            id: item.id || `AST-${String(idx + 1).padStart(3, "0")}`,
-            name: item.name || "Asset Equipment",
-            user: item.assignedTo?.name || item.assignedEmployee?.name || "Assigned User",
-            userAvatar: item.assignedTo?.avatar || `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
-            category: item.category || "General Asset",
-            purchaseDate: item.purchaseDate ? new Date(item.purchaseDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "10 Jan 2026",
-            warranty: item.warranty || "1 Year",
-            warrantyEndDate: item.warrantyExpiry ? new Date(item.warrantyExpiry).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "10 Jan 2027",
-            cost: Number(item.cost || item.purchasePrice || 1200),
-            currentValue: Number(item.currentValue || (item.cost ? item.cost * 0.8 : 960)),
-            depreciation: Number(item.depreciation || (item.cost ? item.cost * 0.2 : 240)),
-            location: item.location || "HQ Facility",
-            status: (item.status === "active" ? "Active" : item.status === "maintenance" ? "Maintenance" : "Inactive") as "Active" | "Inactive" | "Maintenance",
-          }));
-        }
-        return INITIAL_ASSETS;
-      } catch {
-        return INITIAL_ASSETS;
-      }
+      const res = await api.get("/hr/assets");
+      return unwrapArray(res);
     },
   });
+
+  // Load Overview Aggregates
+  const { data: overviewData } = useQuery({
+    queryKey: ["assets-overview-data"],
+    queryFn: async () => {
+      const res = await api.get("/hr/assets/overview");
+      return unwrapData(res);
+    },
+  });
+
+  // Load Asset Categories
+  const { data: rawCategories = [] } = useQuery({
+    queryKey: ["assets-categories-data"],
+    queryFn: async () => {
+      const res = await api.get("/hr/assets/types");
+      return unwrapArray(res);
+    },
+  });
+
+  // Load Employees for assignment dropdown
+  const { data: rawEmployees = [] } = useQuery({
+    queryKey: ["assets-employees-list"],
+    queryFn: async () => {
+      const res = await api.get("/employees");
+      return unwrapArray(res);
+    },
+  });
+
+  const assets: AssetItem[] = useMemo(() => {
+    if (!rawAssets || !Array.isArray(rawAssets) || rawAssets.length === 0) return [];
+    return rawAssets.map((item: any, idx: number) => {
+      const assignedEmp = item.assignedEmployee;
+      const assignedName = assignedEmp
+        ? `${assignedEmp.firstName || ""} ${assignedEmp.lastName || ""}`.trim() || assignedEmp.email
+        : (item.assignedTo?.name || "Unassigned");
+
+      return {
+        id: item.id || item.assetTag || `AST-${String(idx + 1).padStart(3, "0")}`,
+        name: item.name || "Asset Equipment",
+        user: assignedName,
+        userAvatar: item.assignedTo?.avatar || `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
+        category: item.categoryRel?.name || item.category || "General Asset",
+        purchaseDate: item.purchaseDate
+          ? new Date(item.purchaseDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : "—",
+        warranty: item.warranty || "1 Year",
+        warrantyEndDate: item.warrantyExpiry
+          ? new Date(item.warrantyExpiry).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : "—",
+        cost: Number(item.purchasePrice || item.cost || 0),
+        currentValue: Number(item.currentValue || (item.purchasePrice ? Number(item.purchasePrice) * 0.8 : 0)),
+        depreciation: Number(item.depreciation || (item.purchasePrice ? Number(item.purchasePrice) * 0.2 : 0)),
+        location: item.location || "HQ Facility",
+        status: (item.status === "available" || item.status === "Active" || item.status === "assigned"
+          ? "Active"
+          : item.status === "maintenance"
+          ? "Maintenance"
+          : "Inactive") as "Active" | "Inactive" | "Maintenance",
+      };
+    });
+  }, [rawAssets]);
 
   // Filter and sort items
   const filteredAssets = useMemo(() => {
@@ -269,12 +310,12 @@ export function AssetDashboardView() {
       });
   }, [assets, searchQuery, categoryFilter, statusFilter, sortBy]);
 
-  // Analytics Aggregates
-  const totalAssetsCount = assets.length;
-  const totalCost = assets.reduce((sum, a) => sum + a.cost, 0);
-  const totalCurrentValue = assets.reduce((sum, a) => sum + a.currentValue, 0);
-  const totalDepreciation = assets.reduce((sum, a) => sum + a.depreciation, 0);
-  const activeCount = assets.filter((a) => a.status === "Active").length;
+  // Analytics Aggregates (Synchronized with backend overview aggregates)
+  const totalAssetsCount = (overviewData as any)?.totalAssets ?? assets.length;
+  const totalCost = (overviewData as any)?.totalValue ?? assets.reduce((sum, a) => sum + a.cost, 0);
+  const totalCurrentValue = (overviewData as any)?.currentValue ?? assets.reduce((sum, a) => sum + a.currentValue, 0);
+  const totalDepreciation = (overviewData as any)?.totalDepreciation ?? assets.reduce((sum, a) => sum + a.depreciation, 0);
+  const activeCount = (overviewData as any)?.activeAssets ?? assets.filter((a) => a.status === "Active").length;
   const utilizationRate = Math.round((activeCount / (totalAssetsCount || 1)) * 100);
 
   // Handle Export
@@ -314,38 +355,117 @@ export function AssetDashboardView() {
     window.print();
   };
 
+  // Live Mutations
+  const createAssetMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const matchedCat = (rawCategories as any[]).find(
+        (c) => c.name?.toLowerCase() === data.category?.toLowerCase() || c.id === data.category
+      );
+      const categoryId = matchedCat?.id;
+
+      const payload = {
+        name: data.name,
+        categoryId: categoryId || undefined,
+        purchasePrice: data.cost,
+        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate).toISOString() : new Date().toISOString(),
+        warrantyExpiry: data.warrantyEndDate ? new Date(data.warrantyEndDate).toISOString() : undefined,
+        location: data.location || "HQ - Floor 1",
+        status: data.status === "Active" ? "available" : data.status.toLowerCase(),
+      };
+
+      const res = await api.post("/hr/assets", payload);
+      const createdAsset = unwrapData(res);
+
+      if (data.employeeId && createdAsset?.id) {
+        try {
+          await api.post(`/hr/assets/${createdAsset.id}/assign`, {
+            employeeId: data.employeeId,
+            assignmentDate: new Date().toISOString(),
+          });
+        } catch (assignErr) {
+          console.warn("Auto-assignment after asset creation failed:", assignErr);
+        }
+      }
+
+      return createdAsset;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets-list-data"] });
+      queryClient.invalidateQueries({ queryKey: ["assets-overview-data"] });
+      toast.success(`Asset "${formData.name}" added to registry successfully.`);
+      setAddModalOpen(false);
+      setFormData({
+        name: "",
+        user: "",
+        employeeId: "",
+        category: "IT Equipment",
+        purchaseDate: "",
+        warranty: "1 Year",
+        warrantyEndDate: "",
+        cost: 1000,
+        location: "HQ - Floor 1",
+        status: "Active",
+      });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || "Failed to create asset.");
+    },
+  });
+
+  const updateAssetMutation = useMutation({
+    mutationFn: async (asset: AssetItem) => {
+      const payload = {
+        name: asset.name,
+        status: asset.status === "Active" ? "available" : asset.status.toLowerCase(),
+      };
+      const res = await api.put(`/hr/assets/${asset.id}`, payload);
+      return unwrapData(res);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets-list-data"] });
+      queryClient.invalidateQueries({ queryKey: ["assets-overview-data"] });
+      toast.success("Asset updated successfully.");
+      setEditModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || "Failed to update asset.");
+    },
+  });
+
+  const deleteAssetMutation = useMutation({
+    mutationFn: async (assetId: string) => {
+      const res = await api.delete(`/hr/assets/${assetId}`);
+      return unwrapData(res);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets-list-data"] });
+      queryClient.invalidateQueries({ queryKey: ["assets-overview-data"] });
+      toast.success("Asset deleted successfully.");
+      setDeleteModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || "Failed to delete asset.");
+    },
+  });
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
       toast.error("Please provide an asset name.");
       return;
     }
-    toast.success(`Asset "${formData.name}" added to registry.`);
-    setAddModalOpen(false);
-    setFormData({
-      name: "",
-      user: "",
-      category: "IT Equipment",
-      purchaseDate: "",
-      warranty: "1 Year",
-      warrantyEndDate: "",
-      cost: 1000,
-      location: "HQ - Floor 1",
-      status: "Active",
-    });
+    createAssetMutation.mutate(formData);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAsset) return;
-    toast.success(`Asset "${selectedAsset.name}" updated successfully.`);
-    setEditModalOpen(false);
+    updateAssetMutation.mutate(selectedAsset);
   };
 
   const handleDeleteSubmit = () => {
     if (!selectedAsset) return;
-    toast.success(`Asset "${selectedAsset.name}" deleted from register.`);
-    setDeleteModalOpen(false);
+    deleteAssetMutation.mutate(selectedAsset.id);
   };
 
   // ApexCharts Configurations for Asset Analytics
@@ -925,15 +1045,37 @@ export function AssetDashboardView() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Assigned User *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ethan Walker"
-                  value={formData.user}
-                  onChange={(e) => setFormData({ ...formData, user: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+                <label className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Assigned Employee / User</label>
+                {rawEmployees && (rawEmployees as any[]).length > 0 ? (
+                  <select
+                    value={formData.employeeId}
+                    onChange={(e) => {
+                      const empId = e.target.value;
+                      const emp = (rawEmployees as any[]).find((em) => em.id === empId);
+                      setFormData({
+                        ...formData,
+                        employeeId: empId,
+                        user: emp ? `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email : "",
+                      });
+                    }}
+                    className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">-- Unassigned (Inventory) --</option>
+                    {(rawEmployees as any[]).map((emp: any) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.firstName ? `${emp.firstName} ${emp.lastName || ""}`.trim() : emp.email} ({emp.employeeId || emp.email})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="e.g. Ethan Walker (Optional)"
+                    value={formData.user}
+                    onChange={(e) => setFormData({ ...formData, user: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                )}
               </div>
 
               <div>
@@ -943,13 +1085,21 @@ export function AssetDashboardView() {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  <option value="IT Equipment">IT Equipment</option>
-                  <option value="Furniture">Furniture</option>
-                  <option value="Printers">Printers</option>
-                  <option value="Mobile">Mobile</option>
-                  <option value="Machinery">Machinery</option>
-                  <option value="HVAC">HVAC</option>
-                  <option value="Security">Security</option>
+                  {rawCategories && (rawCategories as any[]).length > 0 ? (
+                    (rawCategories as any[]).map((c: any) => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="IT Equipment">IT Equipment</option>
+                      <option value="Furniture">Furniture</option>
+                      <option value="Printers">Printers</option>
+                      <option value="Mobile">Mobile</option>
+                      <option value="Machinery">Machinery</option>
+                      <option value="HVAC">HVAC</option>
+                      <option value="Security">Security</option>
+                    </>
+                  )}
                 </select>
               </div>
 

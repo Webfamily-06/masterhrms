@@ -1,0 +1,612 @@
+{
+  "reexports": [
+    {
+      "routeId": "/_authenticated/_app/asset-dashboard",
+      "filePath": "src/routes/_authenticated/_app/asset-dashboard.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/settings",
+      "filePath": "src/routes/_authenticated/_app/settings.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/chat",
+      "filePath": "src/routes/_authenticated/hr/chat.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/dashboard",
+      "filePath": "src/routes/_authenticated/hr/dashboard.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/media",
+      "filePath": "src/routes/_authenticated/hr/media.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/profile",
+      "filePath": "src/routes/_authenticated/hr/profile.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/me/account",
+      "filePath": "src/routes/_authenticated/me/account.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/me/chat",
+      "filePath": "src/routes/_authenticated/me/chat.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/me/dashboard",
+      "filePath": "src/routes/_authenticated/me/dashboard.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/me/media",
+      "filePath": "src/routes/_authenticated/me/media.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/",
+      "filePath": "src/routes/_authenticated/hr/index.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/me/",
+      "filePath": "src/routes/_authenticated/me/index.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/$reportId",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.$reportId.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/attendance-summary",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.attendance-summary.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/deal-pipeline",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.deal-pipeline.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/leave-report",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.leave-report.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/payroll-sheet",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.payroll-sheet.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/product-stock",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.product-stock.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/project-progress",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.project-progress.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/purchase-invoice",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.purchase-invoice.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/_app/smart-reports/sales-invoice",
+      "filePath": "src/routes/_authenticated/_app/smart-reports.sales-invoice.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/assets/dashboard",
+      "filePath": "src/routes/_authenticated/hr/assets/dashboard.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/attendance/timesheet",
+      "filePath": "src/routes/_authenticated/hr/attendance/timesheet.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/documents/templates",
+      "filePath": "src/routes/_authenticated/hr/documents/templates.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/organization/document-types",
+      "filePath": "src/routes/_authenticated/hr/organization/document-types.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/payroll/salaries",
+      "filePath": "src/routes/_authenticated/hr/payroll/salaries.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/recruitment/career",
+      "filePath": "src/routes/_authenticated/hr/recruitment/career.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/recruitment/onboarding",
+      "filePath": "src/routes/_authenticated/hr/recruitment/onboarding.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/attendance",
+      "filePath": "src/routes/_authenticated/hr/reports/attendance.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/attrition",
+      "filePath": "src/routes/_authenticated/hr/reports/attrition.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/custom",
+      "filePath": "src/routes/_authenticated/hr/reports/custom.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/headcount",
+      "filePath": "src/routes/_authenticated/hr/reports/headcount.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/payroll",
+      "filePath": "src/routes/_authenticated/hr/reports/payroll.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/performance",
+      "filePath": "src/routes/_authenticated/hr/reports/performance.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/recruitment",
+      "filePath": "src/routes/_authenticated/hr/reports/recruitment.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/statutory",
+      "filePath": "src/routes/_authenticated/hr/reports/statutory.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/reports/training",
+      "filePath": "src/routes/_authenticated/hr/reports/training.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/training/trainings",
+      "filePath": "src/routes/_authenticated/hr/training/trainings.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/me/attendance/records",
+      "filePath": "src/routes/_authenticated/me/attendance/records.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/me/lifecycle/terminations",
+      "filePath": "src/routes/_authenticated/me/lifecycle/terminations.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/attendance/",
+      "filePath": "src/routes/_authenticated/hr/attendance/index.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    },
+    {
+      "routeId": "/_authenticated/hr/organization/",
+      "filePath": "src/routes/_authenticated/hr/organization/index.tsx",
+      "targetRel": "@tanstack/react-router",
+      "resolvedTarget": null,
+      "targetSize": 0
+    }
+  ],
+  "trueIncomplete": [
+    {
+      "routeId": "/403",
+      "filePath": "src/routes/403.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 322,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (322 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/404",
+      "filePath": "src/routes/404.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 309,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (309 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/500",
+      "filePath": "src/routes/500.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 506,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (506 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/about",
+      "filePath": "src/routes/about.tsx",
+      "module": "Public, Auth, Marketing, Onboarding",
+      "fileSize": 3881,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (3881 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/error-404",
+      "filePath": "src/routes/error-404.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 310,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (310 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/error-500",
+      "filePath": "src/routes/error-500.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 498,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (498 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/offline",
+      "filePath": "src/routes/offline.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 303,
+      "gapType": "Client-Side Only State",
+      "category": "Intentionally Client-Side Preference",
+      "priority": "P3",
+      "impact": "Cosmetic/view preference; no statutory or financial impact",
+      "recommendedFix": "Retain client-side state in localStorage; backend persistence not needed",
+      "testPlan": "Verify persistence in browser localStorage across reloads",
+      "currentEvidence": "Component exists (303 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/product",
+      "filePath": "src/routes/product.tsx",
+      "module": "Public, Auth, Marketing, Onboarding",
+      "fileSize": 6592,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (6592 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/session-expired",
+      "filePath": "src/routes/session-expired.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 336,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (336 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/solutions",
+      "filePath": "src/routes/solutions.tsx",
+      "module": "Public, Auth, Marketing, Onboarding",
+      "fileSize": 4937,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (4937 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/payment/failed",
+      "filePath": "src/routes/payment.failed.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 5466,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (5466 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/payment/success",
+      "filePath": "src/routes/payment.success.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 5620,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (5620 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/cms/",
+      "filePath": "src/routes/cms.index.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 1235,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (1235 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/_app/chat",
+      "filePath": "src/routes/_authenticated/_app/chat.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 574,
+      "gapType": "Client-Side Only State",
+      "category": "Intentionally Client-Side Preference",
+      "priority": "P3",
+      "impact": "Cosmetic/view preference; no statutory or financial impact",
+      "recommendedFix": "Retain client-side state in localStorage; backend persistence not needed",
+      "testPlan": "Verify persistence in browser localStorage across reloads",
+      "currentEvidence": "Component exists (574 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/_app/dashboard",
+      "filePath": "src/routes/_authenticated/_app/dashboard.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 537,
+      "gapType": "Client-Side Only State",
+      "category": "Intentionally Client-Side Preference",
+      "priority": "P3",
+      "impact": "Cosmetic/view preference; no statutory or financial impact",
+      "recommendedFix": "Retain client-side state in localStorage; backend persistence not needed",
+      "testPlan": "Verify persistence in browser localStorage across reloads",
+      "currentEvidence": "Component exists (537 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/_app/setup-notes",
+      "filePath": "src/routes/_authenticated/_app/setup-notes.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 10181,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (10181 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/_app/workspace",
+      "filePath": "src/routes/_authenticated/_app/workspace.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 9832,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (9832 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/super/docs",
+      "filePath": "src/routes/_authenticated/super/docs.tsx",
+      "module": "Super Admin / Platform Control Plane",
+      "fileSize": 235,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (235 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/tenant/domain",
+      "filePath": "src/routes/_authenticated/tenant/domain.tsx",
+      "module": "Tenant Portal",
+      "fileSize": 937,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (937 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/tenant/settings",
+      "filePath": "src/routes/_authenticated/tenant/settings.tsx",
+      "module": "Tenant Portal",
+      "fileSize": 1628,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (1628 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/tenant/subscription",
+      "filePath": "src/routes/_authenticated/tenant/subscription.tsx",
+      "module": "Tenant Portal",
+      "fileSize": 485,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (485 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/_app/invoice/create",
+      "filePath": "src/routes/_authenticated/_app/invoice.create.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 563,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (563 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/_app/settings/custom-domain",
+      "filePath": "src/routes/_authenticated/_app/settings.custom-domain.tsx",
+      "module": "Core App Shell / Sub-routes / Utilities",
+      "fileSize": 2322,
+      "gapType": "API & DB Persistence Missing",
+      "category": "Backend Persistence Required",
+      "priority": "P2",
+      "impact": "Feature works with client state; changes reset on page reload",
+      "recommendedFix": "Implement dedicated Express REST endpoint and Prisma schema model",
+      "testPlan": "Unit test controller CRUD and verify DB persistence with Vitest",
+      "currentEvidence": "Component exists (2322 bytes); UI renders without errors"
+    },
+    {
+      "routeId": "/_authenticated/hr/organization/tree",
+      "filePath": "src/routes/_authenticated/hr/organization/tree.tsx",
+      "module": "Tenant Admin / HR & Payroll",
+      "fileSize": 302,
+      "gapType": "Stub Component (Draft)",
+      "category": "Unimplemented Feature Stub",
+      "priority": "P2",
+      "impact": "Empty placeholder view; feature unavailable to users",
+      "recommendedFix": "Design UI layout and wire backend controller",
+      "testPlan": "Create end-to-end component rendering and API mock test",
+      "currentEvidence": "Component exists (302 bytes); UI renders without errors"
+    }
+  ]
+}

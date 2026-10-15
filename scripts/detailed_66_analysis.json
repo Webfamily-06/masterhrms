@@ -1,0 +1,844 @@
+[
+  {
+    "route": "/403",
+    "file": "src/routes/403.tsx",
+    "actualFile": "src/routes/403.tsx",
+    "actualLines": 10,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/404",
+    "file": "src/routes/404.tsx",
+    "actualFile": "src/routes/404.tsx",
+    "actualLines": 10,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/500",
+    "file": "src/routes/500.tsx",
+    "actualFile": "src/routes/500.tsx",
+    "actualLines": 15,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/about",
+    "file": "src/routes/about.tsx",
+    "actualFile": "src/routes/about.tsx",
+    "actualLines": 101,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/error-404",
+    "file": "src/routes/error-404.tsx",
+    "actualFile": "src/routes/error-404.tsx",
+    "actualLines": 10,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/error-500",
+    "file": "src/routes/error-500.tsx",
+    "actualFile": "src/routes/error-500.tsx",
+    "actualLines": 15,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/offline",
+    "file": "src/routes/offline.tsx",
+    "actualFile": "src/routes/offline.tsx",
+    "actualLines": 10,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/product",
+    "file": "src/routes/product.tsx",
+    "actualFile": "src/routes/product.tsx",
+    "actualLines": 217,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/session-expired",
+    "file": "src/routes/session-expired.tsx",
+    "actualFile": "src/routes/session-expired.tsx",
+    "actualLines": 10,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/solutions",
+    "file": "src/routes/solutions.tsx",
+    "actualFile": "src/routes/solutions.tsx",
+    "actualLines": 163,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/payment/failed",
+    "file": "src/routes/payment.failed.tsx",
+    "actualFile": "src/routes/payment.failed.tsx",
+    "actualLines": 136,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/payment/success",
+    "file": "src/routes/payment.success.tsx",
+    "actualFile": "src/routes/payment.success.tsx",
+    "actualLines": 137,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/cms/",
+    "file": "src/routes/cms.index.tsx",
+    "actualFile": "src/routes/cms.index.tsx",
+    "actualLines": 35,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/_app/asset-dashboard",
+    "file": "src/routes/_authenticated/_app/asset-dashboard.tsx",
+    "actualFile": "src/components/assets/asset-dashboard-view.tsx",
+    "actualLines": 1111,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/hr/assets\")"
+    ],
+    "stateHooksCount": 11,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/chat",
+    "file": "src/routes/_authenticated/_app/chat.tsx",
+    "actualFile": "src/routes/_authenticated/_app/chat.tsx",
+    "actualLines": 12,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/_app/dashboard",
+    "file": "src/routes/_authenticated/_app/dashboard.tsx",
+    "actualFile": "src/routes/_authenticated/_app/dashboard.tsx",
+    "actualLines": 13,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/_app/settings",
+    "file": "src/routes/_authenticated/_app/settings.tsx",
+    "actualFile": "src/routes/_authenticated/_app/settings.tsx",
+    "actualLines": 18,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/_app/setup-notes",
+    "file": "src/routes/_authenticated/_app/setup-notes.tsx",
+    "actualFile": "src/routes/_authenticated/_app/setup-notes.tsx",
+    "actualLines": 236,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/_app/workspace",
+    "file": "src/routes/_authenticated/_app/workspace.tsx",
+    "actualFile": "src/routes/_authenticated/_app/workspace.tsx",
+    "actualLines": 190,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/hr/chat",
+    "file": "src/routes/_authenticated/hr/chat.tsx",
+    "actualFile": "src/components/chat/team-whatsapp-chat-addon.tsx",
+    "actualLines": 3502,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 5,
+    "sampleApiCalls": [
+      "api.get(\"/employees\")",
+      "api.get(`/attendance?date=${new Date()",
+      "api.get(`/chat/messages/${activeThreadId}`)"
+    ],
+    "stateHooksCount": 23,
+    "queryHooksCount": 2
+  },
+  {
+    "route": "/_authenticated/hr/dashboard",
+    "file": "src/routes/_authenticated/hr/dashboard.tsx",
+    "actualFile": "src/routes/_authenticated/_app/hrm-dashboard.tsx",
+    "actualLines": 776,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/dashboard/hrm\")"
+    ],
+    "stateHooksCount": 2,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/media",
+    "file": "src/routes/_authenticated/hr/media.tsx",
+    "actualFile": "src/components/media/tenant-media-page.tsx",
+    "actualLines": 655,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(\"/v1/media\")",
+      "api.delete(`/v1/media/${file.id}${force ? \"?force=true\" : \"\"}`)"
+    ],
+    "stateHooksCount": 6,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/hr/profile",
+    "file": "src/routes/_authenticated/hr/profile.tsx",
+    "actualFile": "src/routes/_authenticated/me/profile.tsx",
+    "actualLines": 556,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 3,
+    "sampleApiCalls": [
+      "api.get(\"/me/profile\")",
+      "api.put(\"/me/profile\", payload)",
+      "api.post(\"/me/profile/change-requests\", payload)"
+    ],
+    "stateHooksCount": 8,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/me/account",
+    "file": "src/routes/_authenticated/me/account.tsx",
+    "actualFile": "src/routes/_authenticated/me/profile.tsx",
+    "actualLines": 556,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 3,
+    "sampleApiCalls": [
+      "api.get(\"/me/profile\")",
+      "api.put(\"/me/profile\", payload)",
+      "api.post(\"/me/profile/change-requests\", payload)"
+    ],
+    "stateHooksCount": 8,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/me/chat",
+    "file": "src/routes/_authenticated/me/chat.tsx",
+    "actualFile": "src/components/chat/team-whatsapp-chat-addon.tsx",
+    "actualLines": 3502,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 5,
+    "sampleApiCalls": [
+      "api.get(\"/employees\")",
+      "api.get(`/attendance?date=${new Date()",
+      "api.get(`/chat/messages/${activeThreadId}`)"
+    ],
+    "stateHooksCount": 23,
+    "queryHooksCount": 2
+  },
+  {
+    "route": "/_authenticated/me/dashboard",
+    "file": "src/routes/_authenticated/me/dashboard.tsx",
+    "actualFile": "src/routes/_authenticated/_app/employee-dashboard.tsx",
+    "actualLines": 896,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 8,
+    "sampleApiCalls": [
+      "api.get(\"/api/attendance\")",
+      "api.get(\"/api/leaves\")",
+      "api.get(\"/api/v1/me/dashboard\")"
+    ],
+    "stateHooksCount": 13,
+    "queryHooksCount": 2
+  },
+  {
+    "route": "/_authenticated/me/media",
+    "file": "src/routes/_authenticated/me/media.tsx",
+    "actualFile": "src/components/media/tenant-media-page.tsx",
+    "actualLines": 655,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(\"/v1/media\")",
+      "api.delete(`/v1/media/${file.id}${force ? \"?force=true\" : \"\"}`)"
+    ],
+    "stateHooksCount": 6,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/super/docs",
+    "file": "src/routes/_authenticated/super/docs.tsx",
+    "actualFile": "src/routes/_authenticated/super/docs.tsx",
+    "actualLines": 7,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/tenant/domain",
+    "file": "src/routes/_authenticated/tenant/domain.tsx",
+    "actualFile": "src/routes/_authenticated/tenant/domain.tsx",
+    "actualLines": 29,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/tenant/settings",
+    "file": "src/routes/_authenticated/tenant/settings.tsx",
+    "actualFile": "src/routes/_authenticated/tenant/settings.tsx",
+    "actualLines": 49,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/tenant/subscription",
+    "file": "src/routes/_authenticated/tenant/subscription.tsx",
+    "actualFile": "src/routes/_authenticated/tenant/subscription.tsx",
+    "actualLines": 18,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/hr/",
+    "file": "src/routes/_authenticated/hr/index.tsx",
+    "actualFile": "src/routes/_authenticated/_app/hrm-dashboard.tsx",
+    "actualLines": 776,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/dashboard/hrm\")"
+    ],
+    "stateHooksCount": 2,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/me/",
+    "file": "src/routes/_authenticated/me/index.tsx",
+    "actualFile": "src/routes/_authenticated/_app/employee-dashboard.tsx",
+    "actualLines": 896,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 8,
+    "sampleApiCalls": [
+      "api.get(\"/api/attendance\")",
+      "api.get(\"/api/leaves\")",
+      "api.get(\"/api/v1/me/dashboard\")"
+    ],
+    "stateHooksCount": 13,
+    "queryHooksCount": 2
+  },
+  {
+    "route": "/_authenticated/_app/invoice/create",
+    "file": "src/routes/_authenticated/_app/invoice.create.tsx",
+    "actualFile": "src/routes/_authenticated/_app/invoice.create.tsx",
+    "actualLines": 18,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/_app/settings/custom-domain",
+    "file": "src/routes/_authenticated/_app/settings.custom-domain.tsx",
+    "actualFile": "src/routes/_authenticated/_app/settings.custom-domain.tsx",
+    "actualLines": 54,
+    "trueStatus": "CLIENT STATE ONLY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/$reportId",
+    "file": "src/routes/_authenticated/_app/smart-reports.$reportId.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/attendance-summary",
+    "file": "src/routes/_authenticated/_app/smart-reports.attendance-summary.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/deal-pipeline",
+    "file": "src/routes/_authenticated/_app/smart-reports.deal-pipeline.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/leave-report",
+    "file": "src/routes/_authenticated/_app/smart-reports.leave-report.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/payroll-sheet",
+    "file": "src/routes/_authenticated/_app/smart-reports.payroll-sheet.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/product-stock",
+    "file": "src/routes/_authenticated/_app/smart-reports.product-stock.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/project-progress",
+    "file": "src/routes/_authenticated/_app/smart-reports.project-progress.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/purchase-invoice",
+    "file": "src/routes/_authenticated/_app/smart-reports.purchase-invoice.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/_app/smart-reports/sales-invoice",
+    "file": "src/routes/_authenticated/_app/smart-reports.sales-invoice.tsx",
+    "actualFile": "src/components/smart-reports/report-view.tsx",
+    "actualLines": 1013,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(`/smart-reports/${reportId}`)",
+      "api.get(`/smart-reports/export/${reportId}?format=${format}`)"
+    ],
+    "stateHooksCount": 1,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/assets/dashboard",
+    "file": "src/routes/_authenticated/hr/assets/dashboard.tsx",
+    "actualFile": "src/components/assets/asset-dashboard-view.tsx",
+    "actualLines": 1111,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/hr/assets\")"
+    ],
+    "stateHooksCount": 11,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/attendance/timesheet",
+    "file": "src/routes/_authenticated/hr/attendance/timesheet.tsx",
+    "actualFile": "src/routes/_authenticated/hr/attendance/timesheets.tsx",
+    "actualLines": 206,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(\"/api/v1/hr/attendance/timesheets\")",
+      "api.post(`/api/v1/hr/attendance/timesheets/${id}/action`, { action })"
+    ],
+    "stateHooksCount": 2,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/documents/templates",
+    "file": "src/routes/_authenticated/hr/documents/templates.tsx",
+    "actualFile": "src/routes/_authenticated/hr/documents/document-templates.tsx",
+    "actualLines": 198,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(\"/hr/documents/templates\")",
+      "api.post(\"/hr/documents/templates\", payload)"
+    ],
+    "stateHooksCount": 2,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/organization/document-types",
+    "file": "src/routes/_authenticated/hr/organization/document-types.tsx",
+    "actualFile": "src/routes/_authenticated/hr/documents/categories.tsx",
+    "actualLines": 202,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 3,
+    "sampleApiCalls": [
+      "api.get(\"/hr/documents/categories\")",
+      "api.post(\"/hr/documents/categories\", payload)",
+      "api.delete(`/hr/documents/categories/${id}`)"
+    ],
+    "stateHooksCount": 2,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/organization/tree",
+    "file": "src/routes/_authenticated/hr/organization/tree.tsx",
+    "actualFile": "src/routes/_authenticated/hr/organization/tree.tsx",
+    "actualLines": 10,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/hr/payroll/salaries",
+    "file": "src/routes/_authenticated/hr/payroll/salaries.tsx",
+    "actualFile": "src/routes/_authenticated/hr/payroll/employee-salaries.tsx",
+    "actualLines": 360,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 3,
+    "sampleApiCalls": [
+      "api.get(\"/api/v1/hr/payroll/employee-salaries\")",
+      "api.get(\"/api/v1/hr/employees\")",
+      "api.post(\"/api/v1/hr/payroll/employee-salaries/assign\", payload)"
+    ],
+    "stateHooksCount": 3,
+    "queryHooksCount": 2
+  },
+  {
+    "route": "/_authenticated/hr/recruitment/career",
+    "file": "src/routes/_authenticated/hr/recruitment/career.tsx",
+    "actualFile": "src/routes/_authenticated/hr/recruitment/career-site.tsx",
+    "actualLines": 171,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/recruitment/onboarding",
+    "file": "src/routes/_authenticated/hr/recruitment/onboarding.tsx",
+    "actualFile": "src/routes/_authenticated/hr/recruitment/candidate-onboarding.tsx",
+    "actualLines": 267,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.post(`/hr/recruitment/candidate-onboarding/tasks/${taskId}`, { status })"
+    ],
+    "stateHooksCount": 0,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/reports/attendance",
+    "file": "src/routes/_authenticated/hr/reports/attendance.tsx",
+    "actualFile": "src/routes/_authenticated/_app/attendance-report.tsx",
+    "actualLines": 408,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 3,
+    "sampleApiCalls": [
+      "api.get(\"/employees/departments\")",
+      "api.get(\"/employees\")",
+      "api.get(`/attendance?${params.toString()"
+    ],
+    "stateHooksCount": 4,
+    "queryHooksCount": 3
+  },
+  {
+    "route": "/_authenticated/hr/reports/attrition",
+    "file": "src/routes/_authenticated/hr/reports/attrition.tsx",
+    "actualFile": "src/routes/_authenticated/_app/employee-report.tsx",
+    "actualLines": 424,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 3,
+    "sampleApiCalls": [
+      "api.get(\"/cms/pages/system-platform-settings\")",
+      "api.get(\"/employees/departments\")",
+      "api.get(\"/employees\")"
+    ],
+    "stateHooksCount": 4,
+    "queryHooksCount": 3
+  },
+  {
+    "route": "/_authenticated/hr/reports/custom",
+    "file": "src/routes/_authenticated/hr/reports/custom.tsx",
+    "actualFile": "src/routes/_authenticated/_app/smart-reports.tsx",
+    "actualLines": 188,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/smart-reports/catalogue\")"
+    ],
+    "stateHooksCount": 0,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/reports/headcount",
+    "file": "src/routes/_authenticated/hr/reports/headcount.tsx",
+    "actualFile": "src/routes/_authenticated/_app/employee-report.tsx",
+    "actualLines": 424,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 3,
+    "sampleApiCalls": [
+      "api.get(\"/cms/pages/system-platform-settings\")",
+      "api.get(\"/employees/departments\")",
+      "api.get(\"/employees\")"
+    ],
+    "stateHooksCount": 4,
+    "queryHooksCount": 3
+  },
+  {
+    "route": "/_authenticated/hr/reports/payroll",
+    "file": "src/routes/_authenticated/hr/reports/payroll.tsx",
+    "actualFile": "src/routes/_authenticated/_app/payslip-report.tsx",
+    "actualLines": 624,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 2,
+    "sampleApiCalls": [
+      "api.get(\"/employees/departments\")",
+      "api.get(`/payroll/payslips${qStr ? `?${qStr}` : \"\"}`)"
+    ],
+    "stateHooksCount": 4,
+    "queryHooksCount": 2
+  },
+  {
+    "route": "/_authenticated/hr/reports/performance",
+    "file": "src/routes/_authenticated/hr/reports/performance.tsx",
+    "actualFile": "src/routes/_authenticated/_app/smart-reports.project-progress.tsx",
+    "actualLines": 12,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/hr/reports/recruitment",
+    "file": "src/routes/_authenticated/hr/reports/recruitment.tsx",
+    "actualFile": "src/routes/_authenticated/_app/smart-reports.deal-pipeline.tsx",
+    "actualLines": 12,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/hr/reports/statutory",
+    "file": "src/routes/_authenticated/hr/reports/statutory.tsx",
+    "actualFile": "src/routes/_authenticated/_app/smart-reports.payroll-sheet.tsx",
+    "actualLines": 12,
+    "trueStatus": "STUB VIEW",
+    "apiCallsCount": 0,
+    "sampleApiCalls": [],
+    "stateHooksCount": 0,
+    "queryHooksCount": 0
+  },
+  {
+    "route": "/_authenticated/hr/reports/training",
+    "file": "src/routes/_authenticated/hr/reports/training.tsx",
+    "actualFile": "src/routes/_authenticated/_app/smart-reports.tsx",
+    "actualLines": 188,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/smart-reports/catalogue\")"
+    ],
+    "stateHooksCount": 0,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/training/trainings",
+    "file": "src/routes/_authenticated/hr/training/trainings.tsx",
+    "actualFile": "src/routes/_authenticated/hr/training/employee-trainings.tsx",
+    "actualLines": 258,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 5,
+    "sampleApiCalls": [
+      "api.get(\"/hr/employees\")",
+      "api.get(\"/hr/training/programs\")",
+      "api.get(\"/hr/training/employee-trainings\")"
+    ],
+    "stateHooksCount": 2,
+    "queryHooksCount": 3
+  },
+  {
+    "route": "/_authenticated/me/attendance/records",
+    "file": "src/routes/_authenticated/me/attendance/records.tsx",
+    "actualFile": "src/routes/_authenticated/_app/attendance-employee.tsx",
+    "actualLines": 618,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 6,
+    "sampleApiCalls": [
+      "api.get(`/attendance?${params.toString()",
+      "api.get(\"/api/v1/me/regularizations\")",
+      "api.post(\"/api/v1/me/attendance/check-in\")"
+    ],
+    "stateHooksCount": 7,
+    "queryHooksCount": 2
+  },
+  {
+    "route": "/_authenticated/me/lifecycle/terminations",
+    "file": "src/routes/_authenticated/me/lifecycle/terminations.tsx",
+    "actualFile": "src/routes/_authenticated/me/lifecycle/exit.tsx",
+    "actualLines": 116,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/me/lifecycle/exit\")"
+    ],
+    "stateHooksCount": 0,
+    "queryHooksCount": 1
+  },
+  {
+    "route": "/_authenticated/hr/attendance/",
+    "file": "src/routes/_authenticated/hr/attendance/index.tsx",
+    "actualFile": "src/routes/_authenticated/_app/attendance.tsx",
+    "actualLines": 1585,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 13,
+    "sampleApiCalls": [
+      "api.get(\"/shifts\")",
+      "api.put(`/shifts/${activeShift.id}`, {\r\n          startTime: shiftStartTime,\r\n          endTime: shiftEndTime,\r\n          breakMinutes: shiftBreakMinutes,\r\n        })",
+      "api.post(\"/shifts\", {\r\n          name: \"General Shift\",\r\n          code: \"GEN\",\r\n          startTime: shiftStartTime,\r\n          endTime: shiftEndTime,\r\n          breakMinutes: shiftBreakMinutes,\r\n        })"
+    ],
+    "stateHooksCount": 12,
+    "queryHooksCount": 8
+  },
+  {
+    "route": "/_authenticated/hr/organization/",
+    "file": "src/routes/_authenticated/hr/organization/index.tsx",
+    "actualFile": "src/routes/_authenticated/hr/organization/structure.tsx",
+    "actualLines": 243,
+    "trueStatus": "FUNCTIONALLY IMPLEMENTED PROXY",
+    "apiCallsCount": 1,
+    "sampleApiCalls": [
+      "api.get(\"/hr/organization/structure\")"
+    ],
+    "stateHooksCount": 2,
+    "queryHooksCount": 1
+  }
+]

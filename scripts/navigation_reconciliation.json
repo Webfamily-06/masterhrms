@@ -1,0 +1,3558 @@
+[
+  {
+    "routeId": "/",
+    "publicPath": "/",
+    "filePath": "src/routes/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated",
+    "publicPath": "/",
+    "filePath": "src/routes/_authenticated/route.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/403",
+    "publicPath": "/403",
+    "filePath": "src/routes/403.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/404",
+    "publicPath": "/404",
+    "filePath": "src/routes/404.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/500",
+    "publicPath": "/500",
+    "filePath": "src/routes/500.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/about",
+    "publicPath": "/about",
+    "filePath": "src/routes/about.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/auth",
+    "publicPath": "/auth",
+    "filePath": "src/routes/auth.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/careers",
+    "publicPath": "/careers",
+    "filePath": "src/routes/careers.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/contact",
+    "publicPath": "/contact",
+    "filePath": "src/routes/contact.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/customer-display",
+    "publicPath": "/customer-display",
+    "filePath": "src/routes/customer-display.tsx",
+    "navCategory": "SYSTEM_UTILITY",
+    "navReason": "System error boundary, fallback, lock screen, or utility view"
+  },
+  {
+    "routeId": "/developer",
+    "publicPath": "/developer",
+    "filePath": "src/routes/developer.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/docs",
+    "publicPath": "/docs",
+    "filePath": "src/routes/docs.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/error-404",
+    "publicPath": "/error-404",
+    "filePath": "src/routes/error-404.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/error-500",
+    "publicPath": "/error-500",
+    "filePath": "src/routes/error-500.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/help-center",
+    "publicPath": "/help-center",
+    "filePath": "src/routes/help-center.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/lock-screen",
+    "publicPath": "/lock-screen",
+    "filePath": "src/routes/lock-screen.tsx",
+    "navCategory": "SYSTEM_UTILITY",
+    "navReason": "System error boundary, fallback, lock screen, or utility view"
+  },
+  {
+    "routeId": "/login",
+    "publicPath": "/login",
+    "filePath": "src/routes/login.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/maintenance",
+    "publicPath": "/maintenance",
+    "filePath": "src/routes/maintenance.tsx",
+    "navCategory": "SYSTEM_UTILITY",
+    "navReason": "System error boundary, fallback, lock screen, or utility view"
+  },
+  {
+    "routeId": "/offline",
+    "publicPath": "/offline",
+    "filePath": "src/routes/offline.tsx",
+    "navCategory": "SYSTEM_UTILITY",
+    "navReason": "System error boundary, fallback, lock screen, or utility view"
+  },
+  {
+    "routeId": "/og-preview",
+    "publicPath": "/og-preview",
+    "filePath": "src/routes/og-preview.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/portal",
+    "publicPath": "/portal",
+    "filePath": "src/routes/portal.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/pricing",
+    "publicPath": "/pricing",
+    "filePath": "src/routes/pricing.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/product",
+    "publicPath": "/product",
+    "filePath": "src/routes/product.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/register",
+    "publicPath": "/register",
+    "filePath": "src/routes/register.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/resources",
+    "publicPath": "/resources",
+    "filePath": "src/routes/resources.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/session-expired",
+    "publicPath": "/session-expired",
+    "filePath": "src/routes/session-expired.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/solutions",
+    "publicPath": "/solutions",
+    "filePath": "src/routes/solutions.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/store",
+    "publicPath": "/store",
+    "filePath": "src/routes/store.tsx",
+    "navCategory": "PUBLIC_AUTH_OR_MARKETING",
+    "navReason": "Public landing, authentication, customer portal, or marketing page"
+  },
+  {
+    "routeId": "/super-login",
+    "publicPath": "/super-login",
+    "filePath": "src/routes/super-login.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/super06",
+    "publicPath": "/super06",
+    "filePath": "src/routes/super06.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/verify-2fa",
+    "publicPath": "/verify-2fa",
+    "filePath": "src/routes/verify-2fa.tsx",
+    "navCategory": "SYSTEM_UTILITY",
+    "navReason": "System error boundary, fallback, lock screen, or utility view"
+  },
+  {
+    "routeId": "/_authenticated/_app",
+    "publicPath": "/",
+    "filePath": "src/routes/_authenticated/_app/route.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/super",
+    "publicPath": "/super",
+    "filePath": "src/routes/_authenticated/super/route.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr",
+    "publicPath": "/hr",
+    "filePath": "src/routes/_authenticated/hr.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/me",
+    "publicPath": "/me",
+    "filePath": "src/routes/_authenticated/me.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/onboarding",
+    "publicPath": "/onboarding",
+    "filePath": "src/routes/_authenticated/onboarding.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant",
+    "publicPath": "/tenant",
+    "filePath": "src/routes/_authenticated/tenant.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/tenet",
+    "publicPath": "/tenet",
+    "filePath": "src/routes/_authenticated/tenet.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/a/$tag",
+    "publicPath": "/a/$tag",
+    "filePath": "src/routes/a.$tag.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/addons_/$slug",
+    "publicPath": "/addons_/$slug",
+    "filePath": "src/routes/addons_.$slug.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/cms/$",
+    "publicPath": "/cms/$",
+    "filePath": "src/routes/cms.$.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/legal/$slug",
+    "publicPath": "/legal/$slug",
+    "filePath": "src/routes/legal.$slug.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/p/$slug",
+    "publicPath": "/p/$slug",
+    "filePath": "src/routes/p.$slug.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/payment/failed",
+    "publicPath": "/payment/failed",
+    "filePath": "src/routes/payment.failed.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/payment/pending",
+    "publicPath": "/payment/pending",
+    "filePath": "src/routes/payment.pending.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/payment/success",
+    "publicPath": "/payment/success",
+    "filePath": "src/routes/payment.success.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/addons/",
+    "publicPath": "/addons",
+    "filePath": "src/routes/addons.index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/cms/",
+    "publicPath": "/cms",
+    "filePath": "src/routes/cms.index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/accounting",
+    "publicPath": "/accounting",
+    "filePath": "src/routes/_authenticated/_app/accounting.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/activity-logs",
+    "publicPath": "/activity-logs",
+    "filePath": "src/routes/_authenticated/_app/activity-logs.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/adjustments",
+    "publicPath": "/adjustments",
+    "filePath": "src/routes/_authenticated/_app/adjustments.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai",
+    "publicPath": "/ai",
+    "filePath": "src/routes/_authenticated/_app/ai.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-attendance-insights",
+    "publicPath": "/ai-attendance-insights",
+    "filePath": "src/routes/_authenticated/_app/ai-attendance-insights.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-business-advisor",
+    "publicPath": "/ai-business-advisor",
+    "filePath": "src/routes/_authenticated/_app/ai-business-advisor.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-configuration",
+    "publicPath": "/ai-configuration",
+    "filePath": "src/routes/_authenticated/_app/ai-configuration.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-hiring-forecast",
+    "publicPath": "/ai-hiring-forecast",
+    "filePath": "src/routes/_authenticated/_app/ai-hiring-forecast.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-ocr",
+    "publicPath": "/ai-ocr",
+    "filePath": "src/routes/_authenticated/_app/ai-ocr.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-payroll-forecast",
+    "publicPath": "/ai-payroll-forecast",
+    "filePath": "src/routes/_authenticated/_app/ai-payroll-forecast.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-settings",
+    "publicPath": "/ai-settings",
+    "filePath": "src/routes/_authenticated/_app/ai-settings.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-team-performance-insights",
+    "publicPath": "/ai-team-performance-insights",
+    "filePath": "src/routes/_authenticated/_app/ai-team-performance-insights.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ai-writer",
+    "publicPath": "/ai-writer",
+    "filePath": "src/routes/_authenticated/_app/ai-writer.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/analytics",
+    "publicPath": "/analytics",
+    "filePath": "src/routes/_authenticated/_app/analytics.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/announcements",
+    "publicPath": "/announcements",
+    "filePath": "src/routes/_authenticated/_app/announcements.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/asset-dashboard",
+    "publicPath": "/asset-dashboard",
+    "filePath": "src/routes/_authenticated/_app/asset-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/assets",
+    "publicPath": "/assets",
+    "filePath": "src/routes/_authenticated/_app/assets.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/attendance",
+    "publicPath": "/attendance",
+    "filePath": "src/routes/_authenticated/_app/attendance.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/attendance-employee",
+    "publicPath": "/attendance-employee",
+    "filePath": "src/routes/_authenticated/_app/attendance-employee.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/attendance-report",
+    "publicPath": "/attendance-report",
+    "filePath": "src/routes/_authenticated/_app/attendance-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/awards",
+    "publicPath": "/awards",
+    "filePath": "src/routes/_authenticated/_app/awards.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/backup-restore",
+    "publicPath": "/backup-restore",
+    "filePath": "src/routes/_authenticated/_app/backup-restore.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ban-ip-address",
+    "publicPath": "/ban-ip-address",
+    "filePath": "src/routes/_authenticated/_app/ban-ip-address.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/biometric",
+    "publicPath": "/biometric",
+    "filePath": "src/routes/_authenticated/_app/biometric.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/biometric-sync",
+    "publicPath": "/biometric-sync",
+    "filePath": "src/routes/_authenticated/_app/biometric-sync.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/budgets",
+    "publicPath": "/budgets",
+    "filePath": "src/routes/_authenticated/_app/budgets.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/calendar",
+    "publicPath": "/calendar",
+    "filePath": "src/routes/_authenticated/_app/calendar.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/call-history",
+    "publicPath": "/call-history",
+    "filePath": "src/routes/_authenticated/_app/call-history.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/campaigns",
+    "publicPath": "/campaigns",
+    "filePath": "src/routes/_authenticated/_app/campaigns.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/campus-hiring",
+    "publicPath": "/campus-hiring",
+    "filePath": "src/routes/_authenticated/_app/campus-hiring.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/certification-tracking",
+    "publicPath": "/certification-tracking",
+    "filePath": "src/routes/_authenticated/_app/certification-tracking.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/chat",
+    "publicPath": "/chat",
+    "filePath": "src/routes/_authenticated/_app/chat.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/clear-cache",
+    "publicPath": "/clear-cache",
+    "filePath": "src/routes/_authenticated/_app/clear-cache.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/client-dashboard",
+    "publicPath": "/client-dashboard",
+    "filePath": "src/routes/_authenticated/_app/client-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/clients",
+    "publicPath": "/clients",
+    "filePath": "src/routes/_authenticated/_app/clients.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/companies",
+    "publicPath": "/companies",
+    "filePath": "src/routes/_authenticated/_app/companies.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/contacts",
+    "publicPath": "/contacts",
+    "filePath": "src/routes/_authenticated/_app/contacts.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/crm",
+    "publicPath": "/crm",
+    "filePath": "src/routes/_authenticated/_app/crm.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/crm-dashboard",
+    "publicPath": "/crm-dashboard",
+    "filePath": "src/routes/_authenticated/_app/crm-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/cronjob",
+    "publicPath": "/cronjob",
+    "filePath": "src/routes/_authenticated/_app/cronjob.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/currencies",
+    "publicPath": "/currencies",
+    "filePath": "src/routes/_authenticated/_app/currencies.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/custom-fields",
+    "publicPath": "/custom-fields",
+    "filePath": "src/routes/_authenticated/_app/custom-fields.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/daily-report",
+    "publicPath": "/daily-report",
+    "filePath": "src/routes/_authenticated/_app/daily-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/dashboard",
+    "publicPath": "/dashboard",
+    "filePath": "src/routes/_authenticated/_app/dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/deals-dashboard",
+    "publicPath": "/deals-dashboard",
+    "filePath": "src/routes/_authenticated/_app/deals-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/departments",
+    "publicPath": "/departments",
+    "filePath": "src/routes/_authenticated/_app/departments.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/designations",
+    "publicPath": "/designations",
+    "filePath": "src/routes/_authenticated/_app/designations.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/documents",
+    "publicPath": "/documents",
+    "filePath": "src/routes/_authenticated/_app/documents.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-dashboard",
+    "publicPath": "/employee-dashboard",
+    "filePath": "src/routes/_authenticated/_app/employee-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-details",
+    "publicPath": "/employee-details",
+    "filePath": "src/routes/_authenticated/_app/employee-details.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-payslips",
+    "publicPath": "/employee-payslips",
+    "filePath": "src/routes/_authenticated/_app/employee-payslips.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/employee-report",
+    "publicPath": "/employee-report",
+    "filePath": "src/routes/_authenticated/_app/employee-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/employees",
+    "publicPath": "/employees",
+    "filePath": "src/routes/_authenticated/_app/employees.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/expenses",
+    "publicPath": "/expenses",
+    "filePath": "src/routes/_authenticated/_app/expenses.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/expenses-report",
+    "publicPath": "/expenses-report",
+    "filePath": "src/routes/_authenticated/_app/expenses-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/finance-dashboard",
+    "publicPath": "/finance-dashboard",
+    "filePath": "src/routes/_authenticated/_app/finance-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/forms",
+    "publicPath": "/forms",
+    "filePath": "src/routes/_authenticated/_app/forms.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/google-workspace",
+    "publicPath": "/google-workspace",
+    "filePath": "src/routes/_authenticated/_app/google-workspace.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/help-desk-dashboard",
+    "publicPath": "/help-desk-dashboard",
+    "filePath": "src/routes/_authenticated/_app/help-desk-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/helpdesk",
+    "publicPath": "/helpdesk",
+    "filePath": "src/routes/_authenticated/_app/helpdesk.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/holidays",
+    "publicPath": "/holidays",
+    "filePath": "src/routes/_authenticated/_app/holidays.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/hrm",
+    "publicPath": "/hrm",
+    "filePath": "src/routes/_authenticated/_app/hrm.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/hrm-dashboard",
+    "publicPath": "/hrm-dashboard",
+    "filePath": "src/routes/_authenticated/_app/hrm-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/integrations",
+    "publicPath": "/integrations",
+    "filePath": "src/routes/_authenticated/_app/integrations.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/internal-reminders",
+    "publicPath": "/internal-reminders",
+    "filePath": "src/routes/_authenticated/_app/internal-reminders.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/inventory-dashboard",
+    "publicPath": "/inventory-dashboard",
+    "filePath": "src/routes/_authenticated/_app/inventory-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice-report",
+    "publicPath": "/invoice-report",
+    "filePath": "src/routes/_authenticated/_app/invoice-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/invoices",
+    "publicPath": "/invoices",
+    "filePath": "src/routes/_authenticated/_app/invoices.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/it-admin-dashboard",
+    "publicPath": "/it-admin-dashboard",
+    "filePath": "src/routes/_authenticated/_app/it-admin-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/leads-dashboard",
+    "publicPath": "/leads-dashboard",
+    "filePath": "src/routes/_authenticated/_app/leads-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/learning-analytics",
+    "publicPath": "/learning-analytics",
+    "filePath": "src/routes/_authenticated/_app/learning-analytics.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/leave",
+    "publicPath": "/leave",
+    "filePath": "src/routes/_authenticated/_app/leave.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/leave-report",
+    "publicPath": "/leave-report",
+    "filePath": "src/routes/_authenticated/_app/leave-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/manager-hub",
+    "publicPath": "/manager-hub",
+    "filePath": "src/routes/_authenticated/_app/manager-hub.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/marketplace",
+    "publicPath": "/marketplace",
+    "filePath": "src/routes/_authenticated/_app/marketplace.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/media",
+    "publicPath": "/media",
+    "filePath": "src/routes/_authenticated/_app/media.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/notes",
+    "publicPath": "/notes",
+    "filePath": "src/routes/_authenticated/_app/notes.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/notice-board",
+    "publicPath": "/notice-board",
+    "filePath": "src/routes/_authenticated/_app/notice-board.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/notice-period-tracker",
+    "publicPath": "/notice-period-tracker",
+    "filePath": "src/routes/_authenticated/_app/notice-period-tracker.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/offboarding",
+    "publicPath": "/offboarding",
+    "filePath": "src/routes/_authenticated/_app/offboarding.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/okr",
+    "publicPath": "/okr",
+    "filePath": "src/routes/_authenticated/_app/okr.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/outbound-webhooks",
+    "publicPath": "/outbound-webhooks",
+    "filePath": "src/routes/_authenticated/_app/outbound-webhooks.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/overtime",
+    "publicPath": "/overtime",
+    "filePath": "src/routes/_authenticated/_app/overtime.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/payment-report",
+    "publicPath": "/payment-report",
+    "filePath": "src/routes/_authenticated/_app/payment-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/payroll",
+    "publicPath": "/payroll",
+    "filePath": "src/routes/_authenticated/_app/payroll.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/payroll-dashboard",
+    "publicPath": "/payroll-dashboard",
+    "filePath": "src/routes/_authenticated/_app/payroll-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/payslip-report",
+    "publicPath": "/payslip-report",
+    "filePath": "src/routes/_authenticated/_app/payslip-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/performance-appraisal",
+    "publicPath": "/performance-appraisal",
+    "filePath": "src/routes/_authenticated/_app/performance-appraisal.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/performance-indicator",
+    "publicPath": "/performance-indicator",
+    "filePath": "src/routes/_authenticated/_app/performance-indicator.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/performance-review",
+    "publicPath": "/performance-review",
+    "filePath": "src/routes/_authenticated/_app/performance-review.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/pipeline",
+    "publicPath": "/pipeline",
+    "filePath": "src/routes/_authenticated/_app/pipeline.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/pos",
+    "publicPath": "/pos",
+    "filePath": "src/routes/_authenticated/_app/pos.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/pos-dashboard",
+    "publicPath": "/pos-dashboard",
+    "filePath": "src/routes/_authenticated/_app/pos-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/probation",
+    "publicPath": "/probation",
+    "filePath": "src/routes/_authenticated/_app/probation.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/procurement-dashboard",
+    "publicPath": "/procurement-dashboard",
+    "filePath": "src/routes/_authenticated/_app/procurement-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/products",
+    "publicPath": "/products",
+    "filePath": "src/routes/_authenticated/_app/products.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/profile",
+    "publicPath": "/profile",
+    "filePath": "src/routes/_authenticated/_app/profile.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/project-dashboard",
+    "publicPath": "/project-dashboard",
+    "filePath": "src/routes/_authenticated/_app/project-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/project-report",
+    "publicPath": "/project-report",
+    "filePath": "src/routes/_authenticated/_app/project-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/projects",
+    "publicPath": "/projects",
+    "filePath": "src/routes/_authenticated/_app/projects.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/promotions",
+    "publicPath": "/promotions",
+    "filePath": "src/routes/_authenticated/_app/promotions.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/proposals",
+    "publicPath": "/proposals",
+    "filePath": "src/routes/_authenticated/_app/proposals.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/provident-fund",
+    "publicPath": "/provident-fund",
+    "filePath": "src/routes/_authenticated/_app/provident-fund.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/public-api",
+    "publicPath": "/public-api",
+    "filePath": "src/routes/_authenticated/_app/public-api.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/purchases",
+    "publicPath": "/purchases",
+    "filePath": "src/routes/_authenticated/_app/purchases.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/razorpay-gateway",
+    "publicPath": "/razorpay-gateway",
+    "filePath": "src/routes/_authenticated/_app/razorpay-gateway.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/recruitment",
+    "publicPath": "/recruitment",
+    "filePath": "src/routes/_authenticated/_app/recruitment.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/recruitment-dashboard",
+    "publicPath": "/recruitment-dashboard",
+    "filePath": "src/routes/_authenticated/_app/recruitment-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/recurring-invoices",
+    "publicPath": "/recurring-invoices",
+    "filePath": "src/routes/_authenticated/_app/recurring-invoices.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/referrals",
+    "publicPath": "/referrals",
+    "filePath": "src/routes/_authenticated/_app/referrals.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/resignation",
+    "publicPath": "/resignation",
+    "filePath": "src/routes/_authenticated/_app/resignation.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/returns",
+    "publicPath": "/returns",
+    "filePath": "src/routes/_authenticated/_app/returns.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/sales-dashboard",
+    "publicPath": "/sales-dashboard",
+    "filePath": "src/routes/_authenticated/_app/sales-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/settings",
+    "publicPath": "/settings",
+    "filePath": "src/routes/_authenticated/_app/settings.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/setup-notes",
+    "publicPath": "/setup-notes",
+    "filePath": "src/routes/_authenticated/_app/setup-notes.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/shift-swap-requests",
+    "publicPath": "/shift-swap-requests",
+    "filePath": "src/routes/_authenticated/_app/shift-swap-requests.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/shifts",
+    "publicPath": "/shifts",
+    "filePath": "src/routes/_authenticated/_app/shifts.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/shopify",
+    "publicPath": "/shopify",
+    "filePath": "src/routes/_authenticated/_app/shopify.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard",
+    "publicPath": "/smart-dashboard",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports",
+    "publicPath": "/smart-reports",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/sms-gateway",
+    "publicPath": "/sms-gateway",
+    "filePath": "src/routes/_authenticated/_app/sms-gateway.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/strategy-studio",
+    "publicPath": "/strategy-studio",
+    "filePath": "src/routes/_authenticated/_app/strategy-studio.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/subscription",
+    "publicPath": "/subscription",
+    "filePath": "src/routes/_authenticated/_app/subscription.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/suggestion-box",
+    "publicPath": "/suggestion-box",
+    "filePath": "src/routes/_authenticated/_app/suggestion-box.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/suppliers",
+    "publicPath": "/suppliers",
+    "filePath": "src/routes/_authenticated/_app/suppliers.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/support",
+    "publicPath": "/support",
+    "filePath": "src/routes/_authenticated/_app/support.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/support-dashboard",
+    "publicPath": "/support-dashboard",
+    "filePath": "src/routes/_authenticated/_app/support-dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/system-states",
+    "publicPath": "/system-states",
+    "filePath": "src/routes/_authenticated/_app/system-states.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/tally-importer",
+    "publicPath": "/tally-importer",
+    "filePath": "src/routes/_authenticated/_app/tally-importer.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/task-board",
+    "publicPath": "/task-board",
+    "filePath": "src/routes/_authenticated/_app/task-board.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/tasks",
+    "publicPath": "/tasks",
+    "filePath": "src/routes/_authenticated/_app/tasks.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/taxes",
+    "publicPath": "/taxes",
+    "filePath": "src/routes/_authenticated/_app/taxes.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/termination",
+    "publicPath": "/termination",
+    "filePath": "src/routes/_authenticated/_app/termination.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/ticket-reports",
+    "publicPath": "/ticket-reports",
+    "filePath": "src/routes/_authenticated/_app/ticket-reports.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/timesheets",
+    "publicPath": "/timesheets",
+    "filePath": "src/routes/_authenticated/_app/timesheets.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/todo",
+    "publicPath": "/todo",
+    "filePath": "src/routes/_authenticated/_app/todo.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/training",
+    "publicPath": "/training",
+    "filePath": "src/routes/_authenticated/_app/training.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/transfers",
+    "publicPath": "/transfers",
+    "filePath": "src/routes/_authenticated/_app/transfers.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/two-factor-auth",
+    "publicPath": "/two-factor-auth",
+    "filePath": "src/routes/_authenticated/_app/two-factor-auth.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/users",
+    "publicPath": "/users",
+    "filePath": "src/routes/_authenticated/_app/users.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/warnings",
+    "publicPath": "/warnings",
+    "filePath": "src/routes/_authenticated/_app/warnings.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/whatsapp-alerts",
+    "publicPath": "/whatsapp-alerts",
+    "filePath": "src/routes/_authenticated/_app/whatsapp-alerts.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/work-from-home",
+    "publicPath": "/work-from-home",
+    "filePath": "src/routes/_authenticated/_app/work-from-home.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/workflows",
+    "publicPath": "/workflows",
+    "filePath": "src/routes/_authenticated/_app/workflows.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/workspace",
+    "publicPath": "/workspace",
+    "filePath": "src/routes/_authenticated/_app/workspace.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/client/dashboard",
+    "publicPath": "/client/dashboard",
+    "filePath": "src/routes/_authenticated/client/dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/employee/dashboard",
+    "publicPath": "/employee/dashboard",
+    "filePath": "src/routes/_authenticated/employee/dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/hr/approvals",
+    "publicPath": "/hr/approvals",
+    "filePath": "src/routes/_authenticated/hr/approvals.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/calendar",
+    "publicPath": "/hr/calendar",
+    "filePath": "src/routes/_authenticated/hr/calendar.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/chat",
+    "publicPath": "/hr/chat",
+    "filePath": "src/routes/_authenticated/hr/chat.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/dashboard",
+    "publicPath": "/hr/dashboard",
+    "filePath": "src/routes/_authenticated/hr/dashboard.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/media",
+    "publicPath": "/hr/media",
+    "filePath": "src/routes/_authenticated/hr/media.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/notifications",
+    "publicPath": "/hr/notifications",
+    "filePath": "src/routes/_authenticated/hr/notifications.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/profile",
+    "publicPath": "/hr/profile",
+    "filePath": "src/routes/_authenticated/hr/profile.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/settings",
+    "publicPath": "/hr/settings",
+    "filePath": "src/routes/_authenticated/hr/settings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/todo",
+    "publicPath": "/hr/todo",
+    "filePath": "src/routes/_authenticated/hr/todo.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/account",
+    "publicPath": "/me/account",
+    "filePath": "src/routes/_authenticated/me/account.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/approvals",
+    "publicPath": "/me/approvals",
+    "filePath": "src/routes/_authenticated/me/approvals.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/calendar",
+    "publicPath": "/me/calendar",
+    "filePath": "src/routes/_authenticated/me/calendar.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/chat",
+    "publicPath": "/me/chat",
+    "filePath": "src/routes/_authenticated/me/chat.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/dashboard",
+    "publicPath": "/me/dashboard",
+    "filePath": "src/routes/_authenticated/me/dashboard.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/employees",
+    "publicPath": "/me/employees",
+    "filePath": "src/routes/_authenticated/me/employees.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/helpdesk",
+    "publicPath": "/me/helpdesk",
+    "filePath": "src/routes/_authenticated/me/helpdesk.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/media",
+    "publicPath": "/me/media",
+    "filePath": "src/routes/_authenticated/me/media.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/notifications",
+    "publicPath": "/me/notifications",
+    "filePath": "src/routes/_authenticated/me/notifications.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/profile",
+    "publicPath": "/me/profile",
+    "filePath": "src/routes/_authenticated/me/profile.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/team",
+    "publicPath": "/me/team",
+    "filePath": "src/routes/_authenticated/me/team.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/todo",
+    "publicPath": "/me/todo",
+    "filePath": "src/routes/_authenticated/me/todo.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/agents",
+    "publicPath": "/super/agents",
+    "filePath": "src/routes/_authenticated/super/agents.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/analytics",
+    "publicPath": "/super/analytics",
+    "filePath": "src/routes/_authenticated/super/analytics.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/api-docs",
+    "publicPath": "/super/api-docs",
+    "filePath": "src/routes/_authenticated/super/api-docs.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/backup",
+    "publicPath": "/super/backup",
+    "filePath": "src/routes/_authenticated/super/backup.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/blogs",
+    "publicPath": "/super/blogs",
+    "filePath": "src/routes/_authenticated/super/blogs.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/case-studies",
+    "publicPath": "/super/case-studies",
+    "filePath": "src/routes/_authenticated/super/case-studies.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/cms",
+    "publicPath": "/super/cms",
+    "filePath": "src/routes/_authenticated/super/cms.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/compliance",
+    "publicPath": "/super/compliance",
+    "filePath": "src/routes/_authenticated/super/compliance.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/coupons",
+    "publicPath": "/super/coupons",
+    "filePath": "src/routes/_authenticated/super/coupons.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/developer",
+    "publicPath": "/super/developer",
+    "filePath": "src/routes/_authenticated/super/developer.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/doc",
+    "publicPath": "/super/doc",
+    "filePath": "src/routes/_authenticated/super/doc.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/docs",
+    "publicPath": "/super/docs",
+    "filePath": "src/routes/_authenticated/super/docs.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/domains",
+    "publicPath": "/super/domains",
+    "filePath": "src/routes/_authenticated/super/domains.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/email-templates",
+    "publicPath": "/super/email-templates",
+    "filePath": "src/routes/_authenticated/super/email-templates.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/escalation-rules",
+    "publicPath": "/super/escalation-rules",
+    "filePath": "src/routes/_authenticated/super/escalation-rules.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/languages",
+    "publicPath": "/super/languages",
+    "filePath": "src/routes/_authenticated/super/languages.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/marketplace",
+    "publicPath": "/super/marketplace",
+    "filePath": "src/routes/_authenticated/super/marketplace.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/media",
+    "publicPath": "/super/media",
+    "filePath": "src/routes/_authenticated/super/media.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/notifications",
+    "publicPath": "/super/notifications",
+    "filePath": "src/routes/_authenticated/super/notifications.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/plans",
+    "publicPath": "/super/plans",
+    "filePath": "src/routes/_authenticated/super/plans.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/profile",
+    "publicPath": "/super/profile",
+    "filePath": "src/routes/_authenticated/super/profile.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/roles",
+    "publicPath": "/super/roles",
+    "filePath": "src/routes/_authenticated/super/roles.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/settings",
+    "publicPath": "/super/settings",
+    "filePath": "src/routes/_authenticated/super/settings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/sla-policies",
+    "publicPath": "/super/sla-policies",
+    "filePath": "src/routes/_authenticated/super/sla-policies.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/support",
+    "publicPath": "/super/support",
+    "filePath": "src/routes/_authenticated/super/support.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/tenant-support-tickets",
+    "publicPath": "/super/tenant-support-tickets",
+    "filePath": "src/routes/_authenticated/super/tenant-support-tickets.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/tenant-usage-metrics",
+    "publicPath": "/super/tenant-usage-metrics",
+    "filePath": "src/routes/_authenticated/super/tenant-usage-metrics.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/tenants",
+    "publicPath": "/super/tenants",
+    "filePath": "src/routes/_authenticated/super/tenants.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/transactions",
+    "publicPath": "/super/transactions",
+    "filePath": "src/routes/_authenticated/super/transactions.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/users",
+    "publicPath": "/super/users",
+    "filePath": "src/routes/_authenticated/super/users.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/tenant/audit-logs",
+    "publicPath": "/tenant/audit-logs",
+    "filePath": "src/routes/_authenticated/tenant/audit-logs.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/billing",
+    "publicPath": "/tenant/billing",
+    "filePath": "src/routes/_authenticated/tenant/billing.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/branding",
+    "publicPath": "/tenant/branding",
+    "filePath": "src/routes/_authenticated/tenant/branding.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/company-profile",
+    "publicPath": "/tenant/company-profile",
+    "filePath": "src/routes/_authenticated/tenant/company-profile.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/dashboard",
+    "publicPath": "/tenant/dashboard",
+    "filePath": "src/routes/_authenticated/tenant/dashboard.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/data",
+    "publicPath": "/tenant/data",
+    "filePath": "src/routes/_authenticated/tenant/data.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/domain",
+    "publicPath": "/tenant/domain",
+    "filePath": "src/routes/_authenticated/tenant/domain.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/integrations",
+    "publicPath": "/tenant/integrations",
+    "filePath": "src/routes/_authenticated/tenant/integrations.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/modules",
+    "publicPath": "/tenant/modules",
+    "filePath": "src/routes/_authenticated/tenant/modules.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/roles",
+    "publicPath": "/tenant/roles",
+    "filePath": "src/routes/_authenticated/tenant/roles.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/settings",
+    "publicPath": "/tenant/settings",
+    "filePath": "src/routes/_authenticated/tenant/settings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/subscription",
+    "publicPath": "/tenant/subscription",
+    "filePath": "src/routes/_authenticated/tenant/subscription.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/support",
+    "publicPath": "/tenant/support",
+    "filePath": "src/routes/_authenticated/tenant/support.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/users",
+    "publicPath": "/tenant/users",
+    "filePath": "src/routes/_authenticated/tenant/users.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenet/$",
+    "publicPath": "/tenet/$",
+    "filePath": "src/routes/_authenticated/tenet/$.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/portal/invoices/$id",
+    "publicPath": "/portal/invoices/$id",
+    "filePath": "src/routes/portal.invoices.$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/portal/proposals/$id",
+    "publicPath": "/portal/proposals/$id",
+    "filePath": "src/routes/portal.proposals.$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/client/",
+    "publicPath": "/client",
+    "filePath": "src/routes/_authenticated/client/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/employee/",
+    "publicPath": "/employee",
+    "filePath": "src/routes/_authenticated/employee/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/hr/",
+    "publicPath": "/hr",
+    "filePath": "src/routes/_authenticated/hr/index.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/me/",
+    "publicPath": "/me",
+    "filePath": "src/routes/_authenticated/me/index.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/super/",
+    "publicPath": "/super",
+    "filePath": "src/routes/_authenticated/super/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/tenant/",
+    "publicPath": "/tenant",
+    "filePath": "src/routes/_authenticated/tenant/index.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice/$id",
+    "publicPath": "/invoice/$id",
+    "filePath": "src/routes/_authenticated/_app/invoice.$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice/create",
+    "publicPath": "/invoice/create",
+    "filePath": "src/routes/_authenticated/_app/invoice.create.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/project/$id",
+    "publicPath": "/project/$id",
+    "filePath": "src/routes/_authenticated/_app/project.$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/settings/custom-domain",
+    "publicPath": "/settings/custom-domain",
+    "filePath": "src/routes/_authenticated/_app/settings.custom-domain.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/settings/webhook",
+    "publicPath": "/settings/webhook",
+    "filePath": "src/routes/_authenticated/_app/settings.webhook.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard/financial",
+    "publicPath": "/smart-dashboard/financial",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.financial.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard/operational",
+    "publicPath": "/smart-dashboard/operational",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.operational.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-dashboard/sales",
+    "publicPath": "/smart-dashboard/sales",
+    "filePath": "src/routes/_authenticated/_app/smart-dashboard.sales.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/$reportId",
+    "publicPath": "/smart-reports/$reportId",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.$reportId.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/attendance-summary",
+    "publicPath": "/smart-reports/attendance-summary",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.attendance-summary.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/deal-pipeline",
+    "publicPath": "/smart-reports/deal-pipeline",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.deal-pipeline.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/leave-report",
+    "publicPath": "/smart-reports/leave-report",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.leave-report.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/payroll-sheet",
+    "publicPath": "/smart-reports/payroll-sheet",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.payroll-sheet.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/product-stock",
+    "publicPath": "/smart-reports/product-stock",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.product-stock.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/project-progress",
+    "publicPath": "/smart-reports/project-progress",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.project-progress.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/purchase-invoice",
+    "publicPath": "/smart-reports/purchase-invoice",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.purchase-invoice.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/smart-reports/sales-invoice",
+    "publicPath": "/smart-reports/sales-invoice",
+    "filePath": "src/routes/_authenticated/_app/smart-reports.sales-invoice.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/dashboard",
+    "publicPath": "/hr/assets/dashboard",
+    "filePath": "src/routes/_authenticated/hr/assets/dashboard.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/depreciation",
+    "publicPath": "/hr/assets/depreciation",
+    "filePath": "src/routes/_authenticated/hr/assets/depreciation.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/depreciations",
+    "publicPath": "/hr/assets/depreciations",
+    "filePath": "src/routes/_authenticated/hr/assets/depreciations.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/requests-maintenance",
+    "publicPath": "/hr/assets/requests-maintenance",
+    "filePath": "src/routes/_authenticated/hr/assets/requests-maintenance.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/types",
+    "publicPath": "/hr/assets/types",
+    "filePath": "src/routes/_authenticated/hr/assets/types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/devices",
+    "publicPath": "/hr/attendance/devices",
+    "filePath": "src/routes/_authenticated/hr/attendance/devices.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/live",
+    "publicPath": "/hr/attendance/live",
+    "filePath": "src/routes/_authenticated/hr/attendance/live.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/overtime",
+    "publicPath": "/hr/attendance/overtime",
+    "filePath": "src/routes/_authenticated/hr/attendance/overtime.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/policies",
+    "publicPath": "/hr/attendance/policies",
+    "filePath": "src/routes/_authenticated/hr/attendance/policies.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/records",
+    "publicPath": "/hr/attendance/records",
+    "filePath": "src/routes/_authenticated/hr/attendance/records.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/regularizations",
+    "publicPath": "/hr/attendance/regularizations",
+    "filePath": "src/routes/_authenticated/hr/attendance/regularizations.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/shifts",
+    "publicPath": "/hr/attendance/shifts",
+    "filePath": "src/routes/_authenticated/hr/attendance/shifts.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/timesheet",
+    "publicPath": "/hr/attendance/timesheet",
+    "filePath": "src/routes/_authenticated/hr/attendance/timesheet.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/timesheets",
+    "publicPath": "/hr/attendance/timesheets",
+    "filePath": "src/routes/_authenticated/hr/attendance/timesheets.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/acknowledgements",
+    "publicPath": "/hr/documents/acknowledgements",
+    "filePath": "src/routes/_authenticated/hr/documents/acknowledgements.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/categories",
+    "publicPath": "/hr/documents/categories",
+    "filePath": "src/routes/_authenticated/hr/documents/categories.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/contract-templates",
+    "publicPath": "/hr/documents/contract-templates",
+    "filePath": "src/routes/_authenticated/hr/documents/contract-templates.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/contract-types",
+    "publicPath": "/hr/documents/contract-types",
+    "filePath": "src/routes/_authenticated/hr/documents/contract-types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/contracts",
+    "publicPath": "/hr/documents/contracts",
+    "filePath": "src/routes/_authenticated/hr/documents/contracts.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/document-templates",
+    "publicPath": "/hr/documents/document-templates",
+    "filePath": "src/routes/_authenticated/hr/documents/document-templates.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/employee",
+    "publicPath": "/hr/documents/employee",
+    "filePath": "src/routes/_authenticated/hr/documents/employee.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/letters",
+    "publicPath": "/hr/documents/letters",
+    "filePath": "src/routes/_authenticated/hr/documents/letters.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/requests",
+    "publicPath": "/hr/documents/requests",
+    "filePath": "src/routes/_authenticated/hr/documents/requests.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/templates",
+    "publicPath": "/hr/documents/templates",
+    "filePath": "src/routes/_authenticated/hr/documents/templates.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/$id",
+    "publicPath": "/hr/employees/$id",
+    "filePath": "src/routes/_authenticated/hr/employees/$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/exits",
+    "publicPath": "/hr/employees/exits",
+    "filePath": "src/routes/_authenticated/hr/employees/exits.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/import",
+    "publicPath": "/hr/employees/import",
+    "filePath": "src/routes/_authenticated/hr/employees/import.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/new",
+    "publicPath": "/hr/employees/new",
+    "filePath": "src/routes/_authenticated/hr/employees/new.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/onboarding",
+    "publicPath": "/hr/employees/onboarding",
+    "filePath": "src/routes/_authenticated/hr/employees/onboarding.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/transfers",
+    "publicPath": "/hr/employees/transfers",
+    "filePath": "src/routes/_authenticated/hr/employees/transfers.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/applications",
+    "publicPath": "/hr/leave/applications",
+    "filePath": "src/routes/_authenticated/hr/leave/applications.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/balances",
+    "publicPath": "/hr/leave/balances",
+    "filePath": "src/routes/_authenticated/hr/leave/balances.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/calendar",
+    "publicPath": "/hr/leave/calendar",
+    "filePath": "src/routes/_authenticated/hr/leave/calendar.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/encashment-compoff",
+    "publicPath": "/hr/leave/encashment-compoff",
+    "filePath": "src/routes/_authenticated/hr/leave/encashment-compoff.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/policies",
+    "publicPath": "/hr/leave/policies",
+    "filePath": "src/routes/_authenticated/hr/leave/policies.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/types",
+    "publicPath": "/hr/leave/types",
+    "filePath": "src/routes/_authenticated/hr/leave/types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/awards",
+    "publicPath": "/hr/lifecycle/awards",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/awards.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/complaints",
+    "publicPath": "/hr/lifecycle/complaints",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/complaints.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/exits",
+    "publicPath": "/hr/lifecycle/exits",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/exits.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/probation",
+    "publicPath": "/hr/lifecycle/probation",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/probation.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/promotions",
+    "publicPath": "/hr/lifecycle/promotions",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/promotions.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/resignations",
+    "publicPath": "/hr/lifecycle/resignations",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/resignations.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/terminations",
+    "publicPath": "/hr/lifecycle/terminations",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/terminations.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/transfers",
+    "publicPath": "/hr/lifecycle/transfers",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/transfers.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/trips",
+    "publicPath": "/hr/lifecycle/trips",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/trips.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/warnings",
+    "publicPath": "/hr/lifecycle/warnings",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/warnings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/action-items",
+    "publicPath": "/hr/meetings/action-items",
+    "filePath": "src/routes/_authenticated/hr/meetings/action-items.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/rooms",
+    "publicPath": "/hr/meetings/rooms",
+    "filePath": "src/routes/_authenticated/hr/meetings/rooms.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/types",
+    "publicPath": "/hr/meetings/types",
+    "filePath": "src/routes/_authenticated/hr/meetings/types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/announcements",
+    "publicPath": "/hr/organization/announcements",
+    "filePath": "src/routes/_authenticated/hr/organization/announcements.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/award-types",
+    "publicPath": "/hr/organization/award-types",
+    "filePath": "src/routes/_authenticated/hr/organization/award-types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/branches",
+    "publicPath": "/hr/organization/branches",
+    "filePath": "src/routes/_authenticated/hr/organization/branches.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/departments",
+    "publicPath": "/hr/organization/departments",
+    "filePath": "src/routes/_authenticated/hr/organization/departments.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/designations",
+    "publicPath": "/hr/organization/designations",
+    "filePath": "src/routes/_authenticated/hr/organization/designations.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/document-types",
+    "publicPath": "/hr/organization/document-types",
+    "filePath": "src/routes/_authenticated/hr/organization/document-types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/holidays",
+    "publicPath": "/hr/organization/holidays",
+    "filePath": "src/routes/_authenticated/hr/organization/holidays.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/structure",
+    "publicPath": "/hr/organization/structure",
+    "filePath": "src/routes/_authenticated/hr/organization/structure.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/tree",
+    "publicPath": "/hr/organization/tree",
+    "filePath": "src/routes/_authenticated/hr/organization/tree.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/components",
+    "publicPath": "/hr/payroll/components",
+    "filePath": "src/routes/_authenticated/hr/payroll/components.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/employee-salaries",
+    "publicPath": "/hr/payroll/employee-salaries",
+    "filePath": "src/routes/_authenticated/hr/payroll/employee-salaries.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/forms",
+    "publicPath": "/hr/payroll/forms",
+    "filePath": "src/routes/_authenticated/hr/payroll/forms.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/payslips",
+    "publicPath": "/hr/payroll/payslips",
+    "filePath": "src/routes/_authenticated/hr/payroll/payslips.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/reimbursements-loans",
+    "publicPath": "/hr/payroll/reimbursements-loans",
+    "filePath": "src/routes/_authenticated/hr/payroll/reimbursements-loans.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/runs",
+    "publicPath": "/hr/payroll/runs",
+    "filePath": "src/routes/_authenticated/hr/payroll/runs.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/salaries",
+    "publicPath": "/hr/payroll/salaries",
+    "filePath": "src/routes/_authenticated/hr/payroll/salaries.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/settings",
+    "publicPath": "/hr/payroll/settings",
+    "filePath": "src/routes/_authenticated/hr/payroll/settings.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/setup",
+    "publicPath": "/hr/payroll/setup",
+    "filePath": "src/routes/_authenticated/hr/payroll/setup.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/tax",
+    "publicPath": "/hr/payroll/tax",
+    "filePath": "src/routes/_authenticated/hr/payroll/tax.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/cycles",
+    "publicPath": "/hr/performance/cycles",
+    "filePath": "src/routes/_authenticated/hr/performance/cycles.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/goal-types",
+    "publicPath": "/hr/performance/goal-types",
+    "filePath": "src/routes/_authenticated/hr/performance/goal-types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/goals",
+    "publicPath": "/hr/performance/goals",
+    "filePath": "src/routes/_authenticated/hr/performance/goals.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/indicator-categories",
+    "publicPath": "/hr/performance/indicator-categories",
+    "filePath": "src/routes/_authenticated/hr/performance/indicator-categories.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/indicators",
+    "publicPath": "/hr/performance/indicators",
+    "filePath": "src/routes/_authenticated/hr/performance/indicators.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/pip",
+    "publicPath": "/hr/performance/pip",
+    "filePath": "src/routes/_authenticated/hr/performance/pip.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/reviews",
+    "publicPath": "/hr/performance/reviews",
+    "filePath": "src/routes/_authenticated/hr/performance/reviews.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/assessments",
+    "publicPath": "/hr/recruitment/assessments",
+    "filePath": "src/routes/_authenticated/hr/recruitment/assessments.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/candidate-onboarding",
+    "publicPath": "/hr/recruitment/candidate-onboarding",
+    "filePath": "src/routes/_authenticated/hr/recruitment/candidate-onboarding.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/candidate-sources",
+    "publicPath": "/hr/recruitment/candidate-sources",
+    "filePath": "src/routes/_authenticated/hr/recruitment/candidate-sources.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/candidates",
+    "publicPath": "/hr/recruitment/candidates",
+    "filePath": "src/routes/_authenticated/hr/recruitment/candidates.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/career",
+    "publicPath": "/hr/recruitment/career",
+    "filePath": "src/routes/_authenticated/hr/recruitment/career.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/career-site",
+    "publicPath": "/hr/recruitment/career-site",
+    "filePath": "src/routes/_authenticated/hr/recruitment/career-site.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/check-items",
+    "publicPath": "/hr/recruitment/check-items",
+    "filePath": "src/routes/_authenticated/hr/recruitment/check-items.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/interview-rounds",
+    "publicPath": "/hr/recruitment/interview-rounds",
+    "filePath": "src/routes/_authenticated/hr/recruitment/interview-rounds.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/interview-types",
+    "publicPath": "/hr/recruitment/interview-types",
+    "filePath": "src/routes/_authenticated/hr/recruitment/interview-types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/interviews",
+    "publicPath": "/hr/recruitment/interviews",
+    "filePath": "src/routes/_authenticated/hr/recruitment/interviews.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-categories",
+    "publicPath": "/hr/recruitment/job-categories",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-categories.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-locations",
+    "publicPath": "/hr/recruitment/job-locations",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-locations.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-postings",
+    "publicPath": "/hr/recruitment/job-postings",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-postings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/job-types",
+    "publicPath": "/hr/recruitment/job-types",
+    "filePath": "src/routes/_authenticated/hr/recruitment/job-types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/locations",
+    "publicPath": "/hr/recruitment/locations",
+    "filePath": "src/routes/_authenticated/hr/recruitment/locations.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/offer-templates",
+    "publicPath": "/hr/recruitment/offer-templates",
+    "filePath": "src/routes/_authenticated/hr/recruitment/offer-templates.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/offers",
+    "publicPath": "/hr/recruitment/offers",
+    "filePath": "src/routes/_authenticated/hr/recruitment/offers.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/onboarding",
+    "publicPath": "/hr/recruitment/onboarding",
+    "filePath": "src/routes/_authenticated/hr/recruitment/onboarding.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/onboarding-checklists",
+    "publicPath": "/hr/recruitment/onboarding-checklists",
+    "filePath": "src/routes/_authenticated/hr/recruitment/onboarding-checklists.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/pipeline",
+    "publicPath": "/hr/recruitment/pipeline",
+    "filePath": "src/routes/_authenticated/hr/recruitment/pipeline.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/referrals",
+    "publicPath": "/hr/recruitment/referrals",
+    "filePath": "src/routes/_authenticated/hr/recruitment/referrals.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/rounds",
+    "publicPath": "/hr/recruitment/rounds",
+    "filePath": "src/routes/_authenticated/hr/recruitment/rounds.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/attendance",
+    "publicPath": "/hr/reports/attendance",
+    "filePath": "src/routes/_authenticated/hr/reports/attendance.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/attrition",
+    "publicPath": "/hr/reports/attrition",
+    "filePath": "src/routes/_authenticated/hr/reports/attrition.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/custom",
+    "publicPath": "/hr/reports/custom",
+    "filePath": "src/routes/_authenticated/hr/reports/custom.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/headcount",
+    "publicPath": "/hr/reports/headcount",
+    "filePath": "src/routes/_authenticated/hr/reports/headcount.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/payroll",
+    "publicPath": "/hr/reports/payroll",
+    "filePath": "src/routes/_authenticated/hr/reports/payroll.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/performance",
+    "publicPath": "/hr/reports/performance",
+    "filePath": "src/routes/_authenticated/hr/reports/performance.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/recruitment",
+    "publicPath": "/hr/reports/recruitment",
+    "filePath": "src/routes/_authenticated/hr/reports/recruitment.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/statutory",
+    "publicPath": "/hr/reports/statutory",
+    "filePath": "src/routes/_authenticated/hr/reports/statutory.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/reports/training",
+    "publicPath": "/hr/reports/training",
+    "filePath": "src/routes/_authenticated/hr/reports/training.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/training/employee-trainings",
+    "publicPath": "/hr/training/employee-trainings",
+    "filePath": "src/routes/_authenticated/hr/training/employee-trainings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/training/programs",
+    "publicPath": "/hr/training/programs",
+    "filePath": "src/routes/_authenticated/hr/training/programs.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/training/sessions",
+    "publicPath": "/hr/training/sessions",
+    "filePath": "src/routes/_authenticated/hr/training/sessions.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/training/trainings",
+    "publicPath": "/hr/training/trainings",
+    "filePath": "src/routes/_authenticated/hr/training/trainings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/training/types",
+    "publicPath": "/hr/training/types",
+    "filePath": "src/routes/_authenticated/hr/training/types.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/assets/dashboard",
+    "publicPath": "/me/assets/dashboard",
+    "filePath": "src/routes/_authenticated/me/assets/dashboard.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/assets/depreciations",
+    "publicPath": "/me/assets/depreciations",
+    "filePath": "src/routes/_authenticated/me/assets/depreciations.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/me/assets/requests",
+    "publicPath": "/me/assets/requests",
+    "filePath": "src/routes/_authenticated/me/assets/requests.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/assets/types",
+    "publicPath": "/me/assets/types",
+    "filePath": "src/routes/_authenticated/me/assets/types.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/policies",
+    "publicPath": "/me/attendance/policies",
+    "filePath": "src/routes/_authenticated/me/attendance/policies.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/records",
+    "publicPath": "/me/attendance/records",
+    "filePath": "src/routes/_authenticated/me/attendance/records.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/regularizations",
+    "publicPath": "/me/attendance/regularizations",
+    "filePath": "src/routes/_authenticated/me/attendance/regularizations.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/requests",
+    "publicPath": "/me/attendance/requests",
+    "filePath": "src/routes/_authenticated/me/attendance/requests.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/shifts",
+    "publicPath": "/me/attendance/shifts",
+    "filePath": "src/routes/_authenticated/me/attendance/shifts.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/timesheet",
+    "publicPath": "/me/attendance/timesheet",
+    "filePath": "src/routes/_authenticated/me/attendance/timesheet.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/documents/acknowledgements",
+    "publicPath": "/me/documents/acknowledgements",
+    "filePath": "src/routes/_authenticated/me/documents/acknowledgements.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/documents/contracts",
+    "publicPath": "/me/documents/contracts",
+    "filePath": "src/routes/_authenticated/me/documents/contracts.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/documents/requests",
+    "publicPath": "/me/documents/requests",
+    "filePath": "src/routes/_authenticated/me/documents/requests.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/leave/applications",
+    "publicPath": "/me/leave/applications",
+    "filePath": "src/routes/_authenticated/me/leave/applications.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/leave/balance",
+    "publicPath": "/me/leave/balance",
+    "filePath": "src/routes/_authenticated/me/leave/balance.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/leave/policies",
+    "publicPath": "/me/leave/policies",
+    "filePath": "src/routes/_authenticated/me/leave/policies.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/leave/team-calendar",
+    "publicPath": "/me/leave/team-calendar",
+    "filePath": "src/routes/_authenticated/me/leave/team-calendar.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/awards",
+    "publicPath": "/me/lifecycle/awards",
+    "filePath": "src/routes/_authenticated/me/lifecycle/awards.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/complaints",
+    "publicPath": "/me/lifecycle/complaints",
+    "filePath": "src/routes/_authenticated/me/lifecycle/complaints.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/exit",
+    "publicPath": "/me/lifecycle/exit",
+    "filePath": "src/routes/_authenticated/me/lifecycle/exit.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/promotions",
+    "publicPath": "/me/lifecycle/promotions",
+    "filePath": "src/routes/_authenticated/me/lifecycle/promotions.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/resignation",
+    "publicPath": "/me/lifecycle/resignation",
+    "filePath": "src/routes/_authenticated/me/lifecycle/resignation.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/terminations",
+    "publicPath": "/me/lifecycle/terminations",
+    "filePath": "src/routes/_authenticated/me/lifecycle/terminations.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/transfers",
+    "publicPath": "/me/lifecycle/transfers",
+    "filePath": "src/routes/_authenticated/me/lifecycle/transfers.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/trips",
+    "publicPath": "/me/lifecycle/trips",
+    "filePath": "src/routes/_authenticated/me/lifecycle/trips.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/warnings",
+    "publicPath": "/me/lifecycle/warnings",
+    "filePath": "src/routes/_authenticated/me/lifecycle/warnings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/meetings/action-items",
+    "publicPath": "/me/meetings/action-items",
+    "filePath": "src/routes/_authenticated/me/meetings/action-items.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/organization/announcements",
+    "publicPath": "/me/organization/announcements",
+    "filePath": "src/routes/_authenticated/me/organization/announcements.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/organization/holidays",
+    "publicPath": "/me/organization/holidays",
+    "filePath": "src/routes/_authenticated/me/organization/holidays.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/organization/structure",
+    "publicPath": "/me/organization/structure",
+    "filePath": "src/routes/_authenticated/me/organization/structure.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/payslips",
+    "publicPath": "/me/payroll/payslips",
+    "filePath": "src/routes/_authenticated/me/payroll/payslips.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/reimbursements-loans",
+    "publicPath": "/me/payroll/reimbursements-loans",
+    "filePath": "src/routes/_authenticated/me/payroll/reimbursements-loans.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/salary",
+    "publicPath": "/me/payroll/salary",
+    "filePath": "src/routes/_authenticated/me/payroll/salary.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/statutory-forms",
+    "publicPath": "/me/payroll/statutory-forms",
+    "filePath": "src/routes/_authenticated/me/payroll/statutory-forms.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/tax",
+    "publicPath": "/me/payroll/tax",
+    "filePath": "src/routes/_authenticated/me/payroll/tax.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/performance/cycles",
+    "publicPath": "/me/performance/cycles",
+    "filePath": "src/routes/_authenticated/me/performance/cycles.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/performance/goals",
+    "publicPath": "/me/performance/goals",
+    "filePath": "src/routes/_authenticated/me/performance/goals.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/performance/indicators",
+    "publicPath": "/me/performance/indicators",
+    "filePath": "src/routes/_authenticated/me/performance/indicators.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/performance/reviews",
+    "publicPath": "/me/performance/reviews",
+    "filePath": "src/routes/_authenticated/me/performance/reviews.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/assessments",
+    "publicPath": "/me/recruitment/assessments",
+    "filePath": "src/routes/_authenticated/me/recruitment/assessments.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/career",
+    "publicPath": "/me/recruitment/career",
+    "filePath": "src/routes/_authenticated/me/recruitment/career.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/interview-rounds",
+    "publicPath": "/me/recruitment/interview-rounds",
+    "filePath": "src/routes/_authenticated/me/recruitment/interview-rounds.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/interviews",
+    "publicPath": "/me/recruitment/interviews",
+    "filePath": "src/routes/_authenticated/me/recruitment/interviews.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/job-locations",
+    "publicPath": "/me/recruitment/job-locations",
+    "filePath": "src/routes/_authenticated/me/recruitment/job-locations.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/job-postings",
+    "publicPath": "/me/recruitment/job-postings",
+    "filePath": "src/routes/_authenticated/me/recruitment/job-postings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/onboarding",
+    "publicPath": "/me/recruitment/onboarding",
+    "filePath": "src/routes/_authenticated/me/recruitment/onboarding.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/training/programs",
+    "publicPath": "/me/training/programs",
+    "filePath": "src/routes/_authenticated/me/training/programs.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/training/sessions",
+    "publicPath": "/me/training/sessions",
+    "filePath": "src/routes/_authenticated/me/training/sessions.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/training/trainings",
+    "publicPath": "/me/training/trainings",
+    "filePath": "src/routes/_authenticated/me/training/trainings.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/super/domains/documentation",
+    "publicPath": "/super/domains/documentation",
+    "filePath": "src/routes/_authenticated/super/domains.documentation.tsx",
+    "navCategory": "PORTAL_SUBMODULE",
+    "navReason": "Accessible via tab, parent section, or role-gated portal workflow"
+  },
+  {
+    "routeId": "/_authenticated/hr/assets/",
+    "publicPath": "/hr/assets",
+    "filePath": "src/routes/_authenticated/hr/assets/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/attendance/",
+    "publicPath": "/hr/attendance",
+    "filePath": "src/routes/_authenticated/hr/attendance/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/documents/",
+    "publicPath": "/hr/documents",
+    "filePath": "src/routes/_authenticated/hr/documents/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/employees/",
+    "publicPath": "/hr/employees",
+    "filePath": "src/routes/_authenticated/hr/employees/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/leave/",
+    "publicPath": "/hr/leave",
+    "filePath": "src/routes/_authenticated/hr/leave/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/lifecycle/",
+    "publicPath": "/hr/lifecycle",
+    "filePath": "src/routes/_authenticated/hr/lifecycle/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/meetings/",
+    "publicPath": "/hr/meetings",
+    "filePath": "src/routes/_authenticated/hr/meetings/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/organization/",
+    "publicPath": "/hr/organization",
+    "filePath": "src/routes/_authenticated/hr/organization/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/payroll/",
+    "publicPath": "/hr/payroll",
+    "filePath": "src/routes/_authenticated/hr/payroll/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/performance/",
+    "publicPath": "/hr/performance",
+    "filePath": "src/routes/_authenticated/hr/performance/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/recruitment/",
+    "publicPath": "/hr/recruitment",
+    "filePath": "src/routes/_authenticated/hr/recruitment/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/hr/training/",
+    "publicPath": "/hr/training",
+    "filePath": "src/routes/_authenticated/hr/training/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/assets/",
+    "publicPath": "/me/assets",
+    "filePath": "src/routes/_authenticated/me/assets/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/attendance/",
+    "publicPath": "/me/attendance",
+    "filePath": "src/routes/_authenticated/me/attendance/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/documents/",
+    "publicPath": "/me/documents",
+    "filePath": "src/routes/_authenticated/me/documents/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/leave/",
+    "publicPath": "/me/leave",
+    "filePath": "src/routes/_authenticated/me/leave/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/lifecycle/",
+    "publicPath": "/me/lifecycle",
+    "filePath": "src/routes/_authenticated/me/lifecycle/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/meetings/",
+    "publicPath": "/me/meetings",
+    "filePath": "src/routes/_authenticated/me/meetings/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/payroll/",
+    "publicPath": "/me/payroll",
+    "filePath": "src/routes/_authenticated/me/payroll/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/performance/",
+    "publicPath": "/me/performance",
+    "filePath": "src/routes/_authenticated/me/performance/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/recruitment/",
+    "publicPath": "/me/recruitment",
+    "filePath": "src/routes/_authenticated/me/recruitment/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/me/training/",
+    "publicPath": "/me/training",
+    "filePath": "src/routes/_authenticated/me/training/index.tsx",
+    "navCategory": "DIRECT_SIDEBAR_LINK",
+    "navReason": "Directly accessible via sidebar navigation item"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/fields",
+    "publicPath": "/addons/ai-assistant/fields",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/fields.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/settings",
+    "publicPath": "/addons/ai-assistant/settings",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/settings.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/usage",
+    "publicPath": "/addons/ai-assistant/usage",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/usage.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/analytics",
+    "publicPath": "/addons/ai-document/analytics",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/analytics.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/generate",
+    "publicPath": "/addons/ai-document/generate",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/generate.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/settings",
+    "publicPath": "/addons/ai-document/settings",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/settings.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/template-categories",
+    "publicPath": "/addons/ai-document/template-categories",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/template-categories.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/tones",
+    "publicPath": "/addons/ai-document/tones",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/tones.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/dashboard",
+    "publicPath": "/addons/planning/dashboard",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/dashboard.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/events",
+    "publicPath": "/addons/webhook/events",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/events.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/settings",
+    "publicPath": "/addons/webhook/settings",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/settings.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/invoice/$id/print",
+    "publicPath": "/invoice/$id/print",
+    "filePath": "src/routes/_authenticated/_app/invoice.$id.print.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/history/$id",
+    "publicPath": "/addons/ai-assistant/history/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/history/$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/history/$id",
+    "publicPath": "/addons/ai-document/history/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/history/$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/templates/new",
+    "publicPath": "/addons/ai-document/templates/new",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/templates/new.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/new",
+    "publicPath": "/addons/planning/challenges/new",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/new.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/grid",
+    "publicPath": "/addons/planning/charters/grid",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/grid.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/kanban",
+    "publicPath": "/addons/planning/charters/kanban",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/kanban.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/new",
+    "publicPath": "/addons/planning/charters/new",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/new.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/tree",
+    "publicPath": "/addons/planning/charters/tree",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/tree.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/setup/categories",
+    "publicPath": "/addons/planning/setup/categories",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/setup/categories.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/setup/stages",
+    "publicPath": "/addons/planning/setup/stages",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/setup/stages.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/setup/statuses",
+    "publicPath": "/addons/planning/setup/statuses",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/setup/statuses.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/new",
+    "publicPath": "/addons/webhook/endpoints/new",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/new.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/logs/$id",
+    "publicPath": "/addons/webhook/logs/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/logs/$id.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-assistant/history/",
+    "publicPath": "/addons/ai-assistant/history",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-assistant/history/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/history/",
+    "publicPath": "/addons/ai-document/history",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/history/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/templates/",
+    "publicPath": "/addons/ai-document/templates",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/templates/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/",
+    "publicPath": "/addons/planning/challenges",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/",
+    "publicPath": "/addons/planning/charters",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/",
+    "publicPath": "/addons/webhook/endpoints",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/logs/",
+    "publicPath": "/addons/webhook/logs",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/logs/index.tsx",
+    "navCategory": "STANDALONE_WORKSPACE_APP",
+    "navReason": "Workspace domain module (POS, Accounting, Inventory, CRM, Addon) accessed via module switcher or app launcher"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/ai-document/templates/$id/edit",
+    "publicPath": "/addons/ai-document/templates/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/ai-document/templates/$id/edit.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/$id/edit",
+    "publicPath": "/addons/planning/challenges/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/$id/edit.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/$id/edit",
+    "publicPath": "/addons/planning/charters/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/$id/edit.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/$id/edit",
+    "publicPath": "/addons/webhook/endpoints/$id/edit",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/$id/edit.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/challenges/$id/",
+    "publicPath": "/addons/planning/challenges/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/challenges/$id/index.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/planning/charters/$id/",
+    "publicPath": "/addons/planning/charters/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/planning/charters/$id/index.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  },
+  {
+    "routeId": "/_authenticated/_app/addons/webhook/endpoints/$id/",
+    "publicPath": "/addons/webhook/endpoints/$id",
+    "filePath": "src/routes/_authenticated/_app/addons/webhook/endpoints/$id/index.tsx",
+    "navCategory": "CONTEXTUAL_SUBPAGE_OR_MODAL",
+    "navReason": "Deep link, parameterized entity page ($id), or edit/view drawer opened from parent list"
+  }
+]

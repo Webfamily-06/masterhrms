@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { NotificationService } from "../services/notification.service";
 import { WorkflowService } from "../services/workflow.service";
@@ -33,6 +34,8 @@ import { hrCollaborationRouter } from "./hr-collaboration.routes";
 import { meCollaborationRouter } from "./me-collaboration.routes";
 
 export const platformFoundationRouter = Router();
+
+platformFoundationRouter.use(requireAuth, resolveTenantContext);
 
 // =========================================================================
 // P2. ORGANIZATION & EMPLOYEES BUSINESS LAYER

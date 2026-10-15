@@ -29,6 +29,15 @@ export default function HrPayrollSetupPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("statutory");
 
+  // Fetch real persisted settings from database
+  const { data: settingsData } = useQuery({
+    queryKey: ["hr-payroll-settings"],
+    queryFn: async () => {
+      const res = await api.get<{ settings: any }>("/api/hr/payroll/settings");
+      return res;
+    },
+  });
+
   // Statutory parameters state
   const [epfCeiling, setEpfCeiling] = useState(15000);
   const [epfEmployeeRate, setEpfEmployeeRate] = useState(12);
@@ -40,8 +49,20 @@ export default function HrPayrollSetupPage() {
 
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
-      // Save setup settings
-      toast.success("Payroll configuration parameters saved successfully");
+      const payload = {
+        cutoffDay,
+        bankFormat,
+        statutoryAutoDeduction: true,
+      };
+      const res = await api.post("/api/hr/payroll/settings", payload);
+      return res;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-payroll-settings"] });
+      toast.success(data?.message || "Payroll configuration parameters saved successfully to database");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to persist payroll settings");
     },
   });
 
@@ -53,7 +74,17 @@ export default function HrPayrollSetupPage() {
       >
         <div className="flex items-center gap-2">
           <Button
+            asChild
+            variant="outline"
+            className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+          >
+            <a href="/hr/payroll/settings">
+              <ShieldCheck className="h-4 w-4" /> Open Full All-India Settings Center
+            </a>
+          </Button>
+          <Button
             onClick={() => saveSettingsMutation.mutate()}
+            disabled={saveSettingsMutation.isPending}
             className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <Save className="h-4 w-4" /> Save Configuration

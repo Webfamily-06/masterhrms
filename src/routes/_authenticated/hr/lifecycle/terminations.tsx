@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray } from "@/lib/api";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,7 +56,7 @@ export default function HrTerminationsPage() {
     queryKey: ["hr-lifecycle-terminations"],
     queryFn: async () => {
       const res = await api.get("/hr/lifecycle/terminations");
-      return res.data;
+      return unwrapArray(res);
     },
   });
 
@@ -63,7 +64,7 @@ export default function HrTerminationsPage() {
     queryKey: ["hr-employees-list-quick"],
     queryFn: async () => {
       const res = await api.get("/hr/employees?limit=200");
-      return res.data?.data || res.data || [];
+      return unwrapArray(res);
     },
   });
 

@@ -1,15 +1,25 @@
 import { Router, Response } from "express";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, AuthRequest, requireRole } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { LifecycleService } from "../services/lifecycle.service";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const hrLifecycleRouter = Router();
 
+hrLifecycleRouter.use(requireAuth, resolveTenantContext);
+
+// Authorized HR Administration Roles
+const HR_ADMIN_ROLES = ["admin", "super_admin", "tenant_admin", "hr_admin", "hr_manager"];
+const COMPLAINT_ADMIN_ROLES = ["admin", "super_admin", "tenant_admin", "hr_admin", "hr_manager", "compliance_admin"];
+
+const requireHrAdmin = requireRole(...HR_ADMIN_ROLES);
+const requireComplaintAdmin = requireRole(...COMPLAINT_ADMIN_ROLES);
+
 // =========================================================================
 // 0. COMMAND CENTER OVERVIEW
 // =========================================================================
-hrLifecycleRouter.get("/overview", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/overview", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const metrics = await LifecycleService.getOverviewMetrics(tenantId);
@@ -22,7 +32,7 @@ hrLifecycleRouter.get("/overview", requireAuth, async (req: AuthRequest, res: Re
 // =========================================================================
 // 1. AWARDS (HR-LC-01)
 // =========================================================================
-hrLifecycleRouter.get("/awards", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/awards", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -40,7 +50,7 @@ hrLifecycleRouter.get("/awards", requireAuth, async (req: AuthRequest, res: Resp
   }
 });
 
-hrLifecycleRouter.post("/awards", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.post("/awards", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -88,7 +98,7 @@ hrLifecycleRouter.post("/awards", requireAuth, async (req: AuthRequest, res: Res
   }
 });
 
-hrLifecycleRouter.delete("/awards/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.delete("/awards/:id", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -102,7 +112,7 @@ hrLifecycleRouter.delete("/awards/:id", requireAuth, async (req: AuthRequest, re
 // =========================================================================
 // 2. PROMOTIONS (HR-LC-02)
 // =========================================================================
-hrLifecycleRouter.get("/promotions", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/promotions", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -119,7 +129,7 @@ hrLifecycleRouter.get("/promotions", requireAuth, async (req: AuthRequest, res: 
   }
 });
 
-hrLifecycleRouter.post("/promotions", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.post("/promotions", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -133,7 +143,7 @@ hrLifecycleRouter.post("/promotions", requireAuth, async (req: AuthRequest, res:
 // =========================================================================
 // 3. TRANSFERS (HR-LC-03)
 // =========================================================================
-hrLifecycleRouter.get("/transfers", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/transfers", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -150,7 +160,7 @@ hrLifecycleRouter.get("/transfers", requireAuth, async (req: AuthRequest, res: R
   }
 });
 
-hrLifecycleRouter.post("/transfers", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.post("/transfers", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -164,7 +174,7 @@ hrLifecycleRouter.post("/transfers", requireAuth, async (req: AuthRequest, res: 
 // =========================================================================
 // 4. WARNINGS (HR-LC-04)
 // =========================================================================
-hrLifecycleRouter.get("/warnings", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/warnings", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -182,7 +192,7 @@ hrLifecycleRouter.get("/warnings", requireAuth, async (req: AuthRequest, res: Re
   }
 });
 
-hrLifecycleRouter.post("/warnings", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.post("/warnings", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -193,7 +203,7 @@ hrLifecycleRouter.post("/warnings", requireAuth, async (req: AuthRequest, res: R
   }
 });
 
-hrLifecycleRouter.delete("/warnings/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.delete("/warnings/:id", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -207,7 +217,7 @@ hrLifecycleRouter.delete("/warnings/:id", requireAuth, async (req: AuthRequest, 
 // =========================================================================
 // 5. RESIGNATIONS (HR-LC-05)
 // =========================================================================
-hrLifecycleRouter.get("/resignations", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/resignations", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -225,7 +235,7 @@ hrLifecycleRouter.get("/resignations", requireAuth, async (req: AuthRequest, res
   }
 });
 
-hrLifecycleRouter.put("/resignations/:id/review", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/resignations/:id/review", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -250,7 +260,7 @@ hrLifecycleRouter.put("/resignations/:id/review", requireAuth, async (req: AuthR
 // =========================================================================
 // 6. TERMINATIONS (HR-LC-06)
 // =========================================================================
-hrLifecycleRouter.get("/terminations", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/terminations", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -267,7 +277,7 @@ hrLifecycleRouter.get("/terminations", requireAuth, async (req: AuthRequest, res
   }
 });
 
-hrLifecycleRouter.post("/terminations", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.post("/terminations", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -281,7 +291,7 @@ hrLifecycleRouter.post("/terminations", requireAuth, async (req: AuthRequest, re
 // =========================================================================
 // 7. BUSINESS TRIPS (HR-LC-07)
 // =========================================================================
-hrLifecycleRouter.get("/trips", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/trips", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -299,7 +309,7 @@ hrLifecycleRouter.get("/trips", requireAuth, async (req: AuthRequest, res: Respo
   }
 });
 
-hrLifecycleRouter.put("/trips/:id/approve", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/trips/:id/approve", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -312,8 +322,9 @@ hrLifecycleRouter.put("/trips/:id/approve", requireAuth, async (req: AuthRequest
 
 // =========================================================================
 // 8. COMPLAINTS & GRIEVANCES (HR-LC-08)
+// Strictly restricted to HR & Compliance administrators
 // =========================================================================
-hrLifecycleRouter.get("/complaints", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/complaints", requireComplaintAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -330,7 +341,7 @@ hrLifecycleRouter.get("/complaints", requireAuth, async (req: AuthRequest, res: 
   }
 });
 
-hrLifecycleRouter.put("/complaints/:id/resolve", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/complaints/:id/resolve", requireComplaintAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const { resolutionNotes, actionTaken } = req.body;
@@ -341,10 +352,44 @@ hrLifecycleRouter.put("/complaints/:id/resolve", requireAuth, async (req: AuthRe
   }
 });
 
+hrLifecycleRouter.post("/complaints", requireComplaintAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const complaint = await LifecycleService.fileComplaint(tenantId, req.body);
+    return res.status(201).json(complaint);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to record complaint." });
+  }
+});
+
+hrLifecycleRouter.post("/complaints/:id/notes", requireComplaintAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const authorId = req.user?.userId || "system";
+    const db = getTenantDb();
+    const { noteText, isConfidential } = req.body;
+    if (!noteText) {
+      return res.status(400).json({ error: "Note text is required." });
+    }
+    const caseNote = await db.complaintCaseNote.create({
+      data: {
+        tenantId,
+        complaintId: req.params.id,
+        authorId,
+        noteText,
+        isConfidential: isConfidential ?? true,
+      },
+    });
+    return res.status(201).json(caseNote);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to add case note." });
+  }
+});
+
 // =========================================================================
 // 9. EXITS & CLEARANCE (HR-LC-09)
 // =========================================================================
-hrLifecycleRouter.get("/exits", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/exits", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -362,7 +407,7 @@ hrLifecycleRouter.get("/exits", requireAuth, async (req: AuthRequest, res: Respo
   }
 });
 
-hrLifecycleRouter.put("/exits/:id/checklist/:itemId", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/exits/:id/checklist/:itemId", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -383,7 +428,7 @@ hrLifecycleRouter.put("/exits/:id/checklist/:itemId", requireAuth, async (req: A
   }
 });
 
-hrLifecycleRouter.put("/exits/:id/finalize", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/exits/:id/finalize", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -397,7 +442,7 @@ hrLifecycleRouter.put("/exits/:id/finalize", requireAuth, async (req: AuthReques
 // =========================================================================
 // 10. PROBATION MANAGEMENT (HR-LC-10)
 // =========================================================================
-hrLifecycleRouter.get("/probation", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/probation", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
@@ -414,7 +459,7 @@ hrLifecycleRouter.get("/probation", requireAuth, async (req: AuthRequest, res: R
   }
 });
 
-hrLifecycleRouter.put("/probation/:id/extend", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/probation/:id/extend", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -426,7 +471,7 @@ hrLifecycleRouter.put("/probation/:id/extend", requireAuth, async (req: AuthRequ
   }
 });
 
-hrLifecycleRouter.put("/probation/:id/confirm", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/probation/:id/confirm", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
@@ -441,7 +486,7 @@ hrLifecycleRouter.put("/probation/:id/confirm", requireAuth, async (req: AuthReq
 // =========================================================================
 // 11. TIMELINE & EVENT STORE QUERY (P6-BR-019)
 // =========================================================================
-hrLifecycleRouter.get("/timeline/:employeeId", requireAuth, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.get("/timeline/:employeeId", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const events = await LifecycleService.getTimeline(tenantId, req.params.employeeId);

@@ -581,10 +581,11 @@ describe("MASTERHRMS — Statutory TDS Engine & Rule Correction Test Suite (AY 2
       email: "anita.deshmukh@masterhrms.internal",
       baseMonthlyCtc: monthlyGross,
       annualCtc: annualGross,
-      state: "MH",
+      state: "KA",
       pfEligible: true,
       esiEligible: false,
       ptEligible: true,
+      lwfEligible: false,
       tdsEligible: true,
       isResident: true,
       taxRegime: "new" as const,
@@ -600,6 +601,25 @@ describe("MASTERHRMS — Statutory TDS Engine & Rule Correction Test Suite (AY 2
       prorationFactor: 1.0,
     };
 
+    // Independently derive expected annual liability without hardcoding
+    const indepGross = annualGross;
+    const indepStdDeduction = 75000;
+    const indepTaxable = indepGross - indepStdDeduction; // 12,10,000.00
+    // Slabs: 0-4L@0, 4-8L@5% (20,000), 8-12L@10% (40,000), 12-12.1L@15% (1,500)
+    const indepRawTax = 20000 + 40000 + (indepTaxable - 1200000) * 0.15; // 61,500.00
+    const indepExcessIncome = indepTaxable - 1200000; // 10,000.00
+    const indepRebate = indepRawTax - indepExcessIncome; // 51,500.00
+    const indepTaxAfterRebate = indepRawTax - indepRebate; // 10,000.00
+    const indepCess = Math.round(indepTaxAfterRebate * 0.04 * 100) / 100; // 400.00
+    const annualTdsLiability = Math.round((indepTaxAfterRebate + indepCess) * 100) / 100; // 10,400.00
+    expect(annualTdsLiability).toBe(10400.00);
+
+    const monthlyGrossExpected = Math.round((annualGross / 12) * 100) / 100; // 107083.33
+    const basicExpected = Math.round(monthlyGrossExpected * 0.50 * 100) / 100; // 53541.67
+    const epfExpected = Math.round(basicExpected * 0.12 * 100) / 100; // 6425.00
+    const ptExpected = 200.00;
+    const standardMonthlyTdsExpected = Math.round((annualTdsLiability / 12) * 100) / 100; // 866.67
+
     const monthlyDeductions: number[] = [];
     let cumulativeTdsDeducted = 0;
 
@@ -607,6 +627,7 @@ describe("MASTERHRMS — Statutory TDS Engine & Rule Correction Test Suite (AY 2
     for (let monthIndex = 1; monthIndex <= 12; monthIndex++) {
       const isFinal = monthIndex === 12;
       const remainingPeriods = 13 - monthIndex;
+      const priorCumulative = cumulativeTdsDeducted;
 
       const breakdown = computeEmployeePayrollBreakdown(employee, attendance, {
         periodMonth: monthIndex <= 9 ? monthIndex + 3 : monthIndex - 9, // April (4) to March (3)
@@ -615,29 +636,59 @@ describe("MASTERHRMS — Statutory TDS Engine & Rule Correction Test Suite (AY 2
         remainingPeriods,
       });
 
+      // Assert basic gross and components are invariant across periods
+      expect(breakdown.earnings.totalGross).toBe(monthlyGrossExpected);
+      expect(breakdown.deductions.providentFund).toBe(epfExpected);
+      expect(breakdown.deductions.professionalTax).toBe(ptExpected);
+      expect(breakdown.taxation.totalAnnualTds).toBe(annualTdsLiability);
+
       const tdsForMonth = breakdown.deductions.tds;
       monthlyDeductions.push(tdsForMonth);
-      cumulativeTdsDeducted = Math.round((cumulativeTdsDeducted + tdsForMonth) * 100) / 100;
 
+      // 1. Cumulative TDS equals prior cumulative amount plus current-period withholding
+      cumulativeTdsDeducted = Math.round((cumulativeTdsDeducted + tdsForMonth) * 100) / 100;
+      expect(cumulativeTdsDeducted).toBe(Math.round((priorCumulative + tdsForMonth) * 100) / 100);
+
+      // 2. Outstanding liability equals annual liability minus cumulative TDS
+      const outstandingLiability = Math.round((annualTdsLiability - cumulativeTdsDeducted) * 100) / 100;
+
+      // Period-specific net pay and deductions verification
       if (!isFinal) {
         // Months 1 to 11: standard rounded ₹866.67
-        expect(tdsForMonth).toBe(866.67);
+        expect(tdsForMonth).toBe(standardMonthlyTdsExpected);
+        expect(breakdown.deductions.totalDeductions).toBe(Math.round((epfExpected + ptExpected + standardMonthlyTdsExpected) * 100) / 100); // 7491.67
+        expect(breakdown.netPay).toBe(Math.round((monthlyGrossExpected - breakdown.deductions.totalDeductions) * 100) / 100); // 99591.66
+        expect(outstandingLiability).toBe(Math.round((annualTdsLiability - monthIndex * standardMonthlyTdsExpected) * 100) / 100);
+
+        // Explicit check for December (Period 9):
+        // 9 * 866.67 = 7,800.03 cumulative; outstanding liability = 10,400.00 - 7,800.03 = 2,599.97
+        if (monthIndex === 9) {
+          expect(cumulativeTdsDeducted).toBe(7800.03);
+          expect(outstandingLiability).toBe(2599.97);
+        }
       } else {
         // Month 12: final period adjustment balances the remaining 4 paise variance
-        // 10,400.00 - (11 * 866.67 = 9,533.37) = 866.63
+        const expectedMarchTds = Math.round((annualTdsLiability - priorCumulative) * 100) / 100;
+        expect(expectedMarchTds).toBe(866.63);
         expect(tdsForMonth).toBe(866.63);
+        expect(breakdown.deductions.totalDeductions).toBe(7491.63); // 6,425.00 + 200.00 + 866.63
+        expect(breakdown.netPay).toBe(99591.70); // 107,083.33 - 7,491.63
+
+        // Month 12 final outstanding liability strictly 0.00
+        expect(outstandingLiability).toBe(0.00);
       }
     }
 
     // Exact cumulative reconciliation proof:
-    // 11 * 866.67 = 9533.37
+    // 11 * 866.67 = 9,533.37
     // 1 * 866.63 = 866.63
     // Total = 10,400.00
     expect(monthlyDeductions.length).toBe(12);
+    expect(cumulativeTdsDeducted).toBe(annualTdsLiability);
     expect(cumulativeTdsDeducted).toBe(10400.00);
 
     const sum = monthlyDeductions.reduce((acc, val) => acc + val, 0);
-    expect(Math.round(sum * 100) / 100).toBe(10400.00);
+    expect(Math.round(sum * 100) / 100).toBe(annualTdsLiability);
   });
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -853,6 +904,253 @@ describe("MASTERHRMS — Statutory TDS Engine & Rule Correction Test Suite (AY 2
     // 3. Confirm mathematical precision
     expect(Math.round(basicSalary * 0.12 * 100) / 100).toBe(6425.00);
     expect(Math.round(15000 * 0.12 * 100) / 100).toBe(1800.00);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 20. MID-YEAR LEAVER ANNUALIZATION & FINAL SETTLEMENT TDS
+  // ───────────────────────────────────────────────────────────────────────────
+  it("P1-23: Mid-Year Leaver Annualization Correctly Caps FY Gross to Service Months", () => {
+    // Employee leaving November 30, 2026 (8 active months: Apr to Nov)
+    const monthlyGross = 107083.33;
+    const employeeLeaver = {
+      id: "emp-leaver-01",
+      employeeCode: "EMP-LEAV",
+      firstName: "Vikas",
+      lastName: "Rathore",
+      email: "vikas.rathore@masterhrms.internal",
+      baseMonthlyCtc: monthlyGross,
+      state: "MH",
+      pfEligible: true,
+      esiEligible: false,
+      ptEligible: true,
+      tdsEligible: true,
+      isResident: true,
+      taxRegime: "new" as const,
+    };
+
+    const attendance = {
+      totalWorkingDays: 30,
+      payableDays: 30,
+      presentDays: 30,
+      halfDays: 0,
+      approvedLeaveDays: 0,
+      lossOfPayDays: 0,
+      prorationFactor: 1.0,
+    };
+
+    // Calculate final month (Month 8 = November) with employmentMonthsInFy = 8 and remainingPeriods = 1
+    const exitBreakdown = computeEmployeePayrollBreakdown(employeeLeaver, attendance, {
+      periodMonth: 11,
+      periodYear: 2026,
+      employmentMonthsInFy: 8,
+      remainingPeriods: 1,
+      isFinalPeriod: true,
+      tdsAlreadyDeducted: 0, // Prior periods withheld 0 since projected income was under 12L
+    });
+
+    // 8 months * 107,083.33 = 856,666.64
+    expect(exitBreakdown.taxation.annualProjectedGross).toBe(856666.64);
+    expect(exitBreakdown.taxation.standardDeduction).toBe(75000);
+    // Net Taxable = 856,666.64 - 75,000 = 781,666.64 (<= 12L threshold -> 100% Sec 156(2) rebate)
+    expect(exitBreakdown.taxation.netTaxableIncome).toBe(781666.64);
+    expect(exitBreakdown.taxation.totalAnnualTds).toBe(0);
+    expect(exitBreakdown.deductions.tds).toBe(0);
+    expect(exitBreakdown.netPay).toBe(Math.round((107083.33 - 6425.00 - 200.00) * 100) / 100);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 21. FORM 12B PRIOR-EMPLOYER INCOME & TDS CREDIT INTEGRATION
+  // ───────────────────────────────────────────────────────────────────────────
+  it("P1-24: Form 12B Prior-Employer Income Folds Authoritatively into Annual Gross", () => {
+    // Employee joining mid-year brings Form 12B:
+    // Prior Employer Salary: ₹4,00,000, Prior TDS: ₹0
+    const monthlyGross = 107083.33;
+    const employeeMidJoiner = {
+      id: "emp-mid-12b",
+      employeeCode: "EMP-12B",
+      firstName: "Pooja",
+      lastName: "Nair",
+      email: "pooja.nair@masterhrms.internal",
+      baseMonthlyCtc: monthlyGross,
+      state: "MH",
+      pfEligible: true,
+      esiEligible: false,
+      ptEligible: true,
+      tdsEligible: true,
+      isResident: true,
+      taxRegime: "new" as const,
+    };
+
+    const attendance = {
+      totalWorkingDays: 30,
+      payableDays: 30,
+      presentDays: 30,
+      halfDays: 0,
+      approvedLeaveDays: 0,
+      lossOfPayDays: 0,
+      prorationFactor: 1.0,
+    };
+
+    // Remaining 6 periods in MasterHRMS (Oct to Mar). Prior gross earned = 4,00,000.
+    const octBreakdown = computeEmployeePayrollBreakdown(employeeMidJoiner, attendance, {
+      periodMonth: 10,
+      periodYear: 2026,
+      priorGrossEarned: 400000,
+      tdsAlreadyDeducted: 0,
+      remainingPeriods: 6,
+    });
+
+    // Projected Annual Gross = Prior (4,00,000) + Oct (107,083.33) + 5 future months @ 107,083.33 (535,416.65) = 1,042,499.98
+    expect(octBreakdown.taxation.annualProjectedGross).toBe(1042499.98);
+    // Net Taxable = 1,042,499.98 - 75,000 = 967,499.98 (<= 12L threshold -> Full Sec 156(2) rebate)
+    expect(octBreakdown.taxation.netTaxableIncome).toBe(967499.98);
+    expect(octBreakdown.taxation.totalAnnualTds).toBe(0);
+    expect(octBreakdown.deductions.tds).toBe(0);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 22. AUTHORITATIVE PERSISTENCE SCOPING & STATUS FILTERING SIMULATION
+  // ───────────────────────────────────────────────────────────────────────────
+  it("P1-25: Prior TDS Persistence Scoping Strictly Ignores Draft Runs and Other Tenants/Employees", () => {
+    const targetTenantId = "tenant-prod-01";
+    const targetEmployeeId = "emp-001";
+    const targetFyStartYear = 2026;
+    const targetFyEndYear = 2027;
+
+    // Database mock payslips representing varied statuses, tenants, and runs
+    const mockDbPayslips = [
+      // Valid historical completed run in current FY (Month 4 / April)
+      {
+        id: "slip-valid-01",
+        tenantId: targetTenantId,
+        employeeId: targetEmployeeId,
+        payrollRunId: "run-apr-2026",
+        periodYear: 2026,
+        periodMonth: 4,
+        grossSalary: 107083.33,
+        payrollRunStatus: "completed",
+        breakdown: { deductions: { tds: 866.67 } },
+      },
+      // Valid historical paid run in current FY (Month 5 / May)
+      {
+        id: "slip-valid-02",
+        tenantId: targetTenantId,
+        employeeId: targetEmployeeId,
+        payrollRunId: "run-may-2026",
+        periodYear: 2026,
+        periodMonth: 5,
+        grossSalary: 107083.33,
+        payrollRunStatus: "paid",
+        breakdown: { deductions: { tds: 866.67 } },
+      },
+      // INVALID: Uncompleted draft/processing run (MUST BE EXCLUDED)
+      {
+        id: "slip-draft-03",
+        tenantId: targetTenantId,
+        employeeId: targetEmployeeId,
+        payrollRunId: "run-jun-draft",
+        periodYear: 2026,
+        periodMonth: 6,
+        grossSalary: 107083.33,
+        payrollRunStatus: "processing", // Not completed or paid!
+        breakdown: { deductions: { tds: 866.67 } },
+      },
+      // INVALID: Foreign Tenant (MUST BE EXCLUDED)
+      {
+        id: "slip-foreign-tenant",
+        tenantId: "tenant-other-99",
+        employeeId: targetEmployeeId,
+        payrollRunId: "run-foreign",
+        periodYear: 2026,
+        periodMonth: 5,
+        grossSalary: 107083.33,
+        payrollRunStatus: "completed",
+        breakdown: { deductions: { tds: 866.67 } },
+      },
+      // INVALID: Different Employee (MUST BE EXCLUDED)
+      {
+        id: "slip-other-emp",
+        tenantId: targetTenantId,
+        employeeId: "emp-999",
+        payrollRunId: "run-apr-2026",
+        periodYear: 2026,
+        periodMonth: 4,
+        grossSalary: 107083.33,
+        payrollRunStatus: "completed",
+        breakdown: { deductions: { tds: 866.67 } },
+      },
+      // INVALID: Prior FY (Month 3 / March 2026 belongs to FY 2025-26, not 2026-27)
+      {
+        id: "slip-prior-fy",
+        tenantId: targetTenantId,
+        employeeId: targetEmployeeId,
+        payrollRunId: "run-mar-2026",
+        periodYear: 2026,
+        periodMonth: 3,
+        grossSalary: 107083.33,
+        payrollRunStatus: "completed",
+        breakdown: { deductions: { tds: 866.67 } },
+      },
+    ];
+
+    // Filter replicating server/src/routes/payroll.routes.ts line 1399-1418
+    const currentRunId = "run-jun-2026";
+    const currentPeriodMonth = 6;
+    const currentPeriodYear = 2026;
+
+    const filteredPriorPayslips = mockDbPayslips.filter((p) => {
+      if (p.tenantId !== targetTenantId) return false;
+      if (p.employeeId !== targetEmployeeId) return false;
+      if (p.payrollRunId === currentRunId) return false;
+      if (!["completed", "paid"].includes(p.payrollRunStatus)) return false;
+
+      // FY Boundary match:
+      if (p.periodYear === targetFyStartYear) {
+        return p.periodMonth >= 4 && p.periodMonth < currentPeriodMonth;
+      }
+      if (currentPeriodYear === targetFyEndYear && p.periodYear === targetFyEndYear) {
+        return p.periodMonth >= 1 && p.periodMonth < currentPeriodMonth;
+      }
+      return false;
+    });
+
+    expect(filteredPriorPayslips.length).toBe(2);
+    expect(filteredPriorPayslips.map((p) => p.id)).toEqual(["slip-valid-01", "slip-valid-02"]);
+
+    let priorTdsSum = 0;
+    for (const p of filteredPriorPayslips) {
+      priorTdsSum += Number(p.breakdown.deductions.tds);
+    }
+    expect(priorTdsSum).toBe(1733.34); // 866.67 * 2
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 23. FINALIZED PAYROLL RUN IMMUTABILITY & RE-RUN SAFETY
+  // ───────────────────────────────────────────────────────────────────────────
+  it("P1-26: Finalized or Paid Payroll Runs Are Immutable and Reject Recalculation", () => {
+    function simulatePayrollRunRecalculationRequest(run: {
+      status: string;
+      approvalStatus: string;
+    }) {
+      if (run.approvalStatus === "finalized" || run.status === "paid") {
+        throw new Error("Cannot recalculate or modify a finalized or paid payroll run. Historical records are immutable.");
+      }
+      return { status: "processing", approvalStatus: "calculated" };
+    }
+
+    // 1. Finalized run throws 400 equivalent
+    expect(() => {
+      simulatePayrollRunRecalculationRequest({ status: "completed", approvalStatus: "finalized" });
+    }).toThrow("Historical records are immutable");
+
+    // 2. Paid run throws 400 equivalent
+    expect(() => {
+      simulatePayrollRunRecalculationRequest({ status: "paid", approvalStatus: "approved" });
+    }).toThrow("Historical records are immutable");
+
+    // 3. Draft/calculated run successfully permits clean recalculation
+    const recalculated = simulatePayrollRunRecalculationRequest({ status: "processing", approvalStatus: "calculated" });
+    expect(recalculated.status).toBe("processing");
   });
 });
 

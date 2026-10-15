@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapData, unwrapArray } from "@/lib/api";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -53,7 +54,7 @@ export default function HrEmployeeSalariesPage() {
     queryKey: ["hr-employee-salaries"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/payroll/employee-salaries");
-      return res.data;
+      return unwrapData(res);
     },
   });
 
@@ -62,12 +63,12 @@ export default function HrEmployeeSalariesPage() {
     queryKey: ["hr-employees-list-payroll"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/employees");
-      return res.data;
+      return unwrapData(res);
     },
   });
 
-  const assignments = assignmentsData?.assignments || [];
-  const employees = employeesData?.employees || [];
+  const assignments = assignmentsData?.assignments || (Array.isArray(assignmentsData) ? assignmentsData : []);
+  const employees = employeesData?.employees || (Array.isArray(employeesData?.data) ? employeesData.data : (Array.isArray(employeesData) ? employeesData : []));
 
   const filteredAssignments = assignments.filter((a: any) => {
     if (!searchTerm) return true;

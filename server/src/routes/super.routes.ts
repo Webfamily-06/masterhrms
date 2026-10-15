@@ -52,7 +52,12 @@ import {
   UnifiedCatalogService,
 } from "../services/unified-catalog.service";
 
+import { complianceControlRouter } from "./compliance-control.routes";
+
 export const superRouter = Router();
+
+// Mount Super Admin Compliance Control Center
+superRouter.use("/compliance", complianceControlRouter);
 
 const policySchema = z.object({
   planId: z.string().nullable(),

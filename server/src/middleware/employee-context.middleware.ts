@@ -26,6 +26,16 @@ export async function requireEmployee(
   res: Response,
   next: NextFunction
 ) {
+  // Delegate platform foundation sub-routers (e.g. /lifecycle, /meetings, /documents) to their dedicated handlers
+  if (
+    req.path.startsWith("/lifecycle") ||
+    req.path.startsWith("/meetings") ||
+    req.path.startsWith("/documents") ||
+    req.path.startsWith("/collaboration")
+  ) {
+    return next();
+  }
+
   if (!req.user || !req.user.tenantId) {
     return res.status(401).json({ error: "Unauthorized: Missing user authentication or tenant context" });
   }

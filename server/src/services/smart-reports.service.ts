@@ -1,9 +1,27 @@
 import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 
+/**
+ * Sanitizes a cell value to prevent CSV / Spreadsheet formula injection in Excel, Calc, etc.
+ * Prepends a single quote if the string begins with =, +, -, @, tab, or carriage return.
+ */
+export function sanitizeCsvValue(val: any): string {
+  if (val === null || val === undefined) return "";
+  let str = String(val);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 export class SmartReportsService {
+  static sanitizeCsvValue = sanitizeCsvValue;
+
   /**
-   * Catalogue Overview: return metadata & live counts for the 8 reports
+   * Catalogue Overview: Live counts & aggregates for the 8 documented report modules
    */
   static async getCatalogueOverview(tenantId: string) {
     const [
@@ -22,45 +40,35 @@ export class SmartReportsService {
       prisma.sale.count({ where: { tenantId } }),
       prisma.purchase.count({ where: { tenantId } }),
       prisma.crmDeal.count({ where: { tenantId } }),
-      prisma.product.count({ where: { tenantId } }),
+      prisma.product.count({ where: { tenantId, isActive: true } }),
       prisma.project.count({ where: { tenantId } }),
     ]);
 
-    // Fetch live summary aggregations for catalogue badges
     const [
       activeEmployees,
-      totalPayslips,
       approvedLeaves,
-      paidSales,
-      draftSales,
-      paidPurchases,
-      draftPurchases,
-      wonDeals,
-      lostDeals,
-      projectsList,
-      payslipsList,
-      productsList,
-      salesList,
+      payslipAgg,
+      projectsAgg,
+      dealsWon,
+      dealsLost,
     ] = await Promise.all([
       prisma.employee.count({ where: { tenantId, status: "active" } }),
-      prisma.payslip.count({ where: { tenantId } }),
       prisma.leaveRequest.count({ where: { tenantId, status: "approved" } }),
-      prisma.sale.count({ where: { tenantId, paymentStatus: "paid" } }),
-      prisma.sale.count({ where: { tenantId, paymentStatus: { in: ["pending", "draft", "partial"] } } }),
-      prisma.purchase.count({ where: { tenantId, paymentStatus: "paid" } }),
-      prisma.purchase.count({ where: { tenantId, paymentStatus: { in: ["pending", "draft", "partial"] } } }),
+      prisma.payslip.aggregate({
+        where: { tenantId },
+        _sum: { grossSalary: true, netSalary: true },
+      }),
+      prisma.project.aggregate({
+        where: { tenantId },
+        _sum: { budget: true },
+      }),
       prisma.crmDeal.count({ where: { tenantId, stage: "won" } }),
       prisma.crmDeal.count({ where: { tenantId, stage: "lost" } }),
-      prisma.project.findMany({ where: { tenantId }, select: { budget: true } }),
-      prisma.payslip.findMany({ where: { tenantId }, select: { grossSalary: true, netSalary: true } }),
-      prisma.product.findMany({ where: { tenantId }, select: { lowStockThreshold: true } }),
-      prisma.sale.findMany({ where: { tenantId }, select: { total: true } }),
     ]);
 
-    const totalGrossPay = payslipsList.reduce((s, p) => s + Number(p.grossSalary || 0), 0);
-    const totalNetPay = payslipsList.reduce((s, p) => s + Number(p.netSalary || 0), 0);
-    const totalProjectsBudget = projectsList.reduce((s, p) => s + Number(p.budget || 0), 0);
-    const lowStockCount = productsList.filter((p) => Number(p.lowStockThreshold || 0) > 0).length;
+    const totalGross = Number(payslipAgg._sum.grossSalary || 0);
+    const totalNet = Number(payslipAgg._sum.netSalary || 0);
+    const totalBudget = Number(projectsAgg._sum.budget || 0);
 
     return [
       {
@@ -70,7 +78,7 @@ export class SmartReportsService {
         badge: "This month",
         description: "Track employee attendance, late arrivals, and overtime",
         count: attendanceCount,
-        stats: `${activeEmployees || attendanceCount} Employees · 93.25% Attendance Rate`,
+        stats: `${activeEmployees} Active Employees · ${attendanceCount} Attendance Records`,
         route: "/smart-reports/attendance-summary",
         icon: "calendar-check",
       },
@@ -81,7 +89,7 @@ export class SmartReportsService {
         badge: "Last month",
         description: "Employee salary breakdown with allowances and deductions",
         count: payrollCount,
-        stats: `$${Math.round(totalGrossPay).toLocaleString()} Gross Pay · $${Math.round(totalNetPay).toLocaleString()} Net Pay`,
+        stats: `${payrollCount} Payslips · Gross: ${Math.round(totalGross).toLocaleString()} · Net: ${Math.round(totalNet).toLocaleString()}`,
         route: "/smart-reports/payroll-sheet",
         icon: "wallet",
       },
@@ -92,29 +100,29 @@ export class SmartReportsService {
         badge: "This month",
         description: "Track employee leave applications and leave balances",
         count: leaveCount,
-        stats: `${leaveCount} Total · ${approvedLeaves} Approved`,
+        stats: `${leaveCount} Applications · ${approvedLeaves} Approved`,
         route: "/smart-reports/leave-report",
         icon: "clock",
       },
       {
         id: "sales-invoice",
-        title: "Sales Invoice Report",
-        category: "Financials & Sales",
+        title: "Sales Invoices",
+        category: "Finance & Sales",
         badge: "This month",
-        description: "Track sales invoices with customer, amount and payment",
+        description: "B2B client invoices, paid status and balance due breakdown",
         count: salesCount,
-        stats: `${salesCount} Total · ${paidSales} Paid · ${draftSales} Draft`,
+        stats: `${salesCount} Invoices Total`,
         route: "/smart-reports/sales-invoice",
         icon: "receipt",
       },
       {
         id: "purchase-invoice",
-        title: "Purchase Invoice Report",
-        category: "Financials & Procurement",
+        title: "Purchase Invoices",
+        category: "Finance & Purchases",
         badge: "This month",
-        description: "Track purchase invoices with vendor, amount and payment status",
+        description: "Vendor bills, accounts payable and procurement costs",
         count: purchasesCount,
-        stats: `${purchasesCount} Total · ${paidPurchases} Paid · ${draftPurchases} Draft`,
+        stats: `${purchasesCount} Purchase Bills`,
         route: "/smart-reports/purchase-invoice",
         icon: "shopping-bag",
       },
@@ -125,7 +133,7 @@ export class SmartReportsService {
         badge: "This month",
         description: "Sales pipeline analysis with deal stages, win/loss rates and deal values",
         count: dealsCount,
-        stats: `${dealsCount} Total · ${wonDeals} Won · ${lostDeals} Loss`,
+        stats: `${dealsCount} Deals · ${dealsWon} Won · ${dealsLost} Lost`,
         route: "/smart-reports/deal-pipeline",
         icon: "trending-up",
       },
@@ -136,7 +144,7 @@ export class SmartReportsService {
         badge: "This month",
         description: "Inventory overview with stock quantities, values and warehouse-wise breakdown",
         count: productsCount,
-        stats: `${productsCount} Total · ${productsCount - lowStockCount} In Stock · ${lowStockCount} Out of Stock`,
+        stats: `${productsCount} Catalog Products`,
         route: "/smart-reports/product-stock",
         icon: "package",
       },
@@ -147,7 +155,7 @@ export class SmartReportsService {
         badge: "This month",
         description: "Project tracking with task completion, milestones and budget status",
         count: projectsCount,
-        stats: `${projectsCount} Total · $${Math.round(totalProjectsBudget).toLocaleString()} Budget`,
+        stats: `${projectsCount} Projects · Budget: ${Math.round(totalBudget).toLocaleString()}`,
         route: "/smart-reports/project-progress",
         icon: "briefcase",
       },
@@ -155,7 +163,7 @@ export class SmartReportsService {
   }
 
   /**
-   * 1. Attendance Summary
+   * 1. Attendance Summary: Real database aggregation
    */
   static async getAttendanceSummary(tenantId: string, filters: any = {}) {
     const where: any = { tenantId };
@@ -163,11 +171,27 @@ export class SmartReportsService {
     if (filters.status) where.status = filters.status;
     if (filters.startDate || filters.endDate) {
       where.date = {};
-      if (filters.startDate) where.date.gte = new Date(filters.startDate);
-      if (filters.endDate) where.date.lte = new Date(filters.endDate);
+      if (filters.startDate) {
+        const d = new Date(filters.startDate);
+        if (!isNaN(d.getTime())) where.date.gte = d;
+      }
+      if (filters.endDate) {
+        const d = new Date(filters.endDate);
+        if (!isNaN(d.getTime())) where.date.lte = d;
+      }
     }
 
-    const [records, employees] = await Promise.all([
+    const [totalRecords, statusGroups, hoursAgg, records, targetEmployees] = await Promise.all([
+      prisma.attendance.count({ where }),
+      prisma.attendance.groupBy({
+        by: ["status"],
+        where,
+        _count: true,
+      }),
+      prisma.attendance.aggregate({
+        where,
+        _sum: { hours: true, overtimeMinutes: true },
+      }),
       prisma.attendance.findMany({
         where,
         include: {
@@ -179,155 +203,147 @@ export class SmartReportsService {
         take: 500,
       }),
       prisma.employee.findMany({
-        where: { tenantId, status: "active" },
+        where: { tenantId, ...(filters.employeeId ? { id: filters.employeeId } : {}) },
         select: { id: true, firstName: true, lastName: true, employeeCode: true, department: { select: { name: true } } },
-        take: 20,
+        take: 50,
       }),
     ]);
 
-    const targetEmployees = employees.length > 0 ? employees : [
-      { id: "e1", firstName: "John", lastName: "Smith", employeeCode: "EMP20260001", department: { name: "Quality Assurance" } },
-      { id: "e2", firstName: "Michael", lastName: "Brown", employeeCode: "EMP20260002", department: { name: "Production" } },
-      { id: "e3", firstName: "David", lastName: "Wilson", employeeCode: "EMP20260003", department: { name: "Administration" } },
-      { id: "e4", firstName: "Robert", lastName: "Taylor", employeeCode: "EMP20260004", department: { name: "Quality Assurance" } },
-      { id: "e5", firstName: "James", lastName: "Garcia", employeeCode: "EMP20260005", department: { name: "Legal & Compliance" } },
-      { id: "e6", firstName: "Christopher", lastName: "Lee", employeeCode: "EMP20260006", department: { name: "Operations" } },
-      { id: "e7", firstName: "Daniel", lastName: "Thompson", employeeCode: "EMP20260007", department: { name: "Legal & Compliance" } },
-      { id: "e8", firstName: "Matthew", lastName: "Clark", employeeCode: "EMP20260008", department: { name: "Legal & Compliance" } },
-      { id: "e9", firstName: "Anthony", lastName: "Walker", employeeCode: "EMP20260009", department: { name: "Legal & Compliance" } },
-      { id: "e10", firstName: "Mark", lastName: "Allen", employeeCode: "EMP20260010", department: { name: "Customer Service" } },
-    ];
+    const presentCount = statusGroups.find((g) => g.status === "present")?._count || 0;
+    const lateCount = statusGroups.find((g) => g.status === "late")?._count || 0;
+    const halfDayCount = statusGroups.find((g) => g.status === "half_day")?._count || 0;
+    const absentCount = statusGroups.find((g) => g.status === "absent")?._count || 0;
+    const onLeaveCount = statusGroups.find((g) => g.status === "on_leave")?._count || 0;
 
-    const totalDays = records.length;
-    const presentCount = records.filter((r) => r.status === "present").length;
-    const lateCount = records.filter((r) => r.status === "late").length;
-    const halfDayCount = records.filter((r) => r.status === "half_day").length;
-    const absentCount = records.filter((r) => r.status === "absent").length;
-    const attendanceRate = totalDays > 0 ? Number((((presentCount + lateCount) / totalDays) * 100).toFixed(2)) : 93.25;
+    const workingHours = Number(hoursAgg._sum.hours || 0);
+    const overtimeHours = Number(((hoursAgg._sum.overtimeMinutes || 0) / 60).toFixed(1));
+    const attendanceRate = totalRecords > 0
+      ? Number((((presentCount + lateCount) / totalRecords) * 100).toFixed(2))
+      : 0;
 
-    // Build day columns for calendar view (June 1 - June 26 or current month up to today)
-    const daysInView: { day: number; dow: string; isWeekend: boolean }[] = [];
-    const dowNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-    for (let d = 1; d <= 26; d++) {
-      const dateObj = new Date(2026, 5, d);
-      const dayOfWeek = dateObj.getDay();
-      daysInView.push({
-        day: d,
-        dow: dowNames[dayOfWeek],
-        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-      });
-    }
+    // Build actual calendar rows per employee from queried database records
+    const attendanceByEmployee: Record<string, typeof records> = {};
+    records.forEach((r) => {
+      if (!attendanceByEmployee[r.employeeId]) {
+        attendanceByEmployee[r.employeeId] = [];
+      }
+      attendanceByEmployee[r.employeeId].push(r);
+    });
 
-    // Build calendar row for each employee
-    const calendarRows = targetEmployees.map((emp, empIdx) => {
-      const empName = `${emp.firstName} ${emp.lastName}`.trim();
+    const calendarRows = targetEmployees.map((emp) => {
+      const empRecords = attendanceByEmployee[emp.id] || [];
       const dayStatuses: Record<number, { status: string; hours?: number; overtime?: boolean }> = {};
-      daysInView.forEach(({ day, isWeekend }) => {
-        if (isWeekend) {
-          dayStatuses[day] = { status: "weekend" };
-        } else if (day === 8 || day === 18) {
-          dayStatuses[day] = { status: "holiday" };
-        } else {
-          // Deterministic pattern matching screenshot
-          const hash = (empIdx * 7 + day) % 15;
-          if (hash === 2) {
-            dayStatuses[day] = { status: "on_leave" };
-          } else if (hash === 5) {
-            dayStatuses[day] = { status: "half_day", hours: 4 };
-          } else if (hash === 9) {
-            dayStatuses[day] = { status: "absent" };
-          } else {
-            const hasOvertime = (empIdx + day) % 6 === 0;
-            dayStatuses[day] = { status: "present", hours: hasOvertime ? 10 : 8, overtime: hasOvertime };
-          }
-        }
+
+      empRecords.forEach((r) => {
+        const day = new Date(r.date).getDate();
+        dayStatuses[day] = {
+          status: r.status,
+          hours: r.hours ? Number(r.hours) : undefined,
+          overtime: (r.overtimeMinutes || 0) > 0,
+        };
       });
+
+      const empPresent = empRecords.filter((r) => r.status === "present").length;
+      const empHalf = empRecords.filter((r) => r.status === "half_day").length;
+      const empAbsent = empRecords.filter((r) => r.status === "absent").length;
+      const empLeave = empRecords.filter((r) => r.status === "on_leave").length;
+      const empHours = empRecords.reduce((s, r) => s + Number(r.hours || 0), 0);
 
       return {
         id: emp.id,
-        name: empName,
-        code: emp.employeeCode || `EMP2026000${empIdx + 1}`,
+        name: `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || "Employee",
+        code: emp.employeeCode || "N/A",
         department: emp.department?.name || "General",
         days: dayStatuses,
-        presentDays: 20,
-        halfDays: 1,
-        absentDays: 1,
-        leaveDays: 2,
-        totalHours: 168.5,
+        presentDays: empPresent,
+        halfDays: empHalf,
+        absentDays: empAbsent,
+        leaveDays: empLeave,
+        totalHours: Number(empHours.toFixed(1)),
       };
     });
 
     return {
       metrics: {
         totalEmployees: targetEmployees.length,
-        attendanceRate: 93.25,
-        workingHours: 1077.5,
-        overtimeHours: 18.4,
+        attendanceRate,
+        workingHours,
+        overtimeHours,
       },
-      daysInView,
-      todayDay: 26,
       calendarRows,
       records: records.map((r) => ({
         id: r.id,
-        employeeName: `${r.employee.firstName} ${r.employee.lastName}`.trim(),
-        employeeCode: r.employee.employeeCode || "N/A",
-        department: r.employee.department?.name || "General",
+        employeeName: `${r.employee?.firstName || ""} ${r.employee?.lastName || ""}`.trim() || "Employee",
+        employeeCode: r.employee?.employeeCode || "N/A",
+        department: r.employee?.department?.name || "General",
         date: r.date.toISOString().slice(0, 10),
         status: r.status,
         checkIn: r.checkIn ? new Date(r.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-",
         checkOut: r.checkOut ? new Date(r.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-",
-        workHours: r.hours ? Number(r.hours) : 8,
+        workHours: r.hours ? Number(r.hours) : 0,
       })),
     };
   }
 
   /**
-   * 2. Payroll Sheet
+   * 2. Payroll Sheet: Live database aggregation from Payslip records
    */
   static async getPayrollSheet(tenantId: string, filters: any = {}) {
     const where: any = { tenantId };
     if (filters.employeeId) where.employeeId = filters.employeeId;
+    if (filters.payrollRunId) where.payrollRunId = filters.payrollRunId;
+    if (filters.periodMonth) {
+      const m = Number(filters.periodMonth);
+      if (!isNaN(m) && m > 0) where.periodMonth = m;
+    }
+    if (filters.periodYear) {
+      const y = Number(filters.periodYear);
+      if (!isNaN(y) && y > 0) where.periodYear = y;
+    }
 
-    const payslips = await prisma.payslip.findMany({
-      where,
-      include: {
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            employeeCode: true,
-            designation: true,
-            department: { select: { name: true } },
+    const [agg, payslips] = await Promise.all([
+      prisma.payslip.aggregate({
+        where,
+        _sum: { grossSalary: true, deductions: true, netSalary: true },
+        _count: true,
+      }),
+      prisma.payslip.findMany({
+        where,
+        include: {
+          employee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeCode: true,
+              designation: true,
+              department: { select: { name: true } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+    ]);
 
-    const totalGrossPay = payslips.reduce((sum, p) => sum + Number(p.grossSalary || 0), 0) || 493125.87;
-    const totalDeductions = payslips.reduce((sum, p) => sum + Number(p.deductions || 0), 0) || 3000.00;
-    const totalNetPay = payslips.reduce((sum, p) => sum + Number(p.netSalary || 0), 0) || 465125.87;
+    const totalGrossPay = Number(agg._sum.grossSalary || 0);
+    const totalDeductions = Number(agg._sum.deductions || 0);
+    const totalNetPay = Number(agg._sum.netSalary || 0);
+    const employeeCount = agg._count || 0;
 
-    const employeeNames = [
-      "Anthony Walker", "Christopher Lee", "Daniel Thompson", "David Wilson",
-      "James Garcia", "John Smith", "Mark Allen", "Matthew Clark", "Michael Brown", "Robert Taylor"
-    ];
-
-    const chartCategories = payslips.length > 0
-      ? payslips.slice(0, 10).map((p: any) => `${p.employee?.firstName || ""} ${p.employee?.lastName || ""}`.trim())
-      : employeeNames;
-
-    const grossSeries = [34000, 50000, 39000, 33000, 65000, 33000, 57000, 62000, 58000, 64000];
-    const netSeries = [33000, 48000, 36000, 30000, 63000, 32000, 54000, 56000, 56000, 58000];
-    const dedSeries = [1000, 2000, 3000, 3000, 2000, 1000, 3000, 6000, 2000, 6000];
+    const chartCategories = payslips.slice(0, 10).map(
+      (p) => `${p.employee?.firstName || ""} ${p.employee?.lastName || ""}`.trim() || p.employee?.employeeCode || "Emp"
+    );
+    const grossSeries = payslips.slice(0, 10).map((p) => Number(p.grossSalary || 0));
+    const netSeries = payslips.slice(0, 10).map((p) => Number(p.netSalary || 0));
+    const dedSeries = payslips.slice(0, 10).map((p) => Number(p.deductions || 0));
 
     return {
       metrics: {
-        employees: chartCategories.length,
+        employees: employeeCount,
         grossPay: totalGrossPay,
         deductions: totalDeductions,
+        totalDeductions,
         netPay: totalNetPay,
       },
       chartData: {
@@ -338,59 +354,90 @@ export class SmartReportsService {
           { name: "Deductions", data: dedSeries },
         ],
       },
-      records: chartCategories.map((name, i) => ({
-        id: `pay-${i}`,
-        employeeName: name,
-        employeeCode: `EMP2026000${i + 1}`,
-        designation: "Executive",
-        department: "Finance",
-        basicSalary: grossSeries[i],
-        deductions: dedSeries[i],
-        netPay: netSeries[i],
-        period: "May 2026",
-        status: "paid",
+      records: payslips.map((p) => ({
+        id: p.id,
+        employeeName: `${p.employee?.firstName || ""} ${p.employee?.lastName || ""}`.trim() || "Employee",
+        employeeCode: p.employee?.employeeCode || "N/A",
+        designation: p.employee?.designation || "-",
+        department: p.employee?.department?.name || "General",
+        basicSalary: Number(p.grossSalary || 0) - Number(p.deductions || 0),
+        grossSalary: Number(p.grossSalary || 0),
+        grossPay: Number(p.grossSalary || 0),
+        deductions: Number(p.deductions || 0),
+        netPay: Number(p.netSalary || 0),
+        period: `${p.periodMonth}/${p.periodYear}`,
+        status: p.status,
       })),
     };
   }
 
   /**
-   * 3. Leave Report
+   * 3. Leave Report: Live database aggregation
    */
   static async getLeaveReport(tenantId: string, filters: any = {}) {
     const where: any = { tenantId };
     if (filters.status) where.status = filters.status;
     if (filters.employeeId) where.employeeId = filters.employeeId;
+    if (filters.leaveTypeId) where.leaveTypeId = filters.leaveTypeId;
+    if (filters.startDate || filters.endDate) {
+      where.startDate = {};
+      if (filters.startDate) {
+        const d = new Date(filters.startDate);
+        if (!isNaN(d.getTime())) where.startDate.gte = d;
+      }
+      if (filters.endDate) {
+        const d = new Date(filters.endDate);
+        if (!isNaN(d.getTime())) where.startDate.lte = d;
+      }
+    }
 
-    const leaves = await prisma.leaveRequest.findMany({
-      where,
-      include: {
-        employee: {
-          select: { id: true, firstName: true, lastName: true, employeeCode: true, department: { select: { name: true } } },
+    const [statusGroups, daysAgg, leaves] = await Promise.all([
+      prisma.leaveRequest.groupBy({
+        by: ["status"],
+        where,
+        _count: true,
+      }),
+      prisma.leaveRequest.aggregate({
+        where,
+        _sum: { days: true },
+        _count: true,
+      }),
+      prisma.leaveRequest.findMany({
+        where,
+        include: {
+          employee: {
+            select: { id: true, firstName: true, lastName: true, employeeCode: true, department: { select: { name: true } } },
+          },
+          leaveType: { select: { name: true } },
         },
-        leaveType: { select: { name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+    ]);
 
-    const totalApplications = leaves.length || 18;
-    const pendingCount = leaves.filter((l) => l.status === "pending").length || 3;
-    const approvedCount = leaves.filter((l) => l.status === "approved").length || 12;
-    const rejectedCount = leaves.filter((l) => l.status === "rejected").length || 3;
+    const totalApplications = daysAgg._count || 0;
+    const totalDays = Number(daysAgg._sum.days || 0);
+    const pendingCount = statusGroups.find((g) => g.status === "pending")?._count || 0;
+    const approvedCount = statusGroups.find((g) => g.status === "approved")?._count || 0;
+    const rejectedCount = statusGroups.find((g) => g.status === "rejected")?._count || 0;
+    const approvedDays = leaves.filter((l) => l.status === "approved").reduce((s, l) => s + (l.days || 0), 0);
 
     return {
       metrics: {
         totalApplications,
+        totalDays,
         pending: pendingCount,
+        pendingRequests: pendingCount,
         approved: approvedCount,
+        approvedDays,
         rejected: rejectedCount,
       },
       records: leaves.map((l) => ({
         id: l.id,
-        employeeName: `${l.employee.firstName} ${l.employee.lastName}`.trim(),
-        employeeCode: l.employee.employeeCode || "N/A",
-        department: l.employee.department?.name || "General",
-        leaveType: l.leaveType?.name || "Annual Leave",
+        employeeName: `${l.employee?.firstName || ""} ${l.employee?.lastName || ""}`.trim() || "Employee",
+        employeeCode: l.employee?.employeeCode || "N/A",
+        department: l.employee?.department?.name || "General",
+        leaveType: l.leaveType?.name || "Standard Leave",
         startDate: l.startDate.toISOString().slice(0, 10),
         endDate: l.endDate.toISOString().slice(0, 10),
         days: Number(l.days || 1),
@@ -401,34 +448,46 @@ export class SmartReportsService {
   }
 
   /**
-   * 4. Sales Invoice Report
+   * 4. Sales Invoice Report: Live database aggregation
    */
   static async getSalesInvoiceReport(tenantId: string, filters: any = {}) {
     const where: any = { tenantId };
     if (filters.customerId) where.customerId = filters.customerId;
     if (filters.warehouseId) where.warehouseId = filters.warehouseId;
     if (filters.paymentStatus) where.paymentStatus = filters.paymentStatus;
+    if (filters.startDate || filters.endDate) {
+      where.date = {};
+      if (filters.startDate) where.date.gte = new Date(filters.startDate);
+      if (filters.endDate) where.date.lte = new Date(filters.endDate);
+    }
 
-    const sales = await prisma.sale.findMany({
-      where,
-      include: {
-        customer: { select: { name: true, email: true } },
-        warehouse: { select: { name: true } },
-      },
-      orderBy: { date: "desc" },
-      take: 200,
-    });
+    const [agg, sales] = await Promise.all([
+      prisma.sale.aggregate({
+        where,
+        _sum: { total: true, paidAmount: true, totalTax: true },
+        _count: true,
+      }),
+      prisma.sale.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, email: true } },
+          warehouse: { select: { id: true, name: true } },
+        },
+        orderBy: { date: "desc" },
+        take: 200,
+      }),
+    ]);
 
-    const totalInvoices = sales.length || 15;
-    const totalAmount = sales.reduce((sum, s) => sum + Number(s.total || 0), 0) || 277429.40;
-    const paidAmount = sales.reduce((sum, s) => sum + Number(s.paidAmount || 0), 0) || 77933.60;
-    const balanceDue = totalAmount - paidAmount;
+    const totalInvoices = agg._count || 0;
+    const totalAmount = Number(agg._sum.total || 0);
+    const paidAmount = Number(agg._sum.paidAmount || 0);
+    const balanceDue = Number((totalAmount - paidAmount).toFixed(2));
 
-    // Grouping by Customer matching image3.png
+    // Grouping by Customer from real database records
     const customerMap = new Map<string, any>();
     sales.forEach((s) => {
-      const cName = s.customerName || s.customer?.name || "XYZ Industries";
-      const email = s.customer?.email || `${cName.toLowerCase().replace(/[^a-z]/g, "")}@client.com`;
+      const cName = s.customerName || s.customer?.name || "Walk-in Customer";
+      const email = s.customer?.email || "-";
       if (!customerMap.has(cName)) {
         customerMap.set(cName, {
           customerName: cName,
@@ -444,365 +503,352 @@ export class SmartReportsService {
       const tot = Number(s.total || 0);
       const paid = Number(s.paidAmount || 0);
       c.totalInvoices += 1;
-      c.totalAmount += tot;
-      c.paidAmount += paid;
-      c.balanceDue += tot - paid;
+      c.totalAmount = Number((c.totalAmount + tot).toFixed(2));
+      c.paidAmount = Number((c.paidAmount + paid).toFixed(2));
+      c.balanceDue = Number((c.balanceDue + (tot - paid)).toFixed(2));
       c.invoices.push({
         id: s.id,
         invoiceNo: s.invoiceNo,
-        warehouse: s.warehouse?.name || "Main Warehouse",
         date: s.date.toISOString().slice(0, 10),
-        dueDate: s.dueDate ? s.dueDate.toISOString().slice(0, 10) : s.date.toISOString().slice(0, 10),
-        amount: tot,
-        paidAmount: paid,
-        balance: tot - paid,
+        dueDate: s.dueDate ? s.dueDate.toISOString().slice(0, 10) : "-",
+        total: tot,
+        paid: paid,
         status: s.paymentStatus,
       });
     });
-
-    const defaultCustomerData = [
-      { customerName: "XYZ Industries", email: "info@xyzind.com", totalInvoices: 4, totalAmount: 75390.60, paidAmount: 14476.70, balanceDue: 60913.90, collectionPct: 19 },
-      { customerName: "Maria Rodriguez", email: "maria.rodriguez@client.com", totalInvoices: 2, totalAmount: 42194.20, paidAmount: 12467.10, balanceDue: 29727.10, collectionPct: 30 },
-      { customerName: "Tech Innovations Inc", email: "hello@techinno.com", totalInvoices: 1, totalAmount: 37277.40, paidAmount: 0, balanceDue: 37277.40, collectionPct: 0 },
-      { customerName: "Smart Systems Corp", email: "contact@smartsys.com", totalInvoices: 1, totalAmount: 28411.00, paidAmount: 28411.00, balanceDue: 0, collectionPct: 100 },
-      { customerName: "Sarah Johnson", email: "sarah.johnson@client.com", totalInvoices: 1, totalAmount: 21068.00, paidAmount: 10534.00, balanceDue: 10534.00, collectionPct: 50 },
-      { customerName: "Lisa Anderson", email: "lisa.anderson@client.com", totalInvoices: 1, totalAmount: 17260.00, paidAmount: 0, balanceDue: 17260.00, collectionPct: 0 },
-      { customerName: "Dynamic Solutions", email: "info@dynsol.com", totalInvoices: 1, totalAmount: 16548.20, paidAmount: 0, balanceDue: 16548.20, collectionPct: 0 },
-      { customerName: "Professional Services", email: "info@proserv.com", totalInvoices: 1, totalAmount: 13783.20, paidAmount: 6891.60, balanceDue: 6891.60, collectionPct: 50 },
-      { customerName: "Elite Enterprises", email: "admin@eliteent.com", totalInvoices: 1, totalAmount: 13617.60, paidAmount: 0, balanceDue: 13617.60, collectionPct: 0 },
-      { customerName: "Strategic Consulting", email: "hello@stratcon.com", totalInvoices: 1, totalAmount: 6726.00, paidAmount: 0, balanceDue: 6726.00, collectionPct: 0 },
-    ];
-
-    const customerGroups = customerMap.size > 0
-      ? Array.from(customerMap.values()).map((c) => ({
-          ...c,
-          collectionPct: c.totalAmount > 0 ? Math.round((c.paidAmount / c.totalAmount) * 100) : 0,
-        }))
-      : defaultCustomerData;
 
     return {
       metrics: {
         totalInvoices,
         totalAmount,
+        totalSales: totalAmount,
         paidAmount,
         balanceDue,
+        totalReceivables: balanceDue,
       },
-      customerGroups,
+      customerGroups: Array.from(customerMap.values()),
       records: sales.map((s) => ({
         id: s.id,
         invoiceNo: s.invoiceNo,
         customerName: s.customerName || s.customer?.name || "Walk-in Customer",
-        warehouse: s.warehouse?.name || "Main Warehouse",
+        warehouseName: s.warehouse?.name || "-",
         date: s.date.toISOString().slice(0, 10),
+        dueDate: s.dueDate ? s.dueDate.toISOString().slice(0, 10) : "-",
         total: Number(s.total || 0),
         paidAmount: Number(s.paidAmount || 0),
-        balance: Number(s.total || 0) - Number(s.paidAmount || 0),
+        balanceDue: Number(s.total || 0) - Number(s.paidAmount || 0),
         paymentStatus: s.paymentStatus,
       })),
     };
   }
 
   /**
-   * 5. Purchase Invoice Report
+   * 5. Purchase Invoice Report: Live database aggregation
    */
   static async getPurchaseInvoiceReport(tenantId: string, filters: any = {}) {
     const where: any = { tenantId };
     if (filters.supplierId) where.supplierId = filters.supplierId;
     if (filters.warehouseId) where.warehouseId = filters.warehouseId;
     if (filters.paymentStatus) where.paymentStatus = filters.paymentStatus;
+    if (filters.startDate || filters.endDate) {
+      where.date = {};
+      if (filters.startDate) where.date.gte = new Date(filters.startDate);
+      if (filters.endDate) where.date.lte = new Date(filters.endDate);
+    }
 
-    const purchases = await prisma.purchase.findMany({
-      where,
-      include: {
-        supplier: { select: { name: true } },
-        warehouse: { select: { name: true } },
-      },
-      orderBy: { date: "desc" },
-      take: 200,
+    const [agg, purchases] = await Promise.all([
+      prisma.purchase.aggregate({
+        where,
+        _sum: { total: true, paidAmount: true },
+        _count: true,
+      }),
+      prisma.purchase.findMany({
+        where,
+        include: {
+          supplier: { select: { id: true, name: true, email: true } },
+          warehouse: { select: { id: true, name: true } },
+        },
+        orderBy: { date: "desc" },
+        take: 200,
+      }),
+    ]);
+
+    const totalBills = agg._count || 0;
+    const totalAmount = Number(agg._sum.total || 0);
+    const paidAmount = Number(agg._sum.paidAmount || 0);
+    const balanceDue = Number((totalAmount - paidAmount).toFixed(2));
+
+    // Grouping by Supplier from real database records
+    const supplierMap = new Map<string, any>();
+    purchases.forEach((p) => {
+      const sName = p.supplier?.name || "General Supplier";
+      const email = p.supplier?.email || "-";
+      if (!supplierMap.has(sName)) {
+        supplierMap.set(sName, {
+          supplierName: sName,
+          email,
+          totalBills: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+          balanceDue: 0,
+          bills: [],
+        });
+      }
+      const s = supplierMap.get(sName);
+      const tot = Number(p.total || 0);
+      const paid = Number(p.paidAmount || 0);
+      s.totalBills += 1;
+      s.totalAmount = Number((s.totalAmount + tot).toFixed(2));
+      s.paidAmount = Number((s.paidAmount + paid).toFixed(2));
+      s.balanceDue = Number((s.balanceDue + (tot - paid)).toFixed(2));
+      s.bills.push({
+        id: p.id,
+        purchaseNo: p.purchaseNo,
+        date: p.date.toISOString().slice(0, 10),
+        total: tot,
+        paid: paid,
+        status: p.paymentStatus,
+      });
     });
-
-    const totalInvoices = purchases.length || 12;
-    const totalAmount = purchases.reduce((sum, p) => sum + Number(p.total || 0), 0) || 164500.00;
-    const paidAmount = purchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0) || 82250.00;
-    const balanceDue = totalAmount - paidAmount;
-
-    const vendorGroups = [
-      { vendorName: "Apex Hardware Supplies", email: "orders@apexhardware.com", totalInvoices: 4, totalAmount: 54000.00, paidAmount: 27000.00, balanceDue: 27000.00, paymentPct: 50 },
-      { vendorName: "Delta Logistics Corp", email: "billing@deltalogistics.com", totalInvoices: 3, totalAmount: 42500.00, paidAmount: 42500.00, balanceDue: 0.00, paymentPct: 100 },
-      { vendorName: "Global Raw Materials", email: "sales@globalraw.com", totalInvoices: 3, totalAmount: 38000.00, paidAmount: 12750.00, balanceDue: 25250.00, paymentPct: 34 },
-      { vendorName: "Precision Components Ltd", email: "accounts@precisioncomp.com", totalInvoices: 2, totalAmount: 30000.00, paidAmount: 0.00, balanceDue: 30000.00, paymentPct: 0 },
-    ];
 
     return {
       metrics: {
-        totalInvoices,
+        totalBills,
         totalAmount,
+        totalPurchases: totalAmount,
         paidAmount,
         balanceDue,
+        totalPayables: balanceDue,
       },
-      vendorGroups,
+      supplierGroups: Array.from(supplierMap.values()),
       records: purchases.map((p) => ({
         id: p.id,
         purchaseNo: p.purchaseNo,
-        supplierName: p.supplier?.name || "Vendor",
-        warehouse: p.warehouse?.name || "Main Warehouse",
+        supplierName: p.supplier?.name || "General Supplier",
+        warehouseName: p.warehouse?.name || "-",
         date: p.date.toISOString().slice(0, 10),
         total: Number(p.total || 0),
         paidAmount: Number(p.paidAmount || 0),
-        balance: Number(p.total || 0) - Number(p.paidAmount || 0),
+        balanceDue: Number(p.total || 0) - Number(p.paidAmount || 0),
         paymentStatus: p.paymentStatus,
-        status: p.status,
       })),
     };
   }
 
   /**
-   * 6. Deal Pipeline Report
+   * 6. Deal Pipeline Report: Live database aggregation
    */
   static async getDealPipelineReport(tenantId: string, filters: any = {}) {
     const where: any = { tenantId };
     if (filters.stage) where.stage = filters.stage;
+    if (filters.pipelineId) where.pipelineId = filters.pipelineId;
 
-    const deals = await prisma.crmDeal.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
+    const [agg, stageGroups, deals] = await Promise.all([
+      prisma.crmDeal.aggregate({
+        where,
+        _sum: { value: true },
+        _count: true,
+      }),
+      prisma.crmDeal.groupBy({
+        by: ["stage"],
+        where,
+        _count: true,
+        _sum: { value: true },
+      }),
+      prisma.crmDeal.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+    ]);
 
-    const totalDeals = deals.length || 70;
-    const wonDeals = deals.filter((d) => d.stage === "won").length || 21;
-    const lossDeals = deals.filter((d) => d.stage === "lost").length || 7;
-    const wonValue = 1516000.00;
-    const lossValue = 612000.00;
-    const totalPipelineValue = 4972000.00;
-    const winRate = Math.round((wonDeals / totalDeals) * 100) || 30;
+    const totalDeals = agg._count || 0;
+    const pipelineValue = Number(agg._sum.value || 0);
 
-    const pipelineGroups = [
-      { pipeline: "Inbound Leads", total: 10, active: 6, won: 3, loss: 1 },
-      { pipeline: "Enterprise Accounts", total: 10, active: 6, won: 3, loss: 1 },
-      { pipeline: "Renewal & Upsell", total: 10, active: 6, won: 3, loss: 1 },
-      { pipeline: "Partnerships", total: 10, active: 6, won: 3, loss: 1 },
-      { pipeline: "Lead Qualification", total: 10, active: 6, won: 3, loss: 1 },
-      { pipeline: "Marketing", total: 10, active: 6, won: 3, loss: 1 },
-      { pipeline: "Sales", total: 10, active: 6, won: 3, loss: 1 },
-    ];
+    const weightedForecast = deals.reduce((sum, d) => {
+      const val = Number(d.value || 0);
+      const prob = Number(d.probability || 0) / 100;
+      return sum + val * prob;
+    }, 0);
+
+    const wonCount = stageGroups.find((g) => g.stage === "won")?._count || 0;
+    const lostCount = stageGroups.find((g) => g.stage === "lost")?._count || 0;
+    const closedCount = wonCount + lostCount;
+    const winRate = closedCount > 0 ? Number(((wonCount / closedCount) * 100).toFixed(1)) : 0;
 
     return {
       metrics: {
         totalDeals,
-        wonDeals,
-        wonValue,
-        lossDeals,
-        lossValue,
+        pipelineValue,
+        totalPipeline: pipelineValue,
+        weightedForecast: Number(weightedForecast.toFixed(2)),
         winRate,
-        totalPipelineValue,
       },
-      pipelineGroups,
-      chartSeries: [
-        { name: "Active", data: pipelineGroups.map((p) => p.active) },
-        { name: "Won", data: pipelineGroups.map((p) => p.won) },
-        { name: "Loss", data: pipelineGroups.map((p) => p.loss) },
-      ],
-      categories: pipelineGroups.map((p) => p.pipeline),
+      stageBreakdown: stageGroups.map((g) => ({
+        stage: g.stage,
+        count: g._count,
+        value: Number(g._sum.value || 0),
+      })),
       records: deals.map((d) => ({
         id: d.id,
-        title: d.name,
-        value: Number(d.value || 0),
+        name: d.name,
+        customer: d.customer,
         stage: d.stage,
+        value: Number(d.value || 0),
+        probability: Number(d.probability || 0),
         closeDate: d.closeDate ? d.closeDate.toISOString().slice(0, 10) : "-",
-        createdAt: d.createdAt.toISOString().slice(0, 10),
+        status: d.status,
       })),
     };
   }
 
   /**
-   * 7. Product Stock Report
+   * 7. Product Stock Report: Live database aggregation
    */
   static async getProductStockReport(tenantId: string, filters: any = {}) {
-    const where: any = { tenantId };
+    const where: any = { tenantId, isActive: true };
     if (filters.categoryId) where.categoryId = filters.categoryId;
 
     const products = await prisma.product.findMany({
       where,
       include: {
+        warehouseStocks: { select: { quantity: true, warehouse: { select: { name: true } } } },
         category: { select: { name: true } },
+        brand: { select: { name: true } },
       },
+      orderBy: { name: "asc" },
       take: 200,
     });
 
-    const totalProducts = products.length || 63;
-    const outOfStockCount = 0;
-    const inStockCount = totalProducts - outOfStockCount;
-    const stockValue = 1179887.00;
-    const avgSalePrice = 145.95;
+    let totalValuation = 0;
+    let inStockCount = 0;
+    let lowStockCount = 0;
+    let totalStockUnits = 0;
 
-    const categoryBreakdown = [
-      { category: "Automotive & Tools", inStock: 9, outOfStock: 0 },
-      { category: "Fashion & Apparel", inStock: 9, outOfStock: 0 },
-      { category: "Electronics & Technology", inStock: 9, outOfStock: 0 },
-      { category: "Books & Stationery", inStock: 6, outOfStock: 0 },
-      { category: "Health & Beauty", inStock: 6, outOfStock: 0 },
-      { category: "Home & Garden", inStock: 6, outOfStock: 0 },
-    ];
+    const records = products.map((p) => {
+      const totalQty = p.warehouseStocks.reduce((sum, ws) => sum + Number(ws.quantity || 0), 0);
+      const unitPrice = Number(p.purchasePrice || 0);
+      const val = totalQty * unitPrice;
+      const isLow = totalQty <= Number(p.lowStockThreshold || 0);
+
+      totalValuation += val;
+      totalStockUnits += totalQty;
+      if (totalQty > 0) inStockCount += 1;
+      if (isLow) lowStockCount += 1;
+
+      return {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        category: p.category?.name || "General",
+        brand: p.brand?.name || "-",
+        purchasePrice: unitPrice,
+        salePrice: Number(p.salePrice || 0),
+        quantity: totalQty,
+        valuation: Number(val.toFixed(2)),
+        lowStockThreshold: p.lowStockThreshold,
+        isLowStock: isLow,
+      };
+    });
 
     return {
       metrics: {
-        totalProducts,
-        inStock: inStockCount,
-        inStockQty: 11688,
-        outOfStock: outOfStockCount,
-        stockValue,
-        avgSalePrice,
+        totalProducts: products.length,
+        inventoryValuation: Number(totalValuation.toFixed(2)),
+        totalStockValue: Number(totalValuation.toFixed(2)),
+        totalStockUnits,
+        inStockCount,
+        lowStockCount,
       },
-      categoryBreakdown,
-      records: products.map((p) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku || "N/A",
-        category: p.category?.name || "General",
-        costPrice: Number(p.purchasePrice || 0),
-        sellingPrice: Number(p.salePrice || 0),
-        stockAlert: Number(p.lowStockThreshold || 0),
-        status: Number(p.lowStockThreshold || 0) > 0 ? "low_stock" : "in_stock",
-      })),
+      records,
     };
   }
 
   /**
-   * 8. Project Progress Report
+   * 8. Project Progress Report: Live database aggregation
    */
   static async getProjectProgressReport(tenantId: string, filters: any = {}) {
     const where: any = { tenantId };
     if (filters.status) where.status = filters.status;
+    if (filters.priority) where.priority = filters.priority;
 
-    const projects = await prisma.project.findMany({
-      where,
-      include: {
-        tasks: true,
-        milestones: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+    const [agg, statusGroups, projects] = await Promise.all([
+      prisma.project.aggregate({
+        where,
+        _sum: { budget: true },
+        _avg: { progress: true },
+        _count: true,
+      }),
+      prisma.project.groupBy({
+        by: ["status"],
+        where,
+        _count: true,
+      }),
+      prisma.project.findMany({
+        where,
+        include: {
+          tasks: { select: { id: true, status: true } },
+          milestones: { select: { id: true, cost: true, status: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+    ]);
 
-    const totalProjects = projects.length || 13;
-    const avgProgress = 27.52;
-    const completedTasks = 32;
-    const totalTasks = 114;
-    const budget = 619000.00;
-    const cost = 743500.00;
-
-    const projectBreakdown = [
-      {
-        id: "p1",
-        name: "ERP Module Integration",
-        dateRange: "2026-06-03 — 2026-08-25",
-        status: "Ongoing",
-        health: "On Track",
-        progress: 36.36,
-        budget: 58000.00,
-        variance: -21000.00,
-        tasksCompleted: 4,
-        totalTasks: 11,
-        tasksPending: 7,
-        milestonesDone: 2,
-        totalMilestones: 5,
-        milestoneCost: 79000.00,
-        daysRemaining: 60,
-      },
-      {
-        id: "p2",
-        name: "Customer Feedback Portal",
-        dateRange: "2026-04-13 — 2026-07-07",
-        status: "Ongoing",
-        health: "At Risk",
-        progress: 50.00,
-        budget: 28000.00,
-        variance: -14000.00,
-        tasksCompleted: 3,
-        totalTasks: 8,
-        tasksPending: 5,
-        milestonesDone: 1,
-        totalMilestones: 3,
-        milestoneCost: 42000.00,
-        daysRemaining: 14,
-      },
-      {
-        id: "p3",
-        name: "API Gateway & Microservices",
-        dateRange: "2026-05-10 — 2026-09-30",
-        status: "Ongoing",
-        health: "On Track",
-        progress: 42.80,
-        budget: 95000.00,
-        variance: 15000.00,
-        tasksCompleted: 3,
-        totalTasks: 7,
-        tasksPending: 4,
-        milestonesDone: 2,
-        totalMilestones: 4,
-        milestoneCost: 80000.00,
-        daysRemaining: 85,
-      },
-      {
-        id: "p4",
-        name: "Blockchain Payment Gateway",
-        dateRange: "2026-05-23 — 2026-08-31",
-        status: "Onhold",
-        health: "On Track",
-        progress: 14.28,
-        budget: 80000.00,
-        variance: 32000.00,
-        tasksCompleted: 3,
-        totalTasks: 7,
-        tasksPending: 4,
-        milestonesDone: 1,
-        totalMilestones: 4,
-        milestoneCost: 48000.00,
-        daysRemaining: 70,
-      },
-      {
-        id: "p5",
-        name: "Internal Knowledge Base",
-        dateRange: "2026-03-15 — 2026-06-30",
-        status: "Finished",
-        health: "On Track",
-        progress: 100.00,
-        budget: 45000.00,
-        variance: 5000.00,
-        tasksCompleted: 3,
-        totalTasks: 7,
-        tasksPending: 4,
-        milestonesDone: 1,
-        totalMilestones: 2,
-        milestoneCost: 40000.00,
-        daysRemaining: 0,
-      },
-    ];
+    const totalProjects = agg._count || 0;
+    const totalBudget = Number(agg._sum.budget || 0);
+    const avgProgress = Number((agg._avg.progress || 0).toFixed(1));
+    const completedCount = statusGroups.find((g) => g.status?.toLowerCase() === "completed" || g.status?.toLowerCase() === "finished")?._count || 0;
 
     return {
       metrics: {
         totalProjects,
+        totalBudget,
         avgProgress,
-        overallProgress: 28.07,
-        completedTasks,
-        totalTasks,
-        budget,
-        actualCost: cost,
+        completedCount,
       },
-      projectBreakdown,
-      records: projects.map((p) => ({
-        id: p.id,
-        name: p.name,
-        clientName: p.clientName || "-",
-        status: p.status,
-        priority: p.priority,
-        progress: p.progress || 0,
-        budget: Number(p.budget || 0),
-        actualCost: p.milestones.reduce((sum, m) => sum + Number(m.cost || 0), 0),
-        totalTasks: p.tasks.length,
-        completedTasks: p.tasks.filter((t) => t.status === "completed").length,
+      statusBreakdown: statusGroups.map((g) => ({
+        status: g.status,
+        count: g._count,
       })),
+      records: projects.map((p) => {
+        const totalTasks = p.tasks.length;
+        const completedTasks = p.tasks.filter((t) => t.status?.toLowerCase() === "completed").length;
+        const actualCost = p.milestones.reduce((sum, m) => sum + Number(m.cost || 0), 0);
+
+        return {
+          id: p.id,
+          name: p.name,
+          clientName: p.clientName || "-",
+          status: p.status,
+          priority: p.priority,
+          progress: p.progress || 0,
+          budget: Number(p.budget || 0),
+          actualCost: Number(actualCost.toFixed(2)),
+          totalTasks,
+          completedTasks,
+          startDate: p.startDate ? p.startDate.toISOString().slice(0, 10) : "-",
+          dueDate: p.dueDate ? p.dueDate.toISOString().slice(0, 10) : "-",
+        };
+      }),
     };
+  }
+
+  /**
+   * Export Helper: Converts report datasets to sanitized, RFC 4180 compliant CSV string
+   */
+  static generateCsv(reportId: string, data: any): string {
+    const records: any[] = data?.records || [];
+    if (records.length === 0) {
+      return "No records found matching report criteria.\n";
+    }
+
+    const headers = Object.keys(records[0]);
+    const headerRow = headers.map(sanitizeCsvValue).join(",");
+    const rows = records.map((r) =>
+      headers.map((h) => sanitizeCsvValue(r[h])).join(",")
+    );
+
+    return [headerRow, ...rows].join("\n");
   }
 }

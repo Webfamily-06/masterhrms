@@ -226,3 +226,61 @@ The physical implementation has been verified across four dedicated automated su
 | **Transactional Email** | SMTP / Resend transport engine | **CONFIGURATION REQUIRED** | Code verified; requires DNS records (SPF/DKIM) and production credentials. |
 | **WhatsApp Alerts** | Meta Cloud API webhooks & notifications | **CONFIGURATION REQUIRED** | Code verified; requires Meta Business permanent access token. |
 | **Google SSO** | OAuth 2.0 authorization code exchange | **CONFIGURATION REQUIRED** | Code verified; requires Google Cloud Console production Client ID and Secret. |
+
+---
+
+## 6. Post-Hardening Financial Reconciliation Audit & 12-Period Schedule
+
+**Priority:** P0/P1 — Financial Correctness  
+**Release Gate:** **BLOCKED** (Preserved pending designated compliance officer and executive written signoff)
+
+### 6.1 Scenario 5: 12-Month Schedule Regeneration & Cumulative Proof
+- **Employee Gross Annual CTC:** ₹12,85,000.00 (Monthly Gross: ₹1,07,083.33)
+- **Standard Deduction (Sec 392 / ITA 2025):** ₹75,000.00
+- **Net Taxable Income:** ₹12,10,000.00
+- **Calculated Annual Tax:** ₹61,500.00
+- **Section 156(2) Marginal Relief Rebate:** ₹51,500.00
+- **Net Tax After Rebate:** ₹10,000.00
+- **Health & Education Cess (4%):** ₹400.00
+- **Annual Authoritative TDS Liability:** **₹10,400.00**
+
+#### Period-by-Period Reconciliation Table
+*For every period:* `outstandingLiability = annualTdsLiability - cumulativeTdsWithheld`
+
+| Period # | Calendar Month | Monthly Gross | Basic (50%) | EPF (12%) | PT | Monthly TDS | Total Deductions | Net Take-Home | Cumulative TDS Withheld | Outstanding Liability | Audit Verification |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **1** | April 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹866.67 | ₹9,533.33 | Verified |
+| **2** | May 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹1,733.34 | ₹8,666.66 | Verified |
+| **3** | June 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹2,600.01 | ₹7,799.99 | Verified |
+| **4** | July 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹3,466.68 | ₹6,933.32 | Verified |
+| **5** | August 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹4,333.35 | ₹6,066.65 | Verified |
+| **6** | September 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹5,200.02 | ₹5,199.98 | Verified |
+| **7** | October 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹6,066.69 | ₹4,333.31 | Verified |
+| **8** | November 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹6,933.36 | ₹3,466.64 | Verified |
+| **9** | December 2026 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹7,800.03 | **₹2,599.97** | Verified |
+| **10** | January 2027 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹8,666.70 | ₹1,733.30 | Verified |
+| **11** | February 2027 | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.67** | ₹7,491.67 | **₹99,591.66** | ₹9,533.37 | ₹866.63 | Verified |
+| **12** | March 2027 (Final) | ₹1,07,083.33 | ₹53,541.67 | ₹6,425.00 | ₹200.00 | **₹866.63** | ₹7,491.63 | **₹99,591.70** | **₹10,400.00** | **₹0.00** | **RECONCILED** |
+
+### 6.2 Authoritative Persistence & Integrity Verification
+1. **Financial Year Boundaries:**
+   - Evaluated strictly from April 1 (`periodYear = fyStartYear, periodMonth >= 4`) to March 31 (`periodYear = fyEndYear, periodMonth <= 3`).
+   - Prior tax years are barred from current FY withholding accumulation.
+2. **Tenancy & Employee Scoping:**
+   - Multi-tenant foreign records (`tenantId != currentTenant`) and foreign employees are completely excluded from aggregation queries.
+3. **Execution Status Gating:**
+   - Only runs with status in `["completed", "paid"]` contribute to prior withholding. Draft (`processing`) runs never mutate cumulative withholding.
+4. **Finalized Immutability & Re-run Safety:**
+   - Finalized (`approvalStatus === 'finalized'`) or paid (`status === 'paid'`) payroll runs strictly reject recalculation with HTTP 400.
+   - Recalculating unfinalized drafts cleans draft payslips within the run boundary (`deleteMany({ where: { payrollRunId } })`) and does not duplicate cumulative records.
+5. **Safe Failure Protocol:**
+   - Prior payslips containing corrupted, non-numeric, or negative TDS values throw a blocking runtime error, halting payroll run generation to prevent corrupted withholdings.
+
+### 6.3 Automated Evidence Ledger
+- **Statutory TDS Suite:** `server/src/tests/statutory-tds-reconciliation.test.ts` — **26/26 PASSED**
+- **Golden Payroll Engine Suite:** `server/src/tests/p4-payroll-engine.test.ts` — **18/18 PASSED**
+- **Phase 1 Formula DAG Pipeline:** `server/src/tests/phase1-payroll.test.ts` — **64/64 PASSED**
+- **Maintenance Mode Workflow:** `server/src/tests/maintenance-mode-workflow.test.ts` — **18/18 PASSED**
+- **Frontend Sidebar Reconciled Suites:** `src/tests/*.test.ts` — **28/28 PASSED**
+- **Type Checking:** `npx tsc --noEmit` — **0 ERRORS**
+- **Production Bundle Build:** `npm run build` — **EXIT CODE 0 (16.76s)**

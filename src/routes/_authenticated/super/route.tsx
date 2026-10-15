@@ -58,6 +58,7 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: "/super/coupons", label: "Discount Coupons", iconClass: "ph-tag", group: "Core Orchestration" },
   { to: "/super/transactions", label: "Purchase Transactions", iconClass: "ph-receipt", group: "Core Orchestration" },
   { to: "/super/roles", label: "Roles & RBAC Matrix", iconClass: "ph-shield-check", group: "Core Orchestration" },
+  { to: "/super/compliance", label: "Statutory Compliance & Rules", iconClass: "ph-scales", group: "Core Orchestration" },
 
   // ── Extensions & Add-ons
   { to: "/super/marketplace", label: "Addons Marketplace", iconClass: "ph-storefront", group: "Extensions & Add-ons" },

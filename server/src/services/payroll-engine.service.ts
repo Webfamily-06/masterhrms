@@ -92,6 +92,7 @@ export interface SalaryBreakdownResult {
     esi: number;
     esiEmployerMatch: number;
     professionalTax: number;
+    lwf?: number;
     tds: number;
     otherDeductions: number;
     totalDeductions: number;
@@ -102,7 +103,9 @@ export interface SalaryBreakdownResult {
     epf: number;
     eps: number;
     edli: number;
+    adminCharges?: number;
     esiEmployer: number;
+    lwfEmployer?: number;
     gratuityAccrual: number;
     totalEmployerCost: number;
   };
@@ -130,6 +133,8 @@ export interface SalaryBreakdownResult {
     monthlyTdsDeduction: number;
   };
 
+  statutoryManifest?: Record<string, any>;
+
   netPay: number;
   currency: string;
   currencySymbol: string;
@@ -140,11 +145,19 @@ export interface SalaryBreakdownResult {
 // -------------------------------------------------------------
 export interface StatutoryRuleRecord {
   id?: string;
-  ruleType: string; // EPF, ESI, PT, GRATUITY, TDS_ITA2025
+  ruleIdentifier?: string;
+  ruleType: string; // EPF, ESI, PT, GRATUITY, TDS_ITA2025, LWF, BONUS, MINIMUM_WAGE
+  category?: string;
+  jurisdictionLevel?: string;
   stateCode?: string | null;
   configJson: any;
+  version?: number;
   effectiveFrom: Date | string;
+  effectiveTo?: Date | string | null;
+  publicationStatus?: string;
   isActive?: boolean;
+  sourceAuthority?: string | null;
+  notificationRef?: string | null;
 }
 
 export function calculateProfessionalTax(
@@ -242,18 +255,31 @@ export function calculateProfessionalTax(
 }
 
 // -------------------------------------------------------------
-// 2. STATUTORY EPF & ESI CALCULATIONS
+// 2. STATUTORY EPF, ESI, LWF & GRATUITY CALCULATIONS
 // -------------------------------------------------------------
-export function calculateStatutoryEPF(basicSalary: number, capAtCeiling: boolean = false) {
-  // Statutory wage ceiling is ₹15,000 / month
-  const pfWage = capAtCeiling ? Math.min(15000, basicSalary) : basicSalary;
-  const employeePf = Math.round(pfWage * 0.12 * 100) / 100;
+export function calculateStatutoryEPF(
+  basicSalary: number,
+  capAtCeiling: boolean = false,
+  ruleRecord?: StatutoryRuleRecord | any
+) {
+  const config = ruleRecord?.configJson || ruleRecord;
+  const statutoryCeiling = Number(config?.statutoryCeiling ?? 15000);
+  const employeeRate = Number(config?.employeeRate ?? 0.12);
+  const employerEpfRate = Number(config?.employerEpfRate ?? 0.0367);
+  const employerEpsRate = Number(config?.employerEpsRate ?? 0.0833333333);
+  const edliRate = Number(config?.edliRate ?? 0.005);
+  const pfAdminRate = Number(config?.pfAdminRate ?? 0.005);
+  const epsMaxMonthly = Number(config?.epsMaxMonthly ?? 1250);
+
+  // Statutory wage ceiling
+  const pfWage = capAtCeiling ? Math.min(statutoryCeiling, basicSalary) : basicSalary;
+  const employeePf = Math.round(pfWage * employeeRate * 100) / 100;
   
-  // Employer portion: 3.67% EPF + 8.33% EPS (capped at ₹1,250) + 0.5% EDLI + 0.5% Admin
-  const eps = Math.min(1250, Math.round(pfWage * (8.33333333 / 100)));
+  // Employer portion: EPF + EPS (capped at epsMaxMonthly) + EDLI + Admin
+  const eps = Math.min(epsMaxMonthly, Math.round(pfWage * employerEpsRate));
   const epfEmployer = Math.max(0, employeePf - eps);
-  const edli = Math.round(pfWage * 0.005 * 100) / 100;
-  const adminCharges = Math.round(pfWage * 0.005 * 100) / 100;
+  const edli = Math.round(pfWage * edliRate * 100) / 100;
+  const adminCharges = Math.round(pfWage * pfAdminRate * 100) / 100;
 
   return {
     employeePf,
@@ -262,28 +288,140 @@ export function calculateStatutoryEPF(basicSalary: number, capAtCeiling: boolean
     edli,
     adminCharges,
     totalEmployerCost: Math.round((epfEmployer + eps + edli + adminCharges) * 100) / 100,
+    ruleVersion: ruleRecord?.version || 1,
+    ruleId: ruleRecord?.id,
+    statutoryCeiling,
+    employeeRate,
   };
 }
 
-export function calculateStatutoryESI(monthlyEarnedGross: number) {
-  const ESI_WAGE_CEILING = 21000;
-  if (monthlyEarnedGross > ESI_WAGE_CEILING) {
+export function calculateStatutoryESI(
+  monthlyEarnedGross: number,
+  isPwd: boolean = false,
+  ruleRecord?: StatutoryRuleRecord | any
+) {
+  const config = ruleRecord?.configJson || ruleRecord;
+  const standardCeiling = Number(config?.wageCeiling ?? 21000);
+  const pwdCeiling = Number(config?.wageCeilingPwd ?? 25000);
+  const wageCeiling = isPwd ? pwdCeiling : standardCeiling;
+  const employeeRate = Number(config?.employeeRate ?? 0.0075);
+  const employerRate = Number(config?.employerRate ?? 0.0325);
+
+  if (monthlyEarnedGross > wageCeiling) {
     return {
       isEligible: false,
       employeeEsi: 0,
       employerEsi: 0,
       totalCost: 0,
+      ruleVersion: ruleRecord?.version || 1,
+      ruleId: ruleRecord?.id,
+      wageCeiling,
+      employeeRate,
+      employerRate,
     };
   }
 
-  const employeeEsi = Math.round(monthlyEarnedGross * 0.0075 * 100) / 100; // 0.75%
-  const employerEsi = Math.round(monthlyEarnedGross * 0.0325 * 100) / 100; // 3.25%
+  const employeeEsi = Math.round(monthlyEarnedGross * employeeRate * 100) / 100;
+  const employerEsi = Math.round(monthlyEarnedGross * employerRate * 100) / 100;
 
   return {
     isEligible: true,
     employeeEsi,
     employerEsi,
     totalCost: Math.round((employeeEsi + employerEsi) * 100) / 100,
+    ruleVersion: ruleRecord?.version || 1,
+    ruleId: ruleRecord?.id,
+    wageCeiling,
+    employeeRate,
+    employerRate,
+  };
+}
+
+export function calculateLabourWelfareFund(
+  monthlyEarnedGross: number,
+  state: string = "TN",
+  periodMonth: number = 12,
+  customRules?: StatutoryRuleRecord[]
+) {
+  const normState = (state || "TN").trim().toUpperCase();
+
+  const lwfRule = customRules?.find(
+    (r) =>
+      r.ruleType === "LWF" &&
+      (r.stateCode?.toUpperCase() === normState || r.stateCode === "ALL") &&
+      (r.isActive !== false)
+  );
+
+  if (lwfRule && lwfRule.configJson) {
+    const cfg = lwfRule.configJson;
+    const deductionMonths = Array.isArray(cfg.deductionMonths)
+      ? cfg.deductionMonths
+      : cfg.deductionMonth !== undefined
+      ? [Number(cfg.deductionMonth)]
+      : [12]; // Default December
+
+    const isDeductionMonth = deductionMonths.includes(periodMonth);
+    if (!isDeductionMonth) {
+      return {
+        isApplicable: false,
+        employeeLwf: 0,
+        employerLwf: 0,
+        totalLwf: 0,
+        ruleVersion: lwfRule.version || 1,
+        ruleId: lwfRule.id,
+        isDeductionMonth: false,
+      };
+    }
+
+    const employeeLwf = Number(cfg.employeeContribution || 0);
+    const employerLwf = Number(cfg.employerContribution || 0);
+
+    return {
+      isApplicable: true,
+      employeeLwf,
+      employerLwf,
+      totalLwf: Math.round((employeeLwf + employerLwf) * 100) / 100,
+      ruleVersion: lwfRule.version || 1,
+      ruleId: lwfRule.id,
+      isDeductionMonth: true,
+    };
+  }
+
+  // Statutory state defaults (TN, KA, MH) if month is December (or June for MH)
+  if (normState === "TN" || normState === "TAMIL NADU") {
+    if (periodMonth === 12) {
+      return { isApplicable: true, employeeLwf: 10, employerLwf: 20, totalLwf: 30, isDeductionMonth: true, ruleVersion: 1 };
+    }
+  } else if (normState === "KA" || normState === "KARNATAKA") {
+    if (periodMonth === 12) {
+      return { isApplicable: true, employeeLwf: 20, employerLwf: 40, totalLwf: 60, isDeductionMonth: true, ruleVersion: 1 };
+    }
+  } else if (normState === "MH" || normState === "MAHARASHTRA") {
+    if (periodMonth === 6 || periodMonth === 12) {
+      return { isApplicable: true, employeeLwf: 12, employerLwf: 36, totalLwf: 48, isDeductionMonth: true, ruleVersion: 1 };
+    }
+  }
+
+  return { isApplicable: false, employeeLwf: 0, employerLwf: 0, totalLwf: 0, isDeductionMonth: false, ruleVersion: 1 };
+}
+
+export function calculateGratuityAccrual(
+  basicSalary: number,
+  ruleRecord?: StatutoryRuleRecord | any
+) {
+  const config = ruleRecord?.configJson || ruleRecord;
+  const daysFactor = Number(config?.daysFactor ?? 15);
+  const monthDaysDenominator = Number(config?.monthDaysDenominator ?? 26);
+  const statutoryMaxCap = Number(config?.statutoryMaxCap ?? 2000000);
+
+  const monthlyAccrual = Math.round(((daysFactor * basicSalary) / monthDaysDenominator / 12) * 100) / 100;
+
+  return {
+    monthlyAccrual,
+    statutoryMaxCap,
+    daysFactor,
+    ruleVersion: ruleRecord?.version || 1,
+    ruleId: ruleRecord?.id,
   };
 }
 
@@ -318,29 +456,27 @@ export function calculateAnnualTDS(
 
   const isResident = options?.isResident !== false; // Resident individual by default
 
+  // Determine financial year from options or period
+  const fy = options?.financialYear || (options?.periodMonth && options?.periodYear
+    ? (options.periodMonth >= 4 ? `${options.periodYear}-${options.periodYear + 1}` : `${options.periodYear - 1}-${options.periodYear}`)
+    : (options?.periodYear && options.periodYear === 2025 ? "2025-2026" : "2026-2027"));
+  const isFY2024 = fy === "2024-2025" || fy.startsWith("2024");
+  const isFY2025 = fy === "2025-2026" || fy.startsWith("2025");
+  const preferredType = isFY2024 ? "TDS_115BAC_FY2425" : (isFY2025 ? "TDS_115BAC" : "TDS_ITA2025");
+
   // Check if custom or versioned statutory rule exists in database rule pack
-  const tdsRule = options?.statutoryRules?.find(
-    (r) => r.ruleType === "TDS_ITA2025" || r.ruleType === "TDS_115BAC"
-  );
+  const tdsRule = options?.statutoryRules?.find((r) => r.ruleType === preferredType && (r as any).isActive !== false) ||
+    options?.statutoryRules?.find((r) => (r.ruleType === "TDS_115BAC" || r.ruleType === "TDS_ITA2025" || r.ruleType === "TDS_115BAC_FY2425") && (r as any).isActive !== false);
   const newRuleConfig = tdsRule?.configJson?.newRegime;
   const oldRuleConfig = tdsRule?.configJson?.oldRegime;
 
   if (regime === "new") {
-    // Standard deduction under Income-tax Act, 2025 / Budget 2025-26: ₹75,000
+    // Standard deduction: ₹75,000 for salaried employees
     standardDeduction = newRuleConfig?.standardDeduction || 75000;
     const stdDeductDec = new Decimal(standardDeduction);
     const taxableSalaryDec = Decimal.max(0, new Decimal(projectedAnnualGross).minus(stdDeductDec));
     const totalTaxableDec = taxableSalaryDec.plus(otherIncome).plus(specialRateIncome);
     const totalTaxableIncome = totalTaxableDec.toNumber();
-
-    // Slabs (AY 2026-27 / TY 2026-27 under Income-tax Act, 2025 Section 392 withholding):
-    // Slab 1: ₹0 – ₹4,00,000 : 0%
-    // Slab 2: ₹4,00,001 – ₹8,00,000 : 5%
-    // Slab 3: ₹8,00,001 – ₹12,00,000 : 10%
-    // Slab 4: ₹12,00,001 – ₹16,00,000 : 15%
-    // Slab 5: ₹16,00,001 – ₹20,00,000 : 20%
-    // Slab 6: ₹20,00,001 – ₹24,00,000 : 25%
-    // Slab 7: Above ₹24,00,000 : 30%
 
     const customSlabs = newRuleConfig?.slabs;
     let rawTaxDec = new Decimal(0);
@@ -358,8 +494,31 @@ export function calculateAnnualTDS(
         }
         rem = Decimal.max(0, rem.minus(taxableInSlab));
       }
+    } else if (isFY2024) {
+      // Historical Income-tax Act, 1961 Section 115BAC slabs (FY 2024-25 / Finance (No. 2) Act, 2024)
+      if (totalTaxableDec.greaterThan(1500000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(1500000).times(0.30))
+          .plus(new Decimal(300000).times(0.20)) // 12L-15L
+          .plus(new Decimal(300000).times(0.15)) // 9L-12L
+          .plus(new Decimal(300000).times(0.10)) // 6L-9L
+          .plus(new Decimal(300000).times(0.05)); // 3L-6L
+      } else if (totalTaxableDec.greaterThan(1200000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(1200000).times(0.20))
+          .plus(new Decimal(300000).times(0.15))
+          .plus(new Decimal(300000).times(0.10))
+          .plus(new Decimal(300000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(900000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(900000).times(0.15))
+          .plus(new Decimal(300000).times(0.10))
+          .plus(new Decimal(300000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(600000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(600000).times(0.10))
+          .plus(new Decimal(300000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(300000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(300000).times(0.05));
+      }
     } else {
-      // Default official Income-tax Act, 2025 Section 392 slabs (AY 2026-27)
+      // Enacted official slabs for FY 2025-26 (Finance Act, 2025 / Section 115BAC) and FY 2026-27 (Income-tax Act, 2025 / Section 392)
       if (totalTaxableDec.greaterThan(2400000)) {
         rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(2400000).times(0.30))
           .plus(new Decimal(400000).times(0.25)) // 20L-24L = 100,000
@@ -393,21 +552,17 @@ export function calculateAnnualTDS(
     rawTaxDec = rawTaxDec.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     const rawTax = rawTaxDec.toNumber();
 
-    // Section 156(2) Rebate (formerly Section 87A of Income-tax Act, 1961):
-    // Available exclusively to Resident Individuals.
-    // Under Income-tax Act, 2025 Section 156(2) (AY 2026-27 / TY 2026-27):
-    // Full rebate of tax payable up to ₹60,000 for taxable income up to ₹12,00,000.
     const rebateThreshold =
       newRuleConfig?.section156RebateThreshold ||
       newRuleConfig?.section87ARebateThreshold ||
-      1200000;
+      (isFY2024 ? 700000 : 1200000);
     const rebateThresholdDec = new Decimal(rebateThreshold);
     let rebateDec = new Decimal(0);
     let taxAfterRebateDec = rawTaxDec;
 
     if (isResident) {
       if (totalTaxableDec.lessThanOrEqualTo(rebateThresholdDec)) {
-        // Full rebate under Section 156(2)
+        // Full rebate under Section 87A (ITA 1961) or Section 156(2) (ITA 2025)
         rebateDec = rawTaxDec;
         taxAfterRebateDec = new Decimal(0);
       } else {
@@ -422,7 +577,7 @@ export function calculateAnnualTDS(
         }
       }
     } else {
-      // Non-resident / NRI: Ineligible for Section 156 / 87A rebate
+      // Non-resident / NRI: Ineligible for Section 87A / Section 156 rebate
       rebateDec = new Decimal(0);
       taxAfterRebateDec = rawTaxDec;
     }
@@ -435,7 +590,7 @@ export function calculateAnnualTDS(
     let monthlyTdsDec: Decimal;
     const isFinal = Boolean(options?.isFinalPeriod || (options?.remainingPeriods !== undefined && options.remainingPeriods === 1));
 
-    // Period-based cumulative withholding adjustment policy (Section 392):
+    // Period-based cumulative withholding adjustment policy:
     // Standard periods (Months 1–11) withhold rounded monthly average;
     // Final reconciliation period (isFinalPeriod === true) absorbs rounding variance so cumulative sum equals annual liability exactly.
     if (options?.tdsAlreadyDeducted !== undefined && isFinal) {
@@ -448,11 +603,14 @@ export function calculateAnnualTDS(
       monthlyTdsDec = totalAnnualTdsDec.dividedBy(12).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     }
 
-    let rebateSection = "Section 156(2)";
+    const statutoryAct = isFY2024 || isFY2025 ? "Income-tax Act, 1961" : "Income-tax Act, 2025";
+    const salaryWithholdingSection = isFY2024 || isFY2025 ? "192" : "392";
+
+    let rebateSection = isFY2024 || isFY2025 ? "Section 87A" : "Section 156(2)";
     if (!isResident) {
       rebateSection = "N/A (Ineligible Non-Resident)";
     } else if (rebateDec.isZero() && totalTaxableDec.greaterThan(rebateThresholdDec)) {
-      rebateSection = "Section 156(2) (Exceeded Threshold)";
+      rebateSection = isFY2024 || isFY2025 ? "Section 87A (Exceeded Threshold)" : "Section 156(2) (Exceeded Threshold)";
     }
 
     return {
@@ -466,12 +624,12 @@ export function calculateAnnualTDS(
       hraExemption: 0,
       netTaxableIncome: totalTaxableIncome,
       annualTaxCalculated: rawTax,
-      rebate87A: rebateDec.toNumber(), // Legacy alias for backward compatibility
-      section156Rebate: rebateDec.toNumber(), // Canonical ITA 2025 provision
-      statutoryAct: "Income-tax Act, 2025",
-      salaryWithholdingSection: "392",
+      rebate87A: rebateDec.toNumber(), // Legacy alias / Section 87A
+      section156Rebate: rebateDec.toNumber(), // Section 156(2)
+      statutoryAct,
+      salaryWithholdingSection,
       rebateSection,
-      taxYear: tdsRule?.configJson?.taxYear || "2026-2027",
+      taxYear: tdsRule?.configJson?.taxYear || (isFY2024 ? "2024-2025" : (isFY2025 ? "2025-2026" : "2026-2027")),
       ruleVersion: (tdsRule as any)?.version || 1,
       netTaxAfterRebate: taxAfterRebateDec.toNumber(),
       cessAmount: cessDec.toNumber(),
@@ -479,11 +637,15 @@ export function calculateAnnualTDS(
       monthlyTdsDeduction: monthlyTdsDec.toNumber(),
     };
   } else {
-    // Old Tax Regime with Decimal precision
-    standardDeduction = 50000;
-    section80C = Math.min(150000, Number(declarations?.section80C || 0));
-    section80D = Math.min(50000, Number(declarations?.section80D || 0));
-    section24b = Math.min(200000, Number(declarations?.homeLoanInterest || 0));
+    // Old Tax Regime with dynamic configuration and fallback
+    standardDeduction = Number(oldRuleConfig?.standardDeduction ?? 50000);
+    const max80C = Number(oldRuleConfig?.section80CLimit ?? 150000);
+    const max80D = Number(oldRuleConfig?.section80DLimit ?? 50000);
+    const max24b = Number(oldRuleConfig?.section24bLimit ?? 200000);
+
+    section80C = Math.min(max80C, Number(declarations?.section80C || 0));
+    section80D = Math.min(max80D, Number(declarations?.section80D || 0));
+    section24b = Math.min(max24b, Number(declarations?.homeLoanInterest || 0));
 
     // HRA calculation approximation (least of actual rent paid - 10% basic, 40% basic, HRA)
     const annualBasic = projectedAnnualGross * 0.5;
@@ -498,21 +660,34 @@ export function calculateAnnualTDS(
     const totalTaxableDec = Decimal.max(0, new Decimal(projectedAnnualGross).plus(otherIncome).plus(specialRateIncome).minus(totalOldDeductions));
     const totalTaxableIncome = totalTaxableDec.toNumber();
 
-    // Old Slabs:
-    // 0 - 2.5L: 0%
-    // 2.5L - 5L: 5%
-    // 5L - 10L: 20%
-    // > 10L: 30%
     let rawTaxDec = new Decimal(0);
-    if (totalTaxableDec.greaterThan(1000000)) {
-      rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(1000000).times(0.30))
-        .plus(new Decimal(500000).times(0.20)) // 1,00,000
-        .plus(new Decimal(250000).times(0.05)); // 12,500
-    } else if (totalTaxableDec.greaterThan(500000)) {
-      rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(500000).times(0.20))
-        .plus(new Decimal(250000).times(0.05));
-    } else if (totalTaxableDec.greaterThan(250000)) {
-      rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(250000).times(0.05));
+    const oldCustomSlabs = oldRuleConfig?.slabs;
+
+    if (Array.isArray(oldCustomSlabs) && oldCustomSlabs.length > 0) {
+      let rem = totalTaxableDec;
+      for (const slab of oldCustomSlabs) {
+        if (rem.lessThanOrEqualTo(0)) break;
+        const slabSpan = slab.max !== null && slab.max !== undefined
+          ? new Decimal(slab.max).minus(slab.min)
+          : new Decimal(Infinity);
+        const taxableInSlab = Decimal.min(rem, slabSpan);
+        if (taxableInSlab.greaterThan(0) && slab.rate > 0) {
+          rawTaxDec = rawTaxDec.plus(taxableInSlab.times(slab.rate));
+        }
+        rem = Decimal.max(0, rem.minus(taxableInSlab));
+      }
+    } else {
+      // Default Old Slabs: 0 - 2.5L: 0%, 2.5L - 5L: 5%, 5L - 10L: 20%, > 10L: 30%
+      if (totalTaxableDec.greaterThan(1000000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(1000000).times(0.30))
+          .plus(new Decimal(500000).times(0.20))
+          .plus(new Decimal(250000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(500000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(500000).times(0.20))
+          .plus(new Decimal(250000).times(0.05));
+      } else if (totalTaxableDec.greaterThan(250000)) {
+        rawTaxDec = rawTaxDec.plus(totalTaxableDec.minus(250000).times(0.05));
+      }
     }
 
     rawTaxDec = rawTaxDec.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
@@ -533,7 +708,8 @@ export function calculateAnnualTDS(
       }
     }
 
-    const cessDec = taxAfterRebateDec.times(0.04).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const cessRateDec = new Decimal(tdsRule?.configJson?.cessRate ?? 0.04);
+    const cessDec = taxAfterRebateDec.times(cessRateDec).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     const totalAnnualTdsDec = taxAfterRebateDec.plus(cessDec).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     const totalAnnualTds = totalAnnualTdsDec.toNumber();
 
@@ -549,11 +725,14 @@ export function calculateAnnualTDS(
       monthlyTdsDec = totalAnnualTdsDec.dividedBy(12).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     }
 
-    let rebateSection = "Section 156(1)";
+    const statutoryAct = isFY2024 || isFY2025 ? "Income-tax Act, 1961" : "Income-tax Act, 2025 (Transitional) / Income-tax Act, 1961";
+    const salaryWithholdingSection = isFY2024 || isFY2025 ? "192" : "392 (192)";
+
+    let rebateSection = isFY2024 || isFY2025 ? "Section 87A" : "Section 156(1)";
     if (!isResident) {
       rebateSection = "N/A (Ineligible Non-Resident)";
     } else if (rebateDec.isZero() && totalTaxableDec.greaterThan(oldRebateThresholdDec)) {
-      rebateSection = "Section 156(1) (Exceeded Threshold)";
+      rebateSection = isFY2024 || isFY2025 ? "Section 87A (Exceeded Threshold)" : "Section 156(1) (Exceeded Threshold)";
     }
 
     return {
@@ -569,11 +748,11 @@ export function calculateAnnualTDS(
       annualTaxCalculated: rawTax,
       rebate87A: rebateDec.toNumber(),
       section156Rebate: rebateDec.toNumber(),
-      statutoryAct: "Income-tax Act, 2025 (Transitional) / Income-tax Act, 1961",
-      salaryWithholdingSection: "392 (192)",
+      statutoryAct,
+      salaryWithholdingSection,
       rebateSection,
-      taxYear: "2026-2027",
-      ruleVersion: 1,
+      taxYear: tdsRule?.configJson?.taxYear || (isFY2024 ? "2024-2025" : (isFY2025 ? "2025-2026" : "2026-2027")),
+      ruleVersion: (tdsRule as any)?.version || 1,
       netTaxAfterRebate: taxAfterRebateDec.toNumber(),
       cessAmount: cessDec.toNumber(),
       totalAnnualTds,
@@ -643,18 +822,34 @@ export function computeEmployeePayrollBreakdown(
     ...(reimbursements > 0 ? [{ code: "REIMBURSEMENT", name: "Approved Expense Reimbursements", amount: reimbursements, isTaxable: false }] : []),
   ];
 
-  // Statutory Calculations
+  // Statutory Calculations with dynamic rule resolution
+  const epfRule = options?.statutoryRules?.find(
+    (r) => r.ruleType === "EPF" && (r.isActive !== false)
+  );
+  const esiRule = options?.statutoryRules?.find(
+    (r) => r.ruleType === "ESI" && (r.isActive !== false)
+  );
+  const gratuityRule = options?.statutoryRules?.find(
+    (r) => r.ruleType === "GRATUITY" && (r.isActive !== false)
+  );
+
   const pfCalc = employee.pfEligible !== false
-    ? calculateStatutoryEPF(basicSalary, false)
-    : { employeePf: 0, epfEmployer: 0, eps: 0, edli: 0, adminCharges: 0, totalEmployerCost: 0 };
+    ? calculateStatutoryEPF(basicSalary, false, epfRule)
+    : { employeePf: 0, epfEmployer: 0, eps: 0, edli: 0, adminCharges: 0, totalEmployerCost: 0, ruleVersion: 1, ruleId: undefined, statutoryCeiling: 15000, employeeRate: 0.12 };
 
   const esiCalc = employee.esiEligible !== false
-    ? calculateStatutoryESI(totalEarnedGross)
-    : { isEligible: false, employeeEsi: 0, employerEsi: 0, totalCost: 0 };
+    ? calculateStatutoryESI(totalEarnedGross, Boolean((employee as any).isDisability), esiRule)
+    : { isEligible: false, employeeEsi: 0, employerEsi: 0, totalCost: 0, ruleVersion: 1, ruleId: undefined, wageCeiling: 21000, employeeRate: 0.0075, employerRate: 0.0325 };
 
   const ptAmount = employee.ptEligible !== false && attendance.payableDays > 0
     ? calculateProfessionalTax(totalEarnedGross, employee.state || "MH", periodMonth, options?.statutoryRules)
     : 0;
+
+  const lwfCalc = (employee as any).lwfEligible !== false && attendance.payableDays > 0
+    ? calculateLabourWelfareFund(totalEarnedGross, employee.state || "MH", periodMonth, options?.statutoryRules)
+    : { isApplicable: false, employeeLwf: 0, employerLwf: 0, totalLwf: 0, ruleVersion: 1, isDeductionMonth: false };
+
+  const gratuityCalc = calculateGratuityAccrual(basicSalary, gratuityRule);
 
   // Tax Withholding (TDS) Calculation
   // Annualization logic:
@@ -706,18 +901,16 @@ export function computeEmployeePayrollBreakdown(
 
   const monthlyTds = employee.tdsEligible !== false ? taxResult.monthlyTdsDeduction : 0;
 
-  const totalDeductions = Math.round((pfCalc.employeePf + esiCalc.employeeEsi + ptAmount + monthlyTds) * 100) / 100;
+  const totalDeductions = Math.round((pfCalc.employeePf + esiCalc.employeeEsi + ptAmount + lwfCalc.employeeLwf + monthlyTds) * 100) / 100;
   const netPay = Math.max(0, Math.round((totalEarnedGross - totalDeductions) * 100) / 100);
 
   const deductionsItemized = [
-    { code: "PF", name: "Provident Fund (Employee 12%)", amount: pfCalc.employeePf, isStatutory: true },
-    { code: "ESI", name: "Employee State Insurance (0.75%)", amount: esiCalc.employeeEsi, isStatutory: true },
+    { code: "PF", name: `Provident Fund (Employee ${Math.round((pfCalc.employeeRate ?? 0.12) * 100)}%)`, amount: pfCalc.employeePf, isStatutory: true },
+    { code: "ESI", name: `Employee State Insurance (${((esiCalc.employeeRate ?? 0.0075) * 100).toFixed(2)}%)`, amount: esiCalc.employeeEsi, isStatutory: true },
     { code: "PT", name: "Professional Tax", amount: ptAmount, isStatutory: true },
+    ...(lwfCalc.employeeLwf > 0 ? [{ code: "LWF", name: "Labour Welfare Fund (Employee)", amount: lwfCalc.employeeLwf, isStatutory: true }] : []),
     { code: "TDS", name: "Income Tax (Section 392 TDS)", amount: monthlyTds, isStatutory: true },
   ];
-
-  // Gratuity Accrual (15/26 days per annum)
-  const gratuityMonthlyAccrual = Math.round(((15 * basicSalary) / 26 / 12) * 100) / 100;
 
   return {
     baseMonthlyCtc,
@@ -745,6 +938,7 @@ export function computeEmployeePayrollBreakdown(
       esi: esiCalc.employeeEsi,
       esiEmployerMatch: esiCalc.employerEsi,
       professionalTax: ptAmount,
+      lwf: lwfCalc.employeeLwf,
       tds: monthlyTds,
       otherDeductions: 0,
       totalDeductions,
@@ -754,11 +948,21 @@ export function computeEmployeePayrollBreakdown(
       epf: pfCalc.epfEmployer,
       eps: pfCalc.eps,
       edli: pfCalc.edli,
+      adminCharges: pfCalc.adminCharges,
       esiEmployer: esiCalc.employerEsi,
-      gratuityAccrual: gratuityMonthlyAccrual,
-      totalEmployerCost: Math.round((pfCalc.totalEmployerCost + esiCalc.employerEsi + gratuityMonthlyAccrual) * 100) / 100,
+      lwfEmployer: lwfCalc.employerLwf,
+      gratuityAccrual: gratuityCalc.monthlyAccrual,
+      totalEmployerCost: Math.round((pfCalc.totalEmployerCost + esiCalc.employerEsi + lwfCalc.employerLwf + gratuityCalc.monthlyAccrual) * 100) / 100,
     },
     taxation: taxResult,
+    statutoryManifest: {
+      epf: { ruleId: pfCalc.ruleId, version: pfCalc.ruleVersion, ruleType: "EPF", statutoryCeiling: pfCalc.statutoryCeiling, employeeRate: pfCalc.employeeRate },
+      esi: { ruleId: esiCalc.ruleId, version: esiCalc.ruleVersion, ruleType: "ESI", wageCeiling: esiCalc.wageCeiling, employeeRate: esiCalc.employeeRate, isEligible: esiCalc.isEligible },
+      pt: { stateCode: employee.state || "MH", amount: ptAmount },
+      lwf: { ruleId: lwfCalc.ruleId, version: lwfCalc.ruleVersion, ruleType: "LWF", stateCode: employee.state || "MH", employeeContribution: lwfCalc.employeeLwf, employerContribution: lwfCalc.employerLwf, isDeductionMonth: Boolean(lwfCalc.isDeductionMonth) },
+      gratuity: { ruleId: gratuityCalc.ruleId, version: gratuityCalc.ruleVersion, ruleType: "GRATUITY", monthlyAccrual: gratuityCalc.monthlyAccrual, statutoryMaxCap: gratuityCalc.statutoryMaxCap },
+      tds: { ruleId: (taxResult as any)?.ruleId, version: taxResult.ruleVersion || 1, ruleType: (taxResult as any)?.statutoryAct || "TDS_ITA2025", taxYear: taxResult.taxYear, standardDeduction: taxResult.standardDeduction, regime: taxResult.taxRegime },
+    },
     netPay,
     currency,
     currencySymbol,

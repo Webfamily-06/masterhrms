@@ -220,3 +220,27 @@ export const api = {
   upload: <T = any>(endpoint: string, formData: FormData) =>
     apiRequest<T>(endpoint, { method: "POST", body: formData }),
 };
+
+/**
+ * Safely unwraps API response data, whether returned as a raw payload (e.g. raw array or entity),
+ * or wrapped in a standard { data: ... } envelope.
+ */
+export function unwrapData<T = any>(res: any): T {
+  if (res === null || res === undefined) return res;
+  if (typeof res === "object" && !Array.isArray(res) && "data" in res && res.data !== undefined) {
+    return res.data;
+  }
+  return res;
+}
+
+/**
+ * Safely unwraps an array from a response that might be a raw array, wrapped in { data: [...] },
+ * wrapped in { items: [...] }, or wrapped in entity-specific properties.
+ */
+export function unwrapArray<T = any>(res: any): T[] {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.items)) return res.items;
+  return [];
+}
+

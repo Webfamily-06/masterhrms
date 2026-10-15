@@ -4,6 +4,7 @@ import {
   evaluateComplianceRules,
   STATUTORY_RULES_CONFIG,
 } from "../services/compliance-rules.service";
+import { normalizeFinancialYear } from "../utils/financial-year";
 
 export const complianceRouter = Router();
 
@@ -38,15 +39,17 @@ complianceRouter.get("/forms/eligibility", requireAuth, async (req: AuthRequest,
     const {
       employeeId,
       formCode,
-      financialYear = "2026-2027",
+      financialYear: rawFinancialYear,
       quarter = "Q1",
     } = req.query;
+
+    const financialYear = normalizeFinancialYear(rawFinancialYear as string);
 
     const results = await evaluateComplianceRules({
       tenantId,
       employeeId: employeeId ? String(employeeId) : undefined,
       formCode: formCode ? String(formCode) : undefined,
-      financialYear: String(financialYear),
+      financialYear,
       quarter: String(quarter),
     });
 
@@ -78,15 +81,17 @@ complianceRouter.get("/forms/:formCode/eligibility", requireAuth, async (req: Au
     const { formCode } = req.params;
     const {
       employeeId,
-      financialYear = "2026-2027",
+      financialYear: rawFinancialYear,
       quarter = "Q1",
     } = req.query;
+
+    const financialYear = normalizeFinancialYear(rawFinancialYear as string);
 
     const results = await evaluateComplianceRules({
       tenantId,
       employeeId: employeeId ? String(employeeId) : undefined,
       formCode,
-      financialYear: String(financialYear),
+      financialYear,
       quarter: String(quarter),
     });
 

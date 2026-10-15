@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { extractRolesFromToken } from "@/lib/auth-navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "@/lib/api";
+import { getCurrentFinancialYear, getFinancialYearFromPeriod, getFinancialYearMeta, getSelectableFinancialYears } from "@/lib/financial-year";
 import { useCurrentProfile, useSession, hasRole } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -248,7 +249,7 @@ function Payroll() {
   // Form 12BB Declaration Modal State
   const [isDeclarationModalOpen, setIsDeclarationModalOpen] = useState(false);
   const [declaringEmp, setDeclaringEmp] = useState<any | null>(null);
-  const [declFinancialYear, setDeclFinancialYear] = useState("2025-2026");
+  const [declFinancialYear, setDeclFinancialYear] = useState(getCurrentFinancialYear());
   const [declTaxRegime, setDeclTaxRegime] = useState<"new" | "old">("new");
   const [declHouseRent, setDeclHouseRent] = useState<number>(0);
   const [declLandlordPan, setDeclLandlordPan] = useState("");
@@ -637,7 +638,8 @@ function Payroll() {
   const fetchForm16 = async (emp: any) => {
     try {
       setViewingForm16Emp(emp);
-      const res = await api.get(`/payroll/statutory-forms/form16/${emp.id}?financialYear=2025-2026`);
+      const activeFY = getFinancialYearFromPeriod(Number(filterMonth !== "all" ? filterMonth : new Date().getMonth() + 1), selectedYear);
+      const res = await api.get(`/payroll/statutory-forms/form16/${emp.id}?financialYear=${activeFY}`);
       setForm16Data(res);
     } catch (err: any) {
       toast.error("Failed to generate Form 16.");
@@ -1421,12 +1423,12 @@ function Payroll() {
 
         {/* ===================== TAB 6: TAX DECLARATIONS (FORM 12BB & SPLIT-PANE VERIFICATION) ===================== */}
         <TabsContent value="tax_declarations" className="space-y-4">
-          <TaxVerificationWorkspace isHR={isHR} financialYear={`${selectedYear}-${selectedYear + 1}`} />
+          <TaxVerificationWorkspace isHR={isHR} financialYear={getFinancialYearFromPeriod(Number(filterMonth !== "all" ? filterMonth : new Date().getMonth() + 1), selectedYear)} />
         </TabsContent>
 
         {/* ===================== TAB 7: FLEXIBLE BENEFIT PLAN (FBP) WORKSPACE ===================== */}
         <TabsContent value="fbp" className="space-y-4">
-          <FbpWorkspace isHR={isHR} financialYear={`${selectedYear}-${selectedYear + 1}`} />
+          <FbpWorkspace isHR={isHR} financialYear={getFinancialYearFromPeriod(Number(filterMonth !== "all" ? filterMonth : new Date().getMonth() + 1), selectedYear)} />
         </TabsContent>
 
         {/* ===================== TAB 7: STATUTORY FORMS ===================== */}

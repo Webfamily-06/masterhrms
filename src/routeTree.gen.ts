@@ -237,6 +237,7 @@ import { Route as AuthenticatedSuperBackupRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSuperBlogsRouteImport } from './routes/_authenticated/super/blogs'
 import { Route as AuthenticatedSuperCaseStudiesRouteImport } from './routes/_authenticated/super/case-studies'
 import { Route as AuthenticatedSuperCmsRouteImport } from './routes/_authenticated/super/cms'
+import { Route as AuthenticatedSuperComplianceRouteImport } from './routes/_authenticated/super/compliance'
 import { Route as AuthenticatedSuperCouponsRouteImport } from './routes/_authenticated/super/coupons'
 import { Route as AuthenticatedSuperDeveloperRouteImport } from './routes/_authenticated/super/developer'
 import { Route as AuthenticatedSuperDocRouteImport } from './routes/_authenticated/super/doc'
@@ -368,6 +369,7 @@ import { Route as AuthenticatedHrPayrollPayslipsRouteImport } from './routes/_au
 import { Route as AuthenticatedHrPayrollReimbursementsLoansRouteImport } from './routes/_authenticated/hr/payroll/reimbursements-loans'
 import { Route as AuthenticatedHrPayrollRunsRouteImport } from './routes/_authenticated/hr/payroll/runs'
 import { Route as AuthenticatedHrPayrollSalariesRouteImport } from './routes/_authenticated/hr/payroll/salaries'
+import { Route as AuthenticatedHrPayrollSettingsRouteImport } from './routes/_authenticated/hr/payroll/settings'
 import { Route as AuthenticatedHrPayrollSetupRouteImport } from './routes/_authenticated/hr/payroll/setup'
 import { Route as AuthenticatedHrPayrollTaxRouteImport } from './routes/_authenticated/hr/payroll/tax'
 import { Route as AuthenticatedHrPerformanceIndexRouteImport } from './routes/_authenticated/hr/performance/index'
@@ -506,6 +508,8 @@ import { Route as AuthenticatedAppAddonsPlanningSetupStagesRouteImport } from '.
 import { Route as AuthenticatedAppAddonsPlanningSetupStatusesRouteImport } from './routes/_authenticated/_app/addons/planning/setup/statuses'
 import { Route as AuthenticatedAppAddonsWebhookEndpointsIndexRouteImport } from './routes/_authenticated/_app/addons/webhook/endpoints/index'
 import { Route as AuthenticatedAppAddonsWebhookEndpointsNewRouteImport } from './routes/_authenticated/_app/addons/webhook/endpoints/new'
+import { Route as AuthenticatedAppAddonsWebhookLogsIndexRouteImport } from './routes/_authenticated/_app/addons/webhook/logs/index'
+import { Route as AuthenticatedAppAddonsWebhookLogsIdRouteImport } from './routes/_authenticated/_app/addons/webhook/logs/$id'
 import { Route as AuthenticatedAppAddonsAiDocumentTemplatesIdEditRouteImport } from './routes/_authenticated/_app/addons/ai-document/templates/$id/edit'
 import { Route as AuthenticatedAppAddonsPlanningChallengesIdIndexRouteImport } from './routes/_authenticated/_app/addons/planning/challenges/$id/index'
 import { Route as AuthenticatedAppAddonsPlanningChallengesIdEditRouteImport } from './routes/_authenticated/_app/addons/planning/challenges/$id/edit'
@@ -1787,6 +1791,12 @@ const AuthenticatedSuperCmsRoute = AuthenticatedSuperCmsRouteImport.update({
   path: '/cms',
   getParentRoute: () => AuthenticatedSuperRouteRoute,
 } as any)
+const AuthenticatedSuperComplianceRoute =
+  AuthenticatedSuperComplianceRouteImport.update({
+    id: '/compliance',
+    path: '/compliance',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
 const AuthenticatedSuperCouponsRoute =
   AuthenticatedSuperCouponsRouteImport.update({
     id: '/coupons',
@@ -2561,6 +2571,12 @@ const AuthenticatedHrPayrollSalariesRoute =
   AuthenticatedHrPayrollSalariesRouteImport.update({
     id: '/payroll/salaries',
     path: '/payroll/salaries',
+    getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
+const AuthenticatedHrPayrollSettingsRoute =
+  AuthenticatedHrPayrollSettingsRouteImport.update({
+    id: '/payroll/settings',
+    path: '/payroll/settings',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
 const AuthenticatedHrPayrollSetupRoute =
@@ -3391,6 +3407,18 @@ const AuthenticatedAppAddonsWebhookEndpointsNewRoute =
     path: '/addons/webhook/endpoints/new',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppAddonsWebhookLogsIndexRoute =
+  AuthenticatedAppAddonsWebhookLogsIndexRouteImport.update({
+    id: '/addons/webhook/logs/',
+    path: '/addons/webhook/logs/',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAddonsWebhookLogsIdRoute =
+  AuthenticatedAppAddonsWebhookLogsIdRouteImport.update({
+    id: '/addons/webhook/logs/$id',
+    path: '/addons/webhook/logs/$id',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute =
   AuthenticatedAppAddonsAiDocumentTemplatesIdEditRouteImport.update({
     id: '/addons/ai-document/templates/$id/edit',
@@ -3656,6 +3684,7 @@ export interface FileRoutesByFullPath {
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/super/compliance': typeof AuthenticatedSuperComplianceRoute
   '/super/coupons': typeof AuthenticatedSuperCouponsRoute
   '/super/developer': typeof AuthenticatedSuperDeveloperRoute
   '/super/doc': typeof AuthenticatedSuperDocRoute
@@ -3783,6 +3812,7 @@ export interface FileRoutesByFullPath {
   '/hr/payroll/reimbursements-loans': typeof AuthenticatedHrPayrollReimbursementsLoansRoute
   '/hr/payroll/runs': typeof AuthenticatedHrPayrollRunsRoute
   '/hr/payroll/salaries': typeof AuthenticatedHrPayrollSalariesRoute
+  '/hr/payroll/settings': typeof AuthenticatedHrPayrollSettingsRoute
   '/hr/payroll/setup': typeof AuthenticatedHrPayrollSetupRoute
   '/hr/payroll/tax': typeof AuthenticatedHrPayrollTaxRoute
   '/hr/performance/cycles': typeof AuthenticatedHrPerformanceCyclesRoute
@@ -3924,12 +3954,14 @@ export interface FileRoutesByFullPath {
   '/addons/planning/setup/stages': typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
   '/addons/planning/setup/statuses': typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
   '/addons/webhook/endpoints/new': typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  '/addons/webhook/logs/$id': typeof AuthenticatedAppAddonsWebhookLogsIdRoute
   '/addons/ai-assistant/history/': typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
   '/addons/ai-document/history/': typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
   '/addons/ai-document/templates/': typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
   '/addons/planning/challenges/': typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
   '/addons/planning/charters/': typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
   '/addons/webhook/endpoints/': typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  '/addons/webhook/logs/': typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
   '/addons/ai-document/templates/$id/edit': typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
   '/addons/planning/challenges/$id/edit': typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
   '/addons/planning/charters/$id/edit': typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
@@ -4156,6 +4188,7 @@ export interface FileRoutesByTo {
   '/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/super/compliance': typeof AuthenticatedSuperComplianceRoute
   '/super/coupons': typeof AuthenticatedSuperCouponsRoute
   '/super/developer': typeof AuthenticatedSuperDeveloperRoute
   '/super/doc': typeof AuthenticatedSuperDocRoute
@@ -4283,6 +4316,7 @@ export interface FileRoutesByTo {
   '/hr/payroll/reimbursements-loans': typeof AuthenticatedHrPayrollReimbursementsLoansRoute
   '/hr/payroll/runs': typeof AuthenticatedHrPayrollRunsRoute
   '/hr/payroll/salaries': typeof AuthenticatedHrPayrollSalariesRoute
+  '/hr/payroll/settings': typeof AuthenticatedHrPayrollSettingsRoute
   '/hr/payroll/setup': typeof AuthenticatedHrPayrollSetupRoute
   '/hr/payroll/tax': typeof AuthenticatedHrPayrollTaxRoute
   '/hr/performance/cycles': typeof AuthenticatedHrPerformanceCyclesRoute
@@ -4424,12 +4458,14 @@ export interface FileRoutesByTo {
   '/addons/planning/setup/stages': typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
   '/addons/planning/setup/statuses': typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
   '/addons/webhook/endpoints/new': typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  '/addons/webhook/logs/$id': typeof AuthenticatedAppAddonsWebhookLogsIdRoute
   '/addons/ai-assistant/history': typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
   '/addons/ai-document/history': typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
   '/addons/ai-document/templates': typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
   '/addons/planning/challenges': typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
   '/addons/planning/charters': typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
   '/addons/webhook/endpoints': typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  '/addons/webhook/logs': typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
   '/addons/ai-document/templates/$id/edit': typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
   '/addons/planning/challenges/$id/edit': typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
   '/addons/planning/charters/$id/edit': typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
@@ -4663,6 +4699,7 @@ export interface FileRoutesById {
   '/_authenticated/super/blogs': typeof AuthenticatedSuperBlogsRoute
   '/_authenticated/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/_authenticated/super/cms': typeof AuthenticatedSuperCmsRoute
+  '/_authenticated/super/compliance': typeof AuthenticatedSuperComplianceRoute
   '/_authenticated/super/coupons': typeof AuthenticatedSuperCouponsRoute
   '/_authenticated/super/developer': typeof AuthenticatedSuperDeveloperRoute
   '/_authenticated/super/doc': typeof AuthenticatedSuperDocRoute
@@ -4790,6 +4827,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/payroll/reimbursements-loans': typeof AuthenticatedHrPayrollReimbursementsLoansRoute
   '/_authenticated/hr/payroll/runs': typeof AuthenticatedHrPayrollRunsRoute
   '/_authenticated/hr/payroll/salaries': typeof AuthenticatedHrPayrollSalariesRoute
+  '/_authenticated/hr/payroll/settings': typeof AuthenticatedHrPayrollSettingsRoute
   '/_authenticated/hr/payroll/setup': typeof AuthenticatedHrPayrollSetupRoute
   '/_authenticated/hr/payroll/tax': typeof AuthenticatedHrPayrollTaxRoute
   '/_authenticated/hr/performance/cycles': typeof AuthenticatedHrPerformanceCyclesRoute
@@ -4931,12 +4969,14 @@ export interface FileRoutesById {
   '/_authenticated/_app/addons/planning/setup/stages': typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
   '/_authenticated/_app/addons/planning/setup/statuses': typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
   '/_authenticated/_app/addons/webhook/endpoints/new': typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  '/_authenticated/_app/addons/webhook/logs/$id': typeof AuthenticatedAppAddonsWebhookLogsIdRoute
   '/_authenticated/_app/addons/ai-assistant/history/': typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
   '/_authenticated/_app/addons/ai-document/history/': typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
   '/_authenticated/_app/addons/ai-document/templates/': typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
   '/_authenticated/_app/addons/planning/challenges/': typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
   '/_authenticated/_app/addons/planning/charters/': typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
   '/_authenticated/_app/addons/webhook/endpoints/': typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  '/_authenticated/_app/addons/webhook/logs/': typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
   '/_authenticated/_app/addons/ai-document/templates/$id/edit': typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
   '/_authenticated/_app/addons/planning/challenges/$id/edit': typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
   '/_authenticated/_app/addons/planning/charters/$id/edit': typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
@@ -5169,6 +5209,7 @@ export interface FileRouteTypes {
     | '/super/blogs'
     | '/super/case-studies'
     | '/super/cms'
+    | '/super/compliance'
     | '/super/coupons'
     | '/super/developer'
     | '/super/doc'
@@ -5296,6 +5337,7 @@ export interface FileRouteTypes {
     | '/hr/payroll/reimbursements-loans'
     | '/hr/payroll/runs'
     | '/hr/payroll/salaries'
+    | '/hr/payroll/settings'
     | '/hr/payroll/setup'
     | '/hr/payroll/tax'
     | '/hr/performance/cycles'
@@ -5437,12 +5479,14 @@ export interface FileRouteTypes {
     | '/addons/planning/setup/stages'
     | '/addons/planning/setup/statuses'
     | '/addons/webhook/endpoints/new'
+    | '/addons/webhook/logs/$id'
     | '/addons/ai-assistant/history/'
     | '/addons/ai-document/history/'
     | '/addons/ai-document/templates/'
     | '/addons/planning/challenges/'
     | '/addons/planning/charters/'
     | '/addons/webhook/endpoints/'
+    | '/addons/webhook/logs/'
     | '/addons/ai-document/templates/$id/edit'
     | '/addons/planning/challenges/$id/edit'
     | '/addons/planning/charters/$id/edit'
@@ -5669,6 +5713,7 @@ export interface FileRouteTypes {
     | '/super/blogs'
     | '/super/case-studies'
     | '/super/cms'
+    | '/super/compliance'
     | '/super/coupons'
     | '/super/developer'
     | '/super/doc'
@@ -5796,6 +5841,7 @@ export interface FileRouteTypes {
     | '/hr/payroll/reimbursements-loans'
     | '/hr/payroll/runs'
     | '/hr/payroll/salaries'
+    | '/hr/payroll/settings'
     | '/hr/payroll/setup'
     | '/hr/payroll/tax'
     | '/hr/performance/cycles'
@@ -5937,12 +5983,14 @@ export interface FileRouteTypes {
     | '/addons/planning/setup/stages'
     | '/addons/planning/setup/statuses'
     | '/addons/webhook/endpoints/new'
+    | '/addons/webhook/logs/$id'
     | '/addons/ai-assistant/history'
     | '/addons/ai-document/history'
     | '/addons/ai-document/templates'
     | '/addons/planning/challenges'
     | '/addons/planning/charters'
     | '/addons/webhook/endpoints'
+    | '/addons/webhook/logs'
     | '/addons/ai-document/templates/$id/edit'
     | '/addons/planning/challenges/$id/edit'
     | '/addons/planning/charters/$id/edit'
@@ -6175,6 +6223,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/blogs'
     | '/_authenticated/super/case-studies'
     | '/_authenticated/super/cms'
+    | '/_authenticated/super/compliance'
     | '/_authenticated/super/coupons'
     | '/_authenticated/super/developer'
     | '/_authenticated/super/doc'
@@ -6302,6 +6351,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/payroll/reimbursements-loans'
     | '/_authenticated/hr/payroll/runs'
     | '/_authenticated/hr/payroll/salaries'
+    | '/_authenticated/hr/payroll/settings'
     | '/_authenticated/hr/payroll/setup'
     | '/_authenticated/hr/payroll/tax'
     | '/_authenticated/hr/performance/cycles'
@@ -6443,12 +6493,14 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/addons/planning/setup/stages'
     | '/_authenticated/_app/addons/planning/setup/statuses'
     | '/_authenticated/_app/addons/webhook/endpoints/new'
+    | '/_authenticated/_app/addons/webhook/logs/$id'
     | '/_authenticated/_app/addons/ai-assistant/history/'
     | '/_authenticated/_app/addons/ai-document/history/'
     | '/_authenticated/_app/addons/ai-document/templates/'
     | '/_authenticated/_app/addons/planning/challenges/'
     | '/_authenticated/_app/addons/planning/charters/'
     | '/_authenticated/_app/addons/webhook/endpoints/'
+    | '/_authenticated/_app/addons/webhook/logs/'
     | '/_authenticated/_app/addons/ai-document/templates/$id/edit'
     | '/_authenticated/_app/addons/planning/challenges/$id/edit'
     | '/_authenticated/_app/addons/planning/charters/$id/edit'
@@ -8100,6 +8152,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSuperCmsRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
+    '/_authenticated/super/compliance': {
+      id: '/_authenticated/super/compliance'
+      path: '/compliance'
+      fullPath: '/super/compliance'
+      preLoaderRoute: typeof AuthenticatedSuperComplianceRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
     '/_authenticated/super/coupons': {
       id: '/_authenticated/super/coupons'
       path: '/coupons'
@@ -9015,6 +9074,13 @@ declare module '@tanstack/react-router' {
       path: '/payroll/salaries'
       fullPath: '/hr/payroll/salaries'
       preLoaderRoute: typeof AuthenticatedHrPayrollSalariesRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
+    '/_authenticated/hr/payroll/settings': {
+      id: '/_authenticated/hr/payroll/settings'
+      path: '/payroll/settings'
+      fullPath: '/hr/payroll/settings'
+      preLoaderRoute: typeof AuthenticatedHrPayrollSettingsRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
     '/_authenticated/hr/payroll/setup': {
@@ -9983,6 +10049,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAddonsWebhookEndpointsNewRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/addons/webhook/logs/': {
+      id: '/_authenticated/_app/addons/webhook/logs/'
+      path: '/addons/webhook/logs'
+      fullPath: '/addons/webhook/logs/'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookLogsIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/addons/webhook/logs/$id': {
+      id: '/_authenticated/_app/addons/webhook/logs/$id'
+      path: '/addons/webhook/logs/$id'
+      fullPath: '/addons/webhook/logs/$id'
+      preLoaderRoute: typeof AuthenticatedAppAddonsWebhookLogsIdRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/addons/ai-document/templates/$id/edit': {
       id: '/_authenticated/_app/addons/ai-document/templates/$id/edit'
       path: '/addons/ai-document/templates/$id/edit'
@@ -10298,12 +10378,14 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAddonsPlanningSetupStagesRoute: typeof AuthenticatedAppAddonsPlanningSetupStagesRoute
   AuthenticatedAppAddonsPlanningSetupStatusesRoute: typeof AuthenticatedAppAddonsPlanningSetupStatusesRoute
   AuthenticatedAppAddonsWebhookEndpointsNewRoute: typeof AuthenticatedAppAddonsWebhookEndpointsNewRoute
+  AuthenticatedAppAddonsWebhookLogsIdRoute: typeof AuthenticatedAppAddonsWebhookLogsIdRoute
   AuthenticatedAppAddonsAiAssistantHistoryIndexRoute: typeof AuthenticatedAppAddonsAiAssistantHistoryIndexRoute
   AuthenticatedAppAddonsAiDocumentHistoryIndexRoute: typeof AuthenticatedAppAddonsAiDocumentHistoryIndexRoute
   AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesIndexRoute
   AuthenticatedAppAddonsPlanningChallengesIndexRoute: typeof AuthenticatedAppAddonsPlanningChallengesIndexRoute
   AuthenticatedAppAddonsPlanningChartersIndexRoute: typeof AuthenticatedAppAddonsPlanningChartersIndexRoute
   AuthenticatedAppAddonsWebhookEndpointsIndexRoute: typeof AuthenticatedAppAddonsWebhookEndpointsIndexRoute
+  AuthenticatedAppAddonsWebhookLogsIndexRoute: typeof AuthenticatedAppAddonsWebhookLogsIndexRoute
   AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute
   AuthenticatedAppAddonsPlanningChallengesIdEditRoute: typeof AuthenticatedAppAddonsPlanningChallengesIdEditRoute
   AuthenticatedAppAddonsPlanningChartersIdEditRoute: typeof AuthenticatedAppAddonsPlanningChartersIdEditRoute
@@ -10529,6 +10611,8 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppAddonsPlanningSetupStatusesRoute,
   AuthenticatedAppAddonsWebhookEndpointsNewRoute:
     AuthenticatedAppAddonsWebhookEndpointsNewRoute,
+  AuthenticatedAppAddonsWebhookLogsIdRoute:
+    AuthenticatedAppAddonsWebhookLogsIdRoute,
   AuthenticatedAppAddonsAiAssistantHistoryIndexRoute:
     AuthenticatedAppAddonsAiAssistantHistoryIndexRoute,
   AuthenticatedAppAddonsAiDocumentHistoryIndexRoute:
@@ -10541,6 +10625,8 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppAddonsPlanningChartersIndexRoute,
   AuthenticatedAppAddonsWebhookEndpointsIndexRoute:
     AuthenticatedAppAddonsWebhookEndpointsIndexRoute,
+  AuthenticatedAppAddonsWebhookLogsIndexRoute:
+    AuthenticatedAppAddonsWebhookLogsIndexRoute,
   AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute:
     AuthenticatedAppAddonsAiDocumentTemplatesIdEditRoute,
   AuthenticatedAppAddonsPlanningChallengesIdEditRoute:
@@ -10585,6 +10671,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperBlogsRoute: typeof AuthenticatedSuperBlogsRoute
   AuthenticatedSuperCaseStudiesRoute: typeof AuthenticatedSuperCaseStudiesRoute
   AuthenticatedSuperCmsRoute: typeof AuthenticatedSuperCmsRoute
+  AuthenticatedSuperComplianceRoute: typeof AuthenticatedSuperComplianceRoute
   AuthenticatedSuperCouponsRoute: typeof AuthenticatedSuperCouponsRoute
   AuthenticatedSuperDeveloperRoute: typeof AuthenticatedSuperDeveloperRoute
   AuthenticatedSuperDocRoute: typeof AuthenticatedSuperDocRoute
@@ -10619,6 +10706,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperBlogsRoute: AuthenticatedSuperBlogsRoute,
     AuthenticatedSuperCaseStudiesRoute: AuthenticatedSuperCaseStudiesRoute,
     AuthenticatedSuperCmsRoute: AuthenticatedSuperCmsRoute,
+    AuthenticatedSuperComplianceRoute: AuthenticatedSuperComplianceRoute,
     AuthenticatedSuperCouponsRoute: AuthenticatedSuperCouponsRoute,
     AuthenticatedSuperDeveloperRoute: AuthenticatedSuperDeveloperRoute,
     AuthenticatedSuperDocRoute: AuthenticatedSuperDocRoute,
@@ -10729,6 +10817,7 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrPayrollReimbursementsLoansRoute: typeof AuthenticatedHrPayrollReimbursementsLoansRoute
   AuthenticatedHrPayrollRunsRoute: typeof AuthenticatedHrPayrollRunsRoute
   AuthenticatedHrPayrollSalariesRoute: typeof AuthenticatedHrPayrollSalariesRoute
+  AuthenticatedHrPayrollSettingsRoute: typeof AuthenticatedHrPayrollSettingsRoute
   AuthenticatedHrPayrollSetupRoute: typeof AuthenticatedHrPayrollSetupRoute
   AuthenticatedHrPayrollTaxRoute: typeof AuthenticatedHrPayrollTaxRoute
   AuthenticatedHrPerformanceCyclesRoute: typeof AuthenticatedHrPerformanceCyclesRoute
@@ -10899,6 +10988,7 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
     AuthenticatedHrPayrollReimbursementsLoansRoute,
   AuthenticatedHrPayrollRunsRoute: AuthenticatedHrPayrollRunsRoute,
   AuthenticatedHrPayrollSalariesRoute: AuthenticatedHrPayrollSalariesRoute,
+  AuthenticatedHrPayrollSettingsRoute: AuthenticatedHrPayrollSettingsRoute,
   AuthenticatedHrPayrollSetupRoute: AuthenticatedHrPayrollSetupRoute,
   AuthenticatedHrPayrollTaxRoute: AuthenticatedHrPayrollTaxRoute,
   AuthenticatedHrPerformanceCyclesRoute: AuthenticatedHrPerformanceCyclesRoute,

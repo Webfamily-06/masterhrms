@@ -19,6 +19,7 @@ import {
   Clock,
   Download,
 } from "lucide-react";
+import { getCurrentFinancialYear, getSelectableFinancialYears } from "@/lib/financial-year";
 
 export const Route = createFileRoute("/_authenticated/me/payroll/tax")({
   component: MeTaxPage,
@@ -26,17 +27,20 @@ export const Route = createFileRoute("/_authenticated/me/payroll/tax")({
 
 export default function MeTaxPage() {
   const queryClient = useQueryClient();
+  const [selectedFy, setSelectedFy] = useState(getCurrentFinancialYear());
 
   const { data: taxData, isLoading, refetch } = useQuery({
-    queryKey: ["me-payroll-tax"],
+    queryKey: ["me-payroll-tax", selectedFy],
     queryFn: async () => {
-      const res = await api.get("/api/v1/me/payroll/tax");
+      const res = await api.get("/api/v1/me/payroll/tax", {
+        params: { financialYear: selectedFy },
+      });
       return res.data;
     },
   });
 
   const declaration = taxData?.declaration;
-  const financialYear = taxData?.financialYear || "2026-2027";
+  const financialYear = taxData?.financialYear || selectedFy;
 
   // Form State
   const [formState, setFormState] = useState({
@@ -70,6 +74,20 @@ export default function MeTaxPage() {
         description="Declare Section 80C, 80D Mediclaim, HRA rent, and investment exemptions for TDS optimization."
       >
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 border rounded-md px-2.5 py-1 bg-background text-xs font-medium">
+            <span className="text-muted-foreground uppercase text-[10px]">FY:</span>
+            <select
+              value={selectedFy}
+              onChange={(e) => setSelectedFy(e.target.value)}
+              className="bg-transparent font-semibold cursor-pointer outline-none"
+            >
+              {getSelectableFinancialYears().map((fy) => (
+                <option key={fy.value} value={fy.value}>
+                  {fy.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
