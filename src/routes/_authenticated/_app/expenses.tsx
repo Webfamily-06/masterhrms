@@ -126,34 +126,6 @@ export function ExpensesPage() {
   const [isAddPFOpen, setIsAddPFOpen] = useState(false);
   const [isAddTaxOpen, setIsAddTaxOpen] = useState(false);
 
-  // Budgets State (budgets.html)
-  const [budgetsList, setBudgetsList] = useState([
-    {
-      id: "b-1",
-      title: "Enterprise ERP Rollout 2026",
-      type: "Project" as const,
-      startDate: "2026-01-10",
-      endDate: "2026-12-31",
-      totalRevenue: 500000,
-      totalExpenses: 340000,
-      expectedProfit: 160000,
-      tax: 15000,
-      budgetAmount: 145000,
-    },
-    {
-      id: "b-2",
-      title: "General Corporate Operations & IT",
-      type: "Category" as const,
-      startDate: "2026-01-01",
-      endDate: "2026-12-31",
-      totalRevenue: 300000,
-      totalExpenses: 200000,
-      expectedProfit: 100000,
-      tax: 10000,
-      budgetAmount: 90000,
-    },
-  ]);
-
   const [budgetForm, setBudgetForm] = useState({
     title: "",
     type: "Project",
@@ -164,43 +136,6 @@ export function ExpensesPage() {
     taxAmount: "8000",
   });
 
-  // Provident Fund State (provident-fund.html)
-  const [pfList, setPfList] = useState([
-    {
-      id: "pf-1",
-      employeeId: "emp-1",
-      employeeName: "Anthony Lewis",
-      department: "Finance & Accounts",
-      type: "Employee Provident Fund",
-      employeeShare: 2,
-      employerShare: 2,
-      status: "Approved" as const,
-      accumulatedBalance: 48500,
-    },
-    {
-      id: "pf-2",
-      employeeId: "emp-2",
-      employeeName: "Brian Villalobos",
-      department: "Engineering",
-      type: "Employee Provident Fund",
-      employeeShare: 2,
-      employerShare: 2,
-      status: "Pending" as const,
-      accumulatedBalance: 32000,
-    },
-    {
-      id: "pf-3",
-      employeeId: "emp-3",
-      employeeName: "Harvey Smith",
-      department: "Product Design",
-      type: "Voluntary Provident Fund",
-      employeeShare: 5,
-      employerShare: 2,
-      status: "Approved" as const,
-      accumulatedBalance: 74200,
-    },
-  ]);
-
   const [pfForm, setPfForm] = useState({
     employeeId: "",
     type: "Employee Provident Fund",
@@ -209,19 +144,159 @@ export function ExpensesPage() {
     status: "Approved",
   });
 
-  // Taxes State (taxes.html)
-  const [taxesList, setTaxesList] = useState<Array<{ id: string; name: string; rate: number; description: string; status: "Active" | "Inactive" }>>([
-    { id: "tx-1", name: "VAT", rate: 20, description: "Comprehensive tax on supply of goods and services", status: "Active" },
-    { id: "tx-2", name: "GST", rate: 18, description: "Goods and Services unified statutory schedule", status: "Active" },
-    { id: "tx-3", name: "TDS / Withholding", rate: 10, description: "Tax Deducted at Source for professional services (194J)", status: "Active" },
-    { id: "tx-4", name: "Professional Tax", rate: 2, description: "State statutory municipal employee deduction", status: "Active" },
-  ]);
-
   const [taxForm, setTaxForm] = useState({
     name: "",
     rate: "18",
     description: "",
     status: "Active",
+  });
+
+  // Dynamic Budgets Query & Mutations
+  const { data: serverBudgets = [] } = useQuery({
+    queryKey: ["budgets", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/budgets");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const budgetsList = useMemo(() => {
+    return (serverBudgets as any[]).map((b: any) => {
+      let parsedNotes: any = {};
+      try {
+        if (b.notes && typeof b.notes === "string" && b.notes.startsWith("{")) {
+          parsedNotes = JSON.parse(b.notes);
+        }
+      } catch {}
+      return {
+        id: b.id,
+        title: b.name || "Untitled Budget",
+        type: (parsedNotes.type || "Project") as "Project" | "Category",
+        startDate: parsedNotes.startDate || (b.fiscalYear?.split(" to ")[0]) || "2026-01-01",
+        endDate: parsedNotes.endDate || (b.fiscalYear?.split(" to ")[1]) || "2026-12-31",
+        totalRevenue: Number(parsedNotes.revenue ?? b.budgetedAmount ?? 0),
+        totalExpenses: Number(parsedNotes.expense ?? b.spentAmount ?? 0),
+        expectedProfit: Number(parsedNotes.profit ?? Math.max(0, (b.budgetedAmount || 0) - (b.spentAmount || 0))),
+        tax: Number(parsedNotes.tax ?? 0),
+        budgetAmount: Number(b.budgetedAmount ?? 0),
+      };
+    });
+  }, [serverBudgets]);
+
+  const createBudgetMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/budgets", payload),
+    onSuccess: () => {
+      toast.success("Budget record saved to database!");
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      setIsAddBudgetOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to create budget"),
+  });
+
+  const deleteBudgetMut = useMutation({
+    mutationFn: async (id: string) => api.delete("/budgets/" + id),
+    onSuccess: () => {
+      toast.success("Budget record deleted from database.");
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete budget"),
+  });
+
+  // Dynamic Provident Fund Query & Mutations
+  const { data: serverPFs = [] } = useQuery({
+    queryKey: ["provident-funds", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/hrm-extensions/provident-funds?limit=100");
+        return Array.isArray((res as any)?.data) ? (res as any).data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const pfList = useMemo(() => {
+    return (serverPFs as any[]).map((p: any) => {
+      const emp = p.employee;
+      const empName = emp ? (emp.firstName || "" + " " + emp.lastName || "").trim() : (p.employeeId || "Staff Member");
+      const dept = emp?.department?.name || "Operations";
+      return {
+        id: p.id,
+        employeeId: p.employeeId,
+        employeeName: empName,
+        department: dept,
+        type: p.pfType || "Employee Provident Fund",
+        employeeShare: Number(p.employeeSharePercent || 0),
+        employerShare: Number(p.orgSharePercent || 0),
+        status: (p.status || "Approved") as any,
+        accumulatedBalance: Number(p.employeeShareAmount || 0) + Number(p.orgShareAmount || 0),
+      };
+    });
+  }, [serverPFs]);
+
+  const createPFMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/hrm-extensions/provident-funds", payload),
+    onSuccess: () => {
+      toast.success("Provident Fund enrollment saved to database!");
+      qc.invalidateQueries({ queryKey: ["provident-funds"] });
+      setIsAddPFOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save Provident Fund enrollment"),
+  });
+
+  const deletePFMut = useMutation({
+    mutationFn: async (id: string) => api.delete("/hrm-extensions/provident-funds/" + id),
+    onSuccess: () => {
+      toast.success("Provident Fund record removed.");
+      qc.invalidateQueries({ queryKey: ["provident-funds"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete Provident Fund record"),
+  });
+
+  // Dynamic Taxes Query & Mutations
+  const { data: serverTaxes = [] } = useQuery({
+    queryKey: ["product-taxes", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/products/taxes");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const taxesList = useMemo(() => {
+    return (serverTaxes as any[]).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      rate: Number(t.rate || 0),
+      description: t.isDefault ? "Default statutory tax slab" : "Statutory tax slab",
+      status: "Active" as const,
+    }));
+  }, [serverTaxes]);
+
+  const createTaxMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/products/taxes", payload),
+    onSuccess: () => {
+      toast.success("Tax record saved to database!");
+      qc.invalidateQueries({ queryKey: ["product-taxes"] });
+      setIsAddTaxOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to create tax"),
+  });
+
+  const deleteTaxMut = useMutation({
+    mutationFn: async (id: string) => api.delete("/products/taxes/" + id),
+    onSuccess: () => {
+      toast.success("Tax slab removed from database.");
+      qc.invalidateQueries({ queryKey: ["product-taxes"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete tax"),
   });
 
   // Forms
@@ -1107,8 +1182,7 @@ export function ExpensesPage() {
                           variant="ghost"
                           onClick={() => {
                             if (confirm(`Remove budget "${b.title}"?`)) {
-                              setBudgetsList(budgetsList.filter((item) => item.id !== b.id));
-                              toast.success("Budget record removed.");
+                              deleteBudgetMut.mutate(b.id);
                             }
                           }}
                           className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
@@ -1211,8 +1285,7 @@ export function ExpensesPage() {
                           variant="ghost"
                           onClick={() => {
                             if (confirm(`Remove PF enrolment for "${pf.employeeName}"?`)) {
-                              setPfList(pfList.filter((item) => item.id !== pf.id));
-                              toast.success("PF membership removed.");
+                              deletePFMut.mutate(pf.id);
                             }
                           }}
                           className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
@@ -1295,8 +1368,7 @@ export function ExpensesPage() {
                           variant="ghost"
                           onClick={() => {
                             if (confirm(`Remove tax rule "${tax.name}"?`)) {
-                              setTaxesList(taxesList.filter((item) => item.id !== tax.id));
-                              toast.success("Tax rule removed.");
+                              deleteTaxMut.mutate(tax.id);
                             }
                           }}
                           className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
@@ -1931,23 +2003,22 @@ export function ExpensesPage() {
               const tax = parseFloat(budgetForm.taxAmount) || 0;
               const netBudget = profit - tax;
 
-              setBudgetsList([
-                {
-                  id: "b-" + Date.now(),
-                  title: budgetForm.title,
-                  type: budgetForm.type as "Project" | "Category",
+              createBudgetMut.mutate({
+                name: budgetForm.title,
+                periodType: budgetForm.type === "Project" ? "monthly" : "quarterly",
+                fiscalYear: budgetForm.startDate + " to " + budgetForm.endDate,
+                budgetedAmount: netBudget,
+                spentAmount: exp,
+                notes: JSON.stringify({
+                  type: budgetForm.type,
                   startDate: budgetForm.startDate,
                   endDate: budgetForm.endDate,
-                  totalRevenue: rev,
-                  totalExpenses: exp,
-                  expectedProfit: profit,
+                  revenue: rev,
+                  expense: exp,
+                  profit: profit,
                   tax: tax,
-                  budgetAmount: netBudget,
-                },
-                ...budgetsList,
-              ]);
-              setIsAddBudgetOpen(false);
-              toast.success(`Budget "${budgetForm.title}" recorded with Net allocation ${formatSystemAmount(netBudget)}!`);
+                }),
+              });
             }}
             className="space-y-3 py-2 text-xs"
           >
@@ -2092,26 +2163,18 @@ export function ExpensesPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const emp = employees.find((x: any) => x.id === pfForm.employeeId);
-              const empName = emp ? `${emp.first_name} ${emp.last_name}` : "Staff Member";
-              const dept = emp?.department?.name || "Operations";
-
-              setPfList([
-                {
-                  id: "pf-" + Date.now(),
-                  employeeId: pfForm.employeeId,
-                  employeeName: empName,
-                  department: dept,
-                  type: pfForm.type as any,
-                  employeeShare: parseFloat(pfForm.employeeShare) || 2,
-                  employerShare: parseFloat(pfForm.employerShare) || 2,
-                  status: pfForm.status as any,
-                  accumulatedBalance: 24000,
-                },
-                ...pfList,
-              ]);
-              setIsAddPFOpen(false);
-              toast.success(`Enrolled ${empName} into ${pfForm.type}!`);
+              const empShare = parseFloat(pfForm.employeeShare) || 2;
+              const orgShare = parseFloat(pfForm.employerShare) || 2;
+              createPFMut.mutate({
+                employeeId: pfForm.employeeId,
+                pfType: pfForm.type,
+                employeeSharePercent: empShare,
+                employeeShareAmount: empShare * 1000,
+                orgSharePercent: orgShare,
+                orgShareAmount: orgShare * 1000,
+                status: pfForm.status,
+                description: "Enrolled into " + pfForm.type,
+              });
             }}
             className="space-y-3 py-2 text-xs"
           >
@@ -2199,18 +2262,10 @@ export function ExpensesPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              setTaxesList([
-                {
-                  id: "tax-" + Date.now(),
-                  name: taxForm.name,
-                  rate: parseFloat(taxForm.rate) || 0,
-                  description: taxForm.description || "General Statutory Tax",
-                  status: taxForm.status as "Active" | "Inactive",
-                },
-                ...taxesList,
-              ]);
-              setIsAddTaxOpen(false);
-              toast.success(`Tax Slab "${taxForm.name} (${taxForm.rate}%)" added!`);
+              createTaxMut.mutate({
+                name: taxForm.name,
+                rate: parseFloat(taxForm.rate) || 0,
+              });
             }}
             className="space-y-3 py-2 text-xs"
           >

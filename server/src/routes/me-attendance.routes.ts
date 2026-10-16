@@ -3,6 +3,7 @@ import { rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { AttendanceService } from "../services/attendance.service";
+import { enforceIdempotency } from "../middleware/idempotency.middleware";
 
 export const meAttendanceRouter = Router();
 
@@ -82,7 +83,7 @@ meAttendanceRouter.get("/status", async (req: AuthRequest, res: Response) => {
 });
 
 // POST /api/v1/me/attendance/punch (Check-in / Check-out)
-meAttendanceRouter.post("/punch", async (req: AuthRequest, res: Response) => {
+meAttendanceRouter.post("/punch", enforceIdempotency, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
     const employee = await getSelfEmployee(req);

@@ -366,42 +366,7 @@ const DEFAULT_EXTENDED_PROFILE: EmployeeExtendedProfile = {
 };
 
 const DEFAULT_PERFORMANCE_REVIEWS: PerformanceReview[] = [];
-const DEFAULT_HARDWARE_ASSETS: HardwareAsset[] = [
-  {
-    id: "ast-dell-01",
-    assetTag: "AST - 001",
-    name: "Dell Latitude 7440 Ultrabook",
-    category: "Laptop",
-    serialNo: "3647952145678",
-    assignedToEmployeeId: "default",
-    assignedToEmployeeName: "Assigned Staff",
-    allocatedDate: "22 Nov, 2024 10:32 AM",
-    warrantyExpiry: "12 Jan 2028",
-    condition: "New",
-    status: "assigned",
-    cost: "₹ 1,12,000",
-    vendor: "Dell India Technologies Pvt Ltd",
-    location: "Floor 4, Workstation 42, Tech Park",
-    imageUrl: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500&auto=format&fit=crop&q=60",
-  },
-  {
-    id: "ast-mouse-02",
-    assetTag: "AST - 002",
-    name: "Logitech MX Master 3S Wireless Mouse",
-    category: "Accessory",
-    serialNo: "9845721182390",
-    assignedToEmployeeId: "default",
-    assignedToEmployeeName: "Assigned Staff",
-    allocatedDate: "22 Nov, 2024 10:32 AM",
-    warrantyExpiry: "15 Oct 2027",
-    condition: "Good",
-    status: "assigned",
-    cost: "₹ 8,995",
-    vendor: "Logitech Electronics Hub",
-    location: "Desk 42, Floor 4",
-    imageUrl: "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=500&auto=format&fit=crop&q=60",
-  },
-];
+const DEFAULT_HARDWARE_ASSETS: HardwareAsset[] = [];
 
 export function Employees() {
   const { user } = useSession();
@@ -934,7 +899,7 @@ export function Employees() {
       cost: assetForm.cost,
       vendor: assetForm.vendor,
       location: assetForm.location,
-      imageUrl: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=500&auto=format&fit=crop&q=60",
+      imageUrl: "",
     };
 
     saveAssetsMut.mutate([newAsset, ...assets]);

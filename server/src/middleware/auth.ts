@@ -107,11 +107,54 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     }
 
     req.tenantId = tenantId ?? undefined;
+
+    let userPermissions: string[] = Array.isArray(decoded.permissions) ? [...decoded.permissions] : [];
+    if (tenantId && userId) {
+      try {
+        const db = rawPrisma || prisma;
+        const assignment = await db.userRoleAssignment.findUnique({
+          where: { userId_tenantId: { userId, tenantId } },
+          include: {
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        });
+        if (assignment?.role?.permissions) {
+          const roleCodes = assignment.role.permissions.map((rp: any) => rp.permission.code);
+          userPermissions = Array.from(new Set([...userPermissions, ...roleCodes]));
+        }
+      } catch {}
+    }
+
+    // Default system role administrative permissions
+    const rawRoleNames: string[] = roles as any[];
+    if (rawRoleNames.includes("super_admin") || rawRoleNames.includes("Workspace Admin") || rawRoleNames.includes("admin") || rawRoleNames.includes("hr_admin")) {
+      userPermissions = Array.from(new Set([
+        ...userPermissions,
+        "hr:employee:sensitive:write",
+        "hr:employee:sensitive:read",
+        "hr:employees:read",
+        "hr:employees:write",
+        "hr:documents:delete",
+        "hr:documents:verify",
+        "hrm.sensitive.edit",
+        "hrm.sensitive.view",
+        "hrm.employees.view",
+        "hrm.employees.create",
+        "hrm.employees.edit",
+        "hrm.employees.delete",
+      ]));
+    }
+
     req.user = {
       ...decoded,
       userId,
       tenantId: tenantId ?? null,
       roles,
+      permissions: userPermissions,
       isImpersonating,
     };
     (req.user as any).id = userId;

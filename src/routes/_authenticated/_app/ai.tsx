@@ -78,54 +78,37 @@ export type AttendanceAnomaly = {
   actionRecommendation: string;
 };
 
-const SAMPLE_ANOMALIES: AttendanceAnomaly[] = [
-  {
-    id: "anom-1",
-    employeeName: "Robert Cosper",
-    department: "Engineering",
-    anomalyType: "consecutive_late",
-    confidenceScore: 94,
-    detectedDate: "Today (09:48 AM)",
-    riskLevel: "medium",
-    actionRecommendation: "Schedule 1-on-1 shift review with manager",
-  },
-  {
-    id: "anom-2",
-    employeeName: "Sarah Spivey",
-    department: "Marketing",
-    anomalyType: "shift_fatigue",
-    confidenceScore: 88,
-    detectedDate: "Yesterday (14.2h logged)",
-    riskLevel: "high",
-    actionRecommendation: "Trigger mandatory rest day notification",
-  },
-  {
-    id: "anom-3",
-    employeeName: "Helen Nelson",
-    department: "Finance",
-    anomalyType: "punch_distance_mismatch",
-    confidenceScore: 97,
-    detectedDate: "23 Sep 2026",
-    riskLevel: "high",
-    actionRecommendation: "Verify GPS geofence biometric coordinates",
-  },
-  {
-    id: "anom-4",
-    employeeName: "Jared Griffin",
-    department: "Sales",
-    anomalyType: "unusual_clockout",
-    confidenceScore: 76,
-    detectedDate: "22 Sep 2026",
-    riskLevel: "low",
-    actionRecommendation: "Flag for weekly timesheet audit",
-  },
-];
-
 export default function AICenterPage() {
   const { canAccessModule, loading: authLoading } = usePermissions();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("attendance");
   const [isScanning, setIsScanning] = useState(false);
+
+  const { data: anomaliesRes = [] } = useQuery<AttendanceAnomaly[]>({
+    queryKey: ["ai-attendance-anomalies"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/ai/attendance/anomalies");
+        return Array.isArray(res?.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+  const anomalies: AttendanceAnomaly[] = anomaliesRes;
+
+  const scanMutation = useMutation({
+    mutationFn: async () => api.post("/ai/attendance/scan"),
+    onSuccess: (res: any) => {
+      setIsScanning(false);
+      qc.invalidateQueries({ queryKey: ["ai-attendance-anomalies"] });
+      toast.success(res?.message || "Workforce neural scan complete!");
+    },
+    onError: (err: any) => {
+      setIsScanning(false);
+      toast.error(err.message || "Workforce neural scan failed.");
+    },
+  });
 
   // AI Configuration Form State
   const [aiConfig, setAiConfig] = useState({
@@ -152,17 +135,7 @@ export default function AICenterPage() {
 
   const handleRunScan = () => {
     setIsScanning(true);
-    toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 2000)),
-      {
-        loading: "Running Gemini AI Predictive Neural Scan across workforce logs...",
-        success: () => {
-          setIsScanning(false);
-          return "Neural scan complete! Analyzed 482 attendance logs and 14 shift schedules with 98.2% accuracy.";
-        },
-        error: "Neural scan failed.",
-      }
-    );
+    scanMutation.mutate();
   };
 
   if (authLoading) {
@@ -307,7 +280,7 @@ export default function AICenterPage() {
                   </CardDescription>
                 </div>
                 <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-xs">
-                  {SAMPLE_ANOMALIES.length} Flags Detected
+                  {anomalies.length} Flags Detected
                 </Badge>
               </CardHeader>
               <CardContent className="p-0">
@@ -323,7 +296,7 @@ export default function AICenterPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {SAMPLE_ANOMALIES.map((anom) => (
+                    {anomalies.map((anom) => (
                       <TableRow key={anom.id} className="hover:bg-muted/30">
                         <TableCell className="text-xs font-semibold text-foreground">{anom.employeeName}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{anom.department}</TableCell>

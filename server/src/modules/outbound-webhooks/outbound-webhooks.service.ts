@@ -54,6 +54,9 @@ export interface WebhookDeliveryLog {
   responseSnippet?: string | null;
   errorCode?: string | null;
   nextRetryAt?: string | null;
+  nextAttemptAt?: string | null;
+  claimedAt?: string | null;
+  claimedBy?: string | null;
   timestamp: string;
 }
 
@@ -1076,29 +1079,41 @@ export class OutboundWebhooksService {
         ...(ep.headersJson || {}),
       };
 
-      while (attempt < maxRetries && !delivered) {
-        attempt += 1;
-        try {
-          const resp = await this.safeDispatchHttp(
-            ep.url,
-            {
-              method: ep.method || "POST",
-              headers,
-              body: stringifiedPayload,
-              timeoutMs: ep.timeoutMs || 5000,
-            },
-            options.allowLocalhostForTest
-          );
+      attempt = 1;
+      try {
+        const resp = await this.safeDispatchHttp(
+          ep.url,
+          {
+            method: ep.method || "POST",
+            headers,
+            body: stringifiedPayload,
+            timeoutMs: ep.timeoutMs || 5000,
+          },
+          options.allowLocalhostForTest
+        );
 
-          lastStatusCode = resp.statusCode;
-          responseSnippet = resp.responseSnippet || null;
-          if (resp.ok) {
-            delivered = true;
-          } else {
-            lastError = resp.error || `HTTP ${resp.statusCode}`;
-          }
-        } catch (err: any) {
-          lastError = err.message || "Network error";
+        lastStatusCode = resp.statusCode;
+        responseSnippet = resp.responseSnippet ? resp.responseSnippet.slice(0, 1000) : null;
+        if (resp.ok) {
+          delivered = true;
+        } else {
+          lastError = resp.error || `HTTP ${resp.statusCode}`;
+        }
+      } catch (err: any) {
+        lastError = err.message || "Network error";
+      }
+
+      let deliveryStatus: "success" | "failed" | "retrying" | "dead" = delivered ? "success" : "failed";
+      let nextAttemptAt: string | null = null;
+
+      if (!delivered) {
+        const isRetryable = this.isRetryableError(lastStatusCode, lastError);
+        if (isRetryable && maxRetries > 1) {
+          deliveryStatus = "retrying";
+          const backoffDelay = this.calculateBackoff(1, (ep.timeoutMs ? 2 : 2));
+          nextAttemptAt = new Date(Date.now() + backoffDelay).toISOString();
+        } else {
+          deliveryStatus = "dead";
         }
       }
 
@@ -1114,8 +1129,11 @@ export class OutboundWebhooksService {
         durationMs: Date.now() - startTime,
         attempt,
         maxAttempts: maxRetries,
-        status: delivered ? "success" : "failed",
-        errorCode: delivered ? null : (lastStatusCode ? `HTTP_${lastStatusCode}` : "NETWORK_ERROR"),
+        status: deliveryStatus,
+        nextAttemptAt,
+        claimedAt: null,
+        claimedBy: null,
+        errorCode: delivered ? null : (lastStatusCode ? `HTTP_${lastStatusCode}` : (lastError || "NETWORK_ERROR")),
         responseSnippet,
         payload: payloadData,
         requestHeaders: { ...headers, "X-Webhook-Signature": "t=...,v1=••••" }, // redacted signature in log
@@ -1138,29 +1156,77 @@ export class OutboundWebhooksService {
         },
       }).catch(() => {});
 
-      // Update endpoint last delivery status and auto-disable check
-      const consecutiveFailures = delivered ? 0 : (ep.consecutiveFailures || 0) + 1;
-      const shouldAutoDisable = consecutiveFailures >= 5;
-
-      const endpointRow = rows.find((r) => (r.valueJson as any).id === ep.id);
-      if (endpointRow) {
-        await db.setting.update({
-          where: { id: endpointRow.id },
-          data: {
-            valueJson: {
-              ...ep,
-              lastDeliveryAt: new Date().toISOString(),
-              lastDeliveryStatus: delivered ? "success" : "failed",
-              consecutiveFailures,
-              status: shouldAutoDisable ? "disabled" : ep.status,
-              disabledReason: shouldAutoDisable ? "Auto-disabled after 5 consecutive failed deliveries" : ep.disabledReason,
-            } as any,
-          },
-        }).catch(() => {});
-      }
+      // Record endpoint delivery outcome
+      await this.recordEndpointDeliveryOutcome(tenantId, ep.id, delivered).catch(() => {});
     }
 
     return logs;
+  }
+
+  /**
+   * Calculate exponential backoff with bounded jitter
+   */
+  static calculateBackoff(
+    attempt: number,
+    baseSeconds = 2,
+    maxSeconds = 3600,
+    jitterRatio = 0.2
+  ): number {
+    const rawBackoff = baseSeconds * Math.pow(2, Math.max(0, attempt - 1));
+    const cappedBackoff = Math.min(rawBackoff, maxSeconds);
+    const jitter = Math.random() * (cappedBackoff * jitterRatio);
+    return Math.round((cappedBackoff + jitter) * 1000);
+  }
+
+  /**
+   * Determine if an HTTP status code or error is retryable
+   */
+  static isRetryableError(statusCode: number | null, errorCode: string | null): boolean {
+    if (errorCode === "SSRF_BLOCKED") return false;
+    if (errorCode === "ENDPOINT_INACTIVE" || errorCode === "ENDPOINT_NOT_FOUND") return false;
+    if (statusCode === null) return true;
+    if (statusCode === 429) return true;
+    if (statusCode >= 500 && statusCode < 600) return true;
+    return false;
+  }
+
+  /**
+   * Record endpoint delivery outcome and auto-disable after 5 consecutive failures
+   */
+  static async recordEndpointDeliveryOutcome(
+    tenantId: string,
+    endpointId: string,
+    success: boolean
+  ): Promise<void> {
+    const rows = await db.setting.findMany({
+      where: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "outbound_webhooks",
+        key: { startsWith: "endpoint:" },
+      },
+    });
+
+    const endpointRow = rows.find((r) => (r.valueJson as any).id === endpointId);
+    if (!endpointRow) return;
+
+    const ep = endpointRow.valueJson as any as WebhookEndpoint;
+    const consecutiveFailures = success ? 0 : (ep.consecutiveFailures || 0) + 1;
+    const shouldAutoDisable = consecutiveFailures >= 5;
+
+    await db.setting.update({
+      where: { id: endpointRow.id },
+      data: {
+        valueJson: {
+          ...ep,
+          lastDeliveryAt: new Date().toISOString(),
+          lastDeliveryStatus: success ? "success" : "failed",
+          consecutiveFailures,
+          status: shouldAutoDisable ? "disabled" : ep.status,
+          disabledReason: shouldAutoDisable ? "Auto-disabled after 5 consecutive failed deliveries" : ep.disabledReason,
+        } as any,
+      },
+    }).catch(() => {});
   }
 
   /**

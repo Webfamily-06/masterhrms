@@ -105,6 +105,99 @@ hrEmployeesRouter.post("/import/commit", requireAuth, async (req: AuthRequest, r
   }
 });
 
+import { EmployeeSystemIdService } from "../services/employee-system-id.service";
+import { SettingsService } from "../services/settings/settings.service";
+
+// =========================================================================
+// 4b. EMPLOYEE SYSTEM ID PREVIEW & CONFIGURATION
+// =========================================================================
+hrEmployeesRouter.get("/system-id/preview", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const branchId = req.query.branchId ? String(req.query.branchId) : undefined;
+    const preview = await EmployeeSystemIdService.previewNextId(tenantId, branchId);
+    return res.json(preview);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+hrEmployeesRouter.get("/system-id/config", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const config = await EmployeeSystemIdService.getConfig(tenantId);
+    const preview = await EmployeeSystemIdService.previewNextId(tenantId);
+    return res.json({ config, preview: preview.previewId });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+hrEmployeesRouter.put("/system-id/config", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const userRoles = req.user?.roles || [];
+    const isAuthorized =
+      userRoles.includes("super_admin") ||
+      userRoles.includes("admin") ||
+      userRoles.includes("hr_admin") ||
+      userRoles.includes("Workspace Admin") ||
+      userRoles.includes("HR Manager");
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Forbidden: Only HR and Tenant Administrators can update System ID settings." });
+    }
+
+    const {
+      autoGenerate,
+      companyPrefix,
+      locationPrefix,
+      sequenceStart,
+      sequenceDigits,
+      separator,
+    } = req.body || {};
+
+    const actorId = req.user?.userId || "system";
+
+    if (autoGenerate !== undefined) {
+      await SettingsService.set("TENANT", tenantId, "hr.employee_id.auto_generate", Boolean(autoGenerate), actorId);
+    }
+    if (companyPrefix !== undefined) {
+      await SettingsService.set("TENANT", tenantId, "hr.employee_id.company_prefix", String(companyPrefix).trim(), actorId);
+    }
+    if (locationPrefix !== undefined) {
+      await SettingsService.set("TENANT", tenantId, "hr.employee_id.location_prefix", String(locationPrefix).trim(), actorId);
+    }
+    if (sequenceStart !== undefined) {
+      await SettingsService.set("TENANT", tenantId, "hr.employee_id.sequence_start", Number(sequenceStart), actorId);
+    }
+    if (sequenceDigits !== undefined) {
+      await SettingsService.set("TENANT", tenantId, "hr.employee_id.sequence_digits", Number(sequenceDigits), actorId);
+    }
+    if (separator !== undefined) {
+      await SettingsService.set("TENANT", tenantId, "hr.employee_id.separator", String(separator).trim(), actorId);
+    }
+
+    const updatedConfig = await EmployeeSystemIdService.getConfig(tenantId);
+    const updatedPreview = await EmployeeSystemIdService.previewNextId(tenantId);
+
+    return res.json({
+      success: true,
+      message: "Employee System ID settings updated successfully. Existing employee IDs remain unchanged.",
+      config: updatedConfig,
+      preview: updatedPreview.previewId,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
 // =========================================================================
 // 5. EMPLOYEE 360 (GET /api/v1/hr/employees/:id)
 // Consolidated authorized 360 profile with FLS & allowedActions
@@ -137,3 +230,135 @@ hrEmployeesRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Respons
     return res.status(404).json({ error: err.message });
   }
 });
+
+// =========================================================================
+// 6. UPDATE EMPLOYEE (PUT /api/v1/hr/employees/:id)
+// Comprehensive update with step-by-step persistence, role authorization,
+// and financial field permission enforcement.
+// =========================================================================
+hrEmployeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId;
+    if (!tenantId || !actorId) {
+      return res.status(403).json({ error: "Tenant context and authenticated actor required" });
+    }
+
+    const db = getTenantDb();
+    const userContext = await resolveUserSecurityContext(
+      actorId,
+      tenantId,
+      req.user?.roles || [],
+      db
+    );
+
+    const updated = await EmployeeService.updateEmployee(
+      tenantId,
+      actorId,
+      req.params.id,
+      req.body,
+      userContext,
+      req.user?.permissions || []
+    );
+
+    return res.json({
+      success: true,
+      message: "Employee details updated successfully.",
+      data: updated,
+    });
+  } catch (err: any) {
+    const status =
+      err.statusCode ||
+      (err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+// =========================================================================
+// 7. CHANGE EMPLOYEE PASSWORD (POST /api/v1/hr/employees/:id/password)
+// Secure password update with bcrypt (10 rounds), tenant isolation, and audit logging.
+// =========================================================================
+async function handlePasswordChange(req: AuthRequest, res: Response) {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId;
+    if (!tenantId || !actorId) {
+      return res.status(403).json({ error: "Tenant context and authenticated actor required" });
+    }
+
+    const { newPassword, confirmPassword } = req.body || {};
+    if (!newPassword || typeof newPassword !== "string") {
+      return res.status(400).json({ error: "New password is required." });
+    }
+    if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "Passwords do not match." });
+    }
+
+    const db = getTenantDb();
+    const userContext = await resolveUserSecurityContext(
+      actorId,
+      tenantId,
+      req.user?.roles || [],
+      db
+    );
+
+    const result = await EmployeeService.changeEmployeePassword(
+      tenantId,
+      actorId,
+      req.params.id,
+      newPassword,
+      userContext
+    );
+
+    return res.json(result);
+  } catch (err: any) {
+    const status =
+      err.statusCode ||
+      (err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
+    return res.status(status).json({ error: err.message });
+  }
+}
+
+hrEmployeesRouter.post("/:id/password", requireAuth, handlePasswordChange);
+hrEmployeesRouter.post("/:id/set-password", requireAuth, handlePasswordChange);
+
+// =========================================================================
+// 8. TOGGLE EMPLOYEE ACCOUNT STATUS (POST /api/v1/hr/employees/:id/toggle-account-status)
+// Enables or disables employee login account access while preserving employment,
+// attendance, leave, and payroll records.
+// =========================================================================
+async function handleToggleAccountStatus(req: AuthRequest, res: Response) {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId;
+    if (!tenantId || !actorId) {
+      return res.status(403).json({ error: "Tenant context and authenticated actor required" });
+    }
+
+    const db = getTenantDb();
+    const userContext = await resolveUserSecurityContext(
+      actorId,
+      tenantId,
+      req.user?.roles || [],
+      db
+    );
+
+    const result = await EmployeeService.toggleEmployeeAccountStatus(
+      tenantId,
+      actorId,
+      req.params.id,
+      userContext
+    );
+
+    return res.json(result);
+  } catch (err: any) {
+    const status =
+      err.statusCode ||
+      (err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
+    return res.status(status).json({ error: err.message });
+  }
+}
+
+hrEmployeesRouter.post("/:id/toggle-account-status", requireAuth, handleToggleAccountStatus);
+hrEmployeesRouter.post("/:id/toggle-status", requireAuth, handleToggleAccountStatus);
+

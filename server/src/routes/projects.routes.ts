@@ -3,6 +3,7 @@ import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { enforceIdempotency } from "../middleware/idempotency.middleware";
 
 export const projectsRouter = Router();
 
@@ -372,7 +373,7 @@ projectsRouter.get("/tasks", requireAuth, async (req: AuthRequest, res: Response
 });
 
 // POST /api/projects/tasks - Create task directly (for global task board)
-projectsRouter.post("/tasks", requireAuth, async (req: AuthRequest, res: Response) => {
+projectsRouter.post("/tasks", requireAuth, enforceIdempotency, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { title, description, priority, assignee, dueDate, status, projectId } = req.body;
@@ -752,7 +753,7 @@ projectsRouter.get("/:id/tasks", requireAuth, async (req: AuthRequest, res: Resp
 });
 
 // POST /api/projects/:id/tasks - Create task under project
-projectsRouter.post("/:id/tasks", requireAuth, async (req: AuthRequest, res: Response) => {
+projectsRouter.post("/:id/tasks", requireAuth, enforceIdempotency, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id: projectId } = req.params;
@@ -800,7 +801,7 @@ projectsRouter.post("/:id/tasks", requireAuth, async (req: AuthRequest, res: Res
 });
 
 // PUT /api/projects/tasks/:taskId - Update task
-projectsRouter.put("/tasks/:taskId", requireAuth, async (req: AuthRequest, res: Response) => {
+projectsRouter.put("/tasks/:taskId", requireAuth, enforceIdempotency, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { taskId } = req.params;

@@ -1783,7 +1783,7 @@ export function ProductsAndServicesPage() {
                     <ImageIcon className="size-3.5 text-primary" /> Main Product Image (URL) *
                   </Label>
                   <Input
-                    placeholder="https://images.unsplash.com/photo-..."
+                    placeholder="/uploads/products/image.png or URL"
                     value={formData.image}
                     onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                     className="h-9 text-xs font-mono"

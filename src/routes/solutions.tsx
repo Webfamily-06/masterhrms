@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { MarketingLayout, PageHero } from "@/components/marketing/marketing-layout";
 import {
@@ -106,7 +109,39 @@ const industries = [
   },
 ];
 
+
+const iconMap: Record<string, any> = {
+  it: Building2,
+  manufacturing: Factory,
+  healthcare: HeartPulse,
+  retail: ShoppingBag,
+  bfsi: Landmark,
+  education: School,
+};
+
 function SolutionsPage() {
+  const { data: pageData } = useQuery({
+    queryKey: ["cms-solutions-catalog"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/cms/pages/system-solutions-catalog");
+        return res?.content?.industries || null;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const industriesList = useMemo(() => {
+    if (Array.isArray(pageData) && pageData.length > 0) {
+      return pageData.map((item: any) => ({
+        ...item,
+        icon: iconMap[item.id] || Building2,
+      }));
+    }
+    return industries;
+  }, [pageData]);
   return (
     <MarketingLayout>
       <PageHero

@@ -30,7 +30,38 @@ import {
   ChevronRight,
   ChevronLeft,
   Loader2,
+  Upload,
 } from "lucide-react";
+import { EMPLOYEE_DOCUMENT_CATEGORIES } from "@/lib/constants/employee-documents";
+import { COUNTRIES } from "@/lib/address/countries";
+import { getStatesByCountry } from "@/lib/address/india-states";
+import { getDistrictsByState } from "@/lib/address/india-districts";
+import { lookupPincode } from "@/lib/address/address-lookup";
+
+const BLOOD_GROUPS = [
+  "A+",
+  "A-",
+  "B+",
+  "B-",
+  "AB+",
+  "AB-",
+  "O+",
+  "O-",
+  "Unknown / Not Provided",
+];
+
+const EMERGENCY_RELATIONSHIPS = [
+  "Father",
+  "Mother",
+  "Husband",
+  "Wife",
+  "Son",
+  "Daughter",
+  "Brother",
+  "Sister",
+  "Guardian",
+  "Other",
+];
 
 export const Route = createFileRoute("/_authenticated/hr/employees/new")({
   component: NewEmployeeWizardPage,
@@ -61,6 +92,7 @@ export function NewEmployeeWizardPage() {
     lastName: "",
     dateOfBirth: "",
     gender: "male",
+    bloodGroup: "",
     maritalStatus: "single",
     avatarUrl: "",
 
@@ -69,9 +101,13 @@ export function NewEmployeeWizardPage() {
     phone: "",
     address: "",
     city: "",
+    district: "",
     state: "",
+    country: "India",
     zipCode: "",
     emergencyContactName: "",
+    emergencyContactRelationship: "",
+    emergencyContactRelationshipOther: "",
     emergencyContactPhone: "",
 
     // Step 3: Job
@@ -105,6 +141,7 @@ export function NewEmployeeWizardPage() {
     bankBranch: "",
 
     // Step 6: Documents
+    documentCategory: "Aadhaar Card / National Identity Proof",
     documentTitle: "",
     documentUrl: "",
 
@@ -120,6 +157,16 @@ export function NewEmployeeWizardPage() {
   const updateField = (key: string, val: any) => {
     setFormData((prev) => ({ ...prev, [key]: val }));
   };
+
+  const { data: systemIdPreview } = useQuery({
+    queryKey: ["employee-system-id-preview", formData.branchId],
+    queryFn: async () => {
+      const res = await api.get("/hr/employees/system-id/preview", {
+        params: { branchId: formData.branchId || undefined },
+      });
+      return res.data || res;
+    },
+  });
 
   // Queries for lookups
   const { data: branches = [] } = useQuery({
@@ -194,7 +241,16 @@ export function NewEmployeeWizardPage() {
   };
 
   const handleSubmit = () => {
-    createMutation.mutate(formData);
+    const payload = {
+      ...formData,
+      addressLine1: formData.address || "",
+      postalCode: formData.zipCode || "",
+      emergencyContactRelationship:
+        formData.emergencyContactRelationship === "Other" && formData.emergencyContactRelationshipOther
+          ? formData.emergencyContactRelationshipOther.trim()
+          : formData.emergencyContactRelationship || "",
+    };
+    createMutation.mutate(payload);
   };
 
   return (
@@ -274,7 +330,7 @@ export function NewEmployeeWizardPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <Label>Date of Birth</Label>
                   <Input
@@ -294,6 +350,20 @@ export function NewEmployeeWizardPage() {
                       <SelectItem value="male">Male</SelectItem>
                       <SelectItem value="female">Female</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Blood Group</Label>
+                  <Select
+                    value={formData.bloodGroup}
+                    onValueChange={(val) => updateField("bloodGroup", val)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select blood group" /></SelectTrigger>
+                    <SelectContent>
+                      {BLOOD_GROUPS.map((bg) => (
+                        <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -339,7 +409,7 @@ export function NewEmployeeWizardPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Residential Address</Label>
+                <Label>Residential Address (Line 1)</Label>
                 <Input
                   value={formData.address}
                   onChange={(e) => updateField("address", e.target.value)}
@@ -347,49 +417,166 @@ export function NewEmployeeWizardPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Country</Label>
+                  <Select
+                    value={formData.country}
+                    onValueChange={(val) => {
+                      updateField("country", val);
+                      updateField("state", "");
+                      updateField("district", "");
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select Country" /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {COUNTRIES.map((c) => (
+                        <SelectItem key={c.code} value={c.name}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>State / Province</Label>
+                  {getStatesByCountry(formData.country).length > 0 ? (
+                    <Select
+                      value={formData.state}
+                      onValueChange={(val) => {
+                        updateField("state", val);
+                        updateField("district", "");
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select State" /></SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {getStatesByCountry(formData.country).map((s) => (
+                          <SelectItem key={s.code} value={s.name}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={formData.state}
+                      onChange={(e) => updateField("state", e.target.value)}
+                      placeholder="State / Province"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>District</Label>
+                  {getDistrictsByState(formData.state).length > 0 ? (
+                    <Select
+                      value={formData.district}
+                      onValueChange={(val) => updateField("district", val)}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {getDistrictsByState(formData.state).map((d) => (
+                          <SelectItem key={d.code} value={d.name}>{d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={formData.district}
+                      onChange={(e) => updateField("district", e.target.value)}
+                      placeholder="e.g. Chennai / Bengaluru"
+                    />
+                  )}
+                </div>
+
                 <div className="space-y-1.5">
                   <Label>City</Label>
                   <Input
                     value={formData.city}
                     onChange={(e) => updateField("city", e.target.value)}
-                    placeholder="e.g. Bengaluru"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>State</Label>
-                  <Input
-                    value={formData.state}
-                    onChange={(e) => updateField("state", e.target.value)}
-                    placeholder="e.g. Karnataka"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Postal Code</Label>
-                  <Input
-                    value={formData.zipCode}
-                    onChange={(e) => updateField("zipCode", e.target.value)}
-                    placeholder="560103"
+                    placeholder="e.g. Chennai"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label>Emergency Contact Person</Label>
+                  <Label>Postal / ZIP Code</Label>
                   <Input
-                    value={formData.emergencyContactName}
-                    onChange={(e) => updateField("emergencyContactName", e.target.value)}
-                    placeholder="e.g. Sunita Sharma (Spouse / Guardian)"
+                    value={formData.zipCode}
+                    onChange={async (e) => {
+                      const val = e.target.value;
+                      updateField("zipCode", val);
+                      const cleaned = val.trim();
+                      if (formData.country === "India" && cleaned.length === 6 && /^\d+$/.test(cleaned)) {
+                        const match = await lookupPincode(cleaned);
+                        if (match) {
+                          if (!formData.city || formData.city === match.city) updateField("city", match.city);
+                          if (!formData.state || formData.state === match.state) updateField("state", match.state);
+                          if (match.district) updateField("district", match.district);
+                          toast.info(`Location matched: ${match.city}, ${match.district || ""}, ${match.state}`);
+                        }
+                      }
+                    }}
+                    placeholder="e.g. 600001"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Emergency Contact Phone</Label>
-                  <Input
-                    value={formData.emergencyContactPhone}
-                    onChange={(e) => updateField("emergencyContactPhone", e.target.value)}
-                    placeholder="+91 98765 12345"
-                  />
+              </div>
+
+              <div className="space-y-3 pt-2 border-t">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Emergency Contact</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Emergency Contact Person</Label>
+                    <Input
+                      value={formData.emergencyContactName}
+                      onChange={(e) => updateField("emergencyContactName", e.target.value)}
+                      placeholder="e.g. Sunita Sharma"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Relationship</Label>
+                    <Select
+                      value={
+                        EMERGENCY_RELATIONSHIPS.includes(formData.emergencyContactRelationship)
+                          ? formData.emergencyContactRelationship
+                          : formData.emergencyContactRelationship
+                            ? "Other"
+                            : ""
+                      }
+                      onValueChange={(val) => {
+                        updateField("emergencyContactRelationship", val);
+                        if (val !== "Other") {
+                          updateField("emergencyContactRelationshipOther", "");
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select relationship" /></SelectTrigger>
+                      <SelectContent>
+                        {EMERGENCY_RELATIONSHIPS.map((rel) => (
+                          <SelectItem key={rel} value={rel}>{rel}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Emergency Contact Phone</Label>
+                    <Input
+                      value={formData.emergencyContactPhone}
+                      onChange={(e) => updateField("emergencyContactPhone", e.target.value)}
+                      placeholder="+91 98765 12345"
+                    />
+                  </div>
+
+                  {(formData.emergencyContactRelationship === "Other" ||
+                    (formData.emergencyContactRelationship &&
+                      !EMERGENCY_RELATIONSHIPS.includes(formData.emergencyContactRelationship))) && (
+                    <div className="space-y-1.5 sm:col-span-3">
+                      <Label>Specify Other Relationship</Label>
+                      <Input
+                        value={formData.emergencyContactRelationshipOther || (!EMERGENCY_RELATIONSHIPS.includes(formData.emergencyContactRelationship) ? formData.emergencyContactRelationship : "")}
+                        onChange={(e) => updateField("emergencyContactRelationshipOther", e.target.value)}
+                        placeholder="e.g. Cousin, Uncle, Roommate"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -398,7 +585,18 @@ export function NewEmployeeWizardPage() {
           {/* STEP 3: JOB DETAILS */}
           {currentStep === 3 && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label>System Employee ID <span className="text-xs text-muted-foreground font-normal">(Auto-Preview)</span></Label>
+                  <Input
+                    value={systemIdPreview?.preview || "Auto-allocated upon creation"}
+                    readOnly
+                    className="bg-muted font-mono cursor-not-allowed"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Next ID format: <span className="font-semibold text-foreground">{systemIdPreview?.preview || "..."}</span>
+                  </p>
+                </div>
                 <div className="space-y-1.5">
                   <Label>Employee Code *</Label>
                   <Input
@@ -675,7 +873,21 @@ export function NewEmployeeWizardPage() {
                 Attach identity proof, employment offer letters, or resume credentials.
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Document Category</Label>
+                  <Select
+                    value={formData.documentCategory}
+                    onValueChange={(val) => updateField("documentCategory", val)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select Category" /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {EMPLOYEE_DOCUMENT_CATEGORIES.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1.5">
                   <Label>Document Title</Label>
                   <Input

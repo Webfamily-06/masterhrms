@@ -78,8 +78,7 @@ function DedicatedBlogsManager() {
     category: "ERP Systems",
     author: "Master ERP Editorial",
     readTime: "5 min read",
-    coverImage:
-      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80",
+    coverImage: "",
     excerpt: "",
     body: "",
     published: true,
@@ -198,8 +197,7 @@ function DedicatedBlogsManager() {
       category: blogCategories[0] || "ERP Systems",
       author: "Master ERP Editorial Team",
       readTime: "5 min read",
-      coverImage:
-        "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
+      coverImage: "",
       excerpt: "",
       body: "",
       published: true,
@@ -217,8 +215,7 @@ function DedicatedBlogsManager() {
       author: blog.content?.author || "Master ERP Editorial Team",
       readTime: blog.content?.readTime || "5 min read",
       coverImage:
-        blog.content?.coverImage ||
-        "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
+        blog.content?.coverImage || "",
       excerpt: blog.meta_description || blog.content?.hero?.subtitle || "",
       body: blog.content?.body || "",
       published: blog.published,
@@ -370,8 +367,7 @@ function DedicatedBlogsManager() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredBlogs.map((b) => {
             const cover =
-              b.content?.coverImage ||
-              "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80";
+              b.content?.coverImage || "";
 
             return (
               <Card
@@ -549,7 +545,7 @@ function DedicatedBlogsManager() {
               </Label>
               <div className="flex gap-2">
                 <Input
-                  placeholder="https://images.unsplash.com/..."
+                  placeholder="/uploads/blogs/cover.png or paste image URL"
                   value={form.coverImage}
                   onChange={(e) => setForm((prev) => ({ ...prev, coverImage: e.target.value }))}
                   className="text-xs flex-1"

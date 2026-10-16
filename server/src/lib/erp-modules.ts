@@ -22,6 +22,8 @@ export const ERP_MODULES: ErpModuleDef[] = [
     iconName: "Users",
     resources: [
       { resource: "employees", label: "Employees", actions: ["view", "create", "edit", "delete", "export"] },
+      { resource: "sensitive", label: "Sensitive & Financial Records", actions: ["view", "edit"] },
+      { resource: "documents", label: "Employee Documents", actions: ["view", "create", "edit", "delete", "verify"] },
       { resource: "attendance", label: "Attendance", actions: ["view", "create", "edit", "delete", "export", "approve"] },
       { resource: "leave", label: "Leave Requests", actions: ["view", "create", "edit", "delete", "export", "approve"] },
       { resource: "payroll", label: "Payroll", actions: ["view", "create", "edit", "delete", "export", "approve"] },
@@ -171,6 +173,28 @@ export function getAllPermissionDefinitions(): PermissionDefinition[] {
         });
       }
     }
+  }
+
+  // 3. Colon-formatted HR & Sensitive permissions for backwards compatibility
+  const extraHrPerms = [
+    { code: "hr:employee:sensitive:write", name: "Write Sensitive Employee Records", action: "write", resource: "sensitive", description: "Permission to modify employee banking, tax, and salary records" },
+    { code: "hr:employee:sensitive:read", name: "Read Sensitive Employee Records", action: "read", resource: "sensitive", description: "Permission to view employee banking, tax, and salary records unmasked" },
+    { code: "hr:sensitive:write", name: "Write Sensitive Data", action: "write", resource: "sensitive", description: "Permission to write sensitive workspace attributes" },
+    { code: "hr:employees:read", name: "Read Employees", action: "read", resource: "employees", description: "Permission to read employee directory and records" },
+    { code: "hr:employees:write", name: "Write Employees", action: "write", resource: "employees", description: "Permission to create or modify employee profiles" },
+    { code: "hr:documents:delete", name: "Delete Employee Documents", action: "delete", resource: "documents", description: "Permission to delete employee documents from vault" },
+    { code: "hr:documents:verify", name: "Verify Employee Documents", action: "verify", resource: "documents", description: "Permission to verify and certify employee documents" },
+  ];
+
+  for (const ep of extraHrPerms) {
+    permissions.push({
+      code: ep.code,
+      module: "hrm",
+      resource: ep.resource,
+      action: ep.action,
+      name: ep.name,
+      description: ep.description,
+    });
   }
 
   return permissions;

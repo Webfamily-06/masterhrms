@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Sparkles, 
   RotateCw, 
   Check, 
   Copy, 
   AlertTriangle, 
+  AlertCircle,
   Sliders, 
   Settings2,
   ExternalLink 
@@ -45,7 +46,8 @@ interface GenerateWithAiModalProps {
   fieldLabel?: string;
   formValues?: Record<string, any>;
   initialContext?: string;
-  onSelectResult: (text: string) => void;
+  currentValue?: string;
+  onSelectResult: (text: string, mode?: "replace" | "append") => void;
 }
 
 interface LanguageOption {
@@ -68,11 +70,18 @@ export function GenerateWithAiModal({
   fieldLabel,
   formValues,
   initialContext = "",
+  currentValue = "",
   onSelectResult,
 }: GenerateWithAiModalProps) {
   const modalOpen = open !== undefined ? open : (isOpen ?? false);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const handleClose = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     if (onOpenChange) onOpenChange(false);
     if (onClose) onClose();
   };
@@ -86,10 +95,12 @@ export function GenerateWithAiModal({
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ResultCard[]>([]);
   const [configError, setConfigError] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
 
   useEffect(() => {
     if (modalOpen) {
       if (initialContext) setContext(initialContext);
+      setQuotaError(null);
       fetchLanguages();
       checkConfig();
     }
@@ -128,10 +139,19 @@ export function GenerateWithAiModal({
 
   const handleGenerate = async () => {
     try {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setLoading(true);
+      setQuotaError(null);
+
       const res = await fetch("/api/v1/addons/ai-assistant/generate", {
         method: "POST",
         headers: getAuthHeaders(),
+        signal: controller.signal,
         body: JSON.stringify({
           moduleSlug,
           fieldKey,
@@ -146,21 +166,34 @@ export function GenerateWithAiModal({
 
       const data = await res.json();
       if (!res.ok) {
+        if (
+          res.status === 429 ||
+          data.error?.toLowerCase().includes("quota") ||
+          data.error?.toLowerCase().includes("limit")
+        ) {
+          setQuotaError(data.error || "Monthly token quota exceeded. Please upgrade your plan or check AI Assistant settings.");
+          return;
+        }
         throw new Error(data.error || "Failed to generate AI options");
       }
 
       setResults(data.results || []);
       toast.success(`Generated ${data.results?.length || 0} options successfully`);
     } catch (err: any) {
+      if (err.name === "AbortError") {
+        toast.info("Generation cancelled");
+        return;
+      }
       toast.error(err.message || "Generation failed");
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
-  const handlePick = (text: string) => {
-    onSelectResult(text);
-    toast.success("Applied to form field");
+  const handlePick = (text: string, mode: "replace" | "append" = "replace") => {
+    onSelectResult(text, mode);
+    toast.success(mode === "append" ? "Appended to form field" : "Applied to form field");
     handleClose();
   };
 
@@ -193,6 +226,24 @@ export function GenerateWithAiModal({
           </div>
         ) : (
           <div className="space-y-5 py-2">
+            {quotaError && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-2" role="alert">
+                <div className="flex items-center space-x-2 text-amber-700 dark:text-amber-400 font-semibold text-sm">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <span>Token Quota Limit Exceeded</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{quotaError}</p>
+                <div className="pt-1">
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/addons/ai-assistant/settings" onClick={onClose}>
+                      <Settings2 className="w-4 h-4 mr-2" />
+                      Review Token Quotas in Settings
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Parameters Controls */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -295,7 +346,7 @@ export function GenerateWithAiModal({
 
             {/* Result Cards */}
             {results.length > 0 && (
-              <div className="space-y-3 pt-2 border-t">
+              <div className="space-y-3 pt-2 border-t" aria-live="polite">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase">
                   Select an Option to Populate Field ({results.length})
                 </Label>
@@ -303,8 +354,7 @@ export function GenerateWithAiModal({
                   {results.map((res, idx) => (
                     <Card
                       key={idx}
-                      onClick={() => handlePick(res.text)}
-                      className="cursor-pointer hover:border-primary hover:bg-muted/30 transition-all p-3 border group"
+                      className="hover:border-primary hover:bg-muted/30 transition-all p-3 border group"
                     >
                       <div className="flex justify-between items-start gap-2">
                         <p className="text-xs leading-relaxed flex-1 select-all">{res.text}</p>
@@ -312,11 +362,44 @@ export function GenerateWithAiModal({
                           {res.chars} chars
                         </Badge>
                       </div>
-                      <div className="mt-2 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[11px] font-medium text-primary flex items-center">
-                          <Check className="w-3.5 h-3.5 mr-1" /> Click to Apply
-                        </span>
-                      </div>
+
+                      {currentValue && currentValue.trim().length > 0 ? (
+                        <div className="mt-3 pt-2.5 border-t flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-[11px] text-muted-foreground truncate max-w-[200px]">
+                            Current: <span className="font-mono">{currentValue.slice(0, 25)}...</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs px-2.5"
+                              onClick={() => handlePick(res.text, "append")}
+                            >
+                              Append to Current
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 text-xs px-2.5 gap-1"
+                              onClick={() => handlePick(res.text, "replace")}
+                            >
+                              <Check className="w-3.5 h-3.5" /> Replace Current
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2.5 flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 text-xs px-2.5 gap-1"
+                            onClick={() => handlePick(res.text, "replace")}
+                          >
+                            <Check className="w-3.5 h-3.5" /> Apply to Field
+                          </Button>
+                        </div>
+                      )}
                     </Card>
                   ))}
                 </div>

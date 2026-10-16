@@ -330,7 +330,7 @@ function SuperProfileAdmin() {
                 </Label>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="https://images.unsplash.com/..."
+                    placeholder="/uploads/branding/avatar.png or URL"
                     value={avatarUrl}
                     onChange={(e) => setAvatarUrl(e.target.value)}
                     className="text-xs flex-1"

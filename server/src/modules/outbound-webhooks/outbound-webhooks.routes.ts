@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { OutboundWebhooksService, EVENT_CATALOG } from "./outbound-webhooks.service";
+import { WebhookRetryWorker } from "./webhook-retry.worker";
 import { requireAuth, AuthRequest } from "../../middleware/auth";
 import { requireAddon } from "../../middleware/entitlements";
 import { resolveTenantId } from "../../lib/tenant";
@@ -266,3 +267,29 @@ outboundWebhooksRouter.post("/test-dispatch", async (req: AuthRequest, res: Resp
     res.status(400).json({ error: err.message || "Failed to dispatch test webhook" });
   }
 });
+
+// 15. Retry Worker Status
+outboundWebhooksRouter.get("/retry-worker/status", async (_req: AuthRequest, res: Response) => {
+  try {
+    const stats = WebhookRetryWorker.getStats();
+    res.json({ success: true, stats });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch retry worker status" });
+  }
+});
+
+// 16. Manual Retry Sweep Trigger
+outboundWebhooksRouter.post("/retry-worker/sweep", async (req: AuthRequest, res: Response) => {
+  try {
+    const { batchSize, allowLocalhostForTest } = req.body || {};
+    const result = await WebhookRetryWorker.processPendingRetries(
+      undefined,
+      batchSize ? Number(batchSize) : 25,
+      { allowLocalhostForTest: Boolean(allowLocalhostForTest) }
+    );
+    res.json({ success: true, result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to execute retry sweep" });
+  }
+});
+

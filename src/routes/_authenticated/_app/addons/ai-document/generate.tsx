@@ -9,7 +9,8 @@ import {
   FileText, 
   Check, 
   Sliders, 
-  Layers 
+  Layers,
+  Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import { toast } from "sonner";
 import { PlanGuard } from "@/components/plan-guard";
 import { AiDocumentNavHeader } from "@/components/ai/ai-document-nav-header";
 import { getAuthHeaders } from "@/lib/api";
+import { PdfPreviewModal } from "@/components/ai/pdf-preview-modal";
 
 export const Route = createFileRoute("/_authenticated/_app/addons/ai-document/generate")({
   component: AiDocumentGeneratePage,
@@ -61,6 +63,42 @@ function AiDocumentGeneratePage() {
   const [savingDoc, setSavingDoc] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [previewingPdf, setPreviewingPdf] = useState(false);
+
+  const handlePreviewPdf = async () => {
+    if (!generatedContent) return;
+    try {
+      setPreviewingPdf(true);
+      let docId = previewDocId;
+      if (!docId) {
+        const res = await fetch("/api/v1/addons/ai-document/documents", {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            title: title || "Generated Document",
+            content: generatedContent,
+            templateId: selectedTemplate || undefined,
+            toneId: selectedTone || undefined,
+            language,
+            creativity,
+            keywords,
+            instructions,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to prepare document for preview");
+        const data = await res.json();
+        docId = data.document?.id || data.id;
+        setPreviewDocId(docId);
+      }
+      setPreviewOpen(true);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to open PDF preview");
+    } finally {
+      setPreviewingPdf(false);
+    }
+  };
 
   useEffect(() => {
     async function loadMeta() {
@@ -424,6 +462,18 @@ function AiDocumentGeneratePage() {
                     </Button>
                     <Button
                       type="button"
+                      variant="default"
+                      size="sm"
+                      onClick={handlePreviewPdf}
+                      disabled={!generatedContent || previewingPdf}
+                      className="gap-1.5"
+                      data-testid="preview-pdf-generate-button"
+                    >
+                      {previewingPdf ? <RotateCw className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
+                      Preview PDF
+                    </Button>
+                    <Button
+                      type="button"
                       variant="outline"
                       size="sm"
                       onClick={() => handleExport("pdf")}
@@ -450,6 +500,13 @@ function AiDocumentGeneratePage() {
           </div>
         </div>
       </div>
+
+      <PdfPreviewModal
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        documentId={previewDocId || undefined}
+        documentTitle={title || "Generated Document"}
+      />
     </PlanGuard>
   );
 }

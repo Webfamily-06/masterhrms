@@ -490,6 +490,7 @@ import { Route as AuthenticatedAppAddonsPlanningDashboardRouteImport } from './r
 import { Route as AuthenticatedAppAddonsWebhookEventsRouteImport } from './routes/_authenticated/_app/addons/webhook/events'
 import { Route as AuthenticatedAppAddonsWebhookSettingsRouteImport } from './routes/_authenticated/_app/addons/webhook/settings'
 import { Route as AuthenticatedAppInvoiceIdPrintRouteImport } from './routes/_authenticated/_app/invoice.$id.print'
+import { Route as AuthenticatedHrEmployeesIdEditRouteImport } from './routes/_authenticated/hr/employees/$id.edit'
 import { Route as AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/history/index'
 import { Route as AuthenticatedAppAddonsAiAssistantHistoryIdRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/history/$id'
 import { Route as AuthenticatedAppAddonsAiDocumentHistoryIndexRouteImport } from './routes/_authenticated/_app/addons/ai-document/history/index'
@@ -3299,6 +3300,12 @@ const AuthenticatedAppInvoiceIdPrintRoute =
     path: '/print',
     getParentRoute: () => AuthenticatedAppInvoiceIdRoute,
   } as any)
+const AuthenticatedHrEmployeesIdEditRoute =
+  AuthenticatedHrEmployeesIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => AuthenticatedHrEmployeesIdRoute,
+  } as any)
 const AuthenticatedAppAddonsAiAssistantHistoryIndexRoute =
   AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport.update({
     id: '/addons/ai-assistant/history/',
@@ -3771,7 +3778,7 @@ export interface FileRoutesByFullPath {
   '/hr/documents/letters': typeof AuthenticatedHrDocumentsLettersRoute
   '/hr/documents/requests': typeof AuthenticatedHrDocumentsRequestsRoute
   '/hr/documents/templates': typeof AuthenticatedHrDocumentsTemplatesRoute
-  '/hr/employees/$id': typeof AuthenticatedHrEmployeesIdRoute
+  '/hr/employees/$id': typeof AuthenticatedHrEmployeesIdRouteWithChildren
   '/hr/employees/exits': typeof AuthenticatedHrEmployeesExitsRoute
   '/hr/employees/import': typeof AuthenticatedHrEmployeesImportRoute
   '/hr/employees/new': typeof AuthenticatedHrEmployeesNewRoute
@@ -3942,6 +3949,7 @@ export interface FileRoutesByFullPath {
   '/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
   '/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
+  '/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
   '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
   '/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
   '/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
@@ -4275,7 +4283,7 @@ export interface FileRoutesByTo {
   '/hr/documents/letters': typeof AuthenticatedHrDocumentsLettersRoute
   '/hr/documents/requests': typeof AuthenticatedHrDocumentsRequestsRoute
   '/hr/documents/templates': typeof AuthenticatedHrDocumentsTemplatesRoute
-  '/hr/employees/$id': typeof AuthenticatedHrEmployeesIdRoute
+  '/hr/employees/$id': typeof AuthenticatedHrEmployeesIdRouteWithChildren
   '/hr/employees/exits': typeof AuthenticatedHrEmployeesExitsRoute
   '/hr/employees/import': typeof AuthenticatedHrEmployeesImportRoute
   '/hr/employees/new': typeof AuthenticatedHrEmployeesNewRoute
@@ -4446,6 +4454,7 @@ export interface FileRoutesByTo {
   '/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
   '/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
+  '/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
   '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
   '/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
   '/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
@@ -4786,7 +4795,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/documents/letters': typeof AuthenticatedHrDocumentsLettersRoute
   '/_authenticated/hr/documents/requests': typeof AuthenticatedHrDocumentsRequestsRoute
   '/_authenticated/hr/documents/templates': typeof AuthenticatedHrDocumentsTemplatesRoute
-  '/_authenticated/hr/employees/$id': typeof AuthenticatedHrEmployeesIdRoute
+  '/_authenticated/hr/employees/$id': typeof AuthenticatedHrEmployeesIdRouteWithChildren
   '/_authenticated/hr/employees/exits': typeof AuthenticatedHrEmployeesExitsRoute
   '/_authenticated/hr/employees/import': typeof AuthenticatedHrEmployeesImportRoute
   '/_authenticated/hr/employees/new': typeof AuthenticatedHrEmployeesNewRoute
@@ -4957,6 +4966,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
   '/_authenticated/_app/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
   '/_authenticated/_app/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
+  '/_authenticated/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
   '/_authenticated/_app/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
   '/_authenticated/_app/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
   '/_authenticated/_app/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
@@ -5467,6 +5477,7 @@ export interface FileRouteTypes {
     | '/addons/webhook/events'
     | '/addons/webhook/settings'
     | '/invoice/$id/print'
+    | '/hr/employees/$id/edit'
     | '/addons/ai-assistant/history/$id'
     | '/addons/ai-document/history/$id'
     | '/addons/ai-document/templates/new'
@@ -5971,6 +5982,7 @@ export interface FileRouteTypes {
     | '/addons/webhook/events'
     | '/addons/webhook/settings'
     | '/invoice/$id/print'
+    | '/hr/employees/$id/edit'
     | '/addons/ai-assistant/history/$id'
     | '/addons/ai-document/history/$id'
     | '/addons/ai-document/templates/new'
@@ -6481,6 +6493,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/addons/webhook/events'
     | '/_authenticated/_app/addons/webhook/settings'
     | '/_authenticated/_app/invoice/$id/print'
+    | '/_authenticated/hr/employees/$id/edit'
     | '/_authenticated/_app/addons/ai-assistant/history/$id'
     | '/_authenticated/_app/addons/ai-document/history/$id'
     | '/_authenticated/_app/addons/ai-document/templates/new'
@@ -9923,6 +9936,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppInvoiceIdPrintRouteImport
       parentRoute: typeof AuthenticatedAppInvoiceIdRoute
     }
+    '/_authenticated/hr/employees/$id/edit': {
+      id: '/_authenticated/hr/employees/$id/edit'
+      path: '/edit'
+      fullPath: '/hr/employees/$id/edit'
+      preLoaderRoute: typeof AuthenticatedHrEmployeesIdEditRouteImport
+      parentRoute: typeof AuthenticatedHrEmployeesIdRoute
+    }
     '/_authenticated/_app/addons/ai-assistant/history/': {
       id: '/_authenticated/_app/addons/ai-assistant/history/'
       path: '/addons/ai-assistant/history'
@@ -10741,6 +10761,20 @@ const AuthenticatedSuperRouteRouteWithChildren =
     AuthenticatedSuperRouteRouteChildren,
   )
 
+interface AuthenticatedHrEmployeesIdRouteChildren {
+  AuthenticatedHrEmployeesIdEditRoute: typeof AuthenticatedHrEmployeesIdEditRoute
+}
+
+const AuthenticatedHrEmployeesIdRouteChildren: AuthenticatedHrEmployeesIdRouteChildren =
+  {
+    AuthenticatedHrEmployeesIdEditRoute: AuthenticatedHrEmployeesIdEditRoute,
+  }
+
+const AuthenticatedHrEmployeesIdRouteWithChildren =
+  AuthenticatedHrEmployeesIdRoute._addFileChildren(
+    AuthenticatedHrEmployeesIdRouteChildren,
+  )
+
 interface AuthenticatedHrRouteChildren {
   AuthenticatedHrApprovalsRoute: typeof AuthenticatedHrApprovalsRoute
   AuthenticatedHrCalendarRoute: typeof AuthenticatedHrCalendarRoute
@@ -10776,7 +10810,7 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrDocumentsLettersRoute: typeof AuthenticatedHrDocumentsLettersRoute
   AuthenticatedHrDocumentsRequestsRoute: typeof AuthenticatedHrDocumentsRequestsRoute
   AuthenticatedHrDocumentsTemplatesRoute: typeof AuthenticatedHrDocumentsTemplatesRoute
-  AuthenticatedHrEmployeesIdRoute: typeof AuthenticatedHrEmployeesIdRoute
+  AuthenticatedHrEmployeesIdRoute: typeof AuthenticatedHrEmployeesIdRouteWithChildren
   AuthenticatedHrEmployeesExitsRoute: typeof AuthenticatedHrEmployeesExitsRoute
   AuthenticatedHrEmployeesImportRoute: typeof AuthenticatedHrEmployeesImportRoute
   AuthenticatedHrEmployeesNewRoute: typeof AuthenticatedHrEmployeesNewRoute
@@ -10927,7 +10961,7 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
   AuthenticatedHrDocumentsRequestsRoute: AuthenticatedHrDocumentsRequestsRoute,
   AuthenticatedHrDocumentsTemplatesRoute:
     AuthenticatedHrDocumentsTemplatesRoute,
-  AuthenticatedHrEmployeesIdRoute: AuthenticatedHrEmployeesIdRoute,
+  AuthenticatedHrEmployeesIdRoute: AuthenticatedHrEmployeesIdRouteWithChildren,
   AuthenticatedHrEmployeesExitsRoute: AuthenticatedHrEmployeesExitsRoute,
   AuthenticatedHrEmployeesImportRoute: AuthenticatedHrEmployeesImportRoute,
   AuthenticatedHrEmployeesNewRoute: AuthenticatedHrEmployeesNewRoute,

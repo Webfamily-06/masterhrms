@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { getTenantDb } from "../context/tenant-context";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { AuditService } from "./audit.service";
@@ -6,6 +7,65 @@ import { NotificationService } from "./notification.service";
 import { sanitizeSensitiveFields } from "../lib/field-security";
 import { attachAllowedActions } from "../lib/allowed-actions";
 import { buildDataScopeFilter, UserSecurityContext, DataScope } from "../lib/data-scope";
+import { EmployeeSystemIdService } from "./employee-system-id.service";
+
+export interface UpdateEmployeeInput {
+  // Step 1: Personal
+  firstName?: string;
+  lastName?: string;
+  employeeCode?: string;
+  email?: string;
+  password?: string;
+  phone?: string | null;
+  dateOfBirth?: string | Date | null;
+  gender?: string | null;
+  avatarUrl?: string | null;
+  bloodGroup?: string | null;
+
+  // Step 2: Employment
+  branchId?: string | null;
+  departmentId?: string | null;
+  designationId?: string | null;
+  joinedAt?: string | Date | null;
+  employmentType?: "full_time" | "part_time" | "contract" | "intern";
+  status?: "active" | "on_leave" | "terminated";
+  shiftId?: string | null;
+  attendancePolicyId?: string | null;
+
+  // Step 3: Contact
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  district?: string | null;
+  state?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactRelationship?: string | null;
+  emergencyContactRelationshipOther?: string | null;
+  emergencyContactPhone?: string | null;
+
+  // Step 4: Banking
+  bankName?: string | null;
+  accountHolderName?: string | null;
+  bankAccount?: string | null;
+  bicSwift?: string | null;
+  bankIfsc?: string | null;
+  bankBranch?: string | null;
+  taxPayerId?: string | null;
+  pan?: string | null;
+  salary?: number | string | null;
+
+  // Step 5: Documents
+  documents?: Array<{
+    title: string;
+    mediaUrl?: string;
+    fileUrl?: string;
+    documentType?: string;
+    category?: string;
+    expiryDate?: string | Date | null;
+  }>;
+}
 
 export interface CreateEmployeeInput {
   // Step 1: Personal
@@ -15,19 +75,25 @@ export interface CreateEmployeeInput {
   gender?: string | null;
   avatarUrl?: string | null;
   maritalStatus?: string | null;
+  bloodGroup?: string | null;
 
   // Step 2: Contact
   email: string;
   phone?: string | null;
   address?: string | null;
   city?: string | null;
+  district?: string | null;
   state?: string | null;
+  country?: string | null;
   zipCode?: string | null;
   emergencyContactName?: string | null;
+  emergencyContactRelationship?: string | null;
+  emergencyContactRelationshipOther?: string | null;
   emergencyContactPhone?: string | null;
 
   // Step 3: Job
-  employeeCode: string;
+  employeeCode?: string;
+  systemId?: string | null;
   branchId?: string | null;
   departmentId?: string | null;
   designationId?: string | null;
@@ -101,11 +167,13 @@ export class EmployeeService {
     const db = getTenantDb();
 
     // 1. Pre-validation: uniqueness within tenant
-    const existingCode = await db.employee.findFirst({
-      where: { tenantId, employeeCode: input.employeeCode },
-    });
-    if (existingCode) {
-      throw new Error(`An employee with code '${input.employeeCode}' already exists in this workspace.`);
+    if (input.employeeCode) {
+      const existingCode = await db.employee.findFirst({
+        where: { tenantId, employeeCode: input.employeeCode },
+      });
+      if (existingCode) {
+        throw new Error(`An employee with code '${input.employeeCode}' already exists in this workspace.`);
+      }
     }
 
     const existingEmail = await db.employee.findFirst({
@@ -136,12 +204,15 @@ export class EmployeeService {
         }
       }
 
-      // Step B: Create Employee record
+      // Step B: Generate immutable System ID & Create Employee record
+      const systemId = await EmployeeSystemIdService.generateSystemId(tenantId, input.branchId, tx);
+      const finalEmployeeCode = input.employeeCode ? input.employeeCode.trim() : systemId;
+
       const employee = await tx.employee.create({
         data: {
           tenantId,
           userId,
-          employeeCode: input.employeeCode.trim(),
+          employeeCode: finalEmployeeCode,
           firstName: input.firstName.trim(),
           lastName: input.lastName.trim(),
           email: input.email.toLowerCase().trim(),
@@ -177,6 +248,23 @@ export class EmployeeService {
           branch: { select: { id: true, name: true, code: true } },
           designation: { select: { id: true, name: true } },
         },
+      });
+
+      // Step B2: Persist extended fields, address, blood group & immutable System ID in metadata
+      await EmployeeService.setEmployeeMetadata(tenantId, employee.id, {
+        systemId,
+        bloodGroup: input.bloodGroup,
+        district: input.district,
+        country: input.country || "India",
+        addressLine1: input.address,
+        city: input.city,
+        state: input.state,
+        postalCode: input.zipCode,
+        emergencyContactName: input.emergencyContactName,
+        emergencyContactRelationship: input.emergencyContactRelationship,
+        emergencyContactRelationshipOther: input.emergencyContactRelationshipOther,
+        emergencyContactPhone: input.emergencyContactPhone,
+        avatarUrl: input.avatarUrl,
       });
 
       // Step C: Optional documents attachment
@@ -297,14 +385,29 @@ export class EmployeeService {
     if (query.branchId && query.branchId !== "all") where.branchId = query.branchId;
     if (query.departmentId && query.departmentId !== "all") where.departmentId = query.departmentId;
     if (query.designationId && query.designationId !== "all") where.designationId = query.designationId;
-    if (query.status && query.status !== "all") where.status = query.status;
+    if (query.status && query.status !== "all") {
+      if (query.status === "inactive") {
+        where.status = { not: "active" };
+      } else if (query.status === "probation") {
+        where.probationRecords = { some: { status: { in: ["active", "extended", "ongoing"] } } };
+      } else {
+        where.status = query.status;
+      }
+    }
     if (query.employmentType && query.employmentType !== "all") where.employmentType = query.employmentType;
     if (query.managerId) where.managerId = query.managerId;
 
     const sortBy = query.sortBy || "createdAt";
     const sortOrder = query.sortOrder === "asc" ? "asc" : "desc";
 
-    const [total, rawEmployees] = await Promise.all([
+    // Base scope for counting tab tallies across the tenant (respecting selected org filters)
+    const baseWhere: any = { tenantId, ...scopeFilter };
+    if (query.branchId && query.branchId !== "all") baseWhere.branchId = query.branchId;
+    if (query.departmentId && query.departmentId !== "all") baseWhere.departmentId = query.departmentId;
+    if (query.designationId && query.designationId !== "all") baseWhere.designationId = query.designationId;
+    if (query.employmentType && query.employmentType !== "all") baseWhere.employmentType = query.employmentType;
+
+    const [total, rawEmployees, allCount, activeCount, inactiveCount, probationCount, terminatedCount] = await Promise.all([
       db.employee.count({ where }),
       db.employee.findMany({
         where,
@@ -313,11 +416,27 @@ export class EmployeeService {
           branch: { select: { id: true, name: true, code: true } },
           designation: { select: { id: true, name: true } },
           manager: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              roles: {
+                where: { tenantId },
+                select: { id: true, role: true },
+              },
+              profile: { select: { avatarUrl: true } },
+            },
+          },
         },
         orderBy: { [sortBy]: sortOrder },
         skip,
         take: limit,
       }),
+      db.employee.count({ where: baseWhere }),
+      db.employee.count({ where: { ...baseWhere, status: "active" } }),
+      db.employee.count({ where: { ...baseWhere, status: { not: "active" } } }),
+      db.employee.count({ where: { ...baseWhere, probationRecords: { some: { status: { in: ["active", "extended", "ongoing"] } } } } }),
+      db.employee.count({ where: { ...baseWhere, status: "terminated" } }),
     ]);
 
     // Apply Field-Level Security mask
@@ -336,12 +455,25 @@ export class EmployeeService {
       userPermissions
     );
 
+    const enrichedEmployees = withActions.map((emp: any) => ({
+      ...emp,
+      loginStatus: emp.userId ? "active" : "inactive",
+      avatarUrl: emp.user?.profile?.avatarUrl || null,
+    }));
+
     return {
-      data: withActions,
+      data: enrichedEmployees,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      statusCounts: {
+        all: allCount,
+        active: activeCount,
+        inactive: inactiveCount,
+        probation: probationCount,
+        terminated: terminatedCount,
+      },
     };
   }
 
@@ -387,7 +519,36 @@ export class EmployeeService {
             id: true,
             email: true,
             roles: { select: { role: true } },
+            profile: {
+              select: {
+                id: true,
+                fullName: true,
+                avatarUrl: true,
+                phone: true,
+              },
+            },
           },
+        },
+        companyDocuments: {
+          orderBy: { createdAt: "desc" },
+        },
+        generatedLetters: {
+          include: { template: true },
+          orderBy: { issuedAt: "desc" },
+        },
+        probationRecords: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        shiftRosters: {
+          include: { shift: true },
+          orderBy: { rosterDate: "desc" },
+          take: 1,
+        },
+        employeeContracts: {
+          include: { contractType: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
         },
         changeRequests: {
           orderBy: { createdAt: "desc" },
@@ -408,15 +569,44 @@ export class EmployeeService {
     const canViewSensitive = userContext.roles.some((r) =>
       ["admin", "hr_admin", "super_admin", "Workspace Admin"].includes(r)
     );
+    const isSelf = employee.id === userContext.employeeId || employee.userId === userContext.userId;
+    const canViewCompensation = canViewSensitive || isSelf;
+
     const masked = sanitizeSensitiveFields(employee, {
       canViewSensitive,
-      isSelf: employee.id === userContext.employeeId,
+      canViewCompensation,
+      isSelf,
     });
+
+    const metadata = await EmployeeService.getEmployeeMetadata(tenantId, employee.id);
+
+    const transformedEmployee = {
+      ...masked,
+      systemId: metadata.systemId || employee.id,
+      bloodGroup: metadata.bloodGroup || null,
+      district: metadata.district || null,
+      avatarUrl: (employee as any).user?.profile?.avatarUrl || metadata.avatarUrl || null,
+      addressLine1: metadata.addressLine1 || "",
+      addressLine2: metadata.addressLine2 || "",
+      city: metadata.city || "",
+      state: (employee as any).state || metadata.state || "",
+      country: metadata.country || "India",
+      postalCode: metadata.postalCode || "",
+      emergencyContactName: metadata.emergencyContactName || "",
+      emergencyContactRelationship: metadata.emergencyContactRelationship || "",
+      emergencyContactRelationshipOther: metadata.emergencyContactRelationshipOther || "",
+      emergencyContactPhone: metadata.emergencyContactPhone || "",
+      accountHolderName: metadata.accountHolderName || `${employee.firstName} ${employee.lastName}`,
+      bicSwift: metadata.bicSwift || employee.bankIfsc || "",
+      taxPayerId: metadata.taxPayerId || employee.pan || "",
+      shiftId: metadata.shiftId || (employee.shiftRosters?.[0]?.shiftId ?? null),
+      attendancePolicyId: metadata.attendancePolicyId || null,
+    };
 
     // Attach allowed actions
     const withActions = attachAllowedActions(
       "Employee",
-      masked,
+      transformedEmployee,
       userContext,
       userPermissions
     );
@@ -593,6 +783,734 @@ export class EmployeeService {
     return {
       success: true,
       importedCount,
+    };
+  }
+
+  /**
+   * Helper to fetch employee extended metadata stored in custom field values
+   */
+  static async getEmployeeMetadata(tenantId: string, employeeId: string): Promise<Record<string, string>> {
+    const db = getTenantDb();
+    try {
+      const values = await (db as any).customFieldValue.findMany({
+        where: { tenantId, entityId: employeeId },
+        include: { customField: true },
+      });
+      const result: Record<string, string> = {};
+      for (const v of values) {
+        if (v.customField?.label) {
+          result[v.customField.label] = v.value || "";
+        }
+      }
+      return result;
+    } catch (err) {
+      console.warn("[getEmployeeMetadata Warning]:", err);
+      return {};
+    }
+  }
+
+  /**
+   * Helper to persist employee extended metadata into custom field values
+   */
+  static async setEmployeeMetadata(
+    tenantId: string,
+    employeeId: string,
+    metadata: Record<string, string | null | undefined>
+  ) {
+    const db = getTenantDb();
+    for (const [key, val] of Object.entries(metadata)) {
+      if (val === undefined) continue;
+      try {
+        let cf = await (db as any).customField.findFirst({
+          where: { tenantId, module: "EMPLOYEE", label: key },
+        });
+        if (!cf) {
+          cf = await (db as any).customField.create({
+            data: {
+              tenantId,
+              module: "EMPLOYEE",
+              label: key,
+              fieldType: "text",
+              status: "active",
+            },
+          });
+        }
+        await (db as any).customFieldValue.upsert({
+          where: {
+            customFieldId_entityId: {
+              customFieldId: cf.id,
+              entityId: employeeId,
+            },
+          },
+          create: {
+            tenantId,
+            customFieldId: cf.id,
+            entityId: employeeId,
+            value: val === null ? "" : String(val),
+          },
+          update: {
+            value: val === null ? "" : String(val),
+          },
+        });
+      } catch (err) {
+        console.warn(`[setEmployeeMetadata Warning for ${key}]:`, err);
+      }
+    }
+  }
+
+  /**
+   * UPDATE EMPLOYEE
+   * Updates an existing employee with comprehensive validation, role authorization,
+   * sensitive financial field enforcement, avatar/password updates, and metadata persistence.
+   */
+  static async updateEmployee(
+    tenantId: string,
+    actorId: string,
+    employeeId: string,
+    input: UpdateEmployeeInput,
+    userContext: UserSecurityContext,
+    userPermissions: string[]
+  ) {
+    const db = getTenantDb();
+
+    // 1. Employee existence check
+    const existing = await db.employee.findFirst({
+      where: { id: employeeId, tenantId },
+      include: {
+        department: true,
+        branch: true,
+        designation: true,
+        user: { include: { profile: true } },
+      },
+    });
+
+    if (!existing) {
+      const err: any = new Error("Employee not found in current workspace");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // 2. Role authorization check: Employees cannot edit employee records
+    const isEmployeeRoleOnly =
+      userContext.roles.length === 1 && userContext.roles[0] === "employee";
+    if (isEmployeeRoleOnly) {
+      const err: any = new Error("Forbidden: Employees are not permitted to edit employee records.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    // 3. Validation: Code uniqueness within tenant (excluding this employee)
+    if (input.employeeCode && input.employeeCode.trim() !== existing.employeeCode) {
+      const codeDuplicate = await db.employee.findFirst({
+        where: {
+          tenantId,
+          employeeCode: input.employeeCode.trim(),
+          id: { not: employeeId },
+        },
+      });
+      if (codeDuplicate) {
+        const err: any = new Error(`An employee with code '${input.employeeCode}' already exists in this workspace.`);
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    // 4. Validation: Email uniqueness & format (excluding this employee)
+    if (input.email && input.email.toLowerCase().trim() !== existing.email.toLowerCase()) {
+      const emailTrimmed = input.email.toLowerCase().trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+        const err: any = new Error("Invalid email format");
+        err.statusCode = 400;
+        throw err;
+      }
+      const emailDuplicate = await db.employee.findFirst({
+        where: {
+          tenantId,
+          email: emailTrimmed,
+          id: { not: employeeId },
+        },
+      });
+      if (emailDuplicate) {
+        const err: any = new Error(`An employee with email '${input.email}' already exists in this workspace.`);
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    // 5. Validation: Foreign keys belong to tenant
+    if (input.branchId && input.branchId !== existing.branchId) {
+      const branch = await db.branch.findFirst({ where: { id: input.branchId, tenantId } });
+      if (!branch) {
+        const err: any = new Error("Selected branch does not belong to this workspace.");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+    if (input.departmentId && input.departmentId !== existing.departmentId) {
+      const dept = await db.department.findFirst({ where: { id: input.departmentId, tenantId } });
+      if (!dept) {
+        const err: any = new Error("Selected department does not belong to this workspace.");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+    if (input.designationId && input.designationId !== existing.designationId) {
+      const desig = await db.designation.findFirst({ where: { id: input.designationId, tenantId } });
+      if (!desig) {
+        const err: any = new Error("Selected designation does not belong to this workspace.");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    // 6. Sensitive Financial & Statutory authorization check
+    const hasSensitivePermission =
+      userPermissions.includes("hr:employee:sensitive:write") ||
+      userPermissions.includes("hr:sensitive:write") ||
+      userPermissions.includes("hrm.sensitive.edit") ||
+      userContext.isSuperAdmin ||
+      userContext.roles.includes("super_admin") ||
+      ((userContext.isTenantAdmin || userContext.roles.includes("admin") || userContext.roles.includes("Workspace Admin") || userContext.roles.includes("hr_admin") || userContext.roles.includes("HR Manager")) &&
+        (userPermissions.length === 0 || userPermissions.includes("hr:employee:sensitive:write") || userPermissions.includes("hrm.sensitive.edit")));
+
+    const currentMeta = await EmployeeService.getEmployeeMetadata(tenantId, employeeId);
+
+    const sensitiveFieldsToCheck: Array<{ name: string; cur: string; inputVal?: any }> = [
+      { name: "salary", cur: existing.salary ? String(existing.salary) : "", inputVal: input.salary },
+      { name: "bankName", cur: existing.bankName || "", inputVal: input.bankName },
+      { name: "bankAccount", cur: existing.bankAccount || "", inputVal: input.bankAccount },
+      { name: "bankIfsc", cur: existing.bankIfsc || currentMeta.bicSwift || "", inputVal: input.bicSwift || input.bankIfsc },
+      { name: "bankBranch", cur: existing.bankBranch || "", inputVal: input.bankBranch },
+      { name: "pan", cur: existing.pan || currentMeta.taxPayerId || "", inputVal: input.taxPayerId || input.pan },
+      { name: "accountHolderName", cur: currentMeta.accountHolderName || "", inputVal: input.accountHolderName },
+    ];
+
+    const isModifyingSensitive = sensitiveFieldsToCheck.some((s) => {
+      if (s.inputVal === undefined) return false;
+      const cleanInput = s.inputVal === null ? "" : String(s.inputVal).trim();
+      const cleanCur = s.cur.trim();
+      return cleanInput !== "" && cleanInput !== cleanCur;
+    });
+
+    if (isModifyingSensitive && !hasSensitivePermission) {
+      const err: any = new Error("Forbidden: You do not have explicit permission (hr:employee:sensitive:write) to modify sensitive financial or banking records.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    // 7. Atomic Execution
+    await db.$transaction(async (tx: any) => {
+      const updateData: any = {};
+      if (input.firstName !== undefined) updateData.firstName = input.firstName.trim();
+      if (input.lastName !== undefined) updateData.lastName = input.lastName.trim();
+      if (input.employeeCode !== undefined) updateData.employeeCode = input.employeeCode.trim();
+      if (input.email !== undefined) updateData.email = input.email.toLowerCase().trim();
+      if (input.phone !== undefined) updateData.phone = input.phone ? input.phone.trim() : null;
+      if (input.dateOfBirth !== undefined) updateData.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+      if (input.gender !== undefined) updateData.gender = input.gender || null;
+      if (input.branchId !== undefined) updateData.branchId = input.branchId || null;
+      if (input.departmentId !== undefined) updateData.departmentId = input.departmentId || null;
+      if (input.designationId !== undefined) updateData.designationId = input.designationId || null;
+      if (input.joinedAt !== undefined) updateData.joinedAt = input.joinedAt ? new Date(input.joinedAt) : null;
+      if (input.employmentType !== undefined) updateData.employmentType = input.employmentType;
+      if (input.status !== undefined) updateData.status = input.status;
+      if (input.state !== undefined) updateData.state = input.state;
+
+      if (hasSensitivePermission) {
+        if (input.salary !== undefined) {
+          updateData.salary = input.salary !== null && input.salary !== "" ? String(input.salary) : null;
+        }
+        if (input.bankName !== undefined) updateData.bankName = input.bankName || null;
+        if (input.bankAccount !== undefined) updateData.bankAccount = input.bankAccount || null;
+        if (input.bicSwift !== undefined || input.bankIfsc !== undefined) {
+          updateData.bankIfsc = input.bicSwift || input.bankIfsc || null;
+        }
+        if (input.bankBranch !== undefined) updateData.bankBranch = input.bankBranch || null;
+        if (input.taxPayerId !== undefined || input.pan !== undefined) {
+          updateData.pan = input.taxPayerId || input.pan || null;
+        }
+      }
+
+      const emp = await tx.employee.update({
+        where: { id: employeeId },
+        data: updateData,
+        include: {
+          department: true,
+          branch: true,
+          designation: true,
+        },
+      });
+
+      // Update User password and avatar if user exists
+      if (existing.userId) {
+        if (input.password && input.password.trim().length > 0) {
+          const passwordHash = await bcrypt.hash(input.password.trim(), 10);
+          await tx.user.update({
+            where: { id: existing.userId },
+            data: { passwordHash },
+          });
+        }
+
+        const profileData: any = {};
+        if (input.firstName !== undefined || input.lastName !== undefined) {
+          const fn = input.firstName !== undefined ? input.firstName.trim() : existing.firstName;
+          const ln = input.lastName !== undefined ? input.lastName.trim() : existing.lastName;
+          profileData.fullName = `${fn} ${ln}`.trim();
+        }
+        if (input.phone !== undefined) profileData.phone = input.phone || null;
+        if (input.avatarUrl !== undefined) profileData.avatarUrl = input.avatarUrl || null;
+
+        if (Object.keys(profileData).length > 0) {
+          try {
+            await tx.profile.upsert({
+              where: { userId: existing.userId },
+              create: {
+                userId: existing.userId,
+                tenantId,
+                ...profileData,
+              },
+              update: {
+                tenantId,
+                ...profileData,
+              },
+            });
+          } catch (profileErr: any) {
+            console.warn("Profile synchronization non-fatal warning:", profileErr.message);
+          }
+        }
+      }
+
+      // Upsert Shift Roster if shiftId provided
+      if (input.shiftId) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        await tx.shiftRoster.upsert({
+          where: {
+            tenantId_employeeId_rosterDate: {
+              tenantId,
+              employeeId,
+              rosterDate: today,
+            },
+          },
+          create: {
+            tenantId,
+            employeeId,
+            shiftId: input.shiftId,
+            rosterDate: today,
+          },
+          update: {
+            shiftId: input.shiftId,
+          },
+        });
+      }
+
+      // Attach any inline documents if provided
+      if (input.documents && input.documents.length > 0) {
+        for (const doc of input.documents) {
+          const randomCode = Math.floor(1000 + Math.random() * 9000);
+          await tx.companyDocument.create({
+            data: {
+              tenantId,
+              employeeId,
+              documentCode: `DOC-${randomCode}`,
+              title: doc.title,
+              category: doc.category || doc.documentType || "Employment Contract",
+              fileName: `${doc.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`,
+              fileUrl: doc.mediaUrl || doc.fileUrl || null,
+              fileSize: "1.2 MB",
+              fileType: "application/pdf",
+              status: "verified",
+              requiresSignature: false,
+              expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null,
+            },
+          });
+        }
+      }
+
+      // Audit log mutation
+      await AuditService.logMutation(
+        {
+          tenantId,
+          actorId,
+          action: "EMPLOYEE_UPDATE",
+          entityType: "Employee",
+          entityId: employeeId,
+          oldState: {
+            employeeCode: existing.employeeCode,
+            email: existing.email,
+            status: existing.status,
+            branchId: existing.branchId,
+            departmentId: existing.departmentId,
+            designationId: existing.designationId,
+          },
+          newState: {
+            employeeCode: emp.employeeCode,
+            email: emp.email,
+            status: emp.status,
+            branchId: emp.branchId,
+            departmentId: emp.departmentId,
+            designationId: emp.designationId,
+          },
+        },
+        tx
+      );
+
+      // Outbox event
+      await OutboxService.createOutboxEvent(
+        {
+          tenantId,
+          eventType: "employee.updated",
+          entityType: "Employee",
+          entityId: employeeId,
+          actorId,
+          payload: {
+            id: employeeId,
+            employeeCode: emp.employeeCode,
+            name: `${emp.firstName} ${emp.lastName}`,
+            email: emp.email,
+            department: emp.department?.name,
+            branch: emp.branch?.name,
+          },
+        },
+        tx
+      );
+    });
+
+    // 8. Persist Contact & Extended fields in CustomFieldValues
+    const metaUpdates: Record<string, string | null | undefined> = {
+      bloodGroup: input.bloodGroup,
+      avatarUrl: input.avatarUrl,
+      addressLine1: input.addressLine1,
+      addressLine2: input.addressLine2,
+      city: input.city,
+      district: input.district,
+      state: input.state,
+      country: input.country,
+      postalCode: input.postalCode,
+      emergencyContactName: input.emergencyContactName,
+      emergencyContactRelationship: input.emergencyContactRelationship,
+      emergencyContactRelationshipOther: input.emergencyContactRelationshipOther,
+      emergencyContactPhone: input.emergencyContactPhone,
+      shiftId: input.shiftId,
+      attendancePolicyId: input.attendancePolicyId,
+    };
+
+    if (hasSensitivePermission) {
+      if (input.accountHolderName !== undefined) metaUpdates.accountHolderName = input.accountHolderName;
+      if (input.bicSwift !== undefined) metaUpdates.bicSwift = input.bicSwift;
+      if (input.taxPayerId !== undefined) metaUpdates.taxPayerId = input.taxPayerId;
+    }
+
+    await EmployeeService.setEmployeeMetadata(tenantId, employeeId, metaUpdates);
+
+    // 9. Return fresh 360 profile
+    return await EmployeeService.getEmployee360(tenantId, employeeId, userContext, userPermissions);
+  }
+
+  /**
+   * CHANGE EMPLOYEE PASSWORD
+   * Securely updates an employee's authentication credential using bcrypt (10 rounds).
+   * Validates permissions, tenant isolation, password policy, and logs an audit record.
+   * Zero plaintext password storage, zero credential leakage.
+   */
+  static async changeEmployeePassword(
+    tenantId: string,
+    actorId: string,
+    employeeId: string,
+    newPassword: string,
+    userContext: UserSecurityContext
+  ) {
+    const db = getTenantDb();
+
+    // 1. Password policy validation (must be at least 6 characters)
+    if (!newPassword || typeof newPassword !== "string" || newPassword.trim().length < 6) {
+      const err: any = new Error("Password must be at least 6 characters long.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 2. Fetch employee with tenant isolation
+    const employee = await db.employee.findFirst({
+      where: { id: employeeId, tenantId },
+      include: {
+        user: {
+          include: {
+            roles: { where: { tenantId } },
+          },
+        },
+      },
+    });
+
+    if (!employee) {
+      const err: any = new Error("Employee not found in current workspace.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // 3. Authorization check: caller must have administrative permissions or be the employee
+    const canManage = userContext.roles.some((r) =>
+      ["admin", "hr_admin", "super_admin", "Workspace Admin", "tenant_admin"].includes(r)
+    ) || (userContext.employeeId === employeeId);
+
+    if (!canManage) {
+      const err: any = new Error("Forbidden: You do not have permission to change this employee's password.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    // 4. Protect super admins from non-super admins
+    const isCallerSuperAdmin = userContext.roles.includes("super_admin");
+    if (employee.user?.roles?.some((r: any) => r.role === "super_admin") && !isCallerSuperAdmin) {
+      const err: any = new Error("Forbidden: Cannot reset Super Administrator password.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    // 5. Hash password with bcrypt (10 rounds)
+    const passwordHash = await bcrypt.hash(newPassword.trim(), 10);
+
+    // 6. Transactional update or provisioning
+    await db.$transaction(async (tx: any) => {
+      let targetUserId = employee.userId;
+
+      if (!targetUserId) {
+        // Provision new user login account
+        targetUserId = await provisionEmployeeUser(tx, {
+          tenantId,
+          email: employee.email,
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          phone: employee.phone,
+          password: newPassword.trim(),
+        });
+
+        await tx.employee.update({
+          where: { id: employeeId },
+          data: { userId: targetUserId },
+        });
+      } else {
+        // Update existing user's passwordHash
+        await tx.user.update({
+          where: { id: targetUserId },
+          data: { passwordHash },
+        });
+
+        // Ensure user has profile and role in this tenant
+        await tx.profile.upsert({
+          where: { userId: targetUserId },
+          create: {
+            userId: targetUserId,
+            tenantId,
+            fullName: `${employee.firstName} ${employee.lastName}`.trim(),
+            email: employee.email,
+          },
+          update: {
+            tenantId,
+          },
+        });
+
+        await tx.userRole.upsert({
+          where: {
+            userId_role_tenantId: {
+              userId: targetUserId,
+              role: "employee",
+              tenantId,
+            },
+          },
+          create: {
+            userId: targetUserId,
+            role: "employee",
+            tenantId,
+          },
+          update: {},
+        });
+      }
+    });
+
+    // 7. Audit log (never log password or hash)
+    await AuditService.logMutation({
+      tenantId,
+      actorId,
+      action: "EMPLOYEE_PASSWORD_RESET",
+      entityType: "Employee",
+      entityId: employeeId,
+      metadata: {
+        employeeCode: employee.employeeCode,
+        employeeName: `${employee.firstName} ${employee.lastName}`.trim(),
+        email: employee.email,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Password successfully updated for ${employee.firstName} ${employee.lastName}.`,
+    };
+  }
+
+  /**
+   * TOGGLE EMPLOYEE ACCOUNT STATUS
+   * Activates or deactivates an employee's login access in this workspace.
+   * Does NOT alter employment status (active / on_leave / terminated), salary, attendance, or payroll.
+   * Enforces self-deactivation protection, Super Admin protection, and logs an audit trail.
+   */
+  static async toggleEmployeeAccountStatus(
+    tenantId: string,
+    actorId: string,
+    employeeId: string,
+    userContext: UserSecurityContext
+  ) {
+    const db = getTenantDb();
+
+    // 1. Fetch employee with tenant isolation
+    const employee = await db.employee.findFirst({
+      where: { id: employeeId, tenantId },
+      include: {
+        user: {
+          include: {
+            roles: { where: { tenantId } },
+          },
+        },
+      },
+    });
+
+    if (!employee) {
+      const err: any = new Error("Employee not found in current workspace.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // 2. Authorization check
+    const canManage = userContext.roles.some((r) =>
+      ["admin", "hr_admin", "super_admin", "Workspace Admin", "tenant_admin"].includes(r)
+    );
+
+    if (!canManage) {
+      const err: any = new Error("Forbidden: You do not have permission to toggle employee account status.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    // 3. Prevent self-deactivation
+    if (employee.userId && employee.userId === actorId) {
+      const err: any = new Error("You cannot deactivate your own administrative login account.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 4. Protect super admins
+    if (employee.user?.roles?.some((r: any) => r.role === "super_admin")) {
+      const err: any = new Error("Super Administrator accounts cannot be modified or deactivated.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const isCurrentlyActive = Boolean(employee.userId);
+    const targetStatus = isCurrentlyActive ? "inactive" : "active";
+
+    await db.$transaction(async (tx: any) => {
+      if (targetStatus === "inactive") {
+        // Deactivate: remove tenant roles & role assignments, and unlink userId
+        if (employee.userId) {
+          await tx.userRole.deleteMany({
+            where: {
+              userId: employee.userId,
+              tenantId,
+            },
+          });
+          await tx.userRoleAssignment.deleteMany({
+            where: {
+              userId: employee.userId,
+              tenantId,
+            },
+          });
+          await tx.employee.update({
+            where: { id: employeeId },
+            data: { userId: null },
+          });
+        }
+      } else {
+        // Activate: provision if missing or restore userRole
+        let targetUserId = employee.userId;
+        if (!targetUserId) {
+          const existingUser = await tx.user.findUnique({
+            where: { email: employee.email.toLowerCase().trim() },
+          });
+
+          if (existingUser) {
+            targetUserId = existingUser.id;
+          } else {
+            targetUserId = await provisionEmployeeUser(tx, {
+              tenantId,
+              email: employee.email,
+              firstName: employee.firstName,
+              lastName: employee.lastName,
+              phone: employee.phone,
+            });
+          }
+
+          await tx.employee.update({
+            where: { id: employeeId },
+            data: { userId: targetUserId },
+          });
+        }
+
+        await tx.userRole.upsert({
+          where: {
+            userId_role_tenantId: {
+              userId: targetUserId,
+              role: "employee",
+              tenantId,
+            },
+          },
+          create: {
+            userId: targetUserId,
+            role: "employee",
+            tenantId,
+          },
+          update: {},
+        });
+
+        await tx.profile.upsert({
+          where: { userId: targetUserId },
+          create: {
+            userId: targetUserId,
+            tenantId,
+            fullName: `${employee.firstName} ${employee.lastName}`.trim(),
+            email: employee.email,
+          },
+          update: {
+            tenantId,
+          },
+        });
+      }
+    });
+
+    // Audit log
+    await AuditService.logMutation({
+      tenantId,
+      actorId,
+      action: targetStatus === "inactive" ? "EMPLOYEE_ACCOUNT_DEACTIVATED" : "EMPLOYEE_ACCOUNT_ACTIVATED",
+      entityType: "Employee",
+      entityId: employeeId,
+      oldState: {
+        loginStatus: isCurrentlyActive ? "active" : "inactive",
+      },
+      newState: {
+        loginStatus: targetStatus,
+      },
+      metadata: {
+        employeeCode: employee.employeeCode,
+        employeeName: `${employee.firstName} ${employee.lastName}`.trim(),
+        email: employee.email,
+      },
+    });
+
+    return {
+      success: true,
+      loginStatus: targetStatus,
+      message: `Login account access for ${employee.firstName} ${employee.lastName} has been ${
+        targetStatus === "active" ? "activated" : "deactivated"
+      }.`,
     };
   }
 }

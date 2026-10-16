@@ -75,8 +75,7 @@ function DedicatedCaseStudiesManager() {
     clientCompany: "",
     industry: "Manufacturing & Plant Ops",
     roiResult: "Cut operational costs by 45%",
-    coverImage:
-      "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80",
+    coverImage: "",
     excerpt: "",
     body: "",
     published: true,
@@ -195,8 +194,7 @@ function DedicatedCaseStudiesManager() {
       clientCompany: "",
       industry: industriesList[0] || "Manufacturing & Plant Ops",
       roiResult: "Cut operational costs by 45%",
-      coverImage:
-        "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80",
+      coverImage: "",
       excerpt: "",
       body: "",
       published: true,
@@ -214,8 +212,7 @@ function DedicatedCaseStudiesManager() {
       industry: cs.content?.industry || industriesList[0] || "Manufacturing & Plant Ops",
       roiResult: cs.content?.roiResult || cs.meta_description || "Cut operational costs by 45%",
       coverImage:
-        cs.content?.coverImage ||
-        "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80",
+        cs.content?.coverImage || "",
       excerpt: cs.meta_description || cs.content?.hero?.subtitle || "",
       body: cs.content?.body || "",
       published: cs.published,
@@ -375,8 +372,7 @@ function DedicatedCaseStudiesManager() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCaseStudies.map((cs) => {
             const cover =
-              cs.content?.coverImage ||
-              "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80";
+              cs.content?.coverImage || "";
 
             return (
               <Card
@@ -566,7 +562,7 @@ function DedicatedCaseStudiesManager() {
               </Label>
               <div className="flex gap-2">
                 <Input
-                  placeholder="https://images.unsplash.com/..."
+                  placeholder="/uploads/case-studies/cover.png or paste image URL"
                   value={form.coverImage}
                   onChange={(e) => setForm((prev) => ({ ...prev, coverImage: e.target.value }))}
                   className="text-xs flex-1"

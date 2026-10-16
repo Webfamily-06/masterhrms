@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -106,6 +108,29 @@ const FAQS = [
 export function HelpCenterPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+
+  const { data: serverFaqs = [] } = useQuery({
+    queryKey: ["cms-faqs"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/cms/faqs");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const faqsList = useMemo(() => {
+    if (serverFaqs.length > 0) {
+      return serverFaqs.map((f: any) => ({
+        q: f.question,
+        a: f.answer,
+      }));
+    }
+    return FAQS;
+  }, [serverFaqs]);
 
   const categories = [
     { id: "all", label: "All Topics", icon: BookOpen },
@@ -234,7 +259,7 @@ export function HelpCenterPage() {
             <HelpCircle className="size-5 text-primary" /> Frequently Asked Questions
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {FAQS.map((faq, i) => (
+            {faqsList.map((faq, i) => (
               <div key={i} className="p-4 rounded-xl border bg-card text-xs space-y-1.5">
                 <p className="font-bold text-foreground">{faq.q}</p>
                 <p className="text-muted-foreground leading-relaxed">{faq.a}</p>

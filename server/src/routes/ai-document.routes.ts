@@ -238,8 +238,11 @@ router.get("/documents/:id/export", async (req: AuthRequest, res) => {
     const format = ["txt", "docx", "pdf"].includes(rawFormat) ? (rawFormat as "txt" | "docx" | "pdf") : "txt";
     const exported = await AiDocumentService.exportDocument(tenantId, req.params.id, format);
 
-    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(exported.filename)}"`);
+    const disposition = req.query.disposition === "inline" ? "inline" : "attachment";
+    res.setHeader("Content-Disposition", `${disposition}; filename="${encodeURIComponent(exported.filename)}"`);
     res.setHeader("Content-Type", exported.contentType);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.setHeader("Pragma", "no-cache");
     res.send(exported.buffer);
   } catch (err: any) {
     res.status(err.message === "Document not found" ? 404 : 500).json({ error: err.message });

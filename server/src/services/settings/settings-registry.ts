@@ -1023,6 +1023,100 @@ export const SETTINGS_REGISTRY: Record<string, SettingDefinition> = {
     applyStrategy: "INSTANT",
     realtimeTopic: "settings.updated",
   },
+
+  // ─── HR Employee System ID Settings ──────────────────────────────
+  "hr.employee_id.auto_generate": {
+    key: "hr.employee_id.auto_generate",
+    group: "hr",
+    label: "Auto-Generate Employee System ID",
+    help: "Automatically generate a standardized, immutable system identifier when a new employee is onboarded.",
+    type: "boolean",
+    default: true,
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "hr.employee_id.company_prefix": {
+    key: "hr.employee_id.company_prefix",
+    group: "hr",
+    label: "Company Prefix Source / Custom Value",
+    help: "Enter 'AUTO' to use first 3 characters of company name, or specify a custom prefix (e.g. ACM, TSV).",
+    type: "string",
+    default: "AUTO",
+    scopes: ["PLATFORM", "TENANT"],
+    validation: (val) => {
+      if (typeof val !== "string" || val.trim().length === 0) return { valid: false, error: "Company prefix is required" };
+      if (!/^[A-Za-z0-9_-]{1,10}$/.test(val.trim())) return { valid: false, error: "Company prefix must be 1-10 alphanumeric characters" };
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "hr.employee_id.location_prefix": {
+    key: "hr.employee_id.location_prefix",
+    group: "hr",
+    label: "Location / Branch Prefix Source",
+    help: "Enter 'AUTO' to use first 3 characters of branch/location name or branch code, or specify a custom prefix.",
+    type: "string",
+    default: "AUTO",
+    scopes: ["PLATFORM", "TENANT"],
+    validation: (val) => {
+      if (typeof val !== "string" || val.trim().length === 0) return { valid: false, error: "Location prefix is required" };
+      if (!/^[A-Za-z0-9_-]{1,10}$/.test(val.trim())) return { valid: false, error: "Location prefix must be 1-10 alphanumeric characters" };
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "hr.employee_id.sequence_start": {
+    key: "hr.employee_id.sequence_start",
+    group: "hr",
+    label: "Sequence Number Start",
+    help: "Initial numeric counter for auto-generated employee identifiers (default 1).",
+    type: "number",
+    default: 1,
+    scopes: ["PLATFORM", "TENANT"],
+    validation: (val) => {
+      const num = Number(val);
+      if (isNaN(num) || num < 1 || num > 9999999) return { valid: false, error: "Sequence start must be between 1 and 9,999,999" };
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "hr.employee_id.sequence_digits": {
+    key: "hr.employee_id.sequence_digits",
+    group: "hr",
+    label: "Sequence Display Width (Digits)",
+    help: "Number of zero-padded digits in the sequence number (e.g. 4 produces 0001, 5 produces 00001).",
+    type: "number",
+    default: 4,
+    scopes: ["PLATFORM", "TENANT"],
+    validation: (val) => {
+      const num = Number(val);
+      if (isNaN(num) || num < 2 || num > 8) return { valid: false, error: "Display width must be between 2 and 8 digits" };
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "hr.employee_id.separator": {
+    key: "hr.employee_id.separator",
+    group: "hr",
+    label: "Identifier Separator",
+    help: "Character used to separate company, location, and sequence components (e.g. '-' or '/').",
+    type: "string",
+    default: "-",
+    scopes: ["PLATFORM", "TENANT"],
+    validation: (val) => {
+      if (typeof val !== "string" || !["-", "/", ".", "_"].includes(val.trim())) {
+        return { valid: false, error: "Separator must be one of: '-', '/', '.', '_'" };
+      }
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
 };
 
 export function getSettingDefinition(key: string): SettingDefinition | undefined {

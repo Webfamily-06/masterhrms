@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { enforceIdempotency } from "../middleware/idempotency.middleware";
 
 export const notesRouter = Router();
 
@@ -63,7 +64,7 @@ notesRouter.get("/", async (req: AuthRequest, res: Response) => {
 });
 
 // POST /api/notes - Create new note
-notesRouter.post("/", async (req: AuthRequest, res: Response) => {
+notesRouter.post("/", enforceIdempotency, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const userId = req.user!.userId || (req.user as any).id;
@@ -96,7 +97,7 @@ notesRouter.post("/", async (req: AuthRequest, res: Response) => {
 });
 
 // PUT /api/notes/:id - Update note
-notesRouter.put("/:id", async (req: AuthRequest, res: Response) => {
+notesRouter.put("/:id", enforceIdempotency, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
     const { id } = req.params;

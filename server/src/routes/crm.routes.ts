@@ -1730,3 +1730,179 @@ crmRouter.post("/calls/bulk-delete", requireAuth, resolveTenantContext, async (r
   }
 });
 
+// =========================================================================
+// PIPELINES CRUD (/api/crm/pipelines)
+// =========================================================================
+
+const DEFAULT_CRM_PIPELINES = [
+  { id: "pip-1", name: "Enterprise B2B Direct", source: "Direct", status: "active", stages: ["New Lead", "Contacted", "Qualified", "Proposal Sent", "Contract Won", "Closed Lost"], createdAt: "2026-01-15T00:00:00.000Z" },
+  { id: "pip-2", name: "Inbound Marketing & Web", source: "Website", status: "active", stages: ["New Lead", "Contacted", "Qualified", "Proposal Sent", "Contract Won", "Closed Lost"], createdAt: "2026-02-01T00:00:00.000Z" },
+  { id: "pip-3", name: "Partner Referrals & Channel", source: "Referral", status: "active", stages: ["New Lead", "Contacted", "Qualified", "Proposal Sent", "Contract Won", "Closed Lost"], createdAt: "2026-02-14T00:00:00.000Z" },
+  { id: "pip-4", name: "Cold Outbound & Campaigns", source: "Outbound", status: "active", stages: ["New Lead", "Contacted", "Qualified", "Proposal Sent", "Contract Won", "Closed Lost"], createdAt: "2026-03-01T00:00:00.000Z" },
+];
+
+async function getTenantPipelines(tenantId: string) {
+  const row = await prisma.setting.findFirst({
+    where: { scope: "TENANT", scopeId: tenantId, key: "crm.pipelines" },
+  });
+  if (row?.valueJson && Array.isArray(row.valueJson)) {
+    return row.valueJson as any[];
+  }
+  await prisma.setting.upsert({
+    where: { scope_scopeId_key: { scope: "TENANT", scopeId: tenantId, key: "crm.pipelines" } },
+    create: {
+      scope: "TENANT",
+      scopeId: tenantId,
+      group: "crm",
+      key: "crm.pipelines",
+      valueJson: DEFAULT_CRM_PIPELINES,
+      valueType: "json",
+    },
+    update: {},
+  });
+  return DEFAULT_CRM_PIPELINES;
+}
+
+// GET /api/crm/pipelines
+crmRouter.get("/pipelines", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const pipelines = await getTenantPipelines(tenantId);
+
+    const deals = await prisma.crmDeal.findMany({
+      where: { tenantId },
+      select: { id: true, pipelineId: true, value: true, stage: true },
+    });
+
+    const enriched = pipelines.map((p: any) => {
+      const matchingDeals = deals.filter(
+        (d) => d.pipelineId === p.id || (!d.pipelineId && p.id === "pip-1")
+      );
+      const totalVal = matchingDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
+      return {
+        ...p,
+        totalValue: totalVal,
+        dealCount: matchingDeals.length,
+      };
+    });
+
+    return res.json({ success: true, data: enriched });
+  } catch (err: any) {
+    console.error("GET /api/crm/pipelines error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch pipelines" });
+  }
+});
+
+// POST /api/crm/pipelines
+crmRouter.post("/pipelines", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { name, source, stages, status } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Pipeline name is required." });
+    }
+
+    const current = await getTenantPipelines(tenantId);
+    const newPipeline = {
+      id: "pip-" + Date.now(),
+      name: name.trim(),
+      source: source || "Direct Sales",
+      stages: Array.isArray(stages) && stages.length > 0 ? stages : ["New Lead", "Contacted", "Qualified", "Proposal Sent", "Contract Won", "Closed Lost"],
+      status: status || "active",
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [newPipeline, ...current];
+    await prisma.setting.upsert({
+      where: { scope_scopeId_key: { scope: "TENANT", scopeId: tenantId, key: "crm.pipelines" } },
+      create: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "crm",
+        key: "crm.pipelines",
+        valueJson: updated,
+        valueType: "json",
+      },
+      update: { valueJson: updated },
+    });
+
+    return res.status(201).json({ success: true, pipeline: newPipeline });
+  } catch (err: any) {
+    console.error("POST /api/crm/pipelines error:", err);
+    return res.status(500).json({ error: err.message || "Failed to create pipeline" });
+  }
+});
+
+// PUT /api/crm/pipelines/:id
+crmRouter.put("/pipelines/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const { name, source, stages, status } = req.body;
+
+    const current = await getTenantPipelines(tenantId);
+    const existingIndex = current.findIndex((p: any) => p.id === id);
+    if (existingIndex === -1) {
+      return res.status(404).json({ error: "Pipeline not found" });
+    }
+
+    const target = current[existingIndex];
+    const updatedPipeline = {
+      ...target,
+      name: name !== undefined ? name.trim() : target.name,
+      source: source !== undefined ? source : target.source,
+      stages: stages !== undefined ? stages : target.stages,
+      status: status !== undefined ? status : target.status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    current[existingIndex] = updatedPipeline;
+
+    await prisma.setting.upsert({
+      where: { scope_scopeId_key: { scope: "TENANT", scopeId: tenantId, key: "crm.pipelines" } },
+      create: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "crm",
+        key: "crm.pipelines",
+        valueJson: current,
+        valueType: "json",
+      },
+      update: { valueJson: current },
+    });
+
+    return res.json({ success: true, pipeline: updatedPipeline });
+  } catch (err: any) {
+    console.error("PUT /api/crm/pipelines/:id error:", err);
+    return res.status(500).json({ error: err.message || "Failed to update pipeline" });
+  }
+});
+
+// DELETE /api/crm/pipelines/:id
+crmRouter.delete("/pipelines/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    const current = await getTenantPipelines(tenantId);
+    const updated = current.filter((p: any) => p.id !== id);
+
+    await prisma.setting.upsert({
+      where: { scope_scopeId_key: { scope: "TENANT", scopeId: tenantId, key: "crm.pipelines" } },
+      create: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "crm",
+        key: "crm.pipelines",
+        valueJson: updated,
+        valueType: "json",
+      },
+      update: { valueJson: updated },
+    });
+
+    return res.json({ success: true, message: "Pipeline deleted successfully" });
+  } catch (err: any) {
+    console.error("DELETE /api/crm/pipelines/:id error:", err);
+    return res.status(500).json({ error: err.message || "Failed to delete pipeline" });
+  }
+});

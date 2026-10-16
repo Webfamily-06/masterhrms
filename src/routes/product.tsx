@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { MarketingLayout, PageHero } from "@/components/marketing/marketing-layout";
 import {
@@ -140,7 +143,41 @@ const modules = [
   },
 ];
 
+
+const moduleIconMap: Record<string, any> = {
+  "core-hr": Users,
+  payroll: Wallet,
+  attendance: Clock,
+  leave: CalendarCheck,
+  recruitment: UserPlus,
+  performance: Target,
+  lms: GraduationCap,
+  helpdesk: LifeBuoy,
+};
+
 function ProductPage() {
+  const { data: pageData } = useQuery({
+    queryKey: ["cms-product-modules"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/cms/pages/system-product-modules");
+        return res?.content?.modules || null;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const modulesList = useMemo(() => {
+    if (Array.isArray(pageData) && pageData.length > 0) {
+      return pageData.map((m: any) => ({
+        ...m,
+        icon: moduleIconMap[m.id] || Users,
+      }));
+    }
+    return modules;
+  }, [pageData]);
   return (
     <MarketingLayout>
       <PageHero

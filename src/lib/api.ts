@@ -65,6 +65,20 @@ export function setToken(token: string) {
 }
 
 export function clearToken() {
+  if (typeof window !== "undefined") {
+    try {
+      const rawUser = localStorage.getItem("hrms_user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      window.dispatchEvent(
+        new CustomEvent("hrms:auth-logout", {
+          detail: {
+            tenantId: user?.tenantId,
+            userId: user?.userId || user?.id,
+          },
+        })
+      );
+    } catch {}
+  }
   localStorage.removeItem("hrms_auth_token");
   localStorage.removeItem("auth_token");
   localStorage.removeItem("hrms_user");

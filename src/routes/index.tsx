@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -193,6 +193,32 @@ function CorporateLanding() {
       avatar: "ER",
     },
   ];
+
+  const { data: dynamicTestimonials } = useQuery({
+    queryKey: ["cms-testimonials-public"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/cms/testimonials");
+        return Array.isArray(res) ? res : (res as any)?.items || null;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const testimonialsList = useMemo(() => {
+    if (Array.isArray(dynamicTestimonials) && dynamicTestimonials.length > 0) {
+      return dynamicTestimonials.map((t: any) => ({
+        quote: t.content || t.quote,
+        author: t.author || t.name,
+        title: t.designation || t.title || "Enterprise Leader",
+        company: t.company || "Enterprise Partner",
+        avatar: t.avatar || (t.author || t.name || "EP").substring(0, 2).toUpperCase(),
+      }));
+    }
+    return testimonials;
+  }, [dynamicTestimonials]);
 
   return (
     <MarketingLayout>
@@ -482,7 +508,7 @@ function CorporateLanding() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((t, idx) => (
+            {testimonialsList.map((t: any, idx: number) => (
               <div
                 key={idx}
                 className="rounded-3xl border border-border/80 bg-card p-8 flex flex-col justify-between hover:shadow-lg transition-all"

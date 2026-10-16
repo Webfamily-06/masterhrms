@@ -42,22 +42,52 @@ export function useMasterList<T = any>({
     data: T[];
     total: number;
     totalPages: number;
+    statusCounts?: Record<string, number>;
   }>({
     queryKey: [queryKey, params],
     queryFn: async () => {
       const res = await api.get(endpoint, { params });
-      // Support array or paginated response format
-      if (Array.isArray(res.data)) {
+      
+      // Raw array responses
+      if (Array.isArray(res)) {
         return {
-          data: res.data,
-          total: res.data.length,
+          data: res,
+          total: res.length,
           totalPages: 1,
         };
       }
+
+      // Paginated object format: check for list items
+      const items = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.items)
+          ? res.items
+          : Array.isArray(res?.data?.items)
+            ? res.data.items
+            : Array.isArray(res?.data?.data)
+              ? res.data.data
+              : [];
+
+      // Server-provided total or item count fallback
+      const totalCount =
+        typeof res?.total === "number"
+          ? res.total
+          : typeof res?.data?.total === "number"
+            ? res.data.total
+            : items.length;
+
+      const totalPagesCount =
+        typeof res?.totalPages === "number"
+          ? res.totalPages
+          : typeof res?.data?.totalPages === "number"
+            ? res.data.totalPages
+            : Math.max(1, Math.ceil(totalCount / limit));
+
       return {
-        data: res.data.data || res.data.items || res.data || [],
-        total: res.data.total ?? (res.data.data?.length || 0),
-        totalPages: res.data.totalPages ?? Math.ceil((res.data.total || 1) / limit),
+        data: items,
+        total: totalCount,
+        totalPages: totalPagesCount,
+        statusCounts: res?.statusCounts || res?.data?.statusCounts,
       };
     },
   });
@@ -67,6 +97,7 @@ export function useMasterList<T = any>({
     data: data?.data || [],
     total: data?.total || 0,
     totalPages: data?.totalPages || 1,
+    statusCounts: data?.statusCounts,
     page,
     limit,
     search,

@@ -1,10 +1,13 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { StorageFactory } from "../services/factories/storage.factory";
 
 export const documentsRouter = Router();
+
+documentsRouter.use(requireAuth, resolveTenantContext as any);
 
 // Standard default company document templates
 const DEFAULT_TEMPLATES = [
@@ -254,6 +257,22 @@ documentsRouter.put("/:id/verify", requireAuth, async (req: AuthRequest, res: Re
     const tenantId = req.user?.tenantId;
     const verifierName = req.user?.email || "Compliance Officer";
 
+    const userRoles = req.user?.roles || [];
+    const userPerms = req.user?.permissions || [];
+    const isEmployeeOnly = userRoles.length === 1 && userRoles[0] === "employee";
+    const canVerify =
+      userPerms.includes("hr:documents:verify") ||
+      userPerms.includes("documents:verify") ||
+      userRoles.includes("super_admin") ||
+      userRoles.includes("hr_admin") ||
+      userRoles.includes("admin");
+
+    if (isEmployeeOnly || !canVerify) {
+      return res.status(403).json({
+        error: "Forbidden: You do not have permission to verify or approve employee documents. Only authorized HR personnel may verify documents.",
+      });
+    }
+
     const existing = await prisma.companyDocument.findUnique({ where: { id } });
     if (!existing || (tenantId && existing.tenantId !== tenantId)) {
       return res.status(404).json({ error: "Document not found." });
@@ -287,9 +306,25 @@ documentsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respon
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
 
+    const userRoles = req.user?.roles || [];
+    const userPerms = req.user?.permissions || [];
+    const isEmployeeOnly = userRoles.length === 1 && userRoles[0] === "employee";
+    const canDelete =
+      userPerms.includes("hr:documents:delete") ||
+      userPerms.includes("documents:delete") ||
+      userRoles.includes("super_admin") ||
+      userRoles.includes("hr_admin") ||
+      userRoles.includes("admin");
+
+    if (isEmployeeOnly || !canDelete) {
+      return res.status(403).json({
+        error: "Forbidden: You do not have permission to delete employee documents.",
+      });
+    }
+
     const existing = await prisma.companyDocument.findUnique({ where: { id } });
     if (!existing || (tenantId && existing.tenantId !== tenantId)) {
-      return res.status(404).json({ error: "Document not found." });
+      return res.status(404).json({ error: "Document not found or access denied." });
     }
 
     await prisma.companyDocument.delete({ where: { id } });

@@ -57,6 +57,8 @@ const SENSITIVE_STATUTORY_KEYS = new Set([
 ]);
 
 const COMPENSATION_KEYS = new Set([
+  "salary",
+  "annualSalary",
   "ctc",
   "baseSalary",
   "base_salary",
@@ -115,7 +117,21 @@ export function sanitizeSensitiveFields<T = any>(
     }
 
     // Recurse into nested objects (e.g. employee.profile, employee.salaryAssignment)
-    if (value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+    // Avoid decomposing Prisma.Decimal instances or functions
+    const isDecimal =
+      value &&
+      typeof value === "object" &&
+      (typeof (value as any).toNumber === "function" ||
+        typeof (value as any).toFixed === "function" ||
+        "d" in value);
+
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      !(value instanceof Date) &&
+      !isDecimal
+    ) {
       clone[key] = sanitizeSensitiveFields(value, options);
     } else if (Array.isArray(value)) {
       clone[key] = value.map((nested) => sanitizeSensitiveFields(nested, options));

@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { MarketingLayout, PageHero } from "@/components/marketing/marketing-layout";
 import { Users, Rocket, Globe, Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +49,44 @@ const stats = [
   { v: "50,000+", l: "Workforce Managed" },
 ];
 
+
+const aboutIconMap: Record<string, any> = {
+  "People First": Users,
+  "High Velocity": Rocket,
+  "Global by Default": Globe,
+  "Craft & Ergonomics": Heart,
+};
+
 function AboutPage() {
+  const { data: pageData } = useQuery({
+    queryKey: ["cms-about-us"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/cms/pages/system-about-us");
+        return res?.content || null;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const valuesList = useMemo(() => {
+    if (Array.isArray(pageData?.values) && pageData.values.length > 0) {
+      return pageData.values.map((v: any) => ({
+        ...v,
+        icon: aboutIconMap[v.title] || Rocket,
+      }));
+    }
+    return values;
+  }, [pageData]);
+
+  const statsList = useMemo(() => {
+    if (Array.isArray(pageData?.stats) && pageData.stats.length > 0) {
+      return pageData.stats;
+    }
+    return stats;
+  }, [pageData]);
   return (
     <MarketingLayout>
       <PageHero
@@ -58,7 +98,7 @@ function AboutPage() {
       {/* Metrics Row */}
       <section className="py-16 border-b bg-muted/20">
         <div className="mx-auto max-w-5xl px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
-          {stats.map((s) => (
+          {statsList.map((s: any) => (
             <div key={s.l} className="p-6 text-center rounded-3xl border border-border/80 bg-card shadow-xs">
               <div className="text-3xl md:text-4xl font-black font-mono text-primary">{s.v}</div>
               <div className="mt-1 text-xs font-semibold text-muted-foreground">{s.l}</div>
@@ -81,7 +121,7 @@ function AboutPage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {values.map((v) => (
+            {valuesList.map((v: any) => (
               <div key={v.title} className="p-6 rounded-3xl border border-border/80 bg-card shadow-xs hover:border-primary/50 hover:shadow-md transition-all">
                 <div className="size-12 rounded-2xl bg-primary/10 text-primary grid place-items-center mb-4">
                   <v.icon className="size-6" />

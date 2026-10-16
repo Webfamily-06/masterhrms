@@ -27,10 +27,28 @@ export function OfflineBanner() {
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     window.addEventListener("network:offline", onOffline);
+
+    function onAuthError(e: any) {
+      toast.error(e.detail?.error || "Offline sync halted: Session expired or unauthorized. Please log in.");
+    }
+    function onSessionInvalidated(e: any) {
+      toast.warning(`Session changed: ${e.detail?.quarantinedCount || 0} offline action(s) quarantined for security.`);
+    }
+    function onPermanentError(e: any) {
+      toast.error(e.detail?.error || "An offline action failed permanent validation.");
+    }
+
+    window.addEventListener("hrms:offline-queue-auth-error", onAuthError);
+    window.addEventListener("hrms:offline-queue-session-invalidated", onSessionInvalidated);
+    window.addEventListener("hrms:offline-queue-permanent-error", onPermanentError);
+
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("network:offline", onOffline);
+      window.removeEventListener("hrms:offline-queue-auth-error", onAuthError);
+      window.removeEventListener("hrms:offline-queue-session-invalidated", onSessionInvalidated);
+      window.removeEventListener("hrms:offline-queue-permanent-error", onPermanentError);
     };
   }, []);
 

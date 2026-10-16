@@ -138,7 +138,14 @@ export interface QueuedOfflineAction<T = any> {
   payload: T;
   timestamp: number;
   attempts: number;
-  status: "pending" | "syncing" | "failed";
+  maxAttempts?: number;
+  status: "pending" | "syncing" | "failed" | "quarantined";
+  tenantId: string;
+  userId: string;
+  idempotencyKey: string;
+  lastError?: string;
+  errorStatus?: number;
+  quarantinedAt?: number;
 }
 
 // 8. File API Types

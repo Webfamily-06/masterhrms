@@ -601,6 +601,25 @@ const loginHandler = async (req: any, res: Response) => {
           code: "TENANT_MISMATCH",
         });
       }
+
+      // Check if employee's employment in this workspace is terminated
+      const matchingEmployee = user.employees?.find((e: any) => e.tenantId === resolvedTenant.id);
+      if (matchingEmployee && matchingEmployee.status === "terminated") {
+        return res.status(403).json({
+          error: "Your employment has been terminated. Login access is disabled.",
+          code: "EMPLOYMENT_TERMINATED",
+        });
+      }
+
+      // Check if employee account access is deactivated in this workspace
+      const isSuperUser = user.roles.some((r: any) => r.role === "super_admin");
+      const hasTenantRole = user.roles.some((r: any) => r.tenantId === resolvedTenant.id);
+      if (!isSuperUser && !hasTenantRole) {
+        return res.status(403).json({
+          error: "Your login account for this workspace has been deactivated. Please contact your administrator.",
+          code: "ACCOUNT_DEACTIVATED",
+        });
+      }
     }
 
     // Optional: Allow disabling mandatory 2FA via environment variable (e.g. for staging or when SMTP is in maintenance)

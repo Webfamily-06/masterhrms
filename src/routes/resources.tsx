@@ -154,8 +154,7 @@ function ResourcesPage() {
               ? blogs.map((b) => {
                   const contentObj = (b.content as any) || {};
                   const cover =
-                    contentObj.coverImage ||
-                    "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80";
+                    contentObj.coverImage || "";
                   return (
                     <Link
                       key={b.id}
@@ -237,8 +236,7 @@ function ResourcesPage() {
               ? caseStudies.map((cs) => {
                   const contentObj = (cs.content as any) || {};
                   const cover =
-                    contentObj.coverImage ||
-                    "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=600&q=80";
+                    contentObj.coverImage || "";
                   return (
                     <Link
                       key={cs.id}

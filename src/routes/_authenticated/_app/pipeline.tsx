@@ -100,48 +100,50 @@ export function PipelinePage() {
   const [pipelineName, setPipelineName] = useState("");
   const [pipelineSource, setPipelineSource] = useState("Direct Sales");
   const [selectedStages, setSelectedStages] = useState<string[]>(DEFAULT_STAGES);
-
-  // Fetch CRM Leads
-  const { data: rawLeads = [], isLoading } = useQuery<LeadItem[] | { data: LeadItem[] }>({
-    queryKey: ["crm-leads", tenantId],
-    queryFn: async () => api.get("/api/crm/leads"),
+  // Fetch Pipelines from database
+  const { data: pipelinesRes, isLoading } = useQuery<{ success: boolean; data: PipelineRecord[] }>({
+    queryKey: ["crm-pipelines", tenantId],
+    queryFn: async () => api.get("/api/crm/pipelines"),
     enabled: !!tenantId,
   });
 
-  const leads: LeadItem[] = useMemo(() => {
-    if (Array.isArray(rawLeads)) return rawLeads;
-    if (rawLeads && Array.isArray((rawLeads as any).data)) return (rawLeads as any).data;
-    return [];
-  }, [rawLeads]);
-
-  // Aggregate leads into Pipelines
   const pipelines: PipelineRecord[] = useMemo(() => {
-    const pipelineDefinitions = [
-      { id: "pip-1", name: "Enterprise B2B Direct", source: "Direct", status: "active" as const, createdAt: "2026-01-15" },
-      { id: "pip-2", name: "Inbound Marketing & Web", source: "Website", status: "active" as const, createdAt: "2026-02-01" },
-      { id: "pip-3", name: "Partner Referrals & Channel", source: "Referral", status: "active" as const, createdAt: "2026-02-14" },
-      { id: "pip-4", name: "Cold Outbound & Campaigns", source: "Outbound", status: "active" as const, createdAt: "2026-03-01" },
-    ];
+    return pipelinesRes?.data || [];
+  }, [pipelinesRes]);
 
-    return pipelineDefinitions.map((p) => {
-      // Find matching leads
-      const matched = leads.filter(
-        (l) => (l.source || "").toLowerCase().includes(p.source.toLowerCase()) || p.source === "Direct"
-      );
-      const totalVal = matched.reduce((sum, l) => sum + (Number(l.value) || 0), 0);
+  // Mutations
+  const createPipelineMut = useMutation({
+    mutationFn: async (payload: { name: string; source: string; stages: string[] }) =>
+      api.post("/api/crm/pipelines", payload),
+    onSuccess: () => {
+      toast.success("Pipeline created successfully");
+      qc.invalidateQueries({ queryKey: ["crm-pipelines"] });
+      setIsAddOpen(false);
+      setPipelineName("");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to create pipeline"),
+  });
 
-      return {
-        id: p.id,
-        name: p.name,
-        source: p.source,
-        totalValue: totalVal > 0 ? totalVal : 185000,
-        dealCount: matched.length > 0 ? matched.length : 14,
-        stages: DEFAULT_STAGES,
-        status: p.status,
-        createdAt: p.createdAt,
-      };
-    });
-  }, [leads]);
+  const updatePipelineMut = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) =>
+      api.put(`/api/crm/pipelines/${id}`, data),
+    onSuccess: () => {
+      toast.success("Pipeline updated successfully");
+      qc.invalidateQueries({ queryKey: ["crm-pipelines"] });
+      setEditingPipeline(null);
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to update pipeline"),
+  });
+
+  const deletePipelineMut = useMutation({
+    mutationFn: async (id: string) => api.delete(`/api/crm/pipelines/${id}`),
+    onSuccess: () => {
+      toast.success("Pipeline deleted successfully");
+      qc.invalidateQueries({ queryKey: ["crm-pipelines"] });
+      setDeleteTargetId(null);
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to delete pipeline"),
+  });
 
   // Filtered pipelines
   const filteredPipelines = useMemo(() => {
@@ -161,16 +163,23 @@ export function PipelinePage() {
       toast.error("Pipeline name is required");
       return;
     }
-    toast.success(`Pipeline "${pipelineName}" created successfully`);
-    setIsAddOpen(false);
-    setPipelineName("");
+    createPipelineMut.mutate({
+      name: pipelineName,
+      source: pipelineSource,
+      stages: selectedStages,
+    });
   };
 
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPipeline) return;
-    toast.success(`Pipeline "${pipelineName}" updated`);
-    setEditingPipeline(null);
+    updatePipelineMut.mutate({
+      id: editingPipeline.id,
+      data: {
+        name: pipelineName,
+        source: pipelineSource,
+      },
+    });
   };
 
   const openEdit = (p: PipelineRecord) => {
@@ -480,8 +489,9 @@ export function PipelinePage() {
             <Button
               variant="destructive"
               onClick={() => {
-                toast.success("Pipeline deleted");
-                setDeleteTargetId(null);
+                if (deleteTargetId) {
+                  deletePipelineMut.mutate(deleteTargetId);
+                }
               }}
             >
               Confirm Delete

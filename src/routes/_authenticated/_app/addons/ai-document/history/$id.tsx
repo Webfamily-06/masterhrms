@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Copy, Download, Trash2, Save, FileText, Check, Calendar, User } from "lucide-react";
+import { ArrowLeft, Copy, Download, Trash2, Save, FileText, Check, Calendar, User, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { getAuthHeaders } from "@/lib/api";
+import { PdfPreviewModal } from "@/components/ai/pdf-preview-modal";
 
 export const Route = createFileRoute(
   "/_authenticated/_app/addons/ai-document/history/$id"
@@ -25,6 +26,7 @@ export default function AiDocumentViewPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     fetchDoc();
@@ -158,6 +160,10 @@ export default function AiDocumentViewPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="default" size="sm" onClick={() => setPreviewOpen(true)} className="gap-1.5" data-testid="preview-pdf-button">
+            <Eye className="h-4 w-4" />
+            Preview PDF
+          </Button>
           <Button variant="outline" size="sm" onClick={handleCopy}>
             {copied ? <Check className="h-4 w-4 mr-1 text-green-500" /> : <Copy className="h-4 w-4 mr-1" />}
             {copied ? "Copied" : "Copy"}
@@ -244,6 +250,13 @@ export default function AiDocumentViewPage() {
           </Card>
         </div>
       </div>
+
+      <PdfPreviewModal
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        documentId={id}
+        documentTitle={doc?.title || "Document"}
+      />
     </div>
   );
 }

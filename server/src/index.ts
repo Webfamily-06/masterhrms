@@ -57,6 +57,7 @@ import { strategyStudioRouter } from "./routes/strategy-studio.routes";
 import { woocommerceRouter } from "./routes/woocommerce.routes";
 import { shopifyRouter } from "./routes/shopify.routes";
 import { alertsRouter } from "./routes/alerts.routes";
+import { WebhookRetryWorker } from "./modules/outbound-webhooks/webhook-retry.worker";
 import { projectsRouter } from "./routes/projects.routes";
 import { suppliersRouter } from "./routes/suppliers.routes";
 import { purchasesRouter } from "./routes/purchases.routes";
@@ -470,6 +471,9 @@ initSocket(server, allowedOrigins);
 
 // Start Transactional Outbox Background Processor (Every 3 seconds)
 OutboxService.startProcessor(3000);
+
+// Start Outbound Webhook Background Retry Worker (Every 5 seconds)
+WebhookRetryWorker.start(5000);
 
 // Start Biometric Auto-Sync Cron (Every 30 mins)
 setInterval(() => {

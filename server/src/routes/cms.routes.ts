@@ -17,7 +17,7 @@ cmsRouter.use(async (req: AuthRequest, res, next) => {
   try { slug = match[1] ? decodeURIComponent(match[1]) : req.body?.slug || ""; }
   catch { return res.status(400).json({ error: "Invalid page identifier." }); }
   if (typeof slug !== "string") return res.status(400).json({ error: "Invalid page identifier." });
-  const publicConfig = ["system-platform-settings", "system-monetization-plans", "system-addons-catalog"];
+  const publicConfig = ["system-platform-settings", "system-monetization-plans", "system-addons-catalog", "system-solutions-catalog", "system-about-us", "system-product-modules", "system-landing-page"];
   const write = !["GET", "HEAD"].includes(req.method);
   const internal = slug.startsWith("system-") || slug.startsWith("tenant-") || slug.includes("catalog-");
   if (!write && (!internal || publicConfig.includes(slug)) && !req.headers.authorization) return next();
@@ -223,6 +223,62 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
     let page = await prisma.cmsPage.findUnique({
       where: { slug },
     });
+
+    if (!page && slug === "system-solutions-catalog") {
+      const defaultSolutions = [
+        { id: "it", title: "IT & Software", desc: "Distributed teams, contractor management, and rapid hiring.", highlights: ["Remote-first attendance", "Contractor & vendor onboarding", "Certification tracking for tech skills", "Fast, high-volume recruitment"] },
+        { id: "manufacturing", title: "Manufacturing", desc: "Shift rosters, statutory compliance, and shop-floor attendance.", highlights: ["Rotational shifts & overtime", "Biometric device integration", "Factories Act compliance", "Safety training via LMS"] },
+        { id: "healthcare", title: "Healthcare", desc: "Rosters, credentials, and 24×7 workforce scheduling.", highlights: ["Credential & license expiry alerts", "24×7 shift roster", "On-call & standby pay", "Mandatory training compliance"] },
+        { id: "retail", title: "Retail", desc: "Multi-location workforce, seasonal hiring, and mobile-first HR.", highlights: ["Store-level attendance", "Seasonal & temp staff", "Mobile-first self-service", "Sales incentive payroll"] },
+        { id: "bfsi", title: "BFSI", desc: "Audit-ready HR with strong security and role-based controls.", highlights: ["Detailed audit logs", "SSO / SAML", "Role-based access control", "Regulatory training"] },
+        { id: "education", title: "Education", desc: "Faculty, staff, and academic-year workflows in one system.", highlights: ["Academic-year leave policies", "Faculty appraisals", "Substitution management", "Payroll for allowances"] },
+      ];
+      page = await prisma.cmsPage.upsert({
+        where: { slug: "system-solutions-catalog" },
+        create: { id: "system-solutions-catalog", slug: "system-solutions-catalog", title: "Solutions by Industry", content: { industries: defaultSolutions }, published: true },
+        update: {},
+      });
+    }
+
+    if (!page && slug === "system-about-us") {
+      const defaultAbout = {
+        values: [
+          { title: "People First", desc: "We build for growing organizations and the people they empower every single day." },
+          { title: "High Velocity", desc: "Autonomous releases, sub-second latency, and continuous performance optimization." },
+          { title: "Global by Default", desc: "Multi-currency, localized tax engines, and distributed clusters in 5 global regions." },
+          { title: "Craft & Ergonomics", desc: "Enterprise software should inspire. Modern interfaces designed with intuitive ergonomics." },
+        ],
+        stats: [
+          { v: "2020", l: "Engine Founded" },
+          { v: "180+", l: "Core Contributors" },
+          { v: "1,200+", l: "Global Enterprises" },
+          { v: "50,000+", l: "Workforce Managed" },
+        ],
+      };
+      page = await prisma.cmsPage.upsert({
+        where: { slug: "system-about-us" },
+        create: { id: "system-about-us", slug: "system-about-us", title: "About Us & Values", content: defaultAbout, published: true },
+        update: {},
+      });
+    }
+
+    if (!page && slug === "system-product-modules") {
+      const defaultModules = [
+        { id: "core-hr", title: "Core HR", desc: "The single source of truth for your people data.", features: ["Employee master & documents", "Org chart & departments", "Lifecycle events (onboarding, transfers, exits)", "Custom fields & workflows", "Employee self-service portal"] },
+        { id: "payroll", title: "Payroll", desc: "Statutory-ready payroll with automated pay runs.", features: ["Salary structures & CTC", "Automated tax, PF, ESI, PT", "Payslip generation & delivery", "Reimbursements & bonuses", "Year-end filings & Form 16"] },
+        { id: "attendance", title: "Attendance", desc: "Track time across web, mobile, biometric, and geo-fence.", features: ["Web & mobile clock-in", "Shift rosters & swaps", "Geo-fenced attendance", "Biometric device sync", "Overtime & regularization"] },
+        { id: "leave", title: "Leave", desc: "Policies, balances, and approval flows made simple.", features: ["Configurable leave policies", "Accrual & carry-forward rules", "Team calendars & holiday lists", "Multi-level approvals", "Leave encashment"] },
+        { id: "recruitment", title: "Recruitment", desc: "Applicant tracking from job post to offer letter.", features: ["Career site & job posts", "Candidate pipeline & Kanban", "Interview scheduling", "Feedback & scorecards", "Offer letters & onboarding handoff"] },
+        { id: "performance", title: "Performance", desc: "Goals, continuous feedback, and 360 reviews.", features: ["OKR goal trees", "Quarterly & annual review cycles", "Multi-rater / 360 feedback", "Performance-to-payroll linkage", "1:1 meeting agendas"] },
+        { id: "lms", title: "LMS & Training", desc: "Course library, compliance tracks, and skill assessments.", features: ["Course authoring & SCORM", "Mandatory compliance certifications", "Quizzes & skill assessments", "Progress dashboards", "Automated reminder nudges"] },
+        { id: "helpdesk", title: "Internal Helpdesk", desc: "Employee ticketing with SLA-driven routing.", features: ["Shared HR / IT ticket inbox", "Custom categories & SLAs", "Internal notes & canned replies", "Satisfaction (CSAT) surveys", "Knowledge base integration"] },
+      ];
+      page = await prisma.cmsPage.upsert({
+        where: { slug: "system-product-modules" },
+        create: { id: "system-product-modules", slug: "system-product-modules", title: "Product Modules", content: { modules: defaultModules }, published: true },
+        update: {},
+      });
+    }
 
     if (!page && slug === "system-platform-settings") {
       page = {

@@ -384,6 +384,20 @@ export function TenantMediaPage() {
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         {(file.fileSize / 1024).toFixed(1)} KB • {file.folder}
                       </p>
+                      {file.folder && file.folder.toLowerCase().startsWith("employees/") && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          {file.folder.split("/")[1] && (
+                            <Badge variant="outline" className="text-[10px] font-mono bg-primary/5 text-primary border-primary/20">
+                              Emp: {file.folder.split("/")[1]}
+                            </Badge>
+                          )}
+                          {file.folder.split("/").length > 2 && (
+                            <Badge variant="secondary" className="text-[10px] capitalize">
+                              {file.folder.split("/").slice(2).join(" / ").replace(/-/g, " ")}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {isInUse && (

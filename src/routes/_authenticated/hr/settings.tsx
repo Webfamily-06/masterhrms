@@ -263,12 +263,7 @@ export function Settings() {
   });
 
   // Custom Fields State (custom-fields.html)
-  const [customFields, setCustomFields] = useState([
-    { id: "cf-1", module: "Employees", label: "Emergency Blood Group", type: "Select", options: "A+, A-, B+, B-, O+, O-, AB+, AB-", required: true },
-    { id: "cf-2", module: "Employees", label: "T-Shirt Size (Swag / Uniform)", type: "Select", options: "S, M, L, XL, XXL", required: false },
-    { id: "cf-3", module: "Projects", label: "Client SLA Severity Tier", type: "Select", options: "Gold 24/7, Silver 12/5, Bronze Standard", required: true },
-    { id: "cf-4", module: "Helpdesk", label: "Root Cause Classification", type: "Text", options: "", required: false },
-  ]);
+  const [customFields, setCustomFields] = useState<Array<{ id: string; module: string; label: string; type: string; options: string; required: boolean }>>([]);
   const [isAddCustomFieldOpen, setIsAddCustomFieldOpen] = useState(false);
   const [customFieldForm, setCustomFieldForm] = useState({
     module: "Employees",
