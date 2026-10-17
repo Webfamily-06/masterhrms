@@ -275,6 +275,53 @@ hrEmployeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Respons
 });
 
 // =========================================================================
+// 6b. UPDATE EMPLOYEE STATUS (PATCH /api/v1/hr/employees/:id/status)
+// Updates employee employment status (active, inactive, on_leave, terminated)
+// =========================================================================
+async function handleStatusUpdate(req: AuthRequest, res: Response) {
+  try {
+    const tenantId = req.user?.tenantId;
+    const actorId = req.user?.userId;
+    if (!tenantId || !actorId) {
+      return res.status(403).json({ error: "Tenant context and authenticated actor required" });
+    }
+
+    const { status } = req.body || {};
+    if (!status) {
+      return res.status(400).json({ error: "Status field is required." });
+    }
+
+    const db = getTenantDb();
+    const userContext = await resolveUserSecurityContext(
+      actorId,
+      tenantId,
+      req.user?.roles || [],
+      db
+    );
+
+    const updated = await EmployeeService.updateEmployeeStatus(
+      tenantId,
+      actorId,
+      req.params.id,
+      status,
+      userContext
+    );
+
+    return res.json({
+      success: true,
+      message: `Employee status updated to ${status} successfully.`,
+      data: updated,
+    });
+  } catch (err: any) {
+    const code = err.statusCode || (err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
+    return res.status(code).json({ error: err.message });
+  }
+}
+
+hrEmployeesRouter.patch("/:id/status", requireAuth, handleStatusUpdate);
+hrEmployeesRouter.put("/:id/status", requireAuth, handleStatusUpdate);
+
+// =========================================================================
 // 7. CHANGE EMPLOYEE PASSWORD (POST /api/v1/hr/employees/:id/password)
 // Secure password update with bcrypt (10 rounds), tenant isolation, and audit logging.
 // =========================================================================

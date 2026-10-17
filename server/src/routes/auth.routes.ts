@@ -25,6 +25,7 @@ import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth"
 import { SettingsService } from "../services/settings/settings.service";
 import { OAuthFactory } from "../services/factories/oauth.factory";
 import { TwoFactorService } from "../modules/two-factor-auth/two-factor.service";
+import { EmployeeService } from "../services/employee.service";
 import { requireTurnstile } from "../middleware/turnstile.middleware";
 
 export { OAuthFactory };
@@ -1587,10 +1588,71 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
         activeAddons = Array.from(activeAddonSlugs);
       }
 
+    // Resolve authoritative employee avatar for caller's profile in the active workspace
+    let canonicalAvatar: string | null = (user!.profile?.avatarUrl && user!.profile.avatarUrl !== "/favicon.webp")
+      ? user!.profile.avatarUrl.trim()
+      : null;
+
+    if (tenantId) {
+      try {
+        const linkedEmp = await db.employee.findFirst({
+          where: {
+            tenantId,
+            OR: [
+              { userId: user!.id },
+              ...(user!.email ? [{ email: user!.email.toLowerCase().trim() }] : []),
+            ],
+          },
+          select: { id: true, userId: true },
+        });
+
+        if (linkedEmp) {
+          // If employee record is linked by email but missing userId, backfill userId
+          if (!linkedEmp.userId) {
+            await db.employee.update({
+              where: { id: linkedEmp.id },
+              data: { userId: user!.id },
+            }).catch(() => {});
+          }
+
+          const empMeta = await EmployeeService.getEmployeeMetadata(tenantId, linkedEmp.id);
+          if (empMeta.avatarUrl !== undefined && empMeta.avatarUrl !== null) {
+            const trimmed = empMeta.avatarUrl.trim();
+            if (trimmed.length > 0 && trimmed !== "/favicon.webp" && trimmed !== "null" && trimmed !== "undefined") {
+              canonicalAvatar = trimmed;
+            } else {
+              canonicalAvatar = null;
+            }
+          }
+
+          // Synchronize profile.avatarUrl in the DB if it is out-of-sync or contains placeholder
+          if (user!.profile && user!.profile.avatarUrl !== canonicalAvatar) {
+            await db.profile.update({
+              where: { userId: user!.id },
+              data: { avatarUrl: canonicalAvatar },
+            }).catch(() => {});
+          }
+        }
+      } catch (err: any) {
+        console.warn("[/auth/me] Non-fatal error resolving authoritative employee avatar:", err.message);
+      }
+    } else if (user!.profile?.avatarUrl === "/favicon.webp") {
+      // Clean up legacy seeded placeholder avatar for non-tenant / super-admin profiles
+      await db.profile.update({
+        where: { userId: user!.id },
+        data: { avatarUrl: null },
+      }).catch(() => {});
+    }
+
+    const sanitizedProfile = user!.profile ? {
+      ...user!.profile,
+      avatarUrl: canonicalAvatar,
+    } : null;
+
     return res.json({
       id: user!.id,
       email: user!.email,
-      profile: user!.profile,
+      profile: sanitizedProfile,
       roles,
       workspaceRole,
       permissions,

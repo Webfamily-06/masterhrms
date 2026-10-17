@@ -1,0 +1,15 @@
+export const PROCESS_ANIMATION = {
+  STEP_WAIT: 1.2,
+  LINE_DURATION: 1,
+  OPEN_DUR: 1,
+  CLOSE_DUR: 0.8,
+  EASE: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  TEXT_STAGGER: 0.3,
+  BLUR_IN: 'blur(3px)',
+  BLUR_OUT: 'blur(0px)',
+} as const;
+
+export const PROCESS_REVEAL_DUR = Math.max(
+  PROCESS_ANIMATION.CLOSE_DUR,
+  PROCESS_ANIMATION.OPEN_DUR + PROCESS_ANIMATION.TEXT_STAGGER
+);

@@ -104,11 +104,41 @@ export class MediaService {
       return { isValid: true, mimeType: "application/pdf", extension: ".pdf" };
     }
 
+    // 8. DOCX / OpenXML check: PK\x03\x04 (50 4B 03 04)
+    if (
+      buffer.length >= 4 &&
+      buffer[0] === 0x50 &&
+      buffer[1] === 0x4b &&
+      buffer[2] === 0x03 &&
+      buffer[3] === 0x04
+    ) {
+      return {
+        isValid: true,
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        extension: ".docx",
+      };
+    }
+
+    // 9. Legacy DOC check: D0 CF 11 E0 A1 B1 1A E1 (OLE2 Compound Document)
+    if (
+      buffer.length >= 8 &&
+      buffer[0] === 0xd0 &&
+      buffer[1] === 0xcf &&
+      buffer[2] === 0x11 &&
+      buffer[3] === 0xe0 &&
+      buffer[4] === 0xa1 &&
+      buffer[5] === 0xb1 &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0xe1
+    ) {
+      return { isValid: true, mimeType: "application/msword", extension: ".doc" };
+    }
+
     return {
       isValid: false,
       mimeType: "",
       extension: "",
-      error: "Unsupported file type. Please upload PNG, JPG, WebP, GIF, ICO, sanitized SVG, or PDF.",
+      error: "Unsupported file type. Please upload PNG, JPG, WebP, GIF, ICO, sanitized SVG, PDF, DOC, or DOCX.",
     };
   }
 

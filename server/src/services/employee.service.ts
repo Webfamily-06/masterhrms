@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
-import { getTenantDb } from "../context/tenant-context";
+import { getTenantDb, getTenantContext } from "../context/tenant-context";
+import { rawPrisma } from "../prisma";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { AuditService } from "./audit.service";
 import { OutboxService } from "./outbox.service";
@@ -8,6 +9,7 @@ import { sanitizeSensitiveFields } from "../lib/field-security";
 import { attachAllowedActions } from "../lib/allowed-actions";
 import { buildDataScopeFilter, UserSecurityContext, DataScope } from "../lib/data-scope";
 import { EmployeeSystemIdService } from "./employee-system-id.service";
+import { validateAndNormalizeServerPhone } from "../lib/phone-validation";
 
 export interface UpdateEmployeeInput {
   // Step 1: Personal
@@ -28,9 +30,10 @@ export interface UpdateEmployeeInput {
   designationId?: string | null;
   joinedAt?: string | Date | null;
   employmentType?: "full_time" | "part_time" | "contract" | "intern";
-  status?: "active" | "on_leave" | "terminated";
+  status?: "active" | "inactive" | "on_leave" | "terminated";
   shiftId?: string | null;
   attendancePolicyId?: string | null;
+  workMode?: string | null;
 
   // Step 3: Contact
   addressLine1?: string | null;
@@ -45,7 +48,7 @@ export interface UpdateEmployeeInput {
   emergencyContactRelationshipOther?: string | null;
   emergencyContactPhone?: string | null;
 
-  // Step 4: Banking
+  // Step 4: Banking & Statutory
   bankName?: string | null;
   accountHolderName?: string | null;
   bankAccount?: string | null;
@@ -54,6 +57,11 @@ export interface UpdateEmployeeInput {
   bankBranch?: string | null;
   taxPayerId?: string | null;
   pan?: string | null;
+  aadhaar?: string | null;
+  uan?: string | null;
+  esiNumber?: string | null;
+  pfNumber?: string | null;
+  taxRegime?: string | null;
   salary?: number | string | null;
 
   // Step 5: Documents
@@ -81,11 +89,14 @@ export interface CreateEmployeeInput {
   email: string;
   phone?: string | null;
   address?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
   district?: string | null;
   state?: string | null;
   country?: string | null;
   zipCode?: string | null;
+  postalCode?: string | null;
   emergencyContactName?: string | null;
   emergencyContactRelationship?: string | null;
   emergencyContactRelationshipOther?: string | null;
@@ -100,8 +111,9 @@ export interface CreateEmployeeInput {
   managerId?: string | null;
   position?: string | null;
   employmentType?: "full_time" | "part_time" | "contract" | "intern";
-  status?: "active" | "on_leave" | "terminated";
+  status?: "active" | "inactive" | "on_leave" | "terminated";
   joinedAt?: string | Date | null;
+  workMode?: string | null;
 
   // Step 4: Compensation
   salary?: number | string | null;
@@ -125,8 +137,11 @@ export interface CreateEmployeeInput {
   // Step 6: Documents
   documents?: Array<{
     title: string;
-    mediaUrl: string;
+    mediaUrl?: string;
+    fileUrl?: string;
     documentType?: string;
+    category?: string;
+    expiryDate?: string | Date | null;
   }>;
 
   // Step 7: Access
@@ -176,15 +191,32 @@ export class EmployeeService {
       }
     }
 
-    const existingEmail = await db.employee.findFirst({
-      where: { tenantId, email: input.email.toLowerCase().trim() },
-    });
-    if (existingEmail) {
-      throw new Error(`An employee with email '${input.email}' already exists in this workspace.`);
+    if (input.email) {
+      const existingEmail = await db.employee.findFirst({
+        where: { tenantId, email: input.email.toLowerCase().trim() },
+      });
+      if (existingEmail) {
+        throw new Error(`An employee with email '${input.email}' already exists in this workspace.`);
+      }
+    }
+
+    // Phone format validation
+    if (input.phone) {
+      const phoneValidation = validateAndNormalizeServerPhone(input.phone, false, input.country || "India");
+      if (!phoneValidation.isValid) {
+        throw new Error(phoneValidation.error || "Invalid phone number format.");
+      }
+    }
+    if (input.emergencyContactPhone) {
+      const emergencyValidation = validateAndNormalizeServerPhone(input.emergencyContactPhone, false, input.country || "India");
+      if (!emergencyValidation.isValid) {
+        throw new Error(emergencyValidation.error || "Invalid emergency contact phone number format.");
+      }
     }
 
     // 2. Execute Transaction
-    const result = await db.$transaction(async (tx: any) => {
+    const result = await db.$transaction(
+      async (tx: any) => {
       // Step A: Optional User Account provisioning
       let userId: string | null = null;
       if (input.createLoginAccount !== false) {
@@ -228,6 +260,7 @@ export class EmployeeService {
           joinedAt: input.joinedAt ? new Date(input.joinedAt) : new Date(),
           dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
           gender: input.gender || null,
+          state: input.state || null,
           taxRegime: input.taxRegime || "new",
           pfEligible: input.pfEligible !== false,
           esiEligible: input.esiEligible !== false,
@@ -256,27 +289,37 @@ export class EmployeeService {
         bloodGroup: input.bloodGroup,
         district: input.district,
         country: input.country || "India",
-        addressLine1: input.address,
+        addressLine1: input.addressLine1 || input.address,
+        addressLine2: input.addressLine2,
         city: input.city,
         state: input.state,
-        postalCode: input.zipCode,
+        postalCode: input.postalCode || input.zipCode,
         emergencyContactName: input.emergencyContactName,
         emergencyContactRelationship: input.emergencyContactRelationship,
         emergencyContactRelationshipOther: input.emergencyContactRelationshipOther,
         emergencyContactPhone: input.emergencyContactPhone,
         avatarUrl: input.avatarUrl,
+        workMode: input.workMode || null,
       });
 
       // Step C: Optional documents attachment
       if (input.documents && input.documents.length > 0) {
         for (const doc of input.documents) {
+          const randomCode = Math.floor(1000 + Math.random() * 9000);
           await tx.companyDocument.create({
             data: {
               tenantId,
+              employeeId: employee.id,
+              documentCode: `DOC-${randomCode}`,
               title: doc.title,
-              fileUrl: doc.mediaUrl,
-              fileType: doc.documentType || "general",
-              uploadedById: employee.id,
+              category: doc.category || doc.documentType || "Employment Contract",
+              fileName: `${doc.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`,
+              fileUrl: doc.mediaUrl || doc.fileUrl || null,
+              fileSize: "1.2 MB",
+              fileType: "application/pdf",
+              status: "verified",
+              requiresSignature: false,
+              expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null,
             },
           });
         }
@@ -330,6 +373,10 @@ export class EmployeeService {
       );
 
       return employee;
+    },
+    {
+      timeout: 25000,
+      maxWait: 15000,
     });
 
     // Step F: Asynchronous notification to HR team
@@ -387,7 +434,7 @@ export class EmployeeService {
     if (query.designationId && query.designationId !== "all") where.designationId = query.designationId;
     if (query.status && query.status !== "all") {
       if (query.status === "inactive") {
-        where.status = { not: "active" };
+        where.status = "inactive";
       } else if (query.status === "probation") {
         where.probationRecords = { some: { status: { in: ["active", "extended", "ongoing"] } } };
       } else {
@@ -434,7 +481,7 @@ export class EmployeeService {
       }),
       db.employee.count({ where: baseWhere }),
       db.employee.count({ where: { ...baseWhere, status: "active" } }),
-      db.employee.count({ where: { ...baseWhere, status: { not: "active" } } }),
+      db.employee.count({ where: { ...baseWhere, status: "inactive" } }),
       db.employee.count({ where: { ...baseWhere, probationRecords: { some: { status: { in: ["active", "extended", "ongoing"] } } } } }),
       db.employee.count({ where: { ...baseWhere, status: "terminated" } }),
     ]);
@@ -455,11 +502,51 @@ export class EmployeeService {
       userPermissions
     );
 
-    const enrichedEmployees = withActions.map((emp: any) => ({
-      ...emp,
-      loginStatus: emp.userId ? "active" : "inactive",
-      avatarUrl: emp.user?.profile?.avatarUrl || null,
-    }));
+    const empIds = rawEmployees.map((e: any) => e.id);
+    const metaAvatarMap = new Map<string, string | null>();
+    if (empIds.length > 0) {
+      try {
+        const cf = await (db as any).customField.findFirst({
+          where: { tenantId, module: "EMPLOYEE", label: "avatarUrl" },
+          select: { id: true },
+        });
+        if (cf) {
+          const cfValues = await (db as any).customFieldValue.findMany({
+            where: {
+              tenantId,
+              customFieldId: cf.id,
+              entityId: { in: empIds },
+            },
+            select: { entityId: true, value: true },
+          });
+          for (const cfv of cfValues) {
+            metaAvatarMap.set(
+              cfv.entityId,
+              cfv.value && cfv.value.trim().length > 0 ? cfv.value.trim() : null
+            );
+          }
+        }
+      } catch (cfErr: any) {
+        console.warn("[listEmployees avatar metadata warning]:", cfErr.message);
+      }
+    }
+
+    const enrichedEmployees = withActions.map((emp: any) => {
+      const userAvatar = emp.user?.profile?.avatarUrl || null;
+      let canonicalAvatar: string | null = null;
+      if (metaAvatarMap.has(emp.id)) {
+        canonicalAvatar = metaAvatarMap.get(emp.id) || null;
+      } else {
+        canonicalAvatar = userAvatar;
+      }
+
+      return {
+        ...emp,
+        loginStatus: emp.userId ? "active" : "inactive",
+        avatarUrl: canonicalAvatar,
+        avatar_url: canonicalAvatar,
+      };
+    });
 
     return {
       data: enrichedEmployees,
@@ -483,9 +570,16 @@ export class EmployeeService {
   static async getEmployee360(
     tenantId: string,
     employeeId: string,
-    userContext: UserSecurityContext,
-    userPermissions: string[]
+    userContext?: UserSecurityContext,
+    userPermissions: string[] = []
   ) {
+    const effectiveContext: UserSecurityContext = userContext || {
+      userId: "system",
+      roles: ["admin", "hr_admin"],
+      status: "ACTIVE",
+      tenancyStrategy: "SHARED_SCHEMA",
+    };
+    const effectivePermissions = userPermissions || [];
     const db = getTenantDb();
 
     const employee = await db.employee.findFirst({
@@ -566,10 +660,16 @@ export class EmployeeService {
     }
 
     // Apply Field Security Mask
-    const canViewSensitive = userContext.roles.some((r) =>
-      ["admin", "hr_admin", "super_admin", "Workspace Admin"].includes(r)
-    );
-    const isSelf = employee.id === userContext.employeeId || employee.userId === userContext.userId;
+    const canViewSensitive =
+      effectiveContext.roles.some((r) =>
+        ["admin", "hr_admin", "super_admin", "Workspace Admin"].includes(r)
+      ) ||
+      effectivePermissions.includes("hr:employee:sensitive:read") ||
+      effectivePermissions.includes("hr:employee:sensitive:write") ||
+      effectivePermissions.includes("hr:sensitive:read") ||
+      effectivePermissions.includes("hr:sensitive:write") ||
+      effectivePermissions.includes("hrm.sensitive.edit");
+    const isSelf = employee.id === effectiveContext.employeeId || employee.userId === effectiveContext.userId;
     const canViewCompensation = canViewSensitive || isSelf;
 
     const masked = sanitizeSensitiveFields(employee, {
@@ -578,14 +678,25 @@ export class EmployeeService {
       isSelf,
     });
 
-    const metadata = await EmployeeService.getEmployeeMetadata(tenantId, employee.id);
+    const metadata = await EmployeeService.getEmployeeMetadata(tenantId, employeeId);
+    const userAvatar = (employee as any).user?.profile?.avatarUrl || null;
+    let canonicalAvatar: string | null = null;
+    if (metadata.avatarUrl !== undefined) {
+      canonicalAvatar =
+        metadata.avatarUrl && metadata.avatarUrl.trim().length > 0
+          ? metadata.avatarUrl.trim()
+          : null;
+    } else {
+      canonicalAvatar = userAvatar;
+    }
 
     const transformedEmployee = {
       ...masked,
       systemId: metadata.systemId || employee.id,
       bloodGroup: metadata.bloodGroup || null,
       district: metadata.district || null,
-      avatarUrl: (employee as any).user?.profile?.avatarUrl || metadata.avatarUrl || null,
+      avatarUrl: canonicalAvatar,
+      avatar_url: canonicalAvatar,
       addressLine1: metadata.addressLine1 || "",
       addressLine2: metadata.addressLine2 || "",
       city: metadata.city || "",
@@ -597,18 +708,30 @@ export class EmployeeService {
       emergencyContactRelationshipOther: metadata.emergencyContactRelationshipOther || "",
       emergencyContactPhone: metadata.emergencyContactPhone || "",
       accountHolderName: metadata.accountHolderName || `${employee.firstName} ${employee.lastName}`,
-      bicSwift: metadata.bicSwift || employee.bankIfsc || "",
+      bicSwift: metadata.bicSwift || "",
       taxPayerId: metadata.taxPayerId || employee.pan || "",
       shiftId: metadata.shiftId || (employee.shiftRosters?.[0]?.shiftId ?? null),
-      attendancePolicyId: metadata.attendancePolicyId || null,
+      workMode: metadata.workMode || null,
+      metadata: {
+        ...metadata,
+        avatarUrl: canonicalAvatar,
+        workMode: metadata.workMode || null,
+        systemId: metadata.systemId || employee.id,
+      },
     };
+
+    const sanitizedTransformed = sanitizeSensitiveFields(transformedEmployee, {
+      canViewSensitive,
+      canViewCompensation,
+      isSelf,
+    });
 
     // Attach allowed actions
     const withActions = attachAllowedActions(
       "Employee",
-      transformedEmployee,
-      userContext,
-      userPermissions
+      sanitizedTransformed,
+      effectiveContext,
+      effectivePermissions
     );
 
     return withActions;
@@ -790,7 +913,8 @@ export class EmployeeService {
    * Helper to fetch employee extended metadata stored in custom field values
    */
   static async getEmployeeMetadata(tenantId: string, employeeId: string): Promise<Record<string, string>> {
-    const db = getTenantDb();
+    const ctx = getTenantContext();
+    const db = ctx ? getTenantDb() : rawPrisma;
     try {
       const values = await (db as any).customFieldValue.findMany({
         where: { tenantId, entityId: employeeId },
@@ -817,7 +941,8 @@ export class EmployeeService {
     employeeId: string,
     metadata: Record<string, string | null | undefined>
   ) {
-    const db = getTenantDb();
+    const ctx = getTenantContext();
+    const db = ctx ? getTenantDb() : rawPrisma;
     for (const [key, val] of Object.entries(metadata)) {
       if (val === undefined) continue;
       try {
@@ -937,6 +1062,32 @@ export class EmployeeService {
       }
     }
 
+    // 4b. Validation: Phone format & length
+    if (input.phone) {
+      const phoneValidation = validateAndNormalizeServerPhone(
+        input.phone,
+        false,
+        input.country || (existing as any).state || "India"
+      );
+      if (!phoneValidation.isValid) {
+        const err: any = new Error(phoneValidation.error || "Invalid phone number format.");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+    if (input.emergencyContactPhone) {
+      const emergencyValidation = validateAndNormalizeServerPhone(
+        input.emergencyContactPhone,
+        false,
+        input.country || (existing as any).state || "India"
+      );
+      if (!emergencyValidation.isValid) {
+        const err: any = new Error(emergencyValidation.error || "Invalid emergency contact phone number format.");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
     // 5. Validation: Foreign keys belong to tenant
     if (input.branchId && input.branchId !== existing.branchId) {
       const branch = await db.branch.findFirst({ where: { id: input.branchId, tenantId } });
@@ -979,10 +1130,16 @@ export class EmployeeService {
       { name: "salary", cur: existing.salary ? String(existing.salary) : "", inputVal: input.salary },
       { name: "bankName", cur: existing.bankName || "", inputVal: input.bankName },
       { name: "bankAccount", cur: existing.bankAccount || "", inputVal: input.bankAccount },
-      { name: "bankIfsc", cur: existing.bankIfsc || currentMeta.bicSwift || "", inputVal: input.bicSwift || input.bankIfsc },
+      { name: "bankIfsc", cur: existing.bankIfsc || "", inputVal: input.bankIfsc },
+      { name: "bicSwift", cur: currentMeta.bicSwift || "", inputVal: input.bicSwift },
       { name: "bankBranch", cur: existing.bankBranch || "", inputVal: input.bankBranch },
-      { name: "pan", cur: existing.pan || currentMeta.taxPayerId || "", inputVal: input.taxPayerId || input.pan },
+      { name: "pan", cur: existing.pan || currentMeta.taxPayerId || "", inputVal: input.pan !== undefined ? input.pan : input.taxPayerId },
       { name: "accountHolderName", cur: currentMeta.accountHolderName || "", inputVal: input.accountHolderName },
+      { name: "aadhaar", cur: existing.aadhaar || "", inputVal: input.aadhaar },
+      { name: "uan", cur: existing.uan || "", inputVal: input.uan },
+      { name: "esiNumber", cur: existing.esiNumber || "", inputVal: input.esiNumber },
+      { name: "pfNumber", cur: existing.pfNumber || "", inputVal: input.pfNumber },
+      { name: "taxRegime", cur: existing.taxRegime || "", inputVal: input.taxRegime },
     ];
 
     const isModifyingSensitive = sensitiveFieldsToCheck.some((s) => {
@@ -1011,6 +1168,8 @@ export class EmployeeService {
       if (input.branchId !== undefined) updateData.branchId = input.branchId || null;
       if (input.departmentId !== undefined) updateData.departmentId = input.departmentId || null;
       if (input.designationId !== undefined) updateData.designationId = input.designationId || null;
+      if (input.managerId !== undefined) updateData.managerId = input.managerId || null;
+      if (input.position !== undefined) updateData.position = input.position ? input.position.trim() : null;
       if (input.joinedAt !== undefined) updateData.joinedAt = input.joinedAt ? new Date(input.joinedAt) : null;
       if (input.employmentType !== undefined) updateData.employmentType = input.employmentType;
       if (input.status !== undefined) updateData.status = input.status;
@@ -1020,15 +1179,23 @@ export class EmployeeService {
         if (input.salary !== undefined) {
           updateData.salary = input.salary !== null && input.salary !== "" ? String(input.salary) : null;
         }
-        if (input.bankName !== undefined) updateData.bankName = input.bankName || null;
-        if (input.bankAccount !== undefined) updateData.bankAccount = input.bankAccount || null;
-        if (input.bicSwift !== undefined || input.bankIfsc !== undefined) {
-          updateData.bankIfsc = input.bicSwift || input.bankIfsc || null;
+        if (input.bankName !== undefined) updateData.bankName = input.bankName ? input.bankName.trim() : null;
+        if (input.bankAccount !== undefined) updateData.bankAccount = input.bankAccount ? input.bankAccount.trim() : null;
+        if (input.bankIfsc !== undefined) {
+          updateData.bankIfsc = input.bankIfsc ? input.bankIfsc.trim().toUpperCase() : null;
+        } else if (input.bicSwift !== undefined) {
+          updateData.bankIfsc = input.bicSwift ? input.bicSwift.trim().toUpperCase() : null;
         }
-        if (input.bankBranch !== undefined) updateData.bankBranch = input.bankBranch || null;
-        if (input.taxPayerId !== undefined || input.pan !== undefined) {
-          updateData.pan = input.taxPayerId || input.pan || null;
+        if (input.bankBranch !== undefined) updateData.bankBranch = input.bankBranch ? input.bankBranch.trim() : null;
+        if (input.pan !== undefined || input.taxPayerId !== undefined) {
+          const rawPan = input.pan !== undefined ? input.pan : input.taxPayerId;
+          updateData.pan = rawPan ? rawPan.trim().toUpperCase() : null;
         }
+        if (input.aadhaar !== undefined) updateData.aadhaar = input.aadhaar ? input.aadhaar.trim() : null;
+        if (input.uan !== undefined) updateData.uan = input.uan ? input.uan.trim() : null;
+        if (input.esiNumber !== undefined) updateData.esiNumber = input.esiNumber ? input.esiNumber.trim() : null;
+        if (input.pfNumber !== undefined) updateData.pfNumber = input.pfNumber ? input.pfNumber.trim() : null;
+        if (input.taxRegime !== undefined) updateData.taxRegime = input.taxRegime ? input.taxRegime.trim() : "new";
       }
 
       const emp = await tx.employee.update({
@@ -1041,12 +1208,26 @@ export class EmployeeService {
         },
       });
 
-      // Update User password and avatar if user exists
-      if (existing.userId) {
+      // Update User password and avatar if user exists (or link by email)
+      let targetUserId = existing.userId;
+      if (!targetUserId && existing.email) {
+        const matchingUser = await tx.user.findFirst({
+          where: { email: existing.email.toLowerCase().trim() },
+        });
+        if (matchingUser) {
+          targetUserId = matchingUser.id;
+          await tx.employee.update({
+            where: { id: employeeId },
+            data: { userId: targetUserId },
+          });
+        }
+      }
+
+      if (targetUserId) {
         if (input.password && input.password.trim().length > 0) {
           const passwordHash = await bcrypt.hash(input.password.trim(), 10);
           await tx.user.update({
-            where: { id: existing.userId },
+            where: { id: targetUserId },
             data: { passwordHash },
           });
         }
@@ -1058,14 +1239,17 @@ export class EmployeeService {
           profileData.fullName = `${fn} ${ln}`.trim();
         }
         if (input.phone !== undefined) profileData.phone = input.phone || null;
-        if (input.avatarUrl !== undefined) profileData.avatarUrl = input.avatarUrl || null;
+        if (input.avatarUrl !== undefined) {
+          const trimmed = input.avatarUrl ? input.avatarUrl.trim() : null;
+          profileData.avatarUrl = trimmed && trimmed.length > 0 ? trimmed : null;
+        }
 
         if (Object.keys(profileData).length > 0) {
           try {
             await tx.profile.upsert({
-              where: { userId: existing.userId },
+              where: { userId: targetUserId },
               create: {
-                userId: existing.userId,
+                userId: targetUserId,
                 tenantId,
                 ...profileData,
               },
@@ -1176,10 +1360,14 @@ export class EmployeeService {
       );
     });
 
-    // 8. Persist Contact & Extended fields in CustomFieldValues
     const metaUpdates: Record<string, string | null | undefined> = {
       bloodGroup: input.bloodGroup,
-      avatarUrl: input.avatarUrl,
+      avatarUrl:
+        input.avatarUrl !== undefined
+          ? input.avatarUrl && input.avatarUrl.trim().length > 0
+            ? input.avatarUrl.trim()
+            : null
+          : undefined,
       addressLine1: input.addressLine1,
       addressLine2: input.addressLine2,
       city: input.city,
@@ -1193,12 +1381,14 @@ export class EmployeeService {
       emergencyContactPhone: input.emergencyContactPhone,
       shiftId: input.shiftId,
       attendancePolicyId: input.attendancePolicyId,
+      workMode: (input as any).workMode !== undefined ? (input as any).workMode : undefined,
     };
 
     if (hasSensitivePermission) {
-      if (input.accountHolderName !== undefined) metaUpdates.accountHolderName = input.accountHolderName;
-      if (input.bicSwift !== undefined) metaUpdates.bicSwift = input.bicSwift;
-      if (input.taxPayerId !== undefined) metaUpdates.taxPayerId = input.taxPayerId;
+      if (input.accountHolderName !== undefined) metaUpdates.accountHolderName = input.accountHolderName ? input.accountHolderName.trim() : null;
+      if (input.bicSwift !== undefined) metaUpdates.bicSwift = input.bicSwift ? input.bicSwift.trim().toUpperCase() : null;
+      if (input.taxPayerId !== undefined) metaUpdates.taxPayerId = input.taxPayerId ? input.taxPayerId.trim().toUpperCase() : null;
+      if (input.pan !== undefined && !input.taxPayerId) metaUpdates.taxPayerId = input.pan ? input.pan.trim().toUpperCase() : null;
     }
 
     await EmployeeService.setEmployeeMetadata(tenantId, employeeId, metaUpdates);
@@ -1513,4 +1703,81 @@ export class EmployeeService {
       }.`,
     };
   }
+
+  /**
+   * UPDATE EMPLOYEE EMPLOYMENT STATUS
+   * Updates employment status (active, inactive, on_leave, terminated) with role checks,
+   * audit logging, and outbox event creation.
+   */
+  static async updateEmployeeStatus(
+    tenantId: string,
+    actorId: string,
+    employeeId: string,
+    status: "active" | "inactive" | "on_leave" | "terminated",
+    userContext: UserSecurityContext
+  ) {
+    const validStatuses = ["active", "inactive", "on_leave", "terminated"];
+    if (!validStatuses.includes(status)) {
+      const err: any = new Error(`Invalid status '${status}'. Must be one of: ${validStatuses.join(", ")}`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const canManage = userContext.roles.some((r) =>
+      ["admin", "hr_admin", "super_admin", "Workspace Admin", "tenant_admin"].includes(r)
+    );
+    if (!canManage) {
+      const err: any = new Error("Forbidden: You do not have permission to update employee status.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const db = getTenantDb();
+    const existing = await db.employee.findFirst({
+      where: { id: employeeId, tenantId },
+    });
+    if (!existing) {
+      const err: any = new Error("Employee not found in current workspace");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const oldStatus = existing.status;
+    const updated = await db.employee.update({
+      where: { id: employeeId },
+      data: { status: status as any },
+    });
+
+    await AuditService.logMutation(
+      {
+        tenantId,
+        actorId,
+        action: "EMPLOYEE_STATUS_CHANGE",
+        entityType: "Employee",
+        entityId: employeeId,
+        oldState: { status: oldStatus },
+        newState: { status },
+      },
+      db
+    );
+
+    await OutboxService.createOutboxEvent(
+      {
+        tenantId,
+        eventType: "employee.status_changed",
+        entityType: "Employee",
+        entityId: employeeId,
+        actorId,
+        payload: {
+          id: employeeId,
+          oldStatus,
+          newStatus: status,
+        },
+      },
+      db
+    );
+
+    return updated;
+  }
 }
+

@@ -1,0 +1,183 @@
+w14:paraId="13E7C1CC" w14:textId="13ACC480" w:rsidR="00B029F1" w:rsidRDefault="00622EB5">
+w14:paraId="1B9C8BF7" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="56DB72A0" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="3568DB3A" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="612EA093" w14:textId="299F3D1C" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">The Webhook Add-On enables real-time communication between your system and external applications. It automatically triggers data transfers when events occur—like updates in Accounting, Sales, or Projects. This streamlines workflows reduces manual tasks, and ensures seamless integration across tools. Secure and highly customizable, it keeps your operations in sync effortlessly. Webhook is an HTTP-based callback function that allows lightweight, event-driven communication between 2 application programming interfaces (APIs).
+w14:paraId="79C25599" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="29850502" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Smart Webhook Integration
+w14:paraId="6F1DE2BC" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Take automation to the next level with our powerful Webhook Add-On. Seamlessly connect your system with external platforms and automate data exchange in real-time. Trigger events from your internal operations and instantly push updates to third-party apps. It’s secure, fast, and incredibly efficient. Say goodbye to manual syncing and hello to streamlined workflow.
+w14:paraId="68902B4C" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Account
+w14:paraId="7DD9FD1D" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">HRM
+w14:paraId="2ED04111" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Taskly
+w14:paraId="065CE2A6" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">CRM
+w14:paraId="346FB9FF" w14:textId="2B949C10" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Retainer
+w14:paraId="3D3F2E40" w14:textId="5B19D542" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Sales
+w14:paraId="3BDE1315" w14:textId="56EF0AA2" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">LMS
+w14:paraId="518EF18E" w14:textId="6597C936" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">CMS
+w14:paraId="73D5C81F" w14:textId="66E8A5F0" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Contract
+w14:paraId="6B6B50E9" w14:textId="669D58B9" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Recruitment
+w14:paraId="0F0BDA08" w14:textId="47CE72E8" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">More +
+w14:paraId="54B82139" w14:textId="5D43F681" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">
+w14:paraId="0E0DD993" w14:textId="452428BE" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="7F2247D6" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">
+w14:paraId="36DF6A04" w14:textId="1DB335C3" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">STRONG BRAND
+w14:paraId="33F2DAEB" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Connect Everything Instantly
+w14:paraId="06C53D72" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">With Webhooks, your system becomes smarter and more connected. Whether it’s user activity, payments, rewards, or customer updates—everything can be instantly sent to your website or external platforms in real-time. Just plug in your URL and let the automation flow. No manual syncing, no delays—just fast, seamless data delivery from your Add-On to your custom endpoints.
+w14:paraId="7003424D" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="014793AB" w14:textId="575A167B" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">
+w14:paraId="517156B1" w14:textId="612AE051" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="04179C0C" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Quick & Easy Webhook Setup
+w14:paraId="18CA2060" w14:textId="2FFE3B88" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">Connecting your system with a webhook is quick and effortless. Just head over to Settings > Webhook and click the Create button. From there, choose the Add-On where the webhook should listen like user creation, invoices, or project updates. Select the method (GET or POST), then enter the destination URL where you want the data sent. Once saved, your system will automatically send real-time data to that URL whenever the selected event is triggered. It’s a simple setup that unlocks powerful automation and seamless integration with other platform 
+w14:paraId="45B946CD" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="3403A01F" w14:textId="1382ABD5" w:rsidR="00622EB5" w:rsidRPr="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5">
+w14:paraId="47E45BFA" w14:textId="77777777" w:rsidR="00622EB5" w:rsidRDefault="00622EB5" w:rsidP="00622EB5"/>
+w14:paraId="7F8272B9" w14:textId="77777777" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="399F39FC" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"> Introduction
+w14:paraId="2C805349" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">A webhook is a powerful mechanism that enables real-time communication between web applications by acting as an HTTP-based callback. When specific events occur in one application, it instantly triggers actions or sends data to another, eliminating the need for constant polling. This event-driven approach allows systems to stay synchronized and respond promptly to changes. Webhooks are widely used for sending notifications, automating tasks, syncing data, integrating third-party services, and enhancing real-time functionality, making them essential for building efficient, connected, and responsive digital ecosystems.
+w14:paraId="2838F1F8" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">How To Use The Webhook Add-On?
+w14:paraId="2BA77EF4" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Once you purchase the Add-On, navigate to the settings page, click on system settings, and find Webhook Settings.
+w14:paraId="53BE1189" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">To create a new Webhook, click on the “Add Webhook” button.
+w14:paraId="3DB385C4" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">First of all, you have to choose the Add-On from the list given.
+w14:paraId="2B1F979B" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Secondly, you have to choose the method between “Get”, “Put”, and “Post”.
+w14:paraId="7607E242" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">To generate the Webhook URL, you can follow this link: https://documentation.bloomreach.com/content/docs/create-a-webhook
+w14:paraId="277FECB9" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">At last, you have to enter the Webhook URL, and your work will be done.
+w14:paraId="78F5E081" w14:textId="6D684FEC" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">
+w14:paraId="043C7436" w14:textId="13171E66" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Here, I explain to you an example of how to work Webhook Add-On.
+w14:paraId="1E42F730" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">First of all, go to System Settings and scroll down until you find Webhook Settings. Then click on Webhook Settings, and here you can see the list of Add-Ons data that are connected to the Webhook Add-on.
+w14:paraId="0A11AF6D" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">You can see one “Create” button right side of this page. Click on this button and you will see a pop-up box.
+w14:paraId="6383AAE8" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">In this box, you can see the first field, Module. In this module selection box, you can see a list of add-ons that can connect to the Webhook Add-On. From this list, I choose Create User under General. Because I want to get the Create User detail using a webhook Call.
+w14:paraId="4D407CF8" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Moving forward in this, you can see the Method fields. From this Method Selection box, you can choose the Method to connect Webhook call, like GET or POST.
+w14:paraId="3E070525" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">The POST Method is the most commonly used in webhooks. It is used to send data (like user info, updates, or notifications) to another server. This is perfect for tasks like creating new records in a connected app.
+w14:paraId="2E5D281F" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">The GET Method is used to retrieve data or trigger an action on another server using parameters in the URL. It’s generally used when you only need to notify or fetch something without sending a lot of data. For example, pinging a service or checking a status.
+w14:paraId="46D8F245" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">And last field, you can see the URL fields. In this field, you need to enter your Webhook URL on which you want to see the Created User details. Without this URL, you can not get a webhook call. In this URL field, I add my webhook URL to get information about the User.
+w14:paraId="0BD32613" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">On the right side of this page, you can also see a toggle switch button. This toggle switch allows you to enable or disable the webhook. When the toggle is green, the webhook is active and will work properly. When you toggle it off, the webhook becomes inactive. You can use this toggle to control whether the webhook is currently active or not in your system.
+w14:paraId="6A6CC526" w14:textId="4E46D123" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Here, I copied my webhook URL from one webhook site, and I pasted this URL in my Webhook settings.
+w14:paraId="09CC325D" w14:textId="77777777" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="263F2B84" w14:textId="77777777" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="0B6C12A2" w14:textId="77777777" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="09FCB060" w14:textId="60753481" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">-55245151600
+w14:paraId="438596BD" w14:textId="057DADD3" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="76F4B057" w14:textId="41822F06" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="241DF816" w14:textId="1A8E6047" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">
+w14:paraId="2CC32ED9" w14:textId="17CC491A" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="56E8FFEA" w14:textId="2356268C" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="00CE1F26" w:rsidP="000E459F">
+w14:paraId="5BDCF96C" w14:textId="77777777" w:rsidR="00CE1F26" w:rsidRDefault="00CE1F26" w:rsidP="000E459F"/>
+w14:paraId="5215103E" w14:textId="3AA3BD02" w:rsidR="00CE1F26" w:rsidRDefault="00CE1F26" w:rsidP="000E459F">
+w14:paraId="40D4E600" w14:textId="77777777" w:rsidR="00CE1F26" w:rsidRDefault="00CE1F26" w:rsidP="000E459F"/>
+w14:paraId="1F0D47B5" w14:textId="5C800391" w:rsidR="00CE1F26" w:rsidRDefault="00CE1F26" w:rsidP="000E459F">
+w14:paraId="0330155F" w14:textId="77777777" w:rsidR="00CE1F26" w:rsidRDefault="00CE1F26" w:rsidP="000E459F"/>
+w14:paraId="43AE9FFB" w14:textId="428854F5" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Once all of these settings are completed successfully, after you create a new user, you can easily get that user’s information on your webhook-connected site.
+w14:paraId="3F09D079" w14:textId="77777777" w:rsidR="00CE1F26" w:rsidRDefault="00CE1F26" w:rsidP="000E459F"/>
+w14:paraId="7BC4E4D9" w14:textId="50B6603A" w:rsidR="00CE1F26" w:rsidRPr="000E459F" w:rsidRDefault="00CE1F26" w:rsidP="000E459F">
+w14:paraId="1D3C3036" w14:textId="603F8AD3" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>
+w14:paraId="29123ACC" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Note: Here is a list of some Add-Ons that we can easily connect to with the Webhook Add-On.
+w14:paraId="3B6659E9" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">General
+w14:paraId="60940327" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New User
+w14:paraId="2949E242" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Sales Invoice
+w14:paraId="1279D7D2" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Sales Invoice Status Updated
+w14:paraId="67593E98" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Sales Proposal
+w14:paraId="65C34CF8" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Proposal Status Updated
+w14:paraId="106CBAAF" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Purchase Invoice
+w14:paraId="36429754" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Warehouse
+w14:paraId="6D7C317E" w14:textId="77777777" w:rsidR="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">
+w14:paraId="33B43D7E" w14:textId="73891875" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Account
+w14:paraId="24A7EBA8" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Customer
+w14:paraId="5908608D" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Vendor
+w14:paraId="316CD6DE" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Revenue
+w14:paraId="377BCDBA" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Hrm
+w14:paraId="23903290" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Award
+w14:paraId="6DF0778E" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Announcement
+w14:paraId="3D277A19" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Holidays
+w14:paraId="2E83E022" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Event
+w14:paraId="143A4408" w14:textId="1E4FB96C" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Recruitment
+w14:paraId="1A50ABEB" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Job Posting
+w14:paraId="23E01503" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Candidate
+w14:paraId="6692E83B" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Interview Schedule
+w14:paraId="2CE41EF7" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Convert To Employee
+w14:paraId="4684A30D" w14:textId="1A905EE8" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Retainer
+w14:paraId="697001D6" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Create Retainer
+w14:paraId="09035FF6" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Retainer Payment
+w14:paraId="61852573" w14:textId="47EE68A4" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Training
+w14:paraId="4BFA98C0" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Training
+w14:paraId="67C2CDC5" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Trainer
+w14:paraId="375CFE78" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">ZoomMeeting
+w14:paraId="059B1DC2" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Zoom Meeting
+w14:paraId="2AD15EFD" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Taskly
+w14:paraId="3D35DCA3" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Project
+w14:paraId="565E330E" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Milestone
+w14:paraId="76D971C1" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Task
+w14:paraId="0EEDF8DF" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Task Stage Update
+w14:paraId="5A712AF2" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Task Comment
+w14:paraId="42897F00" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Bug
+w14:paraId="2FD9EADC" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">CRM
+w14:paraId="5613B4D1" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Lead
+w14:paraId="4D0C86EC" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Deal
+w14:paraId="74A0F322" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Lead Moved
+w14:paraId="5D9C52AA" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Deal Moved
+w14:paraId="511C3293" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Convert To Deal
+w14:paraId="41CD240B" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Contract
+w14:paraId="75EC9063" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Contract
+w14:paraId="0F6C105E" w14:textId="3CE3D838" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Sales
+w14:paraId="3FBC96ED" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Quote
+w14:paraId="40F6E574" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Sales Order
+w14:paraId="5ACD676F" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Meeting
+w14:paraId="1505F46E" w14:textId="4890A4EB" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">LMS
+w14:paraId="207ED10B" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Course
+w14:paraId="3C264580" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Course Order
+w14:paraId="23450350" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Custom Page
+w14:paraId="299CD64D" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Blog
+w14:paraId="00D61155" w14:textId="69AEFF2D" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Appointment
+w14:paraId="2F6396B0" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Appointment
+w14:paraId="1A98A93F" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Appointment Status
+w14:paraId="6DA1838E" w14:textId="36620618" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">CMS
+w14:paraId="6840C07A" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Location
+w14:paraId="1725017B" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Workorder
+w14:paraId="01B69A83" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Component
+w14:paraId="55524A5D" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Pms
+w14:paraId="50FBA329" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Supplier
+w14:paraId="60AF3069" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Pos
+w14:paraId="3BE12827" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Work Order Request
+w14:paraId="47CE2B3F" w14:textId="1D474C7E" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Spreadsheet
+w14:paraId="4B5DE9E0" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Spreadsheet
+w14:paraId="6CE215FB" w14:textId="1C1A017C" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">WordPress (WooCommerce)
+w14:paraId="387235B2" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Product
+w14:paraId="1082BCB7" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Product Category
+w14:paraId="028E842A" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Tax
+w14:paraId="69007CC0" w14:textId="580212A5" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Time Tracker
+w14:paraId="52BEC690" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Tracker
+w14:paraId="54448083" w14:textId="21C8BE71" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Visitor Management
+w14:paraId="630310B5" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Visitor
+w14:paraId="07A4D7E8" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Visit Reason
+w14:paraId="19FA1884" w14:textId="473BAB0A" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">ToDo
+w14:paraId="2A8B354E" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New To Do Stage
+w14:paraId="3988B166" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New To Do
+w14:paraId="4C0A7B82" w14:textId="435D7016" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Contract Template
+w14:paraId="493101D1" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Contract Template
+w14:paraId="781F95B9" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Duplicate Contract Template
+w14:paraId="6EBFE280" w14:textId="4A160E01" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Innovation Center
+w14:paraId="526131EC" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Challenge Category
+w14:paraId="75C51A73" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Creativity Stage
+w14:paraId="2594A750" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Creativity Status
+w14:paraId="52E37384" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Challenges
+w14:paraId="7AD3656B" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Creativity
+w14:paraId="1AE6AB3D" w14:textId="1620DD99" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">File Sharing
+w14:paraId="1E441642" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New File
+w14:paraId="3516A650" w14:textId="150E051D" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Internal knowledge (KB)
+w14:paraId="40F717B7" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Book
+w14:paraId="62559A59" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Article
+w14:paraId="26D70AFF" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Documents
+w14:paraId="22CD9F25" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Document
+w14:paraId="455F255C" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Document Type
+w14:paraId="6E2908DF" w14:textId="63FBDDAD" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Document Template
+w14:paraId="374633AC" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Document Template
+w14:paraId="1B390D40" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Duplicate Document Template
+w14:paraId="76BE19D4" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Convert Document Template
+w14:paraId="75F1C217" w14:textId="0A1B2542" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Video Hub
+w14:paraId="56AFD1BB" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Video
+w14:paraId="320DE9FF" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Video Comment
+w14:paraId="5AD6A72A" w14:textId="7E69E81D" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">Meeting Hub
+w14:paraId="77D7D3B1" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Meeting
+w14:paraId="2DE11A8C" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Meeting Task
+w14:paraId="2FC44068" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Meeting Minute
+w14:paraId="16E79D91" w14:textId="77777777" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F">New Meeting Note
+w14:paraId="16D9DBD2" w14:textId="6ED78A1A" w:rsidR="000E459F" w:rsidRPr="000E459F" w:rsidRDefault="000E459F" w:rsidP="000E459F"/>

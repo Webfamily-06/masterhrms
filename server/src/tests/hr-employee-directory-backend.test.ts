@@ -29,6 +29,7 @@ describe("HR Employee Directory Backend Suite (Real Database & Strict Tenant Iso
   beforeAll(async () => {
     // 1. Create Tenant A
     const tA = await rawPrisma.tenant.create({
+
       data: {
         name: "Directory Test Tenant A",
         slug: `dir-a-${Date.now()}`,
@@ -93,8 +94,9 @@ describe("HR Employee Directory Backend Suite (Real Database & Strict Tenant Iso
     // - 2 Terminated
     // - 1 On Leave
     for (let i = 1; i <= 12; i++) {
-      let status: "active" | "terminated" | "on_leave" = "active";
-      if (i === 10 || i === 11) status = "terminated";
+      let status: "active" | "inactive" | "terminated" | "on_leave" = "active";
+      if (i === 10) status = "terminated";
+      if (i === 11) status = "inactive";
       if (i === 12) status = "on_leave";
 
       const empCode = `EMP-DIR-${String(i).padStart(4, "0")}`;
@@ -169,8 +171,8 @@ describe("HR Employee Directory Backend Suite (Real Database & Strict Tenant Iso
     expect(res.statusCounts).toBeDefined();
     expect(res.statusCounts.all).toBe(12);
     expect(res.statusCounts.active).toBe(9);
-    expect(res.statusCounts.inactive).toBe(3); // 2 terminated + 1 on_leave
-    expect(res.statusCounts.terminated).toBe(2);
+    expect(res.statusCounts.inactive).toBe(1); // 1 inactive
+    expect(res.statusCounts.terminated).toBe(1); // 1 terminated
 
     // Verify second page
     const page2 = await executeAsTenant(tenantA, () =>
@@ -271,12 +273,12 @@ describe("HR Employee Directory Backend Suite (Real Database & Strict Tenant Iso
         { status: "terminated" }
       )
     );
-    expect(termRes.total).toBe(2);
+    expect(termRes.total).toBe(1);
     for (const e of termRes.data) {
       expect(e.status).toBe("terminated");
     }
 
-    // Inactive (not active)
+    // Inactive (status === 'inactive')
     const inactiveRes = await executeAsTenant(tenantA, () =>
       EmployeeService.listEmployees(
         tenantA,
@@ -285,7 +287,10 @@ describe("HR Employee Directory Backend Suite (Real Database & Strict Tenant Iso
         { status: "inactive" }
       )
     );
-    expect(inactiveRes.total).toBe(3);
+    expect(inactiveRes.total).toBe(1);
+    for (const e of inactiveRes.data) {
+      expect(e.status).toBe("inactive");
+    }
   });
 
   it("5. strictly isolates Tenant A from Tenant B employees", async () => {

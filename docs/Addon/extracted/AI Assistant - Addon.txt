@@ -1,0 +1,140 @@
+w14:paraId="48C12127" w14:textId="5E0F7091" w:rsidR="00B029F1" w:rsidRDefault="0055483A">-752475000
+w14:paraId="77419D3E" w14:textId="77777777" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A"/>
+w14:paraId="7440FFA1" w14:textId="4EE89466" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">The AI Assistant Add-On for Dash SaaS helps businesses create professional content quickly using AI for tasks like writing descriptions, messages, documents, and other business communications. It saves time by generating accurate content in multiple languages and works across different Dash SaaS modules.
+w14:paraId="4B709C3B" w14:textId="77777777" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A"/>
+w14:paraId="17A9D436" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">AI Assistant
+w14:paraId="693ED78F" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">AI-Powered Content Generator with Multilingual & Tonal Flexibility
+w14:paraId="2AE06EC7" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Effortlessly craft tailored content by selecting your preferred AI provider, language, creativity level, and output specifications. This intelligent system allows users to generate custom content with adjustable character length, multiple result variations, and contextual understanding across all platform modules. Whether you're writing for sales, HRM, training, contracts, or any other business function, the seamlessly integrated AI generation modal with one-click content population helps streamline communication across 16+ Add-Ons with professional-grade AI capabilities.
+w14:paraId="7F069C5C" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Accounting
+w14:paraId="3BA96DFB" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">CRM
+w14:paraId="6DED1A0F" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">HRM
+w14:paraId="3C0DB686" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">POS
+w14:paraId="751FFCEE" w14:textId="3560F15C" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Recruitment
+w14:paraId="673736E3" w14:textId="79141484" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Contract
+w14:paraId="4C418931" w14:textId="42DD6B8D" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">CMS
+w14:paraId="0938F7C4" w14:textId="45F1F732" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Rotas
+w14:paraId="50217C00" w14:textId="12C556EC" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Sales
+w14:paraId="2F9EDFD9" w14:textId="5433044D" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Training
+w14:paraId="7CFE451F" w14:textId="63E3C29E" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">More +
+w14:paraId="41AEA66E" w14:textId="7048BF7B" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">
+w14:paraId="6433A0A7" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">STRONG BRAND
+w14:paraId="2BA70694" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Multi-Provider AI Integration
+w14:paraId="41B4226C" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">AI Assistant supports multiple AI providers including OpenAI with GPT-4o and GPT-4-Turbo models, Claude with advanced language models, Gemini for Google's AI capabilities, and Anthropic for sophisticated content generation. Company administrators can configure their preferred provider with secure API key management and dynamic model selection. The system automatically adapts to each provider's capabilities for optimal content quality. Output remains consistently professional across all supported providers with enterprise-grade security and reliability.
+w14:paraId="36996E17" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Multiple AI provider support (OpenAI, Claude, Gemini, Anthropic)
+w14:paraId="37212E90" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Dynamic model selection based on provider capabilities
+w14:paraId="0F042BB9" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Secure API key management with company-side control
+w14:paraId="2E0E10C8" w14:textId="63813201" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Enterprise-grade reliability and consistent output quality
+w14:paraId="4AC10CD7" w14:textId="10531A67" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">-64770027749500
+w14:paraId="6B167BE1" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Advanced AI Content Generation
+w14:paraId="589B5688" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Our AI assistant supports content generation in 15+ languages including English, Arabic, Danish, Spanish, French, German, Hebrew, Italian, Japanese, Dutch, Polish, Portuguese, Russian, Turkish, and Chinese. Control AI creativity with Low, Medium, and High settings for precise output control. Generate 1-5 result variations with character limit control ranging from 50-500 characters for tailored content length. Additional context input ensures relevant, on-brand communication with real-time character counting and instant preview capabilities.
+w14:paraId="5A53798B" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Fifteen+ language options with comprehensive localization support
+w14:paraId="4F6AB70A" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Advanced creativity control with Low, Medium, High settings
+w14:paraId="4BFCE9E7" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Batch generation with 1-5 result variations and character control
+w14:paraId="40A612A4" w14:textId="612B94A3" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Real-time preview with contextual intelligence and brand consistency
+w14:paraId="75DC53CF" w14:textId="5FF216E4" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">-561975500380
+w14:paraId="23F313EE" w14:textId="77777777" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">
+w14:paraId="08235DD3" w14:textId="77777777" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">
+w14:paraId="3E26019C" w14:textId="3F5056EB" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Universal Add-On Integration
+w14:paraId="531883F4" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">The AI Assistant seamlessly integrates across 16+ major business modules including Account management, CMMS, Contract management, HRM, Lead management, Performance tracking, POS, Procurement, ProductService, Recruitment, Rotas, Sales, SupportTicket, Taskly, Training, and VCard. Each module features context-aware AI generation through "Generate With AI" buttons that understand specific field requirements and generate relevant content with one-click population directly into forms, descriptions, notes, and documentation within respective business processes.Sixteen Add-On integration support across platforms
+w14:paraId="6E8B1003" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Comprehensive integration across 16+ platform modules
+w14:paraId="67F24444" w14:textId="6D401C1B" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Context-aware generation with "Generate With AI" modal interface
+w14:paraId="5431C43C" w14:textId="0C0E7ADB" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">One-click content population with seamless form integration
+w14:paraId="14422258" w14:textId="228BDEC1" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">49530041783000Business process optimization with intelligent workflow enhancement
+w14:paraId="42963A8F" w14:textId="77777777" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">
+w14:paraId="015E31E6" w14:textId="31FFEF90" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Introduction
+w14:paraId="15ACED2B" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">The AI Assistant Add-On is a comprehensive AI-powered content generation tool designed to help users create professional content across various business Add-Ons with multi-provider AI support. This system integrates with multiple Add-Ons including HRM, Sales, Support Tickets, Accounting, and many others to provide intelligent content generation assistance with contextual understanding. The AI Assistant uses advanced AI technology from multiple providers including OpenAI, Claude, Gemini, and Anthropic to generate customized content based on user preferences for language, creativity level, result variations, and character length requirements. Once configured by company administrators and enabled for users, they can access AI-powered content generation directly within their existing forms and workflows through seamless modal interfaces.
+w14:paraId="02CC191F" w14:textId="77777777" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">
+w14:paraId="566C2281" w14:textId="18515239" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">How To Use The AI Assistant Add-On?
+w14:paraId="0D7486FB" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Settings Configuration
+w14:paraId="4A6B1609" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">To configure the AI Assistant system, company administrators need to set up the AI Assistant Settings first. Navigate to the AI Assistant Settings section in the company settings panel.
+w14:paraId="093942B8" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Click on “AI Assistant Settings” to access the configuration page. Select your preferred AI Provider from the dropdown options which include OpenAI for GPT models, Claude for Anthropic’s language models, Gemini for Google’s AI capabilities, and Anthropic for advanced content generation.
+w14:paraId="74C15273" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Choose the appropriate AI Model from the dropdown which dynamically updates based on your selected provider. OpenAI offers models like GPT-4o, GPT-4-Turbo, and GPT-3.5-Turbo. Claude provides advanced language processing models. Gemini includes Google’s latest AI models for content generation.
+w14:paraId="3784FC2A" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Enter your API Key in the secure password field with show/hide toggle functionality for enhanced security. The API key field adapts based on your selected provider to ensure proper authentication.
+w14:paraId="03CAB0CD" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Save the configuration to enable AI Assistant functionality across all users in your company who have the appropriate permissions to access AI content generation features.
+w14:paraId="11ED5E46" w14:textId="6AEC6784" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A"/>
+w14:paraId="5A4666F0" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">AI Assistant Works
+w14:paraId="59E7F847" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Once the AI Assistant Settings are configured by company administrators and the AI Assistant Add-On is purchased and enabled, users can access AI content generation features directly within their existing Add-On forms across the entire platform.
+w14:paraId="332C95A2" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">The AI Assistant appears as a “Generate With AI” button in both Create and Edit forms across all supported Add-Ons. When you click this button, a comprehensive content generation modal opens with advanced customization options for creating contextually relevant content.
+w14:paraId="50753986" w14:textId="0A4C2812" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A"/>
+w14:paraId="3C2CA312" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Generate With AI Form
+w14:paraId="1778B7C4" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">When you click the “Generate With AI” button in any supported form, a sophisticated modal interface opens with the following options for customizing your AI-generated content with professional-grade controls.
+w14:paraId="0D2EA5F6" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Select your preferred Language from the comprehensive dropdown which includes English, Arabic, Danish, Spanish, French, German, Hebrew, Italian, Japanese, Dutch, Polish, Portuguese, Russian, Turkish, and Chinese options. This determines the output language for your generated content with proper localization support.
+w14:paraId="51A173FB" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Choose the AI Creativity level by selecting Low for conservative content, Medium for balanced creativity, or High for maximum creative output from the radio button options. This controls how innovative and varied the generated content will be while maintaining professional quality.
+w14:paraId="39EB4511" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Set the Number of Results from the dropdown with options from 1 to 5. This determines how many different content variations the AI will generate for you to choose from, allowing you to select the best option for your needs.
+w14:paraId="11C571B3" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Adjust the Maximum Length using the slider control ranging from 50 to 500 characters to specify the character limit for the generated content output with real-time character counting.
+w14:paraId="5EA78F4E" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">The modal will also include an Additional Context textarea field where you can provide specific information relevant to the content you want to generate. This helps the AI understand your requirements better and create more targeted content.
+w14:paraId="5D3194C7" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Use the Generate Content button to create AI-powered content using your specified settings. The system will process your request and display multiple result variations based on your configuration.
+w14:paraId="52257048" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Review the generated content results displayed in clickable cards format. Each result shows the content preview with character count information. Click on any result to automatically populate the original form field with the selected content.
+w14:paraId="015159C5" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">The modal provides seamless integration with one-click content population, eliminating the need for manual copy-paste operations and ensuring efficient workflow integration.
+w14:paraId="28ED855A" w14:textId="26AA0159" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A"/>
+w14:paraId="3B219CAC" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">For example, if you enable the create user setting from General, then the notification via AI Assistant will be sent to that particular user when the user is created.
+w14:paraId="138442B3" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">General
+w14:paraId="53FF7E7B" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New User
+w14:paraId="0BA40A08" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Sales Invoice
+w14:paraId="2F21841D" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Sales Invoice Status Updated
+w14:paraId="33D610A5" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Sales Proposal
+w14:paraId="3649680D" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Proposal Status Updated
+w14:paraId="392999F5" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Purchase
+w14:paraId="0C0420AD" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Warehouse
+w14:paraId="15664A11" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Accounting
+w14:paraId="10343104" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Customer
+w14:paraId="3D491AD4" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Revenue
+w14:paraId="38970F95" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Vendor
+w14:paraId="163D956F" w14:textId="09A6D5FF" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">CMS
+w14:paraId="539A6FAE" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Workorder
+w14:paraId="66BB546E" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Workorder Logtime
+w14:paraId="3BA2E138" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Workorder Invoice
+w14:paraId="72A6F257" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Component
+w14:paraId="09ABDB03" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Component Logtime
+w14:paraId="20FDA8AE" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Preventive Maintenance
+w14:paraId="3E3CE398" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Preventive Maintenance Logtime
+w14:paraId="40F40387" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Preventive Maintenance Invoice
+w14:paraId="6C382C8E" w14:textId="35456C50" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Contract
+w14:paraId="42122D9C" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Contract
+w14:paraId="4E6C9469" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Lead
+w14:paraId="368658B6" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Lead
+w14:paraId="5B060C6A" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Lead Email
+w14:paraId="12173798" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Deal
+w14:paraId="1FBC8A14" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Deal Email
+w14:paraId="1F09DC29" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Product Service
+w14:paraId="584FE1E4" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Item
+w14:paraId="0B99CF3C" w14:textId="48B8D64D" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Recruitment
+w14:paraId="26AFD763" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Job Posting
+w14:paraId="42E6B959" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Offer Letter Template
+w14:paraId="286150A4" w14:textId="49E68519" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Sales
+w14:paraId="385F7E18" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Quote
+w14:paraId="42752261" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Sales Order
+w14:paraId="22B4BDE7" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Meeting Assigned
+w14:paraId="0AE61885" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">CRM
+w14:paraId="38475260" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Lead
+w14:paraId="232FFF39" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Lead to Deal Conversion
+w14:paraId="035EF917" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Deal
+w14:paraId="6D86907D" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Lead Moved
+w14:paraId="5E6200E5" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Deal Moved
+w14:paraId="580DD35F" w14:textId="77777777" w:rsidR="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">
+w14:paraId="70C94A33" w14:textId="2B8CEA86" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Project
+w14:paraId="75306DC7" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Project
+w14:paraId="5DF050D2" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Task
+w14:paraId="675966EC" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Bug
+w14:paraId="6BCE5562" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Milestone
+w14:paraId="65AE6EC9" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Task Stage Updated
+w14:paraId="6FDCFB4B" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Task Comment
+w14:paraId="0BA16A21" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Taskly
+w14:paraId="4A712D75" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Project
+w14:paraId="72E9C78E" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Milestone
+w14:paraId="0D997B90" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Task
+w14:paraId="54260938" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Bug
+w14:paraId="523C953D" w14:textId="3E94AED5" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Training
+w14:paraId="79363493" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Training
+w14:paraId="2F8BEF6D" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Account
+w14:paraId="266D0489" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Bank Transfer
+w14:paraId="3F53D0BD" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Expense
+w14:paraId="0D7BBBC1" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Revenue
+w14:paraId="5EDE8D77" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">HRM
+w14:paraId="1AE5EA78" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Monthly Payslip
+w14:paraId="0160C814" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Award
+w14:paraId="78E84981" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Event
+w14:paraId="0258DA72" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">Leave Approve/Reject
+w14:paraId="25C0FABE" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Announcement
+w14:paraId="77600EC2" w14:textId="77777777" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">New Holidays
+w14:paraId="13E6A035" w14:textId="5AE7A187" w:rsidR="0055483A" w:rsidRPr="0055483A" w:rsidRDefault="0055483A" w:rsidP="0055483A">So, this is how you can use AI Assistant Add-On very easily.

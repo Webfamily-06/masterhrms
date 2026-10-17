@@ -64,14 +64,20 @@ function maskPAN(value: string | null | undefined): string | null {
  */
 function applyPIIMask(employee: any, req: AuthRequest): any {
   if (!employee) return employee;
-  if (callerHasStatutoryPIIAccess(req)) return employee; // no masking for privileged callers
+  const canonicalAvatar = employee.user?.profile?.avatarUrl || employee.avatarUrl || null;
+  const base = {
+    ...employee,
+    avatarUrl: canonicalAvatar,
+    avatar_url: canonicalAvatar,
+  };
+  if (callerHasStatutoryPIIAccess(req)) return base; // no masking for privileged callers
 
   // Check self-access: employee can view their own profile unmasked
   const selfEmployeeId = (req.user as any)?.employeeId;
-  if (selfEmployeeId && selfEmployeeId === employee.id) return employee;
+  if (selfEmployeeId && selfEmployeeId === employee.id) return base;
 
   return {
-    ...employee,
+    ...base,
     aadhaar: maskNumeric(employee.aadhaar, 4),
     pan: maskPAN(employee.pan),
     bankAccount: maskNumeric(employee.bankAccount, 4),
@@ -324,6 +330,7 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
       aadhaar,
       uan,
       esiNumber,
+      pfNumber,
       bankName,
       bankAccount,
       bankIfsc,
@@ -363,18 +370,18 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
         await lockWorkspaceCapacity(tx, tenantId, "employees", 1);
 
         // Perform the avatar update inside the same transaction if required
-        if (avatarUrl && existingEmp.userId) {
+        if (avatarUrl !== undefined && existingEmp.userId) {
           await tx.profile.upsert({
             where: { userId: existingEmp.userId },
             create: {
               userId: existingEmp.userId,
               fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
               email: email ? email.toLowerCase().trim() : existingEmp.email,
-              avatarUrl,
+              avatarUrl: avatarUrl ? avatarUrl.trim() : null,
               tenantId: existingEmp.tenantId,
             },
             update: {
-              avatarUrl,
+              avatarUrl: avatarUrl ? avatarUrl.trim() : null,
               fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
             },
           });
@@ -399,6 +406,7 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
             ...(aadhaar !== undefined && { aadhaar: aadhaar ? String(aadhaar).trim() : null }),
             ...(uan !== undefined && { uan: uan ? String(uan).trim() : null }),
             ...(esiNumber !== undefined && { esiNumber: esiNumber ? String(esiNumber).trim() : null }),
+            ...(pfNumber !== undefined && { pfNumber: pfNumber ? String(pfNumber).trim() : null }),
             ...(bankName !== undefined && { bankName: bankName ? String(bankName).trim() : null }),
             ...(bankAccount !== undefined && { bankAccount: bankAccount ? String(bankAccount).trim() : null }),
             ...(bankIfsc !== undefined && { bankIfsc: bankIfsc ? String(bankIfsc).toUpperCase().trim() : null }),
@@ -424,22 +432,27 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
           },
         });
       }, { timeout: 30000, maxWait: 10000 });
-      return res.json(employee);
+      if (avatarUrl !== undefined) {
+        await EmployeeService.setEmployeeMetadata(existingEmp.tenantId, id, {
+          avatarUrl: avatarUrl ? avatarUrl.trim() : null,
+        });
+      }
+      return res.json(applyPIIMask(employee, req));
     }
 
     // --- Non-reactivation update path (no capacity check needed) ---
-    if (avatarUrl && existingEmp.userId) {
+    if (avatarUrl !== undefined && existingEmp.userId) {
       await prisma.profile.upsert({
         where: { userId: existingEmp.userId },
         create: {
           userId: existingEmp.userId,
           fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
           email: email ? email.toLowerCase().trim() : existingEmp.email,
-          avatarUrl,
+          avatarUrl: avatarUrl ? avatarUrl.trim() : null,
           tenantId: existingEmp.tenantId,
         },
         update: {
-          avatarUrl,
+          avatarUrl: avatarUrl ? avatarUrl.trim() : null,
           fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
         },
       });
@@ -464,6 +477,7 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
         ...(aadhaar !== undefined && { aadhaar: aadhaar ? String(aadhaar).trim() : null }),
         ...(uan !== undefined && { uan: uan ? String(uan).trim() : null }),
         ...(esiNumber !== undefined && { esiNumber: esiNumber ? String(esiNumber).trim() : null }),
+        ...(pfNumber !== undefined && { pfNumber: pfNumber ? String(pfNumber).trim() : null }),
         ...(bankName !== undefined && { bankName: bankName ? String(bankName).trim() : null }),
         ...(bankAccount !== undefined && { bankAccount: bankAccount ? String(bankAccount).trim() : null }),
         ...(bankIfsc !== undefined && { bankIfsc: bankIfsc ? String(bankIfsc).toUpperCase().trim() : null }),
@@ -489,7 +503,13 @@ employeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response)
       },
     });
 
-    return res.json(employee);
+    if (avatarUrl !== undefined) {
+      await EmployeeService.setEmployeeMetadata(existingEmp.tenantId, id, {
+        avatarUrl: avatarUrl ? avatarUrl.trim() : null,
+      });
+    }
+
+    return res.json(applyPIIMask(employee, req));
   } catch (err: any) {
     return res.status(err.status || 500).json({
       error: err.message || "Internal server error",

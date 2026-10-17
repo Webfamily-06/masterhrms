@@ -11,6 +11,32 @@ const upload = multer({
 export const mediaRouter = Router();
 
 /**
+ * Middleware wrapper for multer single file upload to gracefully handle MulterError
+ */
+const handleSingleUpload = (req: any, res: any, next: any) => {
+  upload.single("file")(req, res, (err: any) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            error: "File exceeds the permitted size limit of 10 MB",
+            code: "LIMIT_FILE_SIZE",
+          });
+        }
+        return res.status(400).json({
+          error: `Upload error: ${err.message}`,
+          code: err.code,
+        });
+      }
+      return res.status(400).json({
+        error: err.message || "Failed to process multipart upload",
+      });
+    }
+    next();
+  });
+};
+
+/**
  * POST /api/v1/media/upload
  * Multipart upload to the Media Library (supports folder, tags)
  * Returns mediaId, url, dimensions, checksum
@@ -18,12 +44,15 @@ export const mediaRouter = Router();
 mediaRouter.post(
   "/upload",
   requireAuth,
-  upload.single("file"),
+  handleSingleUpload,
   async (req: any, res) => {
     try {
       const file = req.file;
       if (!file) {
-        return res.status(400).json({ error: "No file uploaded in 'file' field" });
+        return res.status(400).json({
+          error: "No file uploaded in 'file' field",
+          code: "NO_FILE_UPLOADED",
+        });
       }
 
       const folder = req.body.folder || "system/branding";

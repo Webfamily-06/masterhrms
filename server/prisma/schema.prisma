@@ -27,6 +27,7 @@ enum EmployeeStatus {
   active
   on_leave
   terminated
+  inactive
 }
 
 enum AttendanceStatus {

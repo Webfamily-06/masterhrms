@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import { requireAuth } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { requireEmployee, EmployeeAuthRequest } from "../middleware/employee-context.middleware";
 import { prisma, rawPrisma } from "../prisma";
 import { AuditService } from "../services/audit.service";
@@ -7,11 +8,13 @@ import { OutboxService } from "../services/outbox.service";
 import { NotificationService } from "../services/notification.service";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { broadcastToTenant } from "../socket";
+import { EmployeeService } from "../services/employee.service";
 
 export const employeeSelfServiceRouter = Router();
 
-// Apply auth and employee resolution to all /api/v1/me/* endpoints
+// Apply auth, tenant resolution, and employee context to all /api/v1/me/* endpoints
 employeeSelfServiceRouter.use(requireAuth);
+employeeSelfServiceRouter.use(resolveTenantContext as any);
 employeeSelfServiceRouter.use(requireEmployee as any);
 
 /**
@@ -40,6 +43,15 @@ employeeSelfServiceRouter.get("/profile", async (req: EmployeeAuthRequest, res: 
             designation: { select: { name: true } },
           },
         },
+        user: {
+          select: {
+            profile: {
+              select: {
+                avatarUrl: true,
+              },
+            },
+          },
+        },
         changeRequests: {
           where: { status: "PENDING" },
           orderBy: { createdAt: "desc" },
@@ -58,8 +70,19 @@ employeeSelfServiceRouter.get("/profile", async (req: EmployeeAuthRequest, res: 
       return "•".repeat(val.length - keepLast) + val.slice(-keepLast);
     };
 
+    const metadata = await EmployeeService.getEmployeeMetadata(tenantId, employeeId);
+    const userAvatar = (emp as any).user?.profile?.avatarUrl || null;
+    let canonicalAvatar: string | null = null;
+    if (metadata.avatarUrl !== undefined && metadata.avatarUrl !== null) {
+      const trimmed = metadata.avatarUrl.trim();
+      canonicalAvatar = trimmed.length > 0 ? trimmed : null;
+    } else {
+      canonicalAvatar = userAvatar;
+    }
+
     const sanitized = {
       id: emp.id,
+      systemId: metadata.systemId || emp.id,
       employeeCode: emp.employeeCode,
       firstName: emp.firstName,
       lastName: emp.lastName,
@@ -77,6 +100,9 @@ employeeSelfServiceRouter.get("/profile", async (req: EmployeeAuthRequest, res: 
       branch: emp.branch,
       manager: emp.manager,
       taxRegime: emp.taxRegime,
+      workMode: metadata.workMode || null,
+      avatarUrl: canonicalAvatar,
+      avatar_url: canonicalAvatar,
       statutory: {
         panMasked: maskString(emp.pan, 4),
         aadhaarMasked: maskString(emp.aadhaar, 4),
@@ -105,15 +131,17 @@ employeeSelfServiceRouter.get("/profile", async (req: EmployeeAuthRequest, res: 
 employeeSelfServiceRouter.put("/profile", async (req: EmployeeAuthRequest, res: Response) => {
   const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
-  const { phone, gender } = req.body;
+  const tenantId = req.user!.tenantId!;
+  const { phone, gender, avatarUrl } = req.body;
 
   try {
+    const updateData: any = {};
+    if (typeof phone === "string") updateData.phone = phone.trim();
+    if (typeof gender === "string") updateData.gender = gender.trim();
+
     const updated = await db.employee.update({
       where: { id: employeeId },
-      data: {
-        phone: typeof phone === "string" ? phone : undefined,
-        gender: typeof gender === "string" ? gender : undefined,
-      },
+      data: updateData,
       select: {
         id: true,
         phone: true,
@@ -122,7 +150,49 @@ employeeSelfServiceRouter.put("/profile", async (req: EmployeeAuthRequest, res: 
       },
     });
 
-    return res.json({ success: true, message: "Profile updated successfully", data: updated });
+    let canonicalAvatar: string | null | undefined = undefined;
+    if (avatarUrl !== undefined) {
+      if (avatarUrl && typeof avatarUrl === "string") {
+        const trimmed = avatarUrl.trim();
+        canonicalAvatar = (trimmed.length > 0 && trimmed !== "/favicon.webp" && trimmed !== "null" && trimmed !== "undefined")
+          ? trimmed
+          : null;
+      } else {
+        canonicalAvatar = null;
+      }
+
+      await EmployeeService.setEmployeeMetadata(tenantId, employeeId, { avatarUrl: canonicalAvatar });
+
+      const emp = await db.employee.findUnique({
+        where: { id: employeeId },
+        select: { userId: true, email: true },
+      });
+      const targetUserId = emp?.userId || req.user?.userId;
+      if (targetUserId) {
+        await db.profile.upsert({
+          where: { userId: targetUserId },
+          create: {
+            userId: targetUserId,
+            tenantId,
+            avatarUrl: canonicalAvatar,
+          },
+          update: {
+            tenantId,
+            avatarUrl: canonicalAvatar,
+          },
+        }).catch(() => {});
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      data: {
+        ...updated,
+        avatarUrl: canonicalAvatar,
+        avatar_url: canonicalAvatar,
+      },
+    });
   } catch (err: any) {
     console.error("[PUT /me/profile] Error:", err);
     return res.status(500).json({ error: "Failed to update profile" });
@@ -297,7 +367,7 @@ employeeSelfServiceRouter.get("/dashboard", async (req: EmployeeAuthRequest, res
       take: 3,
     });
 
-    // 5. Shift today
+    // 5. Shift today / assigned shift
     const shiftRoster = await db.shiftRoster.findFirst({
       where: {
         tenantId,
@@ -309,14 +379,109 @@ employeeSelfServiceRouter.get("/dashboard", async (req: EmployeeAuthRequest, res
       },
     });
 
+    // 6. Fetch authoritative, tenant-isolated employee record with relations and metadata
+    const [fullEmployee, metadata] = await Promise.all([
+      db.employee.findFirst({
+        where: { id: employeeId, tenantId },
+        include: {
+          department: { select: { id: true, name: true } },
+          designation: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true } },
+          manager: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeCode: true,
+              email: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+          shiftRosters: {
+            include: { shift: true },
+            orderBy: { rosterDate: "desc" },
+            take: 1,
+          },
+        },
+      }),
+      EmployeeService.getEmployeeMetadata(tenantId, employeeId),
+    ]);
+
+    // Resolve active shift definition: today's roster -> metadata shiftId -> latest roster
+    let activeShift = shiftRoster?.shift || null;
+    if (!activeShift && metadata.shiftId) {
+      activeShift = await db.shiftDefinition.findFirst({
+        where: { id: metadata.shiftId, tenantId },
+      });
+    }
+    if (!activeShift && fullEmployee?.shiftRosters?.[0]?.shift) {
+      activeShift = fullEmployee.shiftRosters[0].shift;
+    }
+
+    const shiftTodayInfo = activeShift
+      ? {
+          id: activeShift.id,
+          name: activeShift.name,
+          startTime: activeShift.startTime,
+          endTime: activeShift.endTime,
+        }
+      : null;
+
+    // Resolve canonical avatar: metadata custom field -> user profile avatarUrl -> null
+    const userAvatar = fullEmployee?.user?.profile?.avatarUrl || null;
+    let canonicalAvatar: string | null = null;
+    if (metadata.avatarUrl !== undefined && metadata.avatarUrl !== null) {
+      const trimmed = metadata.avatarUrl.trim();
+      canonicalAvatar = trimmed.length > 0 ? trimmed : null;
+    } else {
+      canonicalAvatar = userAvatar;
+    }
+
+    // Resolve immutable systemId and workMode
+    const systemId = metadata.systemId || fullEmployee?.id || employeeId;
+    const workMode = metadata.workMode || null;
+
     return res.json({
       success: true,
       data: {
         employee: {
-          id: req.employee!.id,
-          employeeCode: req.employee!.employeeCode,
-          firstName: req.employee!.firstName,
-          lastName: req.employee!.lastName,
+          id: fullEmployee?.id || employeeId,
+          systemId,
+          employeeCode: fullEmployee?.employeeCode || req.employee!.employeeCode,
+          firstName: fullEmployee?.firstName || req.employee!.firstName,
+          lastName: fullEmployee?.lastName || req.employee!.lastName,
+          fullName: `${fullEmployee?.firstName || req.employee!.firstName} ${fullEmployee?.lastName || req.employee!.lastName}`.trim(),
+          email: fullEmployee?.email || req.employee!.email,
+          phone: fullEmployee?.phone || null,
+          position: fullEmployee?.designation?.name || fullEmployee?.position || null,
+          department: fullEmployee?.department ? { id: fullEmployee.department.id, name: fullEmployee.department.name } : null,
+          designation: fullEmployee?.designation ? { id: fullEmployee.designation.id, name: fullEmployee.designation.name } : null,
+          branch: fullEmployee?.branch ? { id: fullEmployee.branch.id, name: fullEmployee.branch.name } : null,
+          manager: fullEmployee?.manager
+            ? {
+                id: fullEmployee.manager.id,
+                firstName: fullEmployee.manager.firstName,
+                lastName: fullEmployee.manager.lastName,
+                employeeCode: fullEmployee.manager.employeeCode,
+                email: fullEmployee.manager.email,
+              }
+            : null,
+          joinedAt: fullEmployee?.joinedAt || null,
+          workMode,
+          shift: activeShift ? { id: activeShift.id, name: activeShift.name, startTime: activeShift.startTime, endTime: activeShift.endTime } : null,
+          shiftToday: shiftTodayInfo,
+          avatarUrl: canonicalAvatar,
+          avatar_url: canonicalAvatar,
         },
         attendanceToday: {
           status: attendanceToday ? attendanceToday.status : "NOT_CHECKED_IN",
@@ -324,11 +489,7 @@ employeeSelfServiceRouter.get("/dashboard", async (req: EmployeeAuthRequest, res
           checkOut: attendanceToday?.checkOut || null,
           hours: attendanceToday?.hours || 0,
         },
-        shiftToday: shiftRoster ? {
-          name: shiftRoster.shift.name,
-          startTime: shiftRoster.shift.startTime,
-          endTime: shiftRoster.shift.endTime,
-        } : null,
+        shiftToday: shiftTodayInfo,
         metrics: {
           awardsThisYear: awardsCount,
           activeWarnings: warningsCount,

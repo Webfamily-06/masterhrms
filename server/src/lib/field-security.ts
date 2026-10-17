@@ -45,15 +45,32 @@ const SENSITIVE_STATUTORY_KEYS = new Set([
   "pan",
   "panNumber",
   "pan_number",
+  "taxPayerId",
+  "tax_payer_id",
   "bankAccount",
   "bankAccountNumber",
   "accountNumber",
   "account_number",
+  "bankIfsc",
+  "bank_ifsc",
   "ifsc",
   "ifscCode",
   "ifsc_code",
+  "bicSwift",
+  "bic_swift",
+  "swiftCode",
+  "swift_code",
   "passportNumber",
   "passport_number",
+  "uan",
+  "uanNumber",
+  "uan_number",
+  "esiNumber",
+  "esi_number",
+  "esicNumber",
+  "esic_number",
+  "pfNumber",
+  "pf_number",
 ]);
 
 const COMPENSATION_KEYS = new Set([
@@ -97,11 +114,13 @@ export function sanitizeSensitiveFields<T = any>(
     // 1. Sensitive statutory IDs (PAN, Aadhaar, Bank)
     if (SENSITIVE_STATUTORY_KEYS.has(key)) {
       if (!options.canViewSensitive && !options.isSelf) {
-        if (key.toLowerCase().includes("aadhaar")) {
+        if (!value) {
+          clone[key] = null;
+        } else if (key.toLowerCase().includes("aadhaar")) {
           clone[key] = maskAadhaar(value);
         } else if (key.toLowerCase().includes("pan")) {
           clone[key] = maskPan(value);
-        } else if (key.toLowerCase().includes("account") || key.toLowerCase().includes("bank")) {
+        } else if (key.toLowerCase().includes("account")) {
           clone[key] = maskBankAccount(value);
         } else {
           clone[key] = "••••••••";

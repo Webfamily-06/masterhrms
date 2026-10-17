@@ -11,14 +11,27 @@ const PUBLIC_UPLOAD_PREFIXES = [
   "addons/",
   "media/icons/",
   "media/screens/",
+  "avatars/",
+  "profiles/",
+  "employees/avatars/",
+  "media/avatars/",
 ];
 
 /**
  * Checks whether a requested relative upload path falls into the allowed public asset categories
- * (system & tenant branding logos, favicons, marketplace icons, screenshots).
+ * (system & tenant branding logos, favicons, marketplace icons, screenshots, and public employee avatars).
+ * Private employee documents (contracts, identity proofs, payroll) remain strictly protected.
  */
 export function isPublicUploadPath(relativePath: string): boolean {
   const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  const lower = normalized.toLowerCase();
+  if (
+    lower.startsWith("avatars/") ||
+    lower.startsWith("profiles/") ||
+    (lower.startsWith("employees/") && lower.includes("/profile/"))
+  ) {
+    return true;
+  }
   return PUBLIC_UPLOAD_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
