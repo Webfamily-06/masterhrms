@@ -30,17 +30,19 @@ export function getWorkspaceHost(slug: string, baseDomain = getPlatformBaseDomai
 }
 
 /**
- * Resolves the display base domain for previewing workspace URLs, preserving
- * the active port in development (e.g. "master.localhost:3000" or "localhost:3000")
- * and production ("masterhrms.com").
+ * Resolves the display base domain for previewing workspace and public URLs,
+ * dynamically reflecting the configured platform domain or active host/port.
+ * NEVER hardcodes a specific production domain.
  */
 export function getPlatformDisplayBaseDomain(): string {
   const configured =
-    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_BASE_DOMAIN) ||
-    (typeof import.meta !== "undefined" && (import.meta as any)?.env?.VITE_BASE_DOMAIN);
+    (typeof process !== "undefined" && (process.env?.NEXT_PUBLIC_PLATFORM_DOMAIN || process.env?.NEXT_PUBLIC_BASE_DOMAIN || process.env?.BASE_DOMAIN)) ||
+    (typeof import.meta !== "undefined" && ((import.meta as any)?.env?.VITE_PLATFORM_DOMAIN || (import.meta as any)?.env?.VITE_BASE_DOMAIN));
   if (configured && configured.trim()) return configured.trim().toLowerCase();
 
-  if (typeof window === "undefined") return "masterhrms.com";
+  if (typeof window === "undefined") {
+    return process.env.NODE_ENV === "production" ? "app" : "localhost:3000";
+  }
   const hostname = window.location.hostname.toLowerCase();
   const port = window.location.port ? `:${window.location.port}` : "";
 
@@ -55,6 +57,38 @@ export function getPlatformDisplayBaseDomain(): string {
     return `${parts.slice(1).join(".")}${port}`;
   }
   return `${hostname}${port}`;
+}
+
+/**
+ * Returns the dynamically resolved host domain for public articles and pages.
+ */
+export function getResolvedPublicDomain(): string {
+  if (typeof window !== "undefined" && window.location.host) {
+    return window.location.host;
+  }
+  return getPlatformDisplayBaseDomain();
+}
+
+/**
+ * Returns the resolved public URL for a blog post or public page,
+ * ensuring no hardcoded hostnames are ever used.
+ */
+export function getResolvedPublicBlogUrl(
+  slug: string,
+  options?: { isDraft?: boolean; tenantDomain?: string | null }
+): string {
+  const cleanSlug = slug.replace(/^blog-/, "");
+  const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
+  
+  // If tenant has verified custom domain
+  if (options?.tenantDomain && options.tenantDomain.trim()) {
+    const base = `${protocol}//${options.tenantDomain.trim()}`;
+    return options?.isDraft ? `${base}/blog/${cleanSlug}?preview=true` : `${base}/blog/${cleanSlug}`;
+  }
+
+  const domain = getResolvedPublicDomain();
+  const baseUrl = `${protocol}//${domain}`;
+  return options?.isDraft ? `${baseUrl}/blog/${cleanSlug}?preview=true` : `${baseUrl}/blog/${cleanSlug}`;
 }
 
 /**

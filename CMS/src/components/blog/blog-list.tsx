@@ -76,12 +76,15 @@ const BlogList = ({ initialPosts }: BlogListProps) => {
     let isMounted = true;
     async function loadCmsBlogs() {
       try {
-        const res = await fetch('/api/cms/pages');
+        let res = await fetch('/api/cms/blogs');
+        if (!res.ok) {
+          res = await fetch('/api/cms/pages');
+        }
         if (!res.ok) return;
         const allPages = await res.json();
         if (Array.isArray(allPages) && isMounted) {
           const cmsBlogs: FormattedPost[] = allPages
-            .filter((p: any) => p.slug && p.slug.startsWith('blog-') && p.published)
+            .filter((p: any) => (p.slug && p.slug.startsWith('blog-') || p.slug === 'resource-blogs') && p.published)
             .map((p: any) => {
               const c = p.content || {};
               const rawSlug = p.slug.replace(/^blog-/, '');

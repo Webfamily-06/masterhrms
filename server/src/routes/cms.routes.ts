@@ -80,11 +80,250 @@ cmsRouter.get("/pages", async (req, res) => {
         title: true,
         metaDescription: true,
         published: true,
+        content: true,
         updatedAt: true,
         createdAt: true,
       },
     });
     return res.json(pages);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// GET /api/cms/pages/by-id/:id - Fetch page by persistent ID
+cmsRouter.get("/pages/by-id/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const page = await prisma.cmsPage.findUnique({
+      where: { id },
+    });
+    if (!page) {
+      return res.status(404).json({ error: "CMS Page not found with the specified ID" });
+    }
+    if (!page.published) {
+      const isSuper = (req as AuthRequest).user?.roles?.includes("super_admin");
+      if (!isSuper) {
+        return res.status(404).json({ error: "CMS Page not found" });
+      }
+    }
+    return res.json(page);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// PUT /api/cms/pages/by-id/:id - Update page by persistent ID
+cmsRouter.put("/pages/by-id/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, slug, metaDescription, content, published } = req.body;
+    const isSuper = req.user?.roles.includes("super_admin");
+    if (!isSuper) {
+      return res.status(403).json({ error: "Super admin authorization required to update pages." });
+    }
+
+    const existing = await prisma.cmsPage.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "CMS Page not found with the specified ID." });
+    }
+
+    let targetSlug = existing.slug;
+    if (slug && slug.trim() && slug.trim() !== existing.slug) {
+      const slugConflict = await prisma.cmsPage.findFirst({
+        where: {
+          slug: slug.trim(),
+          NOT: { id },
+        },
+      });
+      if (slugConflict) {
+        return res.status(409).json({ error: `A page with slug '${slug.trim()}' already exists.` });
+      }
+      targetSlug = slug.trim();
+    }
+
+    const updated = await prisma.cmsPage.update({
+      where: { id },
+      data: {
+        title: title || existing.title,
+        slug: targetSlug,
+        metaDescription: metaDescription !== undefined ? metaDescription : existing.metaDescription,
+        content: content !== undefined ? content : existing.content,
+        published: typeof published === "boolean" ? published : existing.published,
+        updatedBy: req.user?.userId || existing.updatedBy,
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// GET /api/cms/blogs - List all blog articles
+cmsRouter.get("/blogs", async (req, res) => {
+  try {
+    const isSuper = (req as AuthRequest).user?.roles?.includes("super_admin");
+    const blogs = await prisma.cmsPage.findMany({
+      where: {
+        AND: [
+          isSuper ? {} : { published: true },
+          {
+            OR: [
+              { slug: { startsWith: "blog-" } },
+              { slug: "resource-blogs" },
+            ],
+          },
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    return res.json(blogs);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// GET /api/cms/blogs/:id - Get blog by persistent ID or slug
+cmsRouter.get("/blogs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const isSuper = (req as AuthRequest).user?.roles?.includes("super_admin");
+    const blog = await prisma.cmsPage.findFirst({
+      where: {
+        OR: [
+          { id },
+          { slug: id },
+          { slug: `blog-${id}` },
+        ],
+      },
+    });
+    if (!blog) {
+      return res.status(404).json({ error: "Blog article not found" });
+    }
+    if (!blog.published && !isSuper) {
+      return res.status(404).json({ error: "Blog article not found" });
+    }
+    return res.json(blog);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/cms/blogs - Create blog with guaranteed persistent UUID
+cmsRouter.post("/blogs", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles?.includes("super_admin");
+    if (!isSuper) {
+      return res.status(403).json({ error: "Super admin authorization required to create articles." });
+    }
+    const { title, slug, content, metaDescription, published } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: "Title is required" });
+    }
+
+    const rawSlug = (slug || title).toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "");
+    const cleanSlug = rawSlug.replace(/^blog-/, "");
+    const finalSlug = `blog-${cleanSlug}`;
+
+    const existing = await prisma.cmsPage.findUnique({ where: { slug: finalSlug } });
+    if (existing) {
+      return res.status(409).json({ error: `An article with slug '${finalSlug}' already exists.` });
+    }
+
+    const article = await prisma.cmsPage.create({
+      data: {
+        id: crypto.randomUUID(),
+        slug: finalSlug,
+        title: title.trim(),
+        content: content ?? {},
+        metaDescription: metaDescription || null,
+        published: published ?? true,
+        updatedBy: req.user?.userId,
+      },
+    });
+
+    return res.status(201).json(article);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// PUT /api/cms/blogs/:id - Update blog by persistent ID or slug
+cmsRouter.put("/blogs/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles?.includes("super_admin");
+    if (!isSuper) {
+      return res.status(403).json({ error: "Super admin authorization required to update articles." });
+    }
+    const { id } = req.params;
+    const { title, slug, content, metaDescription, published } = req.body;
+
+    const existing = await prisma.cmsPage.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }, { slug: `blog-${id}` }],
+      },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Blog article not found" });
+    }
+
+    let targetSlug = existing.slug;
+    if (slug) {
+      const rawSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "");
+      const cleanSlug = rawSlug.replace(/^blog-/, "");
+      targetSlug = `blog-${cleanSlug}`;
+
+      if (targetSlug !== existing.slug) {
+        const conflict = await prisma.cmsPage.findFirst({
+          where: {
+            slug: targetSlug,
+            NOT: { id: existing.id },
+          },
+        });
+        if (conflict) {
+          return res.status(409).json({ error: `An article with slug '${targetSlug}' already exists.` });
+        }
+      }
+    }
+
+    const updated = await prisma.cmsPage.update({
+      where: { id: existing.id },
+      data: {
+        title: title !== undefined ? title : existing.title,
+        slug: targetSlug,
+        content: content !== undefined ? content : existing.content,
+        metaDescription: metaDescription !== undefined ? metaDescription : existing.metaDescription,
+        published: typeof published === "boolean" ? published : existing.published,
+        updatedBy: req.user?.userId || existing.updatedBy,
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// DELETE /api/cms/blogs/:id - Delete blog by persistent ID or slug
+cmsRouter.delete("/blogs/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles?.includes("super_admin");
+    if (!isSuper) {
+      return res.status(403).json({ error: "Super admin authorization required to delete articles." });
+    }
+    const { id } = req.params;
+    const existing = await prisma.cmsPage.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }, { slug: `blog-${id}` }],
+      },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Blog article not found" });
+    }
+
+    await prisma.cmsPage.delete({ where: { id: existing.id } });
+    return res.json({ success: true, message: "Blog article deleted successfully" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
@@ -221,8 +460,13 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
       });
     }
 
-    let page = await prisma.cmsPage.findUnique({
-      where: { slug },
+    let page = await prisma.cmsPage.findFirst({
+      where: {
+        OR: [
+          { slug },
+          { id: slug },
+        ],
+      },
     });
 
     if (!page && slug === "system-solutions-catalog") {

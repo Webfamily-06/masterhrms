@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getResolvedPublicDomain } from '@/lib/platform-domain';
 import { api, unwrapArray } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -99,8 +101,14 @@ const DEFAULT_TAGS: BlogTag[] = [
 ];
 
 export function BlogManagerStudio() {
+  const router = useRouter();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [resolvedDomain, setResolvedDomain] = useState('localhost:3000');
+
+  useEffect(() => {
+    setResolvedDomain(getResolvedPublicDomain());
+  }, []);
 
   // View & Filter State
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -346,54 +354,15 @@ export function BlogManagerStudio() {
 
   // Handlers
   function handleOpenCreate() {
-    setEditingBlog(null);
-    setForm({
-      title: '',
-      slug: '',
-      excerpt: '',
-      category: categories[0]?.name || 'ERP Systems',
-      tags: [],
-      author: 'Master ERP Editorial',
-      readTime: '5 min read',
-      coverImage: '',
-      coverImageAlt: '',
-      body: '',
-      published: true,
-      publishedAt: new Date().toISOString().split('T')[0],
-      seoTitle: '',
-      seoDescription: '',
-      canonicalUrl: '',
-      socialImage: '',
-    });
-    setTagInput('');
-    setEditorTab('content');
-    setIsEditorOpen(true);
+    router.push('/super/blogs/new');
   }
 
   function handleOpenEdit(blog: CmsPage) {
-    setEditingBlog(blog);
-    const c = blog.content || {};
-    setForm({
-      title: blog.title,
-      slug: blog.slug.replace(/^blog-/, ''),
-      excerpt: c.excerpt || blog.meta_description || c.hero?.subtitle || '',
-      category: c.category || categories[0]?.name || 'ERP Systems',
-      tags: Array.isArray(c.tags) ? c.tags : [],
-      author: c.author || 'Master ERP Editorial',
-      readTime: c.readTime || '5 min read',
-      coverImage: c.coverImage || '',
-      coverImageAlt: c.coverImageAlt || blog.title,
-      body: c.body || '',
-      published: blog.published,
-      publishedAt: c.publishedAt || new Date().toISOString().split('T')[0],
-      seoTitle: c.seoTitle || blog.title,
-      seoDescription: c.seoDescription || blog.meta_description || '',
-      canonicalUrl: c.canonicalUrl || `/blog/${blog.slug.replace(/^blog-/, '')}`,
-      socialImage: c.socialImage || c.coverImage || '',
-    });
-    setTagInput('');
-    setEditorTab('content');
-    setIsEditorOpen(true);
+    if (blog?.id) {
+      router.push(`/super/blogs/${blog.id}/edit`);
+    } else {
+      router.push(`/super/blogs/${blog.slug.replace(/^blog-/, '')}/edit`);
+    }
   }
 
   function handleAddTag(tag: string) {
@@ -1036,7 +1005,7 @@ export function BlogManagerStudio() {
                       Permalink Slug <span className="text-destructive">*</span>
                     </Label>
                     <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 px-3 h-9">
-                      <span className="font-mono text-xs text-slate-500 shrink-0">https://masterhrms.com/blog/</span>
+                      <span className="font-mono text-xs text-slate-500 shrink-0">{resolvedDomain}/blog/</span>
                       <input
                         id="blog-slug-input"
                         value={form.slug}
@@ -1440,7 +1409,7 @@ export function BlogManagerStudio() {
                         {form.seoTitle || form.title || 'Untitled Article'} | MASTERHRMS
                       </p>
                       <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-mono">
-                        https://masterhrms.com/blog/{form.slug || 'slug'}
+                        https://{resolvedDomain}/blog/{form.slug || 'slug'}
                       </p>
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2">
                         {form.seoDescription || form.excerpt || 'Article summary will appear in Google search results here.'}

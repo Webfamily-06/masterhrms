@@ -1121,7 +1121,7 @@ function CardsSectionEditor({
 }) {
   const sections: any[] = content.sections || [];
 
-  const updateSection = (index: number, key: string, val: string) => {
+  const updateSection = (index: number, key: string, val: any) => {
     const updated = [...sections];
     updated[index] = { ...updated[index], [key]: val };
     updateContentField("sections", updated);
@@ -1130,12 +1130,33 @@ function CardsSectionEditor({
   const addSection = () => {
     updateContentField("sections", [
       ...sections,
-      { title: "New Section Card", body: "Card details and feature points.", badge: "Feature" },
+      {
+        id: `sec-${Date.now()}`,
+        title: "New Section Card",
+        body: "Card details and feature points.",
+        badge: "Feature",
+        enabled: true,
+        order: sections.length + 1,
+      },
     ]);
   };
 
   const removeSection = (index: number) => {
     const updated = sections.filter((_, i) => i !== index);
+    updateContentField("sections", updated);
+  };
+
+  const moveSection = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sections.length) return;
+    const updated = [...sections];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    // update order numbers
+    updated.forEach((s, i) => {
+      s.order = i + 1;
+    });
     updateContentField("sections", updated);
   };
 
@@ -1151,41 +1172,93 @@ function CardsSectionEditor({
       </div>
 
       <div className="space-y-3">
-        {sections.map((s, idx) => (
-          <div key={idx} className="p-3.5 rounded-lg border bg-secondary/20 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1">
-                <Input
-                  value={s.title || ""}
-                  onChange={(e) => updateSection(idx, "title", e.target.value)}
-                  placeholder="Card Title"
-                  className="text-xs font-semibold"
-                />
-                <Input
-                  value={s.badge || ""}
-                  onChange={(e) => updateSection(idx, "badge", e.target.value)}
-                  placeholder="Badge"
-                  className="text-xs w-28"
-                />
+        {sections.map((s, idx) => {
+          const isEnabled = s.enabled !== false;
+          return (
+            <div
+              key={s.id || idx}
+              className={`p-3.5 rounded-lg border space-y-3 transition-opacity ${
+                isEnabled ? 'bg-secondary/20 border-border/70' : 'bg-muted/30 border-dashed border-border/50 opacity-60'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                  <Input
+                    value={s.title || ""}
+                    onChange={(e) => updateSection(idx, "title", e.target.value)}
+                    placeholder="Card Title"
+                    className="text-xs font-semibold"
+                  />
+                  <Input
+                    value={s.badge || ""}
+                    onChange={(e) => updateSection(idx, "badge", e.target.value)}
+                    placeholder="Badge"
+                    className="text-xs w-28"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Visibility Switch */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => updateSection(idx, "enabled", !isEnabled)}
+                    title={isEnabled ? "Disable section (hide from public view)" : "Enable section"}
+                    className={`size-7 ${isEnabled ? 'text-primary' : 'text-muted-foreground'}`}
+                  >
+                    <Eye className="size-3.5" />
+                  </Button>
+
+                  {/* Move Up */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => moveSection(idx, 'up')}
+                    disabled={idx === 0}
+                    title="Move section up"
+                    className="size-7 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowUp className="size-3.5" />
+                  </Button>
+
+                  {/* Move Down */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => moveSection(idx, 'down')}
+                    disabled={idx === sections.length - 1}
+                    title="Move section down"
+                    className="size-7 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowDown className="size-3.5" />
+                  </Button>
+
+                  {/* Delete */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeSection(idx)}
+                    className="size-7 text-destructive shrink-0"
+                    title="Delete section"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => removeSection(idx)}
-                className="text-destructive shrink-0"
-              >
-                <Trash2 className="size-4" />
-              </Button>
+
+              <Textarea
+                value={s.body || ""}
+                onChange={(e) => updateSection(idx, "body", e.target.value)}
+                rows={2}
+                placeholder="Card body text..."
+                className="text-xs resize-y"
+              />
             </div>
-            <Textarea
-              value={s.body || ""}
-              onChange={(e) => updateSection(idx, "body", e.target.value)}
-              rows={2}
-              placeholder="Card body text..."
-              className="text-xs"
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
