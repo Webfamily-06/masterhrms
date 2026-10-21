@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'leaflet/dist/leaflet.css';
+
+@source "../src";
+@source "../../src";
+@source ".";
+
+@import '../styles/master-hrms.css';
+@import '../styles/variable';
+@import '../styles/common';
+@import '../styles/typography';
+@import '../styles/icon-fonts';
+@import '../styles/navigation-menu';

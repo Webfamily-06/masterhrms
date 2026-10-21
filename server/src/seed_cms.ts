@@ -34,7 +34,11 @@ async function main() {
     },
   });
 
-  console.log("Successfully seeded system-platform-settings and footer in MySQL!");
+  // 3. Ensure authoritative legal documents exist
+  const { ensureAuthoritativeLegalDocs } = await import("./services/legal-docs.service");
+  await ensureAuthoritativeLegalDocs();
+
+  console.log("Successfully seeded system-platform-settings, footer, and legal documents in MySQL!");
 }
 
 main().finally(async () => {

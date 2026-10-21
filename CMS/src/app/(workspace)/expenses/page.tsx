@@ -1,0 +1,2321 @@
+'use client';
+import {  createFileRoute  } from "@/src/lib/router-compat";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { api } from "@/lib/api";
+import { useCurrentProfile, useSession } from "@/lib/session";
+import { formatSystemAmount } from "@/lib/currency";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Receipt,
+  Plus,
+  Search,
+  Filter,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  DollarSign,
+  FileText,
+  Building2,
+  CreditCard,
+  Download,
+  Eye,
+  Calendar,
+  Wallet,
+  Sparkles,
+  Plane,
+  Coffee,
+  Laptop,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
+  ExternalLink,
+  Edit2,
+  Trash2,
+  Check,
+  X,
+  Settings2,
+  Landmark,
+  PieChart,
+  TrendingUp,
+  TrendingDown,
+  PiggyBank,
+  Calculator,
+  Users,
+  FileSpreadsheet,
+  UploadCloud,
+  Lock,
+} from "lucide-react";
+import { toast } from "sonner";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
+
+
+
+const CATEGORY_ICON_MAP: Record<string, any> = {
+  Plane: Plane,
+  Coffee: Coffee,
+  Laptop: Laptop,
+  Layers: Layers,
+  Plus: Plus,
+  Receipt: Receipt,
+};
+
+const STATUS_CONFIG: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  pending: { bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", border: "border-amber-500/30", label: "Pending Review" },
+  manager_approved: { bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-500/30", label: "Manager Approved" },
+  finance_approved: { bg: "bg-indigo-500/10", text: "text-indigo-600 dark:text-indigo-400", border: "border-indigo-500/30", label: "Finance Approved" },
+  reimbursed: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-500/30", label: "Reimbursed" },
+  rejected: { bg: "bg-rose-500/10", text: "text-rose-600 dark:text-rose-400", border: "border-rose-500/30", label: "Rejected" },
+};
+
+function ExpensesPage() {
+  const { user } = useSession();
+  const { data: profile } = useCurrentProfile(user);
+  const tenantId = profile?.tenant_id;
+  const qc = useQueryClient();
+
+  const [activeTab, setActiveTab] = useState<string>("claims");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Modals
+  const [isSubmitClaimOpen, setIsSubmitClaimOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isEditCategoryOpen, setIsEditCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [selectedClaimPassport, setSelectedClaimPassport] = useState<any>(null);
+  const [isReimburseModalOpen, setIsReimburseModalOpen] = useState(false);
+  const [claimToReimburse, setClaimToReimburse] = useState<any>(null);
+
+  // New Modals for Budgets, PF, and Taxes
+  const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false);
+  const [isAddPFOpen, setIsAddPFOpen] = useState(false);
+  const [isAddTaxOpen, setIsAddTaxOpen] = useState(false);
+
+  const [budgetForm, setBudgetForm] = useState({
+    title: "",
+    type: "Project",
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    revenueAmount: "250000",
+    expenseAmount: "180000",
+    taxAmount: "8000",
+  });
+
+  const [pfForm, setPfForm] = useState({
+    employeeId: "",
+    type: "Employee Provident Fund",
+    employeeShare: "2",
+    employerShare: "2",
+    status: "Approved",
+  });
+
+  const [taxForm, setTaxForm] = useState({
+    name: "",
+    rate: "18",
+    description: "",
+    status: "Active",
+  });
+
+  // Dynamic Budgets Query & Mutations
+  const { data: serverBudgets = [] } = useQuery({
+    queryKey: ["budgets", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/budgets");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const budgetsList = useMemo(() => {
+    return (serverBudgets as any[]).map((b: any) => {
+      let parsedNotes: any = {};
+      try {
+        if (b.notes && typeof b.notes === "string" && b.notes.startsWith("{")) {
+          parsedNotes = JSON.parse(b.notes);
+        }
+      } catch {}
+      return {
+        id: b.id,
+        title: b.name || "Untitled Budget",
+        type: (parsedNotes.type || "Project") as "Project" | "Category",
+        startDate: parsedNotes.startDate || (b.fiscalYear?.split(" to ")[0]) || "2026-01-01",
+        endDate: parsedNotes.endDate || (b.fiscalYear?.split(" to ")[1]) || "2026-12-31",
+        totalRevenue: Number(parsedNotes.revenue ?? b.budgetedAmount ?? 0),
+        totalExpenses: Number(parsedNotes.expense ?? b.spentAmount ?? 0),
+        expectedProfit: Number(parsedNotes.profit ?? Math.max(0, (b.budgetedAmount || 0) - (b.spentAmount || 0))),
+        tax: Number(parsedNotes.tax ?? 0),
+        budgetAmount: Number(b.budgetedAmount ?? 0),
+      };
+    });
+  }, [serverBudgets]);
+
+  const createBudgetMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/budgets", payload),
+    onSuccess: () => {
+      toast.success("Budget record saved to database!");
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      setIsAddBudgetOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to create budget"),
+  });
+
+  const deleteBudgetMut = useMutation({
+    mutationFn: async (id: string) => api.delete("/budgets/" + id),
+    onSuccess: () => {
+      toast.success("Budget record deleted from database.");
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete budget"),
+  });
+
+  // Dynamic Provident Fund Query & Mutations
+  const { data: serverPFs = [] } = useQuery({
+    queryKey: ["provident-funds", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/hrm-extensions/provident-funds?limit=100");
+        return Array.isArray((res as any)?.data) ? (res as any).data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const pfList = useMemo(() => {
+    return (serverPFs as any[]).map((p: any) => {
+      const emp = p.employee;
+      const empName = emp ? (emp.firstName || "" + " " + emp.lastName || "").trim() : (p.employeeId || "Staff Member");
+      const dept = emp?.department?.name || "Operations";
+      return {
+        id: p.id,
+        employeeId: p.employeeId,
+        employeeName: empName,
+        department: dept,
+        type: p.pfType || "Employee Provident Fund",
+        employeeShare: Number(p.employeeSharePercent || 0),
+        employerShare: Number(p.orgSharePercent || 0),
+        status: (p.status || "Approved") as any,
+        accumulatedBalance: Number(p.employeeShareAmount || 0) + Number(p.orgShareAmount || 0),
+      };
+    });
+  }, [serverPFs]);
+
+  const createPFMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/hrm-extensions/provident-funds", payload),
+    onSuccess: () => {
+      toast.success("Provident Fund enrollment saved to database!");
+      qc.invalidateQueries({ queryKey: ["provident-funds"] });
+      setIsAddPFOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save Provident Fund enrollment"),
+  });
+
+  const deletePFMut = useMutation({
+    mutationFn: async (id: string) => api.delete("/hrm-extensions/provident-funds/" + id),
+    onSuccess: () => {
+      toast.success("Provident Fund record removed.");
+      qc.invalidateQueries({ queryKey: ["provident-funds"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete Provident Fund record"),
+  });
+
+  // Dynamic Taxes Query & Mutations
+  const { data: serverTaxes = [] } = useQuery({
+    queryKey: ["product-taxes", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/products/taxes");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const taxesList = useMemo(() => {
+    return (serverTaxes as any[]).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      rate: Number(t.rate || 0),
+      description: t.isDefault ? "Default statutory tax slab" : "Statutory tax slab",
+      status: "Active" as const,
+    }));
+  }, [serverTaxes]);
+
+  const createTaxMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/products/taxes", payload),
+    onSuccess: () => {
+      toast.success("Tax record saved to database!");
+      qc.invalidateQueries({ queryKey: ["product-taxes"] });
+      setIsAddTaxOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to create tax"),
+  });
+
+  const deleteTaxMut = useMutation({
+    mutationFn: async (id: string) => api.delete("/products/taxes/" + id),
+    onSuccess: () => {
+      toast.success("Tax slab removed from database.");
+      qc.invalidateQueries({ queryKey: ["product-taxes"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete tax"),
+  });
+
+  // Forms
+  const [claimForm, setClaimForm] = useState({
+    employeeId: "",
+    categoryId: "",
+    title: "",
+    amount: "",
+    expenseDate: new Date().toISOString().slice(0, 10),
+    merchant: "",
+    description: "",
+    receiptUrl: "",
+    receiptName: "receipt_proof.pdf",
+    storedDocumentId: "",
+    receiptHash: "",
+    receiptMime: "",
+    receiptSize: 0,
+    ocrExtracted: null as any,
+    ocrConfidence: null as number | null,
+    ocrStatus: "",
+    isDuplicateWarning: false,
+  });
+
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [receiptUploadSuccess, setReceiptUploadSuccess] = useState<any>(null);
+
+  const [categoryForm, setCategoryForm] = useState({
+    name: "",
+    code: "",
+    monthlyLimit: "",
+    requiresReceipt: true,
+    icon: "Receipt",
+  });
+
+  const [reimburseForm, setReimburseForm] = useState({
+    reimbursementMethod: "payroll_addition",
+    payrollMonth: new Date().toISOString().slice(0, 7),
+    approverNotes: "Approved and scheduled for payroll credit",
+  });
+
+  // Queries
+  const { data: sysConfig } = useQuery({
+    queryKey: ["realtime-platform-settings"],
+    queryFn: async () => {
+      try {
+        const page = await api.get("/cms/pages/system-platform-settings");
+        return page?.content || null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/employees");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: categories = [], isLoading: isCategoriesLoading } = useQuery({
+    queryKey: ["expense-categories", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/expenses/categories");
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: claims = [], isLoading: isClaimsLoading } = useQuery({
+    queryKey: ["expense-claims", tenantId, selectedStatusFilter, selectedCategoryFilter, searchQuery],
+    queryFn: async () => {
+      try {
+        let url = `/expenses/claims?status=${selectedStatusFilter}&categoryId=${selectedCategoryFilter}`;
+        if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+        const res = await api.get(url);
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ["expense-summary", tenantId],
+    queryFn: async () => {
+      try {
+        return await api.get("/expenses/summary");
+      } catch {
+        return { pendingAmount: 0, approvedAmount: 0, reimbursedAmount: 0, totalClaims: 0 };
+      }
+    },
+  });
+
+  // Mutations
+  const createClaimMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/expenses/claims", payload),
+    onSuccess: () => {
+      toast.success("Expense claim submitted successfully!");
+      qc.invalidateQueries({ queryKey: ["expense-claims"] });
+      qc.invalidateQueries({ queryKey: ["expense-summary"] });
+      setIsSubmitClaimOpen(false);
+      resetClaimForm();
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to submit expense claim"),
+  });
+
+  const updateStatusMut = useMutation({
+    mutationFn: async ({ id, status, approverNotes }: { id: string; status: string; approverNotes?: string }) =>
+      api.put(`/expenses/claims/${id}/status`, { status, approverNotes }),
+    onSuccess: (res: any) => {
+      toast.success(res.message || "Expense claim status updated!");
+      qc.invalidateQueries({ queryKey: ["expense-claims"] });
+      qc.invalidateQueries({ queryKey: ["expense-summary"] });
+      if (selectedClaimPassport) {
+        setSelectedClaimPassport(res.claim);
+      }
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update status"),
+  });
+
+  const reimburseMut = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: any }) =>
+      api.post(`/expenses/claims/${id}/reimburse`, payload),
+    onSuccess: (res: any) => {
+      toast.success(res.message || "Expense reimbursed and added to payroll!");
+      qc.invalidateQueries({ queryKey: ["expense-claims"] });
+      qc.invalidateQueries({ queryKey: ["expense-summary"] });
+      setIsReimburseModalOpen(false);
+      if (selectedClaimPassport) {
+        setSelectedClaimPassport(res.claim);
+      }
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to process reimbursement"),
+  });
+
+  const createCategoryMut = useMutation({
+    mutationFn: async (payload: any) => api.post("/expenses/categories", payload),
+    onSuccess: () => {
+      toast.success("Expense category created!");
+      qc.invalidateQueries({ queryKey: ["expense-categories"] });
+      setIsCategoryModalOpen(false);
+      resetCategoryForm();
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to create category"),
+  });
+
+  const updateCategoryMut = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => api.put(`/expenses/categories/${id}`, data),
+    onSuccess: () => {
+      toast.success("Expense category updated!");
+      qc.invalidateQueries({ queryKey: ["expense-categories"] });
+      setIsEditCategoryOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to update category"),
+  });
+
+  const deleteCategoryMut = useMutation({
+    mutationFn: async (id: string) => api.delete(`/expenses/categories/${id}`),
+    onSuccess: () => {
+      toast.success("Category deleted");
+      qc.invalidateQueries({ queryKey: ["expense-categories"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete category"),
+  });
+
+  const deleteClaimMut = useMutation({
+    mutationFn: async (id: string) => api.delete(`/expenses/claims/${id}`),
+    onSuccess: () => {
+      toast.success("Expense claim deleted");
+      qc.invalidateQueries({ queryKey: ["expense-claims"] });
+      qc.invalidateQueries({ queryKey: ["expense-summary"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to delete claim"),
+  });
+
+  function resetClaimForm() {
+    setClaimForm({
+      employeeId: employees[0]?.id || "",
+      categoryId: categories[0]?.id || "",
+      title: "",
+      amount: "",
+      expenseDate: new Date().toISOString().slice(0, 10),
+      merchant: "",
+      description: "",
+      receiptUrl: "",
+      receiptName: "receipt_proof.pdf",
+      storedDocumentId: "",
+      receiptHash: "",
+      receiptMime: "",
+      receiptSize: 0,
+      ocrExtracted: null as any,
+      ocrConfidence: null as number | null,
+      ocrStatus: "",
+      isDuplicateWarning: false,
+    });
+    setReceiptUploadSuccess(null);
+  }
+
+  async function handleReceiptUpload(file: File) {
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File exceeds maximum allowable size of 10MB");
+      return;
+    }
+
+    const validMimes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+    if (!validMimes.includes(file.type)) {
+      toast.error("Invalid file format. Only PDF, PNG, and JPEG documents are permitted.");
+      return;
+    }
+
+    setIsUploadingReceipt(true);
+    try {
+      const formData = new FormData();
+      formData.append("receipt", file);
+
+      const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("token") || sessionStorage.getItem("token");
+      const res = await fetch("/api/expenses/claims/upload-receipt", {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to upload receipt");
+      }
+
+      setReceiptUploadSuccess(data);
+      const doc = data.storedDocument;
+      const ocr = data.ocr;
+      const dup = data.duplicateWarning;
+
+      setClaimForm((prev) => ({
+        ...prev,
+        storedDocumentId: doc.id,
+        receiptHash: doc.sha256Hash,
+        receiptMime: doc.mimeType,
+        receiptSize: doc.sizeBytes,
+        receiptUrl: `/api/documents/${doc.id}/stream`,
+        receiptName: doc.originalName,
+        ocrExtracted: ocr?.extracted || null,
+        ocrConfidence: ocr?.confidence ?? null,
+        ocrStatus: ocr?.status || "FAILED",
+        isDuplicateWarning: !!dup?.isDuplicate,
+      }));
+
+      if (dup?.isDuplicate) {
+        toast.warning(dup.message || "Potential duplicate receipt detected");
+      } else {
+        toast.success("Receipt securely encrypted and stored (SHA-256 verified)");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Receipt upload failed");
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  }
+
+  function applyOcrExtractedData() {
+    if (!claimForm.ocrExtracted) return;
+    const { merchant, amount, date } = claimForm.ocrExtracted;
+    setClaimForm((prev) => ({
+      ...prev,
+      merchant: merchant || prev.merchant,
+      amount: amount !== null && amount !== undefined ? String(amount) : prev.amount,
+      expenseDate: date || prev.expenseDate,
+      title: prev.title || (merchant ? `Expense at ${merchant}` : prev.title),
+    }));
+    toast.success("Advisory OCR values populated into claim form for review!");
+  }
+
+  function resetCategoryForm() {
+    setCategoryForm({
+      name: "",
+      code: "",
+      monthlyLimit: "",
+      requiresReceipt: true,
+      icon: "Receipt",
+    });
+  }
+
+  return (
+    <div className="space-y-6 max-w-full pb-12">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+        <div>
+          <BreadcrumbNav />
+          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+            <Receipt className="size-6 text-primary" /> Expense Claims & Reimbursements
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Manage multi-category employee claims, digital receipts, multi-tier approvals, and 1-click payroll settlements.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              resetCategoryForm();
+              setIsCategoryModalOpen(true);
+            }}
+            className="text-xs font-semibold h-8 shadow-2xs gap-1.5"
+          >
+            <Settings2 className="size-3.5 text-primary" />
+            <span>Spending Limits & Categories</span>
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={() => {
+              resetClaimForm();
+              setIsSubmitClaimOpen(true);
+            }}
+            className="text-xs font-bold h-8 shadow-sm gap-1.5 bg-primary text-primary-foreground"
+          >
+            <Plus className="size-3.5" />
+            <span>Submit Expense Claim</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Metrics Banner */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+            <Clock className="size-3.5 text-amber-500" /> Pending Review
+          </span>
+          <div className="text-xl font-black font-mono text-amber-600">
+            {formatSystemAmount(summary?.pendingAmount || 0, sysConfig?.currency)}
+          </div>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+            <CheckCircle2 className="size-3.5 text-blue-500" /> Approved for Payout
+          </span>
+          <div className="text-xl font-black font-mono text-blue-600">
+            {formatSystemAmount(summary?.approvedAmount || 0, sysConfig?.currency)}
+          </div>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-emerald-500/5 border-emerald-500/20">
+          <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
+            <Wallet className="size-3.5" /> Reimbursed Total
+          </span>
+          <div className="text-xl font-black font-mono text-emerald-600">
+            {formatSystemAmount(summary?.reimbursedAmount || 0, sysConfig?.currency)}
+          </div>
+        </Card>
+
+        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+          <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+            <Receipt className="size-3.5 text-purple-500" /> Total Processed
+          </span>
+          <div className="text-xl font-black font-mono text-foreground">
+            {summary?.totalClaims || 0} Claims
+          </div>
+        </Card>
+      </div>
+
+      {/* Main Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-1 rounded-xl border">
+          <TabsList className="bg-transparent h-8 p-0 gap-1 flex-wrap">
+            <TabsTrigger value="claims" className="text-xs font-bold h-7 gap-1.5">
+              <Receipt className="size-3.5" />
+              <span>Claims Directory ({claims.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="text-xs font-bold h-7 gap-1.5">
+              <Settings2 className="size-3.5" />
+              <span>Expense Categories ({categories.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="budgets" className="text-xs font-bold h-7 gap-1.5">
+              <PieChart className="size-3.5 text-primary" />
+              <span>Budgets & Forecast ({budgetsList.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="provident_fund" className="text-xs font-bold h-7 gap-1.5">
+              <ShieldCheck className="size-3.5 text-emerald-500" />
+              <span>Provident Fund ({pfList.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="taxes" className="text-xs font-bold h-7 gap-1.5">
+              <Landmark className="size-3.5 text-indigo-500" />
+              <span>Tax Master ({taxesList.length})</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Quick Filters */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search records..."
+                className="h-7 text-xs pl-8 w-44 bg-background"
+              />
+            </div>
+
+            {activeTab === "claims" && (
+              <>
+                <Select value={selectedCategoryFilter} onValueChange={setSelectedCategoryFilter}>
+                  <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={selectedStatusFilter} onValueChange={setSelectedStatusFilter}>
+                  <SelectTrigger className="h-7 text-xs w-36 bg-background">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="manager_approved">Manager Approved</SelectItem>
+                    <SelectItem value="finance_approved">Finance Approved</SelectItem>
+                    <SelectItem value="reimbursed">Reimbursed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+
+            {activeTab === "budgets" && (
+              <Button size="sm" onClick={() => setIsAddBudgetOpen(true)} className="h-7 text-xs font-bold gap-1 shadow-2xs">
+                <Plus className="size-3.5" /> Add Budget
+              </Button>
+            )}
+
+            {activeTab === "provident_fund" && (
+              <Button size="sm" onClick={() => setIsAddPFOpen(true)} className="h-7 text-xs font-bold gap-1 shadow-2xs">
+                <Plus className="size-3.5" /> Enrol Employee PF
+              </Button>
+            )}
+
+            {activeTab === "taxes" && (
+              <Button size="sm" onClick={() => setIsAddTaxOpen(true)} className="h-7 text-xs font-bold gap-1 shadow-2xs">
+                <Plus className="size-3.5" /> Add Tax Slab
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* ===================== TAB 1: CLAIMS DIRECTORY ===================== */}
+        <TabsContent value="claims" className="space-y-4 pt-1">
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Claim Code & Title</TableHead>
+                    <TableHead className="text-xs">Staff Member</TableHead>
+                    <TableHead className="text-xs">Category</TableHead>
+                    <TableHead className="text-xs">Merchant & Date</TableHead>
+                    <TableHead className="text-xs">Amount</TableHead>
+                    <TableHead className="text-xs">Receipt Proof</TableHead>
+                    <TableHead className="text-xs">Approval Status</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {isClaimsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12 text-xs">
+                        Loading expense claims...
+                      </TableCell>
+                    </TableRow>
+                  ) : claims.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-12 text-xs italic">
+                        No expense claims found matching filter.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    claims.map((claim: any) => {
+                      const st = STATUS_CONFIG[claim.status] || STATUS_CONFIG.pending;
+                      const IconComp = CATEGORY_ICON_MAP[claim.category?.icon] || Receipt;
+
+                      return (
+                        <TableRow key={claim.id} className="hover:bg-muted/20 text-xs">
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <span className="font-mono font-black text-foreground block">{claim.claimCode}</span>
+                              <span className="text-[11px] text-muted-foreground font-semibold truncate block max-w-[180px]">
+                                {claim.title}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="size-6 border">
+                                <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                                  {claim.employee?.firstName?.[0]}
+                                  {claim.employee?.lastName?.[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <span className="font-bold text-foreground block">
+                                  {claim.employee?.firstName} {claim.employee?.lastName}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {claim.employee?.department?.name || "General"}
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px] font-bold gap-1">
+                              <IconComp className="size-3 text-primary" />
+                              <span>{claim.category?.name || "General"}</span>
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <span className="font-semibold text-foreground block">{claim.merchant}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                {new Date(claim.expenseDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="font-mono font-black text-xs text-primary">
+                            {formatSystemAmount(Number(claim.amount), sysConfig?.currency)}
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex flex-col gap-1 items-start">
+                              {claim.storedDocumentId ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => window.open(`/api/documents/${claim.storedDocumentId}/stream`, "_blank")}
+                                  className="h-6 text-[10px] font-semibold gap-1 text-primary border-primary/20 hover:bg-primary/5"
+                                >
+                                  <FileText className="size-3 text-primary" />
+                                  <span>View Receipt</span>
+                                </Button>
+                              ) : claim.receiptUrl ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => window.open(claim.receiptUrl, "_blank")}
+                                  className="h-6 text-[10px] font-semibold gap-1"
+                                >
+                                  <FileText className="size-3 text-primary" />
+                                  <span>View Receipt</span>
+                                </Button>
+                              ) : (
+                                <span className="text-muted-foreground text-[10px] italic">No receipt</span>
+                              )}
+                              {claim.isDuplicateWarning && (
+                                <Badge variant="outline" className="text-[9px] font-bold bg-amber-500/10 text-amber-600 border-amber-500/30 gap-1 px-1.5 py-0 h-4">
+                                  <AlertCircle className="size-2.5" />
+                                  <span>Duplicate</span>
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] font-bold ${st.bg} ${st.text} ${st.border}`}>
+                              {st.label}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {claim.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateStatusMut.mutate({ id: claim.id, status: "manager_approved" })}
+                                  className="h-6 text-[10px] font-bold text-blue-600 border-blue-500/30"
+                                >
+                                  Approve
+                                </Button>
+                              )}
+
+                              {claim.status === "manager_approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateStatusMut.mutate({ id: claim.id, status: "finance_approved" })}
+                                  className="h-6 text-[10px] font-bold text-indigo-600 border-indigo-500/30"
+                                >
+                                  Finance OK
+                                </Button>
+                              )}
+
+                              {claim.status === "finance_approved" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setClaimToReimburse(claim);
+                                    setIsReimburseModalOpen(true);
+                                  }}
+                                  className="h-6 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                  Reimburse
+                                </Button>
+                              )}
+
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setSelectedClaimPassport(claim)}
+                                className="h-6 text-[10px] font-bold"
+                              >
+                                <Eye className="size-3" />
+                              </Button>
+
+                              {claim.status !== "reimbursed" && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    if (confirm(`Delete claim ${claim.claimCode}?`)) {
+                                      deleteClaimMut.mutate(claim.id);
+                                    }
+                                  }}
+                                  className="size-6 text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2 className="size-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 2: SPENDING CATEGORIES STUDIO ===================== */}
+        <TabsContent value="categories" className="space-y-4 pt-1">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Settings2 className="size-4 text-primary" /> Workspace Expense Categories & Monthly Limits
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Define policy spending caps, mandatory receipt attachments, and budget thresholds.
+              </p>
+            </div>
+
+            <Button
+              size="sm"
+              onClick={() => {
+                resetCategoryForm();
+                setIsCategoryModalOpen(true);
+              }}
+              className="text-xs font-bold h-8 gap-1.5"
+            >
+              <Plus className="size-3.5" />
+              <span>Create Category</span>
+            </Button>
+          </div>
+
+          <Card className="border shadow-2xs">
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead className="text-xs">Category Name & Code</TableHead>
+                    <TableHead className="text-xs">Monthly Budget Cap</TableHead>
+                    <TableHead className="text-xs">Receipt Attachment Policy</TableHead>
+                    <TableHead className="text-xs text-center">Total Claims Filed</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {categories.map((cat: any) => {
+                    const IconComp = CATEGORY_ICON_MAP[cat.icon] || Receipt;
+                    return (
+                      <TableRow key={cat.id} className="hover:bg-muted/20 text-xs">
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="size-8 rounded-lg bg-primary/10 border border-primary/20 grid place-items-center">
+                              <IconComp className="size-4 text-primary" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-foreground block">{cat.name}</span>
+                              <span className="font-mono text-[10px] text-muted-foreground font-bold">{cat.code}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="font-mono font-bold text-emerald-600">
+                          {cat.monthlyLimit ? (
+                            formatSystemAmount(Number(cat.monthlyLimit), sysConfig?.currency) + " / month"
+                          ) : (
+                            <span className="text-muted-foreground font-normal">No limit set</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-bold ${
+                              cat.requiresReceipt
+                                ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {cat.requiresReceipt ? "Mandatory Receipt Proof" : "Optional Receipt"}
+                          </Badge>
+                        </TableCell>
+
+                        <TableCell className="text-center font-mono font-bold">
+                          {cat._count?.claims || 0}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              onClick={() => {
+                                setEditingCategory(cat);
+                                setCategoryForm({
+                                  name: cat.name,
+                                  code: cat.code,
+                                  monthlyLimit: String(cat.monthlyLimit || ""),
+                                  requiresReceipt: cat.requiresReceipt,
+                                  icon: cat.icon,
+                                });
+                                setIsEditCategoryOpen(true);
+                              }}
+                              title="Edit"
+                            >
+                              <Edit2 className="size-3.5 text-muted-foreground" />
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7 text-rose-600 hover:bg-rose-50"
+                              onClick={() => {
+                                if (confirm(`Delete category "${cat.name}"?`)) {
+                                  deleteCategoryMut.mutate(cat.id);
+                                }
+                              }}
+                              title="Delete"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 3: BUDGETS & FORECAST ===================== */}
+        <TabsContent value="budgets" className="space-y-4 pt-1">
+          {/* Budget Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <PieChart className="size-3.5 text-primary" /> Total Budget Pool
+              </span>
+              <div className="text-xl font-black font-mono text-primary">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.budgetAmount, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingUp className="size-3.5 text-emerald-500" /> Projected Revenue (A)
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.totalRevenue, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <TrendingDown className="size-3.5 text-rose-500" /> Operating Expenses (B)
+              </span>
+              <div className="text-xl font-black font-mono text-rose-600">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.totalExpenses, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-primary/5 border-primary/20">
+              <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                <Wallet className="size-3.5 text-primary" /> Net Expected Profit (C)
+              </span>
+              <div className="text-xl font-black font-mono text-foreground">
+                {formatSystemAmount(budgetsList.reduce((sum, b) => sum + b.expectedProfit, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+          </div>
+
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black text-foreground">Budgets Planning Ledger</CardTitle>
+                <CardDescription className="text-xs">Project and Category resource allocation with automated tax and margin deductions.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead>Budget Title</TableHead>
+                    <TableHead>Respect Type</TableHead>
+                    <TableHead>Timeline</TableHead>
+                    <TableHead className="text-right">Revenue (A)</TableHead>
+                    <TableHead className="text-right">Expense (B)</TableHead>
+                    <TableHead className="text-right">Profit (C=A-B)</TableHead>
+                    <TableHead className="text-right">Tax (D)</TableHead>
+                    <TableHead className="text-right">Net Budget (E=C-D)</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {budgetsList.map((b) => (
+                    <TableRow key={b.id} className="text-xs hover:bg-muted/30">
+                      <TableCell className="font-bold text-foreground">{b.title}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] font-bold ${b.type === "Project" ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/30" : "bg-purple-500/10 text-purple-600 border-purple-500/30"}`}>
+                          {b.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-[11px] text-muted-foreground">
+                        {b.startDate} to {b.endDate}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-emerald-600">
+                        {formatSystemAmount(b.totalRevenue, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-rose-600">
+                        {formatSystemAmount(b.totalExpenses, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold text-foreground">
+                        {formatSystemAmount(b.expectedProfit, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {formatSystemAmount(b.tax, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-black text-primary">
+                        {formatSystemAmount(b.budgetAmount, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Remove budget "${b.title}"?`)) {
+                              deleteBudgetMut.mutate(b.id);
+                            }
+                          }}
+                          className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 4: PROVIDENT FUND ===================== */}
+        <TabsContent value="provident_fund" className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Users className="size-3.5 text-blue-500" /> Active PF Members
+              </span>
+              <div className="text-xl font-black font-mono text-blue-600">{pfList.length} Staff</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <PiggyBank className="size-3.5 text-emerald-500" /> Employee Contribution
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">Standard 2.0% - 5.0%</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Building2 className="size-3.5 text-purple-500" /> Tenant Match Share
+              </span>
+              <div className="text-xl font-black font-mono text-purple-600">100% Matching (2.0%)</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-emerald-500/5 border-emerald-500/20">
+              <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
+                <Wallet className="size-3.5" /> Total Fund Pool Balance
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">
+                {formatSystemAmount(pfList.reduce((sum, p) => sum + p.accumulatedBalance, 0), sysConfig?.currency)}
+              </div>
+            </Card>
+          </div>
+
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black text-foreground">Employee Provident Fund & Retirement Ledger</CardTitle>
+                <CardDescription className="text-xs">Statutory monthly employee withholdings and employer matching contributions.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead>Employee Name</TableHead>
+                    <TableHead>Provident Fund Type</TableHead>
+                    <TableHead>Employee Share (%)</TableHead>
+                    <TableHead>Organization Share (%)</TableHead>
+                    <TableHead className="text-right">Accumulated Pool</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pfList.map((pf) => (
+                    <TableRow key={pf.id} className="text-xs hover:bg-muted/30">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="size-7 border">
+                            <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                              {pf.employeeName.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-bold text-foreground">{pf.employeeName}</div>
+                            <div className="text-[10px] text-muted-foreground">{pf.department}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">{pf.type}</TableCell>
+                      <TableCell className="font-mono font-bold text-blue-600">{pf.employeeShare}%</TableCell>
+                      <TableCell className="font-mono font-bold text-purple-600">{pf.employerShare}%</TableCell>
+                      <TableCell className="text-right font-mono font-black text-emerald-600">
+                        {formatSystemAmount(pf.accumulatedBalance, sysConfig?.currency)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] font-bold ${pf.status === "Approved" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-amber-500/10 text-amber-600 border-amber-500/30"}`}>
+                          {pf.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Remove PF enrolment for "${pf.employeeName}"?`)) {
+                              deletePFMut.mutate(pf.id);
+                            }
+                          }}
+                          className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===================== TAB 5: TAXES & STATUTORY RATES ===================== */}
+        <TabsContent value="taxes" className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Landmark className="size-3.5 text-primary" /> Active Slabs
+              </span>
+              <div className="text-xl font-black font-mono text-foreground">{taxesList.length} Rules</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <Calculator className="size-3.5 text-indigo-500" /> Standard GST / VAT
+              </span>
+              <div className="text-xl font-black font-mono text-indigo-600">18.0% - 20.0%</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+              <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                <FileSpreadsheet className="size-3.5 text-amber-500" /> TDS Withholding
+              </span>
+              <div className="text-xl font-black font-mono text-amber-600">10.0% Section 194J</div>
+            </Card>
+
+            <Card className="p-3.5 border shadow-2xs bg-card space-y-1 bg-emerald-500/5 border-emerald-500/20">
+              <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5" /> Compliance Status
+              </span>
+              <div className="text-xl font-black font-mono text-emerald-600">100% Audited</div>
+            </Card>
+          </div>
+
+          <Card className="border shadow-2xs">
+            <CardHeader className="py-3 px-4 border-b bg-muted/20 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-black text-foreground">Tax Rates & Statutory Withholdings Master</CardTitle>
+                <CardDescription className="text-xs">Master tax schedules applied to invoicing, vendor purchase vouchers, and employee payroll slips.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 text-xs">
+                    <TableHead>Tax Name</TableHead>
+                    <TableHead>Statutory Description</TableHead>
+                    <TableHead>Tax Percentage (%)</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {taxesList.map((tax) => (
+                    <TableRow key={tax.id} className="text-xs hover:bg-muted/30">
+                      <TableCell className="font-bold text-foreground">{tax.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{tax.description}</TableCell>
+                      <TableCell className="font-mono font-black text-indigo-600">{tax.rate}%</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] font-bold ${tax.status === "Active" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : "bg-rose-500/10 text-rose-600 border-rose-500/30"}`}>
+                          {tax.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`Remove tax rule "${tax.name}"?`)) {
+                              deleteTaxMut.mutate(tax.id);
+                            }
+                          }}
+                          className="h-6 w-6 p-0 text-rose-500 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* ─── MODAL 1: SUBMIT EXPENSE CLAIM ─── */}
+      <Dialog open={isSubmitClaimOpen} onOpenChange={setIsSubmitClaimOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Receipt className="size-5 text-primary" />
+              <span>Submit Reimbursement Claim</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Attach receipt proof and submit expense for manager and finance verification.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createClaimMut.mutate(claimForm);
+            }}
+            className="space-y-3.5 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Staff Member *</Label>
+              <Select
+                required
+                value={claimForm.employeeId}
+                onValueChange={(v) => setClaimForm({ ...claimForm, employeeId: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Staff" /></SelectTrigger>
+                <SelectContent>
+                  {employees.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.first_name} {e.last_name} ({e.employee_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Expense Category *</Label>
+                <Select
+                  required
+                  value={claimForm.categoryId}
+                  onValueChange={(v) => setClaimForm({ ...claimForm, categoryId: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} ({c.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Claim Amount (₹) *</Label>
+                <Input
+                  required
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 2450.00"
+                  value={claimForm.amount}
+                  onChange={(e) => setClaimForm({ ...claimForm, amount: e.target.value })}
+                  className="h-8 text-xs font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Expense Title / Item *</Label>
+              <Input
+                required
+                placeholder="e.g. Client Dinner at Marriott / Flight to Delhi"
+                value={claimForm.title}
+                onChange={(e) => setClaimForm({ ...claimForm, title: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Merchant / Vendor *</Label>
+                <Input
+                  required
+                  placeholder="e.g. Uber, Indigo, Marriott"
+                  value={claimForm.merchant}
+                  onChange={(e) => setClaimForm({ ...claimForm, merchant: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Expense Date *</Label>
+                <Input
+                  type="date"
+                  required
+                  value={claimForm.expenseDate}
+                  onChange={(e) => setClaimForm({ ...claimForm, expenseDate: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Wave 2.1: Secure Document Subsystem & Advisory OCR */}
+            <div className="space-y-2 p-3 rounded-lg border bg-muted/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold flex items-center gap-1.5">
+                  <FileText className="size-3.5 text-primary" />
+                  <span>Receipt Document / Proof Attachment *</span>
+                </Label>
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Lock className="size-2.5 text-emerald-600" /> AES-256 Encrypted (Max 10MB)
+                </span>
+              </div>
+
+              {!claimForm.storedDocumentId ? (
+                <div className="border border-dashed rounded-lg p-4 text-center hover:bg-muted/30 transition-colors cursor-pointer relative">
+                  <input
+                    type="file"
+                    accept=".pdf,image/png,image/jpeg,image/jpg"
+                    disabled={isUploadingReceipt}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleReceiptUpload(file);
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-1.5">
+                    {isUploadingReceipt ? (
+                      <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                        <Clock className="size-4 animate-spin text-primary" />
+                        <span>Encrypting, hashing & analyzing with OCR...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <UploadCloud className="size-6 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-foreground">Click to upload or drag & drop</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          PDF, PNG, JPG (Binary signature verified)
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 rounded bg-background border text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
+                      <div className="truncate">
+                        <span className="font-semibold text-foreground block truncate">{claimForm.receiptName}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          {(claimForm.receiptSize / 1024).toFixed(1)} KB • SHA-256: {claimForm.receiptHash.slice(0, 12)}...{claimForm.receiptHash.slice(-6)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => window.open(claimForm.receiptUrl, "_blank")}
+                        className="h-6 text-[10px] font-bold text-primary"
+                      >
+                        <Eye className="size-3 mr-1" /> View
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setClaimForm((prev) => ({
+                            ...prev,
+                            storedDocumentId: "",
+                            receiptHash: "",
+                            receiptMime: "",
+                            receiptSize: 0,
+                            receiptUrl: "",
+                            ocrExtracted: null,
+                            ocrConfidence: null,
+                            ocrStatus: "",
+                            isDuplicateWarning: false,
+                          }));
+                          setReceiptUploadSuccess(null);
+                        }}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-rose-500"
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {claimForm.isDuplicateWarning && (
+                    <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2">
+                      <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold block">Advisory Duplicate Warning</span>
+                        <span className="text-[11px]">
+                          A receipt with this identical cryptographic SHA-256 hash was submitted within the last 60 days. Please verify this is not a duplicate reimbursement claim.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {claimForm.ocrExtracted && (
+                    <div className="p-2.5 rounded-lg border bg-primary/5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold flex items-center gap-1.5 text-primary text-[11px]">
+                          <Sparkles className="size-3.5" /> Advisory OCR Analysis (Tesseract)
+                        </span>
+                        {claimForm.ocrConfidence !== null && (
+                          <Badge variant="outline" className="text-[9px] font-mono">
+                            {claimForm.ocrConfidence}% confidence
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Merchant:</span>
+                          <span className="font-bold truncate block">{claimForm.ocrExtracted.merchant || "Not found"}</span>
+                        </div>
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Date:</span>
+                          <span className="font-bold block font-mono">{claimForm.ocrExtracted.date || "Not found"}</span>
+                        </div>
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Amount:</span>
+                          <span className="font-bold block font-mono text-primary">
+                            {claimForm.ocrExtracted.amount ? formatSystemAmount(claimForm.ocrExtracted.amount, sysConfig?.currency) : "Not found"}
+                          </span>
+                        </div>
+                        <div className="p-1.5 rounded bg-background border">
+                          <span className="text-muted-foreground block">Tax / GST:</span>
+                          <span className="font-bold block font-mono">
+                            {claimForm.ocrExtracted.tax ? formatSystemAmount(claimForm.ocrExtracted.tax, sysConfig?.currency) : "N/A"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={applyOcrExtractedData}
+                        className="w-full h-7 text-[11px] font-bold gap-1 shadow-2xs"
+                      >
+                        <Check className="size-3" /> Populate Form with Advisory OCR Data
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Business Justification & Notes</Label>
+              <Textarea
+                rows={2}
+                placeholder="Details of client meeting, travel itinerary, or project purpose..."
+                value={claimForm.description}
+                onChange={(e) => setClaimForm({ ...claimForm, description: e.target.value })}
+                className="text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsSubmitClaimOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={createClaimMut.isPending} className="text-xs font-bold">
+                Submit Claim
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL 2: CREATE / EDIT EXPENSE CATEGORY ─── */}
+      <Dialog open={isCategoryModalOpen || isEditCategoryOpen} onOpenChange={(o) => {
+        if (!o) {
+          setIsCategoryModalOpen(false);
+          setIsEditCategoryOpen(false);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Settings2 className="size-5 text-primary" />
+              <span>{isEditCategoryOpen ? "Edit Expense Category" : "Create Expense Category"}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (isEditCategoryOpen && editingCategory) {
+                updateCategoryMut.mutate({ id: editingCategory.id, data: categoryForm });
+              } else {
+                createCategoryMut.mutate(categoryForm);
+              }
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Category Name *</Label>
+                <Input
+                  required
+                  placeholder="e.g. Travel & Lodging"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Category Code *</Label>
+                <Input
+                  required
+                  maxLength={6}
+                  placeholder="e.g. TRV"
+                  value={categoryForm.code}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, code: e.target.value.toUpperCase() })}
+                  className="h-8 text-xs font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Monthly Limit (₹)</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 50000"
+                  value={categoryForm.monthlyLimit}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, monthlyLimit: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Icon</Label>
+                <Select
+                  value={categoryForm.icon}
+                  onValueChange={(v) => setCategoryForm({ ...categoryForm, icon: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Plane">Plane (Travel)</SelectItem>
+                    <SelectItem value="Coffee">Coffee (Meals)</SelectItem>
+                    <SelectItem value="Laptop">Laptop (IT & Hardware)</SelectItem>
+                    <SelectItem value="Layers">Layers (Software & Cloud)</SelectItem>
+                    <SelectItem value="Plus">Plus (Medical)</SelectItem>
+                    <SelectItem value="Receipt">Receipt (General)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg border bg-muted/20 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="font-bold text-foreground block">Mandatory Receipt Attachment</span>
+                <span className="text-[10px] text-muted-foreground">Require invoice/bill proof during claim submission</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={categoryForm.requiresReceipt}
+                onChange={(e) => setCategoryForm({ ...categoryForm, requiresReceipt: e.target.checked })}
+                className="size-4 text-primary rounded"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => {
+                setIsCategoryModalOpen(false);
+                setIsEditCategoryOpen(false);
+              }}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={createCategoryMut.isPending || updateCategoryMut.isPending} className="text-xs font-bold">
+                {isEditCategoryOpen ? "Update Category" : "Create Category"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL 3: 1-CLICK REIMBURSEMENT DISBURSEMENT ─── */}
+      {claimToReimburse && (
+        <Dialog open={isReimburseModalOpen} onOpenChange={setIsReimburseModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Wallet className="size-5 text-emerald-600" />
+                <span>Authorize Reimbursement Payout</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Claim: {claimToReimburse.claimCode} — {formatSystemAmount(Number(claimToReimburse.amount), sysConfig?.currency)} to {claimToReimburse.employee?.firstName} {claimToReimburse.employee?.lastName}
+              </DialogDescription>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                reimburseMut.mutate({ id: claimToReimburse.id, payload: reimburseForm });
+              }}
+              className="space-y-3 py-2 text-xs"
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Settlement / Reimbursement Mode</Label>
+                <Select
+                  value={reimburseForm.reimbursementMethod}
+                  onValueChange={(v) => setReimburseForm({ ...reimburseForm, reimbursementMethod: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="payroll_addition">Payroll Addition (Credit in Monthly Payslip)</SelectItem>
+                    <SelectItem value="direct_bank_transfer">Direct NEFT / Bank Account Transfer</SelectItem>
+                    <SelectItem value="petty_cash">Company Petty Cash Box</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {reimburseForm.reimbursementMethod === "payroll_addition" && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Target Payroll Month (YYYY-MM)</Label>
+                  <Input
+                    value={reimburseForm.payrollMonth}
+                    onChange={(e) => setReimburseForm({ ...reimburseForm, payrollMonth: e.target.value })}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Finance Settlement Notes</Label>
+                <Input
+                  value={reimburseForm.approverNotes}
+                  onChange={(e) => setReimburseForm({ ...reimburseForm, approverNotes: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <DialogFooter className="pt-2 border-t">
+                <Button type="button" size="sm" variant="outline" onClick={() => setIsReimburseModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" disabled={reimburseMut.isPending} className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                  Confirm & Reimburse
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ─── MODAL 4: CLAIM PASSPORT DRAWER ─── */}
+      {selectedClaimPassport && (
+        <Dialog open={!!selectedClaimPassport} onOpenChange={(o) => !o && setSelectedClaimPassport(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold flex items-center justify-between pr-4">
+                <div className="flex items-center gap-2">
+                  <Receipt className="size-5 text-primary" />
+                  <span>Claim Passport: {selectedClaimPassport.claimCode}</span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-xs font-bold ${
+                    STATUS_CONFIG[selectedClaimPassport.status]?.bg
+                  } ${STATUS_CONFIG[selectedClaimPassport.status]?.text} ${
+                    STATUS_CONFIG[selectedClaimPassport.status]?.border
+                  }`}
+                >
+                  {STATUS_CONFIG[selectedClaimPassport.status]?.label}
+                </Badge>
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3.5 py-2 text-xs">
+              <div className="p-3.5 rounded-xl border bg-muted/20 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase">Claim Amount</span>
+                  <div className="text-xl font-black font-mono text-primary">
+                    {formatSystemAmount(Number(selectedClaimPassport.amount), sysConfig?.currency)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase">Category</span>
+                  <div className="font-bold text-xs">{selectedClaimPassport.category?.name}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg border bg-card space-y-0.5">
+                  <span className="text-[10px] text-muted-foreground">Staff Member</span>
+                  <div className="font-bold">
+                    {selectedClaimPassport.employee?.firstName} {selectedClaimPassport.employee?.lastName}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg border bg-card space-y-0.5">
+                  <span className="text-[10px] text-muted-foreground">Merchant / Vendor</span>
+                  <div className="font-bold">{selectedClaimPassport.merchant}</div>
+                </div>
+              </div>
+
+              {selectedClaimPassport.description && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Claim Description</Label>
+                  <div className="p-2.5 rounded-lg border bg-muted/10 text-xs text-muted-foreground">
+                    {selectedClaimPassport.description}
+                  </div>
+                </div>
+              )}
+
+              {/* Wave 2.1: Secure Document Subsystem & Integrity Info */}
+              {(selectedClaimPassport.storedDocumentId || selectedClaimPassport.receiptUrl) && (
+                <div className="space-y-2 p-2.5 rounded-lg border bg-muted/20">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold flex items-center gap-1.5 text-foreground">
+                      <Lock className="size-3.5 text-emerald-600" /> Secure Receipt Document
+                    </span>
+                    <Badge variant="outline" className="text-[9px] font-mono bg-background">
+                      AES-256-GCM
+                    </Badge>
+                  </div>
+
+                  {selectedClaimPassport.receiptHash && (
+                    <div className="text-[10px] font-mono text-muted-foreground break-all bg-background p-1.5 rounded border">
+                      <span className="font-bold text-foreground">SHA-256: </span>
+                      {selectedClaimPassport.receiptHash}
+                    </div>
+                  )}
+
+                  {selectedClaimPassport.isDuplicateWarning && (
+                    <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] flex items-start gap-1.5">
+                      <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                      <span>Warning: Flagged as a potential duplicate receipt (identical cryptographic checksum in 60 days).</span>
+                    </div>
+                  )}
+
+                  {selectedClaimPassport.ocrStatus && (
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground px-1">
+                      <span>OCR Extraction: {selectedClaimPassport.ocrStatus}</span>
+                      {selectedClaimPassport.ocrConfidence !== null && (
+                        <span>Confidence: {selectedClaimPassport.ocrConfidence}%</span>
+                      )}
+                    </div>
+                  )}
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const streamUrl = selectedClaimPassport.storedDocumentId
+                        ? `/api/documents/${selectedClaimPassport.storedDocumentId}/stream`
+                        : selectedClaimPassport.receiptUrl;
+                      window.open(streamUrl, "_blank");
+                    }}
+                    className="w-full h-8 text-xs font-semibold gap-1.5 shadow-2xs bg-background"
+                  >
+                    <FileText className="size-3.5 text-primary" />
+                    <span>Stream Decrypted Receipt Proof</span>
+                    <ExternalLink className="size-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+
+              {selectedClaimPassport.status === "reimbursed" && (
+                <div className="p-3 rounded-lg border bg-emerald-500/10 border-emerald-500/30 space-y-1 text-emerald-700 dark:text-emerald-300">
+                  <div className="font-bold text-xs flex items-center gap-1.5">
+                    <CheckCircle2 className="size-4 text-emerald-600" />
+                    <span>Reimbursed via {selectedClaimPassport.reimbursementMethod?.replace("_", " ")}</span>
+                  </div>
+                  {selectedClaimPassport.payrollMonth && (
+                    <div className="text-[11px] font-mono">
+                      Credited in Payslip: {selectedClaimPassport.payrollMonth}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button size="sm" variant="outline" onClick={() => setSelectedClaimPassport(null)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ─── MODAL 5: ADD BUDGET (budgets.html) ─── */}
+      <Dialog open={isAddBudgetOpen} onOpenChange={setIsAddBudgetOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <PieChart className="size-5 text-primary" />
+              <span>Create Strategic Financial Budget</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Define projected revenues, operational expenses, tax provisions, and net profit allocation.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const rev = parseFloat(budgetForm.revenueAmount) || 0;
+              const exp = parseFloat(budgetForm.expenseAmount) || 0;
+              const profit = rev - exp;
+              const tax = parseFloat(budgetForm.taxAmount) || 0;
+              const netBudget = profit - tax;
+
+              createBudgetMut.mutate({
+                name: budgetForm.title,
+                periodType: budgetForm.type === "Project" ? "monthly" : "quarterly",
+                fiscalYear: budgetForm.startDate + " to " + budgetForm.endDate,
+                budgetedAmount: netBudget,
+                spentAmount: exp,
+                notes: JSON.stringify({
+                  type: budgetForm.type,
+                  startDate: budgetForm.startDate,
+                  endDate: budgetForm.endDate,
+                  revenue: rev,
+                  expense: exp,
+                  profit: profit,
+                  tax: tax,
+                }),
+              });
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Budget Title *</Label>
+              <Input
+                required
+                placeholder="e.g. Q3 Marketing Blitz / Enterprise ERP Rollout"
+                value={budgetForm.title}
+                onChange={(e) => setBudgetForm({ ...budgetForm, title: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Budget Scope Type *</Label>
+              <div className="flex items-center gap-4 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="bType"
+                    checked={budgetForm.type === "Project"}
+                    onChange={() => setBudgetForm({ ...budgetForm, type: "Project" })}
+                    className="size-4"
+                  />
+                  <span>Project Level</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="bType"
+                    checked={budgetForm.type === "Category"}
+                    onChange={() => setBudgetForm({ ...budgetForm, type: "Category" })}
+                    className="size-4"
+                  />
+                  <span>Category Departmental</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Start Date</Label>
+                <Input
+                  type="date"
+                  required
+                  value={budgetForm.startDate}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, startDate: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">End Date</Label>
+                <Input
+                  type="date"
+                  required
+                  value={budgetForm.endDate}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, endDate: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg border bg-muted/20 space-y-3">
+              <div className="font-bold text-xs text-foreground flex items-center justify-between">
+                <span>Expected Inflows & Outflows</span>
+                <Badge variant="outline" className="text-[10px]">Realtime Balance</Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-emerald-600">Expected Inflow Revenue (A)</Label>
+                  <Input
+                    type="number"
+                    required
+                    value={budgetForm.revenueAmount}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, revenueAmount: e.target.value })}
+                    className="h-8 text-xs font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-rose-600">Expected Direct Expenses (B)</Label>
+                  <Input
+                    type="number"
+                    required
+                    value={budgetForm.expenseAmount}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, expenseAmount: e.target.value })}
+                    className="h-8 text-xs font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-amber-600">Tax Provision (D)</Label>
+                  <Input
+                    type="number"
+                    value={budgetForm.taxAmount}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, taxAmount: e.target.value })}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Calculated Net Budget (E = A - B - D)</Label>
+                  <div className="h-8 px-3 rounded-md border bg-background flex items-center font-mono font-black text-primary">
+                    {formatSystemAmount(
+                      (parseFloat(budgetForm.revenueAmount) || 0) -
+                        (parseFloat(budgetForm.expenseAmount) || 0) -
+                        (parseFloat(budgetForm.taxAmount) || 0),
+                      sysConfig?.currency
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddBudgetOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold">
+                Save Budget
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL 6: ENROL EMPLOYEE PF (provident-fund.html) ─── */}
+      <Dialog open={isAddPFOpen} onOpenChange={setIsAddPFOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <ShieldCheck className="size-5 text-emerald-600" />
+              <span>Enrol Staff in Provident Fund</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure employee withholding percentage and employer matching share.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const empShare = parseFloat(pfForm.employeeShare) || 2;
+              const orgShare = parseFloat(pfForm.employerShare) || 2;
+              createPFMut.mutate({
+                employeeId: pfForm.employeeId,
+                pfType: pfForm.type,
+                employeeSharePercent: empShare,
+                employeeShareAmount: empShare * 1000,
+                orgSharePercent: orgShare,
+                orgShareAmount: orgShare * 1000,
+                status: pfForm.status,
+                description: "Enrolled into " + pfForm.type,
+              });
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Staff Member *</Label>
+              <Select
+                required
+                value={pfForm.employeeId}
+                onValueChange={(v) => setPfForm({ ...pfForm, employeeId: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Staff" /></SelectTrigger>
+                <SelectContent>
+                  {employees.map((e: any) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.first_name} {e.last_name} ({e.employee_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Provident Fund Program *</Label>
+              <Select
+                value={pfForm.type}
+                onValueChange={(v) => setPfForm({ ...pfForm, type: v })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Employee Provident Fund">Employee Provident Fund (EPF)</SelectItem>
+                  <SelectItem value="Voluntary Provident Fund">Voluntary Provident Fund (VPF)</SelectItem>
+                  <SelectItem value="Public Pension Scheme">National Pension Scheme (NPS)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Employee Share (%)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={pfForm.employeeShare}
+                  onChange={(e) => setPfForm({ ...pfForm, employeeShare: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Employer Match (%)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={pfForm.employerShare}
+                  onChange={(e) => setPfForm({ ...pfForm, employerShare: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddPFOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                Confirm Enrolment
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── MODAL 7: ADD TAX SLAB (taxes.html) ─── */}
+      <Dialog open={isAddTaxOpen} onOpenChange={setIsAddTaxOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Landmark className="size-5 text-primary" />
+              <span>Create Statutory Tax Slab</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure VAT, GST, TDS, or corporate tax rates for accounting vouchers.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createTaxMut.mutate({
+                name: taxForm.name,
+                rate: parseFloat(taxForm.rate) || 0,
+              });
+            }}
+            className="space-y-3 py-2 text-xs"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Tax Name *</Label>
+                <Input
+                  required
+                  placeholder="e.g. GST 18% / VAT"
+                  value={taxForm.name}
+                  onChange={(e) => setTaxForm({ ...taxForm, name: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Tax Rate (%) *</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  required
+                  placeholder="e.g. 18.0"
+                  value={taxForm.rate}
+                  onChange={(e) => setTaxForm({ ...taxForm, rate: e.target.value })}
+                  className="h-8 text-xs font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Statutory Description & Category</Label>
+              <Input
+                placeholder="e.g. Goods and Services Unified National Tax Slab"
+                value={taxForm.description}
+                onChange={(e) => setTaxForm({ ...taxForm, description: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" size="sm" variant="outline" onClick={() => setIsAddTaxOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="text-xs font-bold">
+                Save Tax Slab
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+export default ExpensesPage;

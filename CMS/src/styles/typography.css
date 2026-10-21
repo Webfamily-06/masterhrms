@@ -1,0 +1,45 @@
+/* =========================
+   Marketing Scope Typography styles
+   Scoped to .marketing-scope so it does not override MasterHRMS ERP dashboard
+   =========================== */
+
+.marketing-scope {
+  font-family: var(--font-inter-tight), sans-serif;
+  --secondary: #1a1a1c !important;
+  --color-secondary: #1a1a1c !important;
+}
+
+.marketing-scope h1,
+.marketing-scope h2,
+.marketing-scope h3,
+.marketing-scope h4,
+.marketing-scope h5,
+.marketing-scope h6 {
+  font-family: var(--font-inter-tight), sans-serif;
+  color: #1a1a1c !important;
+  font-weight: 500;
+}
+
+.marketing-scope h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 500;
+}
+.marketing-scope h2 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+}
+.marketing-scope h3 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+.marketing-scope h4 {
+  font-size: 1.25rem;
+}
+.marketing-scope h5 {
+  font-size: 1.125rem;
+}
+.marketing-scope h6 {
+  font-size: 1rem;
+}
+.marketing-scope p {
+  color: #52525b;
+  font-weight: 400;
+}

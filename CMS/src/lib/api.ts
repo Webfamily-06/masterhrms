@@ -1,0 +1,276 @@
+/**
+ * Backend API Client for Master HRMS (Node.js + Express + MySQL)
+ */
+
+export const API_BASE =
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
+  (typeof import.meta !== "undefined" && (import.meta as any)?.env?.VITE_API_URL) ||
+  (typeof window !== "undefined" ? "/api" : "http://localhost:4000/api");
+
+export function getAuthToken(): string {
+  if (typeof window === "undefined") return "";
+  return (
+    localStorage.getItem("hrms_auth_token") ||
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    ""
+  );
+}
+
+function getToken(): string | null {
+  const token = getAuthToken();
+  return token || null;
+}
+
+export function getAuthHeaders(extraHeaders?: HeadersInit): HeadersInit {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return {
+    ...headers,
+    ...extraHeaders,
+  };
+}
+
+export function setToken(token: string) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("hrms_auth_token", token);
+    localStorage.setItem("auth_token", token);
+    try {
+      document.cookie = `hrms_auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+    } catch {}
+  }
+  try {
+    const parts = token.split(".");
+    if (parts.length >= 2) {
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      const payload = JSON.parse(jsonPayload);
+      const existingRaw = typeof window !== "undefined" ? localStorage.getItem("hrms_user") : null;
+      let userObj = existingRaw ? JSON.parse(existingRaw) : {};
+      userObj = {
+        ...userObj,
+        id: payload.userId || payload.id || userObj.id,
+        userId: payload.userId || payload.id || userObj.userId,
+        email: payload.email || userObj.email,
+        tenantId: payload.tenantId || userObj.tenantId,
+        roles: Array.isArray(payload.roles) ? payload.roles : userObj.roles || [],
+        permissions: Array.isArray(payload.permissions) ? payload.permissions : userObj.permissions || [],
+      };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("hrms_user", JSON.stringify(userObj));
+      }
+    }
+  } catch {}
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("auth-token-changed"));
+  }
+}
+
+export function clearToken() {
+  if (typeof window !== "undefined") {
+    try {
+      const rawUser = localStorage.getItem("hrms_user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      window.dispatchEvent(
+        new CustomEvent("hrms:auth-logout", {
+          detail: {
+            tenantId: user?.tenantId,
+            userId: user?.userId || user?.id,
+          },
+        })
+      );
+    } catch {}
+    localStorage.removeItem("hrms_auth_token");
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("hrms_user");
+    try {
+      document.cookie = "hrms_auth_token=; path=/; max-age=0;";
+    } catch {}
+    window.dispatchEvent(new Event("auth-token-changed"));
+  }
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string,
+    public details?: any,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export function formatInventoryError(err: unknown, defaultMessage = "Inventory operation failed"): string {
+  if (err instanceof ApiError) {
+    if (err.status === 409 || err.code === "INSUFFICIENT_STOCK") {
+      const details = err.details;
+      if (details?.requested !== undefined && details?.available !== undefined) {
+        return `Insufficient stock! Requested: ${details.requested}, Available: ${details.available}`;
+      }
+      return err.message || "Insufficient stock for this operation.";
+    }
+    return err.message;
+  }
+
+  if (err && typeof err === "object") {
+    const anyErr = err as any;
+    const data = anyErr.response?.data || anyErr.data || anyErr;
+    if (data.status === 409 || data.code === "INSUFFICIENT_STOCK" || anyErr.status === 409) {
+      const details = data.details || anyErr.details;
+      if (details?.requested !== undefined && details?.available !== undefined) {
+        return `Insufficient stock! Requested: ${details.requested}, Available: ${details.available}`;
+      }
+      if (data.error) return data.error;
+    }
+    if (anyErr.message) return anyErr.message;
+    if (data.error) return data.error;
+  }
+
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return defaultMessage;
+}
+
+export async function apiRequest<T = any>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const token = getToken();
+  const headers = new Headers(options.headers || {});
+
+  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  if (typeof window !== "undefined") {
+    if (!headers.has("X-App-Host") && window.location.host) {
+      headers.set("X-App-Host", window.location.host);
+    }
+    if (!headers.has("X-App-Path") && window.location.pathname) {
+      headers.set("X-App-Path", window.location.pathname);
+    }
+  }
+
+  let cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  if (API_BASE.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
+    cleanEndpoint = cleanEndpoint.substring(4);
+  }
+  const url = `${API_BASE}${cleanEndpoint}`;
+  let response: Response;
+  try {
+    response = await fetch(url, { ...options, headers });
+  } catch (err: any) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      window.dispatchEvent(new CustomEvent("network:offline"));
+    }
+    throw new ApiError(err?.message || "Network request failed. You may be offline.", 0);
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    // 401 Unauthorized: Session Token Expired
+    if (response.status === 401 && !cleanEndpoint.startsWith("/auth/login") && !cleanEndpoint.startsWith("/auth/register")) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth:session-expired", {
+          detail: { path: window.location.pathname, message: data.error }
+        }));
+      }
+    }
+
+    // 403 Forbidden: Insufficient Permissions / License Lock
+    if (response.status === 403) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("auth:forbidden", {
+          detail: { endpoint: cleanEndpoint, message: data.error }
+        }));
+      }
+    }
+
+    // 503 Service Unavailable: Maintenance Mode
+    if (response.status === 503) {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/maintenance")) {
+        window.location.href = "/maintenance";
+      }
+    }
+
+    throw new ApiError(
+      data.error || `Request failed with status ${response.status}`,
+      response.status,
+      data.code,
+      data.details
+    );
+  }
+
+  return data as T;
+}
+
+export const api = {
+  get: <T = any>(endpoint: string, options?: { params?: Record<string, any> }) => {
+    let url = endpoint;
+    if (options?.params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(options.params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== "") {
+          searchParams.append(key, String(val));
+        }
+      });
+      const qs = searchParams.toString();
+      if (qs) {
+        url += (url.includes("?") ? "&" : "?") + qs;
+      }
+    }
+    return apiRequest<T>(url, { method: "GET" });
+  },
+  post: <T = any>(endpoint: string, body?: any) =>
+    apiRequest<T>(endpoint, { method: "POST", body: JSON.stringify(body) }),
+  put: <T = any>(endpoint: string, body?: any) =>
+    apiRequest<T>(endpoint, { method: "PUT", body: JSON.stringify(body) }),
+  patch: <T = any>(endpoint: string, body?: any) =>
+    apiRequest<T>(endpoint, { method: "PATCH", body: JSON.stringify(body) }),
+  delete: <T = any>(endpoint: string) => apiRequest<T>(endpoint, { method: "DELETE" }),
+  upload: <T = any>(endpoint: string, formData: FormData) =>
+    apiRequest<T>(endpoint, { method: "POST", body: formData }),
+};
+
+/**
+ * Safely unwraps API response data, whether returned as a raw payload (e.g. raw array or entity),
+ * or wrapped in a standard { data: ... } envelope.
+ */
+export function unwrapData<T = any>(res: any): T {
+  if (res === null || res === undefined) return res;
+  if (typeof res === "object" && !Array.isArray(res) && "data" in res && res.data !== undefined) {
+    return res.data;
+  }
+  return res;
+}
+
+/**
+ * Safely unwraps an array from a response that might be a raw array, wrapped in { data: [...] },
+ * wrapped in { items: [...] }, or wrapped in entity-specific properties.
+ */
+export function unwrapArray<T = any>(res: any): T[] {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.items)) return res.items;
+  return [];
+}
+

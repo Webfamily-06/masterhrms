@@ -115,3 +115,5 @@ server/test_out.pdf
 
 # Raw Word reference specs and temporary extractions
 docs/Addon/
+node_modules_cms_temp/
+*.tsbuildinfo

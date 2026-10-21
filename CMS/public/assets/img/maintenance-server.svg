@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260" fill="none" class="maintenance-illustration">
+  <defs>
+    <linearGradient id="serverGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="currentColor" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="currentColor" stop-opacity="0.02" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="currentColor" flood-opacity="0.06" />
+    </filter>
+  </defs>
+
+  <!-- Ground Plane / Base Shadow -->
+  <ellipse cx="200" cy="235" rx="150" ry="14" fill="currentColor" fill-opacity="0.05" />
+
+  <!-- Background Grid Dots -->
+  <g opacity="0.25">
+    <circle cx="80" cy="60" r="1.5" fill="currentColor" />
+    <circle cx="100" cy="60" r="1.5" fill="currentColor" />
+    <circle cx="120" cy="60" r="1.5" fill="currentColor" />
+    <circle cx="280" cy="60" r="1.5" fill="currentColor" />
+    <circle cx="300" cy="60" r="1.5" fill="currentColor" />
+    <circle cx="320" cy="60" r="1.5" fill="currentColor" />
+    <circle cx="70" cy="90" r="1.5" fill="currentColor" />
+    <circle cx="90" cy="90" r="1.5" fill="currentColor" />
+    <circle cx="310" cy="90" r="1.5" fill="currentColor" />
+    <circle cx="330" cy="90" r="1.5" fill="currentColor" />
+  </g>
+
+  <!-- Server Rack Enclosure -->
+  <rect x="110" y="35" width="180" height="185" rx="16" fill="url(#serverGradLight)" stroke="currentColor" stroke-opacity="0.2" stroke-width="2" filter="url(#softGlow)" />
+
+  <!-- Top Fan Exhausts -->
+  <rect x="135" y="45" width="40" height="5" rx="2.5" fill="currentColor" fill-opacity="0.2" />
+  <rect x="185" y="45" width="30" height="5" rx="2.5" fill="currentColor" fill-opacity="0.2" />
+  <rect x="225" y="45" width="40" height="5" rx="2.5" fill="currentColor" fill-opacity="0.2" />
+
+  <!-- Server Blade 1 (Top Tray) -->
+  <g transform="translate(125, 60)">
+    <rect width="150" height="34" rx="8" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.15" stroke-width="1.5" />
+    <!-- Vent lines -->
+    <line x1="12" y1="17" x2="60" y2="17" stroke="currentColor" stroke-opacity="0.25" stroke-width="2" stroke-linecap="round" />
+    <line x1="12" y1="22" x2="48" y2="22" stroke="currentColor" stroke-opacity="0.2" stroke-width="2" stroke-linecap="round" />
+    <!-- Status LEDs -->
+    <circle cx="118" cy="17" r="3" fill="#10b981" />
+    <circle cx="128" cy="17" r="3" fill="#3b82f6" />
+    <circle cx="138" cy="17" r="3" fill="currentColor" fill-opacity="0.2" />
+  </g>
+
+  <!-- Server Blade 2 (Maintenance Bay with Pulsing Status) -->
+  <g transform="translate(125, 102)">
+    <rect width="150" height="42" rx="8" fill="currentColor" fill-opacity="0.07" stroke="#f59e0b" stroke-opacity="0.6" stroke-width="1.5" stroke-dasharray="4 2" />
+    <!-- Drive Slots -->
+    <rect x="10" y="10" width="22" height="22" rx="4" fill="currentColor" fill-opacity="0.08" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" />
+    <rect x="36" y="10" width="22" height="22" rx="4" fill="currentColor" fill-opacity="0.08" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" />
+    <rect x="62" y="10" width="22" height="22" rx="4" fill="currentColor" fill-opacity="0.08" stroke="currentColor" stroke-opacity="0.2" stroke-width="1" />
+    <!-- Progress Indicator Strip -->
+    <rect x="92" y="14" width="46" height="4" rx="2" fill="currentColor" fill-opacity="0.15" />
+    <rect x="92" y="14" width="28" height="4" rx="2" fill="#f59e0b" />
+    <!-- Amber Maintenance LED -->
+    <circle cx="132" cy="27" r="3.5" fill="#f59e0b" />
+  </g>
+
+  <!-- Server Blade 3 (Bottom Storage Tray) -->
+  <g transform="translate(125, 152)">
+    <rect width="150" height="34" rx="8" fill="currentColor" fill-opacity="0.05" stroke="currentColor" stroke-opacity="0.15" stroke-width="1.5" />
+    <!-- Activity meters -->
+    <line x1="12" y1="17" x2="70" y2="17" stroke="currentColor" stroke-opacity="0.25" stroke-width="2" stroke-linecap="round" />
+    <!-- Status LEDs -->
+    <circle cx="118" cy="17" r="3" fill="#10b981" />
+    <circle cx="128" cy="17" r="3" fill="currentColor" fill-opacity="0.2" />
+    <circle cx="138" cy="17" r="3" fill="#10b981" />
+  </g>
+
+  <!-- Server Rack Feet -->
+  <rect x="130" y="218" width="16" height="8" rx="2" fill="currentColor" fill-opacity="0.3" />
+  <rect x="254" y="218" width="16" height="8" rx="2" fill="currentColor" fill-opacity="0.3" />
+
+  <!-- Maintenance Shield & Gear Floating Badge -->
+  <g transform="translate(262, 90)">
+    <circle cx="28" cy="28" r="28" fill="currentColor" fill-opacity="0.04" />
+    <circle cx="28" cy="28" r="24" fill="#ffffff" class="dark:fill-slate-900" stroke="#f59e0b" stroke-width="2" filter="url(#softGlow)" />
+    <!-- Gear icon inside badge -->
+    <path d="M28 20a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" fill="#f59e0b" />
+    <path d="M36 26.5h-1.2a6.9 6.9 0 0 0-.8-2l.9-.9a1 1 0 0 0 0-1.4l-1.4-1.4a1 1 0 0 0-1.4 0l-.9.9a6.9 6.9 0 0 0-2-.8V19.7a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v1.2a6.9 6.9 0 0 0-2 .8l-.9-.9a1 1 0 0 0-1.4 0l-1.4 1.4a1 1 0 0 0 0 1.4l.9.9a6.9 6.9 0 0 0-.8 2H19a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h1.2a6.9 6.9 0 0 0 .8 2l-.9.9a1 1 0 0 0 0 1.4l1.4 1.4a1 1 0 0 0 1.4 0l.9-.9a6.9 6.9 0 0 0 2 .8v1.2a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1.2a6.9 6.9 0 0 0 2-.8l.9.9a1 1 0 0 0 1.4 0l1.4-1.4a1 1 0 0 0 0-1.4l-.9-.9a6.9 6.9 0 0 0 .8-2H36a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1zm-8 4.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" fill="#f59e0b" opacity="0.3" />
+  </g>
+
+  <!-- Left Side Cloud / Connection Nodes -->
+  <g transform="translate(60, 115)" opacity="0.75">
+    <circle cx="15" cy="15" r="14" fill="currentColor" fill-opacity="0.04" stroke="currentColor" stroke-opacity="0.15" stroke-width="1.5" />
+    <path d="M11 15h8M15 11v8" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-linecap="round" />
+    <!-- Connecting dashed line -->
+    <path d="M29 15h21" stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5" stroke-dasharray="3 3" />
+  </g>
+</svg>

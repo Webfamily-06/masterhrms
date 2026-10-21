@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import { syncSubscriptionPlans } from "../services/workspace-policy.service";
 import { SettingsService } from "../services/settings/settings.service";
+import { AUTHORITATIVE_LEGAL_DOCS } from "../services/legal-docs.service";
 
 export const cmsRouter = Router();
 
@@ -292,6 +293,21 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
         createdAt: new Date(),
         updatedAt: new Date(),
       } as any;
+    }
+
+    if (!page && slug.startsWith("legal-") && AUTHORITATIVE_LEGAL_DOCS[slug]) {
+      const docDef = AUTHORITATIVE_LEGAL_DOCS[slug];
+      page = await prisma.cmsPage.upsert({
+        where: { slug: docDef.slug },
+        create: {
+          slug: docDef.slug,
+          title: docDef.title,
+          metaDescription: docDef.metaDescription,
+          content: { body: docDef.body },
+          published: true,
+        },
+        update: {},
+      });
     }
 
     if (!page) {
@@ -1351,3 +1367,220 @@ cmsRouter.patch("/testimonials/reorder", requireAuth, async (req: AuthRequest, r
     return res.status(500).json({ error: err.message || "Failed to reorder testimonials" });
   }
 });
+
+// ==========================================
+// P12: RESOURCE GUIDES & PLAYBOOKS MANAGEMENT
+// ==========================================
+const DEFAULT_GUIDES = [
+  {
+    id: "guide-1",
+    slug: "enterprise-erp-compliance-checklist-2026",
+    title: "Enterprise ERP & HR Compliance Checklist 2026",
+    description: "Complete statutory audit and labor compliance checklist for multinational enterprises.",
+    category: "Compliance",
+    type: "PDF · 24 pages",
+    downloadUrl: "/downloads/enterprise-erp-compliance-checklist-2026.pdf",
+    coverImage: "/images/resources/guide-compliance.jpg",
+    coverImageAlt: "ERP Compliance Checklist",
+    order: 1,
+    isActive: true,
+  },
+  {
+    id: "guide-2",
+    slug: "multi-currency-payroll-setup-playbook",
+    title: "Multi-Currency Payroll Setup Playbook",
+    description: "Step-by-step implementation guide for multi-country salary structures, FX conversion, and tax deductions.",
+    category: "Payroll",
+    type: "Playbook · 18 pages",
+    downloadUrl: "/downloads/multi-currency-payroll-setup-playbook.pdf",
+    coverImage: "/images/resources/guide-payroll.jpg",
+    coverImageAlt: "Multi-Currency Payroll Playbook",
+    order: 2,
+    isActive: true,
+  },
+  {
+    id: "guide-3",
+    slug: "performance-review-okr-cascades",
+    title: "Performance Review & OKR Cascades",
+    description: "Strategic framework for cascading corporate OKRs into quarterly departmental goals and reviews.",
+    category: "Performance",
+    type: "Toolkit · 12 pages",
+    downloadUrl: "/downloads/performance-review-okr-cascades.pdf",
+    coverImage: "/images/resources/guide-okr.jpg",
+    coverImageAlt: "OKR Performance Review Toolkit",
+    order: 3,
+    isActive: true,
+  },
+  {
+    id: "guide-4",
+    slug: "employee-master-directory-setup-guide",
+    title: "Employee Master Directory Setup Guide",
+    description: "Best practices for configuring single source of truth employee directories, custom schemas, and role permissions.",
+    category: "Core HR",
+    type: "Template · 15 pages",
+    downloadUrl: "/downloads/employee-master-directory-setup-guide.pdf",
+    coverImage: "/images/resources/guide-directory.jpg",
+    coverImageAlt: "Employee Directory Setup Guide",
+    order: 4,
+    isActive: true,
+  },
+];
+
+async function getStoredGuides() {
+  const page = await prisma.cmsPage.findUnique({ where: { slug: "system-resource-guides" } });
+  if (page?.content && Array.isArray((page.content as any).guides)) {
+    return (page.content as any).guides;
+  }
+  await prisma.cmsPage.upsert({
+    where: { slug: "system-resource-guides" },
+    create: {
+      id: "system-resource-guides",
+      slug: "system-resource-guides",
+      title: "Resource Guides & Playbooks",
+      content: { guides: DEFAULT_GUIDES },
+      published: true,
+    },
+    update: {},
+  });
+  return DEFAULT_GUIDES;
+}
+
+cmsRouter.get("/guides", async (req, res) => {
+  try {
+    const guides = await getStoredGuides();
+    const showAll = req.query.all === "true";
+    if (!showAll) {
+      return res.json(guides.filter((g: any) => g.isActive !== false));
+    }
+    return res.json(guides);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch resource guides" });
+  }
+});
+
+const guideSchema = z.object({
+  title: z.string().trim().min(3),
+  slug: z.string().trim().min(2).optional(),
+  description: z.string().trim().min(5),
+  category: z.string().trim().default("General"),
+  type: z.string().trim().default("PDF"),
+  downloadUrl: z.string().trim().refine(
+    (url) => (url.startsWith("/") && !url.includes("..")) || url.startsWith("https://") || url.startsWith("http://"),
+    { message: "downloadUrl must be a valid path starting with / or an absolute URL" }
+  ),
+  coverImage: z.string().trim().optional(),
+  coverImageAlt: z.string().trim().optional(),
+  order: z.number().int().optional(),
+  isActive: z.boolean().default(true),
+});
+
+cmsRouter.post("/guides", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles.includes("super_admin");
+    if (!isSuper) return res.status(403).json({ error: "Platform guides require Super Admin access." });
+
+    const data = guideSchema.parse(req.body);
+    const guides = await getStoredGuides();
+    const slug = data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const newGuide = {
+      id: `guide-${Date.now()}`,
+      slug,
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      type: data.type,
+      downloadUrl: data.downloadUrl,
+      coverImage: data.coverImage || "/images/resources/guide-compliance.jpg",
+      coverImageAlt: data.coverImageAlt || data.title,
+      order: data.order ?? guides.length + 1,
+      isActive: data.isActive,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const updated = [...guides, newGuide];
+    await prisma.cmsPage.upsert({
+      where: { slug: "system-resource-guides" },
+      create: { id: "system-resource-guides", slug: "system-resource-guides", title: "Resource Guides & Playbooks", content: { guides: updated }, published: true },
+      update: { content: { guides: updated } },
+    });
+    return res.status(201).json(newGuide);
+  } catch (err: any) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors[0].message });
+    return res.status(500).json({ error: err.message || "Failed to create resource guide" });
+  }
+});
+
+cmsRouter.put("/guides/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles.includes("super_admin");
+    if (!isSuper) return res.status(403).json({ error: "Platform guides require Super Admin access." });
+
+    const { id } = req.params;
+    const guides = await getStoredGuides();
+    const index = guides.findIndex((g: any) => g.id === id);
+    if (index === -1) return res.status(404).json({ error: "Resource guide not found" });
+
+    const updatedGuide = {
+      ...guides[index],
+      ...req.body,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    guides[index] = updatedGuide;
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-resource-guides" },
+      data: { content: { guides } },
+    });
+    return res.json(updatedGuide);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update resource guide" });
+  }
+});
+
+cmsRouter.delete("/guides/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles.includes("super_admin");
+    if (!isSuper) return res.status(403).json({ error: "Platform guides require Super Admin access." });
+
+    const { id } = req.params;
+    const guides = await getStoredGuides();
+    const updated = guides.filter((g: any) => g.id !== id);
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-resource-guides" },
+      data: { content: { guides } },
+    });
+    return res.json({ success: true, message: "Resource guide deleted successfully" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete resource guide" });
+  }
+});
+
+cmsRouter.patch("/guides/reorder", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles.includes("super_admin");
+    if (!isSuper) return res.status(403).json({ error: "Platform guides require Super Admin access." });
+
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) return res.status(400).json({ error: "orderedIds must be an array" });
+
+    const guides = await getStoredGuides();
+    const reordered = [...guides].sort((a: any, b: any) => {
+      const idxA = orderedIds.indexOf(a.id);
+      const idxB = orderedIds.indexOf(b.id);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    }).map((item: any, idx: number) => ({ ...item, order: idx + 1 }));
+
+    await prisma.cmsPage.update({
+      where: { slug: "system-resource-guides" },
+      data: { content: { guides: reordered } },
+    });
+    return res.json({ success: true, guides: reordered });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to reorder resource guides" });
+  }
+});
+

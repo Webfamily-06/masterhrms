@@ -320,7 +320,8 @@ export function getWorkspaceUrl(slug: string, port?: number, baseDomainOverride?
   const isDev = process.env.NODE_ENV !== "production";
 
   if (base === "localhost") {
-    const p = port || (isDev ? 5173 : 80);
+    const defaultDevPort = process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT, 10) : 3000;
+    const p = port || (isDev ? defaultDevPort : 80);
     return p === 80 || p === 443 ? `http://${slug}.localhost` : `http://${slug}.localhost:${p}`;
   }
 
@@ -355,7 +356,8 @@ export function getRootUrl(port?: number, baseDomainOverride?: string): string {
   const isDev = process.env.NODE_ENV !== "production";
 
   if (base === "localhost") {
-    const p = port || (isDev ? 5173 : 80);
+    const defaultDevPort = process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT, 10) : 3000;
+    const p = port || (isDev ? defaultDevPort : 80);
     return p === 80 || p === 443 ? `http://localhost` : `http://localhost:${p}`;
   }
 
