@@ -117,7 +117,7 @@ cmsRouter.get("/pages/by-id/:id", async (req, res) => {
 cmsRouter.put("/pages/by-id/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, slug, metaDescription, content, published } = req.body;
+    const { title, slug, metaDescription, content, published, expectedUpdatedAt } = req.body;
     const isSuper = req.user?.roles.includes("super_admin");
     if (!isSuper) {
       return res.status(403).json({ error: "Super admin authorization required to update pages." });
@@ -126,6 +126,18 @@ cmsRouter.put("/pages/by-id/:id", requireAuth, async (req: AuthRequest, res: Res
     const existing = await prisma.cmsPage.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ error: "CMS Page not found with the specified ID." });
+    }
+
+    // Optimistic Concurrency Control: Prevent silent overwrites if another session updated the record
+    if (expectedUpdatedAt) {
+      const clientTime = new Date(expectedUpdatedAt).getTime();
+      const serverTime = new Date(existing.updatedAt).getTime();
+      if (!isNaN(clientTime) && serverTime > clientTime + 1500) {
+        return res.status(409).json({
+          error: "Conflict: This article was modified by another session. Please reload to review the latest changes.",
+          serverUpdatedAt: existing.updatedAt,
+        });
+      }
     }
 
     let targetSlug = existing.slug;
@@ -178,6 +190,24 @@ cmsRouter.get("/blogs", async (req, res) => {
       },
       orderBy: { updatedAt: "desc" },
     });
+
+    // Enforce publication date boundary for scheduled posts
+    if (!isSuper) {
+      const now = new Date();
+      const eligible = blogs.filter((b: any) => {
+        if (!b.published) return false;
+        const pubAt = b.content?.publishedAt;
+        if (pubAt) {
+          const pubDate = new Date(pubAt);
+          if (!isNaN(pubDate.getTime()) && pubDate > now) {
+            return false; // Scheduled post - hide from public
+          }
+        }
+        return true;
+      });
+      return res.json(eligible);
+    }
+
     return res.json(blogs);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
@@ -201,8 +231,17 @@ cmsRouter.get("/blogs/:id", async (req, res) => {
     if (!blog) {
       return res.status(404).json({ error: "Blog article not found" });
     }
-    if (!blog.published && !isSuper) {
-      return res.status(404).json({ error: "Blog article not found" });
+    if (!isSuper) {
+      if (!blog.published) {
+        return res.status(404).json({ error: "Blog article not found" });
+      }
+      const pubAt = (blog.content as any)?.publishedAt;
+      if (pubAt) {
+        const pubDate = new Date(pubAt);
+        if (!isNaN(pubDate.getTime()) && pubDate > new Date()) {
+          return res.status(404).json({ error: "Blog article not found" });
+        }
+      }
     }
     return res.json(blog);
   } catch (err: any) {
@@ -257,7 +296,7 @@ cmsRouter.put("/blogs/:id", requireAuth, async (req: AuthRequest, res: Response)
       return res.status(403).json({ error: "Super admin authorization required to update articles." });
     }
     const { id } = req.params;
-    const { title, slug, content, metaDescription, published } = req.body;
+    const { title, slug, content, metaDescription, published, expectedUpdatedAt } = req.body;
 
     const existing = await prisma.cmsPage.findFirst({
       where: {
@@ -266,6 +305,18 @@ cmsRouter.put("/blogs/:id", requireAuth, async (req: AuthRequest, res: Response)
     });
     if (!existing) {
       return res.status(404).json({ error: "Blog article not found" });
+    }
+
+    // Optimistic Concurrency Control
+    if (expectedUpdatedAt) {
+      const clientTime = new Date(expectedUpdatedAt).getTime();
+      const serverTime = new Date(existing.updatedAt).getTime();
+      if (!isNaN(clientTime) && serverTime > clientTime + 1500) {
+        return res.status(409).json({
+          error: "Conflict: This article was modified by another session. Please reload to review the latest changes.",
+          serverUpdatedAt: existing.updatedAt,
+        });
+      }
     }
 
     let targetSlug = existing.slug;

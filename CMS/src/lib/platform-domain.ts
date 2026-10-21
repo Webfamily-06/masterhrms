@@ -60,7 +60,7 @@ export function getPlatformDisplayBaseDomain(): string {
 }
 
 /**
- * Returns the dynamically resolved host domain for public articles and pages.
+ * Returns the dynamically resolved host domain for in-browser display and preview UI.
  */
 export function getResolvedPublicDomain(): string {
   if (typeof window !== "undefined" && window.location.host) {
@@ -70,20 +70,95 @@ export function getResolvedPublicDomain(): string {
 }
 
 /**
+ * Resolves the trusted canonical domain from authoritative platform configuration.
+ * Strictly avoids using arbitrary browser hostnames or untrusted Host headers for canonical SEO.
+ */
+export function getTrustedCanonicalDomain(options?: {
+  tenantDomain?: string | null;
+  isVerifiedTenant?: boolean;
+}): string {
+  // If a verified, active tenant custom domain is provided
+  if (options?.tenantDomain && options.isVerifiedTenant !== false) {
+    const raw = options.tenantDomain.trim().toLowerCase();
+    // Validate domain format: must not be loopback/localhost or contain path/query
+    if (
+      !raw.includes("localhost") &&
+      !raw.includes("127.0.0.1") &&
+      !raw.includes("0.0.0.0") &&
+      /^[a-z0-9][a-z0-9-.]*\.[a-z]{2,}$/i.test(raw)
+    ) {
+      return raw;
+    }
+  }
+
+  // Authoritative platform configuration
+  const configured =
+    (typeof process !== "undefined" &&
+      (process.env?.NEXT_PUBLIC_CANONICAL_DOMAIN ||
+        process.env?.NEXT_PUBLIC_APP_URL ||
+        process.env?.PLATFORM_DOMAIN ||
+        process.env?.NEXT_PUBLIC_PLATFORM_DOMAIN ||
+        process.env?.BASE_DOMAIN)) ||
+    (typeof import.meta !== "undefined" &&
+      ((import.meta as any)?.env?.VITE_CANONICAL_DOMAIN ||
+        (import.meta as any)?.env?.VITE_PLATFORM_DOMAIN ||
+        (import.meta as any)?.env?.VITE_BASE_DOMAIN));
+
+  if (configured && typeof configured === "string" && configured.trim()) {
+    try {
+      const clean = configured.trim();
+      const host = clean.startsWith("http://") || clean.startsWith("https://")
+        ? new URL(clean).host
+        : clean.split("/")[0];
+      if (host) return host.toLowerCase();
+    } catch {}
+  }
+
+  // Safe fallback in development vs production
+  const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+  if (!isProd) {
+    return "localhost:3000";
+  }
+
+  // In production with no explicit canonical domain, derive from base domain
+  const base = getPlatformBaseDomain();
+  return base !== "localhost" ? base : "masterhrms.internal";
+}
+
+/**
+ * Returns the trusted canonical public URL for an article or page,
+ * ensuring no untrusted host headers or hardcoded production hostnames are used.
+ */
+export function getTrustedCanonicalBlogUrl(
+  slug: string,
+  options?: { tenantDomain?: string | null; isVerifiedTenant?: boolean }
+): string {
+  const cleanSlug = slug.replace(/^blog-/, "");
+  const canonicalDomain = getTrustedCanonicalDomain(options);
+  const protocol = canonicalDomain.startsWith("localhost") || canonicalDomain.startsWith("127.0.0.1")
+    ? "http:"
+    : "https:";
+  return `${protocol}//${canonicalDomain}/blog/${cleanSlug}`;
+}
+
+/**
  * Returns the resolved public URL for a blog post or public page,
  * ensuring no hardcoded hostnames are ever used.
  */
 export function getResolvedPublicBlogUrl(
   slug: string,
-  options?: { isDraft?: boolean; tenantDomain?: string | null }
+  options?: { isDraft?: boolean; tenantDomain?: string | null; isVerifiedTenant?: boolean }
 ): string {
   const cleanSlug = slug.replace(/^blog-/, "");
   const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
   
   // If tenant has verified custom domain
-  if (options?.tenantDomain && options.tenantDomain.trim()) {
-    const base = `${protocol}//${options.tenantDomain.trim()}`;
-    return options?.isDraft ? `${base}/blog/${cleanSlug}?preview=true` : `${base}/blog/${cleanSlug}`;
+  if (options?.tenantDomain && options.tenantDomain.trim() && options.isVerifiedTenant !== false) {
+    const raw = options.tenantDomain.trim();
+    if (!raw.includes("localhost") && !raw.includes("127.0.0.1")) {
+      const base = `${protocol}//${raw}`;
+      return options?.isDraft ? `${base}/blog/${cleanSlug}?preview=true` : `${base}/blog/${cleanSlug}`;
+    }
   }
 
   const domain = getResolvedPublicDomain();

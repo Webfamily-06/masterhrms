@@ -58,6 +58,21 @@ interface DynamicTemplateRendererProps {
   fallbackTitle?: string;
 }
 
+function sanitizeUrl(url?: string | null, fallback = '#'): string {
+  if (!url || typeof url !== 'string') return fallback;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('/') || trimmed.startsWith('#')) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'mailto:' || parsed.protocol === 'tel:') {
+      return trimmed;
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function DynamicTemplateRenderer({ content, fallbackTitle }: DynamicTemplateRendererProps) {
   const hero = content.hero || {};
   const heroTitle = hero.title || fallbackTitle || 'Enterprise Cloud Systems';
@@ -93,14 +108,14 @@ export function DynamicTemplateRenderer({ content, fallbackTitle }: DynamicTempl
             <div className="flex items-center justify-center gap-3 pt-4 flex-wrap">
               {hero.primary_cta_text && (
                 <Button size="lg" asChild className="gap-2 font-semibold">
-                  <a href={hero.primary_cta_url || '/pricing'}>
+                  <a href={sanitizeUrl(hero.primary_cta_url, '/pricing')}>
                     {hero.primary_cta_text} <ArrowRight className="size-4" />
                   </a>
                 </Button>
               )}
               {hero.secondary_cta_text && (
                 <Button size="lg" variant="outline" asChild>
-                  <a href={hero.secondary_cta_url || '/contact'}>{hero.secondary_cta_text}</a>
+                  <a href={sanitizeUrl(hero.secondary_cta_url, '/contact')}>{hero.secondary_cta_text}</a>
                 </Button>
               )}
             </div>
@@ -247,7 +262,7 @@ export function DynamicTemplateRenderer({ content, fallbackTitle }: DynamicTempl
             )}
             <div className="pt-2">
               <Button size="lg" asChild className="font-semibold gap-2">
-                <a href={content.cta.buttonUrl || '/pricing'}>
+                <a href={sanitizeUrl(content.cta.buttonUrl, '/pricing')}>
                   {content.cta.buttonText || 'Explore Enterprise Plans'} <ArrowRight className="size-4" />
                 </a>
               </Button>

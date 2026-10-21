@@ -59,7 +59,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSlug from 'rehype-slug';
-import { getResolvedPublicDomain, getResolvedPublicBlogUrl } from '@/lib/platform-domain';
+import { getResolvedPublicDomain, getResolvedPublicBlogUrl, getTrustedCanonicalBlogUrl } from '@/lib/platform-domain';
 import type { CmsPage } from '@/app/super/cms/page';
 import type { BlogCategory, BlogTag } from '@/components/cms/blog-manager-studio';
 
@@ -304,7 +304,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
         publishedAt: form.publishedAt,
         seoTitle: form.seoTitle || form.title,
         seoDescription: form.seoDescription || form.excerpt,
-        canonicalUrl: form.canonicalUrl || getResolvedPublicBlogUrl(finalSlug),
+        canonicalUrl: form.canonicalUrl || getTrustedCanonicalBlogUrl(finalSlug),
         socialImage: form.socialImage || form.coverImage,
         hero: {
           title: form.title,
@@ -321,6 +321,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
           metaDescription: form.seoDescription || form.excerpt,
           content: contentObj,
           published: isPublished,
+          expectedUpdatedAt: article?.updated_at || (article as any)?.updatedAt,
         });
       } else {
         // Create new article with persistent UUID
