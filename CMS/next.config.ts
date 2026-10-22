@@ -5,6 +5,9 @@ import path from 'path';
 const nextConfig: NextConfig = {
   /* config options here */
   images: {
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     qualities: [100, 75],
   },
   turbopack: {

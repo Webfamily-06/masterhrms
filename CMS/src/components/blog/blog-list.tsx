@@ -20,47 +20,7 @@ export interface FormattedPost {
   imageHeight?: string;
 }
 
-const DEFAULT_POSTS: FormattedPost[] = [
-  {
-    slug: 'future-of-workforce-automation',
-    title: 'The Future of Workforce Automation: AI-Driven Scheduling & Payroll',
-    image: '/images/blog/blog-1.jpg',
-    imageAlt: 'Workforce Automation',
-    href: '/blog/future-of-workforce-automation',
-    publishedAt: 'October 15, 2026',
-    dateTime: '2026-10-15',
-    readTime: '6 min read',
-    category: 'Workforce AI',
-    tags: ['AI', 'Automation', 'Payroll'],
-    imageHeight: 'h-[420px]',
-  },
-  {
-    slug: 'global-payroll-compliance-guide',
-    title: 'Navigating Global Payroll Compliance & Multi-Country Statutory Tax',
-    image: '/images/blog/blog-2.jpg',
-    imageAlt: 'Global Payroll Compliance',
-    href: '/blog/global-payroll-compliance-guide',
-    publishedAt: 'October 10, 2026',
-    dateTime: '2026-10-10',
-    readTime: '8 min read',
-    category: 'Global Payroll & Tax',
-    tags: ['Compliance', 'Payroll', 'Security'],
-    imageHeight: 'h-[420px]',
-  },
-  {
-    slug: 'scaling-erp-cloud-architecture',
-    title: 'Scaling Modern Enterprise ERP Architecture with Multi-Tenant Isolation',
-    image: '/images/blog/blog-3.jpg',
-    imageAlt: 'Enterprise ERP Architecture',
-    href: '/blog/scaling-erp-cloud-architecture',
-    publishedAt: 'October 5, 2026',
-    dateTime: '2026-10-05',
-    readTime: '5 min read',
-    category: 'ERP Systems',
-    tags: ['Architecture', 'Integration'],
-    imageHeight: 'h-[420px]',
-  },
-];
+const DEFAULT_POSTS: FormattedPost[] = [];
 
 interface BlogListProps {
   initialPosts?: FormattedPost[];
@@ -91,7 +51,7 @@ const BlogList = ({ initialPosts }: BlogListProps) => {
               return {
                 slug: rawSlug,
                 title: p.title || 'Untitled Post',
-                image: c.coverImage || '/images/blog/blog-1.jpg',
+                image: c.coverImage || '/images/blog/blog-1.svg',
                 imageAlt: p.title || 'Master HRMS Blog Post',
                 href: `/blog/${rawSlug}`,
                 publishedAt:
@@ -101,15 +61,12 @@ const BlogList = ({ initialPosts }: BlogListProps) => {
                 readTime: c.readTime || '5 min read',
                 category: c.category || 'ERP Systems',
                 tags: Array.isArray(c.tags) ? c.tags : ['ERP'],
-                imageHeight: 'h-[420px]',
+                imageHeight: 'h-auto',
               };
             });
 
           if (cmsBlogs.length > 0) {
-            // Merge CMS blogs first, avoiding slug collisions
-            const cmsSlugs = new Set(cmsBlogs.map((b) => b.slug));
-            const filteredBase = basePosts.filter((s) => !cmsSlugs.has(s.slug));
-            setPosts([...cmsBlogs, ...filteredBase]);
+            setPosts(cmsBlogs);
           }
         }
       } catch {

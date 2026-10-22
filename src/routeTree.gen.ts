@@ -477,6 +477,8 @@ import { Route as AuthenticatedMeTrainingIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedMeTrainingProgramsRouteImport } from './routes/_authenticated/me/training/programs'
 import { Route as AuthenticatedMeTrainingSessionsRouteImport } from './routes/_authenticated/me/training/sessions'
 import { Route as AuthenticatedMeTrainingTrainingsRouteImport } from './routes/_authenticated/me/training/trainings'
+import { Route as AuthenticatedSuperBlogsCategoriesRouteImport } from './routes/_authenticated/super/blogs.categories'
+import { Route as AuthenticatedSuperBlogsTagsRouteImport } from './routes/_authenticated/super/blogs.tags'
 import { Route as AuthenticatedSuperDomainsDocumentationRouteImport } from './routes/_authenticated/super/domains.documentation'
 import { Route as AuthenticatedAppAddonsAiAssistantFieldsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/fields'
 import { Route as AuthenticatedAppAddonsAiAssistantSettingsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/settings'
@@ -3220,6 +3222,18 @@ const AuthenticatedMeTrainingTrainingsRoute =
     path: '/training/trainings',
     getParentRoute: () => AuthenticatedMeRoute,
   } as any)
+const AuthenticatedSuperBlogsCategoriesRoute =
+  AuthenticatedSuperBlogsCategoriesRouteImport.update({
+    id: '/categories',
+    path: '/categories',
+    getParentRoute: () => AuthenticatedSuperBlogsRoute,
+  } as any)
+const AuthenticatedSuperBlogsTagsRoute =
+  AuthenticatedSuperBlogsTagsRouteImport.update({
+    id: '/tags',
+    path: '/tags',
+    getParentRoute: () => AuthenticatedSuperBlogsRoute,
+  } as any)
 const AuthenticatedSuperDomainsDocumentationRoute =
   AuthenticatedSuperDomainsDocumentationRouteImport.update({
     id: '/documentation',
@@ -3674,7 +3688,7 @@ export interface FileRoutesByFullPath {
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
-  '/super/blogs': typeof AuthenticatedSuperBlogsRoute
+  '/super/blogs': typeof AuthenticatedSuperBlogsRouteWithChildren
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/compliance': typeof AuthenticatedSuperComplianceRoute
@@ -3900,6 +3914,8 @@ export interface FileRoutesByFullPath {
   '/me/training/programs': typeof AuthenticatedMeTrainingProgramsRoute
   '/me/training/sessions': typeof AuthenticatedMeTrainingSessionsRoute
   '/me/training/trainings': typeof AuthenticatedMeTrainingTrainingsRoute
+  '/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
+  '/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
   '/hr/assets/': typeof AuthenticatedHrAssetsIndexRoute
   '/hr/attendance/': typeof AuthenticatedHrAttendanceIndexRoute
@@ -4177,7 +4193,7 @@ export interface FileRoutesByTo {
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/super/backup': typeof AuthenticatedSuperBackupRoute
-  '/super/blogs': typeof AuthenticatedSuperBlogsRoute
+  '/super/blogs': typeof AuthenticatedSuperBlogsRouteWithChildren
   '/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/super/cms': typeof AuthenticatedSuperCmsRoute
   '/super/compliance': typeof AuthenticatedSuperComplianceRoute
@@ -4403,6 +4419,8 @@ export interface FileRoutesByTo {
   '/me/training/programs': typeof AuthenticatedMeTrainingProgramsRoute
   '/me/training/sessions': typeof AuthenticatedMeTrainingSessionsRoute
   '/me/training/trainings': typeof AuthenticatedMeTrainingTrainingsRoute
+  '/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
+  '/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
   '/hr/assets': typeof AuthenticatedHrAssetsIndexRoute
   '/hr/attendance': typeof AuthenticatedHrAttendanceIndexRoute
@@ -4687,7 +4705,7 @@ export interface FileRoutesById {
   '/_authenticated/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/_authenticated/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
   '/_authenticated/super/backup': typeof AuthenticatedSuperBackupRoute
-  '/_authenticated/super/blogs': typeof AuthenticatedSuperBlogsRoute
+  '/_authenticated/super/blogs': typeof AuthenticatedSuperBlogsRouteWithChildren
   '/_authenticated/super/case-studies': typeof AuthenticatedSuperCaseStudiesRoute
   '/_authenticated/super/cms': typeof AuthenticatedSuperCmsRoute
   '/_authenticated/super/compliance': typeof AuthenticatedSuperComplianceRoute
@@ -4913,6 +4931,8 @@ export interface FileRoutesById {
   '/_authenticated/me/training/programs': typeof AuthenticatedMeTrainingProgramsRoute
   '/_authenticated/me/training/sessions': typeof AuthenticatedMeTrainingSessionsRoute
   '/_authenticated/me/training/trainings': typeof AuthenticatedMeTrainingTrainingsRoute
+  '/_authenticated/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
+  '/_authenticated/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/_authenticated/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
   '/_authenticated/hr/assets/': typeof AuthenticatedHrAssetsIndexRoute
   '/_authenticated/hr/attendance/': typeof AuthenticatedHrAttendanceIndexRoute
@@ -5422,6 +5442,8 @@ export interface FileRouteTypes {
     | '/me/training/programs'
     | '/me/training/sessions'
     | '/me/training/trainings'
+    | '/super/blogs/categories'
+    | '/super/blogs/tags'
     | '/super/domains/documentation'
     | '/hr/assets/'
     | '/hr/attendance/'
@@ -5925,6 +5947,8 @@ export interface FileRouteTypes {
     | '/me/training/programs'
     | '/me/training/sessions'
     | '/me/training/trainings'
+    | '/super/blogs/categories'
+    | '/super/blogs/tags'
     | '/super/domains/documentation'
     | '/hr/assets'
     | '/hr/attendance'
@@ -6434,6 +6458,8 @@ export interface FileRouteTypes {
     | '/_authenticated/me/training/programs'
     | '/_authenticated/me/training/sessions'
     | '/_authenticated/me/training/trainings'
+    | '/_authenticated/super/blogs/categories'
+    | '/_authenticated/super/blogs/tags'
     | '/_authenticated/super/domains/documentation'
     | '/_authenticated/hr/assets/'
     | '/_authenticated/hr/attendance/'
@@ -9819,6 +9845,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMeTrainingTrainingsRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
+    '/_authenticated/super/blogs/categories': {
+      id: '/_authenticated/super/blogs/categories'
+      path: '/categories'
+      fullPath: '/super/blogs/categories'
+      preLoaderRoute: typeof AuthenticatedSuperBlogsCategoriesRouteImport
+      parentRoute: typeof AuthenticatedSuperBlogsRoute
+    }
+    '/_authenticated/super/blogs/tags': {
+      id: '/_authenticated/super/blogs/tags'
+      path: '/tags'
+      fullPath: '/super/blogs/tags'
+      preLoaderRoute: typeof AuthenticatedSuperBlogsTagsRouteImport
+      parentRoute: typeof AuthenticatedSuperBlogsRoute
+    }
     '/_authenticated/super/domains/documentation': {
       id: '/_authenticated/super/domains/documentation'
       path: '/documentation'
@@ -10622,6 +10662,23 @@ const AuthenticatedAppRouteRouteWithChildren =
     AuthenticatedAppRouteRouteChildren,
   )
 
+interface AuthenticatedSuperBlogsRouteChildren {
+  AuthenticatedSuperBlogsCategoriesRoute: typeof AuthenticatedSuperBlogsCategoriesRoute
+  AuthenticatedSuperBlogsTagsRoute: typeof AuthenticatedSuperBlogsTagsRoute
+}
+
+const AuthenticatedSuperBlogsRouteChildren: AuthenticatedSuperBlogsRouteChildren =
+  {
+    AuthenticatedSuperBlogsCategoriesRoute:
+      AuthenticatedSuperBlogsCategoriesRoute,
+    AuthenticatedSuperBlogsTagsRoute: AuthenticatedSuperBlogsTagsRoute,
+  }
+
+const AuthenticatedSuperBlogsRouteWithChildren =
+  AuthenticatedSuperBlogsRoute._addFileChildren(
+    AuthenticatedSuperBlogsRouteChildren,
+  )
+
 interface AuthenticatedSuperDomainsRouteChildren {
   AuthenticatedSuperDomainsDocumentationRoute: typeof AuthenticatedSuperDomainsDocumentationRoute
 }
@@ -10642,7 +10699,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperAnalyticsRoute: typeof AuthenticatedSuperAnalyticsRoute
   AuthenticatedSuperApiDocsRoute: typeof AuthenticatedSuperApiDocsRoute
   AuthenticatedSuperBackupRoute: typeof AuthenticatedSuperBackupRoute
-  AuthenticatedSuperBlogsRoute: typeof AuthenticatedSuperBlogsRoute
+  AuthenticatedSuperBlogsRoute: typeof AuthenticatedSuperBlogsRouteWithChildren
   AuthenticatedSuperCaseStudiesRoute: typeof AuthenticatedSuperCaseStudiesRoute
   AuthenticatedSuperCmsRoute: typeof AuthenticatedSuperCmsRoute
   AuthenticatedSuperComplianceRoute: typeof AuthenticatedSuperComplianceRoute
@@ -10677,7 +10734,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperAnalyticsRoute: AuthenticatedSuperAnalyticsRoute,
     AuthenticatedSuperApiDocsRoute: AuthenticatedSuperApiDocsRoute,
     AuthenticatedSuperBackupRoute: AuthenticatedSuperBackupRoute,
-    AuthenticatedSuperBlogsRoute: AuthenticatedSuperBlogsRoute,
+    AuthenticatedSuperBlogsRoute: AuthenticatedSuperBlogsRouteWithChildren,
     AuthenticatedSuperCaseStudiesRoute: AuthenticatedSuperCaseStudiesRoute,
     AuthenticatedSuperCmsRoute: AuthenticatedSuperCmsRoute,
     AuthenticatedSuperComplianceRoute: AuthenticatedSuperComplianceRoute,

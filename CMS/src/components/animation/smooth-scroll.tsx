@@ -51,8 +51,13 @@ const SmoothScrollProvider = ({ children }: Readonly<SmoothScrollingProps>) => {
     };
   }, [lenis, pathname]);
 
+  // Disable Lenis smooth scroll on admin dashboards & workspaces to prevent wheel/touch trapping
+  if (pathname.startsWith('/super') || pathname.startsWith('/admin') || pathname.startsWith('/hr')) {
+    return <>{children}</>;
+  }
+
   return (
-    <ReactLenis root options={{ duration: 1.1 }}>
+    <ReactLenis root options={{ duration: 0.9, smoothWheel: true }}>
       {children}
     </ReactLenis>
   );

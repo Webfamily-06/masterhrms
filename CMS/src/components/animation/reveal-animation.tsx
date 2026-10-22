@@ -76,7 +76,7 @@ export default function RevealAnimation({
     } else {
       animationProps = {
         opacity: 0,
-        filter: 'blur(16px)',
+        filter: 'none',
         duration,
         delay,
         ease: useSpring && spring ? spring : 'power2.out',

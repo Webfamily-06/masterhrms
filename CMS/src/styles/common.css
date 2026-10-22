@@ -3,15 +3,15 @@
 }
 
 [data-ns-animate] {
-  opacity: 0;
+  will-change: opacity, transform;
 }
 
 [data-text-reveal] {
-  opacity: 0;
+  will-change: opacity, transform;
 }
 
 [data-ns-avatar] {
-  opacity: 0;
+  will-change: opacity, transform;
 }
 
 [data-mini-prompt-form] {
@@ -122,31 +122,32 @@
 
 /* ==========BLOG DETAILS========== */
 .blog-details-markdown {
-  h3 {
-    @apply text-heading-4 text-background-14/90 font-normal not-first:mt-8 first:mt-0 md:not-first:mt-[70px];
+  h1, h2 {
+    @apply text-2xl md:text-3xl font-bold text-foreground mt-8 mb-4 tracking-tight;
+  }
+
+  h3, h4 {
+    @apply text-xl md:text-2xl font-semibold text-foreground/90 mt-6 mb-3 tracking-tight;
   }
 
   p {
-    @apply font-inter-tight text-tagline-1 text-background-14/60 mt-8 font-normal md:mt-[70px];
+    @apply text-base md:text-lg text-secondary/80 leading-relaxed mt-4 first:mt-0 font-normal;
   }
 
-  h3 + p {
-    @apply mt-1;
-  }
-
-  h3 + p + ul {
-    @apply mt-4;
-  }
-
-  ul + p {
-    @apply mt-4;
-  }
   ul {
-    @apply space-y-2;
+    @apply my-5 space-y-2.5 pl-2;
 
     li {
-      @apply font-inter-tight text-tagline-2 text-background-14/90 before:bg-background-14 flex items-center gap-x-2 font-normal before:block before:size-1.5 before:rounded-full before:content-[''];
+      @apply text-base text-secondary/80 flex items-start gap-x-2.5 font-normal before:bg-primary before:block before:size-1.5 before:rounded-full before:mt-2.5 before:shrink-0 before:content-[''];
     }
+  }
+
+  ol {
+    @apply my-5 space-y-2.5 pl-6 list-decimal text-secondary/80 text-base;
+  }
+
+  blockquote {
+    @apply my-6 border-l-4 border-primary pl-4 italic text-muted-foreground bg-primary/5 py-2 rounded-r-lg;
   }
 }
 

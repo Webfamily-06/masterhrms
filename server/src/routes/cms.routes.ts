@@ -18,7 +18,7 @@ cmsRouter.use(async (req: AuthRequest, res, next) => {
   try { slug = match[1] ? decodeURIComponent(match[1]) : req.body?.slug || ""; }
   catch { return res.status(400).json({ error: "Invalid page identifier." }); }
   if (typeof slug !== "string") return res.status(400).json({ error: "Invalid page identifier." });
-  const publicConfig = ["system-platform-settings", "system-monetization-plans", "system-addons-catalog", "system-solutions-catalog", "system-about-us", "system-product-modules", "system-landing-page"];
+  const publicConfig = ["system-platform-settings", "system-monetization-plans", "system-addons-catalog", "system-solutions-catalog", "system-about-us", "system-product-modules", "system-landing-page", "system-blog-categories", "system-blog-tags"];
   const write = !["GET", "HEAD"].includes(req.method);
   const internal = slug.startsWith("system-") || slug.startsWith("tenant-") || slug.includes("catalog-");
   if (!write && (!internal || publicConfig.includes(slug)) && !req.headers.authorization) return next();

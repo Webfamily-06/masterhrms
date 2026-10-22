@@ -1,5 +1,4 @@
 import DetailsInfo from '@/src/components/blog-details/details-info';
-import RelatedBlog from '@/src/components/blog-details/related-blog';
 import CTA from '@/src/components/shared/cta';
 import { BlogPost } from '@/src/interface/interface';
 import { generateMetadata as buildMeta } from '@/src/utils/generateMetaData';
@@ -185,6 +184,35 @@ const Page = async ({
     notFound();
   }
 
+  // Fetch related articles dynamically from authoritative API
+  let relatedPosts: any[] = [];
+  try {
+    const res = await fetch('http://localhost:4000/api/cms/blogs', { cache: 'no-store' });
+    if (res.ok) {
+      const all = await res.json();
+      if (Array.isArray(all)) {
+        relatedPosts = all
+          .filter((p: any) => p.published && p.slug.replace(/^blog-/, '') !== slug)
+          .slice(0, 3)
+          .map((p: any) => {
+            const c = p.content || {};
+            const rawSlug = p.slug.replace(/^blog-/, '');
+            return {
+              slug: rawSlug,
+              title: p.title || 'Untitled Post',
+              image: c.coverImage || '/images/blog/blog-1.svg',
+              imageAlt: p.title || 'Master HRMS Blog Post',
+              href: `/blog/${rawSlug}`,
+              publishedAt: c.publishedAt || (p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recent'),
+              dateTime: p.created_at || new Date().toISOString(),
+              readTime: c.readTime || '5 min read',
+              category: c.category || 'ERP Systems',
+            };
+          });
+      }
+    }
+  } catch {}
+
   return (
     <>
       {post.isDraftPreview && (
@@ -193,8 +221,7 @@ const Page = async ({
           <span>SUPER ADMIN PREVIEW MODE — This draft article is unpublished and not visible to the public.</span>
         </div>
       )}
-      <DetailsInfo data={post.data} content={post.content} />
-      <RelatedBlog currentSlug={slug} />
+      <DetailsInfo data={post.data} content={post.content} relatedPosts={relatedPosts} />
       <CTA />
     </>
   );

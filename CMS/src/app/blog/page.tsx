@@ -29,7 +29,7 @@ const Page = async () => {
             return {
               slug: rawSlug,
               title: p.title || 'Untitled Post',
-              image: c.coverImage || '/images/blog/blog-1.jpg',
+              image: c.coverImage || '/images/blog/blog-1.svg',
               imageAlt: p.title || 'Master HRMS Blog Post',
               href: `/blog/${rawSlug}`,
               publishedAt:
@@ -39,7 +39,7 @@ const Page = async () => {
               readTime: c.readTime || '5 min read',
               category: c.category || 'ERP Systems',
               tags: Array.isArray(c.tags) ? c.tags : ['ERP'],
-              imageHeight: 'h-[420px]',
+              imageHeight: 'h-auto',
             };
           });
       }

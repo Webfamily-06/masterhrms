@@ -57,9 +57,18 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: '/super/domains', label: 'Custom Domains', iconClass: 'ph-globe-hemisphere-west', group: 'Extensions & Add-ons' },
   { to: '/super/domains/documentation', label: 'Domain Documentation', iconClass: 'ph-book-bookmark', group: 'Extensions & Add-ons' },
 
-  // ── Marketing & CMS
   { to: '/super/cms', label: 'Visual CMS Studio', iconClass: 'ph-article', group: 'Marketing & CMS' },
-  { to: '/super/blogs', label: 'Blog Insights', iconClass: 'ph-book-open', group: 'Marketing & CMS' },
+  {
+    to: '/super/blogs',
+    label: 'Blog Insights',
+    iconClass: 'ph-book-open',
+    group: 'Marketing & CMS',
+    children: [
+      { to: '/super/blogs', label: 'All Articles', iconClass: 'ph-article' },
+      { to: '/super/blogs/categories', label: 'Categories', iconClass: 'ph-folders' },
+      { to: '/super/blogs/tags', label: 'Tags', iconClass: 'ph-tag' },
+    ],
+  },
   { to: '/super/case-studies', label: 'Case Studies', iconClass: 'ph-briefcase', group: 'Marketing & CMS' },
   { to: '/super/media', label: 'Media Library', iconClass: 'ph-image', group: 'Marketing & CMS' },
 
@@ -258,8 +267,8 @@ function SuperSidebar({
                         </div>
                         <ul className="pl-6 pt-1 pb-1 space-y-0.5">
                           {item.children!.map((child) => {
-                            const isChildActive = child.to === '/super/plans'
-                              ? path === '/super/plans'
+                            const isChildActive = child.to === '/super/plans' || child.to === '/super/blogs'
+                              ? path === child.to
                               : path.startsWith(child.to);
                             return (
                               <li key={child.to}>
