@@ -70,6 +70,9 @@ emailRouter.post("/send", async (req: AuthRequest, res: Response) => {
       tls: {
         rejectUnauthorized: !config.ignoreTls,
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
 
     const info = await transporter.sendMail({
@@ -88,10 +91,12 @@ emailRouter.post("/send", async (req: AuthRequest, res: Response) => {
       subject: emailSubject,
     });
   } catch (err: any) {
-    console.error("[Email Send Error]:", err);
+    const rawMsg = err?.message || "Outbound mail dispatch failed";
+    const sanitizedError = rawMsg.replace(/(pass(word)?\s*[:=]\s*)[^\s&]+/gi, "$1***");
+    console.error("[Email Send Error]:", sanitizedError);
     return res.status(500).json({
       success: false,
-      error: `Failed to deliver outbound email: ${err.message}`,
+      error: `Failed to deliver outbound email: ${sanitizedError}`,
       code: "MAIL_DELIVERY_FAILED",
     });
   }

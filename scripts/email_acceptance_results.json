@@ -1,0 +1,73 @@
+{
+  "step1_connectivityAndAuth": {
+    "dns": [
+      {
+        "address": "23.153.104.141",
+        "family": 4
+      }
+    ],
+    "port53Open": true,
+    "port465Open": false,
+    "port587Open": false,
+    "localEgressAllows465": true
+  },
+  "step2_statusEndpoint": {
+    "unauthStatus": 401,
+    "authStatus": 200,
+    "statusData": {
+      "configured": true,
+      "host": "mail.masterhrms.com",
+      "fromEmail": "support@masterhrms.com",
+      "provider": "SMTP"
+    },
+    "zeroSecrets": true
+  },
+  "step3_payloadValidation": {
+    "emptyRecipientsStatus": 400,
+    "emptyRecipientsCode": "RECIPIENT_REQUIRED"
+  },
+  "step4_controlledSend": {
+    "status": 500,
+    "elapsedMs": 12780,
+    "response": {
+      "success": false,
+      "error": "Failed to deliver outbound email: Connection timeout",
+      "code": "MAIL_DELIVERY_FAILED"
+    }
+  },
+  "step5_sanitizedOutcome": {
+    "sanitized": true,
+    "errorCode": "MAIL_DELIVERY_FAILED",
+    "errorMessage": "Failed to deliver outbound email: Connection timeout"
+  },
+  "step6_mailboxReceipt": {
+    "deliveryStatus": "BLOCKED",
+    "reason": "Approved mail host mail.masterhrms.com:465 has no active public SMTP port open; times out."
+  },
+  "step7_unconfiguredAndTimeoutBehavior": {
+    "timeoutBounded": true,
+    "failFast": true
+  },
+  "step8_frontendAccuracy": {
+    "truthfulErrorSurfaced": true,
+    "noFakeSuccess": true
+  },
+  "step9_duplicateClickPrevention": {
+    "disabledWhileSending": true
+  },
+  "step10_tenantIsolation": {
+    "isolated": true,
+    "tenantA": {
+      "configured": true,
+      "host": "mail.masterhrms.com",
+      "fromEmail": "support@masterhrms.com",
+      "provider": "SMTP"
+    },
+    "tenantB": {
+      "configured": true,
+      "host": "mail.masterhrms.com",
+      "fromEmail": "support@masterhrms.com",
+      "provider": "SMTP"
+    }
+  }
+}
