@@ -272,6 +272,96 @@ projectsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => 
   }
 });
 
+// GET /api/projects/kanban-state - Retrieve shared board state for tenant
+projectsRouter.get("/kanban-state", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const slug = `system-kanban-state-${tenantId}`;
+    const page = await prisma.cmsPage.findUnique({ where: { slug } });
+    if (!page?.content) {
+      return res.json({ success: true, state: null, boardData: null });
+    }
+    const state = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+    return res.json({ success: true, state, boardData: state });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load kanban state" });
+  }
+});
+
+// PUT /api/projects/kanban-state - Persist shared board state for tenant
+projectsRouter.put("/kanban-state", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const slug = `system-kanban-state-${tenantId}`;
+    const state = req.body.state ?? req.body.boardData;
+    if (!state) {
+      return res.status(400).json({ error: "State or boardData payload is required" });
+    }
+    const contentJson = typeof state === "object" ? state : JSON.parse(state);
+    await prisma.cmsPage.upsert({
+      where: { slug },
+      create: {
+        slug,
+        title: `Kanban State (${tenantId})`,
+        content: contentJson,
+        published: true,
+      },
+      update: {
+        content: contentJson,
+        updatedAt: new Date(),
+      },
+    });
+    return res.json({ success: true, message: "Kanban state persisted to database" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to save kanban state" });
+  }
+});
+
+// GET /api/projects/pipeline-state - Retrieve shared pipeline state for tenant
+projectsRouter.get("/pipeline-state", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const slug = `system-pipeline-state-${tenantId}`;
+    const page = await prisma.cmsPage.findUnique({ where: { slug } });
+    if (!page?.content) {
+      return res.json({ success: true, state: null, pipelineData: null });
+    }
+    const state = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+    return res.json({ success: true, state, pipelineData: state });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load pipeline state" });
+  }
+});
+
+// PUT /api/projects/pipeline-state - Persist shared pipeline state for tenant
+projectsRouter.put("/pipeline-state", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const slug = `system-pipeline-state-${tenantId}`;
+    const state = req.body.state ?? req.body.pipelineData;
+    if (!state) {
+      return res.status(400).json({ error: "State or pipelineData payload is required" });
+    }
+    const contentJson = typeof state === "object" ? state : JSON.parse(state);
+    await prisma.cmsPage.upsert({
+      where: { slug },
+      create: {
+        slug,
+        title: `Pipeline State (${tenantId})`,
+        content: contentJson,
+        published: true,
+      },
+      update: {
+        content: contentJson,
+        updatedAt: new Date(),
+      },
+    });
+    return res.json({ success: true, message: "Pipeline state persisted to database" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to save pipeline state" });
+  }
+});
+
 // POST /api/projects - Create project
 projectsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {

@@ -1,17 +1,17 @@
 'use client';
-import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
-import {  createFileRoute  } from "@/src/lib/router-compat";
+
+import React, { useState, useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useState, useEffect, useMemo } from "react";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -27,11 +27,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Loader2,
-  Save,
   Plus,
   Trash2,
   Eye,
@@ -44,32 +42,25 @@ import {
   ExternalLink,
   Code,
   LayoutTemplate,
-  Monitor,
-  Tablet,
-  Smartphone,
   CheckCircle2,
   RefreshCw,
-  Sliders,
   Globe,
   Palette,
-  AlignLeft,
-  Grid,
-  Table as TableIcon,
-  Folder,
-  ArrowRight,
-  Info,
   BookOpen,
   Newspaper,
-  Store,
-  UserCheck,
-  TrendingUp,
-  Building2,
-  Star,
   Award,
   ArrowUp,
   ArrowDown,
   Edit,
-  MessageSquareQuote,
+  Copy,
+  Check,
+  Filter,
+  ArrowRight,
+  Clock,
+  Grid,
+  List,
+  AlertTriangle,
+  Folder,
 } from "lucide-react";
 import { BlogManagerStudio } from "@/components/cms/blog-manager-studio";
 import { GuideManagerStudio } from "@/components/cms/guide-manager-studio";
@@ -108,99 +99,190 @@ const CATEGORIES: { id: PageCategory; label: string; icon: any }[] = [
   { id: "custom", label: "Custom Pages", icon: Folder },
 ];
 
+export function getCategoryForSlug(slug: string): PageCategory {
+  if (slug === "footer" || slug === "header") return "footer";
+  if (slug.startsWith("legal-")) return "legal";
+  if (slug.startsWith("blog-") || slug.startsWith("resource-blogs") || slug.includes("blog"))
+    return "blogs";
+  if (
+    slug.startsWith("case-study-") ||
+    slug.startsWith("resource-case-studies") ||
+    slug.includes("case-study") ||
+    slug.includes("casestudy")
+  )
+    return "casestudies";
+  if (slug.startsWith("solution-") || slug.startsWith("industry-")) return "landing";
+  if (slug.startsWith("resource-")) return "resources";
+  if (["home", "benefits", "compare", "pricing", "about", "contact", "team"].includes(slug))
+    return "core";
+  return "custom";
+}
+
+export function getPublicUrlForPage(slug: string): string {
+  if (slug === "home" || slug === "footer") return "/";
+  if (slug === "about") return "/about";
+  if (slug === "team") return "/team";
+  if (slug === "pricing") return "/pricing";
+  if (slug === "contact") return "/contact";
+  if (slug.startsWith("legal-")) return `/legal/${slug.replace("legal-", "")}`;
+  if (slug.startsWith("blog-")) return `/p/${slug}`;
+  if (slug.startsWith("case-study-")) return `/p/${slug}`;
+  return `/p/${slug}`;
+}
+
+const PROTECTED_SYSTEM_SLUGS = new Set([
+  "home",
+  "footer",
+  "header",
+  "compare",
+  "benefits",
+  "about",
+  "team",
+  "pricing",
+  "contact",
+  "system-platform-settings",
+  "system-monetization-plans",
+  "system-email-templates",
+  "system-audit-logs",
+]);
+
 function CmsStudio() {
+  const router = useRouter();
   const qc = useQueryClient();
   const [cmsTab, setCmsTab] = useState<"pages" | "blogs" | "faqs" | "testimonials" | "guides">("pages");
   const [selectedCategory, setSelectedCategory] = useState<PageCategory>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [deletingPage, setDeletingPage] = useState<CmsPage | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
 
-  function getCategoryForSlug(slug: string): PageCategory {
-    if (slug === "footer" || slug === "header") return "footer";
-    if (slug.startsWith("legal-")) return "legal";
-    if (slug.startsWith("blog-") || slug.startsWith("resource-blogs") || slug.includes("blog"))
-      return "blogs";
-    if (
-      slug.startsWith("case-study-") ||
-      slug.startsWith("resource-case-studies") ||
-      slug.includes("case-study") ||
-      slug.includes("casestudy")
-    )
-      return "casestudies";
-    if (slug.startsWith("solution-") || slug.startsWith("industry-")) return "landing";
-    if (slug.startsWith("resource-")) return "resources";
-    if (["home", "benefits", "compare", "pricing", "about", "contact", "team"].includes(slug))
-      return "core";
-    return "custom";
-  }
-
-  // Fetch CMS Pages from MySQL API
+  // Fetch all CMS Pages from backend API
   const {
     data: pages = [],
     isLoading,
+    isError,
+    error,
     refetch,
+    isRefetching,
   } = useQuery({
     queryKey: ["cms-pages"],
     queryFn: async () => {
-      try {
-        const list = await api.get("/cms/pages");
-        return Array.isArray(list) ? (list as CmsPage[]) : [];
-      } catch {
-        return [];
-      }
+      const res = await api.get("/cms/pages");
+      return Array.isArray(res) ? (res as CmsPage[]) : Array.isArray((res as any)?.data) ? ((res as any).data as CmsPage[]) : [];
     },
   });
 
+  // Fast toggle publication status mutation
+  const togglePublishMutation = useMutation({
+    mutationFn: async ({ id, published }: { id: string; published: boolean }) => {
+      await api.put(`/cms/pages/by-id/${id}`, { published });
+    },
+    onSuccess: (_, vars) => {
+      toast.success(vars.published ? "Page published successfully" : "Page unpublished (moved to draft)");
+      qc.invalidateQueries({ queryKey: ["cms-pages"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to update publication status");
+    },
+  });
+
+  // Delete page mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/cms/pages/by-id/${id}`);
+    },
+    onSuccess: () => {
+      toast.success("Page deleted successfully");
+      setDeletingPage(null);
+      qc.invalidateQueries({ queryKey: ["cms-pages"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to delete page");
+    },
+  });
+
+  // Copy ID helper
+  const handleCopyId = (id: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(id);
+      setCopiedId(id);
+      toast.success("Page ID copied to clipboard");
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
+
+  // Filtered pages computation
   const filteredPages = useMemo(() => {
     if (!pages) return [];
     return pages.filter((p) => {
-      const catMatch =
-        selectedCategory === "all" || getCategoryForSlug(p.slug) === selectedCategory;
+      const cat = getCategoryForSlug(p.slug);
+      const catMatch = selectedCategory === "all" || cat === selectedCategory;
+      const statusMatch =
+        statusFilter === "all" ||
+        (statusFilter === "published" && p.published) ||
+        (statusFilter === "draft" && !p.published);
+      const query = searchQuery.trim().toLowerCase();
       const searchMatch =
-        !searchQuery ||
-        p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.slug.toLowerCase().includes(searchQuery.toLowerCase());
-      return catMatch && searchMatch;
+        !query ||
+        p.title.toLowerCase().includes(query) ||
+        p.slug.toLowerCase().includes(query) ||
+        p.id.toLowerCase().includes(query) ||
+        (p.meta_description && p.meta_description.toLowerCase().includes(query));
+      return catMatch && statusMatch && searchMatch;
     });
-  }, [pages, selectedCategory, searchQuery]);
+  }, [pages, selectedCategory, statusFilter, searchQuery]);
 
-  const selectedPage = pages?.find((p) => p.id === selectedId) ?? filteredPages[0] ?? pages?.[0];
+  // Pagination
+  const totalPages = Math.ceil(filteredPages.length / pageSize) || 1;
+  const paginatedPages = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPages.slice(start, start + pageSize);
+  }, [filteredPages, currentPage, pageSize]);
 
-  useEffect(() => {
-    if (!selectedId && pages && pages.length > 0) {
-      setSelectedId(pages[0].id);
-    }
-  }, [pages, selectedId]);
+  // Summary counts
+  const totalCount = pages.length;
+  const publishedCount = pages.filter((p) => p.published).length;
+  const draftCount = totalCount - publishedCount;
+  const coreCount = pages.filter((p) => getCategoryForSlug(p.slug) === "core").length;
 
   return (
     <div className="space-y-6">
       <BreadcrumbNav className="mb-4" />
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">CMS Content Studio & Page Manager</h1>
             <Badge variant="secondary" className="gap-1 text-xs">
-              <Sparkles className="size-3 text-primary" /> Visual & JSON Editor
+              <Sparkles className="size-3 text-primary" /> Visual & HTML Editor
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Edit marketing pages, Blogs, Case Studies, ERP Solutions, Legal Docs, and Footer
-            settings with real-time sync.
+            Authoritative dynamic page manager for core marketing routes, blogs, solutions, and custom CMS pages.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
-            <RefreshCw className="size-4" /> Refresh Studio
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isRefetching}
+            className="gap-2 text-xs"
+          >
+            <RefreshCw className={`size-3.5 ${isRefetching ? "animate-spin" : ""}`} /> Refresh
           </Button>
-          {cmsTab === "pages" && (
-            <Button size="sm" onClick={() => setIsCreateOpen(true)} className="gap-2">
-              <Plus className="size-4" /> Create New Page
-            </Button>
-          )}
+          <Button
+            size="sm"
+            onClick={() => router.push("/super/cms/new")}
+            className="gap-2 text-xs shadow-xs"
+          >
+            <Plus className="size-4" /> Create New Page
+          </Button>
         </div>
       </div>
 
@@ -213,7 +295,7 @@ function CmsStudio() {
           className="gap-2 text-xs"
         >
           <LayoutTemplate className="size-3.5" />
-          Pages & Visual Studio
+          Pages & Layouts ({totalCount})
         </Button>
         <Button
           variant={cmsTab === "blogs" ? "default" : "outline"}
@@ -262,1366 +344,441 @@ function CmsStudio() {
       ) : cmsTab === "guides" ? (
         <GuideManagerStudio />
       ) : (
-        <>
-          {/* Main Studio Grid */}
-          {isLoading ? (
-        <div className="min-h-[400px] grid place-items-center">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="size-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">
-              Loading CMS pages, blogs, and templates...
-            </p>
+        <div className="space-y-6">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="p-4 border-border/60 shadow-xs bg-muted/10">
+              <div className="text-xs font-medium text-muted-foreground">Total CMS Pages</div>
+              <div className="text-2xl font-bold mt-1 text-foreground">{totalCount}</div>
+            </Card>
+            <Card className="p-4 border-border/60 shadow-xs bg-muted/10">
+              <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Live Published</div>
+              <div className="text-2xl font-bold mt-1 text-emerald-600 dark:text-emerald-400">{publishedCount}</div>
+            </Card>
+            <Card className="p-4 border-border/60 shadow-xs bg-muted/10">
+              <div className="text-xs font-medium text-amber-600 dark:text-amber-400">Draft Pages</div>
+              <div className="text-2xl font-bold mt-1 text-amber-600 dark:text-amber-400">{draftCount}</div>
+            </Card>
+            <Card className="p-4 border-border/60 shadow-xs bg-muted/10">
+              <div className="text-xs font-medium text-blue-600 dark:text-blue-400">Core System Pages</div>
+              <div className="text-2xl font-bold mt-1 text-blue-600 dark:text-blue-400">{coreCount}</div>
+            </Card>
           </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Sidebar: Filters & Page Selection */}
-          <Card className="shadow-sm border lg:col-span-4 xl:col-span-4 2xl:col-span-3">
-            <CardHeader className="p-4 pb-3 border-b space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+
+          {/* Filtering and Search Controls */}
+          <Card className="p-4 border-border/60 shadow-xs">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input
-                  placeholder="Search pages or blogs..."
+                  placeholder="Search pages by title, slug, or ID..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="pl-9 h-9 text-xs"
                 />
               </div>
 
-              {/* Category Pills */}
-              <ScrollArea className="w-full whitespace-nowrap">
-                <div className="flex gap-1.5 pb-1">
-                  {CATEGORIES.map((cat) => {
-                    const count =
-                      cat.id === "all"
-                        ? (pages?.length ?? 0)
-                        : (pages?.filter((p) => getCategoryForSlug(p.slug) === cat.id).length ?? 0);
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedCategory(cat.id)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                          selectedCategory === cat.id
-                            ? "bg-primary text-primary-foreground font-semibold"
-                            : "bg-secondary/60 hover:bg-secondary text-muted-foreground"
-                        }`}
-                      >
-                        <cat.icon className="size-3" />
-                        <span>{cat.label}</span>
-                        <span className="opacity-70 font-mono text-[10px]">({count})</span>
-                      </button>
-                    );
-                  })}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Category Selector */}
+                <Select
+                  value={selectedCategory}
+                  onValueChange={(val) => {
+                    setSelectedCategory(val as PageCategory);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[160px] h-9 text-xs">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id} className="text-xs">
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Status Selector */}
+                <Select
+                  value={statusFilter}
+                  onValueChange={(val) => {
+                    setStatusFilter(val as any);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[130px] h-9 text-xs">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                    <SelectItem value="published" className="text-xs">Live (Published)</SelectItem>
+                    <SelectItem value="draft" className="text-xs">Draft Only</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* View Mode Toggle */}
+                <div className="flex items-center border rounded-md p-0.5 bg-muted/40">
+                  <Button
+                    variant={viewMode === "table" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-8 px-2.5 text-xs"
+                    onClick={() => setViewMode("table")}
+                    title="Table View"
+                  >
+                    <List className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant={viewMode === "grid" ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-8 px-2.5 text-xs"
+                    onClick={() => setViewMode("grid")}
+                    title="Grid View"
+                  >
+                    <Grid className="size-3.5" />
+                  </Button>
                 </div>
-              </ScrollArea>
-            </CardHeader>
-
-            <CardContent className="p-2">
-              <ScrollArea className="h-[600px] pr-2">
-                <div className="space-y-1 pr-2">
-                  {filteredPages.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-muted-foreground">
-                      No pages matching "{searchQuery}"
-                    </div>
-                  ) : (
-                    filteredPages.map((p) => {
-                      const isSelected = selectedPage?.id === p.id;
-                      const category = getCategoryForSlug(p.slug);
-                      const getPublicUrl = (slug: string) => {
-                        if (slug === "home" || slug === "footer") return "/";
-                        if (slug === "about") return "/about";
-                        if (slug === "team") return "/team";
-                        if (slug === "pricing") return "/pricing";
-                        if (slug === "contact") return "/contact";
-                        if (slug.startsWith("legal-"))
-                          return `/legal/${slug.replace("legal-", "")}`;
-                        if (slug.startsWith("blog-")) return `/p/${slug}`;
-                        if (slug.startsWith("case-study-")) return `/p/${slug}`;
-                        return `/p/${slug}`;
-                      };
-
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => setSelectedId(p.id)}
-                          className={`group relative p-3 rounded-lg border text-left cursor-pointer transition-all ${
-                            isSelected
-                              ? "bg-primary/5 border-primary shadow-xs"
-                              : "border-transparent hover:bg-secondary/60 hover:border-border"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="font-semibold text-xs leading-tight line-clamp-1 text-foreground">
-                              {p.title}
-                            </div>
-                            <Badge
-                              variant={p.published ? "default" : "outline"}
-                              className={`text-[9px] px-1.5 py-0 shrink-0 uppercase tracking-wider ${
-                                p.published
-                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              {p.published ? "Live" : "Draft"}
-                            </Badge>
-                          </div>
-
-                          <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground font-mono">
-                            <span className="truncate">{getPublicUrl(p.slug)}</span>
-                            <Badge variant="secondary" className="text-[9px] py-0 capitalize">
-                              {category}
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
+              </div>
+            </div>
           </Card>
 
-          {/* Right Editor & Preview Pane */}
-          <div className="lg:col-span-8 xl:col-span-8 2xl:col-span-9">
-            {selectedPage ? (
-              <PageEditorForm
-                key={selectedPage.id}
-                page={selectedPage}
-                onSaved={() => qc.invalidateQueries({ queryKey: ["cms-pages"] })}
-                onDelete={() => setIsDeleteOpen(true)}
-              />
-            ) : (
-              <Card className="p-12 text-center text-muted-foreground">
-                Select a page or blog from the left sidebar to start editing.
-              </Card>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Create New Page Dialog */}
-      <CreatePageDialog
-        open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
-        onCreated={(newPageId) => {
-          qc.invalidateQueries({ queryKey: ["cms-pages"] });
-          setSelectedId(newPageId);
-        }}
-      />
-
-          {/* Delete Page Dialog */}
-          {selectedPage && (
-            <DeletePageDialog
-              open={isDeleteOpen}
-              onOpenChange={setIsDeleteOpen}
-              page={selectedPage}
-              onDeleted={() => {
-                qc.invalidateQueries({ queryKey: ["cms-pages"] });
-                setSelectedId(null);
-              }}
-            />
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function PageEditorForm({
-  page,
-  onSaved,
-  onDelete,
-}: {
-  page: CmsPage;
-  onSaved: () => void;
-  onDelete: () => void;
-}) {
-  const [title, setTitle] = useState(page.title);
-  const [slug, setSlug] = useState(page.slug);
-  const [meta, setMeta] = useState(page.meta_description ?? "");
-  const [published, setPublished] = useState(page.published);
-  const [activeTab, setActiveTab] = useState<"visual" | "preview" | "json">("visual");
-  const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
-
-  // Content JSON state
-  const [content, setContent] = useState<Record<string, any>>(page.content ?? {});
-  const [jsonText, setJsonText] = useState(JSON.stringify(page.content ?? {}, null, 2));
-  const [jsonError, setJsonError] = useState<string | null>(null);
-
-  // Sync content state when switching tabs
-  useEffect(() => {
-    setTitle(page.title);
-    setSlug(page.slug);
-    setMeta(page.meta_description ?? "");
-    setPublished(page.published);
-    setContent(page.content ?? {});
-    setJsonText(JSON.stringify(page.content ?? {}, null, 2));
-    setJsonError(null);
-  }, [page]);
-
-  const updateContentField = (field: string, value: any) => {
-    const updated = { ...content, [field]: value };
-    setContent(updated);
-    setJsonText(JSON.stringify(updated, null, 2));
-  };
-
-  const handleJsonChange = (text: string) => {
-    setJsonText(text);
-    try {
-      const parsed = JSON.parse(text);
-      setContent(parsed);
-      setJsonError(null);
-    } catch (e: any) {
-      setJsonError(e.message || "Invalid JSON syntax");
-    }
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: async (overridePublished?: boolean) => {
-      let finalContent = content;
-      if (activeTab === "json") {
-        try {
-          finalContent = JSON.parse(jsonText);
-        } catch {
-          throw new Error("Cannot save: Invalid JSON string");
-        }
-      }
-
-      const isPub = typeof overridePublished === "boolean" ? overridePublished : published;
-      // Preserve existing page content so unrelated fields are never overwritten
-      const mergedContent = { ...(page.content || {}), ...finalContent };
-
-      await api.put(`/cms/pages/${slug}`, {
-        title,
-        meta_description: meta,
-        content: mergedContent,
-        published: isPub,
-      });
-
-      if (typeof overridePublished === "boolean") {
-        setPublished(overridePublished);
-      }
-    },
-    onSuccess: () => {
-      toast.success(`Saved changes for "${title}"`);
-      onSaved();
-    },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
-  });
-
-  const publicUrl = useMemo(() => {
-    if (slug === "home" || slug === "footer") return "/";
-    if (slug === "about") return "/about";
-    if (slug === "team") return "/team";
-    if (slug === "pricing") return "/pricing";
-    if (slug === "contact") return "/contact";
-    if (slug.startsWith("legal-")) return `/legal/${slug.replace("legal-", "")}`;
-    return `/p/${slug}`;
-  }, [slug]);
-
-  const isProtectedCorePage = [
-    "home",
-    "footer",
-    "compare",
-    "benefits",
-    "about",
-    "team",
-    "pricing",
-    "contact",
-  ].includes(page.slug);
-
-  return (
-    <Card className="shadow-sm border">
-      {/* Editor Header Bar */}
-      <CardHeader className="p-5 border-b bg-card space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold">{title || "Untitled Page"}</h2>
-              <Badge variant="outline" className="font-mono text-[11px] bg-secondary/50">
-                {slug}
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <span>Public Route:</span>
-              <a
-                href={publicUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary hover:underline flex items-center gap-1 font-mono"
-              >
-                {publicUrl} <ExternalLink className="size-3" />
-              </a>
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-2 border px-3 py-1.5 rounded-lg bg-background text-xs">
-              <Switch checked={published} onCheckedChange={setPublished} id="published-toggle" />
-              <Label htmlFor="published-toggle" className="cursor-pointer font-medium text-xs">
-                {published ? "Published" : "Draft"}
-              </Label>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => saveMutation.mutate(false)}
-              disabled={saveMutation.isPending || !!jsonError}
-              className="text-xs h-9"
-            >
-              Save Draft
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={() => saveMutation.mutate(true)}
-              disabled={saveMutation.isPending || !!jsonError}
-              className="gap-2 text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="size-3.5" />
-              )}
-              Publish Page
-            </Button>
-
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || !!jsonError}
-              className="gap-2 text-xs h-9"
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Save className="size-3.5" />
-              )}
-              Save Page
-            </Button>
-          </div>
-        </div>
-
-        {/* View Switcher Tabs */}
-        <div className="flex items-center justify-between border-t pt-3">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-            <div className="flex items-center justify-between w-full">
-              <TabsList className="grid grid-cols-3 w-[360px]">
-                <TabsTrigger value="visual" className="gap-2 text-xs">
-                  <LayoutTemplate className="size-3.5" /> Visual Editor
-                </TabsTrigger>
-                <TabsTrigger value="preview" className="gap-2 text-xs">
-                  <Eye className="size-3.5" /> Live Preview
-                </TabsTrigger>
-                <TabsTrigger value="json" className="gap-2 text-xs">
-                  <Code className="size-3.5" /> Raw JSON
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Viewport switch in Preview Mode */}
-              {activeTab === "preview" && (
-                <div className="flex items-center gap-1 border p-1 rounded-lg bg-background">
-                  <button
-                    onClick={() => setPreviewDevice("desktop")}
-                    className={`p-1 rounded text-xs ${
-                      previewDevice === "desktop"
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-secondary text-muted-foreground"
-                    }`}
-                    title="Desktop Preview"
-                  >
-                    <Monitor className="size-4" />
-                  </button>
-                  <button
-                    onClick={() => setPreviewDevice("tablet")}
-                    className={`p-1 rounded text-xs ${
-                      previewDevice === "tablet"
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-secondary text-muted-foreground"
-                    }`}
-                    title="Tablet Preview (768px)"
-                  >
-                    <Tablet className="size-4" />
-                  </button>
-                  <button
-                    onClick={() => setPreviewDevice("mobile")}
-                    className={`p-1 rounded text-xs ${
-                      previewDevice === "mobile"
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-secondary text-muted-foreground"
-                    }`}
-                    title="Mobile Preview (375px)"
-                  >
-                    <Smartphone className="size-4" />
-                  </button>
-                </div>
-              )}
-
-              {!isProtectedCorePage && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onDelete}
-                  className="text-destructive hover:bg-destructive/10 gap-1.5 text-xs ml-auto"
-                >
-                  <Trash2 className="size-3.5" /> Delete Page
-                </Button>
-              )}
-            </div>
-          </Tabs>
-        </div>
-      </CardHeader>
-
-      <CardContent className="p-6">
-        {/* TAB 1: VISUAL SECTION EDITOR */}
-        {activeTab === "visual" && (
-          <div className="space-y-8">
-            {/* Meta & Basic Info Card */}
-            <div className="p-4 rounded-xl border bg-secondary/10 space-y-4">
-              <div className="flex items-center gap-2 font-semibold text-sm border-b pb-2 text-foreground">
-                <Sliders className="size-4 text-primary" /> Page Settings & SEO Meta
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Page Title</Label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. ERP AI Transformation"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">URL Slug</Label>
-                  <Input
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    disabled={isProtectedCorePage}
-                    placeholder="e.g. blog-ai-payroll"
-                  />
-                  {isProtectedCorePage && (
-                    <p className="text-[11px] text-muted-foreground">System page slug is locked.</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold">Meta Description (SEO)</Label>
-                <Textarea
-                  value={meta}
-                  onChange={(e) => setMeta(e.target.value)}
-                  rows={2}
-                  placeholder="Summary for search engine preview snippets..."
-                  className="text-xs"
-                />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4 pt-1">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Canonical URL</Label>
-                  <Input
-                    value={content.canonicalUrl || ""}
-                    onChange={(e) => updateContentField("canonicalUrl", e.target.value)}
-                    placeholder="https://masterhrms.com/..."
-                    className="text-xs"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Social Preview / OG Image URL</Label>
-                  <Input
-                    value={content.ogImage || ""}
-                    onChange={(e) => updateContentField("ogImage", e.target.value)}
-                    placeholder="/images/og-preview.jpg or https://..."
-                    className="text-xs"
-                  />
-                </div>
+          {/* Page Listing Section */}
+          {isLoading ? (
+            <div className="min-h-[350px] grid place-items-center">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Loading authoritative CMS pages...</p>
               </div>
             </div>
+          ) : isError ? (
+            <Card className="p-12 text-center border-destructive/30 bg-destructive/5">
+              <AlertTriangle className="size-8 text-destructive mx-auto mb-3" />
+              <h3 className="text-base font-semibold text-destructive">Failed to Load CMS Pages</h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                {(error as any)?.message || "A server or network error occurred while querying CMS pages."}
+              </p>
+              <Button size="sm" variant="outline" onClick={() => refetch()} className="mt-4 gap-2">
+                <RefreshCw className="size-3.5" /> Retry Loading
+              </Button>
+            </Card>
+          ) : filteredPages.length === 0 ? (
+            <Card className="p-12 text-center text-muted-foreground">
+              <p className="text-sm font-medium">No CMS pages found.</p>
+              <p className="text-xs mt-1">Try adjusting your search terms or filters.</p>
+            </Card>
+          ) : viewMode === "table" ? (
+            <Card className="border border-border/60 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/40 font-semibold border-b border-border/60 text-[11px] text-muted-foreground uppercase">
+                    <tr>
+                      <th className="p-3 pl-4">Page Title & Type</th>
+                      <th className="p-3">Persistent ID</th>
+                      <th className="p-3">Slug & Public URL</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3">Last Updated</th>
+                      <th className="p-3 pr-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {paginatedPages.map((page) => {
+                      const category = getCategoryForSlug(page.slug);
+                      const publicUrl = getPublicUrlForPage(page.slug);
+                      const isProtected = PROTECTED_SYSTEM_SLUGS.has(page.slug);
+                      const isCopied = copiedId === page.id;
 
-            {/* SPECIALIZED FOOTER EDITOR IF SLUG IS 'FOOTER' */}
-            {slug === "footer" ? (
-              <FooterSectionEditor content={content} updateContentField={updateContentField} />
-            ) : (
-              <>
-                {/* HERO SECTION EDITOR */}
-                <HeroSectionEditor content={content} updateContentField={updateContentField} />
-
-                {/* BLOG / CASE STUDY SPECIFIC METADATA EDITOR */}
-                {(slug.includes("blog") || slug.includes("case-study")) && (
-                  <BlogCaseStudyEditor content={content} updateContentField={updateContentField} />
-                )}
-
-                {/* BODY CONTENT EDITOR */}
-                <BodySectionEditor content={content} updateContentField={updateContentField} />
-
-                {/* SECTIONS & CARDS GRID EDITOR */}
-                <CardsSectionEditor content={content} updateContentField={updateContentField} />
-
-                {/* VENDORS COMPARISON TABLE EDITOR */}
-                {(slug === "compare" || content.vendors) && (
-                  <VendorSectionEditor content={content} updateContentField={updateContentField} />
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* TAB 2: LIVE INTERACTIVE PREVIEW */}
-        {activeTab === "preview" && (
-          <div className="bg-secondary/30 p-6 rounded-xl border min-h-[500px] flex justify-center items-start overflow-x-auto">
-            <div
-              className={`bg-background border rounded-2xl shadow-xl transition-all duration-300 overflow-hidden ${
-                previewDevice === "desktop"
-                  ? "w-full max-w-full"
-                  : previewDevice === "tablet"
-                    ? "w-[768px]"
-                    : "w-[375px]"
-              }`}
-            >
-              {/* Fake Browser Window Header */}
-              <div className="bg-secondary/60 border-b px-4 py-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="flex gap-1.5">
-                  <div className="size-2.5 rounded-full bg-red-400" />
-                  <div className="size-2.5 rounded-full bg-amber-400" />
-                  <div className="size-2.5 rounded-full bg-emerald-400" />
-                </div>
-                <div className="flex-1 bg-background px-3 py-1 rounded text-center font-mono text-[11px] truncate mx-4 border">
-                  {typeof window !== "undefined" ? window.location.origin : ""}{publicUrl}
-                </div>
-              </div>
-
-              {/* Rendered Live Component Preview */}
-              <div className="p-6 md:p-10 space-y-10">
-                {slug === "footer" ? (
-                  <FooterPreview f={content} />
-                ) : (
-                  <>
-                    {/* Hero Preview */}
-                    {content.hero && (
-                      <div className="text-center max-w-3xl mx-auto space-y-4 py-6">
-                        {content.hero.eyebrow && (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full border text-xs font-semibold bg-primary/10 text-primary">
-                            <Sparkles className="size-3" /> {content.hero.eyebrow}
-                          </span>
-                        )}
-                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-                          {content.hero.title || title}
-                        </h1>
-                        {content.hero.subtitle && (
-                          <p className="text-base text-muted-foreground leading-relaxed">
-                            {content.hero.subtitle}
-                          </p>
-                        )}
-                        <div className="flex justify-center gap-3 pt-2">
-                          <Button size="sm">
-                            {content.hero.primary_cta_text || "Get Started"}
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            {content.hero.secondary_cta_text || "Learn More"}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Blog & Case Study Meta Bar Preview */}
-                    {(content.author || content.client || content.impact) && (
-                      <div className="max-w-3xl mx-auto p-4 rounded-xl bg-secondary/30 border flex flex-wrap items-center justify-between text-xs gap-4 font-mono">
-                        {content.author && (
-                          <div>
-                            Author: <strong className="text-foreground">{content.author}</strong>
-                          </div>
-                        )}
-                        {content.client && (
-                          <div>
-                            Client: <strong className="text-foreground">{content.client}</strong>
-                          </div>
-                        )}
-                        {content.impact && (
-                          <div className="text-emerald-600 font-bold">{content.impact}</div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Body Text Preview */}
-                    {content.body && (
-                      <div className="max-w-3xl mx-auto border-t pt-6">
-                        <p className="text-sm md:text-base text-muted-foreground leading-relaxed whitespace-pre-line">
-                          {content.body}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Cards Grid Preview */}
-                    {content.sections && content.sections.length > 0 && (
-                      <div className="space-y-4 border-t pt-6">
-                        <h3 className="font-bold text-lg text-center">
-                          Feature & Content Highlights
-                        </h3>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          {content.sections.map((s: any, idx: number) => (
-                            <div key={idx} className="p-5 rounded-xl border bg-card space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h4 className="font-semibold text-sm">
-                                  {s.title || "Untitled Card"}
-                                </h4>
-                                {s.badge && (
-                                  <Badge variant="secondary" className="text-[10px]">
-                                    {s.badge}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground leading-relaxed">
-                                {s.body}
-                              </p>
+                      return (
+                        <tr key={page.id} className="hover:bg-muted/20 transition-colors">
+                          {/* Title & Type */}
+                          <td className="p-3 pl-4">
+                            <div className="font-semibold text-foreground text-xs">{page.title}</div>
+                            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                              {page.content?.template && (
+                                <span className="font-mono bg-muted/60 px-1 py-0.2 rounded text-[10px]">
+                                  template: {page.content.template}
+                                </span>
+                              )}
+                              {page.content?.html && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-400 text-blue-600">
+                                  HTML
+                                </Badge>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                          </td>
 
-                    {/* Vendors Table Preview */}
-                    {content.vendors && content.vendors.length > 0 && (
-                      <div className="space-y-4 border-t pt-6">
-                        <h3 className="font-bold text-lg">Vendor Comparison</h3>
-                        <div className="border rounded-xl overflow-hidden">
-                          <table className="w-full text-xs text-left">
-                            <thead className="bg-secondary/60 font-semibold border-b">
-                              <tr>
-                                <th className="p-3">Vendor Name</th>
-                                <th className="p-3">Notes / Features</th>
-                                <th className="p-3">Recommendation</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {content.vendors.map((v: any, idx: number) => (
-                                <tr key={idx} className="border-b last:border-0">
-                                  <td className="p-3 font-semibold">{v.name}</td>
-                                  <td className="p-3 text-muted-foreground">{v.notes}</td>
-                                  <td className="p-3">
-                                    {v.us ? (
-                                      <Badge className="bg-emerald-600 text-white">
-                                        Our Platform
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-muted-foreground">—</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
+                          {/* Persistent ID */}
+                          <td className="p-3">
+                            <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                              <span title={page.id} className="truncate max-w-[120px]">
+                                {page.id}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-5 hover:bg-muted"
+                                onClick={() => handleCopyId(page.id)}
+                                title="Copy Persistent ID"
+                              >
+                                {isCopied ? (
+                                  <Check className="size-3 text-emerald-600" />
+                                ) : (
+                                  <Copy className="size-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </td>
+
+                          {/* Slug & Public URL */}
+                          <td className="p-3">
+                            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                              <span className="text-foreground font-medium">/{page.slug}</span>
+                              <a
+                                href={publicUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                title="Open Public URL"
+                              >
+                                <ExternalLink className="size-3" />
+                              </a>
+                            </div>
+                          </td>
+
+                          {/* Category */}
+                          <td className="p-3">
+                            <Badge variant="secondary" className="capitalize text-[10px] py-0">
+                              {category}
+                            </Badge>
+                          </td>
+
+                          {/* Status & Quick Toggle */}
+                          <td className="p-3 text-center">
+                            <div className="inline-flex items-center gap-2">
+                              <Badge
+                                variant={page.published ? "default" : "outline"}
+                                className={`text-[9px] uppercase tracking-wider ${
+                                  page.published
+                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {page.published ? "Live" : "Draft"}
+                              </Badge>
+                              <Switch
+                                checked={page.published}
+                                onCheckedChange={(checked) =>
+                                  togglePublishMutation.mutate({ id: page.id, published: checked })
+                                }
+                                disabled={togglePublishMutation.isPending}
+                                className="scale-75"
+                                title={page.published ? "Click to unpublish" : "Click to publish"}
+                              />
+                            </div>
+                          </td>
+
+                          {/* Last Updated */}
+                          <td className="p-3 text-[11px] text-muted-foreground">
+                            {page.updated_at
+                              ? new Date(page.updated_at).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })
+                              : "—"}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="p-3 pr-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs gap-1 shadow-xs"
+                                onClick={() => router.push(`/super/cms/${page.id}/edit`)}
+                                title="Open Dedicated Page Editor"
+                              >
+                                <Edit className="size-3 text-primary" /> Edit
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-7"
+                                asChild
+                                title="Preview Page"
+                              >
+                                <a href={publicUrl} target="_blank" rel="noreferrer">
+                                  <Eye className="size-3.5" />
+                                </a>
+                              </Button>
+                              {!isProtected && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="size-7 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                  onClick={() => setDeletingPage(page)}
+                                  title="Delete Page"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* TAB 3: RAW JSON CODE EDITOR */}
-        {activeTab === "json" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-mono font-semibold">
-                Raw Page Content Object (JSON)
-              </Label>
-              {jsonError ? (
-                <Badge variant="destructive" className="text-[10px] font-mono">
-                  Syntax Error
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] font-mono text-emerald-600 border-emerald-500/30"
-                >
-                  Valid JSON Syntax
-                </Badge>
+              {/* Table Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border/60 bg-muted/20 text-xs text-muted-foreground">
+                  <div>
+                    Showing {(currentPage - 1) * pageSize + 1} to{" "}
+                    {Math.min(currentPage * pageSize, filteredPages.length)} of {filteredPages.length} pages
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-[11px] px-2 font-medium">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               )}
+            </Card>
+          ) : (
+            /* Grid View */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {paginatedPages.map((page) => {
+                const category = getCategoryForSlug(page.slug);
+                const publicUrl = getPublicUrlForPage(page.slug);
+                const isProtected = PROTECTED_SYSTEM_SLUGS.has(page.slug);
+
+                return (
+                  <Card key={page.id} className="p-4 border-border/60 shadow-xs flex flex-col justify-between hover:border-primary/50 transition-all">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <Badge variant="secondary" className="capitalize text-[10px] py-0">
+                          {category}
+                        </Badge>
+                        <Badge
+                          variant={page.published ? "default" : "outline"}
+                          className={`text-[9px] uppercase tracking-wider ${
+                            page.published
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {page.published ? "Live" : "Draft"}
+                        </Badge>
+                      </div>
+
+                      <h3 className="font-semibold text-sm text-foreground mt-2 line-clamp-1">
+                        {page.title}
+                      </h3>
+
+                      <div className="text-[11px] font-mono text-muted-foreground mt-1 truncate">
+                        /{page.slug}
+                      </div>
+
+                      <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground mt-2 bg-muted/40 p-1 rounded">
+                        <span className="truncate flex-1">ID: {page.id}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-4"
+                          onClick={() => handleCopyId(page.id)}
+                          title="Copy ID"
+                        >
+                          <Copy className="size-2.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t pt-3 mt-4">
+                      <div className="text-[10px] text-muted-foreground">
+                        {page.updated_at
+                          ? new Date(page.updated_at).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : ""}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2.5 text-xs gap-1 shadow-xs"
+                          onClick={() => router.push(`/super/cms/${page.id}/edit`)}
+                        >
+                          <Edit className="size-3 text-primary" /> Edit
+                        </Button>
+                        <Button size="icon" variant="ghost" className="size-7" asChild>
+                          <a href={publicUrl} target="_blank" rel="noreferrer">
+                            <Eye className="size-3.5" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
+          )}
 
-            <Textarea
-              value={jsonText}
-              onChange={(e) => handleJsonChange(e.target.value)}
-              rows={22}
-              className="font-mono text-xs leading-relaxed border bg-slate-950 text-emerald-400 p-4 rounded-xl shadow-inner"
-            />
-            {jsonError && (
-              <p className="text-xs text-destructive font-mono font-semibold">{jsonError}</p>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+          {/* Delete Page Confirmation Dialog */}
+          <Dialog open={!!deletingPage} onOpenChange={(open) => !open && setDeletingPage(null)}>
+            <DialogContent className="sm:max-w-[420px]">
+              <DialogHeader>
+                <DialogTitle className="text-destructive flex items-center gap-2">
+                  <Trash2 className="size-5" /> Delete CMS Page?
+                </DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to permanently delete <strong>"{deletingPage?.title}"</strong> (
+                  <code>/{deletingPage?.slug}</code>)? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
 
-/* Sub-components for Visual Section Editors */
-function HeroSectionEditor({
-  content,
-  updateContentField,
-}: {
-  content: Record<string, any>;
-  updateContentField: (f: string, v: any) => void;
-}) {
-  const hero = content.hero || {};
-  const updateHero = (key: string, val: string) => {
-    updateContentField("hero", { ...hero, [key]: val });
-  };
-
-  return (
-    <div className="p-4 rounded-xl border bg-card space-y-4 shadow-xs">
-      <div className="flex items-center gap-2 font-semibold text-sm border-b pb-2">
-        <Sparkles className="size-4 text-primary" /> Hero Header Section
-      </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Eyebrow Tagline</Label>
-          <Input
-            value={hero.eyebrow || ""}
-            onChange={(e) => updateHero("eyebrow", e.target.value)}
-            placeholder="e.g. Next-Gen Cloud ERP"
-          />
+              <DialogFooter className="mt-4">
+                <Button variant="outline" size="sm" onClick={() => setDeletingPage(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => deletingPage && deleteMutation.mutate(deletingPage.id)}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                  Permanently Delete
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Hero Main Headline</Label>
-          <Input
-            value={hero.title || ""}
-            onChange={(e) => updateHero("title", e.target.value)}
-            placeholder="e.g. Financials & Global Payroll"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-xs font-semibold">Hero Subtitle Paragraph</Label>
-        <Textarea
-          value={hero.subtitle || ""}
-          onChange={(e) => updateHero("subtitle", e.target.value)}
-          rows={2}
-          className="text-xs"
-        />
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4 pt-2 border-t">
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Primary CTA Button Text</Label>
-          <Input
-            value={hero.primary_cta_text || ""}
-            onChange={(e) => updateHero("primary_cta_text", e.target.value)}
-            placeholder="e.g. Start Free Trial"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Primary CTA Button URL</Label>
-          <Input
-            value={hero.primary_cta_url || ""}
-            onChange={(e) => updateHero("primary_cta_url", e.target.value)}
-            placeholder="e.g. /login"
-          />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Secondary CTA Button Text</Label>
-          <Input
-            value={hero.secondary_cta_text || ""}
-            onChange={(e) => updateHero("secondary_cta_text", e.target.value)}
-            placeholder="e.g. Book a Demo"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Secondary CTA Button URL</Label>
-          <Input
-            value={hero.secondary_cta_url || ""}
-            onChange={(e) => updateHero("secondary_cta_url", e.target.value)}
-            placeholder="e.g. /contact"
-          />
-        </div>
-      </div>
+      )}
     </div>
-  );
-}
-
-function BlogCaseStudyEditor({
-  content,
-  updateContentField,
-}: {
-  content: Record<string, any>;
-  updateContentField: (f: string, v: any) => void;
-}) {
-  return (
-    <div className="p-4 rounded-xl border bg-card space-y-4 shadow-xs">
-      <div className="flex items-center gap-2 font-semibold text-sm border-b pb-2">
-        <BookOpen className="size-4 text-primary" /> Blog / Case Study Metadata
-      </div>
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Author / Editorial Team</Label>
-          <Input
-            value={content.author || ""}
-            onChange={(e) => updateContentField("author", e.target.value)}
-            placeholder="e.g. Master ERP Editorial"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Client Name (Case Study)</Label>
-          <Input
-            value={content.client || ""}
-            onChange={(e) => updateContentField("client", e.target.value)}
-            placeholder="e.g. Apex Manufacturing Group"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Key Metric Impact</Label>
-          <Input
-            value={content.impact || ""}
-            onChange={(e) => updateContentField("impact", e.target.value)}
-            placeholder="e.g. ↑ 42% ROI Improvement"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BodySectionEditor({
-  content,
-  updateContentField,
-}: {
-  content: Record<string, any>;
-  updateContentField: (f: string, v: any) => void;
-}) {
-  return (
-    <div className="p-4 rounded-xl border bg-card space-y-3 shadow-xs">
-      <div className="flex items-center gap-2 font-semibold text-sm border-b pb-2">
-        <AlignLeft className="size-4 text-primary" /> Main Article Body Content
-      </div>
-      <Textarea
-        value={content.body || ""}
-        onChange={(e) => updateContentField("body", e.target.value)}
-        rows={6}
-        placeholder="Enter main paragraph body text for this article or page..."
-        className="text-xs leading-relaxed font-sans"
-      />
-    </div>
-  );
-}
-
-function CardsSectionEditor({
-  content,
-  updateContentField,
-}: {
-  content: Record<string, any>;
-  updateContentField: (f: string, v: any) => void;
-}) {
-  const sections: any[] = content.sections || [];
-
-  const updateSection = (index: number, key: string, val: any) => {
-    const updated = [...sections];
-    updated[index] = { ...updated[index], [key]: val };
-    updateContentField("sections", updated);
-  };
-
-  const addSection = () => {
-    updateContentField("sections", [
-      ...sections,
-      {
-        id: `sec-${Date.now()}`,
-        title: "New Section Card",
-        body: "Card details and feature points.",
-        badge: "Feature",
-        enabled: true,
-        order: sections.length + 1,
-      },
-    ]);
-  };
-
-  const removeSection = (index: number) => {
-    const updated = sections.filter((_, i) => i !== index);
-    updateContentField("sections", updated);
-  };
-
-  const moveSection = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= sections.length) return;
-    const updated = [...sections];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-    // update order numbers
-    updated.forEach((s, i) => {
-      s.order = i + 1;
-    });
-    updateContentField("sections", updated);
-  };
-
-  return (
-    <div className="p-4 rounded-xl border bg-card space-y-4 shadow-xs">
-      <div className="flex items-center justify-between border-b pb-2">
-        <div className="flex items-center gap-2 font-semibold text-sm">
-          <Grid className="size-4 text-primary" /> Highlight Section Cards ({sections.length})
-        </div>
-        <Button size="sm" variant="outline" onClick={addSection} className="gap-1.5 text-xs">
-          <Plus className="size-3.5" /> Add Section Card
-        </Button>
-      </div>
-
-      <div className="space-y-3">
-        {sections.map((s, idx) => {
-          const isEnabled = s.enabled !== false;
-          return (
-            <div
-              key={s.id || idx}
-              className={`p-3.5 rounded-lg border space-y-3 transition-opacity ${
-                isEnabled ? 'bg-secondary/20 border-border/70' : 'bg-muted/30 border-dashed border-border/50 opacity-60'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                  <Input
-                    value={s.title || ""}
-                    onChange={(e) => updateSection(idx, "title", e.target.value)}
-                    placeholder="Card Title"
-                    className="text-xs font-semibold"
-                  />
-                  <Input
-                    value={s.badge || ""}
-                    onChange={(e) => updateSection(idx, "badge", e.target.value)}
-                    placeholder="Badge"
-                    className="text-xs w-28"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Visibility Switch */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => updateSection(idx, "enabled", !isEnabled)}
-                    title={isEnabled ? "Disable section (hide from public view)" : "Enable section"}
-                    className={`size-7 ${isEnabled ? 'text-primary' : 'text-muted-foreground'}`}
-                  >
-                    <Eye className="size-3.5" />
-                  </Button>
-
-                  {/* Move Up */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => moveSection(idx, 'up')}
-                    disabled={idx === 0}
-                    title="Move section up"
-                    className="size-7 text-muted-foreground hover:text-foreground"
-                  >
-                    <ArrowUp className="size-3.5" />
-                  </Button>
-
-                  {/* Move Down */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => moveSection(idx, 'down')}
-                    disabled={idx === sections.length - 1}
-                    title="Move section down"
-                    className="size-7 text-muted-foreground hover:text-foreground"
-                  >
-                    <ArrowDown className="size-3.5" />
-                  </Button>
-
-                  {/* Delete */}
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removeSection(idx)}
-                    className="size-7 text-destructive shrink-0"
-                    title="Delete section"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
-              </div>
-
-              <Textarea
-                value={s.body || ""}
-                onChange={(e) => updateSection(idx, "body", e.target.value)}
-                rows={2}
-                placeholder="Card body text..."
-                className="text-xs resize-y"
-              />
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function VendorSectionEditor({
-  content,
-  updateContentField,
-}: {
-  content: Record<string, any>;
-  updateContentField: (f: string, v: any) => void;
-}) {
-  const vendors: any[] = content.vendors || [];
-
-  const updateVendor = (index: number, key: string, val: any) => {
-    const updated = [...vendors];
-    updated[index] = { ...updated[index], [key]: val };
-    updateContentField("vendors", updated);
-  };
-
-  const addVendor = () => {
-    updateContentField("vendors", [
-      ...vendors,
-      { name: "Competitor ERP X", notes: "Legacy monolith system", us: false },
-    ]);
-  };
-
-  const removeVendor = (index: number) => {
-    const updated = vendors.filter((_, i) => i !== index);
-    updateContentField("vendors", updated);
-  };
-
-  return (
-    <div className="p-4 rounded-xl border bg-card space-y-4 shadow-xs">
-      <div className="flex items-center justify-between border-b pb-2">
-        <div className="flex items-center gap-2 font-semibold text-sm">
-          <TableIcon className="size-4 text-primary" /> Vendor Comparison Table ({vendors.length})
-        </div>
-        <Button size="sm" variant="outline" onClick={addVendor} className="gap-1.5 text-xs">
-          <Plus className="size-3.5" /> Add Vendor
-        </Button>
-      </div>
-
-      <div className="space-y-3">
-        {vendors.map((v, idx) => (
-          <div
-            key={idx}
-            className="p-3.5 rounded-lg border bg-secondary/20 flex items-center justify-between gap-3"
-          >
-            <Input
-              value={v.name || ""}
-              onChange={(e) => updateVendor(idx, "name", e.target.value)}
-              placeholder="Vendor Name"
-              className="text-xs font-semibold w-40"
-            />
-            <Input
-              value={v.notes || ""}
-              onChange={(e) => updateVendor(idx, "notes", e.target.value)}
-              placeholder="Notes & Feature Matrix"
-              className="text-xs flex-1"
-            />
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Switch checked={!!v.us} onCheckedChange={(val) => updateVendor(idx, "us", val)} />
-              <span className="text-xs font-medium">Our Platform</span>
-            </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => removeVendor(idx)}
-              className="text-destructive shrink-0"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function FooterSectionEditor({
-  content,
-  updateContentField,
-}: {
-  content: Record<string, any>;
-  updateContentField: (f: string, v: any) => void;
-}) {
-  return (
-    <div className="p-4 rounded-xl border bg-card space-y-4 shadow-xs">
-      <div className="flex items-center gap-2 font-semibold text-sm border-b pb-2">
-        <Palette className="size-4 text-primary" /> Global Footer & Brand Settings
-      </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Footer Brand Name</Label>
-          <Input
-            value={content.logo_text || ""}
-            onChange={(e) => updateContentField("logo_text", e.target.value)}
-            placeholder="e.g. Master ERP & HRMS"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold">Tagline Phrase</Label>
-          <Input
-            value={content.tagline || ""}
-            onChange={(e) => updateContentField("tagline", e.target.value)}
-            placeholder="e.g. Next-Gen Enterprise Suite"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FooterPreview({ f }: { f: Record<string, any> }) {
-  return (
-    <div className="p-6 rounded-xl border bg-slate-900 text-slate-100 space-y-4">
-      <div className="font-bold text-lg">{f.logo_text || "Master ERP & HRMS"}</div>
-      <p className="text-xs text-slate-400">
-        {f.tagline || "Next-Gen Enterprise Resource Planning Suite."}
-      </p>
-    </div>
-  );
-}
-
-function CreatePageDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: (newId: string) => void;
-}) {
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [template, setTemplate] = useState("blog");
-  const [meta, setMeta] = useState("");
-
-  const handleTitleChange = (val: string) => {
-    setTitle(val);
-    const autoSlug = val
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-    setSlug(
-      template === "blog"
-        ? `blog-${autoSlug}`
-        : template === "casestudy"
-          ? `case-study-${autoSlug}`
-          : autoSlug,
-    );
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!title || !slug) throw new Error("Title and slug are required");
-
-      let defaultContent: Record<string, any> = {};
-      if (template === "blog") {
-        defaultContent = {
-          hero: {
-            title,
-            eyebrow: "Blog & Insights",
-            subtitle: "Latest enterprise technology trends and best practices.",
-          },
-          author: "Master ERP Editorial Team",
-          date: new Date().toISOString().split("T")[0],
-          body: "Detailed analysis on enterprise cloud digital transformation.",
-          sections: [
-            {
-              title: "Key Takeaway 1",
-              body: "Implementation details and ROI benefits.",
-              badge: "Insight",
-            },
-          ],
-        };
-      } else if (template === "casestudy") {
-        defaultContent = {
-          hero: {
-            title,
-            eyebrow: "Customer Case Study",
-            subtitle: "How global enterprise companies scale with Master ERP.",
-          },
-          client: "Global Enterprise Corp",
-          impact: "↑ 45% Productivity Gain",
-          body: "Case study narrative outlining the enterprise challenge, implementation strategy, and ROI results.",
-          sections: [
-            {
-              title: "Implementation Highlights",
-              body: "Multi-tenant deployment and automated payroll runs.",
-              badge: "Results",
-            },
-          ],
-        };
-      } else if (template === "landing") {
-        defaultContent = {
-          hero: { title, eyebrow: "ERP Module", subtitle: "Explore enterprise capabilities." },
-          sections: [
-            { title: "Module Highlight", body: "Description of key feature point.", badge: "ERP" },
-          ],
-        };
-      } else {
-        defaultContent = {
-          body: `Documentation content for ${title}.`,
-        };
-      }
-
-      const res = await api.post("/cms/pages", {
-        title,
-        slug,
-        meta_description: meta || title,
-        content: defaultContent,
-        published: true,
-      });
-
-      return res?.id || slug;
-    },
-    onSuccess: (newId) => {
-      toast.success("CMS Page / Blog created successfully!");
-      onOpenChange(false);
-      setTitle("");
-      setSlug("");
-      setMeta("");
-      onCreated(newId);
-    },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Plus className="size-5 text-primary" /> Create CMS Page, Blog or Case Study
-          </DialogTitle>
-          <DialogDescription>
-            Add a new public marketing page, blog article, or customer case study.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Page Title</Label>
-            <Input
-              value={title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="e.g. AI-Powered Global Payroll Trends"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Page Category & Template</Label>
-            <Select value={template} onValueChange={setTemplate}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="blog">Blog & Insights Article</SelectItem>
-                <SelectItem value="casestudy">Enterprise Case Study</SelectItem>
-                <SelectItem value="landing">ERP Feature / Landing Page</SelectItem>
-                <SelectItem value="legal">Legal Terms & Policy</SelectItem>
-                <SelectItem value="blank">Blank Page Template</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">URL Slug Path</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-muted-foreground bg-secondary px-2.5 py-1.5 rounded border">
-                /p/
-              </span>
-              <Input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                placeholder="e.g. blog-ai-payroll"
-                className="font-mono text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Meta Description (SEO)</Label>
-            <Textarea
-              value={meta}
-              onChange={(e) => setMeta(e.target.value)}
-              rows={2}
-              placeholder="Short description for search engines..."
-              className="text-xs"
-            />
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-            {createMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}{" "}
-            Create Page
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DeletePageDialog({
-  open,
-  onOpenChange,
-  page,
-  onDeleted,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  page: CmsPage;
-  onDeleted: () => void;
-}) {
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      await api.delete(`/cms/pages/${page.slug}`);
-    },
-    onSuccess: () => {
-      toast.success(`Deleted page "${page.title}"`);
-      onOpenChange(false);
-      onDeleted();
-    },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
-        <DialogHeader>
-          <DialogTitle className="text-destructive flex items-center gap-2">
-            <Trash2 className="size-5" /> Delete Page?
-          </DialogTitle>
-          <DialogDescription>
-            Are you sure you want to permanently delete <strong>"{page.title}"</strong> (
-            <code>/{page.slug}</code>)? This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => deleteMutation.mutate()}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}{" "}
-            Permanently Delete
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

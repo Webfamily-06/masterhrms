@@ -3,6 +3,10 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSlug from 'rehype-slug';
+import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
+import { safeMarkdownComponents } from '@/src/lib/safe-markdown-components';
+import { sanitizeHtml } from '@/src/lib/html-sanitizer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,6 +27,7 @@ export interface CmsSection {
   title?: string;
   badge?: string;
   body?: string;
+  html?: string;
   enabled?: boolean;
   order?: number;
   [key: string]: any;
@@ -40,6 +45,7 @@ export interface DynamicPageContent {
     secondary_cta_url?: string;
   };
   body?: string;
+  html?: string;
   sections?: CmsSection[];
   faqs?: { question: string; answer: string }[];
   testimonials?: { quote: string; author: string; role?: string; company?: string; rating?: number }[];
@@ -123,11 +129,27 @@ export function DynamicTemplateRenderer({ content, fallbackTitle }: DynamicTempl
         </section>
       )}
 
-      {/* 2. Main Markdown Rich-Text Body */}
-      {content.body && (
+      {/* 2. Custom HTML Content (if present) */}
+      {content.html && (
+        <section className="max-w-4xl mx-auto px-6">
+          <div
+            className="prose dark:prose-invert prose-slate max-w-none"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(content.html) }}
+          />
+        </section>
+      )}
+
+      {/* 3. Main Markdown Rich-Text Body (fallback if no explicit html) */}
+      {content.body && !content.html && (
         <section className="max-w-4xl mx-auto px-6">
           <div className="prose dark:prose-invert prose-slate max-w-none prose-headings:font-bold prose-a:text-primary">
-            <ReactMarkdown rehypePlugins={[rehypeSlug]}>{content.body}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeRaw, rehypeSlug]}
+              components={safeMarkdownComponents}
+            >
+              {content.body}
+            </ReactMarkdown>
           </div>
         </section>
       )}

@@ -71,7 +71,7 @@ export const BlogCard = forwardRef<HTMLElement, BlogCardProps>(function BlogCard
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               className="object-cover transition-all duration-500 group-hover:scale-105"
               onError={() => setHasError(true)}
-              unoptimized={typeof resolvedImage === 'string' && (resolvedImage.endsWith('.svg') || resolvedImage.includes('.svg'))}
+              unoptimized
             />
           ) : (
             <div className="size-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white text-center">

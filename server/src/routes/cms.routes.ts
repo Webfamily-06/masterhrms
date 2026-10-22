@@ -172,6 +172,44 @@ cmsRouter.put("/pages/by-id/:id", requireAuth, async (req: AuthRequest, res: Res
   }
 });
 
+// DELETE /api/cms/pages/by-id/:id - Delete page by persistent ID
+cmsRouter.delete("/pages/by-id/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuper = req.user?.roles?.includes("super_admin");
+    if (!isSuper) {
+      return res.status(403).json({ error: "Super admin authorization required to delete pages." });
+    }
+    const { id } = req.params;
+    const existing = await prisma.cmsPage.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "CMS Page not found with the specified ID" });
+    }
+
+    // Safety guard: prevent deletion of core system configuration pages
+    const protectedSlugs = [
+      "system-platform-settings",
+      "system-monetization-plans",
+      "system-addons-catalog",
+      "system-solutions-catalog",
+      "system-about-us",
+      "system-product-modules",
+      "system-landing-page",
+    ];
+    if (protectedSlugs.includes(existing.slug)) {
+      return res.status(400).json({ error: `Core platform configuration '${existing.slug}' cannot be deleted.` });
+    }
+
+    await prisma.cmsPage.delete({ where: { id: existing.id } });
+    return res.json({ success: true, message: `Page '${existing.title}' deleted successfully` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
 // GET /api/cms/blogs - List all blog articles
 cmsRouter.get("/blogs", async (req, res) => {
   try {

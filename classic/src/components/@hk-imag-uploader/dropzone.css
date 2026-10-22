@@ -1,0 +1,15 @@
+.dropzone {
+    border: 2px dashed #ccc;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.dropzone:hover {
+    background-color: #f9f9f9;
+}
+
+.dz-preview {
+    margin-top: 10px;
+}

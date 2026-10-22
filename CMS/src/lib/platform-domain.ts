@@ -72,11 +72,17 @@ export function getResolvedPublicDomain(): string {
 /**
  * Resolves the trusted canonical domain from authoritative platform configuration.
  * Strictly avoids using arbitrary browser hostnames or untrusted Host headers for canonical SEO.
+ * Environment-aware:
+ *   - Development (NODE_ENV !== "production"): defaults to "localhost:3000"
+ *   - Production (NODE_ENV === "production"): strictly enforces HTTPS and configured production domain,
+ *     never silently emitting localhost.
  */
 export function getTrustedCanonicalDomain(options?: {
   tenantDomain?: string | null;
   isVerifiedTenant?: boolean;
 }): string {
+  const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+
   // If a verified, active tenant custom domain is provided
   if (options?.tenantDomain && options.isVerifiedTenant !== false) {
     const raw = options.tenantDomain.trim().toLowerCase();
@@ -110,24 +116,38 @@ export function getTrustedCanonicalDomain(options?: {
       const host = clean.startsWith("http://") || clean.startsWith("https://")
         ? new URL(clean).host
         : clean.split("/")[0];
-      if (host) return host.toLowerCase();
+      const normalizedHost = host.toLowerCase();
+
+      // Guard: In production, reject any localhost or loopback configured value
+      if (isProd && (normalizedHost.includes("localhost") || normalizedHost.includes("127.0.0.1"))) {
+        console.warn(
+          `[Security Warning] Configured canonical domain '${normalizedHost}' is a loopback address but NODE_ENV is production. Rejecting localhost in production.`
+        );
+      } else if (normalizedHost) {
+        return normalizedHost;
+      }
     } catch {}
   }
 
   // Safe fallback in development vs production
-  const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
   if (!isProd) {
     return "localhost:3000";
   }
 
-  // In production with no explicit canonical domain, derive from base domain
+  // In production with no explicit canonical domain, check production base domain
   const base = getPlatformBaseDomain();
-  return base !== "localhost" ? base : "masterhrms.internal";
+  if (base && base !== "localhost" && !base.includes("127.0.0.1")) {
+    return base;
+  }
+
+  // Safe documented production fallback when explicit domain is missing
+  return process.env?.PRODUCTION_FALLBACK_DOMAIN || "masterhrms.com";
 }
 
 /**
  * Returns the trusted canonical public URL for an article or page,
  * ensuring no untrusted host headers or hardcoded production hostnames are used.
+ * In production, always forces https:// and strictly excludes localhost.
  */
 export function getTrustedCanonicalBlogUrl(
   slug: string,
@@ -135,10 +155,93 @@ export function getTrustedCanonicalBlogUrl(
 ): string {
   const cleanSlug = slug.replace(/^blog-/, "");
   const canonicalDomain = getTrustedCanonicalDomain(options);
-  const protocol = canonicalDomain.startsWith("localhost") || canonicalDomain.startsWith("127.0.0.1")
-    ? "http:"
-    : "https:";
+  const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+
+  // In production, ALWAYS force https: regardless of domain string
+  const protocol = isProd
+    ? "https:"
+    : canonicalDomain.startsWith("localhost") || canonicalDomain.startsWith("127.0.0.1")
+      ? "http:"
+      : "https:";
+
   return `${protocol}//${canonicalDomain}/blog/${cleanSlug}`;
+}
+
+/**
+ * Validates and normalizes an optional canonical URL override.
+ * - Rejects non-HTTP(S) schemes (e.g. javascript:, data:)
+ * - In production, rejects localhost overrides and enforces https://
+ * - If invalid or empty, returns null so the caller falls back to getTrustedCanonicalBlogUrl
+ */
+export function validateCanonicalUrlOverride(url?: string | null): string | null {
+  if (!url || !url.trim()) return null;
+  const clean = url.trim();
+
+  try {
+    const parsed = new URL(clean);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+
+    const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+    const host = parsed.hostname.toLowerCase();
+
+    // Production security guard: reject localhost overrides in production
+    if (isProd) {
+      if (host === "localhost" || host.includes("127.0.0.1") || host.endsWith(".localhost")) {
+        return null;
+      }
+      // Force https in production
+      parsed.protocol = "https:";
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves Media Library asset URLs environment-aware:
+ * - Local /uploads/... paths in development proxy to backend port 4000 via next.config rewrite.
+ * - In production, resolves to configured CDN/S3/Storage origin or production host.
+ */
+export function resolveMediaAssetUrl(assetPathOrUrl: string): string {
+  if (!assetPathOrUrl || !assetPathOrUrl.trim()) return "";
+  const trimmed = assetPathOrUrl.trim();
+
+  // If already absolute URL
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+    // In production, rewrite accidental localhost media URLs to production asset origin
+    if (isProd && (trimmed.includes("localhost:4000") || trimmed.includes("localhost:3000"))) {
+      const pathname = new URL(trimmed).pathname;
+      const cdnOrigin = process.env?.NEXT_PUBLIC_CDN_URL || process.env?.NEXT_PUBLIC_ASSET_URL;
+      if (cdnOrigin) {
+        return `${cdnOrigin.replace(/\/$/, "")}${pathname}`;
+      }
+      const canonical = getTrustedCanonicalDomain();
+      return `https://${canonical}${pathname}`;
+    }
+    return trimmed;
+  }
+
+  // Relative /uploads/ asset
+  if (trimmed.startsWith("/uploads/")) {
+    const isProd = typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+    if (!isProd) {
+      // In development, Next.js rewrite proxies /uploads to localhost:4000
+      return trimmed;
+    }
+    const cdnOrigin = process.env?.NEXT_PUBLIC_CDN_URL || process.env?.NEXT_PUBLIC_ASSET_URL;
+    if (cdnOrigin) {
+      return `${cdnOrigin.replace(/\/$/, "")}${trimmed}`;
+    }
+    const canonical = getTrustedCanonicalDomain();
+    return `https://${canonical}${trimmed}`;
+  }
+
+  return trimmed;
 }
 
 /**

@@ -1,0 +1,227 @@
+# Credits and Licenses
+
+This file lists the third-party packages and bundled asset files used by React Jampack Classic.
+
+Package licenses are governed by their npm package metadata and upstream license files. Before redistributing a customized product, verify each package license and replace preview-only images with assets licensed for your final use case.
+
+## Runtime Dependencies
+
+- `@amcharts/amcharts5`
+- `@amcharts/amcharts5-geodata`
+- `@fortawesome/fontawesome-svg-core`
+- `@fortawesome/free-brands-svg-icons`
+- `@fortawesome/free-solid-svg-icons`
+- `@fortawesome/react-fontawesome`
+- `@fullcalendar/daygrid`
+- `@fullcalendar/interaction`
+- `@fullcalendar/list`
+- `@fullcalendar/react`
+- `@fullcalendar/timegrid`
+- `@hello-pangea/dnd`
+- `@react-hook/window-size`
+- `@tanstack/react-form`
+- `@tanstack/react-query`
+- `@tanstack/react-query-devtools`
+- `@tanstack/react-router`
+- `@tanstack/react-table`
+- `@tinymce/tinymce-react`
+- `animate.css`
+- `apexcharts`
+- `bootstrap`
+- `bootstrap-daterangepicker`
+- `bootstrap-icons`
+- `bourbon`
+- `classnames`
+- `dropzone`
+- `font-awesome`
+- `framer-motion`
+- `frappe-gantt`
+- `lightgallery`
+- `moment`
+- `nanoid`
+- `prop-types`
+- `react`
+- `react-apexcharts`
+- `react-bootstrap`
+- `react-bootstrap-daterangepicker`
+- `react-datepicker`
+- `react-dom`
+- `react-dropzone`
+- `react-dropzone-component`
+- `react-feather`
+- `react-perfect-scrollbar`
+- `react-redux`
+- `react-responsive-carousel`
+- `react-select`
+- `react-simple-star-rating`
+- `react-split`
+- `react-toastify`
+- `redux`
+- `remixicon`
+- `simplebar-react`
+- `styled-components`
+- `sweetalert2`
+- `swiper`
+- `tabler-icons-react`
+
+## Development Dependencies
+
+- `@eslint/js`
+- `@tanstack/router-plugin`
+- `@types/react`
+- `@types/react-dom`
+- `@vitejs/plugin-react`
+- `esbuild`
+- `eslint`
+- `eslint-plugin-react`
+- `eslint-plugin-react-hooks`
+- `eslint-plugin-react-refresh`
+- `globals`
+- `sass`
+- `vite`
+
+## Icon and UI Credits
+
+- Bootstrap and Bootstrap Icons are used for the core Bootstrap visual language and icons.
+- Font Awesome packages are used for Font Awesome icons.
+- React Feather is used for Feather icons.
+- Remix Icon is used through `remixicon`.
+- Tabler icons are used through `tabler-icons-react`.
+- SweetAlert2 and the Bootstrap 4 SweetAlert2 theme are used for alert/dialog examples.
+- TinyMCE is used for rich text editor examples.
+- FullCalendar, ApexCharts, amCharts, Swiper, Frappe Gantt, LightGallery, and related libraries are used for template feature demos.
+
+## Preview-Only Assets
+
+Treat the following bundled files as template preview/demo assets. Replace them with licensed project assets before final product distribution where required.
+
+- `src/assets/img/1foldericon.png`
+- `src/assets/img/2image.png`
+- `src/assets/img/32px.png`
+- `src/assets/img/3videoicon.png`
+- `src/assets/img/5psdicon.png`
+- `src/assets/img/6image.png`
+- `src/assets/img/Jampack.svg`
+- `src/assets/img/avatar1.jpg`
+- `src/assets/img/avatar10.jpg`
+- `src/assets/img/avatar11.jpg`
+- `src/assets/img/avatar12.jpg`
+- `src/assets/img/avatar13.jpg`
+- `src/assets/img/avatar14.jpg`
+- `src/assets/img/avatar15.jpg`
+- `src/assets/img/avatar16.jpg`
+- `src/assets/img/avatar2.jpg`
+- `src/assets/img/avatar3.jpg`
+- `src/assets/img/avatar4.jpg`
+- `src/assets/img/avatar5.jpg`
+- `src/assets/img/avatar6.jpg`
+- `src/assets/img/avatar7.jpg`
+- `src/assets/img/avatar8.jpg`
+- `src/assets/img/avatar9.jpg`
+- `src/assets/img/banner-img.png`
+- `src/assets/img/brand-sm.svg`
+- `src/assets/img/card-ae.png`
+- `src/assets/img/card-mc.png`
+- `src/assets/img/card-visa.png`
+- `src/assets/img/checkerboard.png`
+- `src/assets/img/cropper.jpg`
+- `src/assets/img/gallery/mock1.jpg`
+- `src/assets/img/gallery/mock10.jpg`
+- `src/assets/img/gallery/mock11.jpg`
+- `src/assets/img/gallery/mock12.jpg`
+- `src/assets/img/gallery/mock13.jpg`
+- `src/assets/img/gallery/mock14.jpg`
+- `src/assets/img/gallery/mock15.jpg`
+- `src/assets/img/gallery/mock2.jpg`
+- `src/assets/img/gallery/mock3.jpg`
+- `src/assets/img/gallery/mock4.jpg`
+- `src/assets/img/gallery/mock5.jpg`
+- `src/assets/img/gallery/mock6.jpg`
+- `src/assets/img/gallery/mock7.jpg`
+- `src/assets/img/gallery/mock8.jpg`
+- `src/assets/img/gallery/mock9.jpg`
+- `src/assets/img/giphy.gif`
+- `src/assets/img/img-thumb1.jpg`
+- `src/assets/img/interests/interest-1.png`
+- `src/assets/img/interests/interest-10.png`
+- `src/assets/img/interests/interest-11.png`
+- `src/assets/img/interests/interest-12.png`
+- `src/assets/img/interests/interest-2.png`
+- `src/assets/img/interests/interest-3.png`
+- `src/assets/img/interests/interest-4.png`
+- `src/assets/img/interests/interest-5.png`
+- `src/assets/img/interests/interest-6.png`
+- `src/assets/img/interests/interest-7.png`
+- `src/assets/img/interests/interest-8.png`
+- `src/assets/img/interests/interest-9.png`
+- `src/assets/img/jampack-dark.svg`
+- `src/assets/img/jpgicon.png`
+- `src/assets/img/logo-avatar-1.png`
+- `src/assets/img/logo-avatar-10.png`
+- `src/assets/img/logo-avatar-11.png`
+- `src/assets/img/logo-avatar-12.png`
+- `src/assets/img/logo-avatar-2.png`
+- `src/assets/img/logo-avatar-3.png`
+- `src/assets/img/logo-avatar-4.png`
+- `src/assets/img/logo-avatar-5.png`
+- `src/assets/img/logo-avatar-6.png`
+- `src/assets/img/logo-avatar-7.png`
+- `src/assets/img/logo-avatar-8.png`
+- `src/assets/img/logo-avatar-9.png`
+- `src/assets/img/logo-dark.svg`
+- `src/assets/img/logo-icon.png`
+- `src/assets/img/logo-light.png`
+- `src/assets/img/logo-light.svg`
+- `src/assets/img/macaroni-delete-confirmaton.png`
+- `src/assets/img/macaroni-fatal-error.png`
+- `src/assets/img/macaroni-logged-out.png`
+- `src/assets/img/mastercard.png`
+- `src/assets/img/pdficon.png`
+- `src/assets/img/placeholder_card.jpg`
+- `src/assets/img/polygon.svg`
+- `src/assets/img/profile-bg.jpg`
+- `src/assets/img/signature-1.png`
+- `src/assets/img/signup-bg.jpg`
+- `src/assets/img/slide1.jpg`
+- `src/assets/img/slide2.jpg`
+- `src/assets/img/slide3.jpg`
+- `src/assets/img/slide4.jpg`
+- `src/assets/img/slide5.jpg`
+- `src/assets/img/slide6.jpg`
+- `src/assets/img/slide7.jpg`
+- `src/assets/img/start-conversation.png`
+- `src/assets/img/symbol-avatar-1.png`
+- `src/assets/img/symbol-avatar-10.png`
+- `src/assets/img/symbol-avatar-11.png`
+- `src/assets/img/symbol-avatar-12.png`
+- `src/assets/img/symbol-avatar-13.png`
+- `src/assets/img/symbol-avatar-14.png`
+- `src/assets/img/symbol-avatar-15.png`
+- `src/assets/img/symbol-avatar-16.png`
+- `src/assets/img/symbol-avatar-17.png`
+- `src/assets/img/symbol-avatar-18.png`
+- `src/assets/img/symbol-avatar-19.png`
+- `src/assets/img/symbol-avatar-2.png`
+- `src/assets/img/symbol-avatar-3.png`
+- `src/assets/img/symbol-avatar-4.png`
+- `src/assets/img/symbol-avatar-5.png`
+- `src/assets/img/symbol-avatar-6.png`
+- `src/assets/img/symbol-avatar-7.png`
+- `src/assets/img/symbol-avatar-8.png`
+- `src/assets/img/symbol-avatar-9.png`
+- `src/assets/img/templates/template1.png`
+- `src/assets/img/templates/template2.png`
+- `src/assets/img/templates/template3.png`
+- `src/assets/img/templates/template4.png`
+- `src/assets/img/templates/template5.png`
+- `src/assets/img/templates/template6.png`
+- `src/assets/img/templates/template7.png`
+- `src/assets/img/templates/template8.png`
+- `src/assets/img/video-play.png`
+- `src/assets/img/vimeo-play.png`
+
+## Notes for Buyers
+
+- Logo and brand files are part of the template preview and should be replaced for client projects.
+- Avatar, gallery, profile, payment-card, illustration, and template preview images are sample content.
+- Keep third-party license notices from upstream packages when required by those package licenses.

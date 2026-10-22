@@ -5,10 +5,21 @@ import path from 'path';
 const nextConfig: NextConfig = {
   /* config options here */
   images: {
+    unoptimized: true,
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     qualities: [100, 75],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
   },
   turbopack: {
     root: path.resolve(__dirname),
@@ -18,6 +29,10 @@ const nextConfig: NextConfig = {
       {
         source: '/api/:path*',
         destination: 'http://localhost:4000/api/:path*',
+      },
+      {
+        source: '/uploads/:path*',
+        destination: 'http://localhost:4000/uploads/:path*',
       },
     ];
   },

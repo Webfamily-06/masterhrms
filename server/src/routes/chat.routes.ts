@@ -1,9 +1,12 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { broadcastToTenant } from "../socket";
 
 export const chatRouter = Router();
+
+chatRouter.use(requireAuth, resolveTenantContext);
 
 // Prohibited File Extensions (Executables, Embedded Scripts, Env, Code Files)
 export const RESTRICTED_EXTENSIONS = new Set([

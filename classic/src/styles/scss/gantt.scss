@@ -1,0 +1,190 @@
+/*------------------------------------------------------------------
+[Gantt Chart]
+Project: Jampack
+-------------------------------------------------------------------*/
+
+.gantt {
+    .grid-background {
+        fill: none;
+    }
+
+    .grid-header {
+        // Dynamic Header Background (White in Light, Dark in Dark)
+        fill: var(--bs-body-bg);
+        stroke: var(--bs-border-color);
+        stroke-width: 1.4;
+    }
+
+    .grid-row {
+        // Dynamic Row Background
+        fill: var(--bs-body-bg);
+    }
+
+    .grid-row:nth-child(even) {
+        // Alternating Row Color (Light Gray in Light, Dark Gray in Dark)
+        fill: var(--bs-tertiary-bg);
+    }
+
+    .row-line {
+        stroke: var(--bs-border-color);
+    }
+
+    .tick {
+        stroke: var(--bs-border-color);
+        stroke-width: 0.2;
+        &.thick {
+            stroke-width: 0.4;
+        }
+    }
+
+    .today-highlight {
+        // Use Bootstrap's subtle warning color for "Today"
+        fill: var(--bs-warning-bg-subtle);
+        opacity: 0.5;
+    }
+
+    .arrow {
+        fill: none;
+        stroke: var(--bs-secondary-color); // Muted text color for arrows
+        stroke-width: 1.4;
+    }
+
+    .bar {
+        // Default Bar Color (Secondary/Gray)
+        fill: var(--bs-secondary-bg);
+        stroke: var(--bs-border-color);
+        stroke-width: 0;
+        transition: stroke-width .3s ease;
+        user-select: none;
+    }
+
+    .bar-progress {
+        // Progress Color (Primary Blue)
+        fill: var(--bs-primary);
+    }
+
+    .bar-invalid {
+        fill: transparent;
+        stroke: var(--bs-border-color);
+        stroke-width: 1;
+        stroke-dasharray: 5;
+
+        &~.bar-label {
+            fill: var(--bs-body-color);
+        }
+    }
+
+    .bar-label {
+        // Text inside bar (White usually looks best on colored bars)
+        fill: var(--bs-white); 
+        dominant-baseline: central;
+        text-anchor: middle;
+        font-size: 12px;
+        font-weight: lighter;
+
+        &.big {
+            // Text outside/next to bar (needs to match body text)
+            fill: var(--bs-body-color);
+            text-anchor: start;
+        }
+    }
+
+    .handle {
+        fill: var(--bs-secondary);
+        cursor: ew-resize;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity .3s ease;
+    }
+
+    .bar-wrapper {
+        cursor: pointer;
+        outline: none;
+
+        &:hover {
+            .bar {
+                // Darken or Lighten based on hover isn't easy with vars, 
+                // but we can swap to a slightly different shade or add a stroke
+                stroke: var(--bs-body-color);
+                stroke-width: 1;
+            }
+
+            .bar-progress {
+                 // Add stroke on hover to highlight
+                 stroke: var(--bs-primary-text-emphasis);
+                 stroke-width: 1;
+            }
+
+            .handle {
+                visibility: visible;
+                opacity: 1;
+            }
+        }
+
+        &.active {
+            .bar {
+                stroke: var(--bs-body-color);
+                stroke-width: 1;
+            }
+
+            .bar-progress {
+                stroke: var(--bs-primary-text-emphasis);
+                stroke-width: 1;
+            }
+        }
+    }
+
+    .lower-text, .upper-text {
+        font-size: 12px;
+        text-anchor: middle;
+    }
+
+    .upper-text {
+        fill: var(--bs-body-color); // Main text
+    }
+
+    .lower-text {
+        fill: var(--bs-secondary-color); // Subtext
+    }
+
+    .hide {
+        display: none;
+    }
+}
+
+.gantt-container {
+    position: relative;
+    overflow: auto;
+    font-size: 12px;
+
+    .popup-wrapper {
+        position: absolute;
+        top: 0;
+        left: 0;
+        // Popup Background (Dark opaque background usually looks best for tooltips in both modes)
+        background: rgba(0, 0, 0, 0.8); 
+        padding: 0;
+        color: #fff;
+        border-radius: 3px;
+        z-index: 100; // Ensure it sits on top
+
+        .title {
+            // Dynamic border bottom matching chart primary color
+            border-bottom: 3px solid var(--bs-primary);
+            padding: 10px;
+        }
+
+        .subtitle {
+            padding: 10px;
+            color: #dfe2e5; // Light gray text for dark tooltip
+        }
+
+        .pointer {
+            position: absolute;
+            height: 5px;
+            margin: 0 0 0 -5px;
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.8);
+        }
+    }
+}

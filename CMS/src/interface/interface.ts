@@ -52,4 +52,13 @@ export interface BlogPost extends MarkdownData {
   footerReadTime: string;
   imageHeight: string;
   order: number;
+  category?: string;
+  tags?: string[];
+  excerpt?: string;
+  coverImage?: string;
+  coverImageAlt?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  canonicalUrl?: string;
+  socialImage?: string;
 }

@@ -2,17 +2,9 @@ import RevealAnimation from '@/src/components/animation/reveal-animation';
 import { TextReveal } from '@/src/components/animation/text-reveal';
 import BlogDetailsMarkdown from '@/src/components/blog-details/blog-details-markdown';
 import RelatedBlog from '@/src/components/blog-details/related-blog';
-import { SocialIcons } from '@/src/components/shared/social-icons';
+import { ArticleShareControls } from '@/src/components/blog-details/article-share-controls';
 import { BlogPost } from '@/src/interface/interface';
 import Image from 'next/image';
-
-const SHARE_SOCIAL_LINKS = [
-  { name: 'LinkedIn', href: 'https://www.linkedin.com/' },
-  { name: 'X', href: 'https://x.com/' },
-  { name: 'Facebook', href: 'https://www.facebook.com/' },
-  { name: 'Instagram', href: 'https://www.instagram.com/' },
-  { name: 'YouTube', href: 'https://www.youtube.com/' },
-] as const;
 
 const PLACEHOLDER_MAP: Record<string, string> = {
   '/images/ns-img-34.jpg': '/images/blog/blog-3.svg',
@@ -95,7 +87,7 @@ const DetailsInfo = ({ data, content, relatedPosts }: DetailsInfoProps) => {
               priority
               sizes="(max-width: 1200px) 100vw, 1100px"
               className="object-cover"
-              unoptimized={typeof resolvedCover === 'string' && resolvedCover.endsWith('.svg')}
+              unoptimized
             />
           </figure>
         </RevealAnimation>
@@ -140,9 +132,11 @@ const DetailsInfo = ({ data, content, relatedPosts }: DetailsInfoProps) => {
               </div>
             </div>
 
-            {data.category && (
+            {Boolean(data.category) && (
               <span className="px-3.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-                {data.category}
+                {typeof data.category === 'object' && data.category !== null
+                  ? String((data.category as Record<string, any>).name || '')
+                  : String(data.category)}
               </span>
             )}
           </div>
@@ -184,7 +178,11 @@ const DetailsInfo = ({ data, content, relatedPosts }: DetailsInfoProps) => {
               Spread insights with your engineering & HR leadership networks.
             </p>
           </div>
-          <SocialIcons links={SHARE_SOCIAL_LINKS} iconClassName="stroke-secondary" />
+          <ArticleShareControls
+            slug={data.slug || ''}
+            title={data.title || ''}
+            canonicalUrlOverride={data.canonicalUrl}
+          />
         </div>
 
         {/* ==========================================================

@@ -1,7 +1,12 @@
 import DetailsInfo from '@/src/components/blog-details/details-info';
 import CTA from '@/src/components/shared/cta';
 import { BlogPost } from '@/src/interface/interface';
-import { generateMetadata as buildMeta } from '@/src/utils/generateMetaData';
+import {
+  getTrustedCanonicalBlogUrl,
+  getTrustedCanonicalDomain,
+  validateCanonicalUrlOverride,
+  resolveMediaAssetUrl,
+} from '@/lib/platform-domain';
 import getMarkDownContent from '@/src/utils/getMarkDownContent';
 import getMarkDownData from '@/src/utils/getMarkDownData';
 import type { Metadata } from 'next';
@@ -72,6 +77,14 @@ async function getPostData(
                 footerAuthorName: c.author || 'Master HRMS Editorial',
                 footerAuthorImage: '/images/ns-avatar-8.jpg',
                 category: c.category || 'ERP Insights',
+                tags: Array.isArray(c.tags) ? c.tags : [],
+                excerpt: c.excerpt || page.meta_description || c.hero?.subtitle || '',
+                coverImage: fallbackCover,
+                coverImageAlt: c.coverImageAlt || page.title,
+                seoTitle: c.seoTitle || page.title,
+                seoDescription: c.seoDescription || page.meta_description || c.excerpt || '',
+                canonicalUrl: c.canonicalUrl || '',
+                socialImage: c.socialImage || fallbackCover,
               } as Partial<BlogPost>,
               content: c.body || c.richText || c.excerpt || '',
             };
@@ -97,6 +110,14 @@ async function getPostData(
                 footerAuthorName: c.author || 'Master HRMS Editorial',
                 footerAuthorImage: '/images/ns-avatar-8.jpg',
                 category: c.category || 'ERP Insights',
+                tags: Array.isArray(c.tags) ? c.tags : [],
+                excerpt: c.excerpt || page.meta_description || c.hero?.subtitle || '',
+                coverImage: fallbackCover,
+                coverImageAlt: c.coverImageAlt || page.title,
+                seoTitle: c.seoTitle || page.title,
+                seoDescription: c.seoDescription || page.meta_description || c.excerpt || '',
+                canonicalUrl: c.canonicalUrl || '',
+                socialImage: c.socialImage || fallbackCover,
               } as Partial<BlogPost>,
               content: c.body || c.richText || c.excerpt || '',
               isDraftPreview: true,
@@ -150,15 +171,69 @@ export async function generateMetadata({
   const post = await getPostData(slug, isPreview, token);
 
   if (!post) {
-    return buildMeta('Post Not Found');
+    return {
+      title: 'Post Not Found - Master HRMS',
+      robots: { index: false, follow: false },
+    };
   }
 
-  const prefix = post.isDraftPreview ? '[DRAFT PREVIEW] ' : '';
-  const title = post.data.title
-    ? `${prefix}${post.data.title} - Blog - Master HRMS`
-    : 'Blog Details - Master HRMS';
+  // Unpublished drafts must NOT expose public SEO indexing or public metadata
+  if (post.isDraftPreview) {
+    return {
+      title: `[DRAFT PREVIEW] ${post.data.title || 'Draft'} - Master HRMS`,
+      robots: { index: false, follow: false },
+    };
+  }
 
-  return buildMeta(title);
+  const cleanSlug = slug.replace(/^blog-/, '');
+  const validatedOverride = validateCanonicalUrlOverride(post.data.canonicalUrl);
+  const canonicalUrl = validatedOverride || getTrustedCanonicalBlogUrl(cleanSlug);
+  const resolvedTitle = (post.data.seoTitle || post.data.title || 'Enterprise Blog') + ' - Master HRMS';
+  const resolvedDescription =
+    post.data.seoDescription ||
+    post.data.excerpt ||
+    'Insights, engineering guides, and workforce automation strategies from Master HRMS.';
+
+  // Resolve absolute social image URL for Open Graph & Twitter crawlers
+  const rawSocialImg = resolveMediaAssetUrl(post.data.socialImage || post.data.image || '/images/blog/blog-1.svg');
+  let socialImg = rawSocialImg;
+  if (socialImg.startsWith('/')) {
+    const canonicalDomain = getTrustedCanonicalDomain();
+    const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+    const protocol = isProd ? 'https:' : canonicalDomain.startsWith('localhost') || canonicalDomain.startsWith('127.0.0.1') ? 'http:' : 'https:';
+    socialImg = `${protocol}//${canonicalDomain}${socialImg}`;
+  }
+
+  return {
+    title: resolvedTitle,
+    description: resolvedDescription,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title: resolvedTitle,
+      description: resolvedDescription,
+      url: canonicalUrl,
+      type: 'article',
+      siteName: 'Master HRMS',
+      publishedTime: post.data.dateTime,
+      authors: post.data.authorName ? [post.data.authorName] : ['Master HRMS Editorial'],
+      images: [
+        {
+          url: socialImg,
+          width: 1200,
+          height: 630,
+          alt: post.data.coverImageAlt || post.data.title || 'Article preview',
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: resolvedTitle,
+      description: resolvedDescription,
+      images: [socialImg],
+    },
+  };
 }
 
 const Page = async ({
