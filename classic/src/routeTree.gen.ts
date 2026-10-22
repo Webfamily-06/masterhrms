@@ -23,7 +23,9 @@ import { Route as AuthAuthLoginClassicRouteImport } from './routes/_auth.auth.lo
 import { Route as AuthAuthLoginRouteImport } from './routes/_auth.auth.login'
 import { Route as AuthAuthLockScreenRouteImport } from './routes/_auth.auth.lock-screen'
 import { Route as AuthAuthError503RouteImport } from './routes/_auth.auth.error-503'
+import { Route as AppSettingsEmailAccountsRouteImport } from './routes/_app.settings.email-accounts'
 import { Route as AppPagesProfileRouteImport } from './routes/_app.pages.profile'
+import { Route as AppPagesEmailAccountsRouteImport } from './routes/_app.pages.email-accounts'
 import { Route as AppPagesEditProfileRouteImport } from './routes/_app.pages.edit-profile'
 import { Route as AppPagesAccountRouteImport } from './routes/_app.pages.account'
 import { Route as AppAppsGalleryRouteImport } from './routes/_app.apps.gallery'
@@ -124,9 +126,20 @@ const AuthAuthError503Route = AuthAuthError503RouteImport.update({
   path: '/auth/error-503',
   getParentRoute: () => AuthRoute,
 } as any)
+const AppSettingsEmailAccountsRoute =
+  AppSettingsEmailAccountsRouteImport.update({
+    id: '/settings/email-accounts',
+    path: '/settings/email-accounts',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppPagesProfileRoute = AppPagesProfileRouteImport.update({
   id: '/pages/profile',
   path: '/pages/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPagesEmailAccountsRoute = AppPagesEmailAccountsRouteImport.update({
+  id: '/pages/email-accounts',
+  path: '/pages/email-accounts',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPagesEditProfileRoute = AppPagesEditProfileRouteImport.update({
@@ -310,7 +323,9 @@ export interface FileRoutesByFullPath {
   '/apps/gallery': typeof AppAppsGalleryRoute
   '/pages/account': typeof AppPagesAccountRoute
   '/pages/edit-profile': typeof AppPagesEditProfileRoute
+  '/pages/email-accounts': typeof AppPagesEmailAccountsRoute
   '/pages/profile': typeof AppPagesProfileRoute
+  '/settings/email-accounts': typeof AppSettingsEmailAccountsRoute
   '/auth/error-503': typeof AuthAuthError503Route
   '/auth/lock-screen': typeof AuthAuthLockScreenRoute
   '/auth/login': typeof AuthAuthLoginRoute
@@ -356,7 +371,9 @@ export interface FileRoutesByTo {
   '/apps/gallery': typeof AppAppsGalleryRoute
   '/pages/account': typeof AppPagesAccountRoute
   '/pages/edit-profile': typeof AppPagesEditProfileRoute
+  '/pages/email-accounts': typeof AppPagesEmailAccountsRoute
   '/pages/profile': typeof AppPagesProfileRoute
+  '/settings/email-accounts': typeof AppSettingsEmailAccountsRoute
   '/auth/error-503': typeof AuthAuthError503Route
   '/auth/lock-screen': typeof AuthAuthLockScreenRoute
   '/auth/login': typeof AuthAuthLoginRoute
@@ -405,7 +422,9 @@ export interface FileRoutesById {
   '/_app/apps/gallery': typeof AppAppsGalleryRoute
   '/_app/pages/account': typeof AppPagesAccountRoute
   '/_app/pages/edit-profile': typeof AppPagesEditProfileRoute
+  '/_app/pages/email-accounts': typeof AppPagesEmailAccountsRoute
   '/_app/pages/profile': typeof AppPagesProfileRoute
+  '/_app/settings/email-accounts': typeof AppSettingsEmailAccountsRoute
   '/_auth/auth/error-503': typeof AuthAuthError503Route
   '/_auth/auth/lock-screen': typeof AuthAuthLockScreenRoute
   '/_auth/auth/login': typeof AuthAuthLoginRoute
@@ -453,7 +472,9 @@ export interface FileRouteTypes {
     | '/apps/gallery'
     | '/pages/account'
     | '/pages/edit-profile'
+    | '/pages/email-accounts'
     | '/pages/profile'
+    | '/settings/email-accounts'
     | '/auth/error-503'
     | '/auth/lock-screen'
     | '/auth/login'
@@ -499,7 +520,9 @@ export interface FileRouteTypes {
     | '/apps/gallery'
     | '/pages/account'
     | '/pages/edit-profile'
+    | '/pages/email-accounts'
     | '/pages/profile'
+    | '/settings/email-accounts'
     | '/auth/error-503'
     | '/auth/lock-screen'
     | '/auth/login'
@@ -547,7 +570,9 @@ export interface FileRouteTypes {
     | '/_app/apps/gallery'
     | '/_app/pages/account'
     | '/_app/pages/edit-profile'
+    | '/_app/pages/email-accounts'
     | '/_app/pages/profile'
+    | '/_app/settings/email-accounts'
     | '/_auth/auth/error-503'
     | '/_auth/auth/lock-screen'
     | '/_auth/auth/login'
@@ -691,11 +716,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAuthError503RouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_app/settings/email-accounts': {
+      id: '/_app/settings/email-accounts'
+      path: '/settings/email-accounts'
+      fullPath: '/settings/email-accounts'
+      preLoaderRoute: typeof AppSettingsEmailAccountsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/pages/profile': {
       id: '/_app/pages/profile'
       path: '/pages/profile'
       fullPath: '/pages/profile'
       preLoaderRoute: typeof AppPagesProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/pages/email-accounts': {
+      id: '/_app/pages/email-accounts'
+      path: '/pages/email-accounts'
+      fullPath: '/pages/email-accounts'
+      preLoaderRoute: typeof AppPagesEmailAccountsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/pages/edit-profile': {
@@ -926,7 +965,9 @@ interface AppRouteChildren {
   AppAppsGalleryRoute: typeof AppAppsGalleryRoute
   AppPagesAccountRoute: typeof AppPagesAccountRoute
   AppPagesEditProfileRoute: typeof AppPagesEditProfileRoute
+  AppPagesEmailAccountsRoute: typeof AppPagesEmailAccountsRoute
   AppPagesProfileRoute: typeof AppPagesProfileRoute
+  AppSettingsEmailAccountsRoute: typeof AppSettingsEmailAccountsRoute
   AppAppsBlogAddNewPostRoute: typeof AppAppsBlogAddNewPostRoute
   AppAppsBlogPostDetailRoute: typeof AppAppsBlogPostDetailRoute
   AppAppsBlogPostsRoute: typeof AppAppsBlogPostsRoute
@@ -963,7 +1004,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppAppsGalleryRoute: AppAppsGalleryRoute,
   AppPagesAccountRoute: AppPagesAccountRoute,
   AppPagesEditProfileRoute: AppPagesEditProfileRoute,
+  AppPagesEmailAccountsRoute: AppPagesEmailAccountsRoute,
   AppPagesProfileRoute: AppPagesProfileRoute,
+  AppSettingsEmailAccountsRoute: AppSettingsEmailAccountsRoute,
   AppAppsBlogAddNewPostRoute: AppAppsBlogAddNewPostRoute,
   AppAppsBlogPostDetailRoute: AppAppsBlogPostDetailRoute,
   AppAppsBlogPostsRoute: AppAppsBlogPostsRoute,

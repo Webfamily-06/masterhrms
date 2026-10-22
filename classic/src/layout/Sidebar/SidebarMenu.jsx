@@ -324,9 +324,26 @@ export const SidebarMenu = [
                         path: '/pages/account',
                         grp_name: "apps",
                     },
+                    {
+                        name: 'Email Accounts',
+                        path: '/settings/email-accounts',
+                        grp_name: "apps",
+                    },
                 ]
             },
-
+            {
+                id: "dash_settings",
+                name: 'Settings',
+                icon: <Icons.Settings />,
+                path: '/settings',
+                childrens: [
+                    {
+                        name: 'Email Accounts',
+                        path: '/settings/email-accounts',
+                        grp_name: "apps",
+                    },
+                ]
+            },
         ]
     },
 

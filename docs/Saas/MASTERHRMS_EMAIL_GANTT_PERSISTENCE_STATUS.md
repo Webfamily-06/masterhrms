@@ -54,6 +54,14 @@ This technical specification details the implementation, architecture, and indep
 - Loading indicator (`Sending...`) with `disabled={sending}` preventing redundant/duplicate clicks during in-flight dispatches.
 - Reactive dismissible alert banner displaying verified server responses without falsifying delivery success.
 
+### 2.5. Per-User Email Account Configuration (SMTP + IMAP + POP3) & Isolation
+- **Architectural Boundary:** `mail.masterhrms.com` is strictly reserved for Super Admin transactional system email. Individual users configure their own external mailbox servers (Gmail, Outlook, Yahoo, or corporate IMAP/POP3/SMTP).
+- **Settings UI (`/settings/email-accounts`):** Dedicated page featuring Account Identity, Incoming Mail Configuration (IMAP/POP3 with protocol guidance), Outgoing SMTP Configuration, and Actions (Save, Test Incoming, Test Outgoing, Send Test Email, Set as Default, Disconnect).
+- **Personal Mailbox Integration (`/apps/email`):** Uses user's configured account for live message retrieval, folder switching, and outbound SMTP dispatch. When unconfigured, displays an honest setup prompt linking to Settings.
+- **Cryptographic Security:** Passwords stored with AES-256-GCM authenticated encryption at rest (with random IV and auth tags); zero secrets returned in API responses or DOM.
+- **SSRF Mitigation:** Hostnames validated against loopback, private RFC1918 subnets, cloud metadata (`169.254.169.254`), and verified via DNS resolution before socket connections.
+- **Verification Evidence:** 36/36 security & isolation checks passed (`scripts/test_user_email_accounts.mjs`) + 33/33 Playwright checks passed (`scripts/test_email_accounts_playwright.mjs`). See full report in `docs/Saas/MASTERHRMS_USER_EMAIL_ACCOUNTS_SECURITY_REPORT.md`.
+
 ---
 
 ## 3. Editable Gantt Timeline Implementation

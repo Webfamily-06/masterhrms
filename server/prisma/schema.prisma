@@ -31,6 +31,7 @@ model User {
   roles                    UserRole[]
   workspaceNotes           WorkspaceNote[]
   workspaceTodos           WorkspaceTodo[]
+  emailAccounts            UserEmailAccount[]
 
   @@map("users")
 }
@@ -230,6 +231,7 @@ model Tenant {
   units                        Unit[]
   userRoleAssignments          UserRoleAssignment[]
   userRoles                    UserRole[]
+  userEmailAccounts            UserEmailAccount[]
   warehouses                   Warehouse[]
   warningTypes                 WarningType[]
   wfhRequests                  WfhRequest[]
@@ -5691,4 +5693,48 @@ enum SettingScope {
   PLATFORM
   TENANT
   USER
+}
+
+model UserEmailAccount {
+  id                   String    @id @default(uuid()) @db.VarChar(36)
+  userId               String    @map("user_id") @db.VarChar(36)
+  tenantId             String    @map("tenant_id") @db.VarChar(36)
+  email                String    @db.VarChar(255)
+  displayName          String?   @map("display_name") @db.VarChar(255)
+  fromName             String?   @map("from_name") @db.VarChar(255)
+  username             String?   @db.VarChar(255)
+
+  // Incoming configuration (IMAP or POP3)
+  incomingProtocol     String    @default("IMAP") @map("incoming_protocol") @db.VarChar(10) // "IMAP" | "POP3"
+  incomingHost         String    @map("incoming_host") @db.VarChar(255)
+  incomingPort         Int       @default(993) @map("incoming_port")
+  incomingSecurity     String    @default("SSL/TLS") @map("incoming_security") @db.VarChar(20) // "SSL/TLS" | "STARTTLS" | "NONE"
+  incomingPassCipher   String    @map("incoming_pass_cipher") @db.Text
+  incomingPassIv       String    @map("incoming_pass_iv") @db.VarChar(64)
+  incomingPassAuthTag  String    @map("incoming_pass_auth_tag") @db.VarChar(64)
+
+  // Outgoing SMTP configuration
+  smtpHost             String    @map("smtp_host") @db.VarChar(255)
+  smtpPort             Int       @default(465) @map("smtp_port")
+  smtpSecurity         String    @default("SSL/TLS") @map("smtp_security") @db.VarChar(20) // "SSL/TLS" | "STARTTLS" | "NONE"
+  smtpUser             String?   @map("smtp_user") @db.VarChar(255)
+  smtpPassCipher       String    @map("smtp_pass_cipher") @db.Text
+  smtpPassIv           String    @map("smtp_pass_iv") @db.VarChar(64)
+  smtpPassAuthTag      String    @map("smtp_pass_auth_tag") @db.VarChar(64)
+
+  // Account status & health
+  status               String    @default("NOT_CONFIGURED") @db.VarChar(30) // "NOT_CONFIGURED" | "TESTING" | "CONNECTED" | "AUTHENTICATION_FAILED" | "CONNECTION_FAILED"
+  statusMessage        String?   @map("status_message") @db.Text
+  lastTestedAt         DateTime? @map("last_tested_at")
+  isDefault            Boolean   @default(false) @map("is_default")
+
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tenantId])
+  @@index([tenantId])
+  @@map("user_email_accounts")
 }

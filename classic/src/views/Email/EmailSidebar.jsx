@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Badge, Button, Col, Form, Modal, Nav, Row } from 'react-bootstrap';
+import { Badge, Button, Col, Form, Modal, Nav, Row, Dropdown } from 'react-bootstrap';
 import { Archive, Book, Edit, Inbox, Plus, Send, Settings, Star, Trash2 } from 'react-feather';
 import SimpleBar from 'simplebar-react';
 import HkTooltip from '../../components/@hk-tooltip/HkTooltip';
 import ComposeEmail from './ComposeEmail';
+import { useEmail } from './EmailContext';
 
 //Redux
 import { connect } from 'react-redux';
@@ -11,19 +12,83 @@ import { Compose } from '../../redux/action/Email';
 
 const EmailSidebar = ({ Compose, composeEmail }) => {
     const [addCategory, setAddCategory] = useState(false);
+    const {
+        accounts,
+        loadingAccounts,
+        activeAccountId,
+        setActiveAccountId,
+        activeAccount,
+        activeFolder,
+        setActiveFolder,
+    } = useEmail();
 
     return (
         <>
             <Nav className="emailapp-sidebar">
                 <SimpleBar className="nicescroll-bar">
                     <div className="menu-content-wrap">
-                        <Button variant="primary" className="btn-rounded btn-block mb-4 show-compose-popup" onClick={() => Compose(!composeEmail)} >
+                        {/* Personal Mail Account Selector */}
+                        <div className="mb-3 px-1">
+                            <label className="fs-8 text-uppercase fw-bold text-muted mb-1 d-block">Personal Account</label>
+                            {loadingAccounts ? (
+                                <div className="text-muted fs-8">Loading accounts...</div>
+                            ) : accounts.length === 0 ? (
+                                <div className="p-2 border rounded bg-light text-center">
+                                    <div className="fs-8 text-danger fw-semibold mb-1">No Account Configured</div>
+                                    <Button as="a" href="/settings/email-accounts" size="xs" variant="primary" className="btn-block">
+                                        <Plus size={12} className="me-1" /> Connect Account
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Dropdown className="w-100">
+                                    <Dropdown.Toggle variant="light" size="sm" className="w-100 text-start d-flex align-items-center justify-content-between text-truncate">
+                                        <div className="text-truncate me-1">
+                                            <div className="fw-medium text-truncate">{activeAccount?.displayName || activeAccount?.email}</div>
+                                            <div className="text-muted fs-8 text-truncate">
+                                                {activeAccount?.incomingProtocol} • {activeAccount?.email}
+                                            </div>
+                                        </div>
+                                    </Dropdown.Toggle>
+                                    <Dropdown.Menu className="w-100 shadow-sm">
+                                        <Dropdown.Header className="fs-8 text-uppercase">Configured Accounts</Dropdown.Header>
+                                        {accounts.map(acc => (
+                                            <Dropdown.Item
+                                                key={acc.id}
+                                                active={acc.id === activeAccountId}
+                                                onClick={() => setActiveAccountId(acc.id)}
+                                                className="d-flex align-items-center justify-content-between"
+                                            >
+                                                <div className="text-truncate me-2">
+                                                    <div className="fw-medium text-truncate">{acc.displayName || acc.email}</div>
+                                                    <div className="fs-8 text-muted">{acc.incomingProtocol} • {acc.email}</div>
+                                                </div>
+                                                {acc.isDefault && <Badge bg="primary" pill className="fs-9">Default</Badge>}
+                                            </Dropdown.Item>
+                                        ))}
+                                        <Dropdown.Divider />
+                                        <Dropdown.Item as="a" href="/settings/email-accounts" className="text-primary fw-medium">
+                                            <Settings size={14} className="me-2" /> Manage Email Accounts
+                                        </Dropdown.Item>
+                                    </Dropdown.Menu>
+                                </Dropdown>
+                            )}
+                        </div>
+
+                        <Button
+                            variant="primary"
+                            className="btn-rounded btn-block mb-4 show-compose-popup"
+                            onClick={() => Compose(!composeEmail)}
+                        >
                             Compose email
                         </Button>
                         <div className="menu-group">
-                            <Nav className="nav-light navbar-nav flex-column" defaultActiveKey="inbox" >
+                            <Nav className="nav-light navbar-nav flex-column" activeKey={activeFolder}>
                                 <Nav.Item>
-                                    <Nav.Link eventKey="inbox" >
+                                    <Nav.Link
+                                        eventKey="INBOX"
+                                        active={activeFolder === 'INBOX'}
+                                        onClick={() => setActiveFolder('INBOX')}
+                                    >
                                         <span className="nav-icon-wrap">
                                             <span className="feather-icon">
                                                 <Inbox />
@@ -33,7 +98,11 @@ const EmailSidebar = ({ Compose, composeEmail }) => {
                                     </Nav.Link>
                                 </Nav.Item>
                                 <Nav.Item>
-                                    <Nav.Link>
+                                    <Nav.Link
+                                        eventKey="IMPORTANT"
+                                        active={activeFolder === 'IMPORTANT'}
+                                        onClick={() => setActiveFolder('IMPORTANT')}
+                                    >
                                         <span className="nav-icon-wrap">
                                             <span className="feather-icon">
                                                 <Star />
@@ -43,7 +112,11 @@ const EmailSidebar = ({ Compose, composeEmail }) => {
                                     </Nav.Link>
                                 </Nav.Item>
                                 <Nav.Item>
-                                    <Nav.Link>
+                                    <Nav.Link
+                                        eventKey="SENT"
+                                        active={activeFolder === 'SENT'}
+                                        onClick={() => setActiveFolder('SENT')}
+                                    >
                                         <span className="nav-icon-wrap">
                                             <span className="feather-icon">
                                                 <Send />
@@ -53,7 +126,11 @@ const EmailSidebar = ({ Compose, composeEmail }) => {
                                     </Nav.Link>
                                 </Nav.Item>
                                 <Nav.Item>
-                                    <Nav.Link>
+                                    <Nav.Link
+                                        eventKey="ARCHIVE"
+                                        active={activeFolder === 'ARCHIVE'}
+                                        onClick={() => setActiveFolder('ARCHIVE')}
+                                    >
                                         <span className="nav-icon-wrap">
                                             <span className="feather-icon">
                                                 <Archive />
@@ -63,7 +140,11 @@ const EmailSidebar = ({ Compose, composeEmail }) => {
                                     </Nav.Link>
                                 </Nav.Item>
                                 <Nav.Item>
-                                    <Nav.Link>
+                                    <Nav.Link
+                                        eventKey="DRAFTS"
+                                        active={activeFolder === 'DRAFTS'}
+                                        onClick={() => setActiveFolder('DRAFTS')}
+                                    >
                                         <span className="nav-icon-wrap">
                                             <span className="feather-icon">
                                                 <Edit />
@@ -73,7 +154,11 @@ const EmailSidebar = ({ Compose, composeEmail }) => {
                                     </Nav.Link>
                                 </Nav.Item>
                                 <Nav.Item>
-                                    <Nav.Link>
+                                    <Nav.Link
+                                        eventKey="TRASH"
+                                        active={activeFolder === 'TRASH'}
+                                        onClick={() => setActiveFolder('TRASH')}
+                                    >
                                         <span className="nav-icon-wrap">
                                             <span className="feather-icon">
                                                 <Trash2 />
@@ -130,8 +215,8 @@ const EmailSidebar = ({ Compose, composeEmail }) => {
                     <div className="hk-toolbar">
                         <Nav className="nav-light">
                             <Nav.Item className="nav-link">
-                                <Button variant="flush-dark" className="btn-icon btn-rounded flush-soft-hover">
-                                    <HkTooltip id="tooltip2" placement="top" title="Settings" >
+                                <Button as="a" href="/settings/email-accounts" variant="flush-dark" className="btn-icon btn-rounded flush-soft-hover">
+                                    <HkTooltip id="tooltip2" placement="top" title="Email Accounts Settings" >
                                         <span className="icon">
                                             <span className="feather-icon">
                                                 <Settings />
@@ -193,12 +278,12 @@ const EmailSidebar = ({ Compose, composeEmail }) => {
             {/* Compose email */}
             <ComposeEmail show={composeEmail} onClose={() => Compose(false)} />
         </>
-    )
-}
+    );
+};
 
 const mapStateToProps = ({ emailReducer }) => {
     const { composeEmail } = emailReducer;
-    return { composeEmail, }
+    return { composeEmail };
 };
 
 export default connect(mapStateToProps, { Compose })(EmailSidebar);

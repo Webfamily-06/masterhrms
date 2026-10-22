@@ -4,15 +4,16 @@ import EmailBody from './EmailBody';
 import EmailHeader from './EmailHeader';
 import EmailSidebar from './EmailSidebar';
 import InboxList from './Inbox';
+import { EmailProvider } from './EmailContext';
 
 //Redux
 import { connect } from 'react-redux';
 
-const Email = ({ startChating }) => {
+const EmailInner = ({ startChating }) => {
     const [showSidebar, setshowSidebar] = useState(true);
     return (
         <div className="hk-pg-body py-0">
-            <div className={classNames("emailapp-wrap", { "emailapp-sidebar-toggle": !showSidebar },{ "emailapp-slide": startChating })}>
+            <div className={classNames("emailapp-wrap", { "emailapp-sidebar-toggle": !showSidebar }, { "emailapp-slide": startChating })}>
                 <EmailSidebar />
                 <div className="emailapp-content">
                     <InboxList show={showSidebar} toggleSidebar={() => setshowSidebar(!showSidebar)} />
@@ -23,13 +24,20 @@ const Email = ({ startChating }) => {
                 </div>
             </div>
         </div>
+    );
+};
 
-    )
-}
+const Email = ({ startChating }) => {
+    return (
+        <EmailProvider>
+            <EmailInner startChating={startChating} />
+        </EmailProvider>
+    );
+};
 
 const mapStateToProps = ({ chatReducer }) => {
     const { startChating } = chatReducer;
-    return { startChating }
+    return { startChating };
 };
 
 export default connect(mapStateToProps)(Email);
