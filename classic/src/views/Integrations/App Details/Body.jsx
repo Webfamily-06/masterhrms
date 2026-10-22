@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SimpleBar from 'simplebar-react';
 import { Link } from '/src/utils/router-compat.jsx';
 import { Rating } from 'react-simple-star-rating';
-import { Button, Card, Col, Container, Form, ListGroup, Nav, Row, Tab } from 'react-bootstrap';
+import { Badge, Button, Card, Col, Container, Form, ListGroup, Nav, Row, Tab } from 'react-bootstrap';
 import { Bookmark, ExternalLink, Share } from 'react-feather';
 import ReviewModal from './ReviewModal';
 import { Carousel } from 'react-responsive-carousel';

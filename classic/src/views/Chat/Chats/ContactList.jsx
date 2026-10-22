@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SimpleBar from 'simplebar-react';
 import { Link } from '/src/utils/router-compat.jsx';
 import classNames from 'classnames';

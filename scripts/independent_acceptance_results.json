@@ -1,0 +1,892 @@
+{
+  "timestamp": "2026-10-22T12:19:32.338Z",
+  "auditA_UIParity": {
+    "totalRoutes": 15,
+    "passedRoutes": 15,
+    "results": [
+      {
+        "id": "app_01",
+        "label": "Chat Chats",
+        "path": "/apps/chat/chats",
+        "container": ".chatapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 1684,
+        "screenshotSize": 247694,
+        "screenshotFile": "final_app_01_chat_chats.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_02",
+        "label": "Chat Groups",
+        "path": "/apps/chat/chat-groups",
+        "container": ".chatapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 974,
+        "screenshotSize": 150718,
+        "screenshotFile": "final_app_02_chat_groups.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_03",
+        "label": "Chat Contact",
+        "path": "/apps/chat/chat-contact",
+        "container": ".chatapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 949,
+        "screenshotSize": 132456,
+        "screenshotFile": "final_app_03_chat_contact.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_04",
+        "label": "Calendar",
+        "path": "/apps/calendar",
+        "container": ".calendar-app, .fc",
+        "containerFound": true,
+        "bodyTextLength": 1100,
+        "screenshotSize": 107980,
+        "screenshotFile": "final_app_04_calendar.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_05",
+        "label": "Email",
+        "path": "/apps/email",
+        "container": ".emailapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 2015,
+        "screenshotSize": 172306,
+        "screenshotFile": "final_app_05_email.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_06",
+        "label": "Projects Board",
+        "path": "/apps/taskboard/projects-board",
+        "container": ".hk-pg-body",
+        "containerFound": true,
+        "bodyTextLength": 495,
+        "screenshotSize": 91771,
+        "screenshotFile": "final_app_06_taskboard_projects.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_07",
+        "label": "Kanban Board",
+        "path": "/apps/taskboard/kanban-board",
+        "container": ".taskboard-body",
+        "containerFound": true,
+        "bodyTextLength": 2537,
+        "screenshotSize": 133214,
+        "screenshotFile": "final_app_07_taskboard_kanban.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_08",
+        "label": "Pipeline",
+        "path": "/apps/taskboard/pipeline",
+        "container": ".taskboard-body",
+        "containerFound": true,
+        "bodyTextLength": 1534,
+        "screenshotSize": 123079,
+        "screenshotFile": "final_app_08_taskboard_pipeline.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_09",
+        "label": "File Manager List View",
+        "path": "/apps/file-manager/list-view",
+        "container": ".fmapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 1192,
+        "screenshotSize": 132180,
+        "screenshotFile": "final_app_09_filemanager_list.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_10",
+        "label": "File Manager Grid View",
+        "path": "/apps/file-manager/grid-view",
+        "container": ".fmapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 1212,
+        "screenshotSize": 89086,
+        "screenshotFile": "final_app_10_filemanager_grid.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_11",
+        "label": "To-do Task List",
+        "path": "/apps/todo/task-list",
+        "container": ".todoapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 1862,
+        "screenshotSize": 132025,
+        "screenshotFile": "final_app_11_todo_tasklist.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_12",
+        "label": "To-do Gantt",
+        "path": "/apps/todo/gantt",
+        "container": ".gantt-wrap",
+        "containerFound": true,
+        "bodyTextLength": 1756,
+        "screenshotSize": 107586,
+        "screenshotFile": "final_app_12_todo_gantt.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_13",
+        "label": "Integrations All Apps",
+        "path": "/apps/integrations/all-apps",
+        "container": ".integrationsapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 8670,
+        "screenshotSize": 154873,
+        "screenshotFile": "final_app_13_integrations_all.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_14",
+        "label": "Active Integrations",
+        "path": "/apps/integrations/integrations",
+        "container": ".integrationsapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 1496,
+        "screenshotSize": 143243,
+        "screenshotFile": "final_app_14_integrations_active.png",
+        "status": "PASS"
+      },
+      {
+        "id": "app_15",
+        "label": "Integration Detail",
+        "path": "/apps/integrations/integrations-detail?slug=outbound-webhooks",
+        "container": ".integrationsapp-wrap",
+        "containerFound": true,
+        "bodyTextLength": 1310,
+        "screenshotSize": 132280,
+        "screenshotFile": "final_app_15_integrations_detail.png",
+        "status": "PASS"
+      }
+    ]
+  },
+  "auditB_Navigation": {
+    "directLoad": true,
+    "reloadPreserved": true,
+    "clientNavigation": true,
+    "backForwardWorks": true,
+    "verdict": "PASS"
+  },
+  "auditC_Email": {
+    "statusEndpointProtected": true,
+    "statusData": {
+      "configured": true,
+      "host": "mail.masterhrms.com",
+      "fromEmail": "support@masterhrms.com",
+      "provider": "SMTP"
+    },
+    "validationWorks": true,
+    "sendAttemptStatus": 500,
+    "sendAttemptResponse": {
+      "success": false,
+      "error": "Failed to deliver outbound email: connect ETIMEDOUT 23.153.104.141:465",
+      "code": "MAIL_DELIVERY_FAILED"
+    },
+    "serverSideCredentialsOnly": true,
+    "verdict": "PASS WITH LIMITATIONS (Transport Error Handled Honestly; Delivery BLOCKED by Unreachable Host)"
+  },
+  "auditD_GanttPersistence": {
+    "taskUpdatedInDb": true,
+    "nonExistentTaskRejectedWith404": true,
+    "kanbanPersistedInDb": true,
+    "kanbanIsolated": true,
+    "pipelinePersistedInDb": true,
+    "verdict": "PASS"
+  },
+  "auditE_Security": {
+    "unauthenticatedBlocked": true,
+    "crossTenantMutationBlocked": true,
+    "unauthenticatedDownloadBlocked": true,
+    "crossTenantDownloadBlocked": true,
+    "entitlementEnforced": true,
+    "verdict": "PASS"
+  },
+  "auditF_RouteMatrix": [
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/chat/chats",
+      "label": "Chat Chats",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 685
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/chat/chat-groups",
+      "label": "Chat Groups",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 609
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/chat/chat-contact",
+      "label": "Chat Contact",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 605
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/calendar",
+      "label": "Calendar",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 625
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/email",
+      "label": "Email",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 611
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/taskboard/projects-board",
+      "label": "Projects Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 653
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/taskboard/kanban-board",
+      "label": "Kanban Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 643
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/taskboard/pipeline",
+      "label": "Pipeline",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 655
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/file-manager/list-view",
+      "label": "File Manager List View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 654
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/file-manager/grid-view",
+      "label": "File Manager Grid View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 642
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/todo/task-list",
+      "label": "To-do Task List",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 638
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/todo/gantt",
+      "label": "To-do Gantt",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 628
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/integrations/all-apps",
+      "label": "Integrations All Apps",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 638
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/integrations/integrations",
+      "label": "Active Integrations",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 653
+    },
+    {
+      "persona": "Super Admin",
+      "role": "super_admin",
+      "route": "/apps/integrations/integrations-detail?slug=outbound-webhooks",
+      "label": "Integration Detail",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 638
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/chat/chats",
+      "label": "Chat Chats",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 659
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/chat/chat-groups",
+      "label": "Chat Groups",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 606
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/chat/chat-contact",
+      "label": "Chat Contact",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 607
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/calendar",
+      "label": "Calendar",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 623
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/email",
+      "label": "Email",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 610
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/taskboard/projects-board",
+      "label": "Projects Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 637
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/taskboard/kanban-board",
+      "label": "Kanban Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 641
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/taskboard/pipeline",
+      "label": "Pipeline",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 655
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/file-manager/list-view",
+      "label": "File Manager List View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 643
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/file-manager/grid-view",
+      "label": "File Manager Grid View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 657
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/todo/task-list",
+      "label": "To-do Task List",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 633
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/todo/gantt",
+      "label": "To-do Gantt",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 642
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/integrations/all-apps",
+      "label": "Integrations All Apps",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 637
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/integrations/integrations",
+      "label": "Active Integrations",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 638
+    },
+    {
+      "persona": "Tenant Admin",
+      "role": "tenant_admin",
+      "route": "/apps/integrations/integrations-detail?slug=outbound-webhooks",
+      "label": "Integration Detail",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 638
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/chat/chats",
+      "label": "Chat Chats",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 671
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/chat/chat-groups",
+      "label": "Chat Groups",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 606
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/chat/chat-contact",
+      "label": "Chat Contact",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 606
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/calendar",
+      "label": "Calendar",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 623
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/email",
+      "label": "Email",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 617
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/taskboard/projects-board",
+      "label": "Projects Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 623
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/taskboard/kanban-board",
+      "label": "Kanban Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 637
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/taskboard/pipeline",
+      "label": "Pipeline",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 652
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/file-manager/list-view",
+      "label": "File Manager List View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 641
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/file-manager/grid-view",
+      "label": "File Manager Grid View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 654
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/todo/task-list",
+      "label": "To-do Task List",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 638
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/todo/gantt",
+      "label": "To-do Gantt",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 641
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/integrations/all-apps",
+      "label": "Integrations All Apps",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 670
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/integrations/integrations",
+      "label": "Active Integrations",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 627
+    },
+    {
+      "persona": "HR Admin",
+      "role": "hr_admin",
+      "route": "/apps/integrations/integrations-detail?slug=outbound-webhooks",
+      "label": "Integration Detail",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 639
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/chat/chats",
+      "label": "Chat Chats",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 674
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/chat/chat-groups",
+      "label": "Chat Groups",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 608
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/chat/chat-contact",
+      "label": "Chat Contact",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 607
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/calendar",
+      "label": "Calendar",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 627
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/email",
+      "label": "Email",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 616
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/taskboard/projects-board",
+      "label": "Projects Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 641
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/taskboard/kanban-board",
+      "label": "Kanban Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 624
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/taskboard/pipeline",
+      "label": "Pipeline",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 655
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/file-manager/list-view",
+      "label": "File Manager List View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 640
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/file-manager/grid-view",
+      "label": "File Manager Grid View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 626
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/todo/task-list",
+      "label": "To-do Task List",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 651
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/todo/gantt",
+      "label": "To-do Gantt",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 629
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/integrations/all-apps",
+      "label": "Integrations All Apps",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 660
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/integrations/integrations",
+      "label": "Active Integrations",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 631
+    },
+    {
+      "persona": "Employee",
+      "role": "employee",
+      "route": "/apps/integrations/integrations-detail?slug=outbound-webhooks",
+      "label": "Integration Detail",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 630
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/chat/chats",
+      "label": "Chat Chats",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 674
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/chat/chat-groups",
+      "label": "Chat Groups",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 611
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/chat/chat-contact",
+      "label": "Chat Contact",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 608
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/calendar",
+      "label": "Calendar",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 624
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/email",
+      "label": "Email",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 615
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/taskboard/projects-board",
+      "label": "Projects Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 652
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/taskboard/kanban-board",
+      "label": "Kanban Board",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 627
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/taskboard/pipeline",
+      "label": "Pipeline",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 636
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/file-manager/list-view",
+      "label": "File Manager List View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 638
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/file-manager/grid-view",
+      "label": "File Manager Grid View",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 642
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/todo/task-list",
+      "label": "To-do Task List",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 652
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/todo/gantt",
+      "label": "To-do Gantt",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 642
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/integrations/all-apps",
+      "label": "Integrations All Apps",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 650
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/integrations/integrations",
+      "label": "Active Integrations",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 635
+    },
+    {
+      "persona": "Tenant B User",
+      "role": "hr_admin",
+      "route": "/apps/integrations/integrations-detail?slug=outbound-webhooks",
+      "label": "Integration Detail",
+      "status": "PASS",
+      "details": "Clean layout rendering",
+      "elapsed": 640
+    }
+  ]
+}
