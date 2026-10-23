@@ -320,6 +320,7 @@ export function DreamsSidebar({
     <aside
       className={cn("sidebar border-r border-border/70 bg-card/95 backdrop-blur-md shadow-2xs", mobileOpen && "opened")}
       id="sidebar"
+      data-lenis-prevent="true"
       onMouseEnter={() => {
         if (collapsed && !ignoreHover) {
           setIsHovered(true);
@@ -405,8 +406,14 @@ export function DreamsSidebar({
       {/* Sidenav Scrollable Menu */}
       <div
         className="sidebar-inner custom-scrollbar"
-        data-simplebar
-        style={{ overflowY: "auto", height: "calc(100% - 56px)" }}
+        data-lenis-prevent="true"
+        style={{
+          overflowY: "auto",
+          height: "calc(100% - 56px)",
+          maxHeight: "calc(100vh - 56px)",
+          minHeight: 0,
+          flex: "1 1 0%",
+        }}
         onClick={(e) => {
           const target = e.target as HTMLElement;
           const anchor = target.closest("a");

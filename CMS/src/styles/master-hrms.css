@@ -430,22 +430,28 @@ body {
 }
 
 /* Custom Sleek Scrollbar for Dreams Sidebar */
+.sidebar-inner,
+.sidebar-inner.custom-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(150, 150, 150, 0.35) transparent !important;
+}
 .sidebar-inner::-webkit-scrollbar,
 .sidebar [data-simplebar] .simplebar-content-wrapper::-webkit-scrollbar {
-  width: 4px;
+  width: 6px !important;
+  display: block !important;
 }
 .sidebar-inner::-webkit-scrollbar-track,
 .sidebar [data-simplebar] .simplebar-content-wrapper::-webkit-scrollbar-track {
-  background: transparent;
+  background: transparent !important;
 }
 .sidebar-inner::-webkit-scrollbar-thumb,
 .sidebar [data-simplebar] .simplebar-content-wrapper::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.2);
-  border-radius: 4px;
+  background: rgba(150, 150, 150, 0.3) !important;
+  border-radius: 4px !important;
 }
 .sidebar-inner::-webkit-scrollbar-thumb:hover,
 .sidebar [data-simplebar] .simplebar-content-wrapper::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 150, 150, 0.4);
+  background: rgba(150, 150, 150, 0.55) !important;
 }
 
 /* Base Transitions */
@@ -548,9 +554,14 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   left: 0 !important;
   width: 100% !important;
   height: calc(100% - 56px) !important;
-  flex: 1 1 auto !important;
+  max-height: calc(100vh - 56px) !important;
+  min-height: 0 !important;
+  flex: 1 1 0% !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 /* Reset vendor margin-top on sidebar menu */

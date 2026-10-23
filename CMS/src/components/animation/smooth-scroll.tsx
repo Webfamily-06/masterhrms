@@ -51,8 +51,36 @@ const SmoothScrollProvider = ({ children }: Readonly<SmoothScrollingProps>) => {
     };
   }, [lenis, pathname]);
 
-  // Disable Lenis smooth scroll on admin dashboards & workspaces to prevent wheel/touch trapping
-  if (pathname.startsWith('/super') || pathname.startsWith('/admin') || pathname.startsWith('/hr')) {
+  // Disable Lenis smooth scroll on all workspaces, admin dashboards, and employee portals to prevent wheel/touch trapping
+  const isWorkspace =
+    pathname.startsWith('/super') ||
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/hr') ||
+    pathname.startsWith('/me') ||
+    pathname.startsWith('/tenant') ||
+    pathname.startsWith('/portal') ||
+    pathname.startsWith('/pos') ||
+    pathname.startsWith('/crm') ||
+    pathname.startsWith('/accounting') ||
+    pathname.startsWith('/smart-') ||
+    pathname.startsWith('/addons') ||
+    pathname.startsWith('/okr') ||
+    pathname.startsWith('/notice-board') ||
+    pathname.startsWith('/employees') ||
+    pathname.startsWith('/attendance') ||
+    pathname.startsWith('/leave') ||
+    pathname.startsWith('/payroll') ||
+    pathname.startsWith('/recruitment') ||
+    pathname.startsWith('/training') ||
+    pathname.startsWith('/assets') ||
+    pathname.startsWith('/meetings') ||
+    pathname.startsWith('/documents') ||
+    pathname.startsWith('/lock-screen') ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/login') ||
+    (typeof window !== 'undefined' && window.location.hostname.includes('.localhost'));
+
+  if (isWorkspace) {
     return <>{children}</>;
   }
 

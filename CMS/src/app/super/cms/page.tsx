@@ -9,6 +9,7 @@ import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -61,6 +62,7 @@ import {
   List,
   AlertTriangle,
   Folder,
+  Star,
 } from "lucide-react";
 import { BlogManagerStudio } from "@/components/cms/blog-manager-studio";
 import { GuideManagerStudio } from "@/components/cms/guide-manager-studio";
@@ -1067,7 +1069,7 @@ function FaqManagerStudio() {
               <Textarea
                 rows={4}
                 value={form.answer}
-                onChange={(e) => setForm((p) => ({ ...p, answer: e.target.value }))}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((p) => ({ ...p, answer: e.target.value }))}
                 placeholder="Detailed answer explanation..."
                 className="text-xs"
               />
@@ -1492,7 +1494,7 @@ function TestimonialsManagerStudio() {
               <Textarea
                 rows={3}
                 value={form.content}
-                onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((p) => ({ ...p, content: e.target.value }))}
                 placeholder="Customer review quotes and results..."
                 className="text-xs"
               />

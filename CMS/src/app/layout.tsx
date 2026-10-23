@@ -3,6 +3,7 @@ import { MobileMenuProvider } from "@/src/context/MobileMenuContext";
 import { fontVariables } from "@/src/utils/font";
 import { ReactNode, Suspense } from "react";
 import { AppShell } from "@/src/components/layout/AppShell";
+import { AppProviders } from "@/src/components/providers/AppProviders";
 import "./globals.css";
 
 export default function RootLayout({
@@ -27,11 +28,13 @@ export default function RootLayout({
       </head>
       <body className={`${fontVariables} antialiased font-sans`}>
         <Suspense>
-          <MobileMenuProvider>
-            <SmoothScrollProvider>
-              <AppShell>{children}</AppShell>
-            </SmoothScrollProvider>
-          </MobileMenuProvider>
+          <AppProviders>
+            <MobileMenuProvider>
+              <SmoothScrollProvider>
+                <AppShell>{children}</AppShell>
+              </SmoothScrollProvider>
+            </MobileMenuProvider>
+          </AppProviders>
         </Suspense>
       </body>
     </html>
