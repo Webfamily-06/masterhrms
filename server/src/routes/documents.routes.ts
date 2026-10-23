@@ -83,7 +83,20 @@ documentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    // seed disabled
+    const currentUserId = req.user?.userId;
+    const userRoles = req.user?.roles || [];
+    const isSuperAdmin = userRoles.includes("super_admin");
+    const isTenantAdmin = userRoles.includes("tenant_admin") || userRoles.includes("admin");
+    const isHr = userRoles.includes("hr_admin") || userRoles.includes("hr");
+
+    let currentEmpId: string | undefined;
+    if (currentUserId) {
+      const emp = await prisma.employee.findFirst({
+        where: { tenantId, userId: currentUserId },
+        select: { id: true },
+      });
+      currentEmpId = emp?.id;
+    }
 
     const { category, status, employeeId, search } = req.query;
 
@@ -94,18 +107,68 @@ documentsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
     if (status && status !== "all") {
       where.status = String(status);
     }
+
+    const andConditions: any[] = [];
+
+    // Access Scoping
+    if (!isSuperAdmin && !isTenantAdmin) {
+      if (isHr) {
+        // HR can see public templates, policies, and standard employee documents,
+        // but cannot see private personal/compensation files of employees unless shared or owned
+        andConditions.push({
+          OR: [
+            { category: { notIn: ["Personal", "Compensation"] } },
+            { notes: { not: { contains: "[Private]" } } },
+            ...(currentEmpId ? [{ employeeId: currentEmpId }] : []),
+            ...(currentUserId ? [{ notes: { contains: `[Owner:${currentUserId}]` } }] : []),
+            ...(currentUserId ? [{ notes: { contains: `[SharedWith:${currentUserId}]` } }] : []),
+          ],
+        });
+      } else {
+        // Regular Employee scoping:
+        // Visible only if: assigned to employee, created by user, explicitly shared, or public policy
+        const empConditions: any[] = [
+          ...(currentUserId ? [{ notes: { contains: `[Owner:${currentUserId}]` } }] : []),
+          ...(currentUserId ? [{ notes: { contains: `[SharedWith:${currentUserId}]` } }] : []),
+          { notes: { contains: "[SharedWith:all]" } },
+          {
+            AND: [
+              { employeeId: null },
+              { category: { in: ["Company Policy", "Handbook", "General", "Corporate Policy"] } },
+              { notes: { not: { contains: "[Private]" } } },
+            ],
+          },
+        ];
+        if (currentEmpId) {
+          empConditions.push({ employeeId: currentEmpId });
+          empConditions.push({ notes: { contains: `[SharedWith:${currentEmpId}]` } });
+        }
+        andConditions.push({ OR: empConditions });
+      }
+    }
+
     if (employeeId && employeeId !== "all") {
+      if (!isSuperAdmin && !isTenantAdmin && !isHr && employeeId !== currentEmpId) {
+        return res.status(403).json({ error: "Access denied: Cannot query other employees' documents." });
+      }
       where.employeeId = String(employeeId);
     }
+
     if (search) {
-      where.OR = [
-        { documentCode: { contains: String(search) } },
-        { title: { contains: String(search) } },
-        { fileName: { contains: String(search) } },
-        { signerName: { contains: String(search) } },
-        { employee: { firstName: { contains: String(search) } } },
-        { employee: { lastName: { contains: String(search) } } },
-      ];
+      andConditions.push({
+        OR: [
+          { documentCode: { contains: String(search) } },
+          { title: { contains: String(search) } },
+          { fileName: { contains: String(search) } },
+          { signerName: { contains: String(search) } },
+          { employee: { firstName: { contains: String(search) } } },
+          { employee: { lastName: { contains: String(search) } } },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const pagination = parsePaginationParams(req, "createdAt", 20);
@@ -141,6 +204,21 @@ documentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
+    const currentUserId = req.user?.userId;
+    const userRoles = req.user?.roles || [];
+    const isSuperAdmin = userRoles.includes("super_admin");
+    const isTenantAdmin = userRoles.includes("tenant_admin") || userRoles.includes("admin");
+    const isHr = userRoles.includes("hr_admin") || userRoles.includes("hr");
+
+    let currentEmpId: string | undefined;
+    if (currentUserId) {
+      const emp = await prisma.employee.findFirst({
+        where: { tenantId, userId: currentUserId },
+        select: { id: true },
+      });
+      currentEmpId = emp?.id;
+    }
+
     const {
       title,
       category,
@@ -156,6 +234,20 @@ documentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
 
     if (!title) return res.status(400).json({ error: "Document title is required." });
 
+    let resolvedEmployeeId = employeeId || null;
+    if (!isSuperAdmin && !isTenantAdmin && !isHr) {
+      resolvedEmployeeId = currentEmpId || null;
+    }
+
+    // Embed owner tag and private flag in notes for persistent tracking
+    let enrichedNotes = notes || "";
+    if (currentUserId && !enrichedNotes.includes("[Owner:")) {
+      enrichedNotes = enrichedNotes ? `${enrichedNotes} [Owner:${currentUserId}]` : `[Owner:${currentUserId}]`;
+    }
+    if ((category === "Personal" || category === "Compensation") && !enrichedNotes.includes("[Private]")) {
+      enrichedNotes = `${enrichedNotes} [Private]`;
+    }
+
     const randomCode = Math.floor(1000 + Math.random() * 9000);
     const documentCode = `DOC-${randomCode}`;
 
@@ -165,7 +257,7 @@ documentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
         documentCode,
         title,
         category: category || "Employment Contract",
-        employeeId: employeeId || null,
+        employeeId: resolvedEmployeeId,
         fileName: fileName || `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`,
         fileSize: fileSize || "1.5 MB",
         fileType: fileType || "application/pdf",
@@ -173,7 +265,7 @@ documentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
         requiresSignature: requiresSignature !== undefined ? Boolean(requiresSignature) : true,
         status: requiresSignature ? "pending_signature" : "verified",
         expiryDate: expiryDate ? new Date(expiryDate) : null,
-        notes: notes || null,
+        notes: enrichedNotes || null,
       },
       include: {
         employee: { include: { department: true } },
@@ -186,11 +278,25 @@ documentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
   }
 });
 
-// GET /api/documents/:id (Single document details)
+// GET /api/documents/:id (Single document details with privacy check)
 documentsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
+    const currentUserId = req.user?.userId;
+    const userRoles = req.user?.roles || [];
+    const isSuperAdmin = userRoles.includes("super_admin");
+    const isTenantAdmin = userRoles.includes("tenant_admin") || userRoles.includes("admin");
+    const isHr = userRoles.includes("hr_admin") || userRoles.includes("hr");
+
+    let currentEmpId: string | undefined;
+    if (currentUserId) {
+      const emp = await prisma.employee.findFirst({
+        where: { tenantId, userId: currentUserId },
+        select: { id: true },
+      });
+      currentEmpId = emp?.id;
+    }
 
     const doc = await prisma.companyDocument.findUnique({
       where: { id },
@@ -203,9 +309,144 @@ documentsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response)
       return res.status(404).json({ error: "Document not found." });
     }
 
+    const isOwner = (currentEmpId && doc.employeeId === currentEmpId) ||
+                    (currentUserId && doc.notes && doc.notes.includes(`[Owner:${currentUserId}]`));
+    const isShared = doc.notes && (
+      (currentUserId && doc.notes.includes(`[SharedWith:${currentUserId}]`)) ||
+      (currentEmpId && doc.notes.includes(`[SharedWith:${currentEmpId}]`)) ||
+      doc.notes.includes("[SharedWith:all]")
+    );
+    const isPublicPolicy = !doc.employeeId && !doc.notes?.includes("[Private]") &&
+      ["Company Policy", "Handbook", "General", "Corporate Policy"].includes(doc.category || "");
+    const isPrivate = (doc.category === "Compensation" || doc.category === "Personal" || doc.notes?.includes("[Private]"));
+
+    if (!isSuperAdmin && !isTenantAdmin) {
+      if (isPrivate) {
+        if (!isOwner && !isShared) {
+          return res.status(403).json({ error: "Access denied: This document is private to its owner.", code: "DOCUMENT_ACCESS_DENIED" });
+        }
+      } else if (!isHr && !isOwner && !isShared && !isPublicPolicy) {
+        return res.status(403).json({ error: "Access denied: You do not have permission to access this document.", code: "DOCUMENT_ACCESS_DENIED" });
+      }
+    }
+
     return res.json(doc);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch document." });
+  }
+});
+
+// POST /api/documents/:id/share - Explicit file sharing
+documentsRouter.post("/:id/share", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    const currentUserId = req.user?.userId;
+    const { targetUserId, targetEmployeeId, isPublic } = req.body;
+
+    const doc = await prisma.companyDocument.findUnique({ where: { id } });
+    if (!doc || (tenantId && doc.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Document not found." });
+    }
+
+    let currentEmpId: string | undefined;
+    if (currentUserId) {
+      const emp = await prisma.employee.findFirst({
+        where: { tenantId, userId: currentUserId },
+        select: { id: true },
+      });
+      currentEmpId = emp?.id;
+    }
+    const userRoles = req.user?.roles || [];
+    const isOwner = (currentEmpId && doc.employeeId === currentEmpId) ||
+                    (currentUserId && doc.notes && doc.notes.includes(`[Owner:${currentUserId}]`));
+    const isAdmin = userRoles.includes("super_admin") || userRoles.includes("tenant_admin") || userRoles.includes("admin") || userRoles.includes("hr_admin");
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "Forbidden: Only the document owner or an administrator can share this file." });
+    }
+
+    let shareToken = "";
+    if (isPublic) {
+      shareToken = "[SharedWith:all]";
+    } else if (targetUserId) {
+      const userInTenant = await prisma.user.findFirst({
+        where: { id: targetUserId, profile: { tenantId } },
+      });
+      if (!userInTenant) {
+        return res.status(400).json({
+          error: "Target user does not exist in your organization.",
+          code: "CROSS_TENANT_SHARING_FORBIDDEN"
+        });
+      }
+      shareToken = `[SharedWith:${targetUserId}]`;
+    } else if (targetEmployeeId) {
+      const empInTenant = await prisma.employee.findFirst({
+        where: { id: targetEmployeeId, tenantId },
+      });
+      if (!empInTenant) {
+        return res.status(400).json({
+          error: "Target employee does not exist in your organization.",
+          code: "CROSS_TENANT_SHARING_FORBIDDEN"
+        });
+      }
+      shareToken = `[SharedWith:${targetEmployeeId}]`;
+    } else {
+      return res.status(400).json({ error: "targetUserId, targetEmployeeId, or isPublic is required to share." });
+    }
+
+    let newNotes = doc.notes || "";
+    if (!newNotes.includes(shareToken)) {
+      newNotes = newNotes ? `${newNotes} ${shareToken}` : shareToken;
+    }
+
+    const updated = await prisma.companyDocument.update({
+      where: { id },
+      data: { notes: newNotes },
+      include: { employee: { include: { department: true } } },
+    });
+
+    return res.json({ success: true, message: "Document shared successfully", document: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to share document." });
+  }
+});
+
+// DELETE /api/documents/:id/share - Revoke document sharing
+documentsRouter.delete("/:id/share", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    const { targetUserId, targetEmployeeId, revokeAll } = req.body;
+
+    const doc = await prisma.companyDocument.findUnique({ where: { id } });
+    if (!doc || (tenantId && doc.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Document not found." });
+    }
+
+    let shareToken = "";
+    if (revokeAll) {
+      shareToken = "[SharedWith:all]";
+    } else if (targetUserId) {
+      shareToken = `[SharedWith:${targetUserId}]`;
+    } else if (targetEmployeeId) {
+      shareToken = `[SharedWith:${targetEmployeeId}]`;
+    }
+
+    let newNotes = doc.notes || "";
+    if (shareToken && newNotes.includes(shareToken)) {
+      newNotes = newNotes.replace(shareToken, "").trim();
+    }
+
+    const updated = await prisma.companyDocument.update({
+      where: { id },
+      data: { notes: newNotes },
+      include: { employee: { include: { department: true } } },
+    });
+
+    return res.json({ success: true, message: "Share revoked successfully", document: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to revoke share." });
   }
 });
 
@@ -371,31 +612,77 @@ documentsRouter.get("/:id/stream", requireAuth, async (req: AuthRequest, res: Re
       return res.status(400).json({ error: "Tenant context is required." });
     }
 
-    // 1. Fetch StoredDocument metadata
-    const doc = await prisma.storedDocument.findFirst({
+    // 1. Fetch StoredDocument or CompanyDocument metadata
+    const storedDoc = await prisma.storedDocument.findFirst({
       where: { id, tenantId },
     });
 
-    if (!doc) {
+    let companyDoc: any = null;
+    if (!storedDoc) {
+      companyDoc = await prisma.companyDocument.findFirst({
+        where: { id, tenantId },
+      });
+    }
+
+    if (!storedDoc && !companyDoc) {
       return res.status(404).json({ error: "Document not found or access denied." });
     }
 
     // 2. Ownership / RBAC check
-    const currentUserId = (req.user as any)?.userId || (req.user as any)?.id;
-    const userRole = (req.user as any)?.role;
-    if (
-      userRole === "employee" &&
-      doc.uploadedById &&
-      doc.uploadedById !== currentUserId
-    ) {
-      return res.status(403).json({
-        error: "Forbidden: You do not have permission to access this private document.",
+    const currentUserId = req.user?.userId || (req.user as any)?.id;
+    const userRoles = req.user?.roles || [];
+    const isSuperAdmin = userRoles.includes("super_admin");
+    const isTenantAdmin = userRoles.includes("tenant_admin") || userRoles.includes("admin");
+    const isHr = userRoles.includes("hr_admin") || userRoles.includes("hr");
+
+    let currentEmpId: string | undefined;
+    if (currentUserId) {
+      const emp = await prisma.employee.findFirst({
+        where: { tenantId, userId: currentUserId },
+        select: { id: true },
       });
+      currentEmpId = emp?.id;
+    }
+
+    if (storedDoc) {
+      if (!isSuperAdmin && !isTenantAdmin && !isHr && storedDoc.uploadedById && storedDoc.uploadedById !== currentUserId) {
+        return res.status(403).json({
+          error: "Forbidden: You do not have permission to access this private document.",
+          code: "DOCUMENT_ACCESS_DENIED"
+        });
+      }
+    } else if (companyDoc) {
+      const isOwner = (currentEmpId && companyDoc.employeeId === currentEmpId) ||
+                      (currentUserId && companyDoc.notes && companyDoc.notes.includes(`[Owner:${currentUserId}]`));
+      const isShared = companyDoc.notes && (
+        (currentUserId && companyDoc.notes.includes(`[SharedWith:${currentUserId}]`)) ||
+        (currentEmpId && companyDoc.notes.includes(`[SharedWith:${currentEmpId}]`)) ||
+        companyDoc.notes.includes("[SharedWith:all]")
+      );
+      const isPrivate = (companyDoc.category === "Compensation" || companyDoc.category === "Personal" || companyDoc.notes?.includes("[Private]"));
+
+      if (!isSuperAdmin && !isTenantAdmin) {
+        if (isPrivate && !isOwner && !isShared) {
+          return res.status(403).json({
+            error: "Forbidden: You do not have permission to access this private document.",
+            code: "DOCUMENT_ACCESS_DENIED"
+          });
+        }
+      }
     }
 
     // 3. Decrypt and stream from active tenant storage driver
     const storage = await StorageFactory.getDriver("TENANT", tenantId);
-    const { stream, metadata } = await storage.getStream(tenantId, id);
+    let streamResult;
+    try {
+      streamResult = await storage.getStream(tenantId, id);
+    } catch {
+      // Fallback for metadata-only documents: stream text representation
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${companyDoc?.fileName || storedDoc?.originalName || 'document.pdf'}"`);
+      return res.send(Buffer.from("%PDF-1.4\n1 0 obj\n<< /Title (Vault Document) >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF"));
+    }
+    const { stream, metadata } = streamResult;
 
     // 4. Hardened Security Headers
     res.setHeader("Content-Type", metadata.mimeType || "application/octet-stream");

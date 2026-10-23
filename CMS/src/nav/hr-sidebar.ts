@@ -49,9 +49,52 @@ export const hrSidebar: HRMenuItem[] = [
       { label: "Dashboard", path: "/hr/dashboard", permission: "hrm.dashboard.view" },
       { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
       { label: "My Tasks", path: "/hr/todo", permission: "hrm.dashboard.view" },
+      { label: "Gantt Timeline", path: "/apps/todo/gantt", permission: "hrm.dashboard.view" },
+      { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
       { label: "Team Chat", path: "/hr/chat", permission: "hrm.dashboard.view" },
       { label: "Approvals", path: "/hr/approvals", permission: "hrm.manage" },
       { label: "Notifications", path: "/hr/notifications", permission: "hrm.dashboard.view" },
+    ],
+  },
+
+  // ─── Applications (Classic-to-SaaS Parity) ─────────────────────────────────
+  {
+    label: "Applications",
+    icon: "grid-four",
+    permission: "hrm.dashboard.view",
+    children: [
+      {
+        label: "Chat",
+        children: [
+          { label: "Personal Chat", path: "/apps/chat/chats", permission: "hrm.dashboard.view" },
+          { label: "Chat Groups", path: "/apps/chat/chat-groups", permission: "hrm.dashboard.view" },
+          { label: "Chat Contacts", path: "/apps/chat/chat-contact", permission: "hrm.dashboard.view" },
+        ],
+      },
+      { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
+      {
+        label: "Scrumboard",
+        children: [
+          { label: "Projects Board", path: "/apps/taskboard/projects-board", permission: "hrm.dashboard.view" },
+          { label: "Kanban Board", path: "/apps/taskboard/kanban-board", permission: "hrm.dashboard.view" },
+          { label: "Pipeline", path: "/apps/taskboard/pipeline", permission: "hrm.dashboard.view" },
+        ],
+      },
+      {
+        label: "File Manager",
+        children: [
+          { label: "List View", path: "/apps/file-manager/list-view", permission: "hrm.dashboard.view" },
+          { label: "Grid View", path: "/apps/file-manager/grid-view", permission: "hrm.dashboard.view" },
+        ],
+      },
+      {
+        label: "Todo & Tasks",
+        children: [
+          { label: "Task List", path: "/apps/todo/task-list", permission: "hrm.dashboard.view" },
+          { label: "Gantt Timeline", path: "/apps/todo/gantt", permission: "hrm.dashboard.view" },
+        ],
+      },
+      { label: "All Apps Catalog", path: "/apps/integrations/all-apps", permission: "hrm.dashboard.view" },
     ],
   },
 
@@ -232,6 +275,14 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Document Templates", path: "/hr/documents/templates", permission: "hrm.dashboard.view" },
           { label: "Contract Templates", path: "/hr/documents/contract-templates", permission: "hrm.dashboard.view" },
           { label: "Document Categories", path: "/hr/documents/categories", permission: "hrm.dashboard.view" },
+        ],
+      },
+      {
+        label: "Email",
+        permission: "hrm.dashboard.view",
+        children: [
+          { label: "Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
+          { label: "Email Accounts", path: "/settings/email-accounts", permission: "hrm.dashboard.view" },
         ],
       },
       { label: "Media Library", path: "/hr/media", permission: "hrm.dashboard.view" },

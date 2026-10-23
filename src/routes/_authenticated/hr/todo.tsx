@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { GanttTimelineView } from "@/components/todo/gantt-timeline-view";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,7 @@ export function HrTodoPage() {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "gantt">("list");
 
   const { data: items = [], isLoading } = useQuery<TodoItem[]>({
     queryKey: ["hr-todo-items", statusTab],
@@ -164,13 +166,39 @@ export function HrTodoPage() {
         title="Workplace Tasks & Action Items"
         description="Unified task index across meeting deliverables, workflow approvals, asset custody handovers, and compliance"
         actions={
-          <Button size="sm" className="gap-1.5" onClick={() => setIsAddModalOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Task
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center border rounded-lg p-0.5 bg-muted/60">
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 text-xs font-medium px-2.5"
+                onClick={() => setViewMode("list")}
+              >
+                List View
+              </Button>
+              <Button
+                variant={viewMode === "gantt" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 text-xs font-medium px-2.5"
+                onClick={() => setViewMode("gantt")}
+              >
+                Gantt Timeline
+              </Button>
+            </div>
+            {viewMode === "list" && (
+              <Button size="sm" className="gap-1.5" onClick={() => setIsAddModalOpen(true)}>
+                <Plus className="h-4 w-4" /> Add Task
+              </Button>
+            )}
+          </div>
         }
       />
 
-      <StatsOverviewGrid>
+      {viewMode === "gantt" ? (
+        <GanttTimelineView onSwitchToList={() => setViewMode("list")} />
+      ) : (
+        <>
+          <StatsOverviewGrid>
         <StatCard
           title="All Actionable Items"
           value={isLoading ? "..." : items.length}
@@ -345,6 +373,8 @@ export function HrTodoPage() {
           ))
         )}
       </div>
+      </>
+      )}
 
       {/* Add Task Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>

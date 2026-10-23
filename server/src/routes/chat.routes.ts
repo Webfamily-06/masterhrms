@@ -47,6 +47,28 @@ chatRouter.get("/messages/:threadId", requireAuth, async (req: AuthRequest, res:
   try {
     const tenantId = req.user?.tenantId || "default";
     const { threadId } = req.params;
+    const currentUserId = req.user?.userId;
+
+    // Participant Authorization for direct conversations
+    if (threadId.startsWith("direct_")) {
+      const parts = threadId.slice("direct_".length).split("_");
+      let empId: string | undefined;
+      if (currentUserId) {
+        const emp = await prisma.employee.findFirst({
+          where: { tenantId, userId: currentUserId },
+          select: { id: true },
+        });
+        empId = emp?.id;
+      }
+
+      const isParticipant = parts.some(p => p === currentUserId || (empId && p === empId));
+      if (!isParticipant) {
+        return res.status(403).json({
+          error: "Access denied: You are not an authorized participant in this private direct conversation.",
+          code: "CHAT_PARTICIPANT_REQUIRED"
+        });
+      }
+    }
 
     const messages = await prisma.chatMessage.findMany({
       where: { tenantId, threadId },
@@ -65,9 +87,31 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
   try {
     const tenantId = req.user?.tenantId || "default";
     const { threadId, content, attachments } = req.body;
+    const currentUserId = req.user?.userId;
 
     if (!content && (!attachments || attachments.length === 0)) {
       return res.status(400).json({ error: "Message content cannot be empty" });
+    }
+
+    // Participant Authorization for direct conversations
+    if (threadId && typeof threadId === "string" && threadId.startsWith("direct_")) {
+      const parts = threadId.slice("direct_".length).split("_");
+      let empId: string | undefined;
+      if (currentUserId) {
+        const emp = await prisma.employee.findFirst({
+          where: { tenantId, userId: currentUserId },
+          select: { id: true },
+        });
+        empId = emp?.id;
+      }
+
+      const isParticipant = parts.some(p => p === currentUserId || (empId && p === empId));
+      if (!isParticipant) {
+        return res.status(403).json({
+          error: "Access denied: You cannot send messages to a private direct thread you are not part of.",
+          code: "CHAT_PARTICIPANT_REQUIRED"
+        });
+      }
     }
 
     // Backend File Security Filter
@@ -101,6 +145,41 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
     });
 
     return res.status(201).json(msg);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/chat/messages/:id - Delete message (original sender or system admin only)
+chatRouter.delete("/messages/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const currentUserId = req.user?.userId;
+    const { id } = req.params;
+
+    const existing = await prisma.chatMessage.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    const isSender = existing.senderId === currentUserId;
+    const isAdmin = req.user?.roles?.some((r: string) => ["super_admin", "tenant_admin"].includes(r));
+
+    if (!isSender && !isAdmin) {
+      return res.status(403).json({
+        error: "Access denied: You can only delete your own messages.",
+        code: "CHAT_DELETE_FORBIDDEN"
+      });
+    }
+
+    await prisma.chatMessage.delete({
+      where: { id },
+    });
+
+    return res.json({ success: true, message: "Message deleted successfully" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

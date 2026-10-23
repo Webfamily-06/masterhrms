@@ -61,7 +61,8 @@ export const employeeSidebar: EmployeeMenuSection[] = [
     children: [
       { label: "Dashboard", path: "/me/dashboard", icon: "ph-squares-four" },
       { label: "Calendar", path: "/me/calendar", icon: "ph-calendar" },
-      { label: "Todo", path: "/me/todo", icon: "ph-check-square" },
+      { label: "Todo & Gantt", path: "/me/todo", icon: "ph-check-square" },
+      { label: "Email Mailbox", path: "/apps/email", icon: "ph-envelope" },
       { label: "Chat", path: "/me/chat", icon: "ph-chat-circle-dots" },
       { label: "Notifications", path: "/me/notifications", icon: "ph-bell" },
       { label: "My Profile", path: "/me/profile", icon: "ph-user" },
@@ -187,6 +188,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
     children: [
       { label: "Meetings", path: "/me/meetings", icon: "ph-video-camera" },
       { label: "Action Items", path: "/me/meetings/action-items", icon: "ph-list-checks" },
+      { label: "Email Accounts", path: "/settings/email-accounts", icon: "ph-at" },
     ],
   },
 

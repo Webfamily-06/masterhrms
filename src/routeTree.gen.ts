@@ -105,6 +105,7 @@ import { Route as AuthenticatedAppDealsDashboardRouteImport } from './routes/_au
 import { Route as AuthenticatedAppDepartmentsRouteImport } from './routes/_authenticated/_app/departments'
 import { Route as AuthenticatedAppDesignationsRouteImport } from './routes/_authenticated/_app/designations'
 import { Route as AuthenticatedAppDocumentsRouteImport } from './routes/_authenticated/_app/documents'
+import { Route as AuthenticatedAppEmailRouteImport } from './routes/_authenticated/_app/email'
 import { Route as AuthenticatedAppEmployeeDashboardRouteImport } from './routes/_authenticated/_app/employee-dashboard'
 import { Route as AuthenticatedAppEmployeeDetailsRouteImport } from './routes/_authenticated/_app/employee-details'
 import { Route as AuthenticatedAppEmployeePayslipsRouteImport } from './routes/_authenticated/_app/employee-payslips'
@@ -278,10 +279,13 @@ import { Route as AuthenticatedTenantUsersRouteImport } from './routes/_authenti
 import { Route as AuthenticatedTenetSplatRouteImport } from './routes/_authenticated/tenet/$'
 import { Route as PortalInvoicesIdRouteImport } from './routes/portal.invoices.$id'
 import { Route as PortalProposalsIdRouteImport } from './routes/portal.proposals.$id'
+import { Route as AuthenticatedAppAppsCalendarRouteImport } from './routes/_authenticated/_app/apps.calendar'
+import { Route as AuthenticatedAppAppsEmailRouteImport } from './routes/_authenticated/_app/apps.email'
 import { Route as AuthenticatedAppInvoiceIdRouteImport } from './routes/_authenticated/_app/invoice.$id'
 import { Route as AuthenticatedAppInvoiceCreateRouteImport } from './routes/_authenticated/_app/invoice.create'
 import { Route as AuthenticatedAppProjectIdRouteImport } from './routes/_authenticated/_app/project.$id'
 import { Route as AuthenticatedAppSettingsCustomDomainRouteImport } from './routes/_authenticated/_app/settings.custom-domain'
+import { Route as AuthenticatedAppSettingsEmailAccountsRouteImport } from './routes/_authenticated/_app/settings.email-accounts'
 import { Route as AuthenticatedAppSettingsWebhookRouteImport } from './routes/_authenticated/_app/settings.webhook'
 import { Route as AuthenticatedAppSmartDashboardFinancialRouteImport } from './routes/_authenticated/_app/smart-dashboard.financial'
 import { Route as AuthenticatedAppSmartDashboardOperationalRouteImport } from './routes/_authenticated/_app/smart-dashboard.operational'
@@ -491,6 +495,17 @@ import { Route as AuthenticatedAppAddonsAiDocumentTonesRouteImport } from './rou
 import { Route as AuthenticatedAppAddonsPlanningDashboardRouteImport } from './routes/_authenticated/_app/addons/planning/dashboard'
 import { Route as AuthenticatedAppAddonsWebhookEventsRouteImport } from './routes/_authenticated/_app/addons/webhook/events'
 import { Route as AuthenticatedAppAddonsWebhookSettingsRouteImport } from './routes/_authenticated/_app/addons/webhook/settings'
+import { Route as AuthenticatedAppAppsChatChatContactRouteImport } from './routes/_authenticated/_app/apps.chat.chat-contact'
+import { Route as AuthenticatedAppAppsChatChatGroupsRouteImport } from './routes/_authenticated/_app/apps.chat.chat-groups'
+import { Route as AuthenticatedAppAppsChatChatsRouteImport } from './routes/_authenticated/_app/apps.chat.chats'
+import { Route as AuthenticatedAppAppsFileManagerGridViewRouteImport } from './routes/_authenticated/_app/apps.file-manager.grid-view'
+import { Route as AuthenticatedAppAppsFileManagerListViewRouteImport } from './routes/_authenticated/_app/apps.file-manager.list-view'
+import { Route as AuthenticatedAppAppsIntegrationsAllAppsRouteImport } from './routes/_authenticated/_app/apps.integrations.all-apps'
+import { Route as AuthenticatedAppAppsTaskboardKanbanBoardRouteImport } from './routes/_authenticated/_app/apps.taskboard.kanban-board'
+import { Route as AuthenticatedAppAppsTaskboardPipelineRouteImport } from './routes/_authenticated/_app/apps.taskboard.pipeline'
+import { Route as AuthenticatedAppAppsTaskboardProjectsBoardRouteImport } from './routes/_authenticated/_app/apps.taskboard.projects-board'
+import { Route as AuthenticatedAppAppsTodoGanttRouteImport } from './routes/_authenticated/_app/apps.todo.gantt'
+import { Route as AuthenticatedAppAppsTodoTaskListRouteImport } from './routes/_authenticated/_app/apps.todo.task-list'
 import { Route as AuthenticatedAppInvoiceIdPrintRouteImport } from './routes/_authenticated/_app/invoice.$id.print'
 import { Route as AuthenticatedHrEmployeesIdEditRouteImport } from './routes/_authenticated/hr/employees/$id.edit'
 import { Route as AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/history/index'
@@ -1036,6 +1051,11 @@ const AuthenticatedAppDocumentsRoute =
     path: '/documents',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppEmailRoute = AuthenticatedAppEmailRouteImport.update({
+  id: '/email',
+  path: '/email',
+  getParentRoute: () => AuthenticatedAppRouteRoute,
+} as any)
 const AuthenticatedAppEmployeeDashboardRoute =
   AuthenticatedAppEmployeeDashboardRouteImport.update({
     id: '/employee-dashboard',
@@ -2028,6 +2048,18 @@ const PortalProposalsIdRoute = PortalProposalsIdRouteImport.update({
   path: '/proposals/$id',
   getParentRoute: () => PortalRoute,
 } as any)
+const AuthenticatedAppAppsCalendarRoute =
+  AuthenticatedAppAppsCalendarRouteImport.update({
+    id: '/apps/calendar',
+    path: '/apps/calendar',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsEmailRoute =
+  AuthenticatedAppAppsEmailRouteImport.update({
+    id: '/apps/email',
+    path: '/apps/email',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppInvoiceIdRoute =
   AuthenticatedAppInvoiceIdRouteImport.update({
     id: '/invoice/$id',
@@ -2050,6 +2082,12 @@ const AuthenticatedAppSettingsCustomDomainRoute =
   AuthenticatedAppSettingsCustomDomainRouteImport.update({
     id: '/custom-domain',
     path: '/custom-domain',
+    getParentRoute: () => AuthenticatedAppSettingsRoute,
+  } as any)
+const AuthenticatedAppSettingsEmailAccountsRoute =
+  AuthenticatedAppSettingsEmailAccountsRouteImport.update({
+    id: '/email-accounts',
+    path: '/email-accounts',
     getParentRoute: () => AuthenticatedAppSettingsRoute,
   } as any)
 const AuthenticatedAppSettingsWebhookRoute =
@@ -3306,6 +3344,72 @@ const AuthenticatedAppAddonsWebhookSettingsRoute =
     path: '/addons/webhook/settings',
     getParentRoute: () => AuthenticatedAppRouteRoute,
   } as any)
+const AuthenticatedAppAppsChatChatContactRoute =
+  AuthenticatedAppAppsChatChatContactRouteImport.update({
+    id: '/apps/chat/chat-contact',
+    path: '/apps/chat/chat-contact',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsChatChatGroupsRoute =
+  AuthenticatedAppAppsChatChatGroupsRouteImport.update({
+    id: '/apps/chat/chat-groups',
+    path: '/apps/chat/chat-groups',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsChatChatsRoute =
+  AuthenticatedAppAppsChatChatsRouteImport.update({
+    id: '/apps/chat/chats',
+    path: '/apps/chat/chats',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsFileManagerGridViewRoute =
+  AuthenticatedAppAppsFileManagerGridViewRouteImport.update({
+    id: '/apps/file-manager/grid-view',
+    path: '/apps/file-manager/grid-view',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsFileManagerListViewRoute =
+  AuthenticatedAppAppsFileManagerListViewRouteImport.update({
+    id: '/apps/file-manager/list-view',
+    path: '/apps/file-manager/list-view',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsIntegrationsAllAppsRoute =
+  AuthenticatedAppAppsIntegrationsAllAppsRouteImport.update({
+    id: '/apps/integrations/all-apps',
+    path: '/apps/integrations/all-apps',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsTaskboardKanbanBoardRoute =
+  AuthenticatedAppAppsTaskboardKanbanBoardRouteImport.update({
+    id: '/apps/taskboard/kanban-board',
+    path: '/apps/taskboard/kanban-board',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsTaskboardPipelineRoute =
+  AuthenticatedAppAppsTaskboardPipelineRouteImport.update({
+    id: '/apps/taskboard/pipeline',
+    path: '/apps/taskboard/pipeline',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsTaskboardProjectsBoardRoute =
+  AuthenticatedAppAppsTaskboardProjectsBoardRouteImport.update({
+    id: '/apps/taskboard/projects-board',
+    path: '/apps/taskboard/projects-board',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsTodoGanttRoute =
+  AuthenticatedAppAppsTodoGanttRouteImport.update({
+    id: '/apps/todo/gantt',
+    path: '/apps/todo/gantt',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppAppsTodoTaskListRoute =
+  AuthenticatedAppAppsTodoTaskListRouteImport.update({
+    id: '/apps/todo/task-list',
+    path: '/apps/todo/task-list',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedAppInvoiceIdPrintRoute =
   AuthenticatedAppInvoiceIdPrintRouteImport.update({
     id: '/print',
@@ -3564,6 +3668,7 @@ export interface FileRoutesByFullPath {
   '/departments': typeof AuthenticatedAppDepartmentsRoute
   '/designations': typeof AuthenticatedAppDesignationsRoute
   '/documents': typeof AuthenticatedAppDocumentsRoute
+  '/email': typeof AuthenticatedAppEmailRoute
   '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
   '/employee-payslips': typeof AuthenticatedAppEmployeePayslipsRoute
@@ -3737,10 +3842,13 @@ export interface FileRoutesByFullPath {
   '/me/': typeof AuthenticatedMeIndexRoute
   '/super/': typeof AuthenticatedSuperIndexRoute
   '/tenant/': typeof AuthenticatedTenantIndexRoute
+  '/apps/calendar': typeof AuthenticatedAppAppsCalendarRoute
+  '/apps/email': typeof AuthenticatedAppAppsEmailRoute
   '/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/settings/email-accounts': typeof AuthenticatedAppSettingsEmailAccountsRoute
   '/settings/webhook': typeof AuthenticatedAppSettingsWebhookRoute
   '/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
   '/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
@@ -3950,6 +4058,17 @@ export interface FileRoutesByFullPath {
   '/addons/planning/dashboard': typeof AuthenticatedAppAddonsPlanningDashboardRoute
   '/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
   '/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
+  '/apps/chat/chat-contact': typeof AuthenticatedAppAppsChatChatContactRoute
+  '/apps/chat/chat-groups': typeof AuthenticatedAppAppsChatChatGroupsRoute
+  '/apps/chat/chats': typeof AuthenticatedAppAppsChatChatsRoute
+  '/apps/file-manager/grid-view': typeof AuthenticatedAppAppsFileManagerGridViewRoute
+  '/apps/file-manager/list-view': typeof AuthenticatedAppAppsFileManagerListViewRoute
+  '/apps/integrations/all-apps': typeof AuthenticatedAppAppsIntegrationsAllAppsRoute
+  '/apps/taskboard/kanban-board': typeof AuthenticatedAppAppsTaskboardKanbanBoardRoute
+  '/apps/taskboard/pipeline': typeof AuthenticatedAppAppsTaskboardPipelineRoute
+  '/apps/taskboard/projects-board': typeof AuthenticatedAppAppsTaskboardProjectsBoardRoute
+  '/apps/todo/gantt': typeof AuthenticatedAppAppsTodoGanttRoute
+  '/apps/todo/task-list': typeof AuthenticatedAppAppsTodoTaskListRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
   '/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
   '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
@@ -4069,6 +4188,7 @@ export interface FileRoutesByTo {
   '/departments': typeof AuthenticatedAppDepartmentsRoute
   '/designations': typeof AuthenticatedAppDesignationsRoute
   '/documents': typeof AuthenticatedAppDocumentsRoute
+  '/email': typeof AuthenticatedAppEmailRoute
   '/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
   '/employee-payslips': typeof AuthenticatedAppEmployeePayslipsRoute
@@ -4242,10 +4362,13 @@ export interface FileRoutesByTo {
   '/me': typeof AuthenticatedMeIndexRoute
   '/super': typeof AuthenticatedSuperIndexRoute
   '/tenant': typeof AuthenticatedTenantIndexRoute
+  '/apps/calendar': typeof AuthenticatedAppAppsCalendarRoute
+  '/apps/email': typeof AuthenticatedAppAppsEmailRoute
   '/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
   '/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/settings/email-accounts': typeof AuthenticatedAppSettingsEmailAccountsRoute
   '/settings/webhook': typeof AuthenticatedAppSettingsWebhookRoute
   '/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
   '/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
@@ -4455,6 +4578,17 @@ export interface FileRoutesByTo {
   '/addons/planning/dashboard': typeof AuthenticatedAppAddonsPlanningDashboardRoute
   '/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
   '/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
+  '/apps/chat/chat-contact': typeof AuthenticatedAppAppsChatChatContactRoute
+  '/apps/chat/chat-groups': typeof AuthenticatedAppAppsChatChatGroupsRoute
+  '/apps/chat/chats': typeof AuthenticatedAppAppsChatChatsRoute
+  '/apps/file-manager/grid-view': typeof AuthenticatedAppAppsFileManagerGridViewRoute
+  '/apps/file-manager/list-view': typeof AuthenticatedAppAppsFileManagerListViewRoute
+  '/apps/integrations/all-apps': typeof AuthenticatedAppAppsIntegrationsAllAppsRoute
+  '/apps/taskboard/kanban-board': typeof AuthenticatedAppAppsTaskboardKanbanBoardRoute
+  '/apps/taskboard/pipeline': typeof AuthenticatedAppAppsTaskboardPipelineRoute
+  '/apps/taskboard/projects-board': typeof AuthenticatedAppAppsTaskboardProjectsBoardRoute
+  '/apps/todo/gantt': typeof AuthenticatedAppAppsTodoGanttRoute
+  '/apps/todo/task-list': typeof AuthenticatedAppAppsTodoTaskListRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
   '/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
   '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
@@ -4581,6 +4715,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/departments': typeof AuthenticatedAppDepartmentsRoute
   '/_authenticated/_app/designations': typeof AuthenticatedAppDesignationsRoute
   '/_authenticated/_app/documents': typeof AuthenticatedAppDocumentsRoute
+  '/_authenticated/_app/email': typeof AuthenticatedAppEmailRoute
   '/_authenticated/_app/employee-dashboard': typeof AuthenticatedAppEmployeeDashboardRoute
   '/_authenticated/_app/employee-details': typeof AuthenticatedAppEmployeeDetailsRoute
   '/_authenticated/_app/employee-payslips': typeof AuthenticatedAppEmployeePayslipsRoute
@@ -4754,10 +4889,13 @@ export interface FileRoutesById {
   '/_authenticated/me/': typeof AuthenticatedMeIndexRoute
   '/_authenticated/super/': typeof AuthenticatedSuperIndexRoute
   '/_authenticated/tenant/': typeof AuthenticatedTenantIndexRoute
+  '/_authenticated/_app/apps/calendar': typeof AuthenticatedAppAppsCalendarRoute
+  '/_authenticated/_app/apps/email': typeof AuthenticatedAppAppsEmailRoute
   '/_authenticated/_app/invoice/$id': typeof AuthenticatedAppInvoiceIdRouteWithChildren
   '/_authenticated/_app/invoice/create': typeof AuthenticatedAppInvoiceCreateRoute
   '/_authenticated/_app/project/$id': typeof AuthenticatedAppProjectIdRoute
   '/_authenticated/_app/settings/custom-domain': typeof AuthenticatedAppSettingsCustomDomainRoute
+  '/_authenticated/_app/settings/email-accounts': typeof AuthenticatedAppSettingsEmailAccountsRoute
   '/_authenticated/_app/settings/webhook': typeof AuthenticatedAppSettingsWebhookRoute
   '/_authenticated/_app/smart-dashboard/financial': typeof AuthenticatedAppSmartDashboardFinancialRoute
   '/_authenticated/_app/smart-dashboard/operational': typeof AuthenticatedAppSmartDashboardOperationalRoute
@@ -4967,6 +5105,17 @@ export interface FileRoutesById {
   '/_authenticated/_app/addons/planning/dashboard': typeof AuthenticatedAppAddonsPlanningDashboardRoute
   '/_authenticated/_app/addons/webhook/events': typeof AuthenticatedAppAddonsWebhookEventsRoute
   '/_authenticated/_app/addons/webhook/settings': typeof AuthenticatedAppAddonsWebhookSettingsRoute
+  '/_authenticated/_app/apps/chat/chat-contact': typeof AuthenticatedAppAppsChatChatContactRoute
+  '/_authenticated/_app/apps/chat/chat-groups': typeof AuthenticatedAppAppsChatChatGroupsRoute
+  '/_authenticated/_app/apps/chat/chats': typeof AuthenticatedAppAppsChatChatsRoute
+  '/_authenticated/_app/apps/file-manager/grid-view': typeof AuthenticatedAppAppsFileManagerGridViewRoute
+  '/_authenticated/_app/apps/file-manager/list-view': typeof AuthenticatedAppAppsFileManagerListViewRoute
+  '/_authenticated/_app/apps/integrations/all-apps': typeof AuthenticatedAppAppsIntegrationsAllAppsRoute
+  '/_authenticated/_app/apps/taskboard/kanban-board': typeof AuthenticatedAppAppsTaskboardKanbanBoardRoute
+  '/_authenticated/_app/apps/taskboard/pipeline': typeof AuthenticatedAppAppsTaskboardPipelineRoute
+  '/_authenticated/_app/apps/taskboard/projects-board': typeof AuthenticatedAppAppsTaskboardProjectsBoardRoute
+  '/_authenticated/_app/apps/todo/gantt': typeof AuthenticatedAppAppsTodoGanttRoute
+  '/_authenticated/_app/apps/todo/task-list': typeof AuthenticatedAppAppsTodoTaskListRoute
   '/_authenticated/_app/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
   '/_authenticated/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
   '/_authenticated/_app/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
@@ -5092,6 +5241,7 @@ export interface FileRouteTypes {
     | '/departments'
     | '/designations'
     | '/documents'
+    | '/email'
     | '/employee-dashboard'
     | '/employee-details'
     | '/employee-payslips'
@@ -5265,10 +5415,13 @@ export interface FileRouteTypes {
     | '/me/'
     | '/super/'
     | '/tenant/'
+    | '/apps/calendar'
+    | '/apps/email'
     | '/invoice/$id'
     | '/invoice/create'
     | '/project/$id'
     | '/settings/custom-domain'
+    | '/settings/email-accounts'
     | '/settings/webhook'
     | '/smart-dashboard/financial'
     | '/smart-dashboard/operational'
@@ -5478,6 +5631,17 @@ export interface FileRouteTypes {
     | '/addons/planning/dashboard'
     | '/addons/webhook/events'
     | '/addons/webhook/settings'
+    | '/apps/chat/chat-contact'
+    | '/apps/chat/chat-groups'
+    | '/apps/chat/chats'
+    | '/apps/file-manager/grid-view'
+    | '/apps/file-manager/list-view'
+    | '/apps/integrations/all-apps'
+    | '/apps/taskboard/kanban-board'
+    | '/apps/taskboard/pipeline'
+    | '/apps/taskboard/projects-board'
+    | '/apps/todo/gantt'
+    | '/apps/todo/task-list'
     | '/invoice/$id/print'
     | '/hr/employees/$id/edit'
     | '/addons/ai-assistant/history/$id'
@@ -5597,6 +5761,7 @@ export interface FileRouteTypes {
     | '/departments'
     | '/designations'
     | '/documents'
+    | '/email'
     | '/employee-dashboard'
     | '/employee-details'
     | '/employee-payslips'
@@ -5770,10 +5935,13 @@ export interface FileRouteTypes {
     | '/me'
     | '/super'
     | '/tenant'
+    | '/apps/calendar'
+    | '/apps/email'
     | '/invoice/$id'
     | '/invoice/create'
     | '/project/$id'
     | '/settings/custom-domain'
+    | '/settings/email-accounts'
     | '/settings/webhook'
     | '/smart-dashboard/financial'
     | '/smart-dashboard/operational'
@@ -5983,6 +6151,17 @@ export interface FileRouteTypes {
     | '/addons/planning/dashboard'
     | '/addons/webhook/events'
     | '/addons/webhook/settings'
+    | '/apps/chat/chat-contact'
+    | '/apps/chat/chat-groups'
+    | '/apps/chat/chats'
+    | '/apps/file-manager/grid-view'
+    | '/apps/file-manager/list-view'
+    | '/apps/integrations/all-apps'
+    | '/apps/taskboard/kanban-board'
+    | '/apps/taskboard/pipeline'
+    | '/apps/taskboard/projects-board'
+    | '/apps/todo/gantt'
+    | '/apps/todo/task-list'
     | '/invoice/$id/print'
     | '/hr/employees/$id/edit'
     | '/addons/ai-assistant/history/$id'
@@ -6108,6 +6287,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/departments'
     | '/_authenticated/_app/designations'
     | '/_authenticated/_app/documents'
+    | '/_authenticated/_app/email'
     | '/_authenticated/_app/employee-dashboard'
     | '/_authenticated/_app/employee-details'
     | '/_authenticated/_app/employee-payslips'
@@ -6281,10 +6461,13 @@ export interface FileRouteTypes {
     | '/_authenticated/me/'
     | '/_authenticated/super/'
     | '/_authenticated/tenant/'
+    | '/_authenticated/_app/apps/calendar'
+    | '/_authenticated/_app/apps/email'
     | '/_authenticated/_app/invoice/$id'
     | '/_authenticated/_app/invoice/create'
     | '/_authenticated/_app/project/$id'
     | '/_authenticated/_app/settings/custom-domain'
+    | '/_authenticated/_app/settings/email-accounts'
     | '/_authenticated/_app/settings/webhook'
     | '/_authenticated/_app/smart-dashboard/financial'
     | '/_authenticated/_app/smart-dashboard/operational'
@@ -6494,6 +6677,17 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/addons/planning/dashboard'
     | '/_authenticated/_app/addons/webhook/events'
     | '/_authenticated/_app/addons/webhook/settings'
+    | '/_authenticated/_app/apps/chat/chat-contact'
+    | '/_authenticated/_app/apps/chat/chat-groups'
+    | '/_authenticated/_app/apps/chat/chats'
+    | '/_authenticated/_app/apps/file-manager/grid-view'
+    | '/_authenticated/_app/apps/file-manager/list-view'
+    | '/_authenticated/_app/apps/integrations/all-apps'
+    | '/_authenticated/_app/apps/taskboard/kanban-board'
+    | '/_authenticated/_app/apps/taskboard/pipeline'
+    | '/_authenticated/_app/apps/taskboard/projects-board'
+    | '/_authenticated/_app/apps/todo/gantt'
+    | '/_authenticated/_app/apps/todo/task-list'
     | '/_authenticated/_app/invoice/$id/print'
     | '/_authenticated/hr/employees/$id/edit'
     | '/_authenticated/_app/addons/ai-assistant/history/$id'
@@ -7239,6 +7433,13 @@ declare module '@tanstack/react-router' {
       path: '/documents'
       fullPath: '/documents'
       preLoaderRoute: typeof AuthenticatedAppDocumentsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/email': {
+      id: '/_authenticated/_app/email'
+      path: '/email'
+      fullPath: '/email'
+      preLoaderRoute: typeof AuthenticatedAppEmailRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
     '/_authenticated/_app/employee-dashboard': {
@@ -8452,6 +8653,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalProposalsIdRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/_authenticated/_app/apps/calendar': {
+      id: '/_authenticated/_app/apps/calendar'
+      path: '/apps/calendar'
+      fullPath: '/apps/calendar'
+      preLoaderRoute: typeof AuthenticatedAppAppsCalendarRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/email': {
+      id: '/_authenticated/_app/apps/email'
+      path: '/apps/email'
+      fullPath: '/apps/email'
+      preLoaderRoute: typeof AuthenticatedAppAppsEmailRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/invoice/$id': {
       id: '/_authenticated/_app/invoice/$id'
       path: '/invoice/$id'
@@ -8478,6 +8693,13 @@ declare module '@tanstack/react-router' {
       path: '/custom-domain'
       fullPath: '/settings/custom-domain'
       preLoaderRoute: typeof AuthenticatedAppSettingsCustomDomainRouteImport
+      parentRoute: typeof AuthenticatedAppSettingsRoute
+    }
+    '/_authenticated/_app/settings/email-accounts': {
+      id: '/_authenticated/_app/settings/email-accounts'
+      path: '/email-accounts'
+      fullPath: '/settings/email-accounts'
+      preLoaderRoute: typeof AuthenticatedAppSettingsEmailAccountsRouteImport
       parentRoute: typeof AuthenticatedAppSettingsRoute
     }
     '/_authenticated/_app/settings/webhook': {
@@ -9943,6 +10165,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAddonsWebhookSettingsRouteImport
       parentRoute: typeof AuthenticatedAppRouteRoute
     }
+    '/_authenticated/_app/apps/chat/chat-contact': {
+      id: '/_authenticated/_app/apps/chat/chat-contact'
+      path: '/apps/chat/chat-contact'
+      fullPath: '/apps/chat/chat-contact'
+      preLoaderRoute: typeof AuthenticatedAppAppsChatChatContactRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/chat/chat-groups': {
+      id: '/_authenticated/_app/apps/chat/chat-groups'
+      path: '/apps/chat/chat-groups'
+      fullPath: '/apps/chat/chat-groups'
+      preLoaderRoute: typeof AuthenticatedAppAppsChatChatGroupsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/chat/chats': {
+      id: '/_authenticated/_app/apps/chat/chats'
+      path: '/apps/chat/chats'
+      fullPath: '/apps/chat/chats'
+      preLoaderRoute: typeof AuthenticatedAppAppsChatChatsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/file-manager/grid-view': {
+      id: '/_authenticated/_app/apps/file-manager/grid-view'
+      path: '/apps/file-manager/grid-view'
+      fullPath: '/apps/file-manager/grid-view'
+      preLoaderRoute: typeof AuthenticatedAppAppsFileManagerGridViewRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/file-manager/list-view': {
+      id: '/_authenticated/_app/apps/file-manager/list-view'
+      path: '/apps/file-manager/list-view'
+      fullPath: '/apps/file-manager/list-view'
+      preLoaderRoute: typeof AuthenticatedAppAppsFileManagerListViewRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/integrations/all-apps': {
+      id: '/_authenticated/_app/apps/integrations/all-apps'
+      path: '/apps/integrations/all-apps'
+      fullPath: '/apps/integrations/all-apps'
+      preLoaderRoute: typeof AuthenticatedAppAppsIntegrationsAllAppsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/taskboard/kanban-board': {
+      id: '/_authenticated/_app/apps/taskboard/kanban-board'
+      path: '/apps/taskboard/kanban-board'
+      fullPath: '/apps/taskboard/kanban-board'
+      preLoaderRoute: typeof AuthenticatedAppAppsTaskboardKanbanBoardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/taskboard/pipeline': {
+      id: '/_authenticated/_app/apps/taskboard/pipeline'
+      path: '/apps/taskboard/pipeline'
+      fullPath: '/apps/taskboard/pipeline'
+      preLoaderRoute: typeof AuthenticatedAppAppsTaskboardPipelineRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/taskboard/projects-board': {
+      id: '/_authenticated/_app/apps/taskboard/projects-board'
+      path: '/apps/taskboard/projects-board'
+      fullPath: '/apps/taskboard/projects-board'
+      preLoaderRoute: typeof AuthenticatedAppAppsTaskboardProjectsBoardRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/todo/gantt': {
+      id: '/_authenticated/_app/apps/todo/gantt'
+      path: '/apps/todo/gantt'
+      fullPath: '/apps/todo/gantt'
+      preLoaderRoute: typeof AuthenticatedAppAppsTodoGanttRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/apps/todo/task-list': {
+      id: '/_authenticated/_app/apps/todo/task-list'
+      path: '/apps/todo/task-list'
+      fullPath: '/apps/todo/task-list'
+      preLoaderRoute: typeof AuthenticatedAppAppsTodoTaskListRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/_app/invoice/$id/print': {
       id: '/_authenticated/_app/invoice/$id/print'
       path: '/print'
@@ -10137,6 +10436,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAppSettingsRouteChildren {
   AuthenticatedAppSettingsCustomDomainRoute: typeof AuthenticatedAppSettingsCustomDomainRoute
+  AuthenticatedAppSettingsEmailAccountsRoute: typeof AuthenticatedAppSettingsEmailAccountsRoute
   AuthenticatedAppSettingsWebhookRoute: typeof AuthenticatedAppSettingsWebhookRoute
 }
 
@@ -10144,6 +10444,8 @@ const AuthenticatedAppSettingsRouteChildren: AuthenticatedAppSettingsRouteChildr
   {
     AuthenticatedAppSettingsCustomDomainRoute:
       AuthenticatedAppSettingsCustomDomainRoute,
+    AuthenticatedAppSettingsEmailAccountsRoute:
+      AuthenticatedAppSettingsEmailAccountsRoute,
     AuthenticatedAppSettingsWebhookRoute: AuthenticatedAppSettingsWebhookRoute,
   }
 
@@ -10275,6 +10577,7 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppDepartmentsRoute: typeof AuthenticatedAppDepartmentsRoute
   AuthenticatedAppDesignationsRoute: typeof AuthenticatedAppDesignationsRoute
   AuthenticatedAppDocumentsRoute: typeof AuthenticatedAppDocumentsRoute
+  AuthenticatedAppEmailRoute: typeof AuthenticatedAppEmailRoute
   AuthenticatedAppEmployeeDashboardRoute: typeof AuthenticatedAppEmployeeDashboardRoute
   AuthenticatedAppEmployeeDetailsRoute: typeof AuthenticatedAppEmployeeDetailsRoute
   AuthenticatedAppEmployeePayslipsRoute: typeof AuthenticatedAppEmployeePayslipsRoute
@@ -10372,6 +10675,8 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppWorkFromHomeRoute: typeof AuthenticatedAppWorkFromHomeRoute
   AuthenticatedAppWorkflowsRoute: typeof AuthenticatedAppWorkflowsRoute
   AuthenticatedAppWorkspaceRoute: typeof AuthenticatedAppWorkspaceRoute
+  AuthenticatedAppAppsCalendarRoute: typeof AuthenticatedAppAppsCalendarRoute
+  AuthenticatedAppAppsEmailRoute: typeof AuthenticatedAppAppsEmailRoute
   AuthenticatedAppInvoiceIdRoute: typeof AuthenticatedAppInvoiceIdRouteWithChildren
   AuthenticatedAppInvoiceCreateRoute: typeof AuthenticatedAppInvoiceCreateRoute
   AuthenticatedAppProjectIdRoute: typeof AuthenticatedAppProjectIdRoute
@@ -10386,6 +10691,17 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppAddonsPlanningDashboardRoute: typeof AuthenticatedAppAddonsPlanningDashboardRoute
   AuthenticatedAppAddonsWebhookEventsRoute: typeof AuthenticatedAppAddonsWebhookEventsRoute
   AuthenticatedAppAddonsWebhookSettingsRoute: typeof AuthenticatedAppAddonsWebhookSettingsRoute
+  AuthenticatedAppAppsChatChatContactRoute: typeof AuthenticatedAppAppsChatChatContactRoute
+  AuthenticatedAppAppsChatChatGroupsRoute: typeof AuthenticatedAppAppsChatChatGroupsRoute
+  AuthenticatedAppAppsChatChatsRoute: typeof AuthenticatedAppAppsChatChatsRoute
+  AuthenticatedAppAppsFileManagerGridViewRoute: typeof AuthenticatedAppAppsFileManagerGridViewRoute
+  AuthenticatedAppAppsFileManagerListViewRoute: typeof AuthenticatedAppAppsFileManagerListViewRoute
+  AuthenticatedAppAppsIntegrationsAllAppsRoute: typeof AuthenticatedAppAppsIntegrationsAllAppsRoute
+  AuthenticatedAppAppsTaskboardKanbanBoardRoute: typeof AuthenticatedAppAppsTaskboardKanbanBoardRoute
+  AuthenticatedAppAppsTaskboardPipelineRoute: typeof AuthenticatedAppAppsTaskboardPipelineRoute
+  AuthenticatedAppAppsTaskboardProjectsBoardRoute: typeof AuthenticatedAppAppsTaskboardProjectsBoardRoute
+  AuthenticatedAppAppsTodoGanttRoute: typeof AuthenticatedAppAppsTodoGanttRoute
+  AuthenticatedAppAppsTodoTaskListRoute: typeof AuthenticatedAppAppsTodoTaskListRoute
   AuthenticatedAppAddonsAiAssistantHistoryIdRoute: typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
   AuthenticatedAppAddonsAiDocumentHistoryIdRoute: typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
   AuthenticatedAppAddonsAiDocumentTemplatesNewRoute: typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
@@ -10468,6 +10784,7 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppDepartmentsRoute: AuthenticatedAppDepartmentsRoute,
   AuthenticatedAppDesignationsRoute: AuthenticatedAppDesignationsRoute,
   AuthenticatedAppDocumentsRoute: AuthenticatedAppDocumentsRoute,
+  AuthenticatedAppEmailRoute: AuthenticatedAppEmailRoute,
   AuthenticatedAppEmployeeDashboardRoute:
     AuthenticatedAppEmployeeDashboardRoute,
   AuthenticatedAppEmployeeDetailsRoute: AuthenticatedAppEmployeeDetailsRoute,
@@ -10580,6 +10897,8 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppWorkFromHomeRoute: AuthenticatedAppWorkFromHomeRoute,
   AuthenticatedAppWorkflowsRoute: AuthenticatedAppWorkflowsRoute,
   AuthenticatedAppWorkspaceRoute: AuthenticatedAppWorkspaceRoute,
+  AuthenticatedAppAppsCalendarRoute: AuthenticatedAppAppsCalendarRoute,
+  AuthenticatedAppAppsEmailRoute: AuthenticatedAppAppsEmailRoute,
   AuthenticatedAppInvoiceIdRoute: AuthenticatedAppInvoiceIdRouteWithChildren,
   AuthenticatedAppInvoiceCreateRoute: AuthenticatedAppInvoiceCreateRoute,
   AuthenticatedAppProjectIdRoute: AuthenticatedAppProjectIdRoute,
@@ -10605,6 +10924,25 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
     AuthenticatedAppAddonsWebhookEventsRoute,
   AuthenticatedAppAddonsWebhookSettingsRoute:
     AuthenticatedAppAddonsWebhookSettingsRoute,
+  AuthenticatedAppAppsChatChatContactRoute:
+    AuthenticatedAppAppsChatChatContactRoute,
+  AuthenticatedAppAppsChatChatGroupsRoute:
+    AuthenticatedAppAppsChatChatGroupsRoute,
+  AuthenticatedAppAppsChatChatsRoute: AuthenticatedAppAppsChatChatsRoute,
+  AuthenticatedAppAppsFileManagerGridViewRoute:
+    AuthenticatedAppAppsFileManagerGridViewRoute,
+  AuthenticatedAppAppsFileManagerListViewRoute:
+    AuthenticatedAppAppsFileManagerListViewRoute,
+  AuthenticatedAppAppsIntegrationsAllAppsRoute:
+    AuthenticatedAppAppsIntegrationsAllAppsRoute,
+  AuthenticatedAppAppsTaskboardKanbanBoardRoute:
+    AuthenticatedAppAppsTaskboardKanbanBoardRoute,
+  AuthenticatedAppAppsTaskboardPipelineRoute:
+    AuthenticatedAppAppsTaskboardPipelineRoute,
+  AuthenticatedAppAppsTaskboardProjectsBoardRoute:
+    AuthenticatedAppAppsTaskboardProjectsBoardRoute,
+  AuthenticatedAppAppsTodoGanttRoute: AuthenticatedAppAppsTodoGanttRoute,
+  AuthenticatedAppAppsTodoTaskListRoute: AuthenticatedAppAppsTodoTaskListRoute,
   AuthenticatedAppAddonsAiAssistantHistoryIdRoute:
     AuthenticatedAppAddonsAiAssistantHistoryIdRoute,
   AuthenticatedAppAddonsAiDocumentHistoryIdRoute:

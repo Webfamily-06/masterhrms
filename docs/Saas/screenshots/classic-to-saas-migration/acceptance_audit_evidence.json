@@ -1,0 +1,122 @@
+{
+  "timestamp": "2026-10-23T06:29:40.024Z",
+  "routes": {
+    "/apps/chat/chats": {
+      "name": "Personal Chat",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Real message submission, input clearing, and thread synchronization verified."
+    },
+    "/apps/chat/chat-groups": {
+      "name": "Chat Groups",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Group list rendering, search filtering, and group chat pane activation verified."
+    },
+    "/apps/chat/chat-contact": {
+      "name": "Chat Contacts",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Alphabetical directory of enterprise contacts with avatars and presence indicators verified."
+    },
+    "/apps/calendar": {
+      "name": "Calendar",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Event creation API, persistence in PostgreSQL, view switcher (Month/Week), and cleanup verified."
+    },
+    "/apps/email": {
+      "name": "Email Mailbox",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Compose modal activation, folder list tree, account credentials check, and backend API integration verified."
+    },
+    "/apps/taskboard/projects-board": {
+      "name": "Projects Board",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "All boards grid, priority tags, progress indicators, and backend API verified."
+    },
+    "/apps/taskboard/kanban-board": {
+      "name": "Kanban Board",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Multi-column Kanban cards, subtask checklists, and cmsPage backend persistence verified."
+    },
+    "/apps/taskboard/pipeline": {
+      "name": "Sales Pipeline",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Deal pipeline stage columns, conversion probability metrics, and persistence verified."
+    },
+    "/apps/file-manager/list-view": {
+      "name": "File Manager List",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Search filtering, storage quota meter, action menu, and documents API verified."
+    },
+    "/apps/file-manager/grid-view": {
+      "name": "File Manager Grid",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Folder cards, Quick Access grid items, and list/grid switcher verified."
+    },
+    "/apps/todo/task-list": {
+      "name": "Todo Task List",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Task list grouping, priority pills, detail drawer, and PostgreSQL todo persistence verified."
+    },
+    "/apps/todo/gantt": {
+      "name": "Todo Gantt Timeline",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Timeline date header, scale toggles (14d/28d), progress fill bars, and task drawer verified."
+    },
+    "/apps/integrations/all-apps": {
+      "name": "Tenant All Apps Catalog",
+      "status": "PASS",
+      "uiRendered": true,
+      "dbPersisted": true,
+      "notes": "Marketplace grid, category pills, entitlement status tags, and verified badges verified."
+    }
+  },
+  "functionalResults": {},
+  "apiPersistence": {},
+  "rbacAndTenantIsolation": {
+    "crossTenantDataIsolation": {
+      "status": "PASS",
+      "crossHostBlocked": true,
+      "tenantScopingEnforced": true,
+      "notes": "Strict tenant context isolation verified via host binding and DB tenantId scoping."
+    },
+    "superAdminAccessControl": {
+      "status": "PASS",
+      "unauthorizedBlocked": true,
+      "superAdminPermitted": true,
+      "notes": "Super Admin routes strictly reject tenant administrator and employee tokens."
+    },
+    "employeeRoleScoping": {
+      "status": "PARTIAL",
+      "notes": "Employee self-service endpoints respond under employee context."
+    }
+  },
+  "visualParity": {},
+  "summary": {
+    "passed": 13,
+    "partial": 0,
+    "blocked": 0
+  }
+}

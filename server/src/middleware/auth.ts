@@ -6,6 +6,7 @@ import { getWorkspacePolicy, assertWorkspaceActive } from "../services/workspace
 export interface AuthRequest extends Request {
   tenantId?: string;
   user?: JwtPayload & {
+    id?: string;
     workspaceRole?: string;
     permissions?: string[];
   };

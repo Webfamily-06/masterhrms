@@ -50,6 +50,7 @@ import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { LoadingState } from "@/components/system-states/loading-state";
 import { EmptyState } from "@/components/system-states/empty-state";
+import { GanttTimelineView } from "@/components/todo/gantt-timeline-view";
 
 
 
@@ -107,6 +108,7 @@ function TodoPage() {
   const [sortBy, setSortBy] = useState<"created" | "priority" | "due">("created");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'gantt'>('list');
   const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null);
   const [todoToDelete, setTodoToDelete] = useState<string | null>(null);
 
@@ -280,17 +282,43 @@ function TodoPage() {
           </Badge>
         }
         actions={
-          <Button
-            size="sm"
-            onClick={handleOpenCreate}
-            className="gap-1.5 text-xs font-semibold shadow-2xs"
-          >
-            <Plus className="size-3.5" /> Add New Task
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center border border-border/70 rounded-lg p-0.5 bg-muted/40">
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                className="h-7 text-xs font-medium px-2.5"
+              >
+                List View
+              </Button>
+              <Button
+                variant={viewMode === "gantt" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("gantt")}
+                className="h-7 text-xs font-medium px-2.5"
+              >
+                Gantt Timeline
+              </Button>
+            </div>
+            {viewMode === "list" && (
+              <Button
+                size="sm"
+                onClick={handleOpenCreate}
+                className="gap-1.5 text-xs font-semibold shadow-2xs"
+              >
+                <Plus className="size-3.5" /> Add New Task
+              </Button>
+            )}
+          </div>
         }
       />
 
-      {/* ─── KPI Stats Overview Grid ─── */}
+      {viewMode === "gantt" ? (
+        <GanttTimelineView onSwitchToList={() => setViewMode("list")} />
+      ) : (
+        <>
+        {/* ─── KPI Stats Overview Grid ─── */}
       <StatsOverviewGrid columns={4}>
         <StatCard
           label="Total Tasks"
@@ -499,6 +527,8 @@ function TodoPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
 
       {/* ─── ConfirmationDialog for Task Deletion ─── */}

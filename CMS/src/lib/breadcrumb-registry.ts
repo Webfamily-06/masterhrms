@@ -229,6 +229,8 @@ export const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   "/documents": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "Document Vault" }],
   "/chat": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "Collaboration", href: "/chat" }, { label: "Chat" }],
   "/calendar": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "Collaboration", href: "/calendar" }, { label: "Company Calendar" }],
+  "/hr/calendar": [{ label: "Home", href: "/hr/dashboard" }, { label: "HRM Suite", href: "/hr/dashboard" }, { label: "Calendar" }],
+  "/apps/calendar": [{ label: "Home", href: "/hr/dashboard" }, { label: "Applications", href: "/apps/calendar" }, { label: "Calendar" }],
   "/notes": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "Collaboration", href: "/notes" }, { label: "Personal Notes" }],
   "/todo": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "Collaboration", href: "/todo" }, { label: "To-Do List" }],
   "/media": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "Collaboration", href: "/media" }, { label: "Media Library" }],

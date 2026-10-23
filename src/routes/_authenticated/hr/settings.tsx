@@ -2,6 +2,7 @@ import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
 import { WorkspaceBrandingSettings } from "@/components/settings/workspace-branding-settings";
 import { CompanyProfileSettings } from "@/components/settings/company-profile-settings";
 import { SharedSettingsShell } from "@/components/settings/shared-settings-shell";
+import { UserEmailAccountsSettings } from "@/components/settings/user-email-accounts-settings";
 import { AccessDenied } from "@/components/access-denied";
 import { isWorkspaceAdminUser } from "@/lib/permissions";
 import { createFileRoute, Link, useSearch, Outlet, useRouterState } from "@tanstack/react-router";
@@ -945,6 +946,11 @@ export function Settings() {
             badge: twoFactorStatus?.twoFactorEnabled ? "ACTIVE" : undefined,
             badgeColor: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
           },
+          {
+            id: "email",
+            label: "Email Accounts",
+            description: "Personal and corporate SMTP, IMAP, and POP3 mailboxes",
+          },
         ],
       },
     ];
@@ -1865,6 +1871,11 @@ export function Settings() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ===================== TAB: USER EMAIL ACCOUNTS ===================== */}
+        <TabsContent value="email" className="space-y-5">
+          <UserEmailAccountsSettings />
         </TabsContent>
 
         {/* ===================== TAB 6: AI & CHATGPT MULTI-MODEL SETTINGS ===================== */}

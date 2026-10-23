@@ -49,9 +49,24 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   Meetings: "hrMeetings",
   "Company Documents": "hrDocs",
   "Strategic Planning": "hrPlanning",
+  Applications: "hrApps",
+  Chat: "hrAppsChat",
+  Scrumboard: "hrAppsScrum",
+  "File Manager": "hrAppsFiles",
+  "Todo & Tasks": "hrAppsTodo",
 };
 
 const HR_ICON_MAP: Record<string, string> = {
+  // Applications
+  Applications: "ph-grid-four",
+  Chat: "ph-chat-circle-dots",
+  Scrumboard: "ph-kanban",
+  "File Manager": "ph-folder-notch-open",
+  "Todo & Tasks": "ph-check-square-offset",
+  "All Apps Catalog": "ph-storefront",
+  Email: "ph-envelope-simple",
+  "Email Mailbox": "ph-envelope-simple",
+
   // 01. Overview
   Dashboard: "ph-squares-four",
   Calendar: "ph-calendar",
@@ -1258,7 +1273,7 @@ export function DreamsSidebar({
                 className={cn(
                   "cursor-pointer",
                   openMenus.apps && "subdrop",
-                  ["/chat", "/calendar", "/notes", "/todo", "/ai-ocr", "/ai-writer"].includes(currentPath) &&
+                  ["/chat", "/calendar", "/apps/calendar", "/notes", "/todo", "/ai-ocr", "/ai-writer"].includes(currentPath) &&
                     "active"
                 )}
               >
@@ -1289,7 +1304,7 @@ export function DreamsSidebar({
                   <Link
                     to={isAdminOrSuper ? "/hr/calendar" : "/me/calendar"}
                     onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/calendar" || currentPath === "/me/calendar" || currentPath === "/calendar") && "active")}
+                    className={cn((currentPath === "/hr/calendar" || currentPath === "/me/calendar" || currentPath === "/calendar" || currentPath === "/apps/calendar") && "active")}
                   >
                     Calendar
                   </Link>
@@ -1310,6 +1325,33 @@ export function DreamsSidebar({
                     className={cn((currentPath === "/hr/todo" || currentPath === "/me/todo" || currentPath === "/todo") && "active")}
                   >
                     Todo Action List
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/apps/todo/gantt"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/apps/todo/gantt" && "active")}
+                  >
+                    Interactive Gantt
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/apps/email"
+                    onClick={onCloseMobile}
+                    className={cn((currentPath === "/apps/email" || currentPath === "/email") && "active")}
+                  >
+                    Email Mailbox
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/settings/email-accounts"
+                    onClick={onCloseMobile}
+                    className={cn(currentPath === "/settings/email-accounts" && "active")}
+                  >
+                    Email Accounts
                   </Link>
                 </li>
                 <li>

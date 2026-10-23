@@ -4,7 +4,7 @@ export interface NormalizedCalendarEvent {
   id: string;
   title: string;
   description?: string;
-  category: "meeting" | "training" | "leave" | "holiday" | "event";
+  category: "meeting" | "training" | "leave" | "holiday" | "event" | "birthday";
   startDate: string; // ISO string
   endDate: string; // ISO string
   allDay: boolean;
@@ -229,7 +229,80 @@ export class CalendarService {
       }
     }
 
-    // 5. AD-HOC CALENDAR EVENTS
+    // 5. EMPLOYEE BIRTHDAYS PROJECTION
+    if (!category || category === "all" || category === "birthday" || category === "Birthday") {
+      try {
+        const employees = await db.employee.findMany({
+          where: {
+            tenantId,
+            status: "active",
+            dateOfBirth: { not: null },
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            dateOfBirth: true,
+            position: true,
+            department: {
+              select: { name: true },
+            },
+          },
+          take: 300,
+        });
+
+        const startYear = startFilter.getFullYear();
+        const endYear = endFilter.getFullYear();
+
+        for (const emp of employees) {
+          if (!emp.dateOfBirth) continue;
+          const dob = new Date(emp.dateOfBirth);
+          const dobMonth = dob.getUTCMonth(); // 0-11
+          const dobDate = dob.getUTCDate();   // 1-31
+
+          // Generate birthday occurrences for each year in the requested range
+          for (let yr = startYear; yr <= endYear; yr++) {
+            let occMonth = dobMonth;
+            let occDay = dobDate;
+
+            // Leap-year policy: if born on Feb 29 and yr is not a leap year, celebrate on Feb 28
+            if (dobMonth === 1 && dobDate === 29) {
+              const isLeap = (yr % 4 === 0 && yr % 100 !== 0) || (yr % 400 === 0);
+              occDay = isLeap ? 29 : 28;
+            }
+
+            const yyyy = String(yr);
+            const mm = String(occMonth + 1).padStart(2, "0");
+            const dd = String(occDay).padStart(2, "0");
+            const dateStr = `${yyyy}-${mm}-${dd}T00:00:00.000Z`;
+            const occDate = new Date(dateStr);
+
+            if (occDate >= startFilter && occDate <= endFilter) {
+              const fullName = `${emp.firstName} ${emp.lastName}`.trim();
+              const deptInfo = emp.department?.name ? ` (${emp.department.name})` : (emp.position ? ` (${emp.position})` : "");
+              events.push({
+                id: `birthday-${emp.id}-${yr}`,
+                title: `🎂 Birthday: ${fullName}${deptInfo}`,
+                description: `Annual birthday celebration for ${fullName}.${emp.department?.name ? ` Department: ${emp.department.name}.` : ""}`,
+                category: "birthday",
+                startDate: dateStr,
+                endDate: dateStr,
+                allDay: true,
+                sourceDomain: "organization",
+                sourceId: emp.id,
+                linkTo: isHR ? `/hr/employees` : `/me/organization`,
+                status: "active",
+                badgeColor: "bg-rose-500/15 text-rose-700 border-rose-500/30",
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("CalendarService: Failed to project employee birthdays:", err);
+      }
+    }
+
+    // 6. AD-HOC CALENDAR EVENTS
     if (!category || category === "all" || category === "event") {
       try {
         const eventWhere: any = {

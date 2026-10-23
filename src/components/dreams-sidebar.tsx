@@ -49,9 +49,24 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   Meetings: "hrMeetings",
   "Company Documents": "hrDocs",
   "Strategic Planning": "hrPlanning",
+  Applications: "hrApps",
+  Chat: "hrAppsChat",
+  Scrumboard: "hrAppsScrum",
+  "File Manager": "hrAppsFiles",
+  "Todo & Tasks": "hrAppsTodo",
 };
 
 const HR_ICON_MAP: Record<string, string> = {
+  // Applications
+  Applications: "ph-grid-four",
+  Chat: "ph-chat-circle-dots",
+  Scrumboard: "ph-kanban",
+  "File Manager": "ph-folder-notch-open",
+  "Todo & Tasks": "ph-check-square-offset",
+  "All Apps Catalog": "ph-storefront",
+  Email: "ph-envelope-simple",
+  "Email Mailbox": "ph-envelope-simple",
+
   // 01. Overview
   Dashboard: "ph-squares-four",
   Calendar: "ph-calendar",

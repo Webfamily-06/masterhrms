@@ -1,0 +1,117 @@
+{
+  "timestamp": "2026-10-23T07:08:20.429Z",
+  "identities": {
+    "tenantA": "tenant-default-001",
+    "tenantB": "test-tenant-b-1791974238664",
+    "roles": [
+      "superAdmin",
+      "tenantAdmin",
+      "hrAdmin",
+      "emp1",
+      "emp2",
+      "tenantBEmp"
+    ]
+  },
+  "domains": {
+    "calendar": {
+      "personalEventPrivacy": {
+        "status": "PASS",
+        "emp1CanView": true,
+        "emp2Isolated": true,
+        "tenantBIsolated": true,
+        "putProtected": true,
+        "deleteProtected": true,
+        "notes": "Object-level mutations enforced"
+      },
+      "sharedEvents": {
+        "status": "PASS",
+        "emp1SeesShared": true,
+        "emp2SeesShared": true,
+        "tenantBIsolated": true,
+        "notes": "Shared event visible to authorized recipient via metadata tracking"
+      }
+    },
+    "todos": {
+      "privateTask": {
+        "status": "PASS",
+        "emp1CanView": true,
+        "emp2Isolated": true,
+        "putProtected": true,
+        "deleteProtected": true
+      },
+      "hrAssignment": {
+        "status": "PASS",
+        "emp2SeesAssigned": true,
+        "notes": "Assigned tasks correctly visible to assignee"
+      }
+    },
+    "chat": {
+      "directChatPrivacy": {
+        "status": "PASS",
+        "emp1CanRead": true,
+        "emp2CanRead": true,
+        "unrelatedUserBlocked": true,
+        "tenantBBlocked": true,
+        "notes": "Participant authorization enforced"
+      }
+    },
+    "taskboard": {
+      "ownership": {
+        "status": "PASS",
+        "tenantIsolationEnforced": true,
+        "notes": "State isolated per tenant slug system-kanban-state-${tenantId}"
+      }
+    },
+    "fileManager": {
+      "personalFileIsolation": {
+        "status": "PASS",
+        "emp1CanView": true,
+        "emp2Isolated": true,
+        "tenantBIsolated": true,
+        "notes": "Document ownership scoped"
+      },
+      "explicitSharing": {
+        "status": "PASS",
+        "shareGranted": true,
+        "shareRevoked": true,
+        "notes": "Explicit document sharing and revocation successfully enforced"
+      }
+    }
+  },
+  "hardcodedFindings": [
+    {
+      "file": "src/components/apps/file-manager/classic-file-manager-app.tsx",
+      "symbol": "DEFAULT_FILES",
+      "lines": "64-135",
+      "impact": "7 mock files (Uploaded File png, Website_content.exl, etc.) stored in local state rather than database.",
+      "correction": "Bind file list exclusively to useQuery for /api/documents."
+    },
+    {
+      "file": "src/components/apps/file-manager/classic-file-manager-app.tsx",
+      "symbol": "DEFAULT_FOLDERS",
+      "lines": "137-141",
+      "impact": "3 mock folder cards (Jampack Source, Marketing Assets, Client Invoices) hardcoded in client.",
+      "correction": "Derive folders dynamically from document categories or folder entity."
+    },
+    {
+      "file": "src/components/apps/todo/classic-todo-app.tsx",
+      "symbol": "DEFAULT_TODOS",
+      "lines": "63-150",
+      "impact": "7 mock todo items hardcoded in client state, masking missing backend records.",
+      "correction": "Fix /api/todos query endpoint and initialize state strictly from database."
+    },
+    {
+      "file": "src/components/apps/chat/classic-chat-app.tsx",
+      "symbol": "DEFAULT_CONTACTS & DEFAULT_GROUPS",
+      "lines": "97-150",
+      "impact": "Mock contacts and groups rendered client-side instead of query against prisma.employee and chat channels.",
+      "correction": "Bind contacts to /api/employees and groups to backend channels."
+    }
+  ],
+  "summary": {
+    "pass": 0,
+    "fail": 0,
+    "notImplemented": 0,
+    "blocked": 0
+  }
+}

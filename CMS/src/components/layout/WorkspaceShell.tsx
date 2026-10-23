@@ -366,6 +366,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     "/helpdesk",
     "/chat",
     "/todo",
+    "/apps",
     "/expenses",
     "/assets",
     "/profile",
