@@ -21,7 +21,7 @@ export type EmailTemplate = {
   id: string;
   name: string;
   subject: string;
-  category: "Subscription" | "Onboarding" | "Payroll" | "Security" | "Invoices";
+  category: "Subscription" | "Onboarding" | "Payroll" | "Security" | "Invoices" | "Calendar";
   html_body: string;
   variables: string[];
 };
@@ -62,9 +62,73 @@ const SAMPLE_VARS: Record<string, string> = {
   TOTAL_AMOUNT: "₹4,708.20",
   reset_url: "https://example.com/auth?mode=reset&token=sec_tok_9918bc42",
   expiry_minutes: "60",
+  recipientName: "Alex Morgan",
+  eventTitle: "Quarterly Strategy Review & KPI Planning",
+  eventDate: "Friday, October 24, 2026",
+  eventStartTime: "10:00 AM",
+  eventEndTime: "11:30 AM",
+  eventLocation: "Conference Room B / Google Meet",
+  eventCategory: "Strategy",
+  organizerName: "Sarah Jenkins",
+  eventDescription: "Reviewing Q3 business performance and aligning team targets for the upcoming quarter.",
+  reminderText: "Event starts in 1 hour",
+  calendarUrl: "http://master.localhost:3000/hr/calendar",
 };
 
 const DEFAULT_TEMPLATES: EmailTemplate[] = [
+  {
+    id: "calendar-event-notification",
+    name: "Calendar Event & Reminder Notification",
+    subject: "Calendar Event: {{eventTitle}}",
+    category: "Calendar",
+    variables: [
+      "{{recipientName}}",
+      "{{eventTitle}}",
+      "{{eventDate}}",
+      "{{eventStartTime}}",
+      "{{eventEndTime}}",
+      "{{eventLocation}}",
+      "{{eventCategory}}",
+      "{{organizerName}}",
+      "{{eventDescription}}",
+      "{{reminderText}}",
+      "{{calendarUrl}}",
+    ],
+    html_body: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: left;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 18px; font-weight: 700;">MASTERHRMS Calendar</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Event Schedule & Reminder</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 12px 0; font-size: 18px;">Hello {{recipientName}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          {{reminderText}}
+        </p>
+        <div style="background: #f8fafc; border-left: 4px solid #6366f1; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 10px 0; color: #1e293b; font-size: 16px;">{{eventTitle}}</h3>
+          <table width="100%" style="font-size: 13px; color: #334155;">
+            <tr><td style="padding: 4px 0; font-weight: 600; width: 110px;">Date:</td><td>{{eventDate}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Time:</td><td>{{eventStartTime}} - {{eventEndTime}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Category:</td><td>{{eventCategory}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Location:</td><td>{{eventLocation}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Organizer:</td><td>{{organizerName}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Description:</td><td>{{eventDescription}}</td></tr>
+          </table>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{calendarUrl}}" style="background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Open in Calendar →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 11px; margin: 0; text-align: center;">This is an automated notification from Master HRMS. Please do not reply directly.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`,
+  },
   {
     id: "subscription-reminder-15d",
     name: "Subscription Expiry — 15 Days",
@@ -957,7 +1021,7 @@ function EmailTemplatesAdmin() {
 
             {/* Category Filter Pills */}
             <div className="flex flex-wrap gap-1 p-1.5 mb-2 bg-muted/40 rounded-lg border border-border/50 text-[11px]">
-              {["All", "Invoices", "Subscription", "Payroll", "Onboarding"].map((cat) => {
+              {["All", "Calendar", "Invoices", "Subscription", "Payroll", "Onboarding"].map((cat) => {
                 const count = cat === "All" ? list.length : list.filter((t) => t.category === cat).length;
                 if (count === 0 && cat !== "All") return null;
                 const isSelected = selectedCategory === cat;

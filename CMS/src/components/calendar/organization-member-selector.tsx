@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Search, User, X, Check, Loader2, ChevronsUpDown, AlertCircle } from "lucide-react";
+import { Search, User, X, Check, Loader2, ChevronsUpDown, AlertCircle, Plus, Shield, Eye, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface EligibleRecipient {
@@ -14,20 +14,39 @@ export interface EligibleRecipient {
   avatarUrl?: string;
 }
 
+export interface SelectedShare {
+  recipientId: string;
+  permission: "view" | "edit";
+  name?: string;
+  email?: string;
+  department?: string;
+  avatarUrl?: string;
+}
+
 interface OrganizationMemberSelectorProps {
-  value: string; // Selected userId
-  onChange: (userId: string, member?: EligibleRecipient | null) => void;
+  // Multi-select mode (primary)
+  value?: SelectedShare[];
+  onChange?: (shares: SelectedShare[]) => void;
+
+  // Single-select mode (backward-compatibility)
+  singleValue?: string;
+  onSingleChange?: (userId: string, member?: EligibleRecipient | null) => void;
+
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  readOnly?: boolean;
 }
 
 export function OrganizationMemberSelector({
   value,
   onChange,
-  placeholder = "Select an organization member...",
+  singleValue,
+  onSingleChange,
+  placeholder = "Search and add organization members...",
   className,
   disabled = false,
+  readOnly = false,
 }: OrganizationMemberSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,11 +73,25 @@ export function OrganizationMemberSelector({
     staleTime: 30000,
   });
 
-  // Track the selected member object even across search filtering
-  const selectedMember = useMemo(() => {
-    if (!value) return null;
-    return members.find((m) => m.id === value) || null;
-  }, [value, members]);
+  // Determine if using multi-select or single-select mode
+  const isMulti = value !== undefined && onChange !== undefined;
+  const currentShares: SelectedShare[] = useMemo(() => {
+    if (isMulti) return value || [];
+    if (singleValue) {
+      const m = members.find((x) => x.id === singleValue);
+      return [
+        {
+          recipientId: singleValue,
+          permission: "view",
+          name: m?.name,
+          email: m?.email,
+          department: m?.department,
+          avatarUrl: m?.avatarUrl,
+        },
+      ];
+    }
+    return [];
+  }, [isMulti, value, singleValue, members]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -69,7 +102,6 @@ export function OrganizationMemberSelector({
     }
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      // Auto-focus search input when opened
       setTimeout(() => searchInputRef.current?.focus(), 50);
     }
     return () => {
@@ -78,18 +110,48 @@ export function OrganizationMemberSelector({
   }, [isOpen]);
 
   const handleSelect = (member: EligibleRecipient) => {
-    onChange(member.id, member);
-    setIsOpen(false);
-    setSearchQuery("");
+    if (isMulti && onChange) {
+      const existing = currentShares.find((s) => s.recipientId === member.id);
+      if (!existing) {
+        onChange([
+          ...currentShares,
+          {
+            recipientId: member.id,
+            permission: "view",
+            name: member.name,
+            email: member.email,
+            department: member.department,
+            avatarUrl: member.avatarUrl,
+          },
+        ]);
+      }
+      setIsOpen(false);
+      setSearchQuery("");
+    } else if (onSingleChange) {
+      onSingleChange(member.id, member);
+      setIsOpen(false);
+      setSearchQuery("");
+    }
   };
 
-  const handleClear = (e: React.MouseEvent) => {
+  const handleRemove = (recipientId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (isMulti && onChange) {
+      onChange(currentShares.filter((s) => s.recipientId !== recipientId));
+    } else if (onSingleChange) {
+      onSingleChange("", null);
+    }
+  };
+
+  const handlePermissionChange = (recipientId: string, newPermission: "view" | "edit", e: React.ChangeEvent<HTMLSelectElement>) => {
     e.stopPropagation();
-    onChange("", null);
-    setSearchQuery("");
+    if (isMulti && onChange) {
+      onChange(
+        currentShares.map((s) => (s.recipientId === recipientId ? { ...s, permission: newPermission } : s))
+      );
+    }
   };
 
-  // Helper for member initials
   const getInitials = (name: string) => {
     if (!name) return "U";
     const parts = name.trim().split(" ");
@@ -100,185 +162,220 @@ export function OrganizationMemberSelector({
   };
 
   return (
-    <div ref={containerRef} className={cn("relative w-full", className)}>
-      {/* Trigger: Either Selected Member Chip or Input Button */}
-      {selectedMember || value ? (
-        <div
-          onClick={() => !disabled && setIsOpen(!isOpen)}
-          className={cn(
-            "flex items-center justify-between gap-2 px-2.5 py-1.5 h-9 rounded-md border border-input bg-background hover:bg-muted/30 transition-colors cursor-pointer text-xs",
-            isOpen && "ring-1 ring-teal-600 border-teal-600",
-            disabled && "opacity-50 pointer-events-none cursor-not-allowed"
-          )}
-          role="combobox"
-          aria-expanded={isOpen}
-          aria-haspopup="listbox"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setIsOpen(!isOpen);
-            }
-          }}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            {selectedMember?.avatarUrl ? (
-              <img
-                src={selectedMember.avatarUrl}
-                alt={selectedMember.name}
-                className="size-5 rounded-full object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="size-5 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                {getInitials(selectedMember?.name || value)}
-              </div>
+    <div ref={containerRef} className={cn("space-y-2.5 w-full", className)}>
+      {/* Trigger / Search Input Button */}
+      {!readOnly && (
+        <div className="relative">
+          <div
+            onClick={() => !disabled && setIsOpen(!isOpen)}
+            className={cn(
+              "flex items-center justify-between gap-2 px-3 py-2 min-h-9 rounded-md border border-input bg-background hover:bg-muted/30 transition-colors cursor-pointer text-xs",
+              isOpen && "ring-1 ring-teal-600 border-teal-600",
+              disabled && "opacity-50 pointer-events-none cursor-not-allowed"
             )}
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-semibold text-foreground text-xs truncate">
-                {selectedMember?.name || "Selected Member"}
+            role="combobox"
+            aria-expanded={isOpen}
+            aria-haspopup="listbox"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsOpen(!isOpen);
+              }
+            }}
+          >
+            <div className="flex items-center gap-2 text-muted-foreground flex-1 overflow-hidden">
+              <Search className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{placeholder}</span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-medium bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                {currentShares.length} added
               </span>
-              {selectedMember?.department && (
-                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded truncate hidden sm:inline-block">
-                  {selectedMember.department}
-                </span>
-              )}
-              {selectedMember?.email && (
-                <span className="text-[11px] text-muted-foreground truncate">
-                  ({selectedMember.email})
-                </span>
-              )}
+              <ChevronsUpDown className="size-3.5 text-muted-foreground" />
             </div>
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              title="Clear selection"
+
+          {/* Dropdown Popover */}
+          {isOpen && (
+            <div
+              className="absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95"
+              style={{ maxHeight: "320px" }}
             >
-              <X className="size-3.5" />
-            </button>
-            <ChevronsUpDown className="size-3.5 text-muted-foreground opacity-60" />
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => !disabled && setIsOpen(!isOpen)}
-          className={cn(
-            "flex items-center justify-between w-full px-3 py-1.5 h-9 rounded-md border border-input bg-background hover:bg-muted/30 transition-colors text-xs text-left",
-            isOpen ? "ring-1 ring-teal-600 border-teal-600" : "text-muted-foreground",
-            disabled && "opacity-50 pointer-events-none cursor-not-allowed"
+              {/* Filter Search Input */}
+              <div className="p-2 border-b border-slate-100 flex items-center gap-2 bg-slate-50/70">
+                <Search className="size-3.5 text-muted-foreground shrink-0 ml-1" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter by name, email, or dept..."
+                  className="w-full bg-transparent text-xs border-0 outline-hidden placeholder:text-muted-foreground focus:ring-0 px-1 py-1"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="p-1 text-muted-foreground hover:text-foreground rounded"
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Members List */}
+              <div className="max-h-56 overflow-y-auto p-1 text-xs">
+                {isLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin text-teal-600" />
+                    <span>Loading organization members...</span>
+                  </div>
+                ) : isError ? (
+                  <div className="flex flex-col items-center justify-center gap-2 py-5 px-3 text-center">
+                    <AlertCircle className="size-5 text-rose-500" />
+                    <span className="text-rose-600 font-medium">Failed to load members</span>
+                    <button
+                      type="button"
+                      onClick={() => refetch()}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 rounded border border-rose-200 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : members.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground">
+                    {searchQuery ? `No members found matching "${searchQuery}".` : "No eligible members found."}
+                  </div>
+                ) : (
+                  members.map((member) => {
+                    const isAlreadySelected = currentShares.some((s) => s.recipientId === member.id);
+                    return (
+                      <div
+                        key={member.id}
+                        onClick={() => handleSelect(member)}
+                        className={cn(
+                          "flex items-center justify-between gap-2 px-2.5 py-2 rounded cursor-pointer transition-colors select-none",
+                          isAlreadySelected
+                            ? "bg-teal-50/70 text-teal-900 font-medium"
+                            : "hover:bg-slate-100 text-slate-800"
+                        )}
+                        role="option"
+                        aria-selected={isAlreadySelected}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {member.avatarUrl ? (
+                            <img
+                              src={member.avatarUrl}
+                              alt={member.name}
+                              className="size-7 rounded-full object-cover border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="size-7 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-[10px] shrink-0 border border-teal-200">
+                              {getInitials(member.name)}
+                            </div>
+                          )}
+                          <div className="flex flex-col min-w-0 text-left">
+                            <span className="truncate font-medium">{member.name}</span>
+                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                              <span className="truncate">{member.email}</span>
+                              {member.department && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate bg-slate-100 text-slate-600 px-1 rounded">
+                                    {member.department}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {isAlreadySelected && <Check className="size-4 text-teal-600 shrink-0 ml-2" />}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           )}
-          role="combobox"
-          aria-expanded={isOpen}
-          aria-haspopup="listbox"
-        >
-          <span className="flex items-center gap-2 truncate">
-            <User className="size-3.5 text-muted-foreground flex-shrink-0" />
-            <span>{placeholder}</span>
-          </span>
-          <ChevronsUpDown className="size-3.5 text-muted-foreground opacity-60 flex-shrink-0" />
-        </button>
+        </div>
       )}
 
-      {/* Popover Dropdown */}
-      {isOpen && (
-        <div
-          className="absolute z-50 left-0 right-0 mt-1.5 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100"
-          role="listbox"
-        >
-          {/* Search Header */}
-          <div className="flex items-center px-2.5 py-2 border-b border-border/60 bg-muted/20">
-            <Search className="size-3.5 text-muted-foreground mr-2 flex-shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search member by name or email..."
-              className="w-full text-xs bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground/60"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="text-muted-foreground hover:text-foreground p-0.5"
-              >
-                <X className="size-3" />
-              </button>
+      {/* Selected Members Cards List */}
+      {currentShares.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-semibold text-muted-foreground flex items-center justify-between px-0.5">
+            <span>Selected Recipients ({currentShares.length}):</span>
+            {!readOnly && (
+              <span className="text-[10px] text-slate-400">Set individual View / Edit permissions</span>
             )}
           </div>
+          <div className="grid gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+            {currentShares.map((share) => {
+              const memberInfo = members.find((m) => m.id === share.recipientId);
+              const displayName = share.name || memberInfo?.name || "Team Member";
+              const displayEmail = share.email || memberInfo?.email || "";
+              const displayDept = share.department || memberInfo?.department;
+              const avatar = share.avatarUrl || memberInfo?.avatarUrl;
 
-          {/* Results List */}
-          <div className="max-h-60 overflow-y-auto p-1 divide-y divide-border/20">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-6 gap-2 text-xs text-muted-foreground">
-                <Loader2 className="size-4 animate-spin text-teal-600" />
-                <span>Loading organization members...</span>
-              </div>
-            ) : isError ? (
-              <div className="py-4 px-3 text-center text-xs text-destructive flex flex-col items-center gap-1">
-                <AlertCircle className="size-4" />
-                <span>Failed to load members: {(error as any)?.message || "Network Error"}</span>
-                <button
-                  type="button"
-                  onClick={() => refetch()}
-                  className="text-[11px] underline text-teal-600 hover:text-teal-700 mt-1 cursor-pointer"
+              return (
+                <div
+                  key={share.recipientId}
+                  className="flex items-center justify-between gap-2 p-2 rounded-md bg-slate-50 border border-slate-200 hover:border-slate-300 transition-colors text-xs"
                 >
-                  Retry
-                </button>
-              </div>
-            ) : members.length === 0 ? (
-              <div className="py-6 px-3 text-center text-xs text-muted-foreground">
-                {searchQuery ? `No members found matching "${searchQuery}"` : "No eligible organization members found."}
-              </div>
-            ) : (
-              members.map((member) => {
-                const isSelected = member.id === value;
-                return (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => handleSelect(member)}
-                    className={cn(
-                      "flex items-center justify-between w-full px-2.5 py-2 text-left rounded-md transition-colors cursor-pointer",
-                      isSelected
-                        ? "bg-teal-50 dark:bg-teal-950/60 text-teal-900 dark:text-teal-100 font-medium"
-                        : "hover:bg-muted/50 text-foreground"
+                  <div className="flex items-center gap-2 min-w-0">
+                    {avatar ? (
+                      <img
+                        src={avatar}
+                        alt={displayName}
+                        className="size-6 rounded-full object-cover border border-slate-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="size-6 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-[9px] shrink-0">
+                        {getInitials(displayName)}
+                      </div>
                     )}
-                    role="option"
-                    aria-selected={isSelected}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {member.avatarUrl ? (
-                        <img
-                          src={member.avatarUrl}
-                          alt={member.name}
-                          className="size-7 rounded-full object-cover flex-shrink-0 border border-border/50"
-                        />
-                      ) : (
-                        <div className="size-7 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                          {getInitials(member.name)}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-xs font-medium text-foreground truncate">{member.name}</p>
-                          {member.department && (
-                            <span className="text-[10px] bg-muted/80 text-muted-foreground px-1.5 py-0.2 rounded font-normal truncate hidden sm:inline-block">
-                              {member.department}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+                    <div className="min-w-0">
+                      <div className="font-medium text-slate-900 truncate">{displayName}</div>
+                      <div className="text-[10px] text-slate-500 truncate">
+                        {displayDept ? `${displayDept} • ` : ""}
+                        {displayEmail}
                       </div>
                     </div>
-                    {isSelected && <Check className="size-4 text-teal-600 flex-shrink-0 ml-2" />}
-                  </button>
-                );
-              })
-            )}
+                  </div>
+
+                  {/* Permission Controls */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {!readOnly ? (
+                      <select
+                        value={share.permission}
+                        onChange={(e) => handlePermissionChange(share.recipientId, e.target.value as any, e)}
+                        className="text-[11px] font-medium h-7 px-2 py-0.5 rounded border border-input bg-white text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-teal-600 cursor-pointer"
+                      >
+                        <option value="view">View Only</option>
+                        <option value="edit">Can Edit</option>
+                      </select>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700">
+                        {share.permission === "edit" ? <Edit3 className="size-2.5 text-blue-600" /> : <Eye className="size-2.5 text-slate-500" />}
+                        {share.permission === "edit" ? "Can Edit" : "View Only"}
+                      </span>
+                    )}
+
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemove(share.recipientId, e)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                        title="Remove recipient"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

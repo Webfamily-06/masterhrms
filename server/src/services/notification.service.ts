@@ -1,4 +1,5 @@
 import { getTenantDb } from "../context/tenant-context";
+import { rawPrisma } from "../prisma";
 import { getIO } from "../socket";
 
 export interface CreateNotificationParams {
@@ -17,7 +18,12 @@ export class NotificationService {
    * Creates an in-app notification record and emits realtime event to user's authorized room.
    */
   public static async createNotification(params: CreateNotificationParams): Promise<any> {
-    const db = getTenantDb();
+    let db: any;
+    try {
+      db = getTenantDb();
+    } catch {
+      db = rawPrisma;
+    }
     const targetUserId = params.userId || params.recipientUserId || "system";
 
     const notification = await db.notification.create({

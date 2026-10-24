@@ -3,6 +3,7 @@ import {
   sendSubscriptionLifecycleEmail,
   sendPaymentConfirmationEmail,
   sendPaymentRejectionEmail,
+  sendCalendarNotificationEmail,
 } from "../lib/email";
 import { Router, Response } from "express";
 import { rawPrisma as prisma } from "../prisma";
@@ -409,12 +410,29 @@ superRouter.post("/email-templates/test", requireAuth, requireSuperAdmin, async 
       admin_name: req.user?.email?.split("@")[0] || "Administrator",
     };
 
-    const result = await sendSubscriptionLifecycleEmail({
-      toEmail: recipient,
-      templateId: templateId || "subscription-reminder-15d",
-      templateFallback: subject && htmlBody ? { subject, htmlBody } : undefined,
-      variables: testVars,
-    });
+    let result;
+    if (templateId === "calendar-event-notification" || templateId?.includes("calendar")) {
+      result = await sendCalendarNotificationEmail({
+        toEmail: recipient,
+        recipientName: req.user?.email?.split("@")[0] || "Administrator",
+        eventTitle: "Q4 Product Strategy & Planning",
+        eventDate: "October 24, 2026",
+        eventStartTime: "10:00 AM",
+        eventEndTime: "11:30 AM",
+        eventLocation: "Conference Room Alpha / Google Meet",
+        eventCategory: "Meeting",
+        organizerName: "Sarah Jenkins",
+        eventDescription: "Review Q4 product roadmap, team deliverables, and release schedules.",
+        reminderText: "Starting in 60 minutes",
+      });
+    } else {
+      result = await sendSubscriptionLifecycleEmail({
+        toEmail: recipient,
+        templateId: templateId || "subscription-reminder-15d",
+        templateFallback: subject && htmlBody ? { subject, htmlBody } : undefined,
+        variables: testVars,
+      });
+    }
 
     if (!result.success && result.error && !result.error.includes("not configured")) {
       return res.status(500).json({ error: result.error });

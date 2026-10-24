@@ -78,6 +78,7 @@ import { campaignsRouter } from "./routes/campaigns.routes";
 import { todosRouter } from "./routes/todos.routes";
 import { notesRouter } from "./routes/notes.routes";
 import { calendarRouter } from "./routes/calendar.routes";
+import { pusherRouter } from "./routes/pusher.routes";
 import { requireActiveSubscription } from "./middleware/subscription";
 import { maintenanceMiddleware } from "./middleware/maintenance";
 import { billingRouter, handleRazorpayWebhook } from "./routes/billing.routes";
@@ -117,6 +118,7 @@ import { initSocket } from "./socket";
 import { runBiometricAutoSync } from "./cron/biometric-sync";
 import { runBiometricReconciliation } from "./cron/biometric-reconcile.cron";
 import { runSubscriptionExpiryRemindersCron } from "./cron/subscription-reminder.cron";
+import { CalendarReminderScheduler } from "./services/calendar-reminder.scheduler";
 
 dotenv.config();
 
@@ -444,6 +446,7 @@ app.use("/api/campaigns", campaignsRouter);
 app.use("/api/todos", todosRouter);
 app.use("/api/notes", notesRouter);
 app.use("/api/calendar", calendarRouter);
+app.use("/api/pusher", pusherRouter);
 app.use("/api/email", emailRouter);
 app.use("/api/user/email-accounts", userEmailAccountsRouter);
 app.use("/api/smart-dashboard", smartDashboardRouter);
@@ -537,6 +540,7 @@ function scheduleDailySubscriptionReminders() {
 }
 if (process.env.NODE_ENV !== "test") {
   scheduleDailySubscriptionReminders();
+  CalendarReminderScheduler.start();
 
   server.listen(Number(PORT), HOST, async () => {
     console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);
@@ -576,7 +580,8 @@ const handleGracefulShutdown = async (signal: string) => {
     try {
       // 1. Terminate background outbox worker
       OutboxService.stopProcessor();
-      console.log("🛑 [SHUTDOWN] Background outbox scheduler halted.");
+      CalendarReminderScheduler.stop();
+      console.log("🛑 [SHUTDOWN] Background outbox and calendar reminder schedulers halted.");
 
       // 2. Disconnect Prisma pool
       await prisma.$disconnect();

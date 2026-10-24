@@ -1344,4 +1344,184 @@ ${appName} Finance`;
   }
 }
 
+/**
+ * Dispatches a Calendar Event Invitation or Reminder Email with dynamic CMS template resolution.
+ */
+export async function sendCalendarNotificationEmail(options: {
+  toEmail: string;
+  recipientName: string;
+  eventTitle: string;
+  eventDate: string;
+  eventStartTime?: string;
+  eventEndTime?: string;
+  eventLocation?: string;
+  eventCategory?: string;
+  organizerName?: string;
+  eventDescription?: string;
+  reminderText?: string;
+  calendarUrl?: string;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    toEmail,
+    recipientName,
+    eventTitle,
+    eventDate,
+    eventStartTime = "All Day",
+    eventEndTime = "",
+    eventLocation = "Virtual / Workspace",
+    eventCategory = "Meeting",
+    organizerName = "Calendar Organizer",
+    eventDescription = "",
+    reminderText = "Upcoming Event Notification",
+    calendarUrl = `${getRootUrl()}/hr/calendar`,
+    tenantId,
+    scope = "TENANT",
+  } = options;
+
+  const config = await getDynamicEmailConfig({ scope, tenantId });
+  const appName = config.appName || "Master HRMS";
+
+  // Sanitize helper to prevent HTML injection in emails
+  const escapeHtml = (str: string) =>
+    str.replace(/[&<>'"]/g, (tag) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[tag] || tag));
+
+  const variables: Record<string, string> = {
+    recipientName: escapeHtml(recipientName),
+    recipient_name: escapeHtml(recipientName),
+    eventTitle: escapeHtml(eventTitle),
+    event_title: escapeHtml(eventTitle),
+    eventDate: escapeHtml(eventDate),
+    event_date: escapeHtml(eventDate),
+    eventStartTime: escapeHtml(eventStartTime),
+    event_start_time: escapeHtml(eventStartTime),
+    eventEndTime: escapeHtml(eventEndTime),
+    event_end_time: escapeHtml(eventEndTime),
+    eventLocation: escapeHtml(eventLocation),
+    event_location: escapeHtml(eventLocation),
+    eventCategory: escapeHtml(eventCategory),
+    event_category: escapeHtml(eventCategory),
+    organizerName: escapeHtml(organizerName),
+    organizer_name: escapeHtml(organizerName),
+    eventDescription: escapeHtml(eventDescription),
+    event_description: escapeHtml(eventDescription),
+    reminderText: escapeHtml(reminderText),
+    reminder_text: escapeHtml(reminderText),
+    calendarUrl: calendarUrl,
+    calendar_url: calendarUrl,
+    appName: escapeHtml(appName),
+    app_name: escapeHtml(appName),
+    company_name: escapeHtml(appName),
+  };
+
+  // 1. Try to find customized CALENDAR template from CMS (/super/email-templates)
+  let subject = "";
+  let htmlBody = "";
+
+  try {
+    const page = await prisma.cmsPage.findFirst({
+      where: { slug: "system-email-templates" },
+    });
+    if (page?.content) {
+      const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
+      if (Array.isArray(c.templates)) {
+        const found = c.templates.find(
+          (t: any) => t.id === "calendar-event-notification" || t.name?.toLowerCase().includes("calendar")
+        );
+        if (found) {
+          subject = found.subject;
+          htmlBody = found.html_body;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[email.ts] CMS calendar template lookup error: ${err.message}`);
+  }
+
+  // 2. Default responsive HTML template if not overridden in CMS
+  if (!subject || !htmlBody) {
+    subject = `Calendar: {{eventTitle}} - {{eventDate}}`;
+    htmlBody = `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{appName}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">{{reminderText}}</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{recipientName}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          You have an event notification on your calendar:
+        </p>
+        <div style="background: #f8fafc; border-left: 4px solid #6366f1; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #1e293b; font-size: 16px;">{{eventTitle}}</h3>
+          <table width="100%" style="font-size: 13px; color: #475569;">
+            <tr><td style="padding: 3px 0; width: 100px; font-weight: 600;">Date:</td><td>{{eventDate}}</td></tr>
+            <tr><td style="padding: 3px 0; font-weight: 600;">Time:</td><td>{{eventStartTime}} {{eventEndTime}}</td></tr>
+            <tr><td style="padding: 3px 0; font-weight: 600;">Category:</td><td><span style="background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 4px; font-size: 11px;">{{eventCategory}}</span></td></tr>
+            <tr><td style="padding: 3px 0; font-weight: 600;">Location:</td><td>{{eventLocation}}</td></tr>
+            <tr><td style="padding: 3px 0; font-weight: 600;">Organizer:</td><td>{{organizerName}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b; font-style: italic;">{{eventDescription}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{calendarUrl}}" style="background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Open in Calendar →</a>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+  }
+
+  // 3. Render variables
+  const renderedSubject = substituteTemplateVariables(subject, variables);
+  const renderedHtml = substituteTemplateVariables(htmlBody, variables);
+  const plainText = renderedHtml.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+
+  // 4. Send via Nodemailer if SMTP configured
+  const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+  if (hasSmtp) {
+    try {
+      const transportOptions: any = {
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: config.smtpPort === 465,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPass,
+        },
+        connectionTimeout: 3000,
+        greetingTimeout: 3000,
+        socketTimeout: 5000,
+      };
+      const transporter = nodemailer.createTransport(transportOptions);
+      const info = await transporter.sendMail({
+        from: `"${config.smtpFromName}" <${config.smtpFromEmail}>`,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject: renderedSubject,
+        text: plainText,
+        html: renderedHtml,
+      });
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.warn(`[email.ts] Calendar email delivery failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log(`📨 [DEV CALENDAR NOTIFICATION EMAIL (No SMTP configured)]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Subject: ${renderedSubject}`);
+    console.log(`   Event: ${eventTitle} on ${eventDate}`);
+    console.log("==================================================================");
+    return { success: true, messageId: `dev-calendar-${Date.now()}` };
+  }
+}
+
+
 

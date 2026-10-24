@@ -1,7 +1,7 @@
 "use client";
 
-import { ClassicCalendarApp } from "@/components/apps/calendar/classic-calendar-app";
+import { UnifiedCalendarApp } from "@/components/calendar/unified-calendar-app";
 
 export default function CalendarAppPage() {
-  return <ClassicCalendarApp />;
+  return <UnifiedCalendarApp mode="apps" title="Applications Calendar" />;
 }

@@ -4,7 +4,7 @@ export interface NormalizedCalendarEvent {
   id: string;
   title: string;
   description?: string;
-  category: "meeting" | "training" | "leave" | "holiday" | "event" | "birthday";
+  category: "meeting" | "training" | "leave" | "holiday" | "event" | "birthday" | string;
   startDate: string; // ISO string
   endDate: string; // ISO string
   allDay: boolean;
@@ -14,6 +14,9 @@ export interface NormalizedCalendarEvent {
   linkTo: string;
   status?: string;
   badgeColor?: string;
+  avatarUrl?: string | null;
+  employeeName?: string;
+  employeeInitials?: string;
 }
 
 export interface GetCalendarEventsOptions {
@@ -242,14 +245,46 @@ export class CalendarService {
             id: true,
             firstName: true,
             lastName: true,
+            email: true,
             dateOfBirth: true,
             position: true,
             department: {
               select: { name: true },
             },
+            user: {
+              select: {
+                id: true,
+                profile: {
+                  select: {
+                    avatarUrl: true,
+                  },
+                },
+              },
+            },
           },
           take: 300,
         });
+
+        // Also fetch profile avatars for employees by email if user relation is not directly linked
+        const emailsNeedingAvatar = employees
+          .filter((e) => !e.user?.profile?.avatarUrl && e.email)
+          .map((e) => e.email.toLowerCase());
+        const emailAvatarMap: Record<string, string> = {};
+        if (emailsNeedingAvatar.length > 0) {
+          const profiles = await db.profile.findMany({
+            where: {
+              tenantId,
+              email: { in: emailsNeedingAvatar },
+              avatarUrl: { not: null },
+            },
+            select: { email: true, avatarUrl: true },
+          });
+          for (const p of profiles) {
+            if (p.email && p.avatarUrl) {
+              emailAvatarMap[p.email.toLowerCase()] = p.avatarUrl;
+            }
+          }
+        }
 
         const startYear = startFilter.getFullYear();
         const endYear = endFilter.getFullYear();
@@ -259,6 +294,9 @@ export class CalendarService {
           const dob = new Date(emp.dateOfBirth);
           const dobMonth = dob.getUTCMonth(); // 0-11
           const dobDate = dob.getUTCDate();   // 1-31
+
+          const avatarUrl = emp.user?.profile?.avatarUrl || (emp.email ? emailAvatarMap[emp.email.toLowerCase()] : null) || null;
+          const initials = ((emp.firstName?.[0] || "") + (emp.lastName?.[0] || "")).toUpperCase() || "BD";
 
           // Generate birthday occurrences for each year in the requested range
           for (let yr = startYear; yr <= endYear; yr++) {
@@ -293,6 +331,9 @@ export class CalendarService {
                 linkTo: isHR ? `/hr/employees` : `/me/organization`,
                 status: "active",
                 badgeColor: "bg-rose-500/15 text-rose-700 border-rose-500/30",
+                avatarUrl,
+                employeeName: fullName,
+                employeeInitials: initials,
               });
             }
           }
