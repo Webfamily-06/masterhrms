@@ -182,11 +182,13 @@ hrCollaborationRouter.get("/notifications", requireAuth, async (req: AuthRequest
     const unreadOnly = req.query.unread === "true";
     const limit = Math.min(Number(req.query.limit) || 30, 100);
     const offset = Number(req.query.offset) || 0;
+    const moduleParam = req.query.module ? String(req.query.module) : undefined;
 
     const result = await NotificationService.getUserNotifications(tenantId, userId, {
       unreadOnly,
       limit,
       offset,
+      module: moduleParam,
     });
 
     return res.json(result);

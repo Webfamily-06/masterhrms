@@ -320,7 +320,7 @@ export class CalendarService {
               const deptInfo = emp.department?.name ? ` (${emp.department.name})` : (emp.position ? ` (${emp.position})` : "");
               events.push({
                 id: `birthday-${emp.id}-${yr}`,
-                title: `🎂 Birthday: ${fullName}${deptInfo}`,
+                title: `Birthday: ${fullName}${deptInfo}`,
                 description: `Annual birthday celebration for ${fullName}.${emp.department?.name ? ` Department: ${emp.department.name}.` : ""}`,
                 category: "birthday",
                 startDate: dateStr,

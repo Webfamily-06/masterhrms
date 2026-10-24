@@ -421,6 +421,56 @@ calendarRouter.post("/events", async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: "Start date is required" });
     }
 
+    const eventStartDate = new Date(startDate);
+    if (isNaN(eventStartDate.getTime())) {
+      return res.status(400).json({ error: "Invalid start date format", code: "INVALID_DATE" });
+    }
+
+    // 0a. Authoritative date validation: event date cannot be before today in the application/tenant timezone
+    const now = new Date();
+    const todayDateStr = now.toISOString().split("T")[0];
+    const eventDateStr = eventStartDate.toISOString().split("T")[0];
+    const startOfTodayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const eventStartMs = eventStartDate.getTime();
+
+    if (eventStartMs < startOfTodayMs && eventDateStr < todayDateStr) {
+      return res.status(400).json({
+        error: "Event date cannot be scheduled before today.",
+        code: "EVENT_DATE_IN_PAST",
+      });
+    }
+
+    // 0b. Start Time & End Time Validation
+    if (!allDay && endDate) {
+      const eventEndDate = new Date(endDate);
+      if (isNaN(eventEndDate.getTime())) {
+        return res.status(400).json({ error: "Invalid end date format", code: "INVALID_DATE" });
+      }
+      if (eventEndDate.getTime() <= eventStartMs) {
+        return res.status(400).json({
+          error: "End time must be later than start time.",
+          code: "INVALID_TIME_RANGE",
+        });
+      }
+    }
+
+    // 0c. Validate Category is Database-Backed / Known System Category
+    const selectedCategory = category ? String(category).trim() : "Meetings";
+    const tenantCategories = await getTenantCustomCategories(tenantId);
+    const validCatNames = [
+      ...SYSTEM_CATEGORIES.map(c => c.name.toLowerCase()),
+      ...SYSTEM_CATEGORIES.map(c => c.id.toLowerCase()),
+      ...tenantCategories.map(c => c.name.toLowerCase()),
+      ...tenantCategories.map(c => c.id.toLowerCase()),
+      "organization", "company", "team", "general", "leave", "holiday", "birthday", "meeting", "meetings", "training"
+    ];
+    if (selectedCategory && !validCatNames.includes(selectedCategory.toLowerCase())) {
+      return res.status(400).json({
+        error: `Category '${selectedCategory}' is not recognized or does not belong to your organization.`,
+        code: "INVALID_CATEGORY",
+      });
+    }
+
     // 1. Process Multi-Member Sharing
     const shares: CalendarShare[] = [];
     if (Array.isArray(sharedWith) && sharedWith.length > 0) {
@@ -457,17 +507,58 @@ calendarRouter.post("/events", async (req: AuthRequest, res: Response) => {
     // 2. Process Reminders
     const validatedReminders: CalendarReminder[] = [];
     if (Array.isArray(reminders)) {
+      const seenSignatures = new Set<string>();
+      const eventStartMs = new Date(startDate).getTime();
+
       for (const rem of reminders) {
-        const minutes = typeof rem?.minutesBefore === "number" ? rem.minutesBefore : parseInt(rem?.minutesBefore, 10);
-        if (!isNaN(minutes) && minutes >= 0) {
-          const channel = ["email", "in_app", "both"].includes(rem.channel) ? rem.channel : "both";
-          validatedReminders.push({
-            id: rem.id || `rem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            minutesBefore: minutes,
-            channel,
-            status: "pending",
-          });
+        if (!rem) continue;
+        const channel = ["email", "in_app", "both"].includes(rem.channel) ? rem.channel : "both";
+        let customScheduledAt: string | null = null;
+        let minutes = typeof rem?.minutesBefore === "number" ? rem.minutesBefore : parseInt(rem?.minutesBefore, 10);
+
+        if (rem.customScheduledAt) {
+          const customDate = new Date(rem.customScheduledAt);
+          if (isNaN(customDate.getTime())) {
+            return res.status(400).json({
+              error: "Invalid custom reminder date/time.",
+              code: "INVALID_REMINDER_TIME",
+            });
+          }
+          if (customDate.getTime() > eventStartMs) {
+            return res.status(400).json({
+              error: "Custom reminder cannot be scheduled after the event start time.",
+              code: "REMINDER_AFTER_EVENT_START",
+            });
+          }
+          // Reject past custom reminder if more than 1 minute in the past
+          if (customDate.getTime() < Date.now() - 60000) {
+            return res.status(400).json({
+              error: "Custom reminder cannot be scheduled in the past.",
+              code: "REMINDER_IN_PAST",
+            });
+          }
+          customScheduledAt = customDate.toISOString();
+          minutes = Math.max(0, Math.round((eventStartMs - customDate.getTime()) / 60000));
+        } else {
+          if (isNaN(minutes) || minutes < 0) {
+            continue;
+          }
         }
+
+        const signature = `${customScheduledAt || minutes}:${channel}`;
+        if (seenSignatures.has(signature)) {
+          continue; // Deduplicate identical reminder
+        }
+        seenSignatures.add(signature);
+
+        validatedReminders.push({
+          id: rem.id || `rem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          minutesBefore: minutes,
+          channel,
+          status: "pending",
+          customScheduledAt,
+          customLabel: rem.customLabel || null,
+        });
       }
     }
 
@@ -563,6 +654,59 @@ calendarRouter.put("/events/:id", async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // 0a. Time Range Validation
+    const targetStartDate = startDate !== undefined ? new Date(startDate) : existing.startDate;
+    const targetEndDate = endDate !== undefined ? new Date(endDate) : existing.endDate;
+    const isAllDay = allDay !== undefined ? Boolean(allDay) : existing.allDay;
+
+    if (startDate !== undefined && isNaN(targetStartDate.getTime())) {
+      return res.status(400).json({ error: "Invalid start date format", code: "INVALID_DATE" });
+    }
+    if (endDate !== undefined && isNaN(targetEndDate.getTime())) {
+      return res.status(400).json({ error: "Invalid end date format", code: "INVALID_DATE" });
+    }
+
+    if (!isAllDay && targetStartDate && targetEndDate && targetEndDate.getTime() <= targetStartDate.getTime()) {
+      return res.status(400).json({
+        error: "End time must be later than start time.",
+        code: "INVALID_TIME_RANGE",
+      });
+    }
+
+    // 0b. Historical vs New Date Preservation
+    if (startDate !== undefined) {
+      const now = new Date();
+      const todayDateStr = now.toISOString().split("T")[0];
+      const targetDateStr = targetStartDate.toISOString().split("T")[0];
+      const startOfTodayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+      const wasHistorical = existing.startDate.getTime() < startOfTodayMs;
+      if (!wasHistorical && targetStartDate.getTime() < startOfTodayMs && targetDateStr < todayDateStr) {
+        return res.status(400).json({
+          error: "Event date cannot be moved to before today.",
+          code: "EVENT_DATE_IN_PAST",
+        });
+      }
+    }
+
+    // 0c. Validate Category
+    if (category !== undefined) {
+      const tenantCategories = await getTenantCustomCategories(tenantId);
+      const validCatNames = [
+        ...SYSTEM_CATEGORIES.map(c => c.name.toLowerCase()),
+        ...SYSTEM_CATEGORIES.map(c => c.id.toLowerCase()),
+        ...tenantCategories.map(c => c.name.toLowerCase()),
+        ...tenantCategories.map(c => c.id.toLowerCase()),
+        "organization", "company", "team", "general", "leave", "holiday", "birthday", "meeting", "meetings", "training"
+      ];
+      if (!validCatNames.includes(String(category).toLowerCase())) {
+        return res.status(400).json({
+          error: `Category '${category}' is not recognized or does not belong to your organization.`,
+          code: "INVALID_CATEGORY",
+        });
+      }
+    }
+
     // Process updated shares if provided and user is owner/admin
     let newShares = meta.shares;
     const oldRecipientIds = new Set(meta.shares.map(s => s.recipientId));
@@ -619,16 +763,85 @@ calendarRouter.put("/events/:id", async (req: AuthRequest, res: Response) => {
     let newReminders = meta.reminders;
     if (Array.isArray(reminders)) {
       newReminders = [];
+      const seenSignatures = new Set<string>();
+      const eventStartMs = new Date(startDate !== undefined ? startDate : existing.startDate).getTime();
+
       for (const rem of reminders) {
-        const minutes = typeof rem?.minutesBefore === "number" ? rem.minutesBefore : parseInt(rem?.minutesBefore, 10);
-        if (!isNaN(minutes) && minutes >= 0) {
-          const channel = ["email", "in_app", "both"].includes(rem.channel) ? rem.channel : "both";
-          newReminders.push({
-            id: rem.id || `rem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            minutesBefore: minutes,
-            channel,
-            status: "pending", // Reset status on edit
-          });
+        if (!rem) continue;
+        const channel = ["email", "in_app", "both"].includes(rem.channel) ? rem.channel : "both";
+        let customScheduledAt: string | null = null;
+        let minutes = typeof rem?.minutesBefore === "number" ? rem.minutesBefore : parseInt(rem?.minutesBefore, 10);
+
+        if (rem.customScheduledAt) {
+          const customDate = new Date(rem.customScheduledAt);
+          if (isNaN(customDate.getTime())) {
+            return res.status(400).json({
+              error: "Invalid custom reminder date/time.",
+              code: "INVALID_REMINDER_TIME",
+            });
+          }
+          if (customDate.getTime() > eventStartMs) {
+            return res.status(400).json({
+              error: "Custom reminder cannot be scheduled after the event start time.",
+              code: "REMINDER_AFTER_EVENT_START",
+            });
+          }
+          // Reject if scheduled in the past for new/updated reminders
+          const existing = meta.reminders?.find((r) => r.id === rem.id);
+          const isExistingUnchanged = existing && existing.customScheduledAt === customDate.toISOString();
+          if (!isExistingUnchanged && customDate.getTime() < Date.now() - 60000) {
+            return res.status(400).json({
+              error: "Custom reminder cannot be scheduled in the past.",
+              code: "REMINDER_IN_PAST",
+            });
+          }
+          customScheduledAt = customDate.toISOString();
+          minutes = Math.max(0, Math.round((eventStartMs - customDate.getTime()) / 60000));
+        } else {
+          if (isNaN(minutes) || minutes < 0) {
+            continue;
+          }
+        }
+
+        const signature = `${customScheduledAt || minutes}:${channel}`;
+        if (seenSignatures.has(signature)) {
+          continue; // Deduplicate identical reminder
+        }
+        seenSignatures.add(signature);
+
+        // Preserve status if existing reminder wasn't changed
+        const existingRem = meta.reminders?.find((r) => r.id === rem.id);
+        const isUnchanged =
+          existingRem &&
+          existingRem.minutesBefore === minutes &&
+          existingRem.channel === channel &&
+          (existingRem.customScheduledAt || null) === customScheduledAt;
+
+        newReminders.push({
+          id: rem.id || `rem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          minutesBefore: minutes,
+          channel,
+          status: isUnchanged ? existingRem.status : "pending",
+          dispatchedAt: isUnchanged ? existingRem.dispatchedAt : null,
+          customScheduledAt,
+          customLabel: rem.customLabel || null,
+        });
+      }
+    }
+
+    // If startDate changed and reminders not explicitly provided, verify existing custom reminders aren't after new start and recalculate minutesBefore
+    if (startDate !== undefined && !Array.isArray(reminders) && newReminders && newReminders.length > 0) {
+      const newStartMs = new Date(startDate).getTime();
+      for (const r of newReminders) {
+        if (r.customScheduledAt) {
+          const customMs = new Date(r.customScheduledAt).getTime();
+          if (customMs > newStartMs) {
+            return res.status(400).json({
+              error: "Existing custom reminder would occur after the updated event start time.",
+              code: "REMINDER_AFTER_EVENT_START",
+            });
+          }
+          r.minutesBefore = Math.max(0, Math.round((newStartMs - customMs) / 60000));
         }
       }
     }

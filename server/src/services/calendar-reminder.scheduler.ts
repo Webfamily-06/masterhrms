@@ -2,6 +2,7 @@ import { rawPrisma as prisma } from "../prisma";
 import { NotificationService } from "./notification.service";
 import { PusherService } from "./pusher.service";
 import { sendCalendarNotificationEmail } from "../lib/email";
+import { runWithTenantContext } from "../context/tenant-context";
 
 export interface CalendarReminder {
   id: string;
@@ -9,6 +10,8 @@ export interface CalendarReminder {
   channel: "email" | "in_app" | "both";
   status: "pending" | "dispatched" | "failed";
   dispatchedAt?: string | null;
+  customScheduledAt?: string | null;
+  customLabel?: string | null;
 }
 
 export interface CalendarShare {
@@ -167,8 +170,11 @@ export class CalendarReminderScheduler {
       for (const r of meta.reminders) {
         if (r.status !== "pending") continue;
 
-        // Due time = event.startDate minus minutesBefore
-        const dueTime = eventStartTime - r.minutesBefore * 60 * 1000;
+        // Due time: if customScheduledAt is set, use its scheduled timestamp; otherwise calculate from offset
+        const dueTime = r.customScheduledAt
+          ? new Date(r.customScheduledAt).getTime()
+          : eventStartTime - r.minutesBefore * 60 * 1000;
+
         if (now.getTime() >= dueTime) {
           // It's due! Determine target participants (owner + shared recipients)
           const targetUserIds = new Set<string>();
@@ -177,39 +183,81 @@ export class CalendarReminderScheduler {
             targetUserIds.add(s.recipientId);
           }
 
-          const reminderText =
-            r.minutesBefore === 0
-              ? "Starting now!"
-              : r.minutesBefore === 60
-              ? "Starting in 1 hour"
-              : r.minutesBefore === 390
-              ? "Starting in 6.5 hours (390 minutes)"
-              : `Starting in ${r.minutesBefore} minutes`;
+          let reminderText: string;
+          if (r.customScheduledAt) {
+            const customDate = new Date(r.customScheduledAt);
+            const formattedCustom = customDate.toLocaleString("en-US", {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            reminderText = `Scheduled for ${formattedCustom}`;
+          } else if (r.minutesBefore === 0) {
+            reminderText = "Starting now!";
+          } else if (r.minutesBefore === 5) {
+            reminderText = "Starting in 5 minutes";
+          } else if (r.minutesBefore === 15) {
+            reminderText = "Starting in 15 minutes";
+          } else if (r.minutesBefore === 30) {
+            reminderText = "Starting in 30 minutes";
+          } else if (r.minutesBefore === 60) {
+            reminderText = "Starting in 1 hour";
+          } else if (r.minutesBefore === 120) {
+            reminderText = "Starting in 2 hours";
+          } else if (r.minutesBefore === 300) {
+            reminderText = "Starting in 5 hours";
+          } else if (r.minutesBefore === 1440) {
+            reminderText = "Starting in 1 day";
+          } else if (r.minutesBefore === 390) {
+            reminderText = "Starting in 6.5 hours (390 minutes)";
+          } else {
+            reminderText = `Starting in ${r.minutesBefore} minutes`;
+          }
+
+          let inAppSuccess = false;
+          let emailSuccess = false;
 
           // 1. Dispatch In-App Notification & Pusher
           if (r.channel === "in_app" || r.channel === "both") {
             for (const uid of targetUserIds) {
               try {
-                await NotificationService.createNotification({
-                  tenantId: ev.tenantId,
-                  userId: uid,
-                  title: `Calendar Reminder: ${ev.title}`,
-                  message: `${ev.title} is ${reminderText.toLowerCase()}.`,
-                  type: "CALENDAR_REMINDER",
-                  actionUrl: `/hr/calendar`,
-                  metadata: {
-                    eventId: ev.id,
-                    minutesBefore: r.minutesBefore,
+                await runWithTenantContext(
+                  {
+                    tenantId: ev.tenantId,
+                    userId: uid,
+                    roles: ["employee"],
+                    status: "ACTIVE",
+                    tenancyStrategy: "SHARED_SCHEMA",
+                    db: prisma,
                   },
-                });
+                  async () => {
+                    await NotificationService.createNotification({
+                      tenantId: ev.tenantId,
+                      userId: uid,
+                      title: `Calendar Reminder: ${ev.title}`,
+                      message: `${ev.title} is ${reminderText.toLowerCase()}.`,
+                      type: "CALENDAR_REMINDER",
+                      actionUrl: `/hr/calendar`,
+                      metadata: {
+                        eventId: ev.id,
+                        reminderId: r.id,
+                        minutesBefore: r.minutesBefore,
+                        customScheduledAt: r.customScheduledAt || null,
+                      },
+                    });
+                  }
+                );
 
                 await PusherService.triggerUserEvent(ev.tenantId, uid, "calendar:reminder-due", {
                   eventId: ev.id,
                   title: ev.title,
                   reminderText,
                   minutesBefore: r.minutesBefore,
+                  customScheduledAt: r.customScheduledAt || null,
                   startDate: ev.startDate.toISOString(),
                 });
+                inAppSuccess = true;
               } catch (err: any) {
                 console.warn(`[CalendarReminderScheduler] In-app notification error for user ${uid}:`, err);
               }
@@ -218,7 +266,6 @@ export class CalendarReminderScheduler {
 
           // 2. Dispatch Email
           if (r.channel === "email" || r.channel === "both") {
-            // Find emails of all target participants
             const users = await prisma.user.findMany({
               where: { id: { in: Array.from(targetUserIds) } },
               select: {
@@ -249,6 +296,7 @@ export class CalendarReminderScheduler {
                     reminderText,
                     tenantId: ev.tenantId,
                   });
+                  emailSuccess = true;
                 } catch (err: any) {
                   console.warn(`[CalendarReminderScheduler] Email error for ${u.email}:`, err);
                 }
@@ -256,11 +304,22 @@ export class CalendarReminderScheduler {
             }
           }
 
-          // Mark reminder as dispatched to prevent duplicate processing
-          r.status = "dispatched";
+          // Evaluate delivery status based on configured channel
+          const isDispatched =
+            r.channel === "both"
+              ? inAppSuccess || emailSuccess
+              : r.channel === "in_app"
+              ? inAppSuccess
+              : emailSuccess;
+
+          r.status = isDispatched ? "dispatched" : "failed";
           r.dispatchedAt = new Date().toISOString();
           eventModified = true;
-          dispatchedCount++;
+
+          if (isDispatched) {
+            dispatchedCount++;
+          }
+
           details.push({
             eventId: ev.id,
             reminderId: r.id,

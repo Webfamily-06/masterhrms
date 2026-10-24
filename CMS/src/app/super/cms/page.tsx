@@ -1480,11 +1480,11 @@ function TestimonialsManagerStudio() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="5">★★★★★ (5 Stars - Exceptional)</SelectItem>
-                  <SelectItem value="4">★★★★☆ (4 Stars - Great)</SelectItem>
-                  <SelectItem value="3">★★★☆☆ (3 Stars - Average)</SelectItem>
-                  <SelectItem value="2">★★☆☆☆ (2 Stars - Fair)</SelectItem>
-                  <SelectItem value="1">★☆☆☆☆ (1 Star - Poor)</SelectItem>
+                  <SelectItem value="5">5 Stars — Exceptional</SelectItem>
+                  <SelectItem value="4">4 Stars — Great</SelectItem>
+                  <SelectItem value="3">3 Stars — Average</SelectItem>
+                  <SelectItem value="2">2 Stars — Fair</SelectItem>
+                  <SelectItem value="1">1 Star — Poor</SelectItem>
                 </SelectContent>
               </Select>
             </div>

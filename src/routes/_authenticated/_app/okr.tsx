@@ -53,6 +53,7 @@ import {
   Sliders,
   Send,
   GitFork,
+  Star,
   CheckSquare,
   ListOrdered,
   HelpCircle,
@@ -937,7 +938,10 @@ export function OkrPerformancePage() {
                                 : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
                             }`}
                           >
-                            ⭐ {chk.confidenceScore}/10
+                            <span className="inline-flex items-center gap-1">
+                              <Star className="size-3 text-current fill-current shrink-0" />
+                              {chk.confidenceScore}/10
+                            </span>
                           </Badge>
                         </td>
                         <td className="py-2.5 font-mono font-bold text-primary">
@@ -1005,8 +1009,11 @@ export function OkrPerformancePage() {
                             {r.reviewType}
                           </Badge>
                         </td>
-                        <td className="py-2.5 font-bold text-amber-600 font-mono">
-                          ⭐ {Number(r.ratingScore).toFixed(1)} / 5.0
+                        <td className="py-2.5 font-bold text-amber-600">
+                          <span className="inline-flex items-center gap-1">
+                            <Star className="size-3 text-amber-500 fill-amber-500 shrink-0" />
+                            {Number(r.ratingScore).toFixed(1)} / 5.0
+                          </span>
                         </td>
                         <td className="py-2.5 text-muted-foreground truncate max-w-xs">
                           {r.feedbackText || "Constructive feedback recorded."}
@@ -1330,8 +1337,9 @@ export function OkrPerformancePage() {
             <div className="space-y-1">
               <div className="flex justify-between items-center">
                 <Label className="text-xs font-semibold">2. Confidence Index (1-10)</Label>
-                <span className="text-[11px] font-bold font-mono text-emerald-600">
-                  ⭐ {checkinForm.confidenceScore} / 10
+                <span className="text-[11px] font-bold text-emerald-600 inline-flex items-center gap-1">
+                  <Star className="size-3 text-emerald-500 fill-emerald-500 shrink-0" />
+                  {checkinForm.confidenceScore} / 10
                 </span>
               </div>
               <input

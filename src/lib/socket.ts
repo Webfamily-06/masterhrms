@@ -3,6 +3,7 @@ import { io, Socket } from "socket.io-client";
 import { useCurrentProfile, useSession } from "./session";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { api } from "./api";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "")
@@ -25,19 +26,131 @@ export function getSocketClient(): Socket {
       if (localStorage.getItem("hrms_auth_token")) globalSocket?.connect();
     };
     window.addEventListener("auth-token-changed", reconnect);
-    window.addEventListener("storage", (event) => { if (event.key === "hrms_auth_token") reconnect(); });
+    window.addEventListener("storage", (event) => {
+      if (event.key === "hrms_auth_token") reconnect();
+    });
   }
   return globalSocket;
 }
+
+export type NotificationCategory =
+  | "punch"
+  | "leave"
+  | "payroll"
+  | "chat"
+  | "calendar"
+  | "system";
 
 export type RealtimeNotification = {
   id: string;
   title: string;
   description: string;
-  type: "punch" | "leave" | "payroll" | "chat" | "system" | "invoice";
+  type: NotificationCategory;
   timestamp: string;
   read: boolean;
+  linkTo?: string | null;
 };
+
+/**
+ * Accurately normalizes any backend module, event, or notification type into canonical category
+ */
+export function normalizeNotificationType(rawType?: string | null): NotificationCategory {
+  if (!rawType) return "system";
+  const lower = String(rawType).toLowerCase().trim();
+
+  if (
+    lower.includes("calendar") ||
+    lower.includes("meeting") ||
+    lower.includes("schedule") ||
+    lower.startsWith("event_")
+  ) {
+    return "calendar";
+  }
+  if (
+    lower.includes("punch") ||
+    lower.includes("attendance") ||
+    lower.includes("clock") ||
+    lower.includes("biometric")
+  ) {
+    return "punch";
+  }
+  if (
+    lower.includes("leave") ||
+    lower.includes("vacation") ||
+    lower.includes("holiday") ||
+    lower.includes("time_off")
+  ) {
+    return "leave";
+  }
+  if (
+    lower.includes("payroll") ||
+    lower.includes("salary") ||
+    lower.includes("payslip") ||
+    lower.includes("invoice") ||
+    lower.includes("payment") ||
+    lower.includes("billing")
+  ) {
+    return "payroll";
+  }
+  if (lower.includes("chat") || lower.includes("message") || lower.includes("dm")) {
+    return "chat";
+  }
+  return "system";
+}
+
+// Module-level in-memory cache and subscribers to prevent duplicate subscriptions and state divergence
+let memoryNotifications: RealtimeNotification[] = [];
+const subscribers = new Set<(items: RealtimeNotification[]) => void>();
+
+function loadInitialNotifications(): RealtimeNotification[] {
+  try {
+    const stored = localStorage.getItem("master_hrms_live_notifications");
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    const seenIds = new Set<string>();
+    const deduped: RealtimeNotification[] = [];
+
+    for (const item of parsed) {
+      if (item && item.id && !seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        deduped.push({
+          ...item,
+          type: normalizeNotificationType(item.type),
+        });
+      }
+    }
+    return deduped;
+  } catch {
+    return [];
+  }
+}
+
+memoryNotifications = loadInitialNotifications();
+
+function broadcastNotifications(items: RealtimeNotification[]) {
+  // Deduplicate array by stable ID while preserving order
+  const seenIds = new Set<string>();
+  const uniqueItems: RealtimeNotification[] = [];
+  for (const item of items) {
+    if (item && item.id && !seenIds.has(item.id)) {
+      seenIds.add(item.id);
+      uniqueItems.push(item);
+    }
+  }
+
+  memoryNotifications = uniqueItems.slice(0, 50);
+  try {
+    localStorage.setItem(
+      "master_hrms_live_notifications",
+      JSON.stringify(memoryNotifications)
+    );
+  } catch {
+    // ignore quota error
+  }
+  subscribers.forEach((fn) => fn(memoryNotifications));
+}
 
 export function useRealtimeSocket() {
   const { user } = useSession();
@@ -45,23 +158,59 @@ export function useRealtimeSocket() {
   const tenantId = profile?.tenant_id;
   const qc = useQueryClient();
   const [isConnected, setIsConnected] = useState(false);
-  const [notifications, setNotifications] = useState<RealtimeNotification[]>(() => {
-    try {
-      const stored = localStorage.getItem("master_hrms_live_notifications");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [notifications, setNotifications] = useState<RealtimeNotification[]>(() => memoryNotifications);
 
-  const saveNotifications = (items: RealtimeNotification[]) => {
-    setNotifications(items);
-    try {
-      localStorage.setItem("master_hrms_live_notifications", JSON.stringify(items.slice(0, 50)));
-    } catch {
-      // ignore
-    }
-  };
+  // Subscribe to module-level notification store
+  useEffect(() => {
+    const handler = (items: RealtimeNotification[]) => {
+      setNotifications(items);
+    };
+    subscribers.add(handler);
+    handler(memoryNotifications);
+    return () => {
+      subscribers.delete(handler);
+    };
+  }, []);
+
+  // Fetch initial notifications from API on mount
+  useEffect(() => {
+    if (!tenantId) return;
+
+    api
+      .get<any>("/shared/notifications", { params: { limit: 30 } })
+      .then((res) => {
+        const serverList = res?.notifications || [];
+        if (!Array.isArray(serverList) || serverList.length === 0) return;
+
+        const serverItems: RealtimeNotification[] = serverList.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          description: n.body || n.description || "",
+          type: normalizeNotificationType(n.module || n.type),
+          timestamp: n.createdAt || n.timestamp || new Date().toISOString(),
+          read: Boolean(n.readAt),
+          linkTo: n.linkTo,
+        }));
+
+        const map = new Map<string, RealtimeNotification>();
+        for (const item of serverItems) {
+          map.set(item.id, item);
+        }
+        for (const item of memoryNotifications) {
+          if (!map.has(item.id)) {
+            map.set(item.id, item);
+          }
+        }
+
+        const merged = Array.from(map.values()).sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        broadcastNotifications(merged);
+      })
+      .catch(() => {
+        // Fallback to local storage
+      });
+  }, [tenantId]);
 
   useEffect(() => {
     const socket = getSocketClient();
@@ -78,7 +227,11 @@ export function useRealtimeSocket() {
     }
 
     function onNewPunch(punch: any) {
-      toast.info(`Live Attendance: ${punch.employeeName} clocked ${punch.type === "check_in" ? "IN" : "OUT"} at ${punch.time}`);
+      toast.info(
+        `Live Attendance: ${punch.employeeName} clocked ${
+          punch.type === "check_in" ? "IN" : "OUT"
+        } at ${punch.time}`
+      );
       qc.invalidateQueries({ queryKey: ["realtime-tenant-dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["attendance-records"] });
       qc.invalidateQueries({ queryKey: ["dashboard-hrm-realtime-data"] });
@@ -109,7 +262,9 @@ export function useRealtimeSocket() {
 
     function onPaymentRejected(data: any) {
       toast.error("Payment Verification Failed", {
-        description: data.reason || `Payment for Invoice #${data.invoiceNo || data.invoiceId} was rejected.`,
+        description:
+          data.reason ||
+          `Payment for Invoice #${data.invoiceNo || data.invoiceId} was rejected.`,
       });
       qc.invalidateQueries({ queryKey: ["workspace-subscription"] });
       qc.invalidateQueries({ queryKey: ["billing-plans"] });
@@ -132,7 +287,7 @@ export function useRealtimeSocket() {
     }
 
     function onSettingsUpdated(data: any) {
-      console.log("⚡ [Realtime] settings.updated received:", data);
+      console.log("[Realtime] settings.updated received:", data);
       qc.invalidateQueries({ queryKey: ["app-config"] });
       qc.invalidateQueries({ queryKey: ["tenant-branding"] });
       qc.invalidateQueries({ queryKey: ["realtime-platform-settings"] });
@@ -142,24 +297,60 @@ export function useRealtimeSocket() {
       window.dispatchEvent(new CustomEvent("settings-updated", { detail: data }));
     }
 
-    function onNotification(notif: { title: string; description: string; type?: any; timestamp?: string }) {
+    function onNotification(notif: any) {
+      if (!notif) return;
+
+      const stableId =
+        notif.id ||
+        notif.notificationId ||
+        (notif.metadata?.eventId && notif.metadata?.reminderId
+          ? `${notif.metadata.eventId}-${notif.metadata.reminderId}`
+          : null) ||
+        (notif.metadataJson?.eventId && notif.metadataJson?.reminderId
+          ? `${notif.metadataJson.eventId}-${notif.metadataJson.reminderId}`
+          : null);
+
+      const title = notif.title || "New Platform Alert";
+      const description = notif.description || notif.body || notif.message || "";
+      const type = normalizeNotificationType(notif.type || notif.module);
+      const timestamp = notif.timestamp || notif.createdAt || new Date().toISOString();
+      const read = Boolean(notif.read || notif.readAt);
+      const linkTo = notif.linkTo || null;
+
+      const finalId =
+        stableId ||
+        `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+      // 1. Strict stable ID idempotency check
+      if (memoryNotifications.some((item) => item.id === finalId)) {
+        return;
+      }
+
+      // 2. Exact content suppression within 3-second window to prevent duplicate socket echoes
+      const isDuplicateRecent = memoryNotifications.some(
+        (item) =>
+          item.title === title &&
+          item.description === description &&
+          Math.abs(new Date(item.timestamp).getTime() - new Date(timestamp).getTime()) < 3000
+      );
+      if (isDuplicateRecent) {
+        return;
+      }
+
       const newNotif: RealtimeNotification = {
-        id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        title: notif.title || "New Platform Alert",
-        description: notif.description || "",
-        type: notif.type || "system",
-        timestamp: notif.timestamp || new Date().toISOString(),
-        read: false,
+        id: finalId,
+        title,
+        description,
+        type,
+        timestamp,
+        read,
+        linkTo,
       };
 
-      setNotifications((prev) => {
-        const updated = [newNotif, ...prev];
-        saveNotifications(updated);
-        return updated;
-      });
+      broadcastNotifications([newNotif, ...memoryNotifications]);
 
-      toast(notif.title, {
-        description: notif.description,
+      toast(title, {
+        description,
       });
     }
 
@@ -195,12 +386,21 @@ export function useRealtimeSocket() {
   }, [tenantId, qc]);
 
   const markAllAsRead = () => {
-    const updated = notifications.map((n) => ({ ...n, read: true }));
-    saveNotifications(updated);
+    const updated = memoryNotifications.map((n) => ({ ...n, read: true }));
+    broadcastNotifications(updated);
+    api.post("/shared/notifications/read-all").catch(() => {});
+  };
+
+  const markAsRead = (id: string) => {
+    const updated = memoryNotifications.map((n) =>
+      n.id === id ? { ...n, read: true } : n
+    );
+    broadcastNotifications(updated);
+    api.post(`/shared/notifications/${id}/read`).catch(() => {});
   };
 
   const clearAllNotifications = () => {
-    saveNotifications([]);
+    broadcastNotifications([]);
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -210,6 +410,7 @@ export function useRealtimeSocket() {
     notifications,
     unreadCount,
     markAllAsRead,
+    markAsRead,
     clearAllNotifications,
   };
 }

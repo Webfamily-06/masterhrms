@@ -159,6 +159,9 @@ export class MailerFactory {
       pool: true,
       maxConnections: 5,
       maxMessages: 100,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
     };
   }
 

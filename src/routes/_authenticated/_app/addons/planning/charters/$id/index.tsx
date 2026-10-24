@@ -23,6 +23,7 @@ import {
   Send,
   Plus,
   Trash2,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -500,7 +501,7 @@ export default function CharterDetailPage() {
                       rel="noreferrer"
                       className="text-primary hover:underline text-xs"
                     >
-                      Open Link ↗
+                      Open Link <ExternalLink className="size-3 inline ml-1" />
                     </a>
                   </div>
                 ))}

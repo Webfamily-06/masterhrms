@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  X,
   ExternalLink,
   Copy,
   Trash2,
@@ -559,7 +560,7 @@ export function CustomDomainSettings() {
                 onClick={() => setIsRequestModalOpen(false)}
                 className="text-muted-foreground hover:text-foreground p-1 rounded-md"
               >
-                ✕
+                <X className="size-4" />
               </button>
             </div>
 
@@ -596,8 +597,8 @@ export function CustomDomainSettings() {
                     </span>
                   </div>
                   {!validationPreview?.valid && (
-                    <div className="text-rose-600 dark:text-rose-400 font-medium">
-                      ✕ {validationPreview?.message}
+                    <div className="text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
+                      <XCircle className="size-3.5 shrink-0" /> {validationPreview?.message}
                     </div>
                   )}
                   {validationPreview?.valid && (

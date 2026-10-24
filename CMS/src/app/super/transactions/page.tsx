@@ -1582,7 +1582,7 @@ function SuperPurchaseTransactionsPage() {
                                 className="text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-0.5"
                               >
                                 <ExternalLink className="size-3" />
-                                Open ↗
+                                Open
                               </a>
                             </div>
                           ) : (
@@ -1938,7 +1938,7 @@ function SuperPurchaseTransactionsPage() {
                     className="text-xs gap-1.5"
                   >
                     <ExternalLink className="size-3.5" />
-                    Open Full Size ↗
+                    Open Full Size
                   </Button>
                   <a
                     href={proofPreviewTx.proofUrl}

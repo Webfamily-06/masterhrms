@@ -768,35 +768,9 @@ export async function sendSubscriptionLifecycleEmail(options: LifecycleEmailOpti
 
   if (hasSmtp) {
     try {
-      const isSSL = config.smtpPort === 465 || config.smtpEncryption === "ssl";
-      const isSTARTTLS = config.smtpPort === 587 || config.smtpEncryption === "tls";
+      const scope = options.scope || "PLATFORM";
+      const transporter = await MailerFactory.getTransporter(scope, options.tenantId);
 
-      const transportOptions: any = {
-        host: config.smtpHost,
-        port: config.smtpPort,
-        secure: isSSL,
-        auth: {
-          user: config.smtpUser,
-          pass: config.smtpPass,
-        },
-        tls: {
-          rejectUnauthorized: false,
-          minVersion: "TLSv1.2",
-        },
-        connectionTimeout: 15000,
-        greetingTimeout: 10000,
-        socketTimeout: 20000,
-      };
-
-      if (isSTARTTLS) {
-        if (config.ignoreTls) {
-          transportOptions.ignoreTLS = true;
-        } else {
-          transportOptions.requireTLS = false;
-        }
-      }
-
-      const transporter: any = nodemailer.createTransport(transportOptions);
       const info = await transporter.sendMail({
         from: fromHeader,
         to: toEmail,
@@ -1484,21 +1458,11 @@ export async function sendCalendarNotificationEmail(options: {
 
   // 4. Send via Nodemailer if SMTP configured
   const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
-  if (hasSmtp) {
+  const hasTestTransport = Boolean((MailerFactory as any).testTransport);
+
+  if (hasSmtp || hasTestTransport) {
     try {
-      const transportOptions: any = {
-        host: config.smtpHost,
-        port: config.smtpPort,
-        secure: config.smtpPort === 465,
-        auth: {
-          user: config.smtpUser,
-          pass: config.smtpPass,
-        },
-        connectionTimeout: 3000,
-        greetingTimeout: 3000,
-        socketTimeout: 5000,
-      };
-      const transporter = nodemailer.createTransport(transportOptions);
+      const transporter = await MailerFactory.getTransporter(scope, tenantId);
       const info = await transporter.sendMail({
         from: `"${config.smtpFromName}" <${config.smtpFromEmail}>`,
         to: toEmail,

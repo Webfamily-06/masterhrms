@@ -1,5 +1,4 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -18,12 +17,12 @@ import {
   FileText,
   Laptop,
   CheckCircle2,
+  CreditCard,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
-
 
 interface Notification {
   id: string;
@@ -39,16 +38,21 @@ interface Notification {
 function EmployeeNotificationsPage() {
   const queryClient = useQueryClient();
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [moduleFilter, setModuleFilter] = useState("all");
 
   const { data, isLoading } = useQuery<{
     notifications: Notification[];
     total: number;
     unreadCount: number;
   }>({
-    queryKey: ["me-notifications-list", unreadOnly],
+    queryKey: ["me-notifications-list", unreadOnly, moduleFilter],
     queryFn: async () => {
       const res = await api.get<any>("/me/notifications", {
-        params: { unread: unreadOnly ? "true" : "false", limit: 50 },
+        params: {
+          unread: unreadOnly ? "true" : "false",
+          limit: 50,
+          module: moduleFilter !== "all" ? moduleFilter : undefined,
+        },
       });
       return res || { notifications: [], total: 0, unreadCount: 0 };
     },
@@ -78,19 +82,42 @@ function EmployeeNotificationsPage() {
   });
 
   const getModuleIcon = (module: string) => {
-    switch (module?.toUpperCase()) {
-      case "MEETINGS":
-        return <Calendar className="size-4 text-blue-500" />;
-      case "TRAINING":
-        return <GraduationCap className="size-4 text-purple-500" />;
-      case "ASSETS":
-        return <Laptop className="size-4 text-emerald-500" />;
-      case "DOCUMENTS":
-        return <FileText className="size-4 text-amber-500" />;
-      default:
-        return <Bell className="size-4 text-primary" />;
+    const mod = module?.toUpperCase() || "";
+    if (mod.startsWith("CALENDAR") || mod === "MEETINGS") {
+      return <Calendar className="size-4 text-indigo-500" />;
     }
+    if (mod === "PUNCH" || mod === "ATTENDANCE") {
+      return <Clock className="size-4 text-blue-500" />;
+    }
+    if (mod === "LEAVE") {
+      return <Calendar className="size-4 text-amber-500" />;
+    }
+    if (mod === "PAYROLL" || mod === "INVOICE" || mod === "BILLING") {
+      return <CreditCard className="size-4 text-emerald-500" />;
+    }
+    if (mod === "CHAT" || mod === "MESSAGE") {
+      return <MessageSquare className="size-4 text-purple-500" />;
+    }
+    if (mod === "TRAINING") {
+      return <GraduationCap className="size-4 text-purple-500" />;
+    }
+    if (mod === "ASSETS") {
+      return <Laptop className="size-4 text-emerald-500" />;
+    }
+    if (mod === "DOCUMENTS") {
+      return <FileText className="size-4 text-amber-500" />;
+    }
+    return <Bell className="size-4 text-primary" />;
   };
+
+  const MODULE_TABS = [
+    { key: "all", label: "All" },
+    { key: "calendar", label: "Calendar" },
+    { key: "attendance", label: "Attendance" },
+    { key: "leave", label: "Leave" },
+    { key: "payroll", label: "Payroll" },
+    { key: "system", label: "System" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -136,24 +163,40 @@ function EmployeeNotificationsPage() {
         />
       </StatsOverviewGrid>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 bg-card border rounded-xl p-2 shadow-xs">
-        <Button
-          variant={!unreadOnly ? "default" : "ghost"}
-          size="sm"
-          className="text-xs h-7"
-          onClick={() => setUnreadOnly(false)}
-        >
-          All Notifications ({totalCount})
-        </Button>
-        <Button
-          variant={unreadOnly ? "default" : "ghost"}
-          size="sm"
-          className="text-xs h-7"
-          onClick={() => setUnreadOnly(true)}
-        >
-          Unread Only ({unreadCount})
-        </Button>
+      {/* Filter Tabs & Module Badges */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card border rounded-xl p-2.5 shadow-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {MODULE_TABS.map((tab) => (
+            <Button
+              key={tab.key}
+              variant={moduleFilter === tab.key ? "default" : "ghost"}
+              size="sm"
+              className="text-xs h-7.5 px-2.5"
+              onClick={() => setModuleFilter(tab.key)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 border-t sm:border-t-0 pt-2 sm:pt-0">
+          <Button
+            variant={!unreadOnly ? "secondary" : "ghost"}
+            size="sm"
+            className="text-xs h-7.5"
+            onClick={() => setUnreadOnly(false)}
+          >
+            All Status ({totalCount})
+          </Button>
+          <Button
+            variant={unreadOnly ? "secondary" : "ghost"}
+            size="sm"
+            className="text-xs h-7.5"
+            onClick={() => setUnreadOnly(true)}
+          >
+            Unread ({unreadCount})
+          </Button>
+        </div>
       </div>
 
       {/* Notifications List */}
@@ -179,17 +222,27 @@ function EmployeeNotificationsPage() {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold leading-tight">{n.title}</h4>
+                    <div className="flex items-start gap-2 flex-wrap min-w-0">
+                      <h4
+                        className="text-sm font-semibold leading-tight break-words min-w-0"
+                        title={n.title}
+                      >
+                        {n.title}
+                      </h4>
                       {isUnread && (
-                        <span className="size-2 rounded-full bg-red-600 animate-pulse" />
+                        <span className="size-2 rounded-full bg-red-600 animate-pulse mt-1 shrink-0" />
                       )}
-                      <Badge variant="outline" className="text-[10px] uppercase">
+                      <Badge variant="outline" className="text-[10px] uppercase shrink-0">
                         {n.module}
                       </Badge>
                     </div>
 
-                    <p className="text-xs text-muted-foreground mt-1">{n.body}</p>
+                    <p
+                      className="text-xs text-muted-foreground mt-1 break-words leading-relaxed"
+                      title={n.body}
+                    >
+                      {n.body}
+                    </p>
 
                     <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">

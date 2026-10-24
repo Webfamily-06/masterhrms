@@ -120,7 +120,9 @@ export default function MeAcknowledgementsPage() {
                           <CheckCircle2 className="h-3.5 w-3.5" /> Acknowledge & Sign
                         </Button>
                       ) : (
-                        <span className="text-xs text-emerald-600 font-medium">✓ Acknowledged</span>
+                        <span className="text-xs text-emerald-600 font-medium inline-flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Acknowledged
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>

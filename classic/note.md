@@ -1,1 +1,0 @@
-# Thirdparty signature is removed

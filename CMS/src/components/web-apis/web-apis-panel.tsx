@@ -792,7 +792,7 @@ export function WebApisRuntimePanel() {
 
               {compressedFileStats && (
                 <div className="p-2 rounded bg-muted/60 border border-border text-[10px] space-y-0.5 font-mono">
-                  <div>Orig: {compressedFileStats.originalSize} ➔ Comp: {compressedFileStats.compressedSize}</div>
+                  <div className="flex items-center gap-1">Orig: {compressedFileStats.originalSize} <ArrowRight className="size-3 inline" /> Comp: {compressedFileStats.compressedSize}</div>
                   <div className="text-emerald-600 font-bold">{compressedFileStats.savings}</div>
                 </div>
               )}

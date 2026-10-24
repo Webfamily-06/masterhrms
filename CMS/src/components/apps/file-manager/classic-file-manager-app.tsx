@@ -45,6 +45,7 @@ import {
   FileCode,
   HardDrive,
   UserPlus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -717,7 +718,7 @@ export function ClassicFileManagerApp({ initialView }: ClassicFileManagerAppProp
                 onClick={() => setShowInfo(false)}
                 className="text-muted-foreground hover:text-foreground cursor-pointer"
               >
-                ✕
+                <X className="size-4" />
               </button>
             </div>
 

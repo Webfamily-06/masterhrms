@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useRealtimeSocket, RealtimeNotification } from "@/lib/socket";
+import { useRealtimeSocket, RealtimeNotification, NotificationCategory } from "@/lib/socket";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Bell,
@@ -18,12 +17,22 @@ import {
   CreditCard,
   MessageSquare,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 
+const CATEGORIES: Array<{ key: "all" | NotificationCategory; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "calendar", label: "Calendar" },
+  { key: "punch", label: "Attendance" },
+  { key: "leave", label: "Leave" },
+  { key: "payroll", label: "Payroll" },
+  { key: "system", label: "System" },
+];
+
 export function RealtimeNotificationDrawer() {
-  const { isConnected, notifications, unreadCount, markAllAsRead, clearAllNotifications } =
+  const { notifications, unreadCount, markAllAsRead, markAsRead, clearAllNotifications } =
     useRealtimeSocket();
-  const [filter, setFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<"all" | NotificationCategory>("all");
   const [open, setOpen] = useState(false);
 
   const filteredNotifications = notifications.filter((n) => {
@@ -33,6 +42,8 @@ export function RealtimeNotificationDrawer() {
 
   const getIcon = (type: RealtimeNotification["type"]) => {
     switch (type) {
+      case "calendar":
+        return <Calendar className="size-3.5 text-indigo-500" />;
       case "punch":
         return <Clock className="size-3.5 text-blue-500" />;
       case "leave":
@@ -46,6 +57,11 @@ export function RealtimeNotificationDrawer() {
     }
   };
 
+  const getCategoryCount = (key: "all" | NotificationCategory) => {
+    if (key === "all") return notifications.length;
+    return notifications.filter((n) => n.type === key).length;
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -53,7 +69,8 @@ export function RealtimeNotificationDrawer() {
           variant="ghost"
           size="icon"
           className="relative size-9 rounded-xl hover:bg-secondary/80 transition-colors"
-          title="Live Notifications"
+          title="Notifications"
+          aria-label="Open notifications center"
         >
           <Bell className="size-4 text-foreground/80" />
           {unreadCount > 0 && (
@@ -67,22 +84,12 @@ export function RealtimeNotificationDrawer() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-80 sm:w-96 p-0 rounded-2xl shadow-xl border overflow-hidden"
+        className="w-[calc(100vw-2rem)] sm:w-96 max-w-sm p-0 rounded-2xl shadow-xl border overflow-hidden"
       >
-        {/* Header with Connection Status */}
+        {/* Header without technical diagnostics */}
         <div className="p-3.5 bg-secondary/50 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h4 className="font-bold text-xs tracking-tight">Real-Time Alerts</h4>
-            <div className="flex items-center gap-1">
-              <span
-                className={`size-2 rounded-full ${
-                  isConnected ? "bg-emerald-500 animate-ping" : "bg-amber-500"
-                }`}
-              />
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {isConnected ? "WS Live" : "Reconnecting"}
-              </span>
-            </div>
           </div>
 
           <div className="flex items-center gap-1">
@@ -103,6 +110,7 @@ export function RealtimeNotificationDrawer() {
                 onClick={clearAllNotifications}
                 className="size-7 text-muted-foreground hover:text-destructive"
                 title="Clear all"
+                aria-label="Clear all notifications"
               >
                 <Trash2 className="size-3" />
               </Button>
@@ -110,21 +118,37 @@ export function RealtimeNotificationDrawer() {
           </div>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1 px-3 py-2 border-b bg-background/50 overflow-x-auto">
-          {["all", "punch", "leave", "payroll", "system"].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setFilter(cat)}
-              className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full capitalize transition-colors ${
-                filter === cat
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        {/* Category Filter Tabs */}
+        <div className="flex items-center gap-1 px-3 py-2 border-b bg-background/50 overflow-x-auto no-scrollbar">
+          {CATEGORIES.map((cat) => {
+            const count = getCategoryCount(cat.key);
+            const isActive = filter === cat.key;
+            return (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => setFilter(cat.key)}
+                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+              >
+                <span>{cat.label}</span>
+                {count > 0 && (
+                  <span
+                    className={`text-[9px] px-1 py-0 rounded-full font-mono font-medium ${
+                      isActive
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Notification Items List */}
@@ -133,14 +157,19 @@ export function RealtimeNotificationDrawer() {
             <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
               <Radio className="size-8 mx-auto opacity-30 animate-pulse" />
               <p className="font-semibold">No alerts right now</p>
-              <p className="text-[10px]">Real-time system events will stream live here automatically.</p>
+              <p className="text-[10px]">
+                {filter === "all"
+                  ? "Real-time system events will stream live here automatically."
+                  : `No ${filter} notifications found.`}
+              </p>
             </div>
           ) : (
             <div className="divide-y">
               {filteredNotifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`p-3 flex items-start gap-2.5 transition-colors ${
+                  onClick={() => !n.read && markAsRead(n.id)}
+                  className={`p-3 flex items-start gap-2.5 transition-colors cursor-pointer hover:bg-muted/40 ${
                     n.read ? "bg-background opacity-80" : "bg-primary/5 font-medium"
                   }`}
                 >
@@ -148,18 +177,39 @@ export function RealtimeNotificationDrawer() {
                     {getIcon(n.type)}
                   </div>
                   <div className="flex-1 min-w-0 space-y-0.5">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-bold truncate">{n.title}</p>
-                      <span className="text-[9px] text-muted-foreground shrink-0 font-mono">
+                    <div className="flex items-start justify-between gap-2">
+                      <p
+                        className="text-xs font-bold leading-snug break-words line-clamp-2 min-w-0 flex-1 text-foreground"
+                        title={n.title}
+                      >
+                        {n.title}
+                      </p>
+                      <span className="text-[9px] text-muted-foreground shrink-0 font-mono mt-0.5 whitespace-nowrap">
                         {new Date(n.timestamp).toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
-                      {n.description}
-                    </p>
+                    {n.description ? (
+                      <p
+                        className="text-[11px] text-muted-foreground leading-snug break-words line-clamp-2"
+                        title={n.description}
+                      >
+                        {n.description}
+                      </p>
+                    ) : null}
+                    {n.linkTo && (
+                      <div className="pt-1 flex items-center gap-1 text-[10px] text-primary font-medium">
+                        <a
+                          href={n.linkTo}
+                          className="hover:underline flex items-center gap-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          View Details <ExternalLink className="size-2.5" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

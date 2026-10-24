@@ -58,6 +58,7 @@ import {
   Info,
   ExternalLink,
   Clock,
+  X,
   Briefcase,
   Puzzle,
   Sliders,
@@ -947,7 +948,7 @@ function CompaniesManagementPage() {
                   title="Clear search"
                   aria-label="Clear search"
                 >
-                  ✕
+                  <X className="size-3" />
                 </button>
               ) : null}
             </div>

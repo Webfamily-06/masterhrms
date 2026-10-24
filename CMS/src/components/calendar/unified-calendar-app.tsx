@@ -51,9 +51,11 @@ import {
   Palette,
   X,
   CalendarCheck,
+  Cake,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { OrganizationMemberSelector } from "./organization-member-selector";
+import { OrganizationMemberSelector, SelectedShare } from "./organization-member-selector";
 import {
   format,
   startOfMonth,
@@ -85,6 +87,96 @@ export interface CalendarReminderItem {
   channel: "email" | "in_app" | "both";
   status?: string;
   dispatchedAt?: string;
+  customScheduledAt?: string | null;
+  customLabel?: string | null;
+}
+
+export const REMINDER_PRESET_OPTIONS = [
+  { value: "5", label: "5 minutes before" },
+  { value: "15", label: "15 minutes before" },
+  { value: "30", label: "30 minutes before" },
+  { value: "60", label: "1 hour before" },
+  { value: "120", label: "2 hours before" },
+  { value: "300", label: "5 hours before" },
+  { value: "1440", label: "1 day before" },
+  { value: "custom", label: "Custom date and time" },
+];
+
+export function formatReminderLabel(rem: CalendarReminderItem): string {
+  if (rem.customScheduledAt) {
+    try {
+      const d = new Date(rem.customScheduledAt);
+      if (!isNaN(d.getTime())) {
+        return `Custom: ${format(d, "MMM d, yyyy h:mm a")}`;
+      }
+    } catch {}
+  }
+  switch (rem.minutesBefore) {
+    case 0:
+      return "At event time";
+    case 5:
+      return "5 minutes before";
+    case 15:
+      return "15 minutes before";
+    case 30:
+      return "30 minutes before";
+    case 60:
+      return "1 hour before";
+    case 120:
+      return "2 hours before";
+    case 300:
+      return "5 hours before";
+    case 1440:
+      return "1 day before";
+    case 390:
+      return "390 minutes before (6.5 hours)";
+    default:
+      return `${rem.minutesBefore} minutes before`;
+  }
+}
+
+export function cleanCalendarText(text?: string | null): string {
+  if (!text) return "";
+  return text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}]/gu, "").trim();
+}
+
+export function createDefaultReminder(existing: CalendarReminderItem[] = []): CalendarReminderItem {
+  const existingOffsets = new Set(existing.filter((r) => !r.customScheduledAt).map((r) => r.minutesBefore));
+  const preferred = [15, 30, 60, 120, 5, 300, 1440];
+  const nextOffset = preferred.find((p) => !existingOffsets.has(p)) ?? 15;
+  return {
+    id: `rem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    minutesBefore: nextOffset,
+    channel: "both",
+    customScheduledAt: null,
+  };
+}
+
+export function getInitialNewEvent(currentDate?: Date) {
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const safeDate = currentDate && !isNaN(currentDate.getTime()) ? currentDate : new Date();
+  const selectedStr = format(safeDate, "yyyy-MM-dd");
+  const dateStr = selectedStr < todayStr ? todayStr : selectedStr;
+  return {
+    title: "",
+    date: dateStr,
+    startTime: "10:00",
+    endTime: "11:00",
+    allDay: false,
+    category: "Meetings",
+    location: "",
+    description: "",
+    visibility: "private" as const,
+    shares: [] as { userId: string; permission: "view" | "edit" }[],
+    reminders: [
+      {
+        id: "rem-1",
+        minutesBefore: 15,
+        channel: "both" as "email" | "in_app" | "both",
+        customScheduledAt: null,
+      },
+    ] as CalendarReminderItem[],
+  };
 }
 
 export interface CalendarCategory {
@@ -150,15 +242,230 @@ const COLOR_SWATCHES = [
   { name: "Sky", value: "bg-sky-600 text-white", dot: "bg-sky-600" },
 ];
 
+export function ReminderSectionEditor({
+  reminders,
+  onChange,
+  eventDate,
+  eventStartTime,
+}: {
+  reminders: CalendarReminderItem[];
+  onChange: (reminders: CalendarReminderItem[]) => void;
+  eventDate: string;
+  eventStartTime: string;
+}) {
+  const handleAdd = () => {
+    onChange([...reminders, createDefaultReminder(reminders)]);
+  };
+
+  const handleRemove = (index: number) => {
+    onChange(reminders.filter((_, i) => i !== index));
+  };
+
+  const handlePresetChange = (index: number, val: string) => {
+    const updated = [...reminders];
+    if (val === "custom") {
+      let targetDateStr = eventDate || format(new Date(), "yyyy-MM-dd");
+      let targetTimeStr = eventStartTime || "10:00";
+      let startMs = new Date(`${targetDateStr}T${targetTimeStr}:00`).getTime();
+      if (isNaN(startMs)) startMs = Date.now() + 60 * 60000;
+      const defaultCustom = new Date(Math.max(Date.now() + 5 * 60000, startMs - 15 * 60000));
+      const diffMinutes = Math.max(0, Math.round((startMs - defaultCustom.getTime()) / 60000));
+      updated[index] = {
+        ...updated[index],
+        customScheduledAt: defaultCustom.toISOString(),
+        minutesBefore: diffMinutes,
+      };
+    } else {
+      const minutes = parseInt(val, 10);
+      updated[index] = {
+        ...updated[index],
+        minutesBefore: isNaN(minutes) ? 15 : minutes,
+        customScheduledAt: null,
+      };
+    }
+    onChange(updated);
+  };
+
+  const handleCustomDateTimeChange = (index: number, newDate: string, newTime: string) => {
+    const updated = [...reminders];
+    const combined = new Date(`${newDate}T${newTime}:00`);
+    if (!isNaN(combined.getTime())) {
+      const startMs = new Date(`${eventDate}T${eventStartTime || "10:00"}:00`).getTime();
+      const diffMinutes = Math.max(0, Math.round((startMs - combined.getTime()) / 60000));
+      updated[index] = {
+        ...updated[index],
+        customScheduledAt: combined.toISOString(),
+        minutesBefore: diffMinutes,
+      };
+      onChange(updated);
+    }
+  };
+
+  const handleChannelChange = (index: number, val: "email" | "in_app" | "both") => {
+    const updated = [...reminders];
+    updated[index] = {
+      ...updated[index],
+      channel: val,
+    };
+    onChange(updated);
+  };
+
+  return (
+    <div className="border-t pt-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-medium flex items-center gap-1.5">
+          <Bell className="size-3.5 text-teal-600" /> Reminders & Notifications
+        </Label>
+        <button
+          type="button"
+          onClick={handleAdd}
+          className="text-[11px] text-teal-600 hover:text-teal-700 font-semibold flex items-center gap-1 cursor-pointer"
+        >
+          <Plus className="size-3" /> Add Reminder
+        </button>
+      </div>
+
+      {reminders.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground italic">No reminders configured. Event will be saved without reminders.</p>
+      ) : (
+        <div className="space-y-2">
+          {reminders.map((rem, idx) => {
+            const isCustom = Boolean(rem.customScheduledAt);
+            const selectValue = isCustom ? "custom" : String(rem.minutesBefore);
+
+            let customDateVal = eventDate || format(new Date(), "yyyy-MM-dd");
+            let customTimeVal = "09:45";
+            if (rem.customScheduledAt) {
+              try {
+                const parsed = new Date(rem.customScheduledAt);
+                if (!isNaN(parsed.getTime())) {
+                  customDateVal = format(parsed, "yyyy-MM-dd");
+                  customTimeVal = format(parsed, "HH:mm");
+                }
+              } catch {}
+            }
+
+            let validationWarning: string | null = null;
+            if (isCustom && rem.customScheduledAt) {
+              const customMs = new Date(rem.customScheduledAt).getTime();
+              const startMs = new Date(`${eventDate}T${eventStartTime || "10:00"}:00`).getTime();
+              if (customMs < Date.now() - 60000) {
+                validationWarning = "Reminder is in the past and cannot be dispatched.";
+              } else if (customMs > startMs) {
+                validationWarning = "Reminder cannot be scheduled after event starts.";
+              }
+            }
+
+            return (
+              <div
+                key={rem.id || idx}
+                className="p-2.5 rounded-lg bg-muted/40 border border-border/50 text-xs space-y-2"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select
+                      value={selectValue}
+                      onValueChange={(val) => handlePresetChange(idx, val)}
+                    >
+                      <SelectTrigger className="text-xs h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REMINDER_PRESET_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                        {rem.minutesBefore === 390 && !isCustom && (
+                          <SelectItem value="390">390 minutes before (6.5 hours)</SelectItem>
+                        )}
+                        {rem.minutesBefore === 0 && !isCustom && (
+                          <SelectItem value="0">At event time</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="w-34">
+                    <Select
+                      value={rem.channel}
+                      onValueChange={(val: any) => handleChannelChange(idx, val)}
+                    >
+                      <SelectTrigger className="text-xs h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="both">Email & In-App</SelectItem>
+                        <SelectItem value="email">Email only</SelectItem>
+                        <SelectItem value="in_app">In-App only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(idx)}
+                    className="text-muted-foreground hover:text-destructive p-1 rounded cursor-pointer"
+                    title="Remove reminder"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+
+                {/* Custom Date & Time Inputs */}
+                {isCustom && (
+                  <div className="pt-1.5 space-y-1.5 border-t border-border/30">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Reminder Date</Label>
+                        <Input
+                          type="date"
+                          min={format(new Date(), "yyyy-MM-dd")}
+                          max={eventDate || undefined}
+                          value={customDateVal}
+                          onChange={(e) => handleCustomDateTimeChange(idx, e.target.value, customTimeVal)}
+                          className="text-xs h-7 mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Reminder Time</Label>
+                        <Input
+                          type="time"
+                          value={customTimeVal}
+                          onChange={(e) => handleCustomDateTimeChange(idx, customDateVal, e.target.value)}
+                          className="text-xs h-7 mt-0.5"
+                        />
+                      </div>
+                    </div>
+                    {validationWarning && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1 mt-1">
+                        <AlertCircle className="size-3.5 shrink-0" />
+                        <span>{validationWarning}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedCalendarAppProps) {
   const queryClient = useQueryClient();
   const { user } = useSession();
   const profile = useCurrentProfile();
 
+  // Authoritative today date string in application timezone
+  const todayDateStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
+
   // Active viewing date (default to current date)
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 9, 23));
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   // Mini calendar browsing date
-  const [miniCalendarDate, setMiniCalendarDate] = useState<Date>(new Date(2026, 9, 23));
+  const [miniCalendarDate, setMiniCalendarDate] = useState<Date>(() => new Date());
   // View mode
   const [viewMode, setViewMode] = useState<"Month" | "Week" | "Day" | "List">("Month");
 
@@ -186,21 +493,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
   const [newCatColor, setNewCatColor] = useState(COLOR_SWATCHES[1].value);
 
   // New Event Form State
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    date: format(new Date(2026, 9, 23), "yyyy-MM-dd"),
-    startTime: "10:00",
-    endTime: "11:00",
-    allDay: false,
-    category: "Meetings",
-    location: "",
-    description: "",
-    visibility: "private",
-    shares: [] as { userId: string; permission: "view" | "edit" }[],
-    reminders: [
-      { id: "rem-1", minutesBefore: 60, channel: "both" as "email" | "in_app" | "both" },
-    ],
-  });
+  const [newEvent, setNewEvent] = useState(() => getInitialNewEvent(new Date()));
 
   // Edit Event Form State
   const [editForm, setEditForm] = useState({
@@ -226,13 +519,14 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     setMiniCalendarDate(currentDate);
   }, [currentDate]);
 
-  // 0. Fetch Categories
+  // 0. Fetch Categories from database API
   const { data: dbCategories = [] } = useQuery<CalendarCategory[]>({
     queryKey: ["calendar-categories"],
     queryFn: async () => {
       try {
-        const res = await api.get<{ categories: CalendarCategory[] }>("/api/calendar/categories");
-        return res?.categories || [];
+        const res = await api.get<any>("/api/calendar/categories");
+        const list = Array.isArray(res?.data) ? res.data : Array.isArray(res?.categories) ? res.categories : Array.isArray(res) ? res : [];
+        return list;
       } catch {
         return [];
       }
@@ -430,19 +724,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       toast.success("Calendar event created successfully!");
       setCreateModalOpen(false);
-      setNewEvent({
-        title: "",
-        date: format(currentDate, "yyyy-MM-dd"),
-        startTime: "10:00",
-        endTime: "11:00",
-        allDay: false,
-        category: "Meetings",
-        location: "",
-        description: "",
-        visibility: "private",
-        shares: [],
-        reminders: [{ id: "rem-1", minutesBefore: 60, channel: "both" }],
-      });
+      setNewEvent(getInitialNewEvent(currentDate));
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to create event");
@@ -526,12 +808,42 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       return;
     }
 
+    if (newEvent.date < todayDateStr) {
+      toast.error("Event date cannot be scheduled before today. Please select today or a future date.");
+      return;
+    }
+
+    if (!newEvent.allDay && newEvent.endTime <= newEvent.startTime) {
+      toast.error("End time must be later than start time.");
+      return;
+    }
+
     const startDateTime = newEvent.allDay
       ? `${newEvent.date}T00:00:00`
       : `${newEvent.date}T${newEvent.startTime || "10:00"}:00`;
     const endDateTime = newEvent.allDay
       ? `${newEvent.date}T23:59:59`
       : `${newEvent.date}T${newEvent.endTime || "11:00"}:00`;
+
+    // Validate reminders
+    const startMs = new Date(startDateTime).getTime();
+    for (const rem of newEvent.reminders) {
+      if (rem.customScheduledAt) {
+        const customMs = new Date(rem.customScheduledAt).getTime();
+        if (isNaN(customMs)) {
+          toast.error("Please enter a valid custom reminder date and time.");
+          return;
+        }
+        if (customMs < Date.now() - 60000) {
+          toast.error("Custom reminder cannot be scheduled in the past.");
+          return;
+        }
+        if (customMs > startMs) {
+          toast.error("Custom reminder cannot be scheduled after the event start time.");
+          return;
+        }
+      }
+    }
 
     const sharedWith = newEvent.shares.length > 0
       ? newEvent.shares.map((s) => ({ recipientId: s.userId, permission: s.permission }))
@@ -547,7 +859,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       description: newEvent.description.trim() || undefined,
       visibility: newEvent.visibility,
       sharedWith,
-      reminders: newEvent.reminders.length > 0 ? newEvent.reminders : undefined,
+      reminders: newEvent.reminders,
     });
   };
 
@@ -566,7 +878,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       category: evt.category,
       location: evt.location || "",
       description: evt.description || "",
-      reminders: evt.reminders || [],
+      reminders: Array.isArray(evt.reminders) ? [...evt.reminders] : [],
     });
     setDetailsModalOpen(true);
   };
@@ -579,12 +891,43 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       return;
     }
 
+    const isSelectedHistorical = new Date(selectedEvent.startDate).getTime() < new Date().setHours(0, 0, 0, 0);
+    if (!isSelectedHistorical && editForm.date < todayDateStr) {
+      toast.error("Event date cannot be moved to before today.");
+      return;
+    }
+
+    if (!editForm.allDay && editForm.endTime <= editForm.startTime) {
+      toast.error("End time must be later than start time.");
+      return;
+    }
+
     const startDateTime = editForm.allDay
       ? `${editForm.date}T00:00:00`
       : `${editForm.date}T${editForm.startTime || "10:00"}:00`;
     const endDateTime = editForm.allDay
       ? `${editForm.date}T23:59:59`
       : `${editForm.date}T${editForm.endTime || "11:00"}:00`;
+
+    // Validate reminders
+    const startMs = new Date(startDateTime).getTime();
+    for (const rem of editForm.reminders) {
+      if (rem.customScheduledAt) {
+        const customMs = new Date(rem.customScheduledAt).getTime();
+        if (isNaN(customMs)) {
+          toast.error("Please enter a valid custom reminder date and time.");
+          return;
+        }
+        if (customMs < Date.now() - 60000) {
+          toast.error("Custom reminder cannot be scheduled in the past.");
+          return;
+        }
+        if (customMs > startMs) {
+          toast.error("Custom reminder cannot be scheduled after the event start time.");
+          return;
+        }
+      }
+    }
 
     updateEventMutation.mutate({
       id: selectedEvent.id,
@@ -623,7 +966,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date(2026, 9, 23));
+    setCurrentDate(new Date());
   };
 
   // Export Calendar to CSV
@@ -638,7 +981,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       `"${(e.location || "").replace(/"/g, '""')}"`,
       `"${(e.description || "").replace(/"/g, '""')}"`,
       `"${(e.shares || []).map((s) => `${s.recipientId}:${s.permission}`).join("; ")}"`,
-      `"${(e.reminders || []).map((r) => `${r.minutesBefore}m:${r.channel}`).join("; ")}"`,
+      `"${(e.reminders || []).map((r) => r.customScheduledAt ? `custom(${r.customScheduledAt}):${r.channel}` : `${r.minutesBefore}m:${r.channel}`).join("; ")}"`,
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -654,20 +997,20 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
   const isUserOwnerOrAdmin =
     selectedEvent?.userPermission === "owner" ||
     selectedEvent?.userId === user?.id ||
-    profile?.role === "admin" ||
-    profile?.role === "super_admin";
+    profile?.data?.roles?.includes("admin") ||
+    profile?.data?.roles?.includes("super_admin") ||
+    (user as any)?.roles?.includes("admin") ||
+    (user as any)?.roles?.includes("super_admin");
 
   const canUserEdit = isUserOwnerOrAdmin || selectedEvent?.userPermission === "edit";
 
-  // All Available Categories for Selectors
+  // All Available Categories for Selectors (database-backed with documented fallback)
   const availableCategories = useMemo(() => {
-    const list: string[] = ["Meetings", "Flights", "Birthday", "Conference", "organization", "team", "leave", "holiday", "training"];
-    for (const cat of dbCategories) {
-      if (!list.includes(cat.name)) {
-        list.push(cat.name);
-      }
+    if (dbCategories.length > 0) {
+      return dbCategories.map((c) => c.name);
     }
-    return list;
+    // Documented intentional fallback only when API is unavailable
+    return ["Meetings", "Training", "Leave & Time Off", "Holidays", "Birthdays", "General Events"];
   }, [dbCategories]);
 
   return (
@@ -678,19 +1021,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
           {/* Create Event CTA */}
           <Button
             onClick={() => {
-              setNewEvent({
-                title: "",
-                date: format(currentDate, "yyyy-MM-dd"),
-                startTime: "10:00",
-                endTime: "11:00",
-                allDay: false,
-                category: "Meetings",
-                location: "",
-                description: "",
-                visibility: "private",
-                shares: [],
-                reminders: [{ id: "rem-1", minutesBefore: 60, channel: "both" }],
-              });
+              setNewEvent(getInitialNewEvent(currentDate));
               setCreateModalOpen(true);
             }}
             className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-xl shadow-xs gap-2 transition-all cursor-pointer"
@@ -734,7 +1065,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               {miniCalendarDays.map((d, i) => {
                 const inMonth = isSameMonth(d, miniCalendarDate);
                 const isSelected = isSameDay(d, currentDate);
-                const isTodayDate = isSameDay(d, new Date(2026, 9, 23));
+                const isTodayDate = isSameDay(d, new Date());
                 return (
                   <button
                     key={i}
@@ -761,7 +1092,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
           <div>
             <h5 className="text-xs font-bold text-teal-700 dark:text-teal-400 mb-3 flex items-center justify-between">
               <span>Upcoming Events</span>
-              <Badge variant="outline" className="text-[10px] font-mono">
+              <Badge variant="outline" className="text-[10px] font-medium">
                 {upcomingEvents.length}
               </Badge>
             </h5>
@@ -772,8 +1103,8 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 upcomingEvents.map((item) => {
                   const style = categoryStyles[item.category] || DEFAULT_CATEGORY_STYLES[item.category] || DEFAULT_CATEGORY_STYLES.Meetings;
                   const itemDate = new Date(item.startDate);
-                  const isItemToday = isSameDay(itemDate, new Date(2026, 9, 23));
-                  const isItemTomorrow = isSameDay(itemDate, addDays(new Date(2026, 9, 23), 1));
+                  const isItemToday = isSameDay(itemDate, new Date());
+                  const isItemTomorrow = isSameDay(itemDate, addDays(new Date(), 1));
                   const timeLabel = isItemToday
                     ? `Today, ${format(itemDate, "h:mm a")}`
                     : isItemTomorrow
@@ -792,7 +1123,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                         item.avatarUrl ? (
                           <img
                             src={item.avatarUrl}
-                            alt={item.employeeName || item.title}
+                            alt={item.employeeName || cleanCalendarText(item.title)}
                             className="size-5 rounded-full object-cover shrink-0 ring-1 ring-rose-400 mt-0.5"
                           />
                         ) : (
@@ -805,7 +1136,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] text-muted-foreground">{timeLabel}</p>
-                        <p className="font-semibold text-foreground text-xs mt-0.5 truncate">{item.title}</p>
+                        <p className="font-semibold text-foreground text-xs mt-0.5 truncate">{cleanCalendarText(item.title)}</p>
                       </div>
                     </div>
                   );
@@ -851,7 +1182,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                       <span className="capitalize">{style.label || cat}</span>
                     </div>
                     {count > 0 && (
-                      <span className="text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.2 rounded-full">
+                      <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-full">
                         {count}
                       </span>
                     )}
@@ -966,18 +1297,24 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 const dayStr = format(d, "yyyy-MM-dd");
                 const dayEvents = filteredEvents.filter((e) => e.startDate.startsWith(dayStr));
                 const inMonth = isSameMonth(d, currentDate);
-                const isTodayDate = isSameDay(d, new Date(2026, 9, 23));
+                const isTodayDate = isSameDay(d, new Date());
 
                 return (
                   <div
                     key={idx}
                     onClick={() => {
-                      setNewEvent((prev) => ({
-                        ...prev,
-                        date: dayStr,
-                        startTime: "10:00",
-                        endTime: "11:00",
-                      }));
+                      if (dayStr < todayDateStr) {
+                        toast.info("Cannot schedule events before today. Date set to today.");
+                        setNewEvent({
+                          ...getInitialNewEvent(new Date()),
+                          date: todayDateStr,
+                        });
+                      } else {
+                        setNewEvent({
+                          ...getInitialNewEvent(d),
+                          date: dayStr,
+                        });
+                      }
                       setCreateModalOpen(true);
                     }}
                     className={cn(
@@ -1018,7 +1355,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                                 evt.avatarUrl ? (
                                   <img
                                     src={evt.avatarUrl}
-                                    alt={evt.employeeName || evt.title}
+                                    alt={evt.employeeName || cleanCalendarText(evt.title)}
                                     className="size-3.5 rounded-full object-cover shrink-0 ring-1 ring-white/60"
                                   />
                                 ) : (
@@ -1027,7 +1364,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                                   </span>
                                 )
                               )}
-                              <span className="truncate">{evt.title}</span>
+                              <span className="truncate">{cleanCalendarText(evt.title)}</span>
                             </div>
                             {evt.isShared && <Share2 className="size-2.5 shrink-0 opacity-80" />}
                             {evt.reminders && evt.reminders.length > 0 && <Bell className="size-2.5 shrink-0 opacity-80" />}
@@ -1047,7 +1384,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
           <div className="flex-1 flex flex-col overflow-y-auto">
             <div className="grid grid-cols-7 border-b border-border bg-muted/20 text-center py-2 text-[11px] font-bold text-muted-foreground uppercase">
               {weekDays.map((d, i) => (
-                <div key={i} className={cn(isSameDay(d, new Date(2026, 9, 23)) && "text-teal-600")}>
+                <div key={i} className={cn(isSameDay(d, new Date()) && "text-teal-600 font-bold")}>
                   {format(d, "EEE dd")}
                 </div>
               ))}
@@ -1060,7 +1397,18 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                   <div
                     key={i}
                     onClick={() => {
-                      setNewEvent((prev) => ({ ...prev, date: dayStr }));
+                      if (dayStr < todayDateStr) {
+                        toast.info("Cannot schedule events before today. Date set to today.");
+                        setNewEvent({
+                          ...getInitialNewEvent(new Date()),
+                          date: todayDateStr,
+                        });
+                      } else {
+                        setNewEvent({
+                          ...getInitialNewEvent(d),
+                          date: dayStr,
+                        });
+                      }
                       setCreateModalOpen(true);
                     }}
                     className="p-2 space-y-2 hover:bg-muted/10 cursor-pointer min-h-[400px]"
@@ -1084,7 +1432,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                               evt.avatarUrl ? (
                                 <img
                                   src={evt.avatarUrl}
-                                  alt={evt.employeeName || evt.title}
+                                  alt={evt.employeeName || cleanCalendarText(evt.title)}
                                   className="size-4 rounded-full object-cover shrink-0 ring-1 ring-white/60"
                                 />
                               ) : (
@@ -1093,7 +1441,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                                 </span>
                               )
                             )}
-                            <p className="truncate">{evt.title}</p>
+                            <p className="truncate">{cleanCalendarText(evt.title)}</p>
                           </div>
                           <p className="text-[10px] opacity-80 mt-0.5">
                             {format(new Date(evt.startDate), "h:mm a")}
@@ -1120,7 +1468,10 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 size="sm"
                 className="bg-teal-700 hover:bg-teal-800 text-white text-xs gap-1.5"
                 onClick={() => {
-                  setNewEvent((prev) => ({ ...prev, date: format(currentDate, "yyyy-MM-dd") }));
+                  setNewEvent({
+                    ...getInitialNewEvent(currentDate),
+                    date: format(currentDate, "yyyy-MM-dd"),
+                  });
                   setCreateModalOpen(true);
                 }}
               >
@@ -1153,7 +1504,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                             evt.avatarUrl ? (
                               <img
                                 src={evt.avatarUrl}
-                                alt={evt.employeeName || evt.title}
+                                alt={evt.employeeName || cleanCalendarText(evt.title)}
                                 className="size-10 rounded-full object-cover shrink-0 ring-2 ring-white/80 shadow-xs"
                               />
                             ) : (
@@ -1163,7 +1514,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                             )
                           )}
                           <div>
-                            <h4 className="font-bold text-sm">{evt.title}</h4>
+                            <h4 className="font-bold text-sm">{cleanCalendarText(evt.title)}</h4>
                             <p className="text-xs opacity-85 mt-0.5">
                               {format(new Date(evt.startDate), "h:mm a")}
                               {evt.endDate ? ` – ${format(new Date(evt.endDate), "h:mm a")}` : ""}
@@ -1172,7 +1523,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                             {evt.description && <p className="text-xs opacity-75 mt-1 line-clamp-1">{evt.description}</p>}
                           </div>
                         </div>
-                        <Badge variant="secondary" className="text-xs uppercase font-mono">
+                        <Badge variant="secondary" className="text-xs uppercase font-medium">
                           {evt.category}
                         </Badge>
                       </div>
@@ -1211,7 +1562,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                         evt.avatarUrl ? (
                           <img
                             src={evt.avatarUrl}
-                            alt={evt.employeeName || evt.title}
+                            alt={evt.employeeName || cleanCalendarText(evt.title)}
                             className="size-8 rounded-full object-cover shrink-0 ring-1 ring-rose-400"
                           />
                         ) : (
@@ -1224,7 +1575,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                       )}
                       <div>
                         <h5 className="font-bold text-xs text-foreground flex items-center gap-2">
-                          <span>{evt.title}</span>
+                          <span>{cleanCalendarText(evt.title)}</span>
                           {evt.isShared && (
                             <Badge variant="outline" className="text-[10px] gap-1 px-1.5 py-0">
                               <Share2 className="size-2.5" /> Shared
@@ -1349,10 +1700,17 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 <Label className="text-xs font-medium">Date *</Label>
                 <Input
                   type="date"
+                  min={todayDateStr}
                   value={newEvent.date}
                   onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-                  className="text-xs mt-1"
+                  className={cn("text-xs mt-1", newEvent.date < todayDateStr && "border-destructive ring-1 ring-destructive")}
                 />
+                {newEvent.date < todayDateStr && (
+                  <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-1">
+                    <AlertCircle className="size-3.5 shrink-0" />
+                    <span>Event date cannot be scheduled before today.</span>
+                  </p>
+                )}
               </div>
               <div>
                 <Label className="text-xs font-medium">Category</Label>
@@ -1374,27 +1732,38 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs font-medium">Start Time</Label>
-                <Input
-                  type="time"
-                  value={newEvent.startTime}
-                  onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                  className="text-xs mt-1"
-                  disabled={newEvent.allDay}
-                />
+            <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs font-medium">Start Time</Label>
+                  <Input
+                    type="time"
+                    value={newEvent.startTime}
+                    onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
+                    className="text-xs mt-1"
+                    disabled={newEvent.allDay}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-medium">End Time</Label>
+                  <Input
+                    type="time"
+                    value={newEvent.endTime}
+                    onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
+                    className={cn(
+                      "text-xs mt-1",
+                      !newEvent.allDay && newEvent.endTime <= newEvent.startTime && "border-destructive ring-1 ring-destructive"
+                    )}
+                    disabled={newEvent.allDay}
+                  />
+                </div>
               </div>
-              <div>
-                <Label className="text-xs font-medium">End Time</Label>
-                <Input
-                  type="time"
-                  value={newEvent.endTime}
-                  onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                  className="text-xs mt-1"
-                  disabled={newEvent.allDay}
-                />
-              </div>
+              {!newEvent.allDay && newEvent.endTime <= newEvent.startTime && (
+                <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                  <AlertCircle className="size-3.5 shrink-0" />
+                  <span>End time must be later than start time.</span>
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2 pt-1">
@@ -1439,100 +1808,27 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 <span className="text-[10px] text-muted-foreground">Assign View Only or Can Edit</span>
               </div>
               <OrganizationMemberSelector
-                selectedMembers={newEvent.shares}
-                onMembersChange={(updated) => setNewEvent({ ...newEvent, shares: updated })}
+                value={newEvent.shares.map((s) => ({
+                  recipientId: s.userId,
+                  permission: s.permission,
+                }))}
+                onChange={(updated: SelectedShare[]) =>
+                  setNewEvent({
+                    ...newEvent,
+                    shares: updated.map((u) => ({ userId: u.recipientId, permission: u.permission })),
+                  })
+                }
                 placeholder="Search and select organization members..."
               />
             </div>
 
             {/* Configurable Reminders Section */}
-            <div className="border-t pt-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium flex items-center gap-1.5">
-                  <Bell className="size-3.5 text-teal-600" /> Reminders & Notifications
-                </Label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newRemId = `rem-${Date.now()}`;
-                    setNewEvent({
-                      ...newEvent,
-                      reminders: [
-                        ...newEvent.reminders,
-                        { id: newRemId, minutesBefore: 60, channel: "both" },
-                      ],
-                    });
-                  }}
-                  className="text-[11px] text-teal-600 hover:text-teal-700 font-semibold flex items-center gap-1"
-                >
-                  <Plus className="size-3" /> Add Reminder
-                </button>
-              </div>
-
-              {newEvent.reminders.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground italic">No reminders configured.</p>
-              ) : (
-                <div className="space-y-2">
-                  {newEvent.reminders.map((rem, idx) => (
-                    <div key={rem.id || idx} className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 border border-border/50 text-xs">
-                      <div className="flex-1">
-                        <Select
-                          value={String(rem.minutesBefore)}
-                          onValueChange={(val) => {
-                            const updated = [...newEvent.reminders];
-                            updated[idx].minutesBefore = parseInt(val, 10);
-                            setNewEvent({ ...newEvent, reminders: updated });
-                          }}
-                        >
-                          <SelectTrigger className="text-xs h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="390">390 minutes before (6.5 hours)</SelectItem>
-                            <SelectItem value="60">60 minutes before (1 hour)</SelectItem>
-                            <SelectItem value="30">30 minutes before</SelectItem>
-                            <SelectItem value="15">15 minutes before</SelectItem>
-                            <SelectItem value="0">At event time</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="w-32">
-                        <Select
-                          value={rem.channel}
-                          onValueChange={(val: any) => {
-                            const updated = [...newEvent.reminders];
-                            updated[idx].channel = val;
-                            setNewEvent({ ...newEvent, reminders: updated });
-                          }}
-                        >
-                          <SelectTrigger className="text-xs h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="both">Email & In-App</SelectItem>
-                            <SelectItem value="email">Email only</SelectItem>
-                            <SelectItem value="in_app">In-App only</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = newEvent.reminders.filter((_, i) => i !== idx);
-                          setNewEvent({ ...newEvent, reminders: updated });
-                        }}
-                        className="text-muted-foreground hover:text-destructive p-1 rounded"
-                        title="Remove reminder"
-                      >
-                        <X className="size-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <ReminderSectionEditor
+              reminders={newEvent.reminders}
+              onChange={(reminders) => setNewEvent({ ...newEvent, reminders })}
+              eventDate={newEvent.date}
+              eventStartTime={newEvent.startTime}
+            />
           </div>
 
           <DialogFooter>
@@ -1560,11 +1856,16 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 <Badge className={cn("text-xs font-semibold", selectedEvent.color || "bg-teal-600 text-white")}>
                   {selectedEvent.category}
                 </Badge>
-                <span className="text-xs font-mono text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {format(new Date(selectedEvent.startDate), "PPP")}
                 </span>
               </div>
-              <DialogTitle className="text-base font-bold mt-2">{selectedEvent.title}</DialogTitle>
+              <DialogTitle className="text-base font-bold mt-2 flex items-center gap-2">
+                {(selectedEvent.category?.toLowerCase() === "birthday" || selectedEvent.id.startsWith("birthday-")) && (
+                  <Cake className="size-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                )}
+                <span>{cleanCalendarText(selectedEvent.title)}</span>
+              </DialogTitle>
               <DialogDescription className="text-xs">
                 {selectedEvent.isShared
                   ? `Shared with you (${selectedEvent.userPermission === "edit" ? "Edit permission" : "View only"})`
@@ -1585,13 +1886,30 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs font-medium">Date</Label>
+                    <Label className="text-xs font-medium flex items-center justify-between">
+                      <span>Date</span>
+                      {selectedEvent && new Date(selectedEvent.startDate).getTime() < new Date().setHours(0, 0, 0, 0) && (
+                        <span className="text-[10px] text-muted-foreground font-normal">
+                          (Historical)
+                        </span>
+                      )}
+                    </Label>
                     <Input
                       type="date"
+                      min={selectedEvent && new Date(selectedEvent.startDate).getTime() < new Date().setHours(0, 0, 0, 0) ? undefined : todayDateStr}
                       value={editForm.date}
                       onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                      className="text-xs mt-1"
+                      className={cn(
+                        "text-xs mt-1",
+                        selectedEvent && new Date(selectedEvent.startDate).getTime() >= new Date().setHours(0, 0, 0, 0) && editForm.date < todayDateStr && "border-destructive ring-1 ring-destructive"
+                      )}
                     />
+                    {selectedEvent && new Date(selectedEvent.startDate).getTime() >= new Date().setHours(0, 0, 0, 0) && editForm.date < todayDateStr && (
+                      <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-1">
+                        <AlertCircle className="size-3.5 shrink-0" />
+                        <span>Event date cannot be moved to before today.</span>
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label className="text-xs font-medium">Category</Label>
@@ -1612,25 +1930,39 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs font-medium">Start Time</Label>
-                    <Input
-                      type="time"
-                      value={editForm.startTime}
-                      onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
-                      className="text-xs mt-1"
-                    />
+
+                <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs font-medium">Start Time</Label>
+                      <Input
+                        type="time"
+                        value={editForm.startTime}
+                        onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })}
+                        className="text-xs mt-1"
+                        disabled={editForm.allDay}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium">End Time</Label>
+                      <Input
+                        type="time"
+                        value={editForm.endTime}
+                        onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
+                        className={cn(
+                          "text-xs mt-1",
+                          !editForm.allDay && editForm.endTime <= editForm.startTime && "border-destructive ring-1 ring-destructive"
+                        )}
+                        disabled={editForm.allDay}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs font-medium">End Time</Label>
-                    <Input
-                      type="time"
-                      value={editForm.endTime}
-                      onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })}
-                      className="text-xs mt-1"
-                    />
-                  </div>
+                  {!editForm.allDay && editForm.endTime <= editForm.startTime && (
+                    <p className="text-[11px] text-destructive font-medium flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="size-3.5 shrink-0" />
+                      <span>End time must be later than start time.</span>
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-xs font-medium">Location</Label>
@@ -1648,6 +1980,14 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     className="text-xs mt-1 h-18"
                   />
                 </div>
+
+                {/* Reminders & Notifications in Edit Mode */}
+                <ReminderSectionEditor
+                  reminders={editForm.reminders}
+                  onChange={(reminders) => setEditForm({ ...editForm, reminders })}
+                  eventDate={editForm.date}
+                  eventStartTime={editForm.startTime}
+                />
               </div>
             ) : (
               /* View Mode */
@@ -1667,9 +2007,9 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm">🎂</span>
+                        <Cake className="size-4 text-rose-600 dark:text-rose-400 shrink-0" />
                         <p className="text-xs font-bold text-rose-700 dark:text-rose-400 truncate">
-                          {selectedEvent.employeeName || selectedEvent.title}
+                          {selectedEvent.employeeName || cleanCalendarText(selectedEvent.title)}
                         </p>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -1710,13 +2050,11 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                       {selectedEvent.reminders.map((rem, idx) => (
                         <div key={idx} className="flex items-center justify-between p-1.5 rounded bg-muted/40 text-xs">
                           <span className="font-medium text-[11px]">
-                            {rem.minutesBefore === 0
-                              ? "At event time"
-                              : `${rem.minutesBefore} minutes before`}
+                            {formatReminderLabel(rem)}
                           </span>
                           <div className="flex items-center gap-1.5">
                             <Badge variant="outline" className="text-[10px] capitalize">
-                              {rem.channel === "both" ? "Email & In-App" : rem.channel}
+                              {rem.channel === "both" ? "Email & In-App" : rem.channel === "in_app" ? "In-App only" : "Email only"}
                             </Badge>
                             {rem.status === "dispatched" && (
                               <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600">
@@ -1739,7 +2077,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     <div className="space-y-1">
                       {selectedEvent.shares.map((s, idx) => (
                         <div key={idx} className="flex items-center justify-between p-1.5 rounded bg-muted/40 text-xs">
-                          <span className="font-mono text-[11px] truncate">{s.recipientId}</span>
+                          <span className="font-medium text-[11px] truncate">{s.recipientId}</span>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-[10px] capitalize">
                               {s.permission === "edit" ? "Can Edit" : "View Only"}
@@ -1767,8 +2105,8 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
                       <div className="sm:col-span-7">
                         <OrganizationMemberSelector
-                          value={shareInput.recipientId}
-                          onChange={(userId) => setShareInput({ ...shareInput, recipientId: userId })}
+                          singleValue={shareInput.recipientId}
+                          onSingleChange={(userId) => setShareInput({ ...shareInput, recipientId: userId })}
                           placeholder="Select member..."
                         />
                       </div>

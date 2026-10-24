@@ -849,13 +849,13 @@ export default function SuperDomainsPage() {
                 <div className="p-3 rounded-lg border bg-card space-y-1">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground block">DNS Status</span>
                   <span className={`font-semibold ${detailDomain.dnsStatus === "verified" ? "text-emerald-600" : "text-amber-600"}`}>
-                    {detailDomain.dnsStatus === "verified" ? "✓ Verified" : "⏳ Pending Verification"}
+                    {detailDomain.dnsStatus === "verified" ? "Verified" : "Pending Verification"}
                   </span>
                 </div>
                 <div className="p-3 rounded-lg border bg-card space-y-1">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground block">SSL Status</span>
                   <span className={`font-semibold ${detailDomain.sslStatus === "active" ? "text-emerald-600" : "text-amber-600"}`}>
-                    {detailDomain.sslStatus === "active" ? "✓ Active (TLS 1.3)" : detailDomain.sslStatus || "Provisioning"}
+                    {detailDomain.sslStatus === "active" ? "Active (TLS 1.3)" : detailDomain.sslStatus || "Provisioning"}
                   </span>
                 </div>
               </div>

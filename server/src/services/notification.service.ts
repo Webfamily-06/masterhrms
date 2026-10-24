@@ -11,11 +11,13 @@ export interface CreateNotificationParams {
   type?: string;
   actionUrl?: string;
   metadata?: any;
+  idempotencyKey?: string;
 }
 
 export class NotificationService {
   /**
    * Creates an in-app notification record and emits realtime event to user's authorized room.
+   * Includes idempotency check to prevent duplicate dispatches for the same event and reminder.
    */
   public static async createNotification(params: CreateNotificationParams): Promise<any> {
     let db: any;
@@ -25,6 +27,52 @@ export class NotificationService {
       db = rawPrisma;
     }
     const targetUserId = params.userId || params.recipientUserId || "system";
+
+    // 1. Idempotency check for event reminders to prevent duplicate DB records
+    if (params.metadata?.eventId && params.metadata?.reminderId) {
+      try {
+        const recentNotifications = await db.notification.findMany({
+          where: {
+            tenantId: params.tenantId,
+            userId: targetUserId,
+            module: params.type || "CALENDAR_REMINDER",
+            createdAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            },
+          },
+          select: {
+            id: true,
+            tenantId: true,
+            userId: true,
+            title: true,
+            body: true,
+            module: true,
+            channel: true,
+            linkTo: true,
+            readAt: true,
+            metadataJson: true,
+            createdAt: true,
+          },
+          take: 50,
+        });
+
+        const existingDuplicate = recentNotifications.find((n: any) => {
+          const meta = n.metadataJson;
+          return (
+            meta &&
+            meta.eventId === params.metadata.eventId &&
+            meta.reminderId === params.metadata.reminderId
+          );
+        });
+
+        if (existingDuplicate) {
+          return existingDuplicate;
+        }
+      } catch (checkErr) {
+        // Fallback to insertion if idempotency check encounters an issue
+        console.warn("[NotificationService] Idempotency check skipped:", checkErr);
+      }
+    }
 
     const notification = await db.notification.create({
       data: {
@@ -39,12 +87,29 @@ export class NotificationService {
       },
     });
 
-    // Realtime push to the user's private room
+    // Realtime push to the user's private room with comprehensive payload
     const io = getIO();
     if (io) {
-      io.to(`user:${params.userId}`).emit("notification:new", notification);
+      const payload = {
+        id: notification.id,
+        tenantId: notification.tenantId,
+        userId: notification.userId,
+        title: notification.title,
+        body: notification.body,
+        description: notification.body,
+        module: notification.module,
+        type: notification.module,
+        channel: notification.channel,
+        linkTo: notification.linkTo,
+        metadataJson: notification.metadataJson,
+        createdAt: notification.createdAt,
+        timestamp: notification.createdAt,
+        read: Boolean(notification.readAt),
+      };
+
+      io.to(`user:${targetUserId}`).emit("notification:new", payload);
       io.to(`tenant:${params.tenantId}`).emit("tenant:notification", {
-        userId: params.userId,
+        userId: targetUserId,
         notificationId: notification.id,
       });
     }
@@ -57,19 +122,48 @@ export class NotificationService {
   }
 
   /**
-   * Retrieves paginated notifications for an authenticated user.
+   * Retrieves paginated notifications for an authenticated user with category/module filtering.
    */
   public static async getUserNotifications(
     tenantId: string,
     userId: string,
-    options: { unreadOnly?: boolean; limit?: number; offset?: number } = {}
+    options: { unreadOnly?: boolean; limit?: number; offset?: number; module?: string } = {}
   ): Promise<{ notifications: any[]; total: number; unreadCount: number }> {
     const db = getTenantDb();
-    const { unreadOnly = false, limit = 20, offset = 0 } = options;
+    const { unreadOnly = false, limit = 20, offset = 0, module } = options;
 
     const where: any = { tenantId, userId };
     if (unreadOnly) {
       where.readAt = null;
+    }
+
+    if (module && module !== "all") {
+      const mod = module.toUpperCase();
+      if (mod === "CALENDAR") {
+        where.module = {
+          in: [
+            "CALENDAR",
+            "CALENDAR_REMINDER",
+            "CALENDAR_INVITE",
+            "CALENDAR_SHARE",
+            "CALENDAR_CANCEL",
+            "CALENDAR_REVOKE",
+            "MEETINGS",
+          ],
+        };
+      } else if (mod === "PUNCH" || mod === "ATTENDANCE") {
+        where.module = { in: ["PUNCH", "ATTENDANCE"] };
+      } else if (mod === "LEAVE") {
+        where.module = { in: ["LEAVE"] };
+      } else if (mod === "PAYROLL") {
+        where.module = { in: ["PAYROLL", "INVOICE", "BILLING"] };
+      } else if (mod === "CHAT") {
+        where.module = { in: ["CHAT", "MESSAGE"] };
+      } else if (mod === "SYSTEM") {
+        where.module = { in: ["SYSTEM", "GENERAL", "SECURITY"] };
+      } else {
+        where.module = { equals: mod };
+      }
     }
 
     const [notifications, total, unreadCount] = await Promise.all([

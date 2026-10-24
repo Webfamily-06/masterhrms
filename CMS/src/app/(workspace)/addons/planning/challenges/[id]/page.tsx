@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Calendar, Target, Plus, FileText, Clock, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Edit, Calendar, Target, Plus, FileText, Clock, AlertTriangle, Star } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { getAuthHeaders } from "@/lib/api";
@@ -183,7 +183,7 @@ export default function ChallengeDetailPage() {
                   {m.description || "No description provided."}
                 </p>
                 <div className="flex items-center justify-between pt-2 border-t text-[11px] text-muted-foreground">
-                  <span>Rating: {m.ratingAvg > 0 ? `★ ${m.ratingAvg} (${m.ratingCount})` : "Unrated"}</span>
+                  <span className="flex items-center gap-1">Rating: {m.ratingAvg > 0 ? (<><Star className="size-3 text-amber-500 fill-amber-500 shrink-0" /> {m.ratingAvg} ({m.ratingCount})</>) : "Unrated"}</span>
                   <Badge variant="outline" className="text-[10px]">
                     {m.statusName}
                   </Badge>

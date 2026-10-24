@@ -250,7 +250,7 @@ function Onboarding() {
       qc.invalidateQueries({ queryKey: ["current-session-user"] });
       qc.invalidateQueries({ queryKey: ["tenant-branding"] });
 
-      toast.success("Workspace is live! Welcome to MasterHRMS 🎉");
+      toast.success("Workspace is live! Welcome to MasterHRMS");
       const activeToken = localStorage.getItem("hrms_auth_token");
       const { roles } = extractRolesFromToken(activeToken);
       const target = resolveDefaultRoute(roles);
