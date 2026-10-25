@@ -629,10 +629,18 @@ export function DreamsSidebar({
                           </a>
                           <ul style={{ display: !isMini && isOpen ? "block" : "none" }}>
                             {item.children.map((child) => {
+                              const currentPathClean = currentPath.split("?")[0];
+                              const hasExactChildMatch = Boolean(
+                                item.children?.some(
+                                  (c) => c.path && (currentPathClean === c.path || currentPath === c.path)
+                                )
+                              );
                               const isChildActive =
                                 child.path &&
-                                (currentPath === child.path ||
-                                  (child.path !== "/me" &&
+                                (currentPathClean === child.path ||
+                                  currentPath === child.path ||
+                                  (!hasExactChildMatch &&
+                                    child.path !== "/me" &&
                                     child.path !== "/me/dashboard" &&
                                     currentPath.startsWith(child.path + "/")));
                               return (
@@ -751,10 +759,18 @@ export function DreamsSidebar({
                           </a>
                           <ul style={{ display: !isMini && isOpen ? "block" : "none" }}>
                             {item.children.map((child) => {
+                              const currentPathClean = currentPath.split("?")[0];
+                              const hasExactChildMatch = Boolean(
+                                item.children?.some(
+                                  (c) => c.path && (currentPathClean === c.path || currentPath === c.path)
+                                )
+                              );
                               const isChildActive =
                                 child.path &&
-                                (currentPath === child.path ||
-                                  (child.path !== "/hr" &&
+                                (currentPathClean === child.path ||
+                                  currentPath === child.path ||
+                                  (!hasExactChildMatch &&
+                                    child.path !== "/hr" &&
                                     child.path !== "/hr/dashboard" &&
                                     currentPath.startsWith(child.path + "/")));
                               return (

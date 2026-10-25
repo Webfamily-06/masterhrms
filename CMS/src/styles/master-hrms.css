@@ -7,6 +7,21 @@ body {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
+  font-family: "Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+button,
+input,
+optgroup,
+select,
+textarea,
+[data-radix-portal],
+[data-radix-popper-content-wrapper],
+[role="dialog"],
+[role="menu"],
+[role="tooltip"],
+[role="listbox"] {
+  font-family: inherit;
 }
 
 @theme inline {

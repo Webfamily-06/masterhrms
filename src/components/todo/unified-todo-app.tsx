@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -19,6 +19,11 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -41,6 +46,7 @@ import {
   Circle,
   Star,
   User,
+  Users,
   X,
   Send,
   Paperclip,
@@ -52,6 +58,8 @@ import {
   Layers,
   AlertCircle,
   TrendingUp,
+  RefreshCw,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isAfter, isBefore, startOfDay, addDays } from "date-fns";
@@ -74,6 +82,7 @@ export interface TodoCommentItem {
   authorId?: string;
   text: string;
   createdAt: string;
+  avatar?: string;
 }
 
 export interface TodoAttachmentItem {
@@ -88,6 +97,23 @@ export interface TodoActivityItem {
   id: string;
   text: string;
   timestamp: string;
+}
+
+export interface TodoAssigneeItem {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string;
+  role?: string;
+  department?: string;
+  type?: "employee" | "user";
+}
+
+export interface TodoCategory {
+  id: string;
+  name: string;
+  color?: string;
+  bg?: string;
 }
 
 export interface TodoItem {
@@ -108,7 +134,9 @@ export interface TodoItem {
     id: string;
     name?: string;
     type?: string;
+    avatar?: string;
   } | null;
+  assignees: TodoAssigneeItem[];
   checklist: TodoChecklistItem[];
   comments: TodoCommentItem[];
   attachments: TodoAttachmentItem[];
@@ -127,6 +155,7 @@ export interface AssigneeOption {
   type: "employee" | "user";
   role?: string;
   department?: string;
+  avatar?: string;
 }
 
 export interface UnifiedTodoAppProps {
@@ -136,7 +165,7 @@ export interface UnifiedTodoAppProps {
   description?: string;
 }
 
-const TAG_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+const DEFAULT_TAG_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   internal: { label: "Internal", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-500/10 border-slate-500/20" },
   projects: { label: "Client Projects", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 border-blue-500/20" },
   meetings: { label: "Meeting Prep", color: "text-purple-700 dark:text-purple-300", bg: "bg-purple-500/10 border-purple-500/20" },
@@ -145,12 +174,541 @@ const TAG_CONFIG: Record<string, { label: string; color: string; bg: string }> =
   operations: { label: "HR Operations", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-500/10 border-cyan-500/20" },
 };
 
+const COLOR_PALETTE_OPTIONS = [
+  { label: "Slate", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-500/10 border-slate-500/20", preview: "bg-slate-500" },
+  { label: "Blue", color: "text-blue-700 dark:text-blue-300", bg: "bg-blue-500/10 border-blue-500/20", preview: "bg-blue-500" },
+  { label: "Purple", color: "text-purple-700 dark:text-purple-300", bg: "bg-purple-500/10 border-purple-500/20", preview: "bg-purple-500" },
+  { label: "Emerald", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10 border-emerald-500/20", preview: "bg-emerald-500" },
+  { label: "Amber", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10 border-amber-500/20", preview: "bg-amber-500" },
+  { label: "Rose", color: "text-rose-700 dark:text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", preview: "bg-rose-500" },
+  { label: "Cyan", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-500/10 border-cyan-500/20", preview: "bg-cyan-500" },
+  { label: "Indigo", color: "text-indigo-700 dark:text-indigo-300", bg: "bg-indigo-500/10 border-indigo-500/20", preview: "bg-indigo-500" },
+];
+
 const PRIORITY_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
   urgent: { label: "Urgent", color: "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30", dot: "bg-rose-500" },
   high: { label: "High", color: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30", dot: "bg-red-500" },
   medium: { label: "Medium", color: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30", dot: "bg-amber-500" },
   low: { label: "Low", color: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30", dot: "bg-slate-400" },
 };
+
+/**
+ * Reusable user avatar with authoritative profile photo and initials fallback
+ */
+export function UserAvatar({
+  name = "",
+  avatar = "",
+  className = "w-6 h-6",
+  fallbackClassName = "text-[10px] font-semibold",
+}: {
+  name?: string;
+  avatar?: string | null;
+  className?: string;
+  fallbackClassName?: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+  const initials = useMemo(() => {
+    const clean = (name || "").trim();
+    if (!clean) return "?";
+    const parts = clean.split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }, [name]);
+
+  if (avatar && !imgError) {
+    return (
+      <img
+        src={avatar}
+        alt={name || "User"}
+        className={cn("rounded-full object-cover shrink-0 border border-border/50 aspect-square", className)}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  const colors = [
+    "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+    "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
+    "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+    "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+    "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30",
+    "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30",
+    "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
+  ];
+  const hash = (name || "").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const colorClass = colors[hash % colors.length];
+
+  return (
+    <div
+      className={cn(
+        "rounded-full shrink-0 flex items-center justify-center border select-none aspect-square",
+        colorClass,
+        className
+      )}
+      title={name}
+    >
+      <span className={fallbackClassName}>{initials}</span>
+    </div>
+  );
+}
+
+/**
+ * Searchable multi-assignee selector with chips, select-all, and tenant isolation
+ */
+export function MultiAssigneeSelector({
+  value = [],
+  onChange,
+  assignees = [],
+  isLoading = false,
+  error = null,
+  onRetry,
+  disabled = false,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+  assignees: AssigneeOption[];
+  isLoading?: boolean;
+  error?: any;
+  onRetry?: () => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!searchQuery.trim()) return assignees;
+    const q = searchQuery.toLowerCase();
+    return assignees.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        a.email.toLowerCase().includes(q) ||
+        (a.role && a.role.toLowerCase().includes(q)) ||
+        (a.department && a.department.toLowerCase().includes(q))
+    );
+  }, [assignees, searchQuery]);
+
+  const selectedAssignees = useMemo(() => {
+    return value
+      .map((id) => assignees.find((a) => a.id === id))
+      .filter(Boolean) as AssigneeOption[];
+  }, [value, assignees]);
+
+  const toggleUser = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter((v) => v !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    const allFilteredIds = filtered.map((a) => a.id);
+    const combined = Array.from(new Set([...value, ...allFilteredIds]));
+    onChange(combined);
+  };
+
+  const handleClear = () => {
+    onChange([]);
+  };
+
+  return (
+    <div className="space-y-2">
+      {/* Selected Chips */}
+      {selectedAssignees.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 p-2 rounded-lg border bg-muted/30 min-h-[38px] items-center">
+          {selectedAssignees.map((a) => (
+            <div
+              key={a.id}
+              className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-background border text-xs shadow-xs"
+            >
+              <UserAvatar name={a.name} avatar={a.avatar} className="w-5 h-5 text-[9px]" />
+              <span className="font-medium truncate max-w-[130px]">{a.name}</span>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleUser(a.id);
+                }}
+                className="text-muted-foreground hover:text-rose-600 rounded-full p-0.5 transition-colors"
+                title={`Remove ${a.name}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          {selectedAssignees.length > 1 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={handleClear}
+              className="h-6 px-2 text-[10px] text-muted-foreground hover:text-rose-600"
+            >
+              Clear all ({selectedAssignees.length})
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Popover Selector Trigger */}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            className="w-full justify-between h-9 text-xs px-3 font-normal"
+          >
+            <span className="truncate">
+              {value.length === 0
+                ? "Select team members..."
+                : `${value.length} team member${value.length > 1 ? "s" : ""} selected`}
+            </span>
+            <Users className="w-3.5 h-3.5 text-muted-foreground ml-2 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-3 space-y-3" align="start">
+          {/* Search input */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search eligible users..."
+              className="h-8 pl-8 text-xs"
+              autoFocus
+            />
+          </div>
+
+          {/* Action bar: Select All & Clear */}
+          <div className="flex items-center justify-between text-xs pt-1 border-t">
+            <span className="text-[11px] text-muted-foreground">
+              {filtered.length} eligible member{filtered.length !== 1 ? "s" : ""}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-[11px] font-semibold text-primary hover:underline"
+              >
+                Select All
+              </button>
+              {value.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="text-[11px] text-muted-foreground hover:text-rose-600 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* List State */}
+          <div className="max-h-[220px] overflow-y-auto space-y-1 pr-1">
+            {isLoading ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                Loading eligible assignees...
+              </div>
+            ) : error ? (
+              <div className="py-4 text-center space-y-2">
+                <p className="text-xs text-rose-600">Failed to load assignees</p>
+                {onRetry && (
+                  <Button type="button" size="sm" variant="outline" onClick={onRetry} className="h-6 text-xs">
+                    Retry
+                  </Button>
+                )}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                No eligible team members found.
+              </div>
+            ) : (
+              filtered.map((user) => {
+                const isSelected = value.includes(user.id);
+                return (
+                  <div
+                    key={user.id}
+                    onClick={() => toggleUser(user.id)}
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors text-xs",
+                      isSelected && "bg-primary/10 border border-primary/20"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+                      <UserAvatar name={user.name} avatar={user.avatar} className="w-6 h-6 text-[10px]" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-foreground truncate">{user.name}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {user.role || user.department || user.email}
+                        </div>
+                      </div>
+                    </div>
+                    <Checkbox checked={isSelected} onCheckedChange={() => toggleUser(user.id)} />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+/**
+ * Category Manager Dialog for creating, editing, and safely deleting workspace tags
+ */
+export function CategoryManagerDialog({
+  open,
+  onOpenChange,
+  categories = [],
+  onCreated,
+  onUpdated,
+  onDeleted,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categories: TodoCategory[];
+  onCreated: (cat: TodoCategory) => void;
+  onUpdated: (cat: TodoCategory) => void;
+  onDeleted: (id: string) => void;
+}) {
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatColor, setNewCatColor] = useState(COLOR_PALETTE_OPTIONS[0]);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState(COLOR_PALETTE_OPTIONS[0]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreate = async () => {
+    if (!newCatName.trim()) {
+      toast.error("Category name is required");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await api.post<{ success: boolean; data: TodoCategory }>("/todos/categories", {
+        name: newCatName.trim(),
+        color: newCatColor.color,
+        bg: newCatColor.bg,
+      });
+      toast.success("Category created successfully");
+      setNewCatName("");
+      onCreated(res.data);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err?.message || "Failed to create category");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (id: string) => {
+    if (!editName.trim()) {
+      toast.error("Category name is required");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await api.put<{ success: boolean; data: TodoCategory }>(`/todos/categories/${id}`, {
+        name: editName.trim(),
+        color: editColor.color,
+        bg: editColor.bg,
+      });
+      toast.success("Category updated");
+      setEditingCatId(null);
+      onUpdated(res.data);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err?.message || "Failed to update category");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setIsSubmitting(true);
+    try {
+      await api.delete(`/todos/categories/${id}`);
+      toast.success("Category removed. Referencing tasks safely reset to Internal.");
+      onDeleted(id);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete category");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-bold flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-primary" />
+            Manage Category Tags
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Create, customize, and manage tenant task categories. Deleting a category safely reassigns tasks to Internal.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2 text-xs">
+          {/* Create new category section */}
+          <div className="p-3 rounded-lg border bg-muted/30 space-y-2.5">
+            <Label className="text-xs font-semibold">New Category</Label>
+            <div className="flex gap-2">
+              <Input
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="Category name (e.g., Compliance, Onboarding)..."
+                className="h-8 text-xs flex-1"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              />
+              <Button
+                size="sm"
+                className="h-8 text-xs px-3 font-semibold"
+                onClick={handleCreate}
+                disabled={isSubmitting}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add
+              </Button>
+            </div>
+            {/* Color Palette Selector */}
+            <div className="flex items-center gap-1.5 pt-1">
+              <span className="text-[11px] text-muted-foreground mr-1">Color:</span>
+              {COLOR_PALETTE_OPTIONS.map((pal) => (
+                <button
+                  key={pal.label}
+                  type="button"
+                  onClick={() => setNewCatColor(pal)}
+                  className={cn(
+                    "w-5 h-5 rounded-full border-2 transition-transform",
+                    pal.preview,
+                    newCatColor.label === pal.label ? "scale-110 border-primary" : "border-transparent opacity-70"
+                  )}
+                  title={pal.label}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Existing Categories List */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Available Categories</Label>
+            <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+              {categories.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-3 text-center">No categories found.</p>
+              ) : (
+                categories.map((cat) => {
+                  const isEditing = editingCatId === cat.id;
+                  const isProtected = cat.id === "internal";
+
+                  if (isEditing) {
+                    return (
+                      <div key={cat.id} className="p-2.5 rounded-lg border bg-muted/40 space-y-2">
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-7 text-xs"
+                          autoFocus
+                        />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            {COLOR_PALETTE_OPTIONS.map((pal) => (
+                              <button
+                                key={pal.label}
+                                type="button"
+                                onClick={() => setEditColor(pal)}
+                                className={cn(
+                                  "w-4 h-4 rounded-full border-2 transition-transform",
+                                  pal.preview,
+                                  editColor.label === pal.label ? "scale-110 border-primary" : "border-transparent opacity-70"
+                                )}
+                                title={pal.label}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => setEditingCatId(null)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-6 px-2 text-xs font-semibold"
+                              onClick={() => handleUpdate(cat.id)}
+                              disabled={isSubmitting}
+                            >
+                              Save
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={cat.id}
+                      className="flex items-center justify-between p-2 rounded-lg border bg-card text-xs group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5", cat.color, cat.bg)}>
+                          {cat.name}
+                        </Badge>
+                        {isProtected && (
+                          <span className="text-[10px] text-muted-foreground font-mono">(Default)</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            setEditingCatId(cat.id);
+                            setEditName(cat.name);
+                            const matchedPal = COLOR_PALETTE_OPTIONS.find((p) => p.color === cat.color) || COLOR_PALETTE_OPTIONS[0];
+                            setEditColor(matchedPal);
+                          }}
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </Button>
+                        {!isProtected && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-rose-600"
+                            onClick={() => handleDelete(cat.id)}
+                            disabled={isSubmitting}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function UnifiedTodoApp({
   initialView = "list",
@@ -207,6 +765,7 @@ export function UnifiedTodoApp({
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null);
   const [todoToDelete, setTodoToDelete] = useState<string | null>(null);
 
@@ -227,7 +786,7 @@ export function UnifiedTodoApp({
     tag: "internal",
     startDate: format(new Date(), "yyyy-MM-dd"),
     dueDate: format(addDays(new Date(), 5), "yyyy-MM-dd"),
-    assignedTo: "",
+    assignees: [] as string[],
     progress: 0,
     starred: false,
   });
@@ -258,6 +817,7 @@ export function UnifiedTodoApp({
         assignedTo: t.assignedTo || t.assigneeId || null,
         assigneeId: t.assigneeId || t.assignedTo || null,
         assignee: t.assignee || null,
+        assignees: Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []),
         checklist: Array.isArray(t.checklist) ? t.checklist : [],
         comments: Array.isArray(t.comments) ? t.comments : [],
         attachments: Array.isArray(t.attachments) ? t.attachments : [],
@@ -270,6 +830,58 @@ export function UnifiedTodoApp({
       }));
     },
   });
+
+  // 2. Fetch assignees for the tenant
+  const {
+    data: assignees = [],
+    isLoading: isLoadingAssignees,
+    error: assigneesError,
+    refetch: refetchAssignees,
+  } = useQuery<AssigneeOption[]>({
+    queryKey: ["todos-assignees"],
+    queryFn: async () => {
+      try {
+        const res = await api.get<{ success: boolean; data: AssigneeOption[] }>("/todos/assignees");
+        return res.data || [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // 3. Fetch workspace categories from authoritative API
+  const {
+    data: categories = [],
+    refetch: refetchCategories,
+  } = useQuery<TodoCategory[]>({
+    queryKey: ["todos-categories"],
+    queryFn: async () => {
+      try {
+        const res = await api.get<{ success: boolean; data: TodoCategory[] }>("/todos/categories");
+        return res.data || [];
+      } catch {
+        return Object.entries(DEFAULT_TAG_CONFIG).map(([id, cfg]) => ({
+          id,
+          name: cfg.label,
+          color: cfg.color,
+          bg: cfg.bg,
+        }));
+      }
+    },
+  });
+
+  // Dynamic tag config map
+  const tagConfigMap = useMemo(() => {
+    const map: Record<string, { label: string; color: string; bg: string }> = { ...DEFAULT_TAG_CONFIG };
+    categories.forEach((cat) => {
+      map[cat.id] = {
+        label: cat.name,
+        color: cat.color || "text-slate-700 dark:text-slate-300",
+        bg: cat.bg || "bg-slate-500/10 border-slate-500/20",
+      };
+    });
+    return map;
+  }, [categories]);
 
   // Auto-select task if URL query contains taskId or id (e.g. when navigated from Calendar)
   useEffect(() => {
@@ -285,19 +897,6 @@ export function UnifiedTodoApp({
     }
   }, [todosData, selectedTodo]);
 
-  // 2. Fetch assignees for the tenant
-  const { data: assignees = [] } = useQuery<AssigneeOption[]>({
-    queryKey: ["todos-assignees"],
-    queryFn: async () => {
-      try {
-        const res = await api.get<{ success: boolean; data: AssigneeOption[] }>("/todos/assignees");
-        return res.data || [];
-      } catch {
-        return [];
-      }
-    },
-  });
-
   // Keep selectedTodo in sync with latest queried data
   useEffect(() => {
     if (selectedTodo) {
@@ -308,7 +907,7 @@ export function UnifiedTodoApp({
     }
   }, [todosData]);
 
-  // Mutations
+  // Task Mutations
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/todos", payload);
@@ -366,6 +965,164 @@ export function UnifiedTodoApp({
     },
   });
 
+  // OPTIMISTIC MUTATION 1: Checklist Toggle (0ms delay, safe rollback)
+  const toggleSubtaskMutation = useMutation({
+    mutationFn: async ({ todoId, itemId, done }: { todoId: string; itemId: string; done: boolean }) => {
+      const res = await api.patch(`/todos/${todoId}/checklist/${itemId}`, { done });
+      return res.data;
+    },
+    onMutate: async ({ todoId, itemId, done }) => {
+      await queryClient.cancelQueries({ queryKey: ["todos"] });
+      const previousTodos = queryClient.getQueryData<TodoItem[]>(["todos"]);
+
+      // Update query cache optimistically
+      queryClient.setQueryData<TodoItem[]>(["todos"], (old) => {
+        if (!old) return old;
+        return old.map((t) => {
+          if (t.id !== todoId) return t;
+          const updatedChecklist = t.checklist.map((c) => (c.id === itemId ? { ...c, done } : c));
+          const doneCount = updatedChecklist.filter((c) => c.done).length;
+          const progress = updatedChecklist.length > 0 ? Math.round((doneCount / updatedChecklist.length) * 100) : t.progress;
+          const completed = doneCount === updatedChecklist.length && updatedChecklist.length > 0;
+          return {
+            ...t,
+            checklist: updatedChecklist,
+            progress,
+            completed: completed ? true : t.completed && !done ? false : t.completed,
+          };
+        });
+      });
+
+      // Update selectedTodo optimistically
+      setSelectedTodo((prev) => {
+        if (!prev || prev.id !== todoId) return prev;
+        const updatedChecklist = prev.checklist.map((c) => (c.id === itemId ? { ...c, done } : c));
+        const doneCount = updatedChecklist.filter((c) => c.done).length;
+        const progress = updatedChecklist.length > 0 ? Math.round((doneCount / updatedChecklist.length) * 100) : prev.progress;
+        const completed = doneCount === updatedChecklist.length && updatedChecklist.length > 0;
+        return {
+          ...prev,
+          checklist: updatedChecklist,
+          progress,
+          completed: completed ? true : prev.completed && !done ? false : prev.completed,
+        };
+      });
+
+      return { previousTodos };
+    },
+    onError: (err: any, variables, context) => {
+      if (context?.previousTodos) {
+        queryClient.setQueryData(["todos"], context.previousTodos);
+        const orig = context.previousTodos.find((t) => t.id === variables.todoId);
+        if (orig) setSelectedTodo(orig);
+      }
+      toast.error("Failed to update checklist item");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+    },
+  });
+
+  // Checklist Item Delete
+  const deleteSubtaskMutation = useMutation({
+    mutationFn: async ({ todoId, itemId }: { todoId: string; itemId: string }) => {
+      const res = await api.delete(`/todos/${todoId}/checklist/${itemId}`);
+      return res.data;
+    },
+    onMutate: async ({ todoId, itemId }) => {
+      await queryClient.cancelQueries({ queryKey: ["todos"] });
+      const previousTodos = queryClient.getQueryData<TodoItem[]>(["todos"]);
+
+      queryClient.setQueryData<TodoItem[]>(["todos"], (old) => {
+        if (!old) return old;
+        return old.map((t) => {
+          if (t.id !== todoId) return t;
+          const updatedChecklist = t.checklist.filter((c) => c.id !== itemId);
+          const doneCount = updatedChecklist.filter((c) => c.done).length;
+          const progress = updatedChecklist.length > 0 ? Math.round((doneCount / updatedChecklist.length) * 100) : t.progress;
+          return { ...t, checklist: updatedChecklist, progress };
+        });
+      });
+
+      setSelectedTodo((prev) => {
+        if (!prev || prev.id !== todoId) return prev;
+        const updatedChecklist = prev.checklist.filter((c) => c.id !== itemId);
+        const doneCount = updatedChecklist.filter((c) => c.done).length;
+        const progress = updatedChecklist.length > 0 ? Math.round((doneCount / updatedChecklist.length) * 100) : prev.progress;
+        return { ...prev, checklist: updatedChecklist, progress };
+      });
+
+      return { previousTodos };
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previousTodos) {
+        queryClient.setQueryData(["todos"], context.previousTodos);
+        const orig = context.previousTodos.find((t) => t.id === variables.todoId);
+        if (orig) setSelectedTodo(orig);
+      }
+      toast.error("Failed to delete checklist item");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+    },
+  });
+
+  // OPTIMISTIC MUTATION 2: Add Comment (immediate text clear, optimistic append, failure text restore)
+  const addCommentMutation = useMutation({
+    mutationFn: async ({ todoId, text }: { todoId: string; text: string }) => {
+      const res = await api.post(`/todos/${todoId}/comments`, { text });
+      return res.data;
+    },
+    onMutate: async ({ todoId, text }) => {
+      await queryClient.cancelQueries({ queryKey: ["todos"] });
+      const previousTodos = queryClient.getQueryData<TodoItem[]>(["todos"]);
+      const optimisticComment: TodoCommentItem = {
+        id: `opt_${Date.now()}`,
+        author: (user as any)?.name || user?.email || "Team Member",
+        text,
+        createdAt: new Date().toISOString(),
+      };
+
+      const preservedText = newCommentText;
+      setNewCommentText("");
+
+      setSelectedTodo((prev) => {
+        if (!prev || prev.id !== todoId) return prev;
+        return {
+          ...prev,
+          comments: [...prev.comments, optimisticComment],
+        };
+      });
+
+      queryClient.setQueryData<TodoItem[]>(["todos"], (old) => {
+        if (!old) return old;
+        return old.map((t) => {
+          if (t.id !== todoId) return t;
+          return {
+            ...t,
+            comments: [...t.comments, optimisticComment],
+          };
+        });
+      });
+
+      return { previousTodos, preservedText, todoId };
+    },
+    onError: (err: any, _vars, context) => {
+      if (context?.previousTodos) {
+        queryClient.setQueryData(["todos"], context.previousTodos);
+        const orig = context.previousTodos.find((t) => t.id === context.todoId);
+        if (orig) setSelectedTodo(orig);
+      }
+      if (context?.preservedText) {
+        setNewCommentText(context.preservedText);
+      }
+      toast.error(err?.response?.data?.error || "Failed to post comment");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+    },
+  });
+
   // Quick Action Handlers
   const handleToggleComplete = (todo: TodoItem) => {
     const nextCompleted = !todo.completed;
@@ -405,48 +1162,29 @@ export function UnifiedTodoApp({
 
   const handleToggleSubtask = (itemId: string) => {
     if (!selectedTodo) return;
-    const updated = selectedTodo.checklist.map((c) =>
-      c.id === itemId ? { ...c, done: !c.done } : c
-    );
-    const doneCount = updated.filter((c) => c.done).length;
-    const newProgress = Math.round((doneCount / updated.length) * 100);
-    const allDone = doneCount === updated.length && updated.length > 0;
-
-    updateMutation.mutate({
-      id: selectedTodo.id,
-      data: { checklist: updated, progress: newProgress, completed: allDone },
+    const item = selectedTodo.checklist.find((c) => c.id === itemId);
+    if (!item) return;
+    toggleSubtaskMutation.mutate({
+      todoId: selectedTodo.id,
+      itemId,
+      done: !item.done,
     });
   };
 
   const handleDeleteSubtask = (itemId: string) => {
     if (!selectedTodo) return;
-    const updated = selectedTodo.checklist.filter((c) => c.id !== itemId);
-    const doneCount = updated.filter((c) => c.done).length;
-    const newProgress = updated.length > 0 ? Math.round((doneCount / updated.length) * 100) : selectedTodo.progress;
-
-    updateMutation.mutate({
-      id: selectedTodo.id,
-      data: { checklist: updated, progress: newProgress },
+    deleteSubtaskMutation.mutate({
+      todoId: selectedTodo.id,
+      itemId,
     });
   };
 
   const handleAddComment = () => {
-    if (!selectedTodo || !newCommentText.trim()) return;
-    const authorName = (user as any)?.name || user?.email || "Team Member";
-    const newComments: TodoCommentItem[] = [
-      ...selectedTodo.comments,
-      {
-        id: `cmt_${Date.now()}`,
-        author: authorName,
-        text: newCommentText.trim(),
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    updateMutation.mutate({
-      id: selectedTodo.id,
-      data: { comments: newComments },
+    if (!selectedTodo || !newCommentText.trim() || addCommentMutation.isPending) return;
+    addCommentMutation.mutate({
+      todoId: selectedTodo.id,
+      text: newCommentText.trim(),
     });
-    setNewCommentText("");
   };
 
   const resetForm = () => {
@@ -457,7 +1195,7 @@ export function UnifiedTodoApp({
       tag: "internal",
       startDate: format(new Date(), "yyyy-MM-dd"),
       dueDate: format(addDays(new Date(), 5), "yyyy-MM-dd"),
-      assignedTo: "",
+      assignees: [],
       progress: 0,
       starred: false,
     });
@@ -465,6 +1203,10 @@ export function UnifiedTodoApp({
 
   const handleOpenEdit = (todo: TodoItem) => {
     setEditingTodo(todo);
+    const existingAssigneeIds = (todo.assignees && todo.assignees.length > 0)
+      ? todo.assignees.map((a) => a.id)
+      : (todo.assigneeId ? [todo.assigneeId] : []);
+
     setFormData({
       title: todo.title,
       description: todo.description || "",
@@ -472,7 +1214,7 @@ export function UnifiedTodoApp({
       tag: todo.tag,
       startDate: todo.startDate,
       dueDate: todo.dueDate,
-      assignedTo: todo.assignedTo || "",
+      assignees: existingAssigneeIds,
       progress: todo.progress,
       starred: todo.starred,
     });
@@ -484,33 +1226,27 @@ export function UnifiedTodoApp({
       toast.error("Task title is required");
       return;
     }
+    const payload = {
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      priority: formData.priority,
+      tag: formData.tag,
+      startDate: formData.startDate,
+      dueDate: formData.dueDate,
+      assignees: formData.assignees,
+      assigneeId: formData.assignees[0] || null,
+      assignedTo: formData.assignees[0] || null,
+      progress: formData.progress,
+      starred: formData.starred,
+    };
+
     if (editingTodo) {
       updateMutation.mutate({
         id: editingTodo.id,
-        data: {
-          title: formData.title.trim(),
-          description: formData.description.trim(),
-          priority: formData.priority,
-          tag: formData.tag,
-          startDate: formData.startDate,
-          dueDate: formData.dueDate,
-          assignedTo: formData.assignedTo || null,
-          progress: formData.progress,
-          starred: formData.starred,
-        },
+        data: payload,
       });
     } else {
-      createMutation.mutate({
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        priority: formData.priority,
-        tag: formData.tag,
-        startDate: formData.startDate,
-        dueDate: formData.dueDate,
-        assignedTo: formData.assignedTo || null,
-        progress: formData.progress,
-        starred: formData.starred,
-      });
+      createMutation.mutate(payload);
     }
   };
 
@@ -537,8 +1273,9 @@ export function UnifiedTodoApp({
           const q = search.toLowerCase();
           const matchTitle = t.title.toLowerCase().includes(q);
           const matchDesc = t.description?.toLowerCase().includes(q);
-          const matchAssignee = t.assignee?.name?.toLowerCase().includes(q);
-          if (!matchTitle && !matchDesc && !matchAssignee) return false;
+          const matchSingleAssignee = t.assignee?.name?.toLowerCase().includes(q);
+          const matchMultiAssignee = t.assignees?.some((a) => a.name.toLowerCase().includes(q));
+          if (!matchTitle && !matchDesc && !matchSingleAssignee && !matchMultiAssignee) return false;
         }
         return true;
       })
@@ -598,175 +1335,201 @@ export function UnifiedTodoApp({
                 variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => handleViewChange("list")}
-                className="gap-1.5 h-8 text-xs font-medium"
+                className="h-8 px-3 text-xs gap-1.5"
               >
                 <ListTodo className="w-3.5 h-3.5" />
-                Todo
+                Tasks
               </Button>
               <Button
                 variant={viewMode === "gantt" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => handleViewChange("gantt")}
-                className="gap-1.5 h-8 text-xs font-medium"
+                className="h-8 px-3 text-xs gap-1.5"
               >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <Clock className="w-3.5 h-3.5" />
                 Gantt
               </Button>
             </div>
 
-            {/* Create Task Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCategoryManagerOpen(true)}
+              className="h-9 text-xs gap-1.5"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+              Categories
+            </Button>
+
             <Button
               size="sm"
               onClick={() => {
                 resetForm();
                 setIsCreateModalOpen(true);
               }}
-              className="gap-1.5 font-semibold shadow-sm"
+              className="h-9 text-xs gap-1.5 font-bold shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              New Task
+              Create Task
             </Button>
           </div>
         }
       />
 
-      {/* 2. Stat Cards Summary */}
+      {/* 2. Statistical Overview Cards */}
       <StatsOverviewGrid columns={4}>
         <StatCard
-          label="Total Tasks"
+          title="Total Deliverables"
           value={totalTasks}
-          icon={ListTodo}
-          variant="primary"
-          description="Authoritative workspace items"
+          description="Authorized workspace tasks"
+          icon={<ListTodo className="w-4 h-4 text-primary" />}
         />
         <StatCard
-          label="Pending Action"
+          title="Pending Actions"
           value={pendingTasks}
-          icon={Clock}
-          variant="warning"
-          description="In progress or awaiting review"
+          description="In-progress or scheduled"
+          icon={<Clock className="w-4 h-4 text-amber-500" />}
         />
         <StatCard
-          label="Completed"
+          title="Completed"
           value={completedTasks}
-          icon={CheckCircle2}
-          variant="success"
-          description={`${completionRate}% overall completion rate`}
+          description={`${completionRate}% overall completion`}
+          icon={<CheckCircle2 className="w-4 h-4 text-emerald-500" />}
         />
         <StatCard
-          label="Urgent / High"
+          title="High Priority / Urgent"
           value={urgentTasks}
-          icon={AlertCircle}
-          variant="rose"
-          description="Immediate priority action needed"
+          description="Requires active attention"
+          icon={<AlertCircle className="w-4 h-4 text-rose-500" />}
         />
       </StatsOverviewGrid>
 
-      {/* 3. Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl border bg-card/60 backdrop-blur-sm shadow-xs">
-        {/* Status Tabs */}
-        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border w-fit">
-          <Button
-            variant={statusTab === "all" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setStatusTab("all")}
-            className="h-7 text-xs font-medium gap-1"
-          >
-            All
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-              {totalTasks}
-            </Badge>
-          </Button>
-          <Button
-            variant={statusTab === "pending" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setStatusTab("pending")}
-            className="h-7 text-xs font-medium gap-1"
-          >
-            Pending
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-              {pendingTasks}
-            </Badge>
-          </Button>
-          <Button
-            variant={statusTab === "completed" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setStatusTab("completed")}
-            className="h-7 text-xs font-medium gap-1"
-          >
-            Completed
-            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-              {completedTasks}
-            </Badge>
-          </Button>
-        </div>
+      {/* 3. Search and Filtering Controls */}
+      <Card className="border shadow-xs">
+        <CardContent className="p-3.5 space-y-3">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+              <Input
+                placeholder="Search tasks by title, description, or assignee..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9 text-xs"
+              />
+            </div>
 
-        {/* Search, Filters, and Sorting */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px]">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tasks, descriptions..."
-              className="pl-9 h-8 text-xs bg-background"
-            />
+            {/* Status Tabs */}
+            <div className="flex items-center rounded-lg bg-muted p-1 border text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setStatusTab("all")}
+                className={cn(
+                  "px-3 py-1 rounded-md transition-all font-medium",
+                  statusTab === "all" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All ({totalTasks})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("pending")}
+                className={cn(
+                  "px-3 py-1 rounded-md transition-all font-medium",
+                  statusTab === "pending" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Pending ({pendingTasks})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("completed")}
+                className={cn(
+                  "px-3 py-1 rounded-md transition-all font-medium",
+                  statusTab === "completed" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Completed ({completedTasks})
+              </button>
+            </div>
           </div>
 
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="h-8 text-xs w-[130px] bg-background">
-              <SelectValue placeholder="Priority" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priorities</SelectItem>
-              <SelectItem value="urgent">Urgent</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Secondary Filter Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t text-xs">
+            <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider mr-1">
+              Filter:
+            </span>
 
-          <Select value={tagFilter} onValueChange={setTagFilter}>
-            <SelectTrigger className="h-8 text-xs w-[130px] bg-background">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Tags</SelectItem>
-              <SelectItem value="internal">Internal</SelectItem>
-              <SelectItem value="projects">Projects</SelectItem>
-              <SelectItem value="meetings">Meetings</SelectItem>
-              <SelectItem value="reminder">Reminder</SelectItem>
-              <SelectItem value="research">Research</SelectItem>
-              <SelectItem value="operations">Operations</SelectItem>
-            </SelectContent>
-          </Select>
+            {/* Priority Filter */}
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="h-8 text-xs w-[130px]">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-            <SelectTrigger className="h-8 text-xs w-[120px] bg-background">
-              <ArrowUpDown className="w-3 h-3 mr-1 text-muted-foreground" />
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="created">Newest</SelectItem>
-              <SelectItem value="due">Due Date</SelectItem>
-              <SelectItem value="priority">Priority</SelectItem>
-              <SelectItem value="progress">Progress</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+            {/* Tag/Category Filter */}
+            <Select value={tagFilter} onValueChange={setTagFilter}>
+              <SelectTrigger className="h-8 text-xs w-[140px]">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-      {/* 4. Active View Content */}
+            {/* Sort Filter */}
+            <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+              <SelectTrigger className="h-8 text-xs w-[130px] ml-auto">
+                <ArrowUpDown className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created">Recently Created</SelectItem>
+                <SelectItem value="due">Due Date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="progress">Progress %</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {(priorityFilter !== "all" || tagFilter !== "all" || search) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setPriorityFilter("all");
+                  setTagFilter("all");
+                  setSearch("");
+                }}
+              >
+                Reset
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. Active View Switch: List View vs Gantt View */}
       {viewMode === "list" ? (
-        /* ─── LIST VIEW ─── */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Main Tasks List */}
-          <div className={cn("space-y-3", selectedTodo ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12")}>
+          <div className={cn("space-y-3 transition-all", selectedTodo ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12")}>
             {filteredTodos.length === 0 ? (
               <EmptyState
-                icon={ListTodo}
-                title="No tasks match your criteria"
-                description="Try clearing search or filters to see more tasks, or create a new task."
+                title="No tasks match criteria"
+                description="Try adjusting your filters, searching for another keyword, or create a new task."
                 actionLabel="Create Task"
                 onAction={() => {
                   resetForm();
@@ -775,78 +1538,80 @@ export function UnifiedTodoApp({
               />
             ) : (
               filteredTodos.map((todo) => {
-                const isOverdue =
-                  !todo.completed &&
-                  isBefore(new Date(todo.dueDate), startOfDay(new Date()));
-                const pConfig = PRIORITY_CONFIG[todo.priority] || PRIORITY_CONFIG.medium;
-                const tConfig = TAG_CONFIG[todo.tag] || TAG_CONFIG.internal;
                 const isSelected = selectedTodo?.id === todo.id;
+                const pConfig = PRIORITY_CONFIG[todo.priority] || PRIORITY_CONFIG.medium;
+                const tConfig = tagConfigMap[todo.tag] || { label: todo.tag, color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-500/10 border-slate-500/20" };
+                const isOverdue = !todo.completed && isBefore(new Date(todo.dueDate), startOfDay(new Date()));
 
                 return (
                   <div
                     key={todo.id}
                     onClick={() => setSelectedTodo(todo)}
                     className={cn(
-                      "group p-4 rounded-xl border bg-card transition-all cursor-pointer hover:shadow-md hover:border-primary/40",
-                      isSelected && "border-primary ring-2 ring-primary/20 bg-primary/5",
+                      "group p-4 rounded-xl border bg-card transition-all cursor-pointer hover:shadow-md relative overflow-hidden",
+                      isSelected && "border-primary ring-1 ring-primary/40 bg-primary/5",
                       todo.completed && "opacity-75 bg-muted/20"
                     )}
                   >
-                    <div className="flex items-start gap-3.5">
-                      {/* Completion Checkbox */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleComplete(todo);
-                        }}
-                        className="mt-0.5 text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        {todo.completed ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                        ) : (
-                          <Circle className="w-5 h-5" />
-                        )}
-                      </button>
+                    {/* Left Accent Bar */}
+                    <div
+                      className={cn(
+                        "absolute left-0 top-0 bottom-0 w-1",
+                        todo.completed ? "bg-emerald-500" : isOverdue ? "bg-rose-500" : "bg-primary"
+                      )}
+                    />
 
-                      {/* Content Block */}
+                    <div className="flex items-start justify-between gap-3 pl-1">
+                      {/* Checkbox & Star */}
+                      <div className="flex items-center gap-2 pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleComplete(todo)}
+                          className={cn(
+                            "w-5 h-5 rounded-md border flex items-center justify-center transition-colors",
+                            todo.completed
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "border-muted-foreground/40 hover:border-primary"
+                          )}
+                        >
+                          {todo.completed && <Check className="w-3.5 h-3.5 stroke-3" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStar(todo)}
+                          className="text-muted-foreground/40 hover:text-amber-500 transition-colors"
+                        >
+                          <Star
+                            className={cn(
+                              "w-4 h-4",
+                              todo.starred ? "fill-amber-400 text-amber-400" : ""
+                            )}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Task Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4
                             className={cn(
-                              "text-sm font-semibold text-foreground truncate",
+                              "text-sm font-semibold text-foreground tracking-tight transition-all",
                               todo.completed && "line-through text-muted-foreground"
                             )}
                           >
                             {todo.title}
                           </h4>
 
-                          {/* Star Icon */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleStar(todo);
-                            }}
-                            className={cn(
-                              "p-0.5 text-muted-foreground hover:text-amber-500 transition-colors",
-                              todo.starred && "text-amber-500 fill-amber-500"
-                            )}
-                          >
-                            <Star className={cn("w-3.5 h-3.5", todo.starred && "fill-amber-500")} />
-                          </button>
+                          {/* Category Badge */}
+                          <Badge variant="outline" className={cn("text-[10px] px-2 py-0 border", tConfig.color, tConfig.bg)}>
+                            {tConfig.label}
+                          </Badge>
 
-                          {/* Priority Pill */}
+                          {/* Priority Badge */}
                           <Badge variant="outline" className={cn("text-[10px] px-2 py-0 border", pConfig.color)}>
                             {pConfig.label}
                           </Badge>
 
-                          {/* Tag Pill */}
-                          <Badge variant="outline" className={cn("text-[10px] px-2 py-0 border", tConfig.bg, tConfig.color)}>
-                            {tConfig.label}
-                          </Badge>
-
-                          {/* Source Domain Badge if from automated workflow */}
                           {todo.badgeLabel && (
                             <Badge variant="outline" className={cn("text-[10px] px-2 py-0", todo.badgeColor)}>
                               {todo.badgeLabel}
@@ -869,13 +1634,26 @@ export function UnifiedTodoApp({
                             {isOverdue && <span className="text-[10px] uppercase tracking-wider ml-0.5">(Overdue)</span>}
                           </div>
 
-                          {/* Assignee */}
-                          {todo.assignee?.name && (
+                          {/* Multi-Assignee Stack */}
+                          {todo.assignees && todo.assignees.length > 0 ? (
                             <div className="flex items-center gap-1.5 bg-muted/60 px-2 py-0.5 rounded-md border text-foreground">
-                              <User className="w-3 h-3 text-muted-foreground" />
+                              <div className="flex items-center -space-x-1.5">
+                                {todo.assignees.slice(0, 3).map((a) => (
+                                  <UserAvatar key={a.id} name={a.name} avatar={a.avatar} className="w-4 h-4 text-[8px] border-background" />
+                                ))}
+                              </div>
+                              <span className="font-medium truncate max-w-[120px]">
+                                {todo.assignees.length === 1
+                                  ? todo.assignees[0].name
+                                  : `${todo.assignees[0].name} +${todo.assignees.length - 1}`}
+                              </span>
+                            </div>
+                          ) : todo.assignee?.name ? (
+                            <div className="flex items-center gap-1.5 bg-muted/60 px-2 py-0.5 rounded-md border text-foreground">
+                              <UserAvatar name={todo.assignee.name} avatar={todo.assignee.avatar} className="w-4 h-4 text-[8px]" />
                               <span className="font-medium truncate max-w-[120px]">{todo.assignee.name}</span>
                             </div>
-                          )}
+                          ) : null}
 
                           {/* Checklist items indicator */}
                           {todo.checklist.length > 0 && (
@@ -1019,12 +1797,40 @@ export function UnifiedTodoApp({
                   </Badge>
                 </div>
 
-                {/* Assignee */}
+                {/* Category */}
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Assignee</span>
-                  <div className="flex items-center gap-1.5 font-medium text-foreground">
-                    <User className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>{selectedTodo.assignee?.name || "Unassigned"}</span>
+                  <span className="text-muted-foreground">Category</span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs font-medium px-2 py-0.5",
+                      tagConfigMap[selectedTodo.tag]?.color,
+                      tagConfigMap[selectedTodo.tag]?.bg
+                    )}
+                  >
+                    {tagConfigMap[selectedTodo.tag]?.label || selectedTodo.tag}
+                  </Badge>
+                </div>
+
+                {/* Multi-Assignees */}
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-muted-foreground pt-1">Assignees</span>
+                  <div className="flex flex-col items-end gap-1.5 max-w-[220px]">
+                    {selectedTodo.assignees && selectedTodo.assignees.length > 0 ? (
+                      selectedTodo.assignees.map((a) => (
+                        <div key={a.id} className="flex items-center gap-1.5 font-medium text-foreground text-xs">
+                          <UserAvatar name={a.name} avatar={a.avatar} className="w-4 h-4 text-[8px]" />
+                          <span className="truncate max-w-[150px]">{a.name}</span>
+                        </div>
+                      ))
+                    ) : selectedTodo.assignee?.name ? (
+                      <div className="flex items-center gap-1.5 font-medium text-foreground text-xs">
+                        <UserAvatar name={selectedTodo.assignee.name} avatar={selectedTodo.assignee.avatar} className="w-4 h-4 text-[8px]" />
+                        <span>{selectedTodo.assignee.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground italic">Unassigned</span>
+                    )}
                   </div>
                 </div>
 
@@ -1112,7 +1918,7 @@ export function UnifiedTodoApp({
                       </Button>
                     </div>
 
-                    {/* Subtask items list */}
+                    {/* Subtask items list with instant optimistic checkbox toggling */}
                     <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                       {selectedTodo.checklist.length === 0 ? (
                         <p className="text-xs text-muted-foreground italic py-2 text-center">
@@ -1124,12 +1930,12 @@ export function UnifiedTodoApp({
                             key={item.id}
                             className="flex items-center justify-between p-2 rounded-lg border bg-muted/30 text-xs group"
                           >
-                            <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                            <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 select-none">
                               <Checkbox
                                 checked={item.done}
                                 onCheckedChange={() => handleToggleSubtask(item.id)}
                               />
-                              <span className={cn("truncate", item.done && "line-through text-muted-foreground")}>
+                              <span className={cn("truncate transition-all", item.done && "line-through text-muted-foreground")}>
                                 {item.text}
                               </span>
                             </label>
@@ -1158,9 +1964,19 @@ export function UnifiedTodoApp({
                         onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                         placeholder="Post a comment..."
                         className="h-8 text-xs"
+                        disabled={addCommentMutation.isPending}
                       />
-                      <Button size="sm" className="h-8 text-xs px-3" onClick={handleAddComment}>
-                        <Send className="w-3 h-3 mr-1" />
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs px-3 font-semibold"
+                        onClick={handleAddComment}
+                        disabled={addCommentMutation.isPending || !newCommentText.trim()}
+                      >
+                        {addCommentMutation.isPending ? (
+                          <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                        ) : (
+                          <Send className="w-3 h-3 mr-1" />
+                        )}
                         Post
                       </Button>
                     </div>
@@ -1174,7 +1990,10 @@ export function UnifiedTodoApp({
                         selectedTodo.comments.map((cmt) => (
                           <div key={cmt.id} className="p-2.5 rounded-lg border bg-muted/20 space-y-1 text-xs">
                             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                              <span className="font-semibold text-foreground">{cmt.author}</span>
+                              <div className="flex items-center gap-1.5">
+                                <UserAvatar name={cmt.author} avatar={cmt.avatar} className="w-4 h-4 text-[8px]" />
+                                <span className="font-semibold text-foreground">{cmt.author}</span>
+                              </div>
                               <span>{format(new Date(cmt.createdAt), "MMM d, h:mm a")}</span>
                             </div>
                             <p className="text-xs text-foreground/90 whitespace-pre-wrap">{cmt.text}</p>
@@ -1250,7 +2069,7 @@ export function UnifiedTodoApp({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs"
+                className="h-8 text-xs gap-1"
                 onClick={() => setGanttWindowOffset(0)}
               >
                 Today
@@ -1266,43 +2085,39 @@ export function UnifiedTodoApp({
               </Button>
             </div>
 
-            {/* Window Label */}
-            <div className="text-xs font-semibold text-foreground">
-              {format(timelineDates[0], "MMM d, yyyy")} &ndash;{" "}
-              {format(timelineDates[timelineDates.length - 1], "MMM d, yyyy")}
-            </div>
-
-            {/* Scale Selector */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-medium">Timeline View:</span>
-              <div className="inline-flex rounded-lg border bg-muted p-0.5">
-                <Button
-                  variant={timelineScale === "days" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-7 text-xs px-2.5"
+              <div className="inline-flex items-center rounded-lg bg-muted p-1 border text-xs">
+                <button
+                  type="button"
                   onClick={() => setTimelineScale("days")}
+                  className={cn(
+                    "px-3 py-1 rounded-md transition-all font-medium",
+                    timelineScale === "days" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
                   14 Days
-                </Button>
-                <Button
-                  variant={timelineScale === "weeks" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-7 text-xs px-2.5"
+                </button>
+                <button
+                  type="button"
                   onClick={() => setTimelineScale("weeks")}
+                  className={cn(
+                    "px-3 py-1 rounded-md transition-all font-medium",
+                    timelineScale === "weeks" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  4 Weeks
-                </Button>
+                  28 Days
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Interactive Gantt Timeline Grid */}
+          {/* Gantt Chart Container */}
           <Card className="overflow-hidden border shadow-sm">
             <div className="overflow-x-auto">
               <div className="min-w-[950px]">
                 {/* Timeline Header */}
                 <div className="grid grid-cols-12 border-b bg-muted/40 text-xs font-semibold text-foreground">
-                  <div className="col-span-4 p-3 border-r font-bold">Task & Assignee</div>
+                  <div className="col-span-4 p-3 border-r font-bold">Task & Assignees</div>
                   <div className="col-span-8 grid" style={{ gridTemplateColumns: `repeat(${timelineDates.length}, minmax(0, 1fr))` }}>
                     {timelineDates.map((d, i) => {
                       const isToday = format(d, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
@@ -1367,7 +2182,20 @@ export function UnifiedTodoApp({
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
-                                {todo.assignee?.name && <span className="truncate max-w-[100px]">{todo.assignee.name}</span>}
+                                {todo.assignees && todo.assignees.length > 0 ? (
+                                  <div className="flex items-center -space-x-1">
+                                    {todo.assignees.slice(0, 2).map((a) => (
+                                      <UserAvatar key={a.id} name={a.name} avatar={a.avatar} className="w-4 h-4 text-[7px]" />
+                                    ))}
+                                    <span className="ml-1 text-[10px] truncate max-w-[90px]">
+                                      {todo.assignees.map((a) => a.name).join(", ")}
+                                    </span>
+                                  </div>
+                                ) : todo.assignee?.name ? (
+                                  <span className="truncate max-w-[100px]">{todo.assignee.name}</span>
+                                ) : (
+                                  <span>Unassigned</span>
+                                )}
                                 <span>&bull;</span>
                                 <span className={cn(isOverdue && "text-rose-600 font-semibold")}>
                                   Due {todo.dueDate}
@@ -1445,14 +2273,14 @@ export function UnifiedTodoApp({
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               {editingTodo ? "Edit Task" : "Create New Task"}
             </DialogTitle>
             <DialogDescription className="text-xs">
               {editingTodo
-                ? "Update task details, schedule, assignee, and priority."
+                ? "Update task details, schedule, assignees, and priority."
                 : "Add a new actionable deliverable to your authorized workspace."}
             </DialogDescription>
           </DialogHeader>
@@ -1502,7 +2330,16 @@ export function UnifiedTodoApp({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Category Tag</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Category Tag</Label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryManagerOpen(true)}
+                    className="text-[11px] text-primary hover:underline flex items-center gap-1"
+                  >
+                    <SlidersHorizontal className="w-3 h-3" /> Manage
+                  </button>
+                </div>
                 <Select
                   value={formData.tag}
                   onValueChange={(val) => setFormData({ ...formData, tag: val })}
@@ -1511,36 +2348,27 @@ export function UnifiedTodoApp({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="internal">Internal</SelectItem>
-                    <SelectItem value="projects">Projects</SelectItem>
-                    <SelectItem value="meetings">Meetings</SelectItem>
-                    <SelectItem value="reminder">Reminder</SelectItem>
-                    <SelectItem value="research">Research</SelectItem>
-                    <SelectItem value="operations">Operations</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* Assignee Selection */}
+            {/* Multi-Assignee Selection */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Assignee (Tenant Scoped)</Label>
-              <Select
-                value={formData.assignedTo}
-                onValueChange={(val) => setFormData({ ...formData, assignedTo: val === "unassigned" ? "" : val })}
-              >
-                <SelectTrigger className="text-xs">
-                  <SelectValue placeholder="Select team member..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {assignees.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name} ({a.role || a.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-semibold">Assignees</Label>
+              <MultiAssigneeSelector
+                value={formData.assignees}
+                onChange={(ids) => setFormData({ ...formData, assignees: ids })}
+                assignees={assignees}
+                isLoading={isLoadingAssignees}
+                error={assigneesError}
+                onRetry={refetchAssignees}
+              />
             </div>
 
             {/* Schedule: Start Date & Due Date */}
@@ -1579,14 +2407,44 @@ export function UnifiedTodoApp({
             >
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSaveModal} className="font-bold">
+            <Button
+              size="sm"
+              onClick={handleSaveModal}
+              className="font-bold"
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {createMutation.isPending || updateMutation.isPending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
+              ) : null}
               {editingTodo ? "Save Changes" : "Create Task"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* 6. Delete Confirmation Dialog */}
+      {/* 6. Category Manager Dialog */}
+      <CategoryManagerDialog
+        open={isCategoryManagerOpen}
+        onOpenChange={setIsCategoryManagerOpen}
+        categories={categories}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["todos-categories"] });
+          queryClient.invalidateQueries({ queryKey: ["todos"] });
+        }}
+        onUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["todos-categories"] });
+          queryClient.invalidateQueries({ queryKey: ["todos"] });
+        }}
+        onDeleted={(deletedId) => {
+          queryClient.invalidateQueries({ queryKey: ["todos-categories"] });
+          queryClient.invalidateQueries({ queryKey: ["todos"] });
+          if (formData.tag === deletedId) {
+            setFormData((prev) => ({ ...prev, tag: "internal" }));
+          }
+        }}
+      />
+
+      {/* 7. Delete Confirmation Dialog */}
       <ConfirmationDialog
         open={Boolean(todoToDelete)}
         onOpenChange={(open) => !open && setTodoToDelete(null)}
