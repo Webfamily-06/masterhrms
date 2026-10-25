@@ -34,75 +34,6 @@ interface LeadItem {
   avatar: string;
 }
 
-const INITIAL_LEADS: LeadItem[] = [
-  {
-    id: "LED-001",
-    name: "John Smith",
-    company: "TechCorp Inc",
-    source: "Organic Search",
-    value: 15000,
-    location: "United States",
-    email: "john.smith@techcorp.com",
-    status: "New",
-    avatar: "/ui-assets/avatar-01.jpg",
-  },
-  {
-    id: "LED-002",
-    name: "Ava Mitchell",
-    company: "Nexus Logistics",
-    source: "Referral",
-    value: 28000,
-    location: "United Kingdom",
-    email: "ava.m@nexuslogistics.co.uk",
-    status: "Qualified",
-    avatar: "/ui-assets/avatar-02.jpg",
-  },
-  {
-    id: "LED-003",
-    name: "Alexander Hayes",
-    company: "Apex Media Works",
-    source: "LinkedIn Campaign",
-    value: 42000,
-    location: "Canada",
-    email: "alex.hayes@apexmedia.ca",
-    status: "Contacted",
-    avatar: "/ui-assets/avatar-03.jpg",
-  },
-  {
-    id: "LED-004",
-    name: "Amelia Scott",
-    company: "Pinnacle Financials",
-    source: "Cold Outreach",
-    value: 19500,
-    location: "Australia",
-    email: "amelia@pinnaclefin.com.au",
-    status: "New",
-    avatar: "/ui-assets/avatar-04.jpg",
-  },
-  {
-    id: "LED-005",
-    name: "Anthony Walker",
-    company: "Vanguard Global",
-    source: "Trade Show",
-    value: 65000,
-    location: "Germany",
-    email: "anthony@vanguardglobal.de",
-    status: "Qualified",
-    avatar: "/ui-assets/avatar-05.jpg",
-  },
-  {
-    id: "LED-006",
-    name: "Charlotte Evans",
-    company: "CyberShield Systems",
-    source: "Website Form",
-    value: 22000,
-    location: "Singapore",
-    email: "charlotte@cybershield.sg",
-    status: "Lost",
-    avatar: "/ui-assets/avatar-06.jpg",
-  },
-];
-
 export default function LeadsDashboardPage() {
   const { canAccessModule, loading } = usePermissions();
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
@@ -130,27 +61,27 @@ export default function LeadsDashboardPage() {
 
   const queryClient = useQueryClient();
 
-  const { data: leads = INITIAL_LEADS } = useQuery({
+  const { data: leads = [] } = useQuery({
     queryKey: ["leads-dashboard-data"],
     queryFn: async () => {
       try {
         const res = await api.get("/crm/leads");
-        if (Array.isArray(res) && res.length > 0) {
+        if (Array.isArray(res)) {
           return res.map((l: any, idx: number) => ({
             id: l.id || `LED-${String(idx + 1).padStart(3, "0")}`,
             name: l.name || "Prospective Lead",
             company: l.company || "Enterprise Lead",
             source: l.source || "Website Form",
-            value: Number(l.value || l.estimatedBudget || 15000),
+            value: Number(l.value || l.estimatedBudget || 0),
             location: l.location || "Global",
             email: l.email || "lead@company.com",
             status: l.status === "qualified" ? "Qualified" : l.status === "contacted" ? "Contacted" : l.status === "lost" ? "Lost" : "New",
             avatar: `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
           }));
         }
-        return INITIAL_LEADS;
+        return [];
       } catch {
-        return INITIAL_LEADS;
+        return [];
       }
     },
   });

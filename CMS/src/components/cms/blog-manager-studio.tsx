@@ -104,7 +104,7 @@ export function BlogManagerStudio() {
   const router = useRouter();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [resolvedDomain, setResolvedDomain] = useState('localhost:3000');
+  const [resolvedDomain, setResolvedDomain] = useState(getResolvedPublicDomain);
 
   useEffect(() => {
     setResolvedDomain(getResolvedPublicDomain());

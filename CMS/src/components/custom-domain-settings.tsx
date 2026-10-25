@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useTenantBranding } from "@/lib/useTenantBranding";
 import { normalizeDomain, validateCustomDomain } from "@/lib/domain-normalization";
+import { getPlatformBaseDomain } from "@/lib/platform-domain";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,10 +72,10 @@ export function CustomDomainSettings() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<CustomDomainItem | null>(null);
 
-  // Normalized preview
   const normalizedPreview = normalizeDomain(rawInput);
+  const effectiveBaseDomain = branding.baseDomain || getPlatformBaseDomain();
   const validationPreview = rawInput.trim()
-    ? validateCustomDomain(rawInput, branding.baseDomain || "localhost")
+    ? validateCustomDomain(rawInput, effectiveBaseDomain)
     : null;
 
   // 1. Fetch Tenant Custom Domains
@@ -206,13 +207,13 @@ export function CustomDomainSettings() {
             </span>
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs font-semibold text-foreground truncate">
-                https://{branding.slug || "workspace"}.{branding.baseDomain || "localhost"}
+                https://{branding.slug || "workspace"}.{effectiveBaseDomain}
               </span>
               <Button
                 size="icon"
                 variant="ghost"
                 className="size-6 text-muted-foreground hover:text-foreground shrink-0"
-                onClick={() => handleCopy(`https://${branding.slug || "workspace"}.${branding.baseDomain || "localhost"}`, "Default Workspace URL")}
+                onClick={() => handleCopy(`https://${branding.slug || "workspace"}.${effectiveBaseDomain}`, "Default Workspace URL")}
               >
                 <Copy className="size-3" />
               </Button>

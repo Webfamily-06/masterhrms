@@ -1187,7 +1187,7 @@ const axios = require('axios');
 
 const DEVICE_IP = '${devices[0]?.ip || "192.168.1.201"}';
 const DEVICE_PORT = ${devices[0]?.port || 4370};
-const API_URL = '${typeof window !== "undefined" ? window.location.origin : "http://localhost:4000"}/api/public/biometric/push';
+const API_URL = '${typeof window !== "undefined" ? window.location.origin : (process.env.PLATFORM_CANONICAL_URL || "https://masterhrms.com")}/api/public/biometric/push';
 const TENANT_ID = '${tenantId}';
 const DEVICE_ID = '${devices[0]?.id || ""}';
 

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useTenantBranding } from "@/lib/useTenantBranding";
+import { getPlatformBaseDomain, getTenantWorkspaceUrl } from "@/lib/platform-domain";
 
 interface RoleItem {
   id: string;
@@ -729,7 +730,7 @@ export function WorkspaceAdminSettings() {
                 <div className="space-y-0.5">
                   <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Workspace Subdomain</span>
                   <div className="font-mono text-base font-bold text-foreground">
-                    {branding.slug}.{branding.baseDomain || "localhost"}
+                    {branding.slug}.{branding.baseDomain || getPlatformBaseDomain()}
                   </div>
                 </div>
 
@@ -739,7 +740,7 @@ export function WorkspaceAdminSettings() {
                     variant="outline"
                     className="text-xs h-8 gap-1.5 cursor-pointer"
                     onClick={() => {
-                      const url = branding.workspaceUrl || `http://${branding.slug}.${branding.baseDomain || "localhost"}`;
+                      const url = branding.workspaceUrl || getTenantWorkspaceUrl(branding.slug);
                       navigator.clipboard.writeText(url);
                       toast.success("Workspace address copied to clipboard!");
                     }}
@@ -752,7 +753,7 @@ export function WorkspaceAdminSettings() {
                     variant="outline"
                     className="text-xs h-8 gap-1.5 cursor-pointer"
                     onClick={() => {
-                      const url = branding.workspaceUrl || `http://${branding.slug}.${branding.baseDomain || "localhost"}`;
+                      const url = branding.workspaceUrl || getTenantWorkspaceUrl(branding.slug);
                       window.open(url, "_blank");
                     }}
                   >
@@ -1219,7 +1220,7 @@ export function WorkspaceAdminSettings() {
               <div className="space-y-1">
                 <Label className="text-xs font-bold text-title">Current Address</Label>
                 <div className="font-mono text-xs px-3 py-2 rounded border bg-muted/40 text-muted-foreground">
-                  {branding.slug}.{branding.baseDomain || "localhost"}
+                  {branding.slug}.{branding.baseDomain || getPlatformBaseDomain()}
                 </div>
               </div>
 
@@ -1255,7 +1256,7 @@ export function WorkspaceAdminSettings() {
                     className="w-full bg-transparent text-xs text-title focus:outline-none font-mono"
                   />
                   <span className="text-xs font-mono text-muted-foreground whitespace-nowrap pl-1">
-                    .{branding.baseDomain || "localhost"}
+                    .{branding.baseDomain || getPlatformBaseDomain()}
                   </span>
                 </div>
               </div>

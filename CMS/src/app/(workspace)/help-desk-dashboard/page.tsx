@@ -30,75 +30,6 @@ interface TicketItem {
   status: "Open" | "In Progress" | "Resolved" | "Closed";
 }
 
-const INITIAL_TICKETS: TicketItem[] = [
-  {
-    id: "TIC-001",
-    subject: "VPN Gateway Authentication Timeout",
-    requester: "DevOps Team",
-    agent: "Ethan Walker",
-    agentAvatar: "/ui-assets/avatar-03.jpg",
-    category: "Network / Infrastructure",
-    priority: "Urgent",
-    createdDate: "20 Jan 2026",
-    status: "Open",
-  },
-  {
-    id: "TIC-002",
-    subject: "Payroll Payslip Tax Deduction Discrepancy",
-    requester: "Sarah Jenkins",
-    agent: "Madison Clark",
-    agentAvatar: "/ui-assets/avatar-04.jpg",
-    category: "Finance & Payroll",
-    priority: "High",
-    createdDate: "19 Jan 2026",
-    status: "In Progress",
-  },
-  {
-    id: "TIC-003",
-    subject: "Request New Mechanical Keyboard & Monitor Arm",
-    requester: "Marcus Vance",
-    agent: "James Harris",
-    agentAvatar: "/ui-assets/avatar-05.jpg",
-    category: "Hardware Request",
-    priority: "Low",
-    createdDate: "18 Jan 2026",
-    status: "Resolved",
-  },
-  {
-    id: "TIC-004",
-    subject: "CRM Lead Webhook Endpoint 502 Bad Gateway",
-    requester: "Marketing Operations",
-    agent: "Chloe Mitchell",
-    agentAvatar: "/ui-assets/avatar-08.jpg",
-    category: "API & Integrations",
-    priority: "High",
-    createdDate: "17 Jan 2026",
-    status: "Open",
-  },
-  {
-    id: "TIC-005",
-    subject: "Biometric Punch Card Device Sync Failure",
-    requester: "Facility Management",
-    agent: "Benjamin Wright",
-    agentAvatar: "/ui-assets/avatar-07.jpg",
-    category: "Hardware / Devices",
-    priority: "Urgent",
-    createdDate: "15 Jan 2026",
-    status: "In Progress",
-  },
-  {
-    id: "TIC-006",
-    subject: "Google Workspace Email Alias Provisioning",
-    requester: "HR Department",
-    agent: "Avery Thompson",
-    agentAvatar: "/ui-assets/avatar-06.jpg",
-    category: "Access & Security",
-    priority: "Medium",
-    createdDate: "14 Jan 2026",
-    status: "Closed",
-  },
-];
-
 export default function HelpDeskDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -122,12 +53,12 @@ export default function HelpDeskDashboardPage() {
 
   const queryClient = useQueryClient();
 
-  const { data: tickets = INITIAL_TICKETS } = useQuery({
+  const { data: tickets = [] } = useQuery({
     queryKey: ["support-tickets-data"],
     queryFn: async () => {
       try {
         const res = await api.get("/helpdesk/tickets");
-        if (Array.isArray(res) && res.length > 0) {
+        if (Array.isArray(res)) {
           return res.map((t: any, idx: number) => ({
             id: t.id || `TIC-${String(idx + 1).padStart(3, "0")}`,
             subject: t.subject || t.title || "Support Request",
@@ -136,13 +67,13 @@ export default function HelpDeskDashboardPage() {
             agentAvatar: `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
             category: t.category || "General Support",
             priority: (t.priority === "urgent" ? "Urgent" : t.priority === "high" ? "High" : t.priority === "low" ? "Low" : "Medium") as TicketItem["priority"],
-            createdDate: t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "18 Jan 2026",
+            createdDate: t.createdAt ? new Date(t.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—",
             status: (t.status === "in_progress" ? "In Progress" : t.status === "resolved" ? "Resolved" : t.status === "closed" ? "Closed" : "Open") as TicketItem["status"],
           }));
         }
-        return INITIAL_TICKETS;
+        return [];
       } catch {
-        return INITIAL_TICKETS;
+        return [];
       }
     },
   });

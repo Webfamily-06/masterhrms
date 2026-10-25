@@ -14,6 +14,7 @@ import {
   normalizeCosecBatch,
   type CosecPunchEvent,
 } from "../services/matrix-cosec.adapter";
+import { getBaseDomain } from "../lib/workspace-host";
 
 export const biometricRouter = Router();
 export const publicBiometricRouter = Router();
@@ -336,8 +337,10 @@ biometricRouter.get("/cloud-config", requireAuth, async (req: AuthRequest, res: 
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    const host = req.get("host") || "localhost:4000";
-    const protocol = req.protocol === "https" ? "https" : "http";
+    const forwardedHost = (req.get("x-forwarded-host") || "").split(",")[0].trim();
+    const host = forwardedHost || req.get("host") || getBaseDomain();
+    const forwardedProto = (req.get("x-forwarded-proto") || "").split(",")[0].trim();
+    const protocol = forwardedProto || (req.protocol === "https" ? "https" : (process.env.NODE_ENV === "production" ? "https" : "http"));
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },

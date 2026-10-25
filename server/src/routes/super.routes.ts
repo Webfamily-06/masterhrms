@@ -3081,7 +3081,7 @@ superRouter.get("/settings", requireAuth, requireSuperAdmin, async (_req: AuthRe
 
     const defaultSettings = {
       platformName: "Master ERP & HRMS Cloud",
-      platformUrl: process.env.VITE_API_URL || "http://localhost:4000",
+      platformUrl: process.env.PLATFORM_CANONICAL_URL || process.env.VITE_API_URL || getRootUrl(),
       defaultCurrency: "INR",
       currencySymbol: "₹",
       defaultTimezone: "Asia/Kolkata",

@@ -32,93 +32,6 @@ interface PayrollRecord {
   status: "Paid" | "Pending" | "Processing";
 }
 
-const INITIAL_PAYROLL: PayrollRecord[] = [
-  {
-    id: "#PR0020",
-    employeeId: "EMP-001",
-    name: "Ethan Walker",
-    avatar: "/ui-assets/avatar-03.jpg",
-    designation: "Engineering Manager",
-    department: "Engineering",
-    basic: 6500,
-    bonus: 500,
-    deductions: 200,
-    netPay: 6800,
-    paymentDate: "30 Jun 2026",
-    status: "Paid",
-  },
-  {
-    id: "#PR0019",
-    employeeId: "EMP-002",
-    name: "Madison Clark",
-    avatar: "/ui-assets/avatar-04.jpg",
-    designation: "Lead Product Designer",
-    department: "Design",
-    basic: 4800,
-    bonus: 300,
-    deductions: 150,
-    netPay: 4950,
-    paymentDate: "30 Jun 2026",
-    status: "Paid",
-  },
-  {
-    id: "#PR0018",
-    employeeId: "EMP-003",
-    name: "James Harris",
-    avatar: "/ui-assets/avatar-05.jpg",
-    designation: "Senior Full Stack Dev",
-    department: "Engineering",
-    basic: 5200,
-    bonus: 400,
-    deductions: 180,
-    netPay: 5420,
-    paymentDate: "30 Jun 2026",
-    status: "Processing",
-  },
-  {
-    id: "#PR0017",
-    employeeId: "EMP-004",
-    name: "Avery Thompson",
-    avatar: "/ui-assets/avatar-06.jpg",
-    designation: "Operations Lead",
-    department: "Operations",
-    basic: 4100,
-    bonus: 250,
-    deductions: 120,
-    netPay: 4230,
-    paymentDate: "30 Jun 2026",
-    status: "Paid",
-  },
-  {
-    id: "#PR0016",
-    employeeId: "EMP-005",
-    name: "Benjamin Wright",
-    avatar: "/ui-assets/avatar-07.jpg",
-    designation: "HR Business Partner",
-    department: "Human Resources",
-    basic: 3900,
-    bonus: 200,
-    deductions: 110,
-    netPay: 3990,
-    paymentDate: "30 Jun 2026",
-    status: "Pending",
-  },
-  {
-    id: "#PR0015",
-    employeeId: "EMP-006",
-    name: "Sophia Martinez",
-    avatar: "/ui-assets/avatar-08.jpg",
-    designation: "Financial Analyst",
-    department: "Finance",
-    basic: 4600,
-    bonus: 350,
-    deductions: 140,
-    netPay: 4810,
-    paymentDate: "30 Jun 2026",
-    status: "Paid",
-  },
-];
-
 export default function PayrollDashboardPage() {
   const queryClient = useQueryClient();
   const [isMounted, setIsMounted] = useState(false);
@@ -128,7 +41,6 @@ export default function PayrollDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [records, setRecords] = useState<PayrollRecord[]>(INITIAL_PAYROLL);
 
   // Modal States
   const [runPayrollOpen, setRunPayrollOpen] = useState(false);
@@ -155,6 +67,28 @@ export default function PayrollDashboardPage() {
       }
     },
   });
+
+  const records = useMemo<PayrollRecord[]>(() => {
+    if (!Array.isArray(dbPayroll) || dbPayroll.length === 0) return [];
+    return dbPayroll.map((p: any, idx: number) => {
+      const emp = p.employee || {};
+      const empName = emp.firstName ? `${emp.firstName} ${emp.lastName || ""}`.trim() : (emp.name || `Employee #${idx + 1}`);
+      return {
+        id: p.id || p.payrollCode || `#PR${String(idx + 1).padStart(4, "0")}`,
+        employeeId: emp.employeeCode || emp.id || `EMP-${String(idx + 1).padStart(3, "0")}`,
+        name: empName,
+        avatar: emp.avatar || `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
+        designation: emp.designation?.title || emp.position || "Staff",
+        department: emp.department?.name || "General",
+        basic: Number(p.basicSalary || p.basic || 0),
+        bonus: Number(p.bonus || p.allowances || 0),
+        deductions: Number(p.deductions || 0),
+        netPay: Number(p.netSalary || p.netPay || (Number(p.basicSalary || 0) + Number(p.bonus || 0) - Number(p.deductions || 0))),
+        paymentDate: p.paymentDate ? new Date(p.paymentDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : (p.period || "Current Period"),
+        status: p.status === "paid" || p.status === "Paid" ? "Paid" : p.status === "processing" ? "Processing" : "Pending",
+      };
+    });
+  }, [dbPayroll]);
 
   // KPI Calculations
   const totalGross = useMemo(() => records.reduce((acc, r) => acc + r.basic + r.bonus, 0), [records]);

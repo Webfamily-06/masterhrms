@@ -72,7 +72,7 @@ const SAMPLE_VARS: Record<string, string> = {
   organizerName: "Sarah Jenkins",
   eventDescription: "Reviewing Q3 business performance and aligning team targets for the upcoming quarter.",
   reminderText: "Event starts in 1 hour",
-  calendarUrl: "http://master.localhost:3000/hr/calendar",
+  calendarUrl: "/calendar",
 };
 
 const DEFAULT_TEMPLATES: EmailTemplate[] = [

@@ -280,18 +280,18 @@ export function getResolvedPublicBlogUrl(
  * subdomains, and the active local development port.
  */
 export function getTenantWorkspaceUrl(
-  tenant: { domain?: string | null; slug?: string } | null | undefined,
+  tenant: { domain?: string | null; slug?: string } | string | null | undefined,
   targetPath = ""
 ): string {
   if (!tenant) return "#";
+  const tenantObj = typeof tenant === "string" ? { slug: tenant } : tenant;
   const normPath = targetPath ? (targetPath.startsWith("/") ? targetPath : `/${targetPath}`) : "";
-  if (tenant.domain && tenant.domain.trim()) {
-    const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
-    return `${protocol}//${tenant.domain.trim()}${normPath}`;
-  }
-  const slug = tenant.slug || "workspace";
-  const displayBase = getPlatformDisplayBaseDomain();
   const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
+  if (tenantObj.domain && tenantObj.domain.trim()) {
+    return `${protocol}//${tenantObj.domain.trim()}${normPath}`;
+  }
+  const slug = tenantObj.slug || "workspace";
+  const displayBase = getPlatformDisplayBaseDomain();
   return `${protocol}//${slug}.${displayBase}${normPath}`;
 }
 

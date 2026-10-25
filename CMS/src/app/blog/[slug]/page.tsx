@@ -21,10 +21,12 @@ export async function generateStaticParams() {
   return posts.map((post) => ({ slug: post.slug }));
 }
 
+const internalApiBase = process.env.INTERNAL_API_URL || process.env.API_BASE_URL || 'http://127.0.0.1:4000';
+
 async function verifySuperAdmin(token: string): Promise<boolean> {
   if (!token) return false;
   try {
-    const res = await fetch('http://localhost:4000/api/auth/me', {
+    const res = await fetch(`${internalApiBase}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
@@ -51,7 +53,7 @@ async function getPostData(
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
-      const res = await fetch(`http://localhost:4000/api/cms/pages/${encodeURIComponent(s)}`, {
+      const res = await fetch(`${internalApiBase}/api/cms/pages/${encodeURIComponent(s)}`, {
         headers,
         cache: 'no-store',
       });
@@ -262,7 +264,7 @@ const Page = async ({
   // Fetch related articles dynamically from authoritative API
   let relatedPosts: any[] = [];
   try {
-    const res = await fetch('http://localhost:4000/api/cms/blogs', { cache: 'no-store' });
+    const res = await fetch(`${internalApiBase}/api/cms/blogs`, { cache: 'no-store' });
     if (res.ok) {
       const all = await res.json();
       if (Array.isArray(all)) {

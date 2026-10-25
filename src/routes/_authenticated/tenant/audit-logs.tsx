@@ -25,38 +25,6 @@ function TenantAuditLogsPage() {
     },
   });
 
-  const fallbackLogs = [
-    {
-      id: "log_1",
-      action: "USER_LOGIN_SUCCESS",
-      actor: "admin@masterhrms.com",
-      resource: "Tenant Portal",
-      status: "SUCCESS",
-      timestamp: new Date().toISOString(),
-      ip: "127.0.0.1",
-    },
-    {
-      id: "log_2",
-      action: "SETTINGS_UPDATED",
-      actor: "admin@masterhrms.com",
-      resource: "Branding Config",
-      status: "SUCCESS",
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      ip: "127.0.0.1",
-    },
-    {
-      id: "log_3",
-      action: "PAYROLL_RUN_APPROVED",
-      actor: "hr@masterhrms.com",
-      resource: "Payroll Cycle",
-      status: "SUCCESS",
-      timestamp: new Date(Date.now() - 7200000).toISOString(),
-      ip: "127.0.0.1",
-    },
-  ];
-
-  const displayLogs = logs.length > 0 ? logs : fallbackLogs;
-
   return (
     <div className="space-y-6">
       <div>
@@ -90,8 +58,14 @@ function TenantAuditLogsPage() {
                       Loading audit logs...
                     </td>
                   </tr>
+                ) : logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                      No audit events recorded yet for this workspace.
+                    </td>
+                  </tr>
                 ) : (
-                  displayLogs.map((log: any) => (
+                  logs.map((log: any) => (
                     <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                       <td className="p-3.5 font-medium text-foreground">
                         <Badge variant="outline" className="font-mono text-[10px] bg-muted/60">
@@ -100,7 +74,7 @@ function TenantAuditLogsPage() {
                       </td>
                       <td className="p-3.5 font-medium text-foreground">{log.actor}</td>
                       <td className="p-3.5 text-muted-foreground">{log.resource}</td>
-                      <td className="p-3.5 font-mono text-[11px] text-muted-foreground">{log.ip}</td>
+                      <td className="p-3.5 font-mono text-[11px] text-muted-foreground">{log.ip || "—"}</td>
                       <td className="p-3.5 text-muted-foreground">
                         {new Date(log.timestamp).toLocaleString()}
                       </td>

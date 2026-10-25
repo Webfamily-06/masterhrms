@@ -131,7 +131,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
   });
 
   const [tagInput, setTagInput] = useState('');
-  const [resolvedDomain, setResolvedDomain] = useState('localhost:3000');
+  const [resolvedDomain, setResolvedDomain] = useState(getResolvedPublicDomain);
 
   useEffect(() => {
     setResolvedDomain(getResolvedPublicDomain());

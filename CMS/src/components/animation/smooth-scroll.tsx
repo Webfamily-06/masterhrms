@@ -2,6 +2,7 @@
 import { ReactLenis, useLenis } from 'lenis/react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ReactNode, useEffect, useRef } from 'react';
+import { isTenantWorkspaceHost } from '@/lib/platform-domain';
 
 interface SmoothScrollingProps {
   children: ReactNode;
@@ -78,7 +79,7 @@ const SmoothScrollProvider = ({ children }: Readonly<SmoothScrollingProps>) => {
     pathname.startsWith('/lock-screen') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/login') ||
-    (typeof window !== 'undefined' && window.location.hostname.includes('.localhost'));
+    (typeof window !== 'undefined' && isTenantWorkspaceHost());
 
   if (isWorkspace) {
     return <>{children}</>;

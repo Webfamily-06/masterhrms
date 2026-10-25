@@ -51,17 +51,20 @@ export default function LoginForm() {
       }
 
       if (!data || !data.token) {
-        try {
-          const directRes = await fetch('http://localhost:4000/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email.trim(), password }),
-          });
-          if (directRes.ok) {
-            data = await directRes.json().catch(() => null);
+        const publicApiUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (publicApiUrl && !publicApiUrl.includes("localhost")) {
+          try {
+            const directRes = await fetch(`${publicApiUrl.replace(/\/+$/, "")}/api/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: email.trim(), password }),
+            });
+            if (directRes.ok) {
+              data = await directRes.json().catch(() => null);
+            }
+          } catch {
+            // Direct connection failed
           }
-        } catch {
-          // Direct connection also failed
         }
       }
 

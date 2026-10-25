@@ -645,12 +645,16 @@ export default function DeveloperPanelPage() {
                     <CardContent className="p-4 space-y-3 text-xs">
                       <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-2 font-mono">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Backend Server:</span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">http://localhost:4000</span>
+                          <span className="text-muted-foreground">Backend API:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            {typeof window !== "undefined" ? `${window.location.origin}/api` : "/api"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">WebSocket Server:</span>
-                          <span className="text-blue-600 dark:text-blue-400 font-medium">ws://localhost:4000/socket.io</span>
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">
+                            {typeof window !== "undefined" ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/socket.io` : "wss://masterhrms.com/socket.io"}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Database Engine:</span>
@@ -1422,7 +1426,7 @@ Content-Type: application/json`}
                   {[
                     {
                       name: "Real-Time WebSockets (Socket.IO)",
-                      protocol: "ws://localhost:4000/socket.io",
+                      protocol: "wss://<domain>/socket.io (or /socket.io via reverse proxy)",
                       status: "WORKING",
                       desc: "Tenant-isolated event room broadcasting for biometric punch updates, POS registers, and live chat.",
                       events: ["attendance:new_punch", "pos:register_closed", "pos:offline_sync", "chat:new_message"],

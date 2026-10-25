@@ -14,10 +14,7 @@ import { Route as R403RouteImport } from './routes/403'
 import { Route as R404RouteImport } from './routes/404'
 import { Route as R500RouteImport } from './routes/500'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
-import { Route as CareersRouteImport } from './routes/careers'
-import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CustomerDisplayRouteImport } from './routes/customer-display'
 import { Route as DeveloperRouteImport } from './routes/developer'
 import { Route as DocsRouteImport } from './routes/docs'
@@ -30,13 +27,8 @@ import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as OgPreviewRouteImport } from './routes/og-preview'
 import { Route as PortalRouteImport } from './routes/portal'
-import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as ProductRouteImport } from './routes/product'
 import { Route as RegisterRouteImport } from './routes/register'
-import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as SessionExpiredRouteImport } from './routes/session-expired'
-import { Route as SolutionsRouteImport } from './routes/solutions'
-import { Route as StoreRouteImport } from './routes/store'
 import { Route as SuperLoginRouteImport } from './routes/super-login'
 import { Route as Super06RouteImport } from './routes/super06'
 import { Route as Verify2faRouteImport } from './routes/verify-2fa'
@@ -50,8 +42,6 @@ import { Route as AuthenticatedTenetRouteImport } from './routes/_authenticated/
 import { Route as ATagRouteImport } from './routes/a.$tag'
 import { Route as AddonsIndexRouteImport } from './routes/addons.index'
 import { Route as AddonsSlugRouteImport } from './routes/addons_.$slug'
-import { Route as CmsIndexRouteImport } from './routes/cms.index'
-import { Route as CmsSplatRouteImport } from './routes/cms.$'
 import { Route as LegalSlugRouteImport } from './routes/legal.$slug'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
 import { Route as PaymentFailedRouteImport } from './routes/payment.failed'
@@ -558,24 +548,9 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CareersRoute = CareersRouteImport.update({
-  id: '/careers',
-  path: '/careers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContactRoute = ContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CustomerDisplayRoute = CustomerDisplayRouteImport.update({
@@ -638,39 +613,14 @@ const PortalRoute = PortalRouteImport.update({
   path: '/portal',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProductRoute = ProductRouteImport.update({
-  id: '/product',
-  path: '/product',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResourcesRoute = ResourcesRouteImport.update({
-  id: '/resources',
-  path: '/resources',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SessionExpiredRoute = SessionExpiredRouteImport.update({
   id: '/session-expired',
   path: '/session-expired',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SolutionsRoute = SolutionsRouteImport.update({
-  id: '/solutions',
-  path: '/solutions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StoreRoute = StoreRouteImport.update({
-  id: '/store',
-  path: '/store',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SuperLoginRoute = SuperLoginRouteImport.update({
@@ -735,16 +685,6 @@ const AddonsIndexRoute = AddonsIndexRouteImport.update({
 const AddonsSlugRoute = AddonsSlugRouteImport.update({
   id: '/addons_/$slug',
   path: '/addons/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CmsIndexRoute = CmsIndexRouteImport.update({
-  id: '/cms/',
-  path: '/cms/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CmsSplatRoute = CmsSplatRouteImport.update({
-  id: '/cms/$',
-  path: '/cms/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalSlugRoute = LegalSlugRouteImport.update({
@@ -3578,10 +3518,7 @@ export interface FileRoutesByFullPath {
   '/403': typeof R403Route
   '/404': typeof R404Route
   '/500': typeof R500Route
-  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
-  '/careers': typeof CareersRoute
-  '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
   '/developer': typeof DeveloperRoute
   '/docs': typeof DocsRoute
@@ -3594,13 +3531,8 @@ export interface FileRoutesByFullPath {
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
-  '/pricing': typeof PricingRoute
-  '/product': typeof ProductRoute
   '/register': typeof RegisterRoute
-  '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
-  '/solutions': typeof SolutionsRoute
-  '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
   '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
@@ -3612,14 +3544,12 @@ export interface FileRoutesByFullPath {
   '/tenet': typeof AuthenticatedTenetRouteWithChildren
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
-  '/cms/$': typeof CmsSplatRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
   '/addons/': typeof AddonsIndexRoute
-  '/cms/': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/activity-logs': typeof AuthenticatedAppActivityLogsRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
@@ -4102,10 +4032,7 @@ export interface FileRoutesByTo {
   '/403': typeof R403Route
   '/404': typeof R404Route
   '/500': typeof R500Route
-  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
-  '/careers': typeof CareersRoute
-  '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
   '/developer': typeof DeveloperRoute
   '/docs': typeof DocsRoute
@@ -4118,13 +4045,8 @@ export interface FileRoutesByTo {
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
-  '/pricing': typeof PricingRoute
-  '/product': typeof ProductRoute
   '/register': typeof RegisterRoute
-  '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
-  '/solutions': typeof SolutionsRoute
-  '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
   '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
@@ -4132,14 +4054,12 @@ export interface FileRoutesByTo {
   '/tenet': typeof AuthenticatedTenetRouteWithChildren
   '/a/$tag': typeof ATagRoute
   '/addons/$slug': typeof AddonsSlugRoute
-  '/cms/$': typeof CmsSplatRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
   '/addons': typeof AddonsIndexRoute
-  '/cms': typeof CmsIndexRoute
   '/accounting': typeof AuthenticatedAppAccountingRoute
   '/activity-logs': typeof AuthenticatedAppActivityLogsRoute
   '/adjustments': typeof AuthenticatedAppAdjustmentsRoute
@@ -4624,10 +4544,7 @@ export interface FileRoutesById {
   '/403': typeof R403Route
   '/404': typeof R404Route
   '/500': typeof R500Route
-  '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
-  '/careers': typeof CareersRoute
-  '/contact': typeof ContactRoute
   '/customer-display': typeof CustomerDisplayRoute
   '/developer': typeof DeveloperRoute
   '/docs': typeof DocsRoute
@@ -4640,13 +4557,8 @@ export interface FileRoutesById {
   '/offline': typeof OfflineRoute
   '/og-preview': typeof OgPreviewRoute
   '/portal': typeof PortalRouteWithChildren
-  '/pricing': typeof PricingRoute
-  '/product': typeof ProductRoute
   '/register': typeof RegisterRoute
-  '/resources': typeof ResourcesRoute
   '/session-expired': typeof SessionExpiredRoute
-  '/solutions': typeof SolutionsRoute
-  '/store': typeof StoreRoute
   '/super-login': typeof SuperLoginRoute
   '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
@@ -4659,14 +4571,12 @@ export interface FileRoutesById {
   '/_authenticated/tenet': typeof AuthenticatedTenetRouteWithChildren
   '/a/$tag': typeof ATagRoute
   '/addons_/$slug': typeof AddonsSlugRoute
-  '/cms/$': typeof CmsSplatRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/p/$slug': typeof PSlugRoute
   '/payment/failed': typeof PaymentFailedRoute
   '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
   '/addons/': typeof AddonsIndexRoute
-  '/cms/': typeof CmsIndexRoute
   '/_authenticated/_app/accounting': typeof AuthenticatedAppAccountingRoute
   '/_authenticated/_app/activity-logs': typeof AuthenticatedAppActivityLogsRoute
   '/_authenticated/_app/adjustments': typeof AuthenticatedAppAdjustmentsRoute
@@ -5151,10 +5061,7 @@ export interface FileRouteTypes {
     | '/403'
     | '/404'
     | '/500'
-    | '/about'
     | '/auth'
-    | '/careers'
-    | '/contact'
     | '/customer-display'
     | '/developer'
     | '/docs'
@@ -5167,13 +5074,8 @@ export interface FileRouteTypes {
     | '/offline'
     | '/og-preview'
     | '/portal'
-    | '/pricing'
-    | '/product'
     | '/register'
-    | '/resources'
     | '/session-expired'
-    | '/solutions'
-    | '/store'
     | '/super-login'
     | '/super06'
     | '/verify-2fa'
@@ -5185,14 +5087,12 @@ export interface FileRouteTypes {
     | '/tenet'
     | '/a/$tag'
     | '/addons/$slug'
-    | '/cms/$'
     | '/legal/$slug'
     | '/p/$slug'
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
     | '/addons/'
-    | '/cms/'
     | '/accounting'
     | '/activity-logs'
     | '/adjustments'
@@ -5675,10 +5575,7 @@ export interface FileRouteTypes {
     | '/403'
     | '/404'
     | '/500'
-    | '/about'
     | '/auth'
-    | '/careers'
-    | '/contact'
     | '/customer-display'
     | '/developer'
     | '/docs'
@@ -5691,13 +5588,8 @@ export interface FileRouteTypes {
     | '/offline'
     | '/og-preview'
     | '/portal'
-    | '/pricing'
-    | '/product'
     | '/register'
-    | '/resources'
     | '/session-expired'
-    | '/solutions'
-    | '/store'
     | '/super-login'
     | '/super06'
     | '/verify-2fa'
@@ -5705,14 +5597,12 @@ export interface FileRouteTypes {
     | '/tenet'
     | '/a/$tag'
     | '/addons/$slug'
-    | '/cms/$'
     | '/legal/$slug'
     | '/p/$slug'
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
     | '/addons'
-    | '/cms'
     | '/accounting'
     | '/activity-logs'
     | '/adjustments'
@@ -6196,10 +6086,7 @@ export interface FileRouteTypes {
     | '/403'
     | '/404'
     | '/500'
-    | '/about'
     | '/auth'
-    | '/careers'
-    | '/contact'
     | '/customer-display'
     | '/developer'
     | '/docs'
@@ -6212,13 +6099,8 @@ export interface FileRouteTypes {
     | '/offline'
     | '/og-preview'
     | '/portal'
-    | '/pricing'
-    | '/product'
     | '/register'
-    | '/resources'
     | '/session-expired'
-    | '/solutions'
-    | '/store'
     | '/super-login'
     | '/super06'
     | '/verify-2fa'
@@ -6231,14 +6113,12 @@ export interface FileRouteTypes {
     | '/_authenticated/tenet'
     | '/a/$tag'
     | '/addons_/$slug'
-    | '/cms/$'
     | '/legal/$slug'
     | '/p/$slug'
     | '/payment/failed'
     | '/payment/pending'
     | '/payment/success'
     | '/addons/'
-    | '/cms/'
     | '/_authenticated/_app/accounting'
     | '/_authenticated/_app/activity-logs'
     | '/_authenticated/_app/adjustments'
@@ -6723,10 +6603,7 @@ export interface RootRouteChildren {
   R403Route: typeof R403Route
   R404Route: typeof R404Route
   R500Route: typeof R500Route
-  AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRoute
-  CareersRoute: typeof CareersRoute
-  ContactRoute: typeof ContactRoute
   CustomerDisplayRoute: typeof CustomerDisplayRoute
   DeveloperRoute: typeof DeveloperRoute
   DocsRoute: typeof DocsRoute
@@ -6739,26 +6616,19 @@ export interface RootRouteChildren {
   OfflineRoute: typeof OfflineRoute
   OgPreviewRoute: typeof OgPreviewRoute
   PortalRoute: typeof PortalRouteWithChildren
-  PricingRoute: typeof PricingRoute
-  ProductRoute: typeof ProductRoute
   RegisterRoute: typeof RegisterRoute
-  ResourcesRoute: typeof ResourcesRoute
   SessionExpiredRoute: typeof SessionExpiredRoute
-  SolutionsRoute: typeof SolutionsRoute
-  StoreRoute: typeof StoreRoute
   SuperLoginRoute: typeof SuperLoginRoute
   Super06Route: typeof Super06Route
   Verify2faRoute: typeof Verify2faRoute
   ATagRoute: typeof ATagRoute
   AddonsSlugRoute: typeof AddonsSlugRoute
-  CmsSplatRoute: typeof CmsSplatRoute
   LegalSlugRoute: typeof LegalSlugRoute
   PSlugRoute: typeof PSlugRoute
   PaymentFailedRoute: typeof PaymentFailedRoute
   PaymentPendingRoute: typeof PaymentPendingRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
   AddonsIndexRoute: typeof AddonsIndexRoute
-  CmsIndexRoute: typeof CmsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -6798,32 +6668,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth': {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/careers': {
-      id: '/careers'
-      path: '/careers'
-      fullPath: '/careers'
-      preLoaderRoute: typeof CareersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contact': {
-      id: '/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/customer-display': {
@@ -6910,20 +6759,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/product': {
-      id: '/product'
-      path: '/product'
-      fullPath: '/product'
-      preLoaderRoute: typeof ProductRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -6931,32 +6766,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/resources': {
-      id: '/resources'
-      path: '/resources'
-      fullPath: '/resources'
-      preLoaderRoute: typeof ResourcesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/session-expired': {
       id: '/session-expired'
       path: '/session-expired'
       fullPath: '/session-expired'
       preLoaderRoute: typeof SessionExpiredRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/solutions': {
-      id: '/solutions'
-      path: '/solutions'
-      fullPath: '/solutions'
-      preLoaderRoute: typeof SolutionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/store': {
-      id: '/store'
-      path: '/store'
-      fullPath: '/store'
-      preLoaderRoute: typeof StoreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/super-login': {
@@ -7048,20 +6862,6 @@ declare module '@tanstack/react-router' {
       path: '/addons/$slug'
       fullPath: '/addons/$slug'
       preLoaderRoute: typeof AddonsSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cms/': {
-      id: '/cms/'
-      path: '/cms'
-      fullPath: '/cms/'
-      preLoaderRoute: typeof CmsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cms/$': {
-      id: '/cms/$'
-      path: '/cms/$'
-      fullPath: '/cms/$'
-      preLoaderRoute: typeof CmsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/$slug': {
@@ -11742,10 +11542,7 @@ const rootRouteChildren: RootRouteChildren = {
   R403Route: R403Route,
   R404Route: R404Route,
   R500Route: R500Route,
-  AboutRoute: AboutRoute,
   AuthRoute: AuthRoute,
-  CareersRoute: CareersRoute,
-  ContactRoute: ContactRoute,
   CustomerDisplayRoute: CustomerDisplayRoute,
   DeveloperRoute: DeveloperRoute,
   DocsRoute: DocsRoute,
@@ -11758,26 +11555,19 @@ const rootRouteChildren: RootRouteChildren = {
   OfflineRoute: OfflineRoute,
   OgPreviewRoute: OgPreviewRoute,
   PortalRoute: PortalRouteWithChildren,
-  PricingRoute: PricingRoute,
-  ProductRoute: ProductRoute,
   RegisterRoute: RegisterRoute,
-  ResourcesRoute: ResourcesRoute,
   SessionExpiredRoute: SessionExpiredRoute,
-  SolutionsRoute: SolutionsRoute,
-  StoreRoute: StoreRoute,
   SuperLoginRoute: SuperLoginRoute,
   Super06Route: Super06Route,
   Verify2faRoute: Verify2faRoute,
   ATagRoute: ATagRoute,
   AddonsSlugRoute: AddonsSlugRoute,
-  CmsSplatRoute: CmsSplatRoute,
   LegalSlugRoute: LegalSlugRoute,
   PSlugRoute: PSlugRoute,
   PaymentFailedRoute: PaymentFailedRoute,
   PaymentPendingRoute: PaymentPendingRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
   AddonsIndexRoute: AddonsIndexRoute,
-  CmsIndexRoute: CmsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

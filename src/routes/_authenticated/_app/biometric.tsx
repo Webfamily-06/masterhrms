@@ -605,13 +605,13 @@ export function BiometricPage() {
             <div>
               <span className="text-[10px] text-muted-foreground block">ADMS / iClock Push URL</span>
               <span className="font-mono font-bold text-primary text-[11px] truncate">
-                {cloudConfig?.admsPushUrl || "http://your-server:4000/iclock/cdata"}
+                {cloudConfig?.admsPushUrl || (typeof window !== "undefined" ? `${window.location.origin}/iclock/cdata` : "/iclock/cdata")}
               </span>
             </div>
             <Button
               size="icon"
               variant="ghost"
-              onClick={() => copyToClipboard(cloudConfig?.admsPushUrl || "http://localhost:4000/iclock/cdata", "ADMS Push URL")}
+              onClick={() => copyToClipboard(cloudConfig?.admsPushUrl || (typeof window !== "undefined" ? `${window.location.origin}/iclock/cdata` : "/iclock/cdata"), "ADMS Push URL")}
               className="size-6 shrink-0"
             >
               {copiedField === "ADMS Push URL" ? <Check className="size-3 text-emerald-600" /> : <Copy className="size-3" />}
@@ -2362,8 +2362,8 @@ export function BiometricPage() {
               <div className="space-y-1">
                 <Label className="text-[11px] font-bold">4. Web Server URL / ADMS Endpoint</Label>
                 <div className="flex items-center gap-2">
-                  <Input readOnly value={cloudConfig?.admsPushUrl || "http://localhost:4000/iclock/cdata"} className="h-8 text-xs font-mono bg-background" />
-                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(cloudConfig?.admsPushUrl || "http://localhost:4000/iclock/cdata", "ADMS URL")} className="h-8">
+                  <Input readOnly value={cloudConfig?.admsPushUrl || (typeof window !== "undefined" ? `${window.location.origin}/iclock/cdata` : "/iclock/cdata")} className="h-8 text-xs font-mono bg-background" />
+                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(cloudConfig?.admsPushUrl || (typeof window !== "undefined" ? `${window.location.origin}/iclock/cdata` : "/iclock/cdata"), "ADMS URL")} className="h-8">
                     Copy
                   </Button>
                 </div>
@@ -2425,13 +2425,13 @@ export function BiometricPage() {
                   <div>
                     <span className="text-[10px] text-muted-foreground block">CLOUD_SERVER_URL</span>
                     <span className="font-mono font-bold text-primary text-xs">
-                      {cloudConfig?.genericWebhookUrl || "http://localhost:4000/api/public/biometric/push"}
+                      {cloudConfig?.genericWebhookUrl || (typeof window !== "undefined" ? `${window.location.origin}/api/public/biometric/push` : "/api/public/biometric/push")}
                     </span>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(cloudConfig?.genericWebhookUrl || "http://localhost:4000/api/public/biometric/push", "Cloud Webhook URL")}
+                    onClick={() => copyToClipboard(cloudConfig?.genericWebhookUrl || (typeof window !== "undefined" ? `${window.location.origin}/api/public/biometric/push` : "/api/public/biometric/push"), "Cloud Webhook URL")}
                     className="h-7 text-xs"
                   >
                     Copy
