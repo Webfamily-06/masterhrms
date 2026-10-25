@@ -28,6 +28,7 @@
     "test:workspace-routing": "./server/node_modules/.bin/tsx scripts/test_workspace_routing_architecture.cjs",
     "test:todo-calendar": "./server/node_modules/.bin/tsx scripts/test_todo_calendar_integration.cjs",
     "test:todo-functional-fixes": "./server/node_modules/.bin/tsx scripts/test_todo_gantt_functional_fixes.cjs",
+    "test:todo-notifications": "./server/node_modules/.bin/tsx scripts/test_todo_notifications_and_email_templates.cjs",
     "test:domain-resolution": "node scripts/test_domain_environment_resolution.mjs",
     "format": "prettier --write .",
     "postinstall": "prisma skills sync || exit 0",

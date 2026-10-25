@@ -1,8 +1,10 @@
 import { rawPrisma as prisma } from "../prisma";
 import { NotificationService } from "./notification.service";
 import { PusherService } from "./pusher.service";
-import { sendCalendarNotificationEmail } from "../lib/email";
+import { sendCalendarNotificationEmail, sendTodoNotificationEmail } from "../lib/email";
 import { runWithTenantContext } from "../context/tenant-context";
+import { parseTodoMeta } from "../routes/todos.routes";
+import { TodoNotificationService } from "./todo-notification.service";
 
 export interface CalendarReminder {
   id: string;
@@ -110,6 +112,11 @@ export class CalendarReminderScheduler {
         await this.processDueReminders();
       } catch (err: any) {
         console.warn(`[CalendarReminderScheduler] Runner error: ${err.message}`);
+      }
+      try {
+        await this.processDueTodoReminders();
+      } catch (err: any) {
+        console.warn(`[CalendarReminderScheduler] Todo runner error: ${err.message}`);
       }
     }, 60000);
     schedulerTimer.unref();
@@ -540,5 +547,137 @@ export class CalendarReminderScheduler {
 
     const totalEvaluated = relationalReminders.length + legacyEvents.length;
     return { evaluatedCount: totalEvaluated, dispatchedCount, details };
+  }
+
+  /**
+   * Evaluates WorkspaceTodo items approaching 2-day or 1-day deadlines
+   * and dispatches in-app notifications and transactional emails with idempotency guarantees.
+   */
+  public static async processDueTodoReminders(targetTenantId?: string): Promise<{
+    evaluatedCount: number;
+    dispatchedCount: number;
+    details: Array<{ taskId: string; targetUserId: string; reminderType: string; idempotencyKey: string }>;
+  }> {
+    const now = new Date();
+    // Scan tasks with due date in range: from 2 hours ago up to 50 hours in the future
+    const minDue = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const maxDue = new Date(now.getTime() + 50 * 60 * 60 * 1000);
+
+    let dispatchedCount = 0;
+    const details: Array<{ taskId: string; targetUserId: string; reminderType: string; idempotencyKey: string }> = [];
+
+    const tasks = await prisma.workspaceTodo.findMany({
+      where: {
+        completed: false,
+        dueDate: {
+          not: null,
+          gte: minDue,
+          lte: maxDue,
+        },
+        ...(targetTenantId ? { tenantId: targetTenantId } : {}),
+      },
+      take: 100,
+    });
+
+    for (const task of tasks) {
+      if (!task.dueDate) continue;
+      const diffMs = task.dueDate.getTime() - now.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      let reminderType: "due-1d" | "due-2d" | null = null;
+      let templateId: "todo-task-reminder-1-day" | "todo-task-reminder-2-days" | null = null;
+
+      if (diffHours > 0 && diffHours <= 26) {
+        reminderType = "due-1d";
+        templateId = "todo-task-reminder-1-day";
+      } else if (diffHours > 26 && diffHours <= 50) {
+        reminderType = "due-2d";
+        templateId = "todo-task-reminder-2-days";
+      }
+
+      if (!reminderType || !templateId) continue;
+
+      const meta = parseTodoMeta(task.description);
+      const assignees = meta.assignees.length > 0 ? meta.assignees : meta.assignee ? [meta.assignee] : [];
+
+      // If no explicit assignees, notify creator
+      const recipients: Array<{ id: string; type?: "user" | "employee" }> =
+        assignees.length > 0 ? assignees : [{ id: task.userId, type: "user" }];
+
+      for (const p of recipients) {
+        const detailsObj = await TodoNotificationService.resolveAssigneeDetails(task.tenantId, p as any);
+        const targetUserId = detailsObj.userId || p.id;
+        if (!targetUserId) continue;
+
+        const idempotencyKey = `todo:${task.id}:${targetUserId}:${reminderType}`;
+
+        // Verify idempotency from recent notifications
+        const recentNotifs = await prisma.notification.findMany({
+          where: {
+            tenantId: task.tenantId,
+            userId: targetUserId,
+            module: "TODO_REMINDER",
+            createdAt: { gte: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000) },
+          },
+          select: { id: true, metadataJson: true },
+          take: 50,
+        });
+
+        const alreadySent = recentNotifs.some(
+          (n) => (n.metadataJson as any)?.idempotencyKey === idempotencyKey
+        );
+
+        if (alreadySent) continue;
+
+        const taskUrl = await TodoNotificationService.resolveTaskUrl(task.tenantId, targetUserId, task.id);
+        const title =
+          reminderType === "due-1d"
+            ? `Urgent: Task Due Tomorrow — ${task.title}`
+            : `Reminder: Task Due in 2 Days — ${task.title}`;
+        const message = `Task "${task.title}" is scheduled for completion on ${task.dueDate.toISOString().slice(0, 10)}.`;
+
+        await TodoNotificationService.createInAppNotification({
+          tenantId: task.tenantId,
+          userId: targetUserId,
+          title,
+          message,
+          type: "TODO_REMINDER",
+          actionUrl: taskUrl,
+          metadata: {
+            taskId: task.id,
+            idempotencyKey,
+            reminderType,
+            dueDate: task.dueDate.toISOString(),
+          },
+        });
+
+        if (detailsObj.email) {
+          try {
+            await sendTodoNotificationEmail({
+              templateId,
+              toEmail: detailsObj.email,
+              assigneeName: detailsObj.name,
+              taskTitle: task.title,
+              priority: task.priority,
+              dueDate: task.dueDate.toISOString().slice(0, 10),
+              taskUrl,
+              tenantId: task.tenantId,
+            });
+          } catch (e: any) {
+            console.warn("[CalendarReminderScheduler] Reminder email delivery warning:", e.message);
+          }
+        }
+
+        dispatchedCount++;
+        details.push({
+          taskId: task.id,
+          targetUserId,
+          reminderType,
+          idempotencyKey,
+        });
+      }
+    }
+
+    return { evaluatedCount: tasks.length, dispatchedCount, details };
   }
 }

@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { TodoNotificationService } from "../services/todo-notification.service";
 
 export const todosRouter = Router();
 
@@ -37,6 +38,7 @@ export interface TodoActivityItem {
 
 export interface TodoAssignee {
   id: string;
+  userId?: string | null;
   name?: string;
   email?: string;
   avatar?: string | null;
@@ -895,6 +897,23 @@ todosRouter.post("/", async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Dispatch asynchronous task creation notifications (in-app + email)
+    TodoNotificationService.dispatchTaskCreated({
+      tenantId,
+      creatorUserId: userId,
+      todo: {
+        id: todo.id,
+        title: todo.title,
+        priority: todo.priority,
+        dueDate: todo.dueDate,
+        startDate: startDate || todo.createdAt.toISOString(),
+        description: description ? description.trim() : null,
+      },
+      assignees: resolvedAssignees,
+    }).catch((notifErr) => {
+      console.warn("[todosRouter] Async notification dispatch warning:", notifErr.message);
+    });
+
     res.status(201).json({
       success: true,
       data: {
@@ -1119,6 +1138,58 @@ todosRouter.put("/:id", async (req: AuthRequest, res: Response) => {
     });
 
     const finalMeta = parseTodoMeta(updated.description);
+
+    // 1. Check for newly assigned members
+    const previousAssigneeIds = new Set((meta.assignees || []).map((a) => a.id));
+    const newlyAddedAssignees = (finalMeta.assignees || []).filter((a) => !previousAssigneeIds.has(a.id));
+    if (newlyAddedAssignees.length > 0) {
+      TodoNotificationService.dispatchTaskAssigned({
+        tenantId,
+        updaterUserId: userId,
+        todo: {
+          id: updated.id,
+          title: updated.title,
+          priority: updated.priority,
+          dueDate: updated.dueDate,
+          startDate: finalStartDate,
+          description: cleanDesc,
+        },
+        newAssignees: newlyAddedAssignees,
+      }).catch((e) => console.warn("[todosRouter] Reassignment notification warning:", e.message));
+    }
+
+    // 2. Check for date/schedule updates
+    const dateChanged =
+      (dueDate !== undefined && (existing.dueDate ? existing.dueDate.getTime() : null) !== (updated.dueDate ? updated.dueDate.getTime() : null)) ||
+      (startDate !== undefined && meta.startDate !== finalStartDate);
+    if (dateChanged) {
+      TodoNotificationService.dispatchScheduleUpdated({
+        tenantId,
+        updaterUserId: userId,
+        todo: {
+          id: updated.id,
+          title: updated.title,
+          creatorUserId: existing.userId,
+          dueDate: updated.dueDate,
+          startDate: finalStartDate,
+        },
+        assignees: finalMeta.assignees,
+      }).catch((e) => console.warn("[todosRouter] Schedule update notification warning:", e.message));
+    }
+
+    // 3. Check for task completion
+    if (completed === true && !existing.completed) {
+      TodoNotificationService.dispatchTaskCompleted({
+        tenantId,
+        completerUserId: userId,
+        todo: {
+          id: updated.id,
+          title: updated.title,
+          creatorUserId: existing.userId,
+        },
+        assignees: finalMeta.assignees,
+      }).catch((e) => console.warn("[todosRouter] Completion notification warning:", e.message));
+    }
 
     res.json({
       success: true,

@@ -1490,5 +1490,282 @@ export async function sendCalendarNotificationEmail(options: {
   }
 }
 
+export interface TodoNotificationEmailOptions {
+  templateId: "todo-task-created" | "todo-task-assigned" | "todo-task-reminder-2-days" | "todo-task-reminder-1-day";
+  toEmail: string;
+  assigneeName: string;
+  taskTitle: string;
+  assignerName?: string;
+  taskDescription?: string;
+  priority?: string;
+  startDate?: string;
+  dueDate?: string;
+  taskUrl?: string;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
+}
+
+/**
+ * Dispatches task creation, assignment, and due-date reminder emails
+ * with CMS template resolution, HTML escaping, and reliable SMTP/fallback delivery.
+ */
+export async function sendTodoNotificationEmail(
+  options: TodoNotificationEmailOptions
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    templateId,
+    toEmail,
+    assigneeName,
+    taskTitle,
+    assignerName = "Workspace Lead",
+    taskDescription = "",
+    priority = "Medium",
+    startDate = "Not Specified",
+    dueDate = "No Due Date",
+    taskUrl = `${getRootUrl()}/hr/todo`,
+    tenantId,
+    scope = "TENANT",
+  } = options;
+
+  const config = await getDynamicEmailConfig({ scope, tenantId });
+  const appName = config.appName || "Master HRMS";
+
+  const escapeHtml = (str: string) =>
+    String(str || "").replace(/[&<>'"]/g, (tag) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[tag] || tag));
+
+  const variables: Record<string, string> = {
+    assignee_name: escapeHtml(assigneeName),
+    assigneeName: escapeHtml(assigneeName),
+    task_title: escapeHtml(taskTitle),
+    taskTitle: escapeHtml(taskTitle),
+    assigner_name: escapeHtml(assignerName),
+    assignerName: escapeHtml(assignerName),
+    task_description: escapeHtml(taskDescription),
+    taskDescription: escapeHtml(taskDescription),
+    priority: escapeHtml(priority.toUpperCase()),
+    start_date: escapeHtml(startDate),
+    startDate: escapeHtml(startDate),
+    due_date: escapeHtml(dueDate),
+    dueDate: escapeHtml(dueDate),
+    task_url: taskUrl,
+    taskUrl: taskUrl,
+    app_name: escapeHtml(appName),
+    appName: escapeHtml(appName),
+    company_name: escapeHtml(appName),
+    support_email: escapeHtml(config.smtpFromEmail || `support@${getBaseDomain()}`),
+  };
+
+  // 1. Try to find custom template from CMS system-email-templates
+  let subject = "";
+  let htmlBody = "";
+
+  try {
+    const page = await prisma.cmsPage.findFirst({
+      where: { slug: "system-email-templates" },
+    });
+    if (page?.content) {
+      const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
+      if (Array.isArray(c.templates)) {
+        const found = c.templates.find((t: any) => t.id === templateId);
+        if (found) {
+          subject = found.subject;
+          htmlBody = found.html_body;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[email.ts] CMS task template lookup error: ${err.message}`);
+  }
+
+  // 2. Pre-approved fallback responsive HTML templates
+  if (!subject || !htmlBody) {
+    if (templateId === "todo-task-created") {
+      subject = `New Task Assigned: {{task_title}}`;
+      htmlBody = `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Action Item Notification</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          A new actionable deliverable has been assigned to you by <strong>{{assigner_name}}</strong>:
+        </p>
+        <div style="background: #f8fafc; border-left: 4px solid #6366f1; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #1e293b; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #475569;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Priority:</td><td><span style="background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px;">{{priority}}</span></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Start Date:</td><td>{{start_date}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Due Date:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #6366f1; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Open Task in Workspace →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #6366f1; text-decoration: none;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+    } else if (templateId === "todo-task-assigned") {
+      subject = `Task Assigned: {{task_title}}`;
+      htmlBody = `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Task Assignment Update</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          You have been added as an assignee to the following task by <strong>{{assigner_name}}</strong>:
+        </p>
+        <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #1e293b; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #475569;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Priority:</td><td><span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px;">{{priority}}</span></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Due Date:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">View Assigned Task →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #3b82f6; text-decoration: none;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+    } else if (templateId === "todo-task-reminder-2-days") {
+      subject = `Reminder: Task due in 2 days — {{task_title}}`;
+      htmlBody = `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #f59e0b; margin: 4px 0 0 0; font-size: 13px; font-weight: 600;">Upcoming Deadline — Due in 2 Days</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          This is an automated courtesy reminder that your assigned task is due in <strong>2 days</strong> on <strong>{{due_date}}</strong>:
+        </p>
+        <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #92400e; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #78350f;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Target Due:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Priority:</td><td>{{priority}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #92400e; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #f59e0b; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Review & Complete Task →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #f59e0b; text-decoration: none;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+    } else {
+      // todo-task-reminder-1-day
+      subject = `Urgent Reminder: Task due tomorrow — {{task_title}}`;
+      htmlBody = `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #ef4444; margin: 4px 0 0 0; font-size: 13px; font-weight: 700;">CRITICAL: Due Tomorrow (1 Day Remaining)</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          Your assigned task is due <strong>tomorrow</strong> on <strong>{{due_date}}</strong>. Please ensure all deliverables and checklists are finalized:
+        </p>
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #991b1b; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #991b1b;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Due Tomorrow:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Priority:</td><td><strong style="color: #dc2626;">{{priority}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #7f1d1d; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #ef4444; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Complete Task Now →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #ef4444; text-decoration: none;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body></html>`;
+    }
+  }
+
+  // 3. Render variables
+  const renderedSubject = substituteTemplateVariables(subject, variables);
+  const renderedHtml = substituteTemplateVariables(htmlBody, variables);
+  const plainText = renderedHtml.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+
+  // 4. Send via Nodemailer if SMTP configured
+  const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+  const hasTestTransport = Boolean((MailerFactory as any).testTransport);
+
+  if (hasSmtp || hasTestTransport) {
+    try {
+      const transporter = await MailerFactory.getTransporter(scope, tenantId);
+      const fromEmail = config.smtpUser && config.smtpUser.includes("@") ? config.smtpUser : config.smtpFromEmail;
+      const info = await transporter.sendMail({
+        from: `"${config.smtpFromName}" <${fromEmail}>`,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject: renderedSubject,
+        text: plainText,
+        html: renderedHtml,
+      });
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.warn(`[email.ts] Todo task email delivery failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log(`📨 [DEV TASK NOTIFICATION EMAIL (${templateId})]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Subject: ${renderedSubject}`);
+    console.log(`   Task: ${taskTitle} | Priority: ${priority}`);
+    console.log(`   Action URL: ${taskUrl}`);
+    console.log("==================================================================");
+    return { success: true, messageId: `dev-todo-${Date.now()}` };
+  }
+}
+
+
 
 
