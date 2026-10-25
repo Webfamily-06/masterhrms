@@ -53,7 +53,7 @@ export interface TodoMeta {
   activity: TodoActivityItem[];
 }
 
-function parseTodoMeta(description: string | null): TodoMeta {
+export function parseTodoMeta(description: string | null): TodoMeta {
   if (!description) {
     return {
       cleanDescription: "",
@@ -151,7 +151,7 @@ function parseTodoMeta(description: string | null): TodoMeta {
   };
 }
 
-function serializeTodoMeta(
+export function serializeTodoMeta(
   cleanDescription: string,
   meta: {
     assignee?: TodoMeta["assignee"];
@@ -382,6 +382,24 @@ todosRouter.post("/", async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: "Todo title is required" });
     }
 
+    // Server-side date validation
+    if (startDate && isNaN(new Date(startDate).getTime())) {
+      return res.status(400).json({ error: "Invalid startDate format", code: "INVALID_DATE" });
+    }
+    if (dueDate && isNaN(new Date(dueDate).getTime())) {
+      return res.status(400).json({ error: "Invalid dueDate format", code: "INVALID_DATE" });
+    }
+    if (startDate && dueDate) {
+      const s = new Date(startDate).getTime();
+      const d = new Date(dueDate).getTime();
+      if (s > d) {
+        return res.status(400).json({
+          error: "Invalid date range: dueDate cannot be earlier than startDate",
+          code: "INVALID_DATE_RANGE",
+        });
+      }
+    }
+
     const targetAssignee = assigneeId || assignedTo;
     let assigneeMeta: TodoMeta["assignee"] = null;
 
@@ -535,6 +553,27 @@ todosRouter.put("/:id", async (req: AuthRequest, res: Response) => {
 
     if (!existing) {
       return res.status(404).json({ error: "Todo not found" });
+    }
+
+    // Server-side date validation
+    const candidateStartDate = startDate !== undefined ? startDate : undefined;
+    const candidateDueDate = dueDate !== undefined ? dueDate : existing.dueDate;
+
+    if (startDate !== undefined && startDate !== null && isNaN(new Date(startDate).getTime())) {
+      return res.status(400).json({ error: "Invalid startDate format", code: "INVALID_DATE" });
+    }
+    if (dueDate !== undefined && dueDate !== null && isNaN(new Date(dueDate).getTime())) {
+      return res.status(400).json({ error: "Invalid dueDate format", code: "INVALID_DATE" });
+    }
+    if (candidateStartDate && candidateDueDate) {
+      const s = new Date(candidateStartDate).getTime();
+      const d = new Date(candidateDueDate).getTime();
+      if (!isNaN(s) && !isNaN(d) && s > d) {
+        return res.status(400).json({
+          error: "Invalid date range: dueDate cannot be earlier than startDate",
+          code: "INVALID_DATE_RANGE",
+        });
+      }
     }
 
     // Resolve employee id if available

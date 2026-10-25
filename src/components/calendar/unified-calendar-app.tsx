@@ -60,6 +60,7 @@ import {
   Building2,
   History,
   Filter,
+  CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { OrganizationMemberSelector, SelectedShare } from "./organization-member-selector";
@@ -263,6 +264,10 @@ export interface CalendarEventItem {
   recurringSeriesId?: string | null;
   originalStartTime?: string | null;
   isRecurringInstance?: boolean;
+  priority?: string;
+  progress?: number;
+  completed?: boolean;
+  isExternal?: boolean;
 }
 
 interface UnifiedCalendarAppProps {
@@ -286,6 +291,8 @@ const DEFAULT_CATEGORY_STYLES: Record<string, { bg: string; text: string; dot: s
   organization: { bg: "bg-indigo-600 text-white", text: "text-indigo-700", dot: "bg-indigo-600", label: "Company Event" },
   team: { bg: "bg-sky-600 text-white", text: "text-sky-700", dot: "bg-sky-600", label: "Team Event" },
   general: { bg: "bg-teal-600 text-white", text: "text-teal-700", dot: "bg-teal-600", label: "General" },
+  todo: { bg: "bg-sky-600 text-white", text: "text-sky-700", dot: "bg-sky-600", label: "Todo & Tasks" },
+  "Todo & Tasks": { bg: "bg-sky-600 text-white", text: "text-sky-700", dot: "bg-sky-600", label: "Todo & Tasks" },
 };
 
 const COLOR_SWATCHES = [
@@ -694,7 +701,13 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             recurringSeriesId: e.recurringSeriesId || null,
             originalStartTime: e.originalStartTime || null,
             isRecurringInstance: Boolean(e.isRecurringInstance),
-            sourceDomain: "calendar",
+            sourceDomain: e.sourceDomain || "calendar",
+            sourceId: e.sourceId || e.id,
+            linkTo: e.linkTo,
+            priority: e.priority,
+            progress: e.progress,
+            completed: e.completed,
+            employeeName: e.employeeName,
           } as CalendarEventItem;
         });
       } catch (err) {
@@ -704,12 +717,14 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     },
   });
 
-  // 2. Fetch HR Composite Projections (Approved Leaves, Official Holidays, Training Cohorts, Meetings, Birthdays)
+  // 2. Fetch HR/Employee Composite Projections (Approved Leaves, Official Holidays, Training Cohorts, Meetings, Birthdays, Tasks)
   const { data: hrCompositeEvents = [] } = useQuery<CalendarEventItem[]>({
-    queryKey: ["hr-calendar-composite-events"],
+    queryKey: ["hr-calendar-composite-events", format(currentDate, "yyyy-MM")],
     queryFn: async () => {
       try {
-        const res = await api.get<any[]>("/hr/calendar/events");
+        const isEmployeePath = typeof window !== "undefined" && window.location.pathname.startsWith("/me");
+        const compositeUrl = isEmployeePath ? "/me/calendar/events" : "/hr/calendar/events";
+        const res = await api.get<any[]>(`${compositeUrl}?startDate=${encodeURIComponent(queryWindowStart)}&endDate=${encodeURIComponent(queryWindowEnd)}`);
         if (!Array.isArray(res)) return [];
         return res
           .filter((item) => item.sourceDomain !== "calendar") // Avoid double counting custom calendar events
@@ -734,6 +749,9 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               avatarUrl: item.avatarUrl,
               employeeName: item.employeeName,
               employeeInitials: item.employeeInitials,
+              priority: item.priority,
+              progress: item.progress,
+              completed: item.completed,
             } as CalendarEventItem;
           });
       } catch {
@@ -1361,6 +1379,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     : format(itemDate, "dd MMM, h:mm a");
 
                   const isBirthday = item.category?.toLowerCase() === "birthday" || item.id.startsWith("birthday-");
+                  const isTodo = item.sourceDomain === "todo" || item.category?.toLowerCase() === "todo";
 
                   return (
                     <div
@@ -1380,6 +1399,10 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                             {item.employeeInitials || "BD"}
                           </div>
                         )
+                      ) : isTodo ? (
+                        <div className="size-5 rounded-md bg-sky-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                          <CheckSquare className="size-3" />
+                        </div>
                       ) : (
                         <span className={cn("size-2 rounded-full mt-1.5 flex-shrink-0", style.dot)} />
                       )}
@@ -1671,6 +1694,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     <div className="space-y-1 overflow-y-auto max-h-[80px]">
                       {dayEvents.map((evt) => {
                         const isBirthday = evt.category?.toLowerCase() === "birthday" || evt.id.startsWith("birthday-");
+                        const isTodo = evt.sourceDomain === "todo" || evt.category?.toLowerCase() === "todo";
 
                         return (
                           <div
@@ -1699,7 +1723,12 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                                   </span>
                                 )
                               )}
-                              <span className="truncate">{cleanCalendarText(evt.title)}</span>
+                              {isTodo && (
+                                <CheckSquare className="size-3 shrink-0 opacity-90 text-white" />
+                              )}
+                              <span className={cn("truncate", evt.completed && "line-through opacity-85")}>
+                                {cleanCalendarText(evt.title)}
+                              </span>
                             </div>
                             {evt.isShared && <Share2 className="size-2.5 shrink-0 opacity-80" />}
                             {evt.reminders && evt.reminders.length > 0 && <Bell className="size-2.5 shrink-0 opacity-80" />}
@@ -1750,6 +1779,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                   >
                     {dayEvents.map((evt) => {
                       const isBirthday = evt.category?.toLowerCase() === "birthday" || evt.id.startsWith("birthday-");
+                      const isTodo = evt.sourceDomain === "todo" || evt.category?.toLowerCase() === "todo";
                       return (
                         <div
                           key={evt.id}
@@ -1776,7 +1806,12 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                                 </span>
                               )
                             )}
-                            <p className="truncate">{cleanCalendarText(evt.title)}</p>
+                            {isTodo && (
+                              <CheckSquare className="size-3.5 shrink-0 opacity-90 text-white" />
+                            )}
+                            <p className={cn("truncate", evt.completed && "line-through opacity-85")}>
+                              {cleanCalendarText(evt.title)}
+                            </p>
                           </div>
                           <p className="text-[10px] opacity-80 mt-0.5">
                             {format(new Date(evt.startDate), "h:mm a")}
@@ -1825,6 +1860,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                   .filter((e) => e.startDate.startsWith(format(currentDate, "yyyy-MM-dd")))
                   .map((evt) => {
                     const isBirthday = evt.category?.toLowerCase() === "birthday" || evt.id.startsWith("birthday-");
+                    const isTodo = evt.sourceDomain === "todo" || evt.category?.toLowerCase() === "todo";
                     return (
                       <div
                         key={evt.id}
@@ -1847,6 +1883,11 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                                 {evt.employeeInitials || "BD"}
                               </div>
                             )
+                          )}
+                          {isTodo && (
+                            <div className="size-10 rounded-xl bg-white/20 text-white flex items-center justify-center shrink-0 ring-2 ring-white/50">
+                              <CheckSquare className="size-5" />
+                            </div>
                           )}
                           <div>
                             <h4 className="font-bold text-sm">{cleanCalendarText(evt.title)}</h4>
@@ -1886,6 +1927,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             ) : (
               filteredEvents.map((evt) => {
                 const isBirthday = evt.category?.toLowerCase() === "birthday" || evt.id.startsWith("birthday-");
+                const isTodo = evt.sourceDomain === "todo" || evt.category?.toLowerCase() === "todo";
                 return (
                   <div
                     key={evt.id}
@@ -1905,6 +1947,10 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                             {evt.employeeInitials || "BD"}
                           </div>
                         )
+                      ) : isTodo ? (
+                        <div className="size-8 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0">
+                          <CheckSquare className="size-4" />
+                        </div>
                       ) : (
                         <span className={cn("size-3 rounded-full shrink-0", evt.color ? evt.color.split(" ")[0] : "bg-teal-600")} />
                       )}
@@ -2370,16 +2416,92 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 {(selectedEvent.category?.toLowerCase() === "birthday" || selectedEvent.id.startsWith("birthday-")) && (
                   <Cake className="size-4 text-rose-600 dark:text-rose-400 shrink-0" />
                 )}
+                {(selectedEvent.sourceDomain === "todo" || selectedEvent.category?.toLowerCase() === "todo") && (
+                  <CheckSquare className="size-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                )}
                 <span>{cleanCalendarText(selectedEvent.title)}</span>
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {selectedEvent.isShared
+                {selectedEvent.sourceDomain === "todo" || selectedEvent.category?.toLowerCase() === "todo"
+                  ? "Projected Enterprise Task — Synchronized with Todo & Gantt"
+                  : selectedEvent.isShared
                   ? `Shared with you (${selectedEvent.userPermission === "edit" ? "Edit permission" : "View only"})`
                   : "Private Event"}
               </DialogDescription>
             </DialogHeader>
 
-            {isEditingEvent ? (
+            {selectedEvent.sourceDomain === "todo" || selectedEvent.category?.toLowerCase() === "todo" ? (
+              /* Dedicated Todo Task Projection Card */
+              <div className="space-y-4 py-2 text-xs">
+                <div className="p-3.5 bg-muted/40 rounded-xl space-y-2.5 border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground font-medium">Task Schedule:</span>
+                    <span className="font-semibold text-foreground">
+                      {format(new Date(selectedEvent.startDate), "MMM d, yyyy")}
+                      {selectedEvent.endDate && selectedEvent.endDate !== selectedEvent.startDate
+                        ? ` — ${format(new Date(selectedEvent.endDate), "MMM d, yyyy")}`
+                        : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground font-medium">Status:</span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] capitalize font-medium",
+                        selectedEvent.status === "completed"
+                          ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+                          : "bg-amber-500/15 text-amber-700 border-amber-500/30"
+                      )}
+                    >
+                      {selectedEvent.status === "completed" ? "Completed" : "In Progress / Pending"}
+                    </Badge>
+                  </div>
+                  {selectedEvent.priority && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-medium">Priority:</span>
+                      <span className="capitalize font-semibold text-foreground">{selectedEvent.priority}</span>
+                    </div>
+                  )}
+                  {selectedEvent.employeeName && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-medium">Assignee:</span>
+                      <span className="font-semibold text-foreground">{selectedEvent.employeeName}</span>
+                    </div>
+                  )}
+                  {selectedEvent.progress !== undefined && (
+                    <div className="space-y-1 pt-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground font-medium">Execution Progress</span>
+                        <span className="font-semibold">{selectedEvent.progress}%</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-teal-600 h-full rounded-full transition-all"
+                          style={{ width: `${selectedEvent.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {selectedEvent.description && (
+                  <div>
+                    <Label className="text-xs font-semibold text-muted-foreground block mb-1">Description</Label>
+                    <p className="text-xs text-foreground bg-muted/20 p-2.5 rounded-lg border whitespace-pre-wrap">
+                      {selectedEvent.description}
+                    </p>
+                  </div>
+                )}
+
+                <div className="p-3 bg-sky-500/10 rounded-xl border border-sky-500/20 text-sky-800 dark:text-sky-300 text-[11px] flex items-start gap-2">
+                  <CheckSquare className="size-4 shrink-0 mt-0.5 text-sky-600" />
+                  <span>
+                    This task is synchronized directly from the MasterHRMS Todo & Tasks engine. Task changes must be made in the Todo workspace.
+                  </span>
+                </div>
+              </div>
+            ) : isEditingEvent ? (
               /* Edit Form */
               <div className="space-y-3 py-2 text-xs">
                 <div>
@@ -2823,7 +2945,59 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             )}
 
             <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
-              {isEditingEvent ? (
+              {selectedEvent.sourceDomain === "todo" || selectedEvent.category?.toLowerCase() === "todo" ? (
+                <>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        window.open(`/api/calendar/events/${selectedEvent.id}/export/ics`, "_blank");
+                      }}
+                      className="gap-1.5 text-xs"
+                      title="Export task as iCalendar (.ics)"
+                    >
+                      <Download className="size-3.5" /> .ics
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setDetailsModalOpen(false);
+                        const taskId = selectedEvent.sourceId || selectedEvent.id.replace(/^todo-/, "");
+                        const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+                        let ganttPath = "/me/todo/gantt";
+                        if (currentPath.startsWith("/hr")) ganttPath = "/hr/todo/gantt";
+                        else if (currentPath.startsWith("/tenant")) ganttPath = "/tenant/todo/gantt";
+                        window.location.href = `${ganttPath}?taskId=${encodeURIComponent(taskId)}`;
+                      }}
+                      className="gap-1.5 text-xs"
+                    >
+                      <ExternalLink className="size-3.5" /> View in Gantt
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setDetailsModalOpen(false);
+                        const taskId = selectedEvent.sourceId || selectedEvent.id.replace(/^todo-/, "");
+                        const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+                        let todoPath = "/me/todo";
+                        if (currentPath.startsWith("/hr")) todoPath = "/hr/todo";
+                        else if (currentPath.startsWith("/tenant")) todoPath = "/tenant/todo";
+                        window.location.href = `${todoPath}?taskId=${encodeURIComponent(taskId)}`;
+                      }}
+                      className="bg-teal-700 hover:bg-teal-800 text-white font-medium gap-1.5 text-xs"
+                    >
+                      <CheckSquare className="size-3.5" /> Open in Todo
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDetailsModalOpen(false)}>
+                      Close
+                    </Button>
+                  </div>
+                </>
+              ) : isEditingEvent ? (
                 <>
                   <Button variant="outline" size="sm" onClick={() => setIsEditingEvent(false)}>
                     Cancel

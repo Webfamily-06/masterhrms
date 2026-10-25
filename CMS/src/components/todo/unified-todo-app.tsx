@@ -271,6 +271,20 @@ export function UnifiedTodoApp({
     },
   });
 
+  // Auto-select task if URL query contains taskId or id (e.g. when navigated from Calendar)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const taskId = params.get("taskId") || params.get("id");
+      if (taskId && todosData.length > 0 && !selectedTodo) {
+        const found = todosData.find((t: any) => t.id === taskId);
+        if (found) {
+          setSelectedTodo(found);
+        }
+      }
+    }
+  }, [todosData, selectedTodo]);
+
   // 2. Fetch assignees for the tenant
   const { data: assignees = [] } = useQuery<AssigneeOption[]>({
     queryKey: ["todos-assignees"],
@@ -302,6 +316,8 @@ export function UnifiedTodoApp({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       toast.success("Task created successfully");
       setIsCreateModalOpen(false);
       resetForm();
@@ -318,6 +334,8 @@ export function UnifiedTodoApp({
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       if (selectedTodo && data?.data?.id === selectedTodo.id) {
         setSelectedTodo(data.data);
       }
@@ -335,6 +353,8 @@ export function UnifiedTodoApp({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       toast.success("Task deleted");
       if (selectedTodo?.id === todoToDelete) {
         setSelectedTodo(null);

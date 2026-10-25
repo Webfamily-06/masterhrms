@@ -17,6 +17,7 @@ import { CalendarRecurrenceService } from "../services/calendar-recurrence.servi
 import { CalendarConflictService } from "../services/calendar-conflict.service";
 import { CalendarAuditService } from "../services/calendar-audit.service";
 import { CalendarExportService } from "../services/calendar-export.service";
+import { parseTodoMeta } from "./todos.routes";
 
 export const calendarRouter = Router();
 
@@ -33,6 +34,7 @@ export const SYSTEM_CATEGORIES = [
   { id: "interview", name: "Candidate Interviews", color: "#06b6d4", badgeClass: "bg-cyan-500/15 text-cyan-700 border-cyan-500/30", isSystem: true },
   { id: "onboarding", name: "Candidate Onboarding", color: "#d946ef", badgeClass: "bg-fuchsia-500/15 text-fuchsia-700 border-fuchsia-500/30", isSystem: true },
   { id: "event", name: "General Events", color: "#6366f1", badgeClass: "bg-indigo-500/15 text-indigo-700 border-indigo-500/30", isSystem: true },
+  { id: "todo", name: "Todo & Tasks", color: "#0ea5e9", badgeClass: "bg-sky-500/15 text-sky-700 border-sky-500/30", isSystem: true },
 ];
 
 // Helper to get custom tenant categories from Setting
@@ -591,6 +593,173 @@ calendarRouter.get("/events", async (req: AuthRequest, res: Response) => {
             } as any);
           }
         }
+      }
+    }
+
+    // Project Todo & Tasks into Calendar
+    if (!category || category === "all" || category === "todo" || category === "task") {
+      try {
+        const isHR = req.user?.roles?.some((r: string) =>
+          ["super_admin", "tenant_admin", "hr_admin", "admin"].includes(r)
+        );
+
+        let currentEmpId: string | undefined;
+        const emp = await prisma.employee.findFirst({
+          where: { tenantId, userId },
+          select: { id: true },
+        });
+        currentEmpId = emp?.id;
+
+        const todoWhere: any = { tenantId };
+
+        if (windowStart && windowEnd) {
+          todoWhere.OR = [
+            { dueDate: { gte: windowStart, lte: windowEnd } },
+            { dueDate: null },
+          ];
+        }
+
+        if (!isHR && !isSystemAdmin) {
+          const participantFilters: any[] = [
+            { userId },
+            { description: { contains: `[Assignee:${userId}]` } },
+            { description: { contains: `"${userId}"` } },
+          ];
+          if (currentEmpId) {
+            participantFilters.push(
+              { description: { contains: `[Assignee:${currentEmpId}]` } },
+              { description: { contains: `"${currentEmpId}"` } }
+            );
+          }
+          todoWhere.AND = [
+            ...(todoWhere.AND || []),
+            { OR: participantFilters },
+          ];
+        }
+
+        const todos = await prisma.workspaceTodo.findMany({
+          where: todoWhere,
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: {
+                  select: { fullName: true, avatarUrl: true },
+                },
+              },
+            },
+          },
+          take: 200,
+        });
+
+        for (const t of todos) {
+          const meta = parseTodoMeta(t.description);
+
+          if (!isHR && !isSystemAdmin) {
+            const isCreator = t.userId === userId;
+            const isPrimaryAssignee =
+              meta.assignee?.id === userId ||
+              (currentEmpId && meta.assignee?.id === currentEmpId);
+            const isMultiAssignee = Array.isArray((meta as any).assignees) && (meta as any).assignees.some(
+              (a: any) => a.id === userId || (currentEmpId && a.id === currentEmpId)
+            );
+            if (!isCreator && !isPrimaryAssignee && !isMultiAssignee) {
+              continue;
+            }
+          }
+
+          let taskStartDate: Date | null = null;
+          let taskEndDate: Date | null = null;
+
+          if (meta.startDate) {
+            const parsedStart = new Date(meta.startDate);
+            if (!isNaN(parsedStart.getTime())) {
+              taskStartDate = parsedStart;
+            }
+          }
+
+          if (t.dueDate) {
+            const parsedDue = new Date(t.dueDate);
+            if (!isNaN(parsedDue.getTime())) {
+              taskEndDate = parsedDue;
+            }
+          }
+
+          // Rule: If task has no valid schedule (neither start date nor due date), do not generate fabricated dates!
+          if (!taskStartDate && !taskEndDate) {
+            continue;
+          }
+
+          // Rule: If only dueDate exists, start date = dueDate (all-day event on dueDate)
+          if (!taskStartDate && taskEndDate) {
+            taskStartDate = taskEndDate;
+          }
+
+          // Rule: If only startDate exists, end date = startDate (all-day event on startDate)
+          if (taskStartDate && !taskEndDate) {
+            taskEndDate = taskStartDate;
+          }
+
+          // In case startDate > endDate, skip invalid range
+          if (taskStartDate!.getTime() > taskEndDate!.getTime()) {
+            continue;
+          }
+
+          // Window filtering if defined
+          if (windowStart && taskEndDate!.getTime() < windowStart.getTime()) {
+            continue;
+          }
+          if (windowEnd && taskStartDate!.getTime() > windowEnd.getTime()) {
+            continue;
+          }
+
+          const assigneeName = meta.assignee?.name || undefined;
+          const status = t.completed ? "completed" : "pending";
+          const linkTo = isHR ? `/hr/todo?taskId=${t.id}` : `/me/todo?taskId=${t.id}`;
+
+          formatted.push({
+            id: `todo-${t.id}`,
+            tenantId: t.tenantId,
+            userId: t.userId,
+            title: `Task: ${t.title}`,
+            description: meta.cleanDescription || "",
+            startDate: taskStartDate!.toISOString(),
+            endDate: taskEndDate!.toISOString(),
+            allDay: true,
+            category: "todo",
+            color: "bg-sky-600 text-white",
+            location: "",
+            meetingLink: null,
+            status,
+            visibility: "team",
+            timezone: "Asia/Kolkata",
+            recurrenceRule: null,
+            recurringSeriesId: null,
+            originalStartTime: null,
+            roomId: null,
+            room: null,
+            cancelledAt: null,
+            cancelledById: null,
+            createdAt: t.createdAt.toISOString(),
+            updatedAt: t.updatedAt.toISOString(),
+            shares: [],
+            reminders: [],
+            isShared: t.userId !== userId,
+            userPermission: "view",
+            userRsvp: "accepted",
+            organizerName: t.user?.profile?.fullName || t.user?.email || "Assigner",
+            sourceDomain: "todo",
+            sourceId: t.id,
+            linkTo,
+            priority: t.priority,
+            progress: meta.progress || (t.completed ? 100 : 0),
+            completed: t.completed,
+            employeeName: assigneeName,
+          } as any);
+        }
+      } catch (todoErr) {
+        console.warn("Failed to project todos in /api/calendar/events:", todoErr);
       }
     }
 
@@ -2509,7 +2678,70 @@ calendarRouter.get("/export/ics", async (req: AuthRequest, res: Response) => {
       },
     });
 
-    const icsContent = CalendarExportService.generateIcs(events, {
+    const exportEvents: any[] = [...events];
+    if (!category || category === "all" || category === "todo" || category === "task") {
+      try {
+        const isHR = req.user?.roles?.some((r: string) =>
+          ["super_admin", "tenant_admin", "hr_admin", "admin"].includes(r)
+        );
+        let currentEmpId: string | undefined;
+        const emp = await prisma.employee.findFirst({
+          where: { tenantId, userId },
+          select: { id: true },
+        });
+        currentEmpId = emp?.id;
+
+        const todoWhere: any = { tenantId };
+        if (!isHR) {
+          const participantFilters: any[] = [
+            { userId },
+            { description: { contains: `[Assignee:${userId}]` } },
+            { description: { contains: `"${userId}"` } },
+          ];
+          if (currentEmpId) {
+            participantFilters.push(
+              { description: { contains: `[Assignee:${currentEmpId}]` } },
+              { description: { contains: `"${currentEmpId}"` } }
+            );
+          }
+          todoWhere.AND = [{ OR: participantFilters }];
+        }
+
+        const todos = await prisma.workspaceTodo.findMany({
+          where: todoWhere,
+          include: {
+            user: { select: { email: true, profile: { select: { fullName: true } } } },
+          },
+          take: 100,
+        });
+
+        for (const t of todos) {
+          const meta = parseTodoMeta(t.description);
+          let taskStartDate: Date | null = meta.startDate ? new Date(meta.startDate) : null;
+          let taskEndDate: Date | null = t.dueDate ? new Date(t.dueDate) : null;
+          if (taskStartDate && isNaN(taskStartDate.getTime())) taskStartDate = null;
+          if (taskEndDate && isNaN(taskEndDate.getTime())) taskEndDate = null;
+          if (!taskStartDate && !taskEndDate) continue;
+          if (!taskStartDate && taskEndDate) taskStartDate = taskEndDate;
+          if (taskStartDate && !taskEndDate) taskEndDate = taskStartDate;
+          if (taskStartDate!.getTime() > taskEndDate!.getTime()) continue;
+          if (taskEndDate!.getTime() < windowStart.getTime() || taskStartDate!.getTime() > windowEnd.getTime()) continue;
+
+          exportEvents.push({
+            id: `todo-${t.id}`,
+            title: `Task: ${t.title}`,
+            description: meta.cleanDescription || undefined,
+            startDate: taskStartDate,
+            endDate: taskEndDate,
+            allDay: true,
+            organizerName: t.user?.profile?.fullName || t.user?.email || "Assigner",
+            organizerEmail: t.user?.email,
+          });
+        }
+      } catch (err) {}
+    }
+
+    const icsContent = CalendarExportService.generateIcs(exportEvents, {
       calendarName: "MasterHRMS Calendar",
       tenantId,
     });

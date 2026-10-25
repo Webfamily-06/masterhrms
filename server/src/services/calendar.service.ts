@@ -1,16 +1,17 @@
 import { getTenantDb } from "../context/tenant-context";
+import { parseTodoMeta } from "../routes/todos.routes";
 
 export interface NormalizedCalendarEvent {
   id: string;
   title: string;
   description?: string;
-  category: "meeting" | "training" | "leave" | "holiday" | "event" | "birthday" | "anniversary" | "interview" | "onboarding" | string;
+  category: "meeting" | "training" | "leave" | "holiday" | "event" | "birthday" | "anniversary" | "interview" | "onboarding" | "todo" | string;
   startDate: string; // ISO string
   endDate: string; // ISO string
   allDay: boolean;
   location?: string;
   meetingLink?: string;
-  sourceDomain: "meetings" | "training" | "leave" | "organization" | "calendar" | "recruitment";
+  sourceDomain: "meetings" | "training" | "leave" | "organization" | "calendar" | "recruitment" | "todo" | "workspace_todo";
   sourceId: string;
   linkTo: string;
   status?: string;
@@ -23,6 +24,11 @@ export interface NormalizedCalendarEvent {
   recurringSeriesId?: string | null;
   recurrenceRule?: string | null;
   roomId?: string | null;
+  priority?: string;
+  progress?: number;
+  completed?: boolean;
+  isExternal?: boolean;
+  userPermission?: "owner" | "edit" | "view";
 }
 
 export interface GetCalendarEventsOptions {
@@ -613,6 +619,146 @@ export class CalendarService {
         }
       } catch (err) {
         console.warn("CalendarService: Failed to project custom events:", err);
+      }
+    }
+
+    // 10. TODO & TASKS PROJECTION
+    if (!category || category === "all" || category === "todo" || category === "task") {
+      try {
+        const todoWhere: any = {
+          tenantId,
+          OR: [
+            { dueDate: { gte: startFilter, lte: endFilter } },
+            { dueDate: null },
+          ],
+        };
+
+        if (!isHR) {
+          const participantFilters: any[] = [];
+          if (userId) {
+            participantFilters.push(
+              { userId },
+              { description: { contains: `[Assignee:${userId}]` } },
+              { description: { contains: `"${userId}"` } }
+            );
+          }
+          if (employeeId) {
+            participantFilters.push(
+              { description: { contains: `[Assignee:${employeeId}]` } },
+              { description: { contains: `"${employeeId}"` } }
+            );
+          }
+          if (participantFilters.length > 0) {
+            todoWhere.AND = [
+              ...(todoWhere.AND || []),
+              { OR: participantFilters },
+            ];
+          } else {
+            todoWhere.id = "__none__";
+          }
+        }
+
+        const todos = await db.workspaceTodo.findMany({
+          where: todoWhere,
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: {
+                  select: { fullName: true, avatarUrl: true },
+                },
+              },
+            },
+          },
+          take: 200,
+        });
+
+        for (const t of todos) {
+          const meta = parseTodoMeta(t.description);
+
+          if (!isHR) {
+            const isCreator = t.userId === userId;
+            const isPrimaryAssignee =
+              (userId && meta.assignee?.id === userId) ||
+              (employeeId && meta.assignee?.id === employeeId);
+            const isMultiAssignee = Array.isArray((meta as any).assignees) && (meta as any).assignees.some(
+              (a: any) => (userId && a.id === userId) || (employeeId && a.id === employeeId)
+            );
+            if (!isCreator && !isPrimaryAssignee && !isMultiAssignee) {
+              continue;
+            }
+          }
+
+          let taskStartDate: Date | null = null;
+          let taskEndDate: Date | null = null;
+
+          if (meta.startDate) {
+            const parsedStart = new Date(meta.startDate);
+            if (!isNaN(parsedStart.getTime())) {
+              taskStartDate = parsedStart;
+            }
+          }
+
+          if (t.dueDate) {
+            const parsedDue = new Date(t.dueDate);
+            if (!isNaN(parsedDue.getTime())) {
+              taskEndDate = parsedDue;
+            }
+          }
+
+          // Rule: If task has no valid schedule (neither start date nor due date), do not generate fabricated dates!
+          if (!taskStartDate && !taskEndDate) {
+            continue;
+          }
+
+          // Rule: If only dueDate exists, start date = dueDate (all-day event on dueDate)
+          if (!taskStartDate && taskEndDate) {
+            taskStartDate = taskEndDate;
+          }
+
+          // Rule: If only startDate exists, end date = startDate (all-day event on startDate)
+          if (taskStartDate && !taskEndDate) {
+            taskEndDate = taskStartDate;
+          }
+
+          // In case startDate > endDate, skip invalid range
+          if (taskStartDate!.getTime() > taskEndDate!.getTime()) {
+            continue;
+          }
+
+          // Check window overlap [startFilter, endFilter]
+          if (taskEndDate!.getTime() < startFilter.getTime() || taskStartDate!.getTime() > endFilter.getTime()) {
+            continue;
+          }
+
+          const assigneeName = meta.assignee?.name || undefined;
+          const status = t.completed ? "completed" : "pending";
+          const linkTo = isHR ? `/hr/todo?taskId=${t.id}` : `/me/todo?taskId=${t.id}`;
+
+          events.push({
+            id: `todo-${t.id}`,
+            title: `Task: ${t.title}`,
+            description: meta.cleanDescription || undefined,
+            category: "todo",
+            startDate: taskStartDate!.toISOString(),
+            endDate: taskEndDate!.toISOString(),
+            allDay: true,
+            sourceDomain: "todo",
+            sourceId: t.id,
+            linkTo,
+            status,
+            badgeColor: "bg-sky-500/15 text-sky-700 border-sky-500/30",
+            employeeName: assigneeName,
+            isExternal: true,
+            userPermission: "view",
+            priority: t.priority,
+            progress: meta.progress || (t.completed ? 100 : 0),
+            completed: t.completed,
+          });
+        }
+      } catch (err) {
+        console.warn("CalendarService: Failed to project todos:", err);
       }
     }
 
