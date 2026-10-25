@@ -12,10 +12,16 @@
  * source; prefer `branding.baseDomain` from useTenantBranding() when it is available.
  */
 export function getPlatformBaseDomain(): string {
-  const configured = (import.meta as any).env?.VITE_BASE_DOMAIN as string | undefined;
-  if (configured && configured.trim()) return configured.trim().toLowerCase();
+  const configured =
+    (typeof process !== "undefined" && (process.env?.NEXT_PUBLIC_BASE_DOMAIN || process.env?.BASE_DOMAIN || process.env?.NEXT_PUBLIC_PLATFORM_DOMAIN)) ||
+    (typeof import.meta !== "undefined" && ((import.meta as any)?.env?.VITE_BASE_DOMAIN || (import.meta as any)?.env?.VITE_PLATFORM_DOMAIN));
+  if (configured && typeof configured === "string" && configured.trim()) return configured.trim().toLowerCase();
 
-  if (typeof window === "undefined") return "localhost";
+  if (typeof window === "undefined") {
+    return process.env?.NODE_ENV === "production"
+      ? (process.env?.PRODUCTION_FALLBACK_DOMAIN || "masterhrms.com")
+      : "localhost";
+  }
   const host = window.location.hostname.toLowerCase();
   if (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1") {
     return "localhost";
@@ -41,7 +47,7 @@ export function getPlatformDisplayBaseDomain(): string {
   if (configured && configured.trim()) return configured.trim().toLowerCase();
 
   if (typeof window === "undefined") {
-    return process.env.NODE_ENV === "production" ? "app" : "localhost:3000";
+    return process.env.NODE_ENV === "production" ? (process.env.PRODUCTION_FALLBACK_DOMAIN || "masterhrms.com") : "localhost:3000";
   }
   const hostname = window.location.hostname.toLowerCase();
   const port = window.location.port ? `:${window.location.port}` : "";

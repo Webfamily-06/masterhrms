@@ -12,6 +12,7 @@
 import crypto from "crypto";
 import { SettingsService } from "../settings/settings.service";
 import { prisma } from "../../prisma";
+import { getRootUrl } from "../../lib/workspace-host";
 
 export interface OAuthProviderPublicInfo {
   enabled: boolean;
@@ -73,9 +74,24 @@ export class OAuthFactory {
    * Resolve platform OAuth configuration from SettingsService with fallback to cmsPage and .env
    */
   static async resolveConfig(req?: any): Promise<ResolvedPlatformOAuthConfig> {
-    const reqHost = req ? `${req.protocol}://${req.get("host")}` : "http://localhost:4000";
+    const isProd = process.env.NODE_ENV === "production";
+    const reqHost = req ? `${req.protocol}://${req.get("host")}` : (process.env.API_URL || "http://localhost:4000");
     let oauthBaseUrl = reqHost;
-    let frontendBaseUrl = req ? `${req.protocol}://${req.hostname}:5173` : "http://localhost:5173";
+    let frontendBaseUrl = process.env.FRONTEND_URL || process.env.APP_URL;
+
+    if (!frontendBaseUrl) {
+      if (req) {
+        const hostname = req.hostname.toLowerCase();
+        const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+        if (isLocal) {
+          frontendBaseUrl = `${req.protocol}://${req.hostname}:${process.env.FRONTEND_PORT || 3000}`;
+        } else {
+          frontendBaseUrl = `${req.protocol}://${req.hostname}`;
+        }
+      } else {
+        frontendBaseUrl = getRootUrl();
+      }
+    }
 
     // 1. Defaults / environment fallbacks
     let googleEnabled = true;
@@ -112,8 +128,22 @@ export class OAuthFactory {
       });
       if (page?.content) {
         const c = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
-        if (c.oauthBaseUrl) oauthBaseUrl = String(c.oauthBaseUrl).replace(/\/+$/, "");
-        if (c.frontendBaseUrl) frontendBaseUrl = String(c.frontendBaseUrl).replace(/\/+$/, "");
+        if (c.oauthBaseUrl) {
+          const clean = String(c.oauthBaseUrl).replace(/\/+$/, "");
+          if (isProd && (clean.includes("localhost") || clean.includes("127.0.0.1"))) {
+            console.warn(`[Security Warning] Configured oauthBaseUrl '${clean}' is a loopback address in production. Keeping: ${oauthBaseUrl}`);
+          } else {
+            oauthBaseUrl = clean;
+          }
+        }
+        if (c.frontendBaseUrl) {
+          const clean = String(c.frontendBaseUrl).replace(/\/+$/, "");
+          if (isProd && (clean.includes("localhost") || clean.includes("127.0.0.1"))) {
+            console.warn(`[Security Warning] Configured frontendBaseUrl '${clean}' is a loopback address in production. Keeping: ${frontendBaseUrl}`);
+          } else {
+            frontendBaseUrl = clean;
+          }
+        }
         if (c.googleEnabled !== undefined) googleEnabled = Boolean(c.googleEnabled);
         if (c.googleClientId) googleClientId = String(c.googleClientId);
         if (c.googleClientSecret) googleClientSecret = String(c.googleClientSecret);

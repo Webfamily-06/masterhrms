@@ -3,6 +3,7 @@ import { prisma } from "../prisma";
 
 let pusherInstance: Pusher | null = null;
 let pusherConfigInitialized = false;
+let lastConfigFingerprint = "";
 
 export interface PusherConfig {
   appId: string;
@@ -15,7 +16,16 @@ export interface PusherConfig {
 
 export class PusherService {
   /**
-   * Resolves Pusher configuration from Environment or CMS Settings.
+   * Resets the cached singleton instance to force re-instantiation on config changes.
+   */
+  public static resetInstance(): void {
+    pusherInstance = null;
+    pusherConfigInitialized = false;
+    lastConfigFingerprint = "";
+  }
+
+  /**
+   * Resolves Pusher configuration from SettingsService, CMS Settings (system-platform-settings), or Environment.
    */
   public static async getConfig(): Promise<PusherConfig> {
     let appId = process.env.PUSHER_APP_ID || process.env.VITE_PUSHER_APP_ID || "";
@@ -25,14 +35,35 @@ export class PusherService {
     let enabled = process.env.VITE_PUSHER_ENABLED !== "false";
 
     try {
+      // 1. Authoritative SettingsService check (PLATFORM scope)
+      try {
+        const { SettingsService } = await import("./settings/settings.service");
+        const pusherGroup = await SettingsService.getGroup("pusher", "PLATFORM", null, { decryptSecrets: true });
+        if (pusherGroup?.values) {
+          const pv = pusherGroup.values;
+          if (pv["pusher.app_id"]) appId = pv["pusher.app_id"];
+          if (pv["pusher.key"]) key = pv["pusher.key"];
+          if (pv["pusher.secret"] && !pv["pusher.secret"].includes("••••")) secret = pv["pusher.secret"];
+          if (pv["pusher.cluster"]) cluster = pv["pusher.cluster"];
+          if (typeof pv["pusher.enabled"] === "boolean") enabled = pv["pusher.enabled"];
+        }
+      } catch {
+        // Fall through to cmsPage check
+      }
+
+      // 2. Canonical CMS platform settings page ("system-platform-settings", fallback "global-super-settings")
       const page = await prisma.cmsPage.findFirst({
-        where: { slug: "global-super-settings" },
+        where: { slug: { in: ["system-platform-settings", "global-super-settings"] } },
+        orderBy: { updatedAt: "desc" },
       });
       if (page?.content) {
         const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
         if (c.pusherAppId) appId = c.pusherAppId;
         if (c.pusherKey) key = c.pusherKey;
-        if (c.pusherSecret && c.pusherSecret !== "••••••••••••••••") secret = c.pusherSecret;
+        const secretCandidate = c.pusherSecret || c.pusherAppSecret;
+        if (secretCandidate && secretCandidate !== "••••••••••••••••" && !secretCandidate.includes("••••")) {
+          secret = secretCandidate;
+        }
         if (c.pusherCluster) cluster = c.pusherCluster;
         if (typeof c.pusherEnabled === "boolean") enabled = c.pusherEnabled;
       }
@@ -51,15 +82,17 @@ export class PusherService {
   }
 
   /**
-   * Initializes or gets the singleton Pusher instance.
+   * Initializes or gets the singleton Pusher instance, re-creating if configuration has changed.
    */
   public static async getInstance(): Promise<Pusher | null> {
     const config = await this.getConfig();
     if (!config.enabled) {
+      pusherInstance = null;
       return null;
     }
 
-    if (!pusherInstance || !pusherConfigInitialized) {
+    const currentFingerprint = `${config.appId}:${config.key}:${config.secret}:${config.cluster}:${config.enabled}`;
+    if (!pusherInstance || !pusherConfigInitialized || currentFingerprint !== lastConfigFingerprint) {
       try {
         pusherInstance = new Pusher({
           appId: config.appId,
@@ -69,8 +102,10 @@ export class PusherService {
           useTLS: config.useTLS,
         });
         pusherConfigInitialized = true;
+        lastConfigFingerprint = currentFingerprint;
       } catch (err: any) {
         console.warn(`[PusherService] Initialization failed: ${err.message}`);
+        pusherInstance = null;
         return null;
       }
     }

@@ -53,6 +53,13 @@ import {
   CalendarCheck,
   Cake,
   AlertCircle,
+  ExternalLink,
+  Globe,
+  Ban,
+  Repeat,
+  Building2,
+  History,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { OrganizationMemberSelector, SelectedShare } from "./organization-member-selector";
@@ -75,10 +82,13 @@ import {
 import { cn } from "@/lib/utils";
 
 export interface CalendarShare {
+  id?: string;
   recipientId: string;
   permission: "view" | "edit";
+  rsvpStatus?: "pending" | "accepted" | "declined" | "tentative";
   sharedBy?: string;
   createdAt?: string;
+  respondedAt?: string | null;
 }
 
 export interface CalendarReminderItem {
@@ -152,6 +162,30 @@ export function createDefaultReminder(existing: CalendarReminderItem[] = []): Ca
   };
 }
 
+export function buildRRuleString(
+  freq: string,
+  endType: string,
+  untilDate?: string,
+  count?: number,
+  weekdays?: string[]
+): string | null {
+  if (!freq || freq === "none") return null;
+  const parts = [`FREQ=${freq}`];
+  if (freq === "WEEKLY" && weekdays && weekdays.length > 0) {
+    parts.push(`BYDAY=${weekdays.join(",")}`);
+  }
+  if (endType === "until" && untilDate) {
+    const d = new Date(untilDate);
+    if (!isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      parts.push(`UNTIL=${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T235959Z`);
+    }
+  } else if (endType === "count" && count && count > 0) {
+    parts.push(`COUNT=${count}`);
+  }
+  return parts.join(";");
+}
+
 export function getInitialNewEvent(currentDate?: Date) {
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const safeDate = currentDate && !isNaN(currentDate.getTime()) ? currentDate : new Date();
@@ -165,8 +199,16 @@ export function getInitialNewEvent(currentDate?: Date) {
     allDay: false,
     category: "Meetings",
     location: "",
+    meetingLink: "",
+    roomId: "",
     description: "",
-    visibility: "private" as const,
+    visibility: "team" as "private" | "team" | "organization",
+    timezone: "Asia/Kolkata",
+    recurrenceFreq: "none" as "none" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+    recurrenceEndType: "never" as "never" | "until" | "count",
+    recurrenceUntil: "",
+    recurrenceCount: 10,
+    recurrenceWeekdays: [] as string[],
     shares: [] as { userId: string; permission: "view" | "edit" }[],
     reminders: [
       {
@@ -195,6 +237,13 @@ export interface CalendarEventItem {
   category: string;
   color?: string;
   location?: string;
+  meetingLink?: string | null;
+  status?: "confirmed" | "tentative" | "cancelled" | string;
+  visibility?: "private" | "team" | "organization" | string;
+  timezone?: string;
+  cancelledAt?: string | null;
+  cancelledById?: string | null;
+  userRsvp?: "pending" | "accepted" | "declined" | "tentative";
   allDay?: boolean;
   userId?: string;
   tenantId?: string;
@@ -205,10 +254,15 @@ export interface CalendarEventItem {
   sourceDomain?: string;
   sourceId?: string;
   linkTo?: string;
-  status?: string;
   avatarUrl?: string;
   employeeName?: string;
   employeeInitials?: string;
+  roomId?: string | null;
+  room?: { id: string; name: string; location?: string } | null;
+  recurrenceRule?: string | null;
+  recurringSeriesId?: string | null;
+  originalStartTime?: string | null;
+  isRecurringInstance?: boolean;
 }
 
 interface UnifiedCalendarAppProps {
@@ -222,6 +276,9 @@ const DEFAULT_CATEGORY_STYLES: Record<string, { bg: string; text: string; dot: s
   Flights: { bg: "bg-blue-500 text-white", text: "text-blue-600", dot: "bg-blue-500", label: "Flights" },
   Birthday: { bg: "bg-rose-500 text-white", text: "text-rose-700", dot: "bg-rose-500", label: "Birthdays" },
   birthday: { bg: "bg-rose-500 text-white", text: "text-rose-700", dot: "bg-rose-500", label: "Birthdays" },
+  anniversary: { bg: "bg-teal-600 text-white", text: "text-teal-700", dot: "bg-teal-600", label: "Work Anniversaries" },
+  interview: { bg: "bg-cyan-600 text-white", text: "text-cyan-700", dot: "bg-cyan-600", label: "Interviews" },
+  onboarding: { bg: "bg-fuchsia-600 text-white", text: "text-fuchsia-700", dot: "bg-fuchsia-600", label: "Onboarding" },
   Conference: { bg: "bg-amber-500 text-white", text: "text-amber-600", dot: "bg-amber-500", label: "Conference" },
   leave: { bg: "bg-amber-600 text-white", text: "text-amber-700", dot: "bg-amber-600", label: "Leave & PTO" },
   holiday: { bg: "bg-emerald-600 text-white", text: "text-emerald-700", dot: "bg-emerald-600", label: "Official Holiday" },
@@ -473,6 +530,9 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
   const [activeCategories, setActiveCategories] = useState<Record<string, boolean>>({
     Meetings: true,
     Birthday: true,
+    anniversary: true,
+    interview: true,
+    onboarding: true,
     leave: true,
     holiday: true,
     training: true,
@@ -480,6 +540,27 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     team: true,
     general: true,
   });
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+
+  // Conflict modal state
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<any>(null);
+  const [pendingPayload, setPendingPayload] = useState<any>(null);
+  const [pendingAction, setPendingAction] = useState<"create" | "update" | null>(null);
+
+  // Recurrence scope modal state
+  const [recurrenceScopeModalOpen, setRecurrenceScopeModalOpen] = useState(false);
+  const [recurrenceActionType, setRecurrenceActionType] = useState<"edit" | "cancel">("edit");
+  const [selectedRecurrenceScope, setSelectedRecurrenceScope] = useState<"this_occurrence" | "all_occurrences">("this_occurrence");
+
+  // Audit trail modal state
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
 
   // Modals state
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -504,6 +585,15 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     allDay: false,
     category: "Meetings",
     location: "",
+    meetingLink: "",
+    roomId: "",
+    visibility: "team" as "private" | "team" | "organization",
+    timezone: "Asia/Kolkata",
+    recurrenceFreq: "none" as "none" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+    recurrenceEndType: "never" as "never" | "until" | "count",
+    recurrenceUntil: "",
+    recurrenceCount: 10,
+    recurrenceWeekdays: [] as string[],
     description: "",
     reminders: [] as CalendarReminderItem[],
   });
@@ -519,7 +609,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     setMiniCalendarDate(currentDate);
   }, [currentDate]);
 
-  // 0. Fetch Categories from database API
+  // 0a. Fetch Categories from database API
   const { data: dbCategories = [] } = useQuery<CalendarCategory[]>({
     queryKey: ["calendar-categories"],
     queryFn: async () => {
@@ -527,6 +617,19 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
         const res = await api.get<any>("/api/calendar/categories");
         const list = Array.isArray(res?.data) ? res.data : Array.isArray(res?.categories) ? res.categories : Array.isArray(res) ? res : [];
         return list;
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // 0b. Fetch Active Meeting Rooms from database API
+  const { data: dbRooms = [] } = useQuery<any[]>({
+    queryKey: ["calendar-rooms"],
+    queryFn: async () => {
+      try {
+        const res = await api.get<any>("/api/calendar/rooms");
+        return Array.isArray(res?.data) ? res.data : [];
       } catch {
         return [];
       }
@@ -549,12 +652,15 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     return map;
   }, [dbCategories]);
 
-  // 1. Fetch Primary Database Calendar Events
+  // 1. Fetch Primary Database Calendar Events with start/end date window filtering
+  const queryWindowStart = useMemo(() => startOfMonth(subMonths(currentDate, 1)).toISOString(), [currentDate]);
+  const queryWindowEnd = useMemo(() => endOfMonth(addMonths(currentDate, 1)).toISOString(), [currentDate]);
+
   const { data: primaryEvents = [], isLoading: isLoadingPrimary } = useQuery<CalendarEventItem[]>({
-    queryKey: ["calendar-events"],
+    queryKey: ["calendar-events", format(currentDate, "yyyy-MM")],
     queryFn: async () => {
       try {
-        const res = await api.get("/api/calendar/events");
+        const res = await api.get(`/api/calendar/events?startDate=${encodeURIComponent(queryWindowStart)}&endDate=${encodeURIComponent(queryWindowEnd)}`);
         const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
         return list.map((e: any) => {
           const cat = e.category || "Meetings";
@@ -569,12 +675,25 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             category: cat,
             color: style.bg,
             location: e.location || "",
+            meetingLink: e.meetingLink || null,
+            status: e.status || "confirmed",
+            visibility: e.visibility || "team",
+            timezone: e.timezone || "Asia/Kolkata",
+            cancelledAt: e.cancelledAt || null,
+            cancelledById: e.cancelledById || null,
+            userRsvp: e.userRsvp || "pending",
             userId: e.userId,
             tenantId: e.tenantId,
             isShared: Boolean(e.isShared),
             userPermission: e.userPermission || (e.userId === user?.id ? "owner" : "view"),
             shares: Array.isArray(e.shares) ? e.shares : [],
             reminders: Array.isArray(e.reminders) ? e.reminders : [],
+            roomId: e.roomId || null,
+            room: e.room || null,
+            recurrenceRule: e.recurrenceRule || null,
+            recurringSeriesId: e.recurringSeriesId || null,
+            originalStartTime: e.originalStartTime || null,
+            isRecurringInstance: Boolean(e.isRecurringInstance),
             sourceDomain: "calendar",
           } as CalendarEventItem;
         });
@@ -639,19 +758,42 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     );
   }, [primaryEvents, hrCompositeEvents]);
 
-  // Filtered Events based on active category checkboxes
+  // Filtered Events based on active category checkboxes, search, status, and source
   const filteredEvents = useMemo(() => {
     return allEvents.filter((e) => {
       const cat = (e.category || "general").toLowerCase();
       if (cat === "birthday") {
-        return activeCategories.Birthday !== false && activeCategories.birthday !== false;
+        if (activeCategories.Birthday === false || activeCategories.birthday === false) return false;
+      } else if (cat === "meeting" || cat === "meetings") {
+        if (activeCategories.Meetings === false || activeCategories.meeting === false) return false;
+      } else if (activeCategories[e.category] === false) {
+        return false;
       }
-      if (cat === "meeting" || cat === "meetings") {
-        return activeCategories.Meetings !== false && activeCategories.meeting !== false;
+
+      // Status filter
+      if (statusFilter !== "all" && e.status !== statusFilter) {
+        return false;
       }
-      return activeCategories[e.category] ?? true;
+
+      // Source filter
+      if (sourceFilter !== "all") {
+        if (sourceFilter === "calendar" && e.sourceDomain && e.sourceDomain !== "calendar") return false;
+        if (sourceFilter !== "calendar" && e.sourceDomain !== sourceFilter && cat !== sourceFilter) return false;
+      }
+
+      // Search query filter (title, description, location)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = (e.title || "").toLowerCase().includes(q);
+        const descMatch = (e.description || "").toLowerCase().includes(q);
+        const locMatch = (e.location || "").toLowerCase().includes(q);
+        const catMatch = (e.category || "").toLowerCase().includes(q);
+        if (!titleMatch && !descMatch && !locMatch && !catMatch) return false;
+      }
+
+      return true;
     });
-  }, [allEvents, activeCategories]);
+  }, [allEvents, activeCategories, statusFilter, sourceFilter, searchQuery]);
 
   // Upcoming Events from today onwards (respects active category filters)
   const upcomingEvents = useMemo(() => {
@@ -724,9 +866,20 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       toast.success("Calendar event created successfully!");
       setCreateModalOpen(false);
+      setConflictModalOpen(false);
+      setPendingPayload(null);
+      setPendingAction(null);
       setNewEvent(getInitialNewEvent(currentDate));
     },
-    onError: (err: any) => {
+    onError: (err: any, vars: any) => {
+      const conflicts = err?.response?.data?.conflicts || err?.conflicts || err?.data?.conflicts;
+      if (err?.response?.status === 409 || err?.status === 409 || conflicts) {
+        setConflictData(conflicts);
+        setPendingPayload(vars);
+        setPendingAction("create");
+        setConflictModalOpen(true);
+        return;
+      }
       toast.error(err?.message || "Failed to create event");
     },
   });
@@ -736,15 +889,27 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
       return await api.put(`/api/calendar/events/${id}`, payload);
     },
-    onSuccess: (res, vars) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
       queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       toast.success("Calendar event updated successfully!");
       setIsEditingEvent(false);
       setDetailsModalOpen(false);
+      setConflictModalOpen(false);
+      setRecurrenceScopeModalOpen(false);
+      setPendingPayload(null);
+      setPendingAction(null);
       setSelectedEvent(null);
     },
-    onError: (err: any) => {
+    onError: (err: any, vars: any) => {
+      const conflicts = err?.response?.data?.conflicts || err?.conflicts || err?.data?.conflicts;
+      if (err?.response?.status === 409 || err?.status === 409 || conflicts) {
+        setConflictData(conflicts);
+        setPendingPayload(vars?.payload || vars);
+        setPendingAction("update");
+        setConflictModalOpen(true);
+        return;
+      }
       toast.error(err?.message || "Failed to update event");
     },
   });
@@ -763,6 +928,45 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to delete event. You must be the owner or administrator.");
+    },
+  });
+
+  // Cancel Event Mutation
+  const cancelEventMutation = useMutation({
+    mutationFn: async ({ id, recurrenceScope }: { id: string; recurrenceScope?: "this_occurrence" | "all_occurrences" }) => {
+      return await api.post(`/api/calendar/events/${id}/cancel`, { recurrenceScope });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
+      toast.success("Event cancelled successfully.");
+      setDetailsModalOpen(false);
+      setRecurrenceScopeModalOpen(false);
+      setSelectedEvent(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to cancel event");
+    },
+  });
+
+  // Attendee RSVP Mutation (Phase D)
+  const rsvpEventMutation = useMutation({
+    mutationFn: async ({ id, rsvpStatus }: { id: string; rsvpStatus: "pending" | "accepted" | "declined" | "tentative" }) => {
+      return await api.post(`/api/calendar/events/${id}/rsvp`, { rsvpStatus });
+    },
+    onSuccess: (_res: any, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
+      toast.success(`RSVP updated to ${vars.rsvpStatus}!`);
+      if (selectedEvent) {
+        setSelectedEvent({
+          ...selectedEvent,
+          userRsvp: vars.rsvpStatus,
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update RSVP");
     },
   });
 
@@ -849,6 +1053,14 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       ? newEvent.shares.map((s) => ({ recipientId: s.userId, permission: s.permission }))
       : undefined;
 
+    const rrule = buildRRuleString(
+      newEvent.recurrenceFreq,
+      newEvent.recurrenceEndType,
+      newEvent.recurrenceUntil,
+      newEvent.recurrenceCount,
+      newEvent.recurrenceWeekdays
+    );
+
     createEventMutation.mutate({
       title: newEvent.title.trim(),
       startDate: startDateTime,
@@ -856,8 +1068,12 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       allDay: newEvent.allDay,
       category: newEvent.category,
       location: newEvent.location.trim() || undefined,
+      meetingLink: newEvent.meetingLink.trim() || undefined,
+      roomId: newEvent.roomId || undefined,
+      recurrenceRule: rrule || undefined,
       description: newEvent.description.trim() || undefined,
       visibility: newEvent.visibility,
+      timezone: newEvent.timezone,
       sharedWith,
       reminders: newEvent.reminders,
     });
@@ -877,10 +1093,49 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       allDay: Boolean(evt.allDay),
       category: evt.category,
       location: evt.location || "",
+      meetingLink: evt.meetingLink || "",
+      roomId: evt.roomId || "",
+      visibility: (evt.visibility as any) || "team",
+      timezone: evt.timezone || "Asia/Kolkata",
+      recurrenceFreq: "none",
+      recurrenceEndType: "never",
+      recurrenceUntil: "",
+      recurrenceCount: 10,
+      recurrenceWeekdays: [],
       description: evt.description || "",
       reminders: Array.isArray(evt.reminders) ? [...evt.reminders] : [],
     });
     setDetailsModalOpen(true);
+  };
+
+  const executeEventUpdate = (scope?: "this_occurrence" | "all_occurrences", ignoreConflicts = false) => {
+    if (!selectedEvent) return;
+    const startDateTime = editForm.allDay
+      ? `${editForm.date}T00:00:00`
+      : `${editForm.date}T${editForm.startTime || "10:00"}:00`;
+    const endDateTime = editForm.allDay
+      ? `${editForm.date}T23:59:59`
+      : `${editForm.date}T${editForm.endTime || "11:00"}:00`;
+
+    updateEventMutation.mutate({
+      id: selectedEvent.id,
+      payload: {
+        title: editForm.title.trim(),
+        startDate: startDateTime,
+        endDate: endDateTime,
+        allDay: editForm.allDay,
+        category: editForm.category,
+        location: editForm.location.trim() || undefined,
+        meetingLink: editForm.meetingLink.trim() || undefined,
+        roomId: editForm.roomId || undefined,
+        visibility: editForm.visibility,
+        timezone: editForm.timezone,
+        description: editForm.description.trim() || undefined,
+        reminders: editForm.reminders,
+        recurrenceScope: scope || (selectedEvent.isRecurringInstance || selectedEvent.recurringSeriesId ? "this_occurrence" : undefined),
+        ignoreConflicts,
+      },
+    });
   };
 
   // Handle Update Submit
@@ -902,46 +1157,40 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       return;
     }
 
-    const startDateTime = editForm.allDay
-      ? `${editForm.date}T00:00:00`
-      : `${editForm.date}T${editForm.startTime || "10:00"}:00`;
-    const endDateTime = editForm.allDay
-      ? `${editForm.date}T23:59:59`
-      : `${editForm.date}T${editForm.endTime || "11:00"}:00`;
-
-    // Validate reminders
-    const startMs = new Date(startDateTime).getTime();
-    for (const rem of editForm.reminders) {
-      if (rem.customScheduledAt) {
-        const customMs = new Date(rem.customScheduledAt).getTime();
-        if (isNaN(customMs)) {
-          toast.error("Please enter a valid custom reminder date and time.");
-          return;
-        }
-        if (customMs < Date.now() - 60000) {
-          toast.error("Custom reminder cannot be scheduled in the past.");
-          return;
-        }
-        if (customMs > startMs) {
-          toast.error("Custom reminder cannot be scheduled after the event start time.");
-          return;
-        }
-      }
+    if (selectedEvent.isRecurringInstance || selectedEvent.recurringSeriesId || selectedEvent.recurrenceRule) {
+      setRecurrenceActionType("edit");
+      setRecurrenceScopeModalOpen(true);
+      return;
     }
 
-    updateEventMutation.mutate({
-      id: selectedEvent.id,
-      payload: {
-        title: editForm.title.trim(),
-        startDate: startDateTime,
-        endDate: endDateTime,
-        allDay: editForm.allDay,
-        category: editForm.category,
-        location: editForm.location.trim() || undefined,
-        description: editForm.description.trim() || undefined,
-        reminders: editForm.reminders,
-      },
-    });
+    executeEventUpdate();
+  };
+
+  const handleCancelClick = () => {
+    if (!selectedEvent) return;
+    if (selectedEvent.isRecurringInstance || selectedEvent.recurringSeriesId || selectedEvent.recurrenceRule) {
+      setRecurrenceActionType("cancel");
+      setRecurrenceScopeModalOpen(true);
+    } else {
+      if (confirm("Are you sure you want to cancel this event? All invited participants will be notified.")) {
+        cancelEventMutation.mutate({ id: selectedEvent.id });
+      }
+    }
+  };
+
+  const handleOpenAuditTrail = async (eventId: string) => {
+    setIsLoadingAudit(true);
+    setAuditModalOpen(true);
+    try {
+      const res = await api.get<any>(`/api/calendar/events/${eventId}/audit-logs`);
+      const logs = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setAuditLogs(logs);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to load audit logs");
+      setAuditLogs([]);
+    } finally {
+      setIsLoadingAudit(false);
+    }
   };
 
   // Navigation Handlers
@@ -1276,6 +1525,92 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* ─── SEARCH & ADVANCED FILTERS BAR ─── */}
+        <div className="px-6 py-2.5 border-b border-border bg-muted/10 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search title, description, location..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-xs bg-background"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs text-muted-foreground font-medium">Status:</Label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 text-xs w-[120px] bg-background">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="tentative">Tentative</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs text-muted-foreground font-medium">Source:</Label>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-8 text-xs w-[130px] bg-background">
+                <SelectValue placeholder="All Sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="calendar">User Events</SelectItem>
+                <SelectItem value="birthday">Birthdays</SelectItem>
+                <SelectItem value="anniversary">Anniversaries</SelectItem>
+                <SelectItem value="interview">Interviews</SelectItem>
+                <SelectItem value="onboarding">Onboarding</SelectItem>
+                <SelectItem value="leave">Leave & PTO</SelectItem>
+                <SelectItem value="holiday">Holidays</SelectItem>
+                <SelectItem value="training">Training</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(searchQuery || statusFilter !== "all" || sourceFilter !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setStatusFilter("all");
+                setSourceFilter("all");
+              }}
+              className="h-8 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <Filter className="size-3 mr-1" /> Clear Filters
+            </Button>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.open(`/api/calendar/export/ics?startDate=${encodeURIComponent(queryWindowStart)}&endDate=${encodeURIComponent(queryWindowEnd)}`, "_blank");
+              }}
+              className="h-8 text-xs gap-1.5 cursor-pointer"
+              title="Export all events as iCalendar (.ics)"
+            >
+              <Download className="size-3.5" /> Export .ics
+            </Button>
           </div>
         </div>
 
@@ -1779,14 +2114,185 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               </label>
             </div>
 
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs font-medium">Location</Label>
+                <Input
+                  value={newEvent.location}
+                  onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                  placeholder="e.g. Conference Room B"
+                  className="text-xs mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium flex items-center gap-1">
+                  <Video className="size-3 text-teal-600" /> Meeting Link
+                </Label>
+                <Input
+                  value={newEvent.meetingLink}
+                  onChange={(e) => setNewEvent({ ...newEvent, meetingLink: e.target.value })}
+                  placeholder="e.g. https://meet.google.com/xyz"
+                  className="text-xs mt-1"
+                />
+              </div>
+            </div>
+
+            {/* Meeting Room Selection */}
             <div>
-              <Label className="text-xs font-medium">Location / Meeting Link</Label>
-              <Input
-                value={newEvent.location}
-                onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-                placeholder="e.g. Conference Room B / Zoom URL"
-                className="text-xs mt-1"
-              />
+              <Label className="text-xs font-medium flex items-center gap-1">
+                <Building2 className="size-3 text-teal-600" /> Meeting Room (Resource Booking)
+              </Label>
+              <Select
+                value={newEvent.roomId || "none"}
+                onValueChange={(val) => setNewEvent({ ...newEvent, roomId: val === "none" ? "" : val })}
+              >
+                <SelectTrigger className="text-xs mt-1">
+                  <SelectValue placeholder="No room selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No room assigned</SelectItem>
+                  {dbRooms.map((r: any) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name} {r.capacity ? `(${r.capacity} seats)` : ""} {r.location ? `• ${r.location}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Recurrence Engine Section */}
+            <div className="border-t pt-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <Repeat className="size-3.5 text-teal-600" /> Recurrence & Repeat Rules
+                </Label>
+                <span className="text-[10px] text-muted-foreground">RFC 5545 Series</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Frequency</Label>
+                  <Select
+                    value={newEvent.recurrenceFreq}
+                    onValueChange={(val: any) => setNewEvent({ ...newEvent, recurrenceFreq: val })}
+                  >
+                    <SelectTrigger className="text-xs mt-0.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Does not repeat</SelectItem>
+                      <SelectItem value="DAILY">Daily</SelectItem>
+                      <SelectItem value="WEEKLY">Weekly</SelectItem>
+                      <SelectItem value="MONTHLY">Monthly</SelectItem>
+                      <SelectItem value="YEARLY">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {newEvent.recurrenceFreq !== "none" && (
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground uppercase font-semibold">End Condition</Label>
+                    <Select
+                      value={newEvent.recurrenceEndType}
+                      onValueChange={(val: any) => setNewEvent({ ...newEvent, recurrenceEndType: val })}
+                    >
+                      <SelectTrigger className="text-xs mt-0.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="never">Never (Continues)</SelectItem>
+                        <SelectItem value="until">Until specific date</SelectItem>
+                        <SelectItem value="count">After number of occurrences</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {newEvent.recurrenceFreq === "WEEKLY" && (
+                <div>
+                  <Label className="text-[10px] text-muted-foreground uppercase font-semibold mb-1 block">Repeat on Days</Label>
+                  <div className="flex items-center gap-1">
+                    {["MO", "TU", "WE", "TH", "FR", "SA", "SU"].map((day) => {
+                      const isSelected = newEvent.recurrenceWeekdays.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            const updated = isSelected
+                              ? newEvent.recurrenceWeekdays.filter((d) => d !== day)
+                              : [...newEvent.recurrenceWeekdays, day];
+                            setNewEvent({ ...newEvent, recurrenceWeekdays: updated });
+                          }}
+                          className={cn(
+                            "px-2 py-1 text-[10px] font-bold rounded cursor-pointer transition-colors",
+                            isSelected ? "bg-teal-700 text-white" : "bg-muted text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {newEvent.recurrenceFreq !== "none" && newEvent.recurrenceEndType === "until" && (
+                <div>
+                  <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Repeat Until Date</Label>
+                  <Input
+                    type="date"
+                    min={newEvent.date || todayDateStr}
+                    value={newEvent.recurrenceUntil}
+                    onChange={(e) => setNewEvent({ ...newEvent, recurrenceUntil: e.target.value })}
+                    className="text-xs mt-0.5"
+                  />
+                </div>
+              )}
+
+              {newEvent.recurrenceFreq !== "none" && newEvent.recurrenceEndType === "count" && (
+                <div>
+                  <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Number of Occurrences</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={newEvent.recurrenceCount}
+                    onChange={(e) => setNewEvent({ ...newEvent, recurrenceCount: parseInt(e.target.value, 10) || 10 })}
+                    className="text-xs mt-0.5"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs font-medium flex items-center gap-1">
+                  <Globe className="size-3 text-teal-600" /> Visibility
+                </Label>
+                <Select
+                  value={newEvent.visibility}
+                  onValueChange={(val: any) => setNewEvent({ ...newEvent, visibility: val })}
+                >
+                  <SelectTrigger className="text-xs mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">Private (Only me & invitees)</SelectItem>
+                    <SelectItem value="team">Team (Department & shared)</SelectItem>
+                    <SelectItem value="organization">Organization (All employees)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Timezone</Label>
+                <Input
+                  value={newEvent.timezone}
+                  onChange={(e) => setNewEvent({ ...newEvent, timezone: e.target.value })}
+                  placeholder="Asia/Kolkata"
+                  className="text-xs mt-1"
+                />
+              </div>
             </div>
 
             <div>
@@ -1964,13 +2470,78 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     </p>
                   )}
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs font-medium">Location</Label>
+                    <Input
+                      value={editForm.location}
+                      onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium flex items-center gap-1">
+                      <Video className="size-3 text-teal-600" /> Meeting Link
+                    </Label>
+                    <Input
+                      value={editForm.meetingLink}
+                      onChange={(e) => setEditForm({ ...editForm, meetingLink: e.target.value })}
+                      placeholder="e.g. Zoom / Meet URL"
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Meeting Room Selection */}
                 <div>
-                  <Label className="text-xs font-medium">Location</Label>
-                  <Input
-                    value={editForm.location}
-                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    className="text-xs mt-1"
-                  />
+                  <Label className="text-xs font-medium flex items-center gap-1">
+                    <Building2 className="size-3 text-teal-600" /> Meeting Room (Resource Booking)
+                  </Label>
+                  <Select
+                    value={editForm.roomId || "none"}
+                    onValueChange={(val) => setEditForm({ ...editForm, roomId: val === "none" ? "" : val })}
+                  >
+                    <SelectTrigger className="text-xs mt-1">
+                      <SelectValue placeholder="No room selected" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No room assigned</SelectItem>
+                      {dbRooms.map((r: any) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name} {r.capacity ? `(${r.capacity} seats)` : ""} {r.location ? `• ${r.location}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs font-medium flex items-center gap-1">
+                      <Globe className="size-3 text-teal-600" /> Visibility
+                    </Label>
+                    <Select
+                      value={editForm.visibility}
+                      onValueChange={(val: any) => setEditForm({ ...editForm, visibility: val })}
+                    >
+                      <SelectTrigger className="text-xs mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="private">Private (Only me & invitees)</SelectItem>
+                        <SelectItem value="team">Team (Department & shared)</SelectItem>
+                        <SelectItem value="organization">Organization (All employees)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium">Timezone</Label>
+                    <Input
+                      value={editForm.timezone}
+                      onChange={(e) => setEditForm({ ...editForm, timezone: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
                 </div>
                 <div>
                   <Label className="text-xs font-medium">Description</Label>
@@ -1992,6 +2563,19 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             ) : (
               /* View Mode */
               <div className="space-y-3 py-2 text-xs">
+                {/* Cancellation Banner */}
+                {selectedEvent.status === "cancelled" && (
+                  <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 flex items-center gap-2.5">
+                    <Ban className="size-4 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-xs">Event Cancelled</p>
+                      <p className="text-[11px] opacity-90">
+                        This event has been marked as cancelled. Historical details and participant responses are retained below.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {(selectedEvent.category?.toLowerCase() === "birthday" || selectedEvent.id.startsWith("birthday-")) && (
                   <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-500/10 via-pink-500/10 to-rose-500/5 border border-rose-500/20 flex items-center gap-3.5">
                     {selectedEvent.avatarUrl ? (
@@ -2020,23 +2604,100 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 )}
 
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Clock className="size-4 text-teal-600" />
+                  <Clock className="size-4 text-teal-600 shrink-0" />
                   <span>
                     {format(new Date(selectedEvent.startDate), "h:mm a")}
                     {selectedEvent.endDate ? ` – ${format(new Date(selectedEvent.endDate), "h:mm a")}` : ""}
                   </span>
+                  <span className="text-[10px] text-muted-foreground/80">• {selectedEvent.timezone || "Asia/Kolkata"}</span>
                 </div>
 
                 {selectedEvent.location && (
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="size-4 text-rose-500" />
+                    <MapPin className="size-4 text-rose-500 shrink-0" />
                     <span>{selectedEvent.location}</span>
                   </div>
                 )}
 
+                {selectedEvent.room && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Building2 className="size-4 text-teal-600 shrink-0" />
+                    <span>Meeting Room: <strong className="text-foreground">{selectedEvent.room.name}</strong> {selectedEvent.room.location ? `(${selectedEvent.room.location})` : ""}</span>
+                  </div>
+                )}
+
+                {(selectedEvent.recurrenceRule || selectedEvent.isRecurringInstance || selectedEvent.recurringSeriesId) && (
+                  <div className="flex items-center gap-2 text-xs text-teal-700 dark:text-teal-400 bg-teal-500/10 border border-teal-500/20 p-2 rounded-lg">
+                    <Repeat className="size-4 shrink-0" />
+                    <span>Recurring Series {selectedEvent.recurrenceRule ? `(${selectedEvent.recurrenceRule})` : ""}</span>
+                  </div>
+                )}
+
+                {/* Meeting Link with Quick Join */}
+                {selectedEvent.meetingLink && (
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-teal-500/10 border border-teal-500/20 text-xs">
+                    <div className="flex items-center gap-2 min-w-0 truncate">
+                      <Video className="size-4 text-teal-600 shrink-0" />
+                      <span className="font-medium truncate">{selectedEvent.meetingLink}</span>
+                    </div>
+                    <a
+                      href={selectedEvent.meetingLink.startsWith("http") ? selectedEvent.meetingLink : `https://${selectedEvent.meetingLink}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-400 hover:underline font-semibold shrink-0 ml-2"
+                    >
+                      Join <ExternalLink className="size-3" />
+                    </a>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Globe className="size-3 text-muted-foreground" />
+                    <span>Visibility: <strong className="capitalize">{selectedEvent.visibility || "team"}</strong></span>
+                  </span>
+                </div>
+
                 {selectedEvent.description && (
                   <div className="p-3 bg-muted/30 rounded-lg text-foreground border leading-relaxed">
                     {selectedEvent.description}
+                  </div>
+                )}
+
+                {/* Attendee RSVP Action Bar */}
+                {selectedEvent.isShared && selectedEvent.userPermission !== "owner" && selectedEvent.status !== "cancelled" && (
+                  <div className="border-t pt-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-muted-foreground block">
+                        Your RSVP Response
+                      </Label>
+                      <Badge variant="outline" className="text-[10px] capitalize">
+                        Status: {selectedEvent.userRsvp || "pending"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(["accepted", "tentative", "declined"] as const).map((status) => {
+                        const isActive = (selectedEvent.userRsvp || "pending") === status;
+                        return (
+                          <Button
+                            key={status}
+                            size="sm"
+                            type="button"
+                            variant={isActive ? "default" : "outline"}
+                            className={cn(
+                              "text-xs h-7 flex-1 capitalize",
+                              isActive && status === "accepted" && "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold",
+                              isActive && status === "tentative" && "bg-amber-600 hover:bg-amber-700 text-white font-semibold",
+                              isActive && status === "declined" && "bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                            )}
+                            disabled={rsvpEventMutation.isPending}
+                            onClick={() => rsvpEventMutation.mutate({ id: selectedEvent.id, rsvpStatus: status })}
+                          >
+                            {status}
+                          </Button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -2068,17 +2729,29 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                   </div>
                 )}
 
-                {/* Shares list */}
+                {/* Shares list with Attendee RSVP indicators */}
                 {selectedEvent.shares && selectedEvent.shares.length > 0 && (
                   <div className="border-t pt-2">
                     <Label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                      Shared Access ({selectedEvent.shares.length})
+                      Invited Attendees ({selectedEvent.shares.length})
                     </Label>
                     <div className="space-y-1">
                       {selectedEvent.shares.map((s, idx) => (
                         <div key={idx} className="flex items-center justify-between p-1.5 rounded bg-muted/40 text-xs">
                           <span className="font-medium text-[11px] truncate">{s.recipientId}</span>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "text-[9px] capitalize",
+                                s.rsvpStatus === "accepted" && "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+                                s.rsvpStatus === "tentative" && "bg-amber-500/15 text-amber-700 border-amber-500/30",
+                                s.rsvpStatus === "declined" && "bg-rose-500/15 text-rose-700 border-rose-500/30",
+                                (!s.rsvpStatus || s.rsvpStatus === "pending") && "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              RSVP: {s.rsvpStatus || "pending"}
+                            </Badge>
                             <Badge variant="outline" className="text-[10px] capitalize">
                               {s.permission === "edit" ? "Can Edit" : "View Only"}
                             </Badge>
@@ -2166,29 +2839,61 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 </>
               ) : (
                 <>
-                  <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenAuditTrail(selectedEvent.id)}
+                      className="gap-1.5 text-xs"
+                      title="View complete audit trail"
+                    >
+                      <History className="size-3.5" /> Audit Trail
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        window.open(`/api/calendar/events/${selectedEvent.id}/export/ics`, "_blank");
+                      }}
+                      className="gap-1.5 text-xs"
+                      title="Export event as iCalendar (.ics)"
+                    >
+                      <Download className="size-3.5" /> .ics
+                    </Button>
+                    {isUserOwnerOrAdmin && selectedEvent.status !== "cancelled" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelClick}
+                        disabled={cancelEventMutation.isPending}
+                        className="gap-1 text-xs text-amber-700 hover:text-amber-800 border-amber-500/40 hover:bg-amber-500/10"
+                      >
+                        <Ban className="size-3.5" /> Cancel Event
+                      </Button>
+                    )}
                     {isUserOwnerOrAdmin && (
                       <Button
                         variant="destructive"
                         size="sm"
                         onClick={() => {
-                          if (confirm("Are you sure you want to delete this calendar event?")) {
+                          if (confirm("Are you sure you want to permanently delete this calendar event?")) {
                             deleteEventMutation.mutate(selectedEvent.id);
                           }
                         }}
-                        className="gap-1.5"
+                        disabled={deleteEventMutation.isPending}
+                        className="gap-1 text-xs"
                       >
                         <Trash2 className="size-3.5" /> Delete
                       </Button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {canUserEdit && (
+                    {canUserEdit && selectedEvent.status !== "cancelled" && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setIsEditingEvent(true)}
-                        className="gap-1.5"
+                        className="gap-1.5 text-xs"
                       >
                         <Edit2 className="size-3.5" /> Edit
                       </Button>
@@ -2202,6 +2907,219 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             </DialogFooter>
           </DialogContent>
         )}
+      </Dialog>
+
+      {/* ─── CONFLICT WARNING MODAL ─── */}
+      <Dialog open={conflictModalOpen} onOpenChange={setConflictModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-amber-600">
+              <AlertCircle className="size-4" /> Scheduling Conflict Detected
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              One or more attendees or resources have overlapping commitments during this scheduled time.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            {conflictData?.attendeeConflicts && conflictData.attendeeConflicts.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Users className="size-3.5 text-teal-600" /> Attendee Overlaps ({conflictData.attendeeConflicts.length})
+                </Label>
+                <div className="space-y-1 max-h-36 overflow-y-auto">
+                  {conflictData.attendeeConflicts.map((c: any, idx: number) => (
+                    <div key={idx} className="p-2 rounded bg-amber-500/10 border border-amber-500/20 text-xs">
+                      <p className="font-semibold text-foreground">{c.attendeeName || c.attendeeId}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {c.reason || "Busy: Scheduled Commitment"} • {c.conflictingEventTime || ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {conflictData?.roomConflicts && conflictData.roomConflicts.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Building2 className="size-3.5 text-teal-600" /> Room Double-Booking
+                </Label>
+                <div className="space-y-1">
+                  {conflictData.roomConflicts.map((c: any, idx: number) => (
+                    <div key={idx} className="p-2 rounded bg-destructive/10 border border-destructive/20 text-xs">
+                      <p className="font-semibold text-foreground">{c.roomName || "Meeting Room"}</p>
+                      <p className="text-[11px] text-destructive mt-0.5">
+                        Already booked: {c.conflictingEventTitle || "Conflicting Session"} ({c.conflictingEventTime || ""})
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+            <Button variant="outline" size="sm" onClick={() => setConflictModalOpen(false)}>
+              Change Time / Room
+            </Button>
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white font-medium"
+              onClick={() => {
+                if (pendingAction === "create" && pendingPayload) {
+                  createEventMutation.mutate({ ...pendingPayload, ignoreConflicts: true });
+                } else if (pendingAction === "update" && pendingPayload) {
+                  executeEventUpdate(undefined, true);
+                }
+              }}
+            >
+              Proceed Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── RECURRENCE SCOPE MODAL ─── */}
+      <Dialog open={recurrenceScopeModalOpen} onOpenChange={setRecurrenceScopeModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Repeat className="size-4 text-teal-600" />
+              {recurrenceActionType === "cancel" ? "Cancel Recurring Event" : "Edit Recurring Event"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This event is part of a recurring series. Choose how you want to apply your changes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-3 text-xs">
+            <div
+              onClick={() => setSelectedRecurrenceScope("this_occurrence")}
+              className={cn(
+                "p-3 rounded-lg border cursor-pointer transition-all flex items-start gap-3",
+                selectedRecurrenceScope === "this_occurrence"
+                  ? "border-teal-600 bg-teal-500/10 text-foreground ring-1 ring-teal-600"
+                  : "border-border hover:bg-muted/40"
+              )}
+            >
+              <input
+                type="radio"
+                name="recurrence_scope"
+                checked={selectedRecurrenceScope === "this_occurrence"}
+                onChange={() => setSelectedRecurrenceScope("this_occurrence")}
+                className="mt-0.5 text-teal-600"
+              />
+              <div>
+                <p className="font-semibold text-xs">This occurrence only</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Applies only to this specific date. All other occurrences in the series remain unchanged.
+                </p>
+              </div>
+            </div>
+
+            <div
+              onClick={() => setSelectedRecurrenceScope("all_occurrences")}
+              className={cn(
+                "p-3 rounded-lg border cursor-pointer transition-all flex items-start gap-3",
+                selectedRecurrenceScope === "all_occurrences"
+                  ? "border-teal-600 bg-teal-500/10 text-foreground ring-1 ring-teal-600"
+                  : "border-border hover:bg-muted/40"
+              )}
+            >
+              <input
+                type="radio"
+                name="recurrence_scope"
+                checked={selectedRecurrenceScope === "all_occurrences"}
+                onChange={() => setSelectedRecurrenceScope("all_occurrences")}
+                className="mt-0.5 text-teal-600"
+              />
+              <div>
+                <p className="font-semibold text-xs">All occurrences in series</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Applies to every occurrence in this recurring series across all dates.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRecurrenceScopeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className={cn(
+                "text-white font-medium",
+                recurrenceActionType === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-teal-700 hover:bg-teal-800"
+              )}
+              onClick={() => {
+                if (recurrenceActionType === "cancel" && selectedEvent) {
+                  cancelEventMutation.mutate({
+                    id: selectedEvent.id,
+                    recurrenceScope: selectedRecurrenceScope,
+                  });
+                } else if (recurrenceActionType === "edit") {
+                  executeEventUpdate(selectedRecurrenceScope);
+                }
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── AUDIT TRAIL MODAL ─── */}
+      <Dialog open={auditModalOpen} onOpenChange={setAuditModalOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <History className="size-4 text-teal-600" /> Calendar Event Audit Trail
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Complete chronological log of modifications, permissions, and RSVP states for this event.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-2 text-xs">
+            {isLoadingAudit ? (
+              <div className="py-8 text-center text-muted-foreground text-xs">Loading audit trail...</div>
+            ) : auditLogs.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-xs">No audit records found for this event.</div>
+            ) : (
+              <div className="space-y-2">
+                {auditLogs.map((log: any) => (
+                  <div key={log.id} className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                        {log.action}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {log.createdAt ? format(new Date(log.createdAt), "MMM d, yyyy h:mm:ss a") : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span>Actor: <strong className="text-foreground">{log.user?.email || log.userId || "System"}</strong></span>
+                      {log.ipAddress && <span>• IP: {log.ipAddress}</span>}
+                    </div>
+                    {log.details && (
+                      <div className="text-[10px] bg-background/80 p-1.5 rounded font-mono text-muted-foreground overflow-x-auto">
+                        {typeof log.details === "string" ? log.details : JSON.stringify(log.details)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button size="sm" onClick={() => setAuditModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );

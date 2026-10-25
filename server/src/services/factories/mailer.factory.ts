@@ -101,7 +101,7 @@ export class MailerFactory {
         decryptSecrets: true,
       });
 
-      if (emailGroup?.values) {
+      if (emailGroup?.values && emailGroup.values["email.smtp_host"]) {
         const v = emailGroup.values;
         if (v["email.provider_type"]) providerType = String(v["email.provider_type"]);
         if (v["email.smtp_host"]) host = String(v["email.smtp_host"]).trim();
@@ -109,12 +109,36 @@ export class MailerFactory {
           port = Number(v["email.smtp_port"]);
         }
         if (v["email.smtp_user"]) user = String(v["email.smtp_user"]).trim();
-        if (v["email.smtp_password"]) pass = String(v["email.smtp_password"]).trim();
+        if (v["email.smtp_password"] && !String(v["email.smtp_password"]).includes("••••")) {
+          pass = String(v["email.smtp_password"]).trim();
+        }
         if (v["email.smtp_encryption"]) encryption = v["email.smtp_encryption"] as any;
         if (v["email.from_name"]) fromName = String(v["email.from_name"]).trim();
         if (v["email.from_email"]) fromEmail = String(v["email.from_email"]).trim();
         if (v["email.reply_to"]) replyTo = String(v["email.reply_to"]).trim();
         if (v["email.ignore_tls"] !== undefined) ignoreTls = Boolean(v["email.ignore_tls"]);
+      } else {
+        // Fallback check to system-platform-settings in cmsPage
+        try {
+          const { prisma } = await import("../../prisma");
+          const page = await prisma.cmsPage.findFirst({
+            where: { slug: { in: ["system-platform-settings", "global-super-settings"] } },
+            orderBy: { updatedAt: "desc" },
+          });
+          if (page?.content) {
+            const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
+            if (c.smtpHost) host = String(c.smtpHost).trim();
+            if (c.smtpPort) port = Number(c.smtpPort);
+            if (c.smtpUser) user = String(c.smtpUser).trim();
+            const passVal = c.smtpPass || c.smtpPassword;
+            if (passVal && !String(passVal).includes("••••")) pass = String(passVal).trim();
+            if (c.smtpEncryption) encryption = c.smtpEncryption;
+            if (c.smtpFromName) fromName = c.smtpFromName;
+            if (c.smtpFromEmail) fromEmail = c.smtpFromEmail;
+            if (c.smtpReplyTo) replyTo = c.smtpReplyTo;
+            if (c.smtpIgnoreTls !== undefined) ignoreTls = Boolean(c.smtpIgnoreTls);
+          }
+        } catch {}
       }
     } catch (err: any) {
       console.warn(`[MailerFactory] Failed to resolve settings for ${scope}:${tenantId}:`, err?.message);
@@ -215,22 +239,48 @@ export class MailerFactory {
   static async verifyConnection(
     scope: SettingScopeType = "PLATFORM",
     tenantId?: string | null
-  ): Promise<{ ok: boolean; message: string; error?: string }> {
+  ): Promise<{ ok: boolean; message: string; error?: string; errorType?: "DNS" | "TCP" | "TLS" | "AUTH" | "CONFIG" | "UNKNOWN" }> {
     try {
+      const currentSettings = await this.resolveSettings(scope, tenantId);
+      if (!currentSettings.host) {
+        return {
+          ok: false,
+          message: "SMTP Host is not configured.",
+          error: "CONFIGURATION_ERROR: SMTP_HOST is blank.",
+          errorType: "CONFIG",
+        };
+      }
+
       const transporter = await this.getTransporter(scope, tenantId);
       if (this.testTransport) {
         return { ok: true, message: "Test transport connection verified successfully." };
       }
 
       await transporter.verify();
-      return { ok: true, message: "SMTP server connection verified successfully." };
+      return { ok: true, message: `SMTP socket handshake and authentication to ${currentSettings.host}:${currentSettings.port} verified successfully.` };
     } catch (err: any) {
       // Sanitize error message to prevent leaking credentials
-      const sanitized = (err?.message || "Connection failed").replace(/(pass(word)?\s*[:=]\s*)[^\s&]+/gi, "$1***");
+      const rawMsg = err?.message || "Connection failed";
+      const sanitized = rawMsg.replace(/(pass(word)?\s*[:=]\s*)[^\s&]+/gi, "$1***");
+      const code = err?.code || "";
+      const responseCode = err?.responseCode || 0;
+
+      let errorType: "DNS" | "TCP" | "TLS" | "AUTH" | "CONFIG" | "UNKNOWN" = "UNKNOWN";
+      if (code === "ENOTFOUND" || code === "EAI_AGAIN" || sanitized.includes("getaddrinfo")) {
+        errorType = "DNS";
+      } else if (code === "ECONNREFUSED" || code === "ETIMEDOUT" || code === "ECONNRESET" || sanitized.includes("connect ECONNREFUSED")) {
+        errorType = "TCP";
+      } else if (code === "ESOCKET" || sanitized.includes("self signed") || sanitized.includes("certificate") || sanitized.includes("TLS") || sanitized.includes("SSL")) {
+        errorType = "TLS";
+      } else if (responseCode === 535 || code === "EAUTH" || sanitized.includes("Username and Password not accepted") || sanitized.includes("authentication failed")) {
+        errorType = "AUTH";
+      }
+
       return {
         ok: false,
-        message: "Failed to connect to SMTP server.",
+        message: `SMTP handshake failed [${errorType}]: ${sanitized}`,
         error: sanitized,
+        errorType,
       };
     }
   }

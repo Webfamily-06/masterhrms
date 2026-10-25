@@ -132,7 +132,10 @@ app.set("trust proxy", 1);
 app.use(securityHeadersMiddleware);
 
 // CORS setup
-const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173,http://localhost:3000,http://localhost:8080")
+const defaultAllowedOrigins = process.env.NODE_ENV === "production"
+  ? "https://masterhrms.com,https://staging.masterhrms.com"
+  : "http://localhost:5173,http://localhost:3000,http://localhost:8080";
+const allowedOrigins = (process.env.CORS_ORIGIN || defaultAllowedOrigins)
   .split(",")
   .map((s) => s.trim());
 

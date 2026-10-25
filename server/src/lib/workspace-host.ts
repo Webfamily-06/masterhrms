@@ -24,9 +24,18 @@
 export function getBaseDomain(): string {
   const configured = process.env.BASE_DOMAIN;
   if (configured && configured.trim().length > 0) {
-    return configured.trim().toLowerCase();
+    const trimmed = configured.trim().toLowerCase();
+    if (process.env.NODE_ENV === "production" && (trimmed === "localhost" || trimmed === "127.0.0.1" || trimmed.endsWith(".localhost"))) {
+      console.warn("[Production Security Warning] BASE_DOMAIN is set to loopback address in production. Falling back to canonical production domain.");
+      return (process.env.PRODUCTION_FALLBACK_DOMAIN || "masterhrms.com").trim().toLowerCase();
+    }
+    return trimmed;
   }
-  // Fallback to localhost if unset
+  // Enforce production canonical domain when in production
+  if (process.env.NODE_ENV === "production") {
+    return (process.env.PRODUCTION_FALLBACK_DOMAIN || "masterhrms.com").trim().toLowerCase();
+  }
+  // Fallback to localhost if unset in development
   return "localhost";
 }
 
@@ -319,14 +328,18 @@ export function getWorkspaceUrl(slug: string, port?: number, baseDomainOverride?
   const base = (baseDomainOverride || getBaseDomain()).toLowerCase();
   const isDev = process.env.NODE_ENV !== "production";
 
-  if (base === "localhost") {
+  if (base === "localhost" || base.endsWith(".localhost")) {
+    if (!isDev) {
+      const prodDomain = (process.env.PRODUCTION_FALLBACK_DOMAIN || "masterhrms.com").trim().toLowerCase();
+      return `https://${slug}.${prodDomain}`;
+    }
     const defaultDevPort = process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT, 10) : 3000;
-    const p = port || (isDev ? defaultDevPort : 80);
+    const p = port || defaultDevPort;
     return p === 80 || p === 443 ? `http://${slug}.localhost` : `http://${slug}.localhost:${p}`;
   }
 
   const protocol = isDev ? "http" : "https";
-  const portSuffix = port && port !== 80 && port !== 443 ? `:${port}` : "";
+  const portSuffix = isDev && port && port !== 80 && port !== 443 ? `:${port}` : "";
   return `${protocol}://${slug}.${base}${portSuffix}`;
 }
 
@@ -336,7 +349,7 @@ export function getWorkspaceUrl(slug: string, port?: number, baseDomainOverride?
 export function getCustomDomainUrl(domain: string, port?: number): string {
   const isDev = process.env.NODE_ENV !== "production";
   const protocol = isDev ? "http" : "https";
-  const portSuffix = port && port !== 80 && port !== 443 ? `:${port}` : "";
+  const portSuffix = isDev && port && port !== 80 && port !== 443 ? `:${port}` : "";
   return `${protocol}://${domain}${portSuffix}`;
 }
 
@@ -355,14 +368,18 @@ export function getRootUrl(port?: number, baseDomainOverride?: string): string {
   const base = (baseDomainOverride || getBaseDomain()).toLowerCase();
   const isDev = process.env.NODE_ENV !== "production";
 
-  if (base === "localhost") {
+  if (base === "localhost" || base.endsWith(".localhost")) {
+    if (!isDev) {
+      const prodDomain = (process.env.PRODUCTION_FALLBACK_DOMAIN || "masterhrms.com").trim().toLowerCase();
+      return `https://${prodDomain}`;
+    }
     const defaultDevPort = process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT, 10) : 3000;
-    const p = port || (isDev ? defaultDevPort : 80);
+    const p = port || defaultDevPort;
     return p === 80 || p === 443 ? `http://localhost` : `http://localhost:${p}`;
   }
 
   const protocol = isDev ? "http" : "https";
-  const portSuffix = port && port !== 80 && port !== 443 ? `:${port}` : "";
+  const portSuffix = isDev && port && port !== 80 && port !== 443 ? `:${port}` : "";
   return `${protocol}://${base}${portSuffix}`;
 }
 

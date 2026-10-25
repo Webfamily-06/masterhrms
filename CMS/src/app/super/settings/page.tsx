@@ -147,6 +147,9 @@ export type SuperSettings = {
   smtpEncryption: "tls" | "ssl" | "none";
   smtpFromName: string;
   smtpFromEmail: string;
+  smtpReplyTo?: string;
+  smtpIgnoreTls?: boolean;
+  smtpProvider?: string;
 
   // Social Auth & OAuth 2.0 (Google, Apple, LinkedIn, Facebook)
   oauthBaseUrl: string;
@@ -262,6 +265,9 @@ const DEFAULT_SETTINGS: SuperSettings = {
   smtpEncryption: "tls" as any,
   smtpFromName: "Master HRMS System",
   smtpFromEmail: `no-reply@${getPlatformBaseDomain()}`,
+  smtpReplyTo: `support@${getPlatformBaseDomain()}`,
+  smtpIgnoreTls: false,
+  smtpProvider: "mailgun",
   otpEmailSubject: "{{appName}} — Your Login Verification Code",
   otpEmailTemplate: "",
 
@@ -481,7 +487,67 @@ function SuperSettingsAdmin() {
   const [showLinkedinSecret, setShowLinkedinSecret] = useState(false);
   const [showFacebookSecret, setShowFacebookSecret] = useState(false);
   const [showAppleKey, setShowAppleKey] = useState(false);
+  const [showPusherSecret, setShowPusherSecret] = useState(false);
+  const [isTestingPusher, setIsTestingPusher] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  async function handleTestSmtpHandshake() {
+    setIsTestingSmtp(true);
+    try {
+      // 1. First ensure current form SMTP settings are saved to backend
+      await api.put("/cms/pages/system-platform-settings", {
+        title: "System Platform Settings",
+        meta_description: "Global master configuration for currency, language, branding, SMTP, Pusher, and maintenance.",
+        content: form,
+        published: true,
+      });
+      // 2. Run SMTP connection verification probe
+      const res: any = await api.post("/v1/settings/PLATFORM/email/test", {});
+      if (res?.success) {
+        toast.success("SMTP Handshake Succeeded!", {
+          description: `${res.message || "Connection verified successfully."} (Latency: ${res.latencyMs || 0}ms)`,
+        });
+      } else {
+        toast.error("SMTP Handshake Failed", {
+          description: res?.error || "Unable to establish socket connection with configured SMTP host.",
+        });
+      }
+    } catch (err: any) {
+      toast.error("SMTP Test Error", {
+        description: err.response?.data?.error || err.message || "Failed to reach SMTP test endpoint.",
+      });
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  }
+
+  async function handleTestPusher() {
+    setIsTestingPusher(true);
+    try {
+      const res: any = await api.post("/pusher/test", {
+        appId: form.pusherAppId,
+        key: form.pusherKey,
+        secret: form.pusherSecret,
+        cluster: form.pusherCluster,
+      });
+      if (res?.success) {
+        toast.success("Pusher Connection Verified!", {
+          description: res.message || `Connected to cluster ${form.pusherCluster || "ap2"}.`,
+        });
+      } else {
+        toast.error("Pusher Connection Failed", {
+          description: res?.error || "Could not connect to Pusher with the provided credentials.",
+        });
+      }
+    } catch (err: any) {
+      toast.error("Pusher Test Error", {
+        description: err.response?.data?.error || err.message || "Failed to reach Pusher test endpoint.",
+      });
+    } finally {
+      setIsTestingPusher(false);
+    }
+  }
 
   function copyToClipboard(text: string, keyName: string) {
     if (!text) return toast.error("No callback URL generated to copy");
@@ -575,9 +641,10 @@ function SuperSettingsAdmin() {
     queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
       try {
-        const [brandingRes, paymentsRes] = await Promise.all([
+        const [brandingRes, paymentsRes, emailRes] = await Promise.all([
           api.get("/v1/settings/PLATFORM/branding").catch(() => null),
           api.get("/v1/settings/PLATFORM/payments").catch(() => null),
+          api.get("/v1/settings/PLATFORM/email").catch(() => null),
         ]);
         let cmsContent: any = {};
         try {
@@ -589,6 +656,20 @@ function SuperSettingsAdmin() {
           ...DEFAULT_SETTINGS,
           ...cmsContent,
         };
+
+        // Overlay authoritative email from SettingsService if available
+        if (emailRes?.values) {
+          const ev = emailRes.values;
+          if (ev["email.smtp_host"]) merged.smtpHost = ev["email.smtp_host"];
+          if (ev["email.smtp_port"]) merged.smtpPort = String(ev["email.smtp_port"]);
+          if (ev["email.smtp_user"]) merged.smtpUser = ev["email.smtp_user"];
+          if (ev["email.smtp_encryption"]) merged.smtpEncryption = ev["email.smtp_encryption"];
+          if (ev["email.from_name"]) merged.smtpFromName = ev["email.from_name"];
+          if (ev["email.from_email"]) merged.smtpFromEmail = ev["email.from_email"];
+          if (ev["email.reply_to"]) merged.smtpReplyTo = ev["email.reply_to"];
+          if (ev["email.ignore_tls"] !== undefined) merged.smtpIgnoreTls = Boolean(ev["email.ignore_tls"]);
+          if (ev["email.provider_type"]) merged.smtpProvider = ev["email.provider_type"];
+        }
 
         // Overlay authoritative payments from SettingsService if available
         if (paymentsRes?.values) {
@@ -690,6 +771,20 @@ function SuperSettingsAdmin() {
           "payments.bank_details": updatedForm.bankTransferDetails || "",
           "payments.currency": updatedForm.defaultCurrency || "INR",
         }).catch((err) => console.warn("Failed to sync payments to SettingsService:", err)),
+        api.put("/v1/settings/PLATFORM/email", {
+          "email.provider_type": updatedForm.smtpProvider || "custom",
+          "email.smtp_host": updatedForm.smtpHost || "",
+          "email.smtp_port": parseInt(updatedForm.smtpPort || "587", 10),
+          "email.smtp_user": updatedForm.smtpUser || "",
+          ...(updatedForm.smtpPass && !updatedForm.smtpPass.includes("••••")
+            ? { "email.smtp_password": updatedForm.smtpPass }
+            : {}),
+          "email.smtp_encryption": updatedForm.smtpEncryption || "tls",
+          "email.from_name": updatedForm.smtpFromName || "Master HRMS System",
+          "email.from_email": updatedForm.smtpFromEmail || `no-reply@${getPlatformBaseDomain()}`,
+          "email.reply_to": updatedForm.smtpReplyTo || `support@${getPlatformBaseDomain()}`,
+          "email.ignore_tls": Boolean(updatedForm.smtpIgnoreTls),
+        }).catch((err) => console.warn("Failed to sync email to SettingsService:", err)),
       ]);
 
       // 2. Also keep CMS page updated for backward compatibility
@@ -1941,7 +2036,7 @@ function SuperSettingsAdmin() {
         {/* TAB 3: SMTP PRIMARY MAIL ENGINE */}
         <TabsContent value="smtp" className="space-y-6 pt-4">
           <Card className="p-6 border shadow-xs space-y-6">
-            <div className="flex items-center justify-between border-b pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
                   <Mail className="size-5 text-primary" /> Primary SMTP Server Configuration
@@ -1951,12 +2046,71 @@ function SuperSettingsAdmin() {
                   mail host.
                 </p>
               </div>
-              <Button
-                onClick={() => setIsTestEmailModalOpen(true)}
-                className="gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
-              >
-                <Send className="size-3.5" /> Send Test Email
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestSmtpHandshake}
+                  disabled={isTestingSmtp}
+                  className="gap-1.5 text-xs font-semibold h-9"
+                  title="Probe TCP/TLS socket connection without sending an email"
+                >
+                  <RefreshCw className={cn("size-3.5 text-primary", isTestingSmtp && "animate-spin")} />
+                  {isTestingSmtp ? "Testing Socket..." : "Test SMTP Handshake"}
+                </Button>
+                <Button
+                  onClick={() => setIsTestEmailModalOpen(true)}
+                  className="gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 h-9"
+                >
+                  <Send className="size-3.5" /> Send Test Email
+                </Button>
+              </div>
+            </div>
+
+            {/* QUICK CLOUD PROVIDER PRESETS */}
+            <div className="space-y-2 p-3.5 rounded-xl border bg-muted/40">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                  <Sparkles className="size-3.5 text-primary" /> Quick Provider Presets
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono uppercase">
+                  Active: {form.smtpProvider || "custom"}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: "sendgrid", label: "SendGrid", host: "smtp.sendgrid.net", port: "587", enc: "tls" },
+                  { id: "mailgun", label: "Mailgun", host: "smtp.mailgun.org", port: "587", enc: "tls" },
+                  { id: "ses", label: "Amazon SES", host: "email-smtp.us-east-1.amazonaws.com", port: "587", enc: "tls" },
+                  { id: "google", label: "Google Workspace", host: "smtp.gmail.com", port: "587", enc: "tls" },
+                  { id: "microsoft365", label: "Microsoft 365", host: "smtp.office365.com", port: "587", enc: "tls" },
+                  { id: "postmark", label: "Postmark", host: "smtp.postmarkapp.com", port: "587", enc: "tls" },
+                  { id: "resend", label: "Resend", host: "smtp.resend.com", port: "587", enc: "tls" },
+                  { id: "brevo", label: "Brevo (Sendinblue)", host: "smtp-relay.brevo.com", port: "587", enc: "tls" },
+                  { id: "custom", label: "Custom SMTP", host: "", port: "587", enc: "tls" },
+                ].map((preset) => (
+                  <Button
+                    key={preset.id}
+                    type="button"
+                    variant={form.smtpProvider === preset.id ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-[11px] px-2.5 font-medium"
+                    onClick={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        smtpProvider: preset.id,
+                        ...(preset.host ? { smtpHost: preset.host } : {}),
+                        smtpPort: preset.port,
+                        smtpEncryption: preset.enc as any,
+                      }));
+                      toast.info(`Switched to ${preset.label} preset`);
+                    }}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1965,6 +2119,7 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.smtpHost}
                   onChange={(e) => setForm({ ...form, smtpHost: e.target.value })}
+                  placeholder="e.g. smtp.mailgun.org"
                   className="text-xs font-mono"
                 />
               </div>
@@ -1974,6 +2129,7 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.smtpPort}
                   onChange={(e) => setForm({ ...form, smtpPort: e.target.value })}
+                  placeholder="587"
                   className="text-xs font-mono"
                 />
               </div>
@@ -1988,9 +2144,9 @@ function SuperSettingsAdmin() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tls">TLS (Port 587)</SelectItem>
-                    <SelectItem value="ssl">SSL (Port 465)</SelectItem>
-                    <SelectItem value="none">None (Port 25)</SelectItem>
+                    <SelectItem value="tls">TLS / STARTTLS (Port 587)</SelectItem>
+                    <SelectItem value="ssl">SSL / SMTPS (Port 465)</SelectItem>
+                    <SelectItem value="none">None / Plain (Port 25)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2002,17 +2158,19 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.smtpUser}
                   onChange={(e) => setForm({ ...form, smtpUser: e.target.value })}
+                  placeholder="postmaster@yourdomain.com or API Key"
                   className="text-xs font-mono"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">SMTP Password</Label>
+                <Label className="text-xs font-semibold">SMTP Password / API Key Secret</Label>
                 <div className="relative">
                   <Input
                     type={showSmtpPassword ? "text" : "password"}
                     value={form.smtpPass}
                     onChange={(e) => setForm({ ...form, smtpPass: e.target.value })}
+                    placeholder="••••••••••••"
                     className="text-xs font-mono pr-9"
                   />
                   <button
@@ -2026,7 +2184,7 @@ function SuperSettingsAdmin() {
               </div>
             </div>
 
-                        <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Sender Display Name</Label>
                 <Input
@@ -2046,6 +2204,42 @@ function SuperSettingsAdmin() {
                   placeholder={`no-reply@${getPlatformBaseDomain()}`}
                 />
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Reply-To Email Address</Label>
+                <Input
+                  value={form.smtpReplyTo || `support@${getPlatformBaseDomain()}`}
+                  onChange={(e) => setForm({ ...form, smtpReplyTo: e.target.value })}
+                  className="text-xs font-mono"
+                  placeholder={`support@${getPlatformBaseDomain()}`}
+                />
+              </div>
+            </div>
+
+            {/* SECURITY & TLS SETTINGS */}
+            <div className="p-4 rounded-xl border bg-secondary/15 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="size-4 text-primary" /> Ignore TLS Certificate Errors (Development / Staging Only)
+                  </div>
+                  <div className="text-[11px] text-muted-foreground leading-relaxed">
+                    Bypass TLS/SSL certificate validation. Keep disabled in production to guarantee tamper-proof encrypted transport.
+                  </div>
+                </div>
+                <Switch
+                  checked={Boolean(form.smtpIgnoreTls)}
+                  onCheckedChange={(checked) => setForm({ ...form, smtpIgnoreTls: checked })}
+                />
+              </div>
+              {form.smtpIgnoreTls && (
+                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <AlertTriangle className="size-4 shrink-0" />
+                  <span>
+                    <strong>Security Warning:</strong> Disabling TLS certificate verification exposes credentials and email payloads to Man-in-the-Middle (MitM) inspection. Use only with trusted internal mail relays or staging mock SMTP servers.
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* 2FA EMAIL OTP HTML TEMPLATE SECTION */}
@@ -2782,31 +2976,165 @@ function SuperSettingsAdmin() {
         <TabsContent value="pusher" className="space-y-6 pt-4">
           <Card className="p-6 border shadow-xs space-y-6">
             <div className="flex items-center justify-between border-b pb-4">
-              <h3 className="font-bold text-base flex items-center gap-2">
-                <Radio className="size-5 text-primary" /> Pusher WebSockets Realtime Engine
-              </h3>
-              <Switch
-                checked={form.pusherEnabled}
-                onCheckedChange={(checked) => setForm({ ...form, pusherEnabled: checked })}
-              />
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Radio className="size-5 text-primary" /> Pusher WebSockets Realtime Engine
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Configure live cloud Pusher channels for instant UI notification toasts, calendar sync, and attendance updates.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium border ${
+                  form.pusherEnabled
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                    : "bg-muted text-muted-foreground border-border"
+                }`}>
+                  {form.pusherEnabled ? "Active & Broadcasting" : "Disabled"}
+                </span>
+                <Switch
+                  checked={form.pusherEnabled}
+                  onCheckedChange={(checked) => setForm({ ...form, pusherEnabled: checked })}
+                />
+              </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
+            {/* Architecture / Information Callout */}
+            <div className="rounded-xl border bg-primary/5 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <ShieldCheck className="size-4" />
+                <span>Enterprise Realtime Infrastructure</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Pusher powers end-to-end WebSocket broadcasting across all employee and admin portals. When active, calendar invites, reminder alerts, payroll notifications, and live punches appear instantly as desktop and UI toasts without browser page refresh.
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-5">
+              {/* Field 1: Pusher App ID */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Pusher App ID</Label>
+                <Label className="text-xs font-semibold">Pusher App ID *</Label>
                 <Input
                   value={form.pusherAppId}
                   onChange={(e) => setForm({ ...form, pusherAppId: e.target.value })}
+                  placeholder="e.g. 1789012"
                   className="text-xs font-mono"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  The numeric application identifier assigned in your Pusher Channels dashboard.
+                </p>
               </div>
+
+              {/* Field 2: Pusher App Key */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Pusher App Key</Label>
+                <Label className="text-xs font-semibold">Pusher App Key *</Label>
                 <Input
                   value={form.pusherKey}
                   onChange={(e) => setForm({ ...form, pusherKey: e.target.value })}
+                  placeholder="e.g. 4a2b3c4d5e6f7g8h9i0j"
                   className="text-xs font-mono"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Public application key used by browser clients to establish WebSocket connections.
+                </p>
+              </div>
+
+              {/* Field 3: Pusher App Secret (MISSING FIELD ADDED) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Pusher App Secret *</Label>
+                <div className="relative">
+                  <Input
+                    type={showPusherSecret ? "text" : "password"}
+                    value={form.pusherSecret}
+                    onChange={(e) => setForm({ ...form, pusherSecret: e.target.value })}
+                    placeholder="•••••••••••••••• (leave blank to keep current)"
+                    className="text-xs font-mono pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPusherSecret(!showPusherSecret)}
+                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                    title={showPusherSecret ? "Hide secret" : "Show secret"}
+                  >
+                    {showPusherSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Server-side cryptographic secret for signing private user & tenant channel authorizations.
+                </p>
+              </div>
+
+              {/* Field 4: Pusher Cluster (MISSING FIELD ADDED) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Pusher Cluster *</Label>
+                <Input
+                  value={form.pusherCluster}
+                  onChange={(e) => setForm({ ...form, pusherCluster: e.target.value })}
+                  placeholder="e.g. ap2"
+                  className="text-xs font-mono"
+                />
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-muted-foreground">Quick select:</span>
+                  {[
+                    { id: "ap2", label: "ap2 (Mumbai)" },
+                    { id: "mt1", label: "mt1 (US East)" },
+                    { id: "eu", label: "eu (Frankfurt)" },
+                    { id: "ap1", label: "ap1 (Singapore)" },
+                    { id: "us2", label: "us2 (Ohio)" },
+                  ].map((cluster) => (
+                    <button
+                      key={cluster.id}
+                      type="button"
+                      onClick={() => setForm({ ...form, pusherCluster: cluster.id })}
+                      className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                        form.pusherCluster === cluster.id
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/50 hover:bg-muted border-border text-foreground"
+                      }`}
+                    >
+                      {cluster.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Verification and Protocol Security Footer */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Lock className="size-4 text-emerald-600" />
+                <span>Transport Layer Security (TLS/WSS) enabled over Port 443</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestPusher}
+                  disabled={isTestingPusher || !form.pusherAppId || !form.pusherKey}
+                  className="gap-2"
+                >
+                  {isTestingPusher ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4 text-primary" />
+                  )}
+                  {isTestingPusher ? "Testing Connection..." : "Test Pusher Connection"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={saveMutation.isPending}
+                  className="gap-2"
+                >
+                  {saveMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  Save Pusher Settings
+                </Button>
               </div>
             </div>
           </Card>

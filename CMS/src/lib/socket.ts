@@ -11,7 +11,12 @@ const RAW_API_URL =
     : "";
 const SOCKET_URL = RAW_API_URL
   ? RAW_API_URL.replace(/\/api\/?$/, "")
-  : "http://localhost:4000";
+  : (typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1" &&
+    !window.location.hostname.endsWith(".localhost")
+      ? window.location.origin
+      : "http://localhost:4000");
 
 let globalSocket: Socket | null = null;
 
@@ -374,6 +379,101 @@ export function useRealtimeSocket() {
       onConnect();
     }
 
+    // Connect Pusher client when configured & enabled in Settings
+    let pusherClient: any = null;
+    let userChannel: any = null;
+    let tenantChannel: any = null;
+    const currentUserId = user?.id || (profile as any)?.userId;
+
+    if (typeof window !== "undefined") {
+      api
+        .get<any>("/pusher/config")
+        .then(async (res) => {
+          const cfg = res?.data || res;
+          if (!cfg?.enabled || !cfg?.key) return;
+
+          const PusherModule = await import("pusher-js");
+          const PusherClient = PusherModule.default || PusherModule;
+
+          const token = localStorage.getItem("hrms_auth_token");
+          pusherClient = new PusherClient(cfg.key, {
+            cluster: cfg.cluster || "ap2",
+            authEndpoint: `${SOCKET_URL}/api/pusher/auth`,
+            auth: {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          });
+
+          if (currentUserId) {
+            userChannel = pusherClient.subscribe(`private-user-${currentUserId}`);
+            userChannel.bind("notification:new", onNotification);
+            userChannel.bind("calendar:reminder-due", (data: any) => {
+              onNotification({
+                id: `reminder-${data?.reminderId || data?.eventId || Date.now()}`,
+                title: data?.title || "Calendar Reminder",
+                description: data?.message || data?.description || "Upcoming event scheduled",
+                type: "calendar",
+                timestamp: data?.timestamp || new Date().toISOString(),
+              });
+              qc.invalidateQueries({ queryKey: ["calendar-events"] });
+            });
+            userChannel.bind("calendar:event-shared", (data: any) => {
+              onNotification({
+                id: `share-${data?.eventId}-${Date.now()}`,
+                title: "Event Shared With You",
+                description: `${data?.sharedByName || "A colleague"} shared "${data?.eventTitle || "an event"}" with you`,
+                type: "calendar",
+                timestamp: data?.timestamp || new Date().toISOString(),
+              });
+              qc.invalidateQueries({ queryKey: ["calendar-events"] });
+            });
+            userChannel.bind("calendar:event-updated", (data: any) => {
+              onNotification({
+                id: `update-${data?.eventId}-${Date.now()}`,
+                title: "Calendar Event Updated",
+                description: `Event "${data?.eventTitle || "Scheduled event"}" was updated`,
+                type: "calendar",
+                timestamp: data?.timestamp || new Date().toISOString(),
+              });
+              qc.invalidateQueries({ queryKey: ["calendar-events"] });
+            });
+            userChannel.bind("calendar:event-cancelled", (data: any) => {
+              onNotification({
+                id: `cancel-${data?.eventId}-${Date.now()}`,
+                title: "Calendar Event Cancelled",
+                description: `Event "${data?.eventTitle || "Scheduled event"}" has been cancelled`,
+                type: "calendar",
+                timestamp: data?.timestamp || new Date().toISOString(),
+              });
+              qc.invalidateQueries({ queryKey: ["calendar-events"] });
+            });
+            userChannel.bind("calendar:rsvp-updated", (data: any) => {
+              onNotification({
+                id: `rsvp-${data?.eventId}-${data?.responderId || Date.now()}`,
+                title: "RSVP Response Received",
+                description: `${data?.responderName || "Attendee"} responded "${data?.status || "accepted"}" to "${data?.eventTitle || "event"}"`,
+                type: "calendar",
+                timestamp: data?.timestamp || new Date().toISOString(),
+              });
+              qc.invalidateQueries({ queryKey: ["calendar-events"] });
+            });
+          }
+
+          if (tenantId) {
+            tenantChannel = pusherClient.subscribe(`private-tenant-${tenantId}`);
+            tenantChannel.bind("punch:new", onNewPunch);
+            tenantChannel.bind("leave:updated", onLeaveUpdated);
+            tenantChannel.bind("notification:new", onNotification);
+            tenantChannel.bind("settings.updated", onSettingsUpdated);
+            tenantChannel.bind("payment:confirmed", onPaymentConfirmed);
+            tenantChannel.bind("payment:rejected", onPaymentRejected);
+          }
+        })
+        .catch(() => {});
+    }
+
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
@@ -386,8 +486,14 @@ export function useRealtimeSocket() {
       socket.off("subscription:updated", onSubscriptionUpdated);
       socket.off("super:transaction_updated", onSuperTransactionUpdated);
       socket.off("settings.updated", onSettingsUpdated);
+
+      if (pusherClient) {
+        if (userChannel) userChannel.unbind_all();
+        if (tenantChannel) tenantChannel.unbind_all();
+        pusherClient.disconnect();
+      }
     };
-  }, [tenantId, qc]);
+  }, [tenantId, user?.id, qc]);
 
   const markAllAsRead = () => {
     const updated = memoryNotifications.map((n) => ({ ...n, read: true }));

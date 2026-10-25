@@ -92,12 +92,15 @@ export async function getDynamicEmailConfig(options: EmailConfigOptions = {}): P
     if (page?.content) {
       const c = typeof page.content === "string" ? JSON.parse(page.content) : (page.content as any);
 
-      if (c.smtpHost && c.smtpUser && c.smtpPass) {
+      if (c.smtpHost && c.smtpUser) {
         host = String(c.smtpHost).trim();
-        port = parseInt(String(c.smtpPort || "465"), 10);
+        port = parseInt(String(c.smtpPort || "587"), 10);
         user = String(c.smtpUser).trim();
-        pass = String(c.smtpPass).trim();
-        encryption = (c.smtpEncryption || "ssl") as any;
+        const passVal = c.smtpPass || c.smtpPassword;
+        if (passVal && !String(passVal).includes("••••")) {
+          pass = String(passVal).trim();
+        }
+        encryption = (c.smtpEncryption || "tls") as any;
         if (c.smtpFromName) fromName = c.smtpFromName;
         if (c.smtpFromEmail) fromEmail = c.smtpFromEmail;
         if (c.smtpIgnoreTls !== undefined) {

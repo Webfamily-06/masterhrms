@@ -17,8 +17,10 @@ export interface CalendarReminder {
 export interface CalendarShare {
   recipientId: string;
   permission: "view" | "edit";
+  rsvpStatus?: "pending" | "accepted" | "declined" | "tentative";
   sharedBy: string;
   createdAt: string;
+  respondedAt?: string | null;
 }
 
 export interface CalendarMeta {
@@ -57,6 +59,7 @@ export function parseCalendarMetadata(description: string | null): CalendarMeta 
       shares.push({
         recipientId: rId,
         permission: "view",
+        rsvpStatus: "pending",
         sharedBy: "system",
         createdAt: new Date().toISOString(),
       });
@@ -125,6 +128,7 @@ export class CalendarReminderScheduler {
 
   /**
    * Evaluates events with pending reminders and dispatches notifications when due.
+   * Utilizes relational CalendarEventReminder model with fallback to legacy description metadata.
    */
   public static async processDueReminders(targetTenantId?: string): Promise<{
     evaluatedCount: number;
@@ -136,16 +140,306 @@ export class CalendarReminderScheduler {
     const minStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const maxStart = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    const where: any = {
-      startDate: { gte: minStart, lte: maxStart },
-      description: { contains: "<!--META:" },
-    };
-    if (targetTenantId) {
-      where.tenantId = targetTenantId;
+    let dispatchedCount = 0;
+    const details: Array<{ eventId: string; reminderId: string; minutesBefore: number; channel: string }> = [];
+
+    // 0. Recover orphaned "processing" reminders from crashed scheduler workers (> 5 mins old)
+    try {
+      await prisma.calendarEventReminder.updateMany({
+        where: {
+          status: "processing",
+          updatedAt: { lt: new Date(now.getTime() - 5 * 60 * 1000) },
+        },
+        data: {
+          status: "retryable_failure",
+          nextRetryAt: now,
+        },
+      });
+    } catch (recoverErr: any) {
+      console.warn("[CalendarReminderScheduler] Orphan recovery warning:", recoverErr.message);
     }
 
-    const events = await prisma.calendarEvent.findMany({
-      where,
+    // 1. Process relational reminders (pending or eligible retryable_failure)
+    const relationalReminders = await prisma.calendarEventReminder.findMany({
+      where: {
+        OR: [
+          { status: "pending" },
+          { status: "retryable_failure", nextRetryAt: { lte: now } },
+        ],
+        event: {
+          ...(targetTenantId ? { tenantId: targetTenantId } : {}),
+          status: { not: "cancelled" },
+          startDate: { gte: minStart, lte: maxStart },
+        },
+      },
+      include: {
+        event: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: { select: { fullName: true } },
+              },
+            },
+            shares: true,
+          },
+        },
+      },
+      take: 50,
+    });
+
+    const processedEventIds = new Set<string>();
+
+    for (const r of relationalReminders) {
+      const ev = r.event;
+      if (!ev) continue;
+      processedEventIds.add(ev.id);
+
+      const eventStartTime = ev.startDate.getTime();
+      const dueTime = r.customScheduledAt
+        ? new Date(r.customScheduledAt).getTime()
+        : eventStartTime - r.minutesBefore * 60 * 1000;
+
+      if (now.getTime() >= dueTime) {
+        // Atomic claim: Mark processing to prevent concurrent worker execution
+        try {
+          const claimResult = await prisma.calendarEventReminder.updateMany({
+            where: { id: r.id, status: { in: ["pending", "retryable_failure"] } },
+            data: { status: "processing" },
+          });
+          if (claimResult.count === 0) {
+            continue; // Claimed by another concurrent worker instance
+          }
+        } catch {
+          continue; // Claimed by another worker
+        }
+
+        // Collect target users (organizer + shared recipients)
+        const targetUserIds = new Set<string>();
+        targetUserIds.add(ev.userId);
+        for (const s of ev.shares) {
+          targetUserIds.add(s.recipientId);
+        }
+
+        let reminderText: string;
+        if (r.customScheduledAt) {
+          const customDate = new Date(r.customScheduledAt);
+          const formattedCustom = customDate.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          reminderText = `Scheduled for ${formattedCustom}`;
+        } else if (r.minutesBefore === 0) {
+          reminderText = "Starting now!";
+        } else if (r.minutesBefore === 5) {
+          reminderText = "Starting in 5 minutes";
+        } else if (r.minutesBefore === 15) {
+          reminderText = "Starting in 15 minutes";
+        } else if (r.minutesBefore === 30) {
+          reminderText = "Starting in 30 minutes";
+        } else if (r.minutesBefore === 60) {
+          reminderText = "Starting in 1 hour";
+        } else if (r.minutesBefore === 120) {
+          reminderText = "Starting in 2 hours";
+        } else if (r.minutesBefore === 300) {
+          reminderText = "Starting in 5 hours";
+        } else if (r.minutesBefore === 1440) {
+          reminderText = "Starting in 1 day";
+        } else if (r.minutesBefore === 390) {
+          reminderText = "Starting in 6.5 hours (390 minutes)";
+        } else {
+          reminderText = `Starting in ${r.minutesBefore} minutes`;
+        }
+
+        let inAppSuccess = false;
+        let emailSuccess = false;
+        let lastErrorMsg: string | null = null;
+
+        // Dispatch In-App Notification & Pusher
+        if (r.channel === "in_app" || r.channel === "both") {
+          for (const uid of targetUserIds) {
+            try {
+              await runWithTenantContext(
+                {
+                  tenantId: ev.tenantId,
+                  userId: uid,
+                  roles: ["employee"],
+                  status: "ACTIVE",
+                  tenancyStrategy: "SHARED_SCHEMA",
+                  db: prisma,
+                },
+                async () => {
+                  await NotificationService.createNotification({
+                    tenantId: ev.tenantId,
+                    userId: uid,
+                    title: `Calendar Reminder: ${ev.title}`,
+                    message: `${ev.title} is ${reminderText.toLowerCase()}.`,
+                    type: "CALENDAR_REMINDER",
+                    actionUrl: `/hr/calendar`,
+                    metadata: {
+                      eventId: ev.id,
+                      reminderId: r.id,
+                      minutesBefore: r.minutesBefore,
+                      customScheduledAt: r.customScheduledAt?.toISOString() || null,
+                    },
+                  });
+                }
+              );
+
+              await PusherService.triggerUserEvent(ev.tenantId, uid, "calendar:reminder-due", {
+                eventId: ev.id,
+                title: ev.title,
+                reminderText,
+                minutesBefore: r.minutesBefore,
+                customScheduledAt: r.customScheduledAt?.toISOString() || null,
+                startDate: ev.startDate.toISOString(),
+              });
+              inAppSuccess = true;
+            } catch (err: any) {
+              lastErrorMsg = `In-app error: ${err.message}`;
+              console.warn(`[CalendarReminderScheduler] In-app notification error for user ${uid}:`, err.message);
+            }
+          }
+        }
+
+        // Dispatch Email
+        if (r.channel === "email" || r.channel === "both") {
+          const users = await prisma.user.findMany({
+            where: { id: { in: Array.from(targetUserIds) } },
+            select: {
+              id: true,
+              email: true,
+              profile: { select: { fullName: true } },
+            },
+          });
+
+          const meta = parseCalendarMetadata(ev.description);
+
+          for (const u of users) {
+            if (u.email) {
+              try {
+                await sendCalendarNotificationEmail({
+                  toEmail: u.email,
+                  recipientName: u.profile?.fullName || u.email.split("@")[0],
+                  eventTitle: ev.title,
+                  eventDate: ev.startDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  }),
+                  eventStartTime: ev.allDay ? "All Day" : ev.startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  eventEndTime: ev.allDay ? "" : ev.endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  eventLocation: ev.location || "Workspace",
+                  eventCategory: ev.category,
+                  organizerName: ev.user?.profile?.fullName || ev.user?.email || "Organizer",
+                  eventDescription: meta.cleanDescription,
+                  reminderText,
+                  tenantId: ev.tenantId,
+                });
+                emailSuccess = true;
+              } catch (err: any) {
+                lastErrorMsg = `Email error: ${err.message}`;
+                console.warn(`[CalendarReminderScheduler] Email error for ${u.email}:`, err.message);
+              }
+            }
+          }
+        }
+
+        const isDispatched =
+          r.channel === "both"
+            ? inAppSuccess || emailSuccess
+            : r.channel === "in_app"
+            ? inAppSuccess
+            : emailSuccess;
+
+        // Channel isolated status tracking
+        const channelStatus = {
+          in_app: r.channel === "email" ? "n/a" : inAppSuccess ? "dispatched" : "failed",
+          email: r.channel === "in_app" ? "n/a" : emailSuccess ? "dispatched" : "failed",
+        };
+
+        if (isDispatched) {
+          // Exactly-once delivery success
+          await prisma.calendarEventReminder.update({
+            where: { id: r.id },
+            data: {
+              status: "dispatched",
+              dispatchedAt: new Date(),
+              lastError: null,
+              channelStatus,
+            },
+          });
+          dispatchedCount++;
+        } else {
+          // Transient delivery failure handling with exponential backoff
+          const currentRetries = (r.retryCount || 0) + 1;
+          const maxRetries = r.maxRetries || 3;
+          if (currentRetries < maxRetries) {
+            const backoffMs = Math.pow(2, currentRetries) * 60000; // 2m, 4m, 8m
+            await prisma.calendarEventReminder.update({
+              where: { id: r.id },
+              data: {
+                status: "retryable_failure",
+                retryCount: currentRetries,
+                nextRetryAt: new Date(now.getTime() + backoffMs),
+                lastError: lastErrorMsg || "Transient delivery failure",
+                channelStatus,
+              },
+            });
+          } else {
+            // Permanent failure after max retries
+            await prisma.calendarEventReminder.update({
+              where: { id: r.id },
+              data: {
+                status: "failed",
+                retryCount: currentRetries,
+                lastError: lastErrorMsg || "Maximum delivery retries exceeded",
+                channelStatus,
+              },
+            });
+          }
+        }
+
+        // Also sync description metadata if legacy block exists
+        if (ev.description && ev.description.includes("<!--META:")) {
+          const meta = parseCalendarMetadata(ev.description);
+          const remInMeta = meta.reminders.find((m) => m.id === r.id);
+          if (remInMeta) {
+            remInMeta.status = isDispatched ? "dispatched" : "failed";
+            remInMeta.dispatchedAt = new Date().toISOString();
+            const updatedDesc = serializeCalendarMetadata(meta.cleanDescription, meta.shares, meta.reminders);
+            await prisma.calendarEvent.update({
+              where: { id: ev.id },
+              data: { description: updatedDesc },
+            });
+          }
+        }
+
+        if (isDispatched) {
+          dispatchedCount++;
+        }
+
+        details.push({
+          eventId: ev.id,
+          reminderId: r.id,
+          minutesBefore: r.minutesBefore,
+          channel: r.channel,
+        });
+      }
+    }
+
+    // 2. Fallback for any legacy events without relational reminder records
+    const legacyEvents = await prisma.calendarEvent.findMany({
+      where: {
+        id: { notIn: Array.from(processedEventIds) },
+        startDate: { gte: minStart, lte: maxStart },
+        description: { contains: "<!--META:" },
+        status: { not: "cancelled" },
+        ...(targetTenantId ? { tenantId: targetTenantId } : {}),
+      },
       include: {
         user: {
           select: {
@@ -157,10 +451,7 @@ export class CalendarReminderScheduler {
       },
     });
 
-    let dispatchedCount = 0;
-    const details: Array<{ eventId: string; reminderId: string; minutesBefore: number; channel: string }> = [];
-
-    for (const ev of events) {
+    for (const ev of legacyEvents) {
       const meta = parseCalendarMetadata(ev.description);
       if (!meta.reminders || meta.reminders.length === 0) continue;
 
@@ -170,55 +461,23 @@ export class CalendarReminderScheduler {
       for (const r of meta.reminders) {
         if (r.status !== "pending") continue;
 
-        // Due time: if customScheduledAt is set, use its scheduled timestamp; otherwise calculate from offset
         const dueTime = r.customScheduledAt
           ? new Date(r.customScheduledAt).getTime()
           : eventStartTime - r.minutesBefore * 60 * 1000;
 
         if (now.getTime() >= dueTime) {
-          // It's due! Determine target participants (owner + shared recipients)
           const targetUserIds = new Set<string>();
           targetUserIds.add(ev.userId);
           for (const s of meta.shares) {
             targetUserIds.add(s.recipientId);
           }
 
-          let reminderText: string;
-          if (r.customScheduledAt) {
-            const customDate = new Date(r.customScheduledAt);
-            const formattedCustom = customDate.toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-            reminderText = `Scheduled for ${formattedCustom}`;
-          } else if (r.minutesBefore === 0) {
-            reminderText = "Starting now!";
-          } else if (r.minutesBefore === 5) {
-            reminderText = "Starting in 5 minutes";
-          } else if (r.minutesBefore === 15) {
-            reminderText = "Starting in 15 minutes";
-          } else if (r.minutesBefore === 30) {
-            reminderText = "Starting in 30 minutes";
-          } else if (r.minutesBefore === 60) {
-            reminderText = "Starting in 1 hour";
-          } else if (r.minutesBefore === 120) {
-            reminderText = "Starting in 2 hours";
-          } else if (r.minutesBefore === 300) {
-            reminderText = "Starting in 5 hours";
-          } else if (r.minutesBefore === 1440) {
-            reminderText = "Starting in 1 day";
-          } else if (r.minutesBefore === 390) {
-            reminderText = "Starting in 6.5 hours (390 minutes)";
-          } else {
-            reminderText = `Starting in ${r.minutesBefore} minutes`;
-          }
+          let reminderText = `Starting in ${r.minutesBefore} minutes`;
+          if (r.minutesBefore === 0) reminderText = "Starting now!";
 
           let inAppSuccess = false;
           let emailSuccess = false;
 
-          // 1. Dispatch In-App Notification & Pusher
           if (r.channel === "in_app" || r.channel === "both") {
             for (const uid of targetUserIds) {
               try {
@@ -248,78 +507,19 @@ export class CalendarReminderScheduler {
                     });
                   }
                 );
-
-                await PusherService.triggerUserEvent(ev.tenantId, uid, "calendar:reminder-due", {
-                  eventId: ev.id,
-                  title: ev.title,
-                  reminderText,
-                  minutesBefore: r.minutesBefore,
-                  customScheduledAt: r.customScheduledAt || null,
-                  startDate: ev.startDate.toISOString(),
-                });
                 inAppSuccess = true;
               } catch (err: any) {
-                console.warn(`[CalendarReminderScheduler] In-app notification error for user ${uid}:`, err);
+                console.warn(`[CalendarReminderScheduler] Legacy in-app notification error:`, err.message);
               }
             }
           }
 
-          // 2. Dispatch Email
-          if (r.channel === "email" || r.channel === "both") {
-            const users = await prisma.user.findMany({
-              where: { id: { in: Array.from(targetUserIds) } },
-              select: {
-                id: true,
-                email: true,
-                profile: { select: { fullName: true } },
-              },
-            });
-
-            for (const u of users) {
-              if (u.email) {
-                try {
-                  await sendCalendarNotificationEmail({
-                    toEmail: u.email,
-                    recipientName: u.profile?.fullName || u.email.split("@")[0],
-                    eventTitle: ev.title,
-                    eventDate: ev.startDate.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    }),
-                    eventStartTime: ev.allDay ? "All Day" : ev.startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                    eventEndTime: ev.allDay ? "" : ev.endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                    eventLocation: ev.location || "Workspace",
-                    eventCategory: ev.category,
-                    organizerName: ev.user?.profile?.fullName || ev.user?.email || "Organizer",
-                    eventDescription: meta.cleanDescription,
-                    reminderText,
-                    tenantId: ev.tenantId,
-                  });
-                  emailSuccess = true;
-                } catch (err: any) {
-                  console.warn(`[CalendarReminderScheduler] Email error for ${u.email}:`, err);
-                }
-              }
-            }
-          }
-
-          // Evaluate delivery status based on configured channel
-          const isDispatched =
-            r.channel === "both"
-              ? inAppSuccess || emailSuccess
-              : r.channel === "in_app"
-              ? inAppSuccess
-              : emailSuccess;
-
+          const isDispatched = inAppSuccess || emailSuccess;
           r.status = isDispatched ? "dispatched" : "failed";
           r.dispatchedAt = new Date().toISOString();
           eventModified = true;
 
-          if (isDispatched) {
-            dispatchedCount++;
-          }
-
+          if (isDispatched) dispatchedCount++;
           details.push({
             eventId: ev.id,
             reminderId: r.id,
@@ -330,14 +530,15 @@ export class CalendarReminderScheduler {
       }
 
       if (eventModified) {
-        const updatedDescription = serializeCalendarMetadata(meta.cleanDescription, meta.shares, meta.reminders);
+        const updatedDesc = serializeCalendarMetadata(meta.cleanDescription, meta.shares, meta.reminders);
         await prisma.calendarEvent.update({
           where: { id: ev.id },
-          data: { description: updatedDescription },
+          data: { description: updatedDesc },
         });
       }
     }
 
-    return { evaluatedCount: events.length, dispatchedCount, details };
+    const totalEvaluated = relationalReminders.length + legacyEvents.length;
+    return { evaluatedCount: totalEvaluated, dispatchedCount, details };
   }
 }

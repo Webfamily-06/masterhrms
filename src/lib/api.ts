@@ -2,7 +2,14 @@
  * Backend API Client for Master HRMS (Node.js + Express + MySQL)
  */
 
-export const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:4000/api";
+export const API_BASE =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
+  (typeof window !== "undefined" &&
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1" &&
+  !window.location.hostname.endsWith(".localhost")
+    ? "/api"
+    : "http://localhost:4000/api");
 
 export function getAuthToken(): string {
   if (typeof window === "undefined") return "";

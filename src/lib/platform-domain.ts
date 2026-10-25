@@ -12,10 +12,12 @@
  * source; prefer `branding.baseDomain` from useTenantBranding() when it is available.
  */
 export function getPlatformBaseDomain(): string {
-  const configured = (import.meta as any).env?.VITE_BASE_DOMAIN as string | undefined;
+  const configured = ((import.meta as any).env?.VITE_BASE_DOMAIN || (import.meta as any).env?.VITE_PLATFORM_DOMAIN) as string | undefined;
   if (configured && configured.trim()) return configured.trim().toLowerCase();
 
-  if (typeof window === "undefined") return "localhost";
+  if (typeof window === "undefined") {
+    return (import.meta as any).env?.PROD ? "masterhrms.com" : "localhost";
+  }
   const host = window.location.hostname.toLowerCase();
   if (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1") {
     return "localhost";
@@ -35,10 +37,10 @@ export function getWorkspaceHost(slug: string, baseDomain = getPlatformBaseDomai
  * and production ("masterhrms.com").
  */
 export function getPlatformDisplayBaseDomain(): string {
-  const configured = (import.meta as any).env?.VITE_BASE_DOMAIN as string | undefined;
+  const configured = ((import.meta as any).env?.VITE_BASE_DOMAIN || (import.meta as any).env?.VITE_PLATFORM_DOMAIN) as string | undefined;
   if (configured && configured.trim()) return configured.trim().toLowerCase();
 
-  if (typeof window === "undefined") return "masterhrms.com";
+  if (typeof window === "undefined") return (import.meta as any).env?.PROD ? "masterhrms.com" : "localhost:5173";
   const hostname = window.location.hostname.toLowerCase();
   const port = window.location.port ? `:${window.location.port}` : "";
 
@@ -53,6 +55,26 @@ export function getPlatformDisplayBaseDomain(): string {
     return `${parts.slice(1).join(".")}${port}`;
   }
   return `${hostname}${port}`;
+}
+
+/**
+ * Returns the canonical workspace URL for a tenant, respecting custom domains,
+ * subdomains, and the active local development port.
+ */
+export function getTenantWorkspaceUrl(
+  tenant: { domain?: string | null; slug?: string } | null | undefined,
+  targetPath = ""
+): string {
+  if (!tenant) return "#";
+  const normPath = targetPath ? (targetPath.startsWith("/") ? targetPath : `/${targetPath}`) : "";
+  if (tenant.domain && tenant.domain.trim()) {
+    const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
+    return `${protocol}//${tenant.domain.trim()}${normPath}`;
+  }
+  const slug = tenant.slug || "workspace";
+  const displayBase = getPlatformDisplayBaseDomain();
+  const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
+  return `${protocol}//${slug}.${displayBase}${normPath}`;
 }
 
 /** Default platform support mailbox derived from configuration. */

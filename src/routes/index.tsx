@@ -1,32 +1,51 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 function getCmsTargetUrl(): string {
-  if (typeof window === "undefined") return "http://localhost:3000";
-  const { protocol, hostname, search, hash } = window.location;
-  // If running on Vite port 5173, redirect to Next.js CMS on port 3000 preserving hostname and parameters
-  return `${protocol}//${hostname}:3000${search}${hash}`;
+  if (typeof window === "undefined") return "/";
+  const { protocol, hostname, port, search, hash } = window.location;
+  // If running on Vite port 5173 in local development, redirect to Next.js CMS on port 3000
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost")) {
+    return `${protocol}//${hostname}:3000${search}${hash}`;
+  }
+  // In staging or production, never append :3000 and never redirect to localhost!
+  const configuredAppUrl = (import.meta as any).env?.VITE_APP_URL || (import.meta as any).env?.VITE_PUBLIC_URL;
+  if (configuredAppUrl && !configuredAppUrl.includes("localhost")) {
+    return `${configuredAppUrl.replace(/\/+$/, "")}/${search}${hash}`;
+  }
+  // Same-origin root (without :3000 port leak)
+  return `${protocol}//${hostname}${port && port !== "80" && port !== "443" && port !== "5173" ? `:${port}` : ""}/${search}${hash}`;
 }
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
     if (typeof window !== "undefined") {
-      window.location.replace(getCmsTargetUrl());
+      const target = getCmsTargetUrl();
+      if (target && target !== window.location.href) {
+        window.location.replace(target);
+      }
     }
   },
   component: RedirectToCmsLanding,
   head: () => ({
     meta: [
       { title: "Redirecting to Webfamily CMS..." },
-      { "http-equiv": "refresh", content: "0;url=http://localhost:3000" },
+      // Note: Do NOT use a hardcoded meta http-equiv="refresh" with localhost:3000.
+      // In production, hardcoded localhost meta tags break external user browsing.
     ],
   }),
 });
 
 function RedirectToCmsLanding() {
+  const [targetUrl, setTargetUrl] = useState("/");
+
   useEffect(() => {
     if (typeof window !== "undefined") {
-      window.location.replace(getCmsTargetUrl());
+      const target = getCmsTargetUrl();
+      setTargetUrl(target);
+      if (target && target !== window.location.href) {
+        window.location.replace(target);
+      }
     }
   }, []);
 
@@ -37,8 +56,8 @@ function RedirectToCmsLanding() {
         <p className="text-base font-medium text-slate-300">Redirecting to Webfamily CMS...</p>
         <p className="text-xs text-slate-500">
           If you are not redirected automatically,{" "}
-          <a href="http://localhost:3000" className="text-blue-400 hover:underline">
-            click here to open http://localhost:3000
+          <a href={targetUrl} className="text-blue-400 hover:underline">
+            click here to proceed
           </a>
           .
         </p>

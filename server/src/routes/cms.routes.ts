@@ -697,6 +697,26 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
         } catch (payErr) {
           console.error("Failed to overlay payments onto system-platform-settings:", payErr);
         }
+
+        // Overlay authoritative email/SMTP from SettingsService
+        try {
+          const emailRes = await SettingsService.getGroup("email", "PLATFORM");
+          const eVals = emailRes?.values || {};
+          if (eVals["email.smtp_host"]) content.smtpHost = eVals["email.smtp_host"];
+          if (eVals["email.smtp_port"] !== undefined && eVals["email.smtp_port"] !== null) {
+            content.smtpPort = String(eVals["email.smtp_port"]);
+          }
+          if (eVals["email.smtp_user"]) content.smtpUser = eVals["email.smtp_user"];
+          if (eVals["email.smtp_encryption"]) content.smtpEncryption = eVals["email.smtp_encryption"];
+          if (eVals["email.from_name"]) content.smtpFromName = eVals["email.from_name"];
+          if (eVals["email.from_email"]) content.smtpFromEmail = eVals["email.from_email"];
+          if (eVals["email.reply_to"]) content.smtpReplyTo = eVals["email.reply_to"];
+          if (eVals["email.ignore_tls"] !== undefined) content.smtpIgnoreTls = Boolean(eVals["email.ignore_tls"]);
+          if (eVals["email.provider_type"]) content.smtpProvider = eVals["email.provider_type"];
+        } catch (emailErr) {
+          console.error("Failed to overlay email onto system-platform-settings:", emailErr);
+        }
+
         page.content = content;
       } catch (brandingErr) {
         console.error("Failed to overlay authoritative branding onto system-platform-settings:", brandingErr);
@@ -744,6 +764,7 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
         "smtpPass",
         "smtpPassword",
         "pusherAppSecret",
+        "pusherSecret",
         "livekitApiSecret",
         "slackClientSecret",
       ];
@@ -832,6 +853,7 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
         "smtpPass",
         "smtpPassword",
         "pusherAppSecret",
+        "pusherSecret",
         "livekitApiSecret",
         "slackClientSecret",
       ];
@@ -920,9 +942,40 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
         }
         if (content.paypalMode !== undefined) toSet["payments.paypal_mode"] = content.paypalMode;
 
+        // Sync Pusher WebSockets to SettingsService
+        if (content.pusherAppId !== undefined) toSet["pusher.app_id"] = content.pusherAppId;
+        if (content.pusherKey !== undefined) toSet["pusher.key"] = content.pusherKey;
+        const secretVal = content.pusherSecret || content.pusherAppSecret;
+        if (secretVal && typeof secretVal === "string" && !secretVal.includes("••••")) {
+          toSet["pusher.secret"] = secretVal;
+        }
+        if (content.pusherCluster !== undefined) toSet["pusher.cluster"] = content.pusherCluster;
+        if (content.pusherEnabled !== undefined) toSet["pusher.enabled"] = Boolean(content.pusherEnabled);
+
+        // Sync SMTP / Email to SettingsService
+        if (content.smtpHost !== undefined) toSet["email.smtp_host"] = String(content.smtpHost).trim();
+        if (content.smtpPort !== undefined) toSet["email.smtp_port"] = Number(content.smtpPort);
+        if (content.smtpUser !== undefined) toSet["email.smtp_user"] = String(content.smtpUser).trim();
+        const smtpPassVal = content.smtpPass || content.smtpPassword;
+        if (smtpPassVal && typeof smtpPassVal === "string" && !smtpPassVal.includes("••••")) {
+          toSet["email.smtp_password"] = String(smtpPassVal).trim();
+        }
+        if (content.smtpEncryption !== undefined) toSet["email.smtp_encryption"] = content.smtpEncryption;
+        if (content.smtpFromName !== undefined) toSet["email.from_name"] = content.smtpFromName;
+        if (content.smtpFromEmail !== undefined) toSet["email.from_email"] = content.smtpFromEmail;
+        if (content.smtpReplyTo !== undefined) toSet["email.reply_to"] = content.smtpReplyTo;
+        if (content.smtpIgnoreTls !== undefined) toSet["email.ignore_tls"] = Boolean(content.smtpIgnoreTls);
+        if (content.smtpProvider !== undefined) toSet["email.provider_type"] = content.smtpProvider;
+
         if (Object.keys(toSet).length > 0) {
           await SettingsService.setMany(toSet, "PLATFORM", null, req.user?.userId || null);
         }
+
+        // Reset singleton Pusher instance so fresh credentials take effect immediately
+        try {
+          const { PusherService } = await import("../services/pusher.service");
+          PusherService.resetInstance();
+        } catch {}
       } catch (syncErr) {
         console.error("Failed to sync system-platform-settings to SettingsService:", syncErr);
       }
@@ -938,6 +991,7 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
         "smtpPass",
         "smtpPassword",
         "pusherAppSecret",
+        "pusherSecret",
         "livekitApiSecret",
         "slackClientSecret",
       ];

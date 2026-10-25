@@ -39,6 +39,7 @@ pusherRouter.get("/config", requireAuth, async (req: AuthRequest, res: Response)
     return res.json({
       success: true,
       data: {
+        appId: config.appId,
         key: config.key,
         cluster: config.cluster,
         enabled: config.enabled,
@@ -46,5 +47,65 @@ pusherRouter.get("/config", requireAuth, async (req: AuthRequest, res: Response)
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Failed to load Pusher config" });
+  }
+});
+
+// POST /api/pusher/test - Test Pusher connectivity (super admin or admin)
+pusherRouter.post("/test", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const isSuperOrAdmin = req.user?.roles.some((r) =>
+      ["super_admin", "admin", "tenant_admin"].includes(r)
+    );
+    if (!isSuperOrAdmin) {
+      return res.status(403).json({ error: "Access denied: Super Admin or Admin role required" });
+    }
+
+    const { appId: testAppId, key: testKey, secret: testSecret, cluster: testCluster } = req.body || {};
+    const baseConfig = await PusherService.getConfig();
+
+    const appId = testAppId || baseConfig.appId;
+    const key = testKey || baseConfig.key;
+    let secret = testSecret && !testSecret.includes("••••") ? testSecret : baseConfig.secret;
+    const cluster = testCluster || baseConfig.cluster;
+
+    if (!appId || !key || !secret) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required Pusher credentials: App ID, Key, and Secret must all be configured.",
+      });
+    }
+
+    const PusherClass = (await import("pusher")).default;
+    const testClient = new PusherClass({
+      appId,
+      key,
+      secret,
+      cluster: cluster || "ap2",
+      useTLS: true,
+    });
+
+    // Test real event trigger on diagnostic channel
+    await testClient.trigger("system-test-channel", "test-connection", {
+      message: "Pusher connection verified from MASTERHRMS Platform Settings",
+      cluster,
+      timestamp: new Date().toISOString(),
+      testedBy: req.user?.userId,
+    });
+
+    return res.json({
+      success: true,
+      message: `Pusher connected and test event triggered successfully! (Cluster: ${cluster}, App ID: ${appId})`,
+      data: {
+        cluster,
+        appId,
+        key,
+      },
+    });
+  } catch (error: any) {
+    console.error("[PusherRoutes] Test error:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to connect to Pusher with provided credentials",
+    });
   }
 });

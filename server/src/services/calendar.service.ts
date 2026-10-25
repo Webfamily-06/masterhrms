@@ -4,12 +4,13 @@ export interface NormalizedCalendarEvent {
   id: string;
   title: string;
   description?: string;
-  category: "meeting" | "training" | "leave" | "holiday" | "event" | "birthday" | string;
+  category: "meeting" | "training" | "leave" | "holiday" | "event" | "birthday" | "anniversary" | "interview" | "onboarding" | string;
   startDate: string; // ISO string
   endDate: string; // ISO string
   allDay: boolean;
   location?: string;
-  sourceDomain: "meetings" | "training" | "leave" | "organization" | "calendar";
+  meetingLink?: string;
+  sourceDomain: "meetings" | "training" | "leave" | "organization" | "calendar" | "recruitment";
   sourceId: string;
   linkTo: string;
   status?: string;
@@ -17,6 +18,11 @@ export interface NormalizedCalendarEvent {
   avatarUrl?: string | null;
   employeeName?: string;
   employeeInitials?: string;
+  isRecurringInstance?: boolean;
+  originalStartTime?: string;
+  recurringSeriesId?: string | null;
+  recurrenceRule?: string | null;
+  roomId?: string | null;
 }
 
 export interface GetCalendarEventsOptions {
@@ -343,7 +349,235 @@ export class CalendarService {
       }
     }
 
-    // 6. AD-HOC CALENDAR EVENTS
+    // 6. EMPLOYEE WORK ANNIVERSARIES PROJECTION
+    if (!category || category === "all" || category === "anniversary" || category === "Anniversary") {
+      try {
+        const employees = await db.employee.findMany({
+          where: {
+            tenantId,
+            status: "active",
+            joinedAt: { not: null },
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            joinedAt: true,
+            position: true,
+            department: {
+              select: { name: true },
+            },
+            user: {
+              select: {
+                id: true,
+                profile: {
+                  select: {
+                    avatarUrl: true,
+                  },
+                },
+              },
+            },
+          },
+          take: 300,
+        });
+
+        const startYear = startFilter.getFullYear();
+        const endYear = endFilter.getFullYear();
+
+        for (const emp of employees) {
+          if (!emp.joinedAt) continue;
+          const joined = new Date(emp.joinedAt);
+          const joinYear = joined.getFullYear();
+          const joinMonth = joined.getUTCMonth();
+          const joinDate = joined.getUTCDate();
+
+          const avatarUrl = emp.user?.profile?.avatarUrl || null;
+          const initials = ((emp.firstName?.[0] || "") + (emp.lastName?.[0] || "")).toUpperCase() || "WA";
+
+          for (let yr = Math.max(startYear, joinYear + 1); yr <= endYear; yr++) {
+            const yearsCount = yr - joinYear;
+            if (yearsCount <= 0) continue;
+
+            let occDay = joinDate;
+            // Leap-year rule: if joined on Feb 29 and yr is not a leap year, celebrate on Feb 28
+            if (joinMonth === 1 && joinDate === 29) {
+              const isLeap = (yr % 4 === 0 && yr % 100 !== 0) || (yr % 400 === 0);
+              occDay = isLeap ? 29 : 28;
+            }
+
+            const yyyy = String(yr);
+            const mm = String(joinMonth + 1).padStart(2, "0");
+            const dd = String(occDay).padStart(2, "0");
+            const dateStr = `${yyyy}-${mm}-${dd}T00:00:00.000Z`;
+            const occDate = new Date(dateStr);
+
+            if (occDate >= startFilter && occDate <= endFilter) {
+              const fullName = `${emp.firstName} ${emp.lastName}`.trim();
+              const suffix = ["th", "st", "nd", "rd"][(yearsCount % 100 - 20) % 10] || ["th", "st", "nd", "rd"][yearsCount % 100] || "th";
+              const milestoneLabel = isHR || emp.id === employeeId ? `${yearsCount}${suffix} Work Anniversary (Joined ${joinYear})` : `${yearsCount}${suffix} Work Anniversary`;
+
+              events.push({
+                id: `anniversary-${emp.id}-${yr}`,
+                title: `Work Anniversary: ${fullName} (${yearsCount}${suffix})`,
+                description: `${fullName} is celebrating their ${milestoneLabel}.${emp.department?.name ? ` Department: ${emp.department.name}.` : ""}`,
+                category: "anniversary",
+                startDate: dateStr,
+                endDate: dateStr,
+                allDay: true,
+                sourceDomain: "organization",
+                sourceId: emp.id,
+                linkTo: isHR ? `/hr/employees` : `/me/organization`,
+                status: "active",
+                badgeColor: "bg-teal-500/15 text-teal-700 border-teal-500/30",
+                avatarUrl,
+                employeeName: fullName,
+                employeeInitials: initials,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("CalendarService: Failed to project employee work anniversaries:", err);
+      }
+    }
+
+    // 7. CANDIDATE INTERVIEWS PROJECTION
+    if (!category || category === "all" || category === "interview" || category === "Interview") {
+      try {
+        const interviewWhere: any = {
+          tenantId,
+          status: { notIn: ["cancelled", "deleted"] },
+          scheduledAt: { gte: startFilter, lte: endFilter },
+        };
+
+        if (!isHR) {
+          if (employeeId) {
+            interviewWhere.interviewerId = employeeId;
+          } else {
+            interviewWhere.id = "__none__";
+          }
+        }
+
+        const interviews = await db.jobCandidateInterview.findMany({
+          where: interviewWhere,
+          include: {
+            candidate: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                jobPosting: { select: { title: true } },
+              },
+            },
+            interviewer: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          take: 100,
+        });
+
+        for (const intv of interviews) {
+          const candName = intv.candidate?.fullName || "Candidate";
+          const jobTitle = intv.candidate?.jobPosting?.title ? ` - ${intv.candidate.jobPosting.title}` : "";
+          const interviewerName = intv.interviewer ? `${intv.interviewer.firstName} ${intv.interviewer.lastName}`.trim() : "Unassigned";
+          const startTime = new Date(intv.scheduledAt);
+          const endTime = new Date(startTime.getTime() + (intv.durationMinutes || 45) * 60000);
+
+          events.push({
+            id: `interview-${intv.id}`,
+            title: `Interview: ${candName} (${intv.roundName || intv.interviewType})${jobTitle}`,
+            description: `Candidate: ${candName}\nStage: ${intv.roundName || intv.interviewType} (Round ${intv.roundNumber})\nInterviewer: ${interviewerName}\nMode: ${intv.mode}${intv.notes ? `\nNotes: ${intv.notes}` : ""}`,
+            category: "interview",
+            startDate: startTime.toISOString(),
+            endDate: endTime.toISOString(),
+            allDay: false,
+            location: intv.meetingLink || intv.mode || "Virtual",
+            meetingLink: intv.meetingLink || undefined,
+            sourceDomain: "recruitment",
+            sourceId: intv.id,
+            linkTo: isHR ? `/hr/recruitment/interviews` : `/me/interviews`,
+            status: intv.status,
+            badgeColor: "bg-cyan-500/15 text-cyan-700 border-cyan-500/30",
+          });
+        }
+      } catch (err) {
+        console.warn("CalendarService: Failed to project candidate interviews:", err);
+      }
+    }
+
+    // 8. CANDIDATE ONBOARDING PROJECTION
+    if (!category || category === "all" || category === "onboarding" || category === "Onboarding") {
+      try {
+        const onboardingWhere: any = {
+          tenantId,
+          status: { notIn: ["dropped", "cancelled"] },
+          joiningDate: { gte: startFilter, lte: endFilter },
+        };
+
+        if (!isHR) {
+          if (employeeId) {
+            onboardingWhere.OR = [
+              { buddyId: employeeId },
+              { hrOwnerId: employeeId },
+            ];
+          } else {
+            onboardingWhere.id = "__none__";
+          }
+        }
+
+        const onboardings = await db.candidateOnboarding.findMany({
+          where: onboardingWhere,
+          include: {
+            candidate: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                jobPosting: { select: { title: true } },
+              },
+            },
+            hrOwner: {
+              select: { firstName: true, lastName: true },
+            },
+            buddy: {
+              select: { firstName: true, lastName: true },
+            },
+          },
+          take: 100,
+        });
+
+        for (const ob of onboardings) {
+          const candName = ob.candidate?.fullName || "Candidate";
+          const jobTitle = ob.candidate?.jobPosting?.title ? ` - ${ob.candidate.jobPosting.title}` : "";
+          const joinDate = new Date(ob.joiningDate);
+          const isCompleted = ob.status === "completed";
+
+          events.push({
+            id: `onboarding-${ob.id}`,
+            title: isCompleted ? `Joined: ${candName}${jobTitle}` : `Onboarding Joining: ${candName}${jobTitle}`,
+            description: `Candidate Joining Date: ${joinDate.toISOString().split("T")[0]}\nStatus: ${ob.status}${ob.buddy ? `\nAssigned Buddy: ${ob.buddy.firstName} ${ob.buddy.lastName}` : ""}${ob.hrOwner ? `\nHR Owner: ${ob.hrOwner.firstName} ${ob.hrOwner.lastName}` : ""}`,
+            category: "onboarding",
+            startDate: joinDate.toISOString(),
+            endDate: joinDate.toISOString(),
+            allDay: true,
+            sourceDomain: "recruitment",
+            sourceId: ob.id,
+            linkTo: isHR ? `/hr/recruitment/onboarding` : `/me/onboarding`,
+            status: ob.status,
+            badgeColor: "bg-fuchsia-500/15 text-fuchsia-700 border-fuchsia-500/30",
+          });
+        }
+      } catch (err) {
+        console.warn("CalendarService: Failed to project candidate onboardings:", err);
+      }
+    }
+
+    // 9. AD-HOC CALENDAR EVENTS
     if (!category || category === "all" || category === "event") {
       try {
         const eventWhere: any = {

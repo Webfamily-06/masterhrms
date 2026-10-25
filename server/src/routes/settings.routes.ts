@@ -102,6 +102,7 @@ settingsRouter.post("/:scope/:group/test", requireAuth, async (req: AuthRequest,
         return res.status(400).json({
           success: false,
           error: probe.error || "SMTP connection verification failed",
+          errorType: probe.errorType || "UNKNOWN",
           latencyMs,
         });
       }
