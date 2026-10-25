@@ -43,6 +43,9 @@ export const ROUTES = {
     data: "/tenant/data",
     auditLogs: "/tenant/audit-logs",
     support: "/tenant/support",
+    calendar: "/tenant/calendar",
+    todo: "/tenant/todo",
+    todoGantt: "/tenant/todo/gantt",
   },
 
   // ── HR Operations Portal (/hr/*) ──
@@ -51,6 +54,7 @@ export const ROUTES = {
     dashboard: "/hr/dashboard",
     calendar: "/hr/calendar",
     todo: "/hr/todo",
+    todoGantt: "/hr/todo/gantt",
     chat: "/hr/chat",
 
     // 2. Workforce Management
@@ -164,6 +168,7 @@ export const ROUTES = {
     dashboard: "/me/dashboard",
     calendar: "/me/calendar",
     todo: "/me/todo",
+    todoGantt: "/me/todo/gantt",
     chat: "/me/chat",
     notifications: "/me/notifications",
 

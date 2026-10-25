@@ -255,6 +255,7 @@ import { Route as AuthenticatedTenantIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedTenantAuditLogsRouteImport } from './routes/_authenticated/tenant/audit-logs'
 import { Route as AuthenticatedTenantBillingRouteImport } from './routes/_authenticated/tenant/billing'
 import { Route as AuthenticatedTenantBrandingRouteImport } from './routes/_authenticated/tenant/branding'
+import { Route as AuthenticatedTenantCalendarRouteImport } from './routes/_authenticated/tenant/calendar'
 import { Route as AuthenticatedTenantCompanyProfileRouteImport } from './routes/_authenticated/tenant/company-profile'
 import { Route as AuthenticatedTenantDashboardRouteImport } from './routes/_authenticated/tenant/dashboard'
 import { Route as AuthenticatedTenantDataRouteImport } from './routes/_authenticated/tenant/data'
@@ -265,6 +266,7 @@ import { Route as AuthenticatedTenantRolesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedTenantSettingsRouteImport } from './routes/_authenticated/tenant/settings'
 import { Route as AuthenticatedTenantSubscriptionRouteImport } from './routes/_authenticated/tenant/subscription'
 import { Route as AuthenticatedTenantSupportRouteImport } from './routes/_authenticated/tenant/support'
+import { Route as AuthenticatedTenantTodoRouteImport } from './routes/_authenticated/tenant/todo'
 import { Route as AuthenticatedTenantUsersRouteImport } from './routes/_authenticated/tenant/users'
 import { Route as AuthenticatedTenetSplatRouteImport } from './routes/_authenticated/tenet/$'
 import { Route as PortalInvoicesIdRouteImport } from './routes/portal.invoices.$id'
@@ -406,6 +408,7 @@ import { Route as AuthenticatedHrReportsPerformanceRouteImport } from './routes/
 import { Route as AuthenticatedHrReportsRecruitmentRouteImport } from './routes/_authenticated/hr/reports/recruitment'
 import { Route as AuthenticatedHrReportsStatutoryRouteImport } from './routes/_authenticated/hr/reports/statutory'
 import { Route as AuthenticatedHrReportsTrainingRouteImport } from './routes/_authenticated/hr/reports/training'
+import { Route as AuthenticatedHrTodoGanttRouteImport } from './routes/_authenticated/hr/todo.gantt'
 import { Route as AuthenticatedHrTrainingIndexRouteImport } from './routes/_authenticated/hr/training/index'
 import { Route as AuthenticatedHrTrainingEmployeeTrainingsRouteImport } from './routes/_authenticated/hr/training/employee-trainings'
 import { Route as AuthenticatedHrTrainingProgramsRouteImport } from './routes/_authenticated/hr/training/programs'
@@ -467,6 +470,7 @@ import { Route as AuthenticatedMeRecruitmentInterviewsRouteImport } from './rout
 import { Route as AuthenticatedMeRecruitmentJobLocationsRouteImport } from './routes/_authenticated/me/recruitment/job-locations'
 import { Route as AuthenticatedMeRecruitmentJobPostingsRouteImport } from './routes/_authenticated/me/recruitment/job-postings'
 import { Route as AuthenticatedMeRecruitmentOnboardingRouteImport } from './routes/_authenticated/me/recruitment/onboarding'
+import { Route as AuthenticatedMeTodoGanttRouteImport } from './routes/_authenticated/me/todo.gantt'
 import { Route as AuthenticatedMeTrainingIndexRouteImport } from './routes/_authenticated/me/training/index'
 import { Route as AuthenticatedMeTrainingProgramsRouteImport } from './routes/_authenticated/me/training/programs'
 import { Route as AuthenticatedMeTrainingSessionsRouteImport } from './routes/_authenticated/me/training/sessions'
@@ -474,6 +478,7 @@ import { Route as AuthenticatedMeTrainingTrainingsRouteImport } from './routes/_
 import { Route as AuthenticatedSuperBlogsCategoriesRouteImport } from './routes/_authenticated/super/blogs.categories'
 import { Route as AuthenticatedSuperBlogsTagsRouteImport } from './routes/_authenticated/super/blogs.tags'
 import { Route as AuthenticatedSuperDomainsDocumentationRouteImport } from './routes/_authenticated/super/domains.documentation'
+import { Route as AuthenticatedTenantTodoGanttRouteImport } from './routes/_authenticated/tenant/todo.gantt'
 import { Route as AuthenticatedAppAddonsAiAssistantFieldsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/fields'
 import { Route as AuthenticatedAppAddonsAiAssistantSettingsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/settings'
 import { Route as AuthenticatedAppAddonsAiAssistantUsageRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/usage'
@@ -1908,6 +1913,12 @@ const AuthenticatedTenantBrandingRoute =
     path: '/branding',
     getParentRoute: () => AuthenticatedTenantRoute,
   } as any)
+const AuthenticatedTenantCalendarRoute =
+  AuthenticatedTenantCalendarRouteImport.update({
+    id: '/calendar',
+    path: '/calendar',
+    getParentRoute: () => AuthenticatedTenantRoute,
+  } as any)
 const AuthenticatedTenantCompanyProfileRoute =
   AuthenticatedTenantCompanyProfileRouteImport.update({
     id: '/company-profile',
@@ -1967,6 +1978,11 @@ const AuthenticatedTenantSupportRoute =
     path: '/support',
     getParentRoute: () => AuthenticatedTenantRoute,
   } as any)
+const AuthenticatedTenantTodoRoute = AuthenticatedTenantTodoRouteImport.update({
+  id: '/todo',
+  path: '/todo',
+  getParentRoute: () => AuthenticatedTenantRoute,
+} as any)
 const AuthenticatedTenantUsersRoute =
   AuthenticatedTenantUsersRouteImport.update({
     id: '/users',
@@ -2810,6 +2826,12 @@ const AuthenticatedHrReportsTrainingRoute =
     path: '/reports/training',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
+const AuthenticatedHrTodoGanttRoute =
+  AuthenticatedHrTodoGanttRouteImport.update({
+    id: '/gantt',
+    path: '/gantt',
+    getParentRoute: () => AuthenticatedHrTodoRoute,
+  } as any)
 const AuthenticatedHrTrainingIndexRoute =
   AuthenticatedHrTrainingIndexRouteImport.update({
     id: '/training/',
@@ -3176,6 +3198,12 @@ const AuthenticatedMeRecruitmentOnboardingRoute =
     path: '/recruitment/onboarding',
     getParentRoute: () => AuthenticatedMeRoute,
   } as any)
+const AuthenticatedMeTodoGanttRoute =
+  AuthenticatedMeTodoGanttRouteImport.update({
+    id: '/gantt',
+    path: '/gantt',
+    getParentRoute: () => AuthenticatedMeTodoRoute,
+  } as any)
 const AuthenticatedMeTrainingIndexRoute =
   AuthenticatedMeTrainingIndexRouteImport.update({
     id: '/training/',
@@ -3217,6 +3245,12 @@ const AuthenticatedSuperDomainsDocumentationRoute =
     id: '/documentation',
     path: '/documentation',
     getParentRoute: () => AuthenticatedSuperDomainsRoute,
+  } as any)
+const AuthenticatedTenantTodoGanttRoute =
+  AuthenticatedTenantTodoGanttRouteImport.update({
+    id: '/gantt',
+    path: '/gantt',
+    getParentRoute: () => AuthenticatedTenantTodoRoute,
   } as any)
 const AuthenticatedAppAddonsAiAssistantFieldsRoute =
   AuthenticatedAppAddonsAiAssistantFieldsRouteImport.update({
@@ -3706,7 +3740,7 @@ export interface FileRoutesByFullPath {
   '/hr/notifications': typeof AuthenticatedHrNotificationsRoute
   '/hr/profile': typeof AuthenticatedHrProfileRoute
   '/hr/settings': typeof AuthenticatedHrSettingsRoute
-  '/hr/todo': typeof AuthenticatedHrTodoRoute
+  '/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/me/account': typeof AuthenticatedMeAccountRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
@@ -3718,7 +3752,7 @@ export interface FileRoutesByFullPath {
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/me/profile': typeof AuthenticatedMeProfileRoute
   '/me/team': typeof AuthenticatedMeTeamRoute
-  '/me/todo': typeof AuthenticatedMeTodoRoute
+  '/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
@@ -3752,6 +3786,7 @@ export interface FileRoutesByFullPath {
   '/tenant/audit-logs': typeof AuthenticatedTenantAuditLogsRoute
   '/tenant/billing': typeof AuthenticatedTenantBillingRoute
   '/tenant/branding': typeof AuthenticatedTenantBrandingRoute
+  '/tenant/calendar': typeof AuthenticatedTenantCalendarRoute
   '/tenant/company-profile': typeof AuthenticatedTenantCompanyProfileRoute
   '/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/tenant/data': typeof AuthenticatedTenantDataRoute
@@ -3762,6 +3797,7 @@ export interface FileRoutesByFullPath {
   '/tenant/settings': typeof AuthenticatedTenantSettingsRoute
   '/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
   '/tenant/support': typeof AuthenticatedTenantSupportRoute
+  '/tenant/todo': typeof AuthenticatedTenantTodoRouteWithChildren
   '/tenant/users': typeof AuthenticatedTenantUsersRoute
   '/tenet/$': typeof AuthenticatedTenetSplatRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
@@ -3898,6 +3934,7 @@ export interface FileRoutesByFullPath {
   '/hr/reports/recruitment': typeof AuthenticatedHrReportsRecruitmentRoute
   '/hr/reports/statutory': typeof AuthenticatedHrReportsStatutoryRoute
   '/hr/reports/training': typeof AuthenticatedHrReportsTrainingRoute
+  '/hr/todo/gantt': typeof AuthenticatedHrTodoGanttRoute
   '/hr/training/employee-trainings': typeof AuthenticatedHrTrainingEmployeeTrainingsRoute
   '/hr/training/programs': typeof AuthenticatedHrTrainingProgramsRoute
   '/hr/training/sessions': typeof AuthenticatedHrTrainingSessionsRoute
@@ -3949,12 +3986,14 @@ export interface FileRoutesByFullPath {
   '/me/recruitment/job-locations': typeof AuthenticatedMeRecruitmentJobLocationsRoute
   '/me/recruitment/job-postings': typeof AuthenticatedMeRecruitmentJobPostingsRoute
   '/me/recruitment/onboarding': typeof AuthenticatedMeRecruitmentOnboardingRoute
+  '/me/todo/gantt': typeof AuthenticatedMeTodoGanttRoute
   '/me/training/programs': typeof AuthenticatedMeTrainingProgramsRoute
   '/me/training/sessions': typeof AuthenticatedMeTrainingSessionsRoute
   '/me/training/trainings': typeof AuthenticatedMeTrainingTrainingsRoute
   '/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
   '/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
+  '/tenant/todo/gantt': typeof AuthenticatedTenantTodoGanttRoute
   '/hr/assets/': typeof AuthenticatedHrAssetsIndexRoute
   '/hr/attendance/': typeof AuthenticatedHrAttendanceIndexRoute
   '/hr/documents/': typeof AuthenticatedHrDocumentsIndexRoute
@@ -4216,7 +4255,7 @@ export interface FileRoutesByTo {
   '/hr/notifications': typeof AuthenticatedHrNotificationsRoute
   '/hr/profile': typeof AuthenticatedHrProfileRoute
   '/hr/settings': typeof AuthenticatedHrSettingsRoute
-  '/hr/todo': typeof AuthenticatedHrTodoRoute
+  '/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/me/account': typeof AuthenticatedMeAccountRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
@@ -4228,7 +4267,7 @@ export interface FileRoutesByTo {
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/me/profile': typeof AuthenticatedMeProfileRoute
   '/me/team': typeof AuthenticatedMeTeamRoute
-  '/me/todo': typeof AuthenticatedMeTodoRoute
+  '/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
@@ -4262,6 +4301,7 @@ export interface FileRoutesByTo {
   '/tenant/audit-logs': typeof AuthenticatedTenantAuditLogsRoute
   '/tenant/billing': typeof AuthenticatedTenantBillingRoute
   '/tenant/branding': typeof AuthenticatedTenantBrandingRoute
+  '/tenant/calendar': typeof AuthenticatedTenantCalendarRoute
   '/tenant/company-profile': typeof AuthenticatedTenantCompanyProfileRoute
   '/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/tenant/data': typeof AuthenticatedTenantDataRoute
@@ -4272,6 +4312,7 @@ export interface FileRoutesByTo {
   '/tenant/settings': typeof AuthenticatedTenantSettingsRoute
   '/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
   '/tenant/support': typeof AuthenticatedTenantSupportRoute
+  '/tenant/todo': typeof AuthenticatedTenantTodoRouteWithChildren
   '/tenant/users': typeof AuthenticatedTenantUsersRoute
   '/tenet/$': typeof AuthenticatedTenetSplatRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
@@ -4408,6 +4449,7 @@ export interface FileRoutesByTo {
   '/hr/reports/recruitment': typeof AuthenticatedHrReportsRecruitmentRoute
   '/hr/reports/statutory': typeof AuthenticatedHrReportsStatutoryRoute
   '/hr/reports/training': typeof AuthenticatedHrReportsTrainingRoute
+  '/hr/todo/gantt': typeof AuthenticatedHrTodoGanttRoute
   '/hr/training/employee-trainings': typeof AuthenticatedHrTrainingEmployeeTrainingsRoute
   '/hr/training/programs': typeof AuthenticatedHrTrainingProgramsRoute
   '/hr/training/sessions': typeof AuthenticatedHrTrainingSessionsRoute
@@ -4459,12 +4501,14 @@ export interface FileRoutesByTo {
   '/me/recruitment/job-locations': typeof AuthenticatedMeRecruitmentJobLocationsRoute
   '/me/recruitment/job-postings': typeof AuthenticatedMeRecruitmentJobPostingsRoute
   '/me/recruitment/onboarding': typeof AuthenticatedMeRecruitmentOnboardingRoute
+  '/me/todo/gantt': typeof AuthenticatedMeTodoGanttRoute
   '/me/training/programs': typeof AuthenticatedMeTrainingProgramsRoute
   '/me/training/sessions': typeof AuthenticatedMeTrainingSessionsRoute
   '/me/training/trainings': typeof AuthenticatedMeTrainingTrainingsRoute
   '/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
   '/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
+  '/tenant/todo/gantt': typeof AuthenticatedTenantTodoGanttRoute
   '/hr/assets': typeof AuthenticatedHrAssetsIndexRoute
   '/hr/attendance': typeof AuthenticatedHrAttendanceIndexRoute
   '/hr/documents': typeof AuthenticatedHrDocumentsIndexRoute
@@ -4733,7 +4777,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/notifications': typeof AuthenticatedHrNotificationsRoute
   '/_authenticated/hr/profile': typeof AuthenticatedHrProfileRoute
   '/_authenticated/hr/settings': typeof AuthenticatedHrSettingsRoute
-  '/_authenticated/hr/todo': typeof AuthenticatedHrTodoRoute
+  '/_authenticated/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/_authenticated/me/account': typeof AuthenticatedMeAccountRoute
   '/_authenticated/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/_authenticated/me/calendar': typeof AuthenticatedMeCalendarRoute
@@ -4745,7 +4789,7 @@ export interface FileRoutesById {
   '/_authenticated/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/_authenticated/me/profile': typeof AuthenticatedMeProfileRoute
   '/_authenticated/me/team': typeof AuthenticatedMeTeamRoute
-  '/_authenticated/me/todo': typeof AuthenticatedMeTodoRoute
+  '/_authenticated/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/_authenticated/super/agents': typeof AuthenticatedSuperAgentsRoute
   '/_authenticated/super/analytics': typeof AuthenticatedSuperAnalyticsRoute
   '/_authenticated/super/api-docs': typeof AuthenticatedSuperApiDocsRoute
@@ -4779,6 +4823,7 @@ export interface FileRoutesById {
   '/_authenticated/tenant/audit-logs': typeof AuthenticatedTenantAuditLogsRoute
   '/_authenticated/tenant/billing': typeof AuthenticatedTenantBillingRoute
   '/_authenticated/tenant/branding': typeof AuthenticatedTenantBrandingRoute
+  '/_authenticated/tenant/calendar': typeof AuthenticatedTenantCalendarRoute
   '/_authenticated/tenant/company-profile': typeof AuthenticatedTenantCompanyProfileRoute
   '/_authenticated/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/_authenticated/tenant/data': typeof AuthenticatedTenantDataRoute
@@ -4789,6 +4834,7 @@ export interface FileRoutesById {
   '/_authenticated/tenant/settings': typeof AuthenticatedTenantSettingsRoute
   '/_authenticated/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
   '/_authenticated/tenant/support': typeof AuthenticatedTenantSupportRoute
+  '/_authenticated/tenant/todo': typeof AuthenticatedTenantTodoRouteWithChildren
   '/_authenticated/tenant/users': typeof AuthenticatedTenantUsersRoute
   '/_authenticated/tenet/$': typeof AuthenticatedTenetSplatRoute
   '/portal/invoices/$id': typeof PortalInvoicesIdRoute
@@ -4925,6 +4971,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/reports/recruitment': typeof AuthenticatedHrReportsRecruitmentRoute
   '/_authenticated/hr/reports/statutory': typeof AuthenticatedHrReportsStatutoryRoute
   '/_authenticated/hr/reports/training': typeof AuthenticatedHrReportsTrainingRoute
+  '/_authenticated/hr/todo/gantt': typeof AuthenticatedHrTodoGanttRoute
   '/_authenticated/hr/training/employee-trainings': typeof AuthenticatedHrTrainingEmployeeTrainingsRoute
   '/_authenticated/hr/training/programs': typeof AuthenticatedHrTrainingProgramsRoute
   '/_authenticated/hr/training/sessions': typeof AuthenticatedHrTrainingSessionsRoute
@@ -4976,12 +5023,14 @@ export interface FileRoutesById {
   '/_authenticated/me/recruitment/job-locations': typeof AuthenticatedMeRecruitmentJobLocationsRoute
   '/_authenticated/me/recruitment/job-postings': typeof AuthenticatedMeRecruitmentJobPostingsRoute
   '/_authenticated/me/recruitment/onboarding': typeof AuthenticatedMeRecruitmentOnboardingRoute
+  '/_authenticated/me/todo/gantt': typeof AuthenticatedMeTodoGanttRoute
   '/_authenticated/me/training/programs': typeof AuthenticatedMeTrainingProgramsRoute
   '/_authenticated/me/training/sessions': typeof AuthenticatedMeTrainingSessionsRoute
   '/_authenticated/me/training/trainings': typeof AuthenticatedMeTrainingTrainingsRoute
   '/_authenticated/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
   '/_authenticated/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/_authenticated/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
+  '/_authenticated/tenant/todo/gantt': typeof AuthenticatedTenantTodoGanttRoute
   '/_authenticated/hr/assets/': typeof AuthenticatedHrAssetsIndexRoute
   '/_authenticated/hr/attendance/': typeof AuthenticatedHrAttendanceIndexRoute
   '/_authenticated/hr/documents/': typeof AuthenticatedHrDocumentsIndexRoute
@@ -5295,6 +5344,7 @@ export interface FileRouteTypes {
     | '/tenant/audit-logs'
     | '/tenant/billing'
     | '/tenant/branding'
+    | '/tenant/calendar'
     | '/tenant/company-profile'
     | '/tenant/dashboard'
     | '/tenant/data'
@@ -5305,6 +5355,7 @@ export interface FileRouteTypes {
     | '/tenant/settings'
     | '/tenant/subscription'
     | '/tenant/support'
+    | '/tenant/todo'
     | '/tenant/users'
     | '/tenet/$'
     | '/portal/invoices/$id'
@@ -5441,6 +5492,7 @@ export interface FileRouteTypes {
     | '/hr/reports/recruitment'
     | '/hr/reports/statutory'
     | '/hr/reports/training'
+    | '/hr/todo/gantt'
     | '/hr/training/employee-trainings'
     | '/hr/training/programs'
     | '/hr/training/sessions'
@@ -5492,12 +5544,14 @@ export interface FileRouteTypes {
     | '/me/recruitment/job-locations'
     | '/me/recruitment/job-postings'
     | '/me/recruitment/onboarding'
+    | '/me/todo/gantt'
     | '/me/training/programs'
     | '/me/training/sessions'
     | '/me/training/trainings'
     | '/super/blogs/categories'
     | '/super/blogs/tags'
     | '/super/domains/documentation'
+    | '/tenant/todo/gantt'
     | '/hr/assets/'
     | '/hr/attendance/'
     | '/hr/documents/'
@@ -5805,6 +5859,7 @@ export interface FileRouteTypes {
     | '/tenant/audit-logs'
     | '/tenant/billing'
     | '/tenant/branding'
+    | '/tenant/calendar'
     | '/tenant/company-profile'
     | '/tenant/dashboard'
     | '/tenant/data'
@@ -5815,6 +5870,7 @@ export interface FileRouteTypes {
     | '/tenant/settings'
     | '/tenant/subscription'
     | '/tenant/support'
+    | '/tenant/todo'
     | '/tenant/users'
     | '/tenet/$'
     | '/portal/invoices/$id'
@@ -5951,6 +6007,7 @@ export interface FileRouteTypes {
     | '/hr/reports/recruitment'
     | '/hr/reports/statutory'
     | '/hr/reports/training'
+    | '/hr/todo/gantt'
     | '/hr/training/employee-trainings'
     | '/hr/training/programs'
     | '/hr/training/sessions'
@@ -6002,12 +6059,14 @@ export interface FileRouteTypes {
     | '/me/recruitment/job-locations'
     | '/me/recruitment/job-postings'
     | '/me/recruitment/onboarding'
+    | '/me/todo/gantt'
     | '/me/training/programs'
     | '/me/training/sessions'
     | '/me/training/trainings'
     | '/super/blogs/categories'
     | '/super/blogs/tags'
     | '/super/domains/documentation'
+    | '/tenant/todo/gantt'
     | '/hr/assets'
     | '/hr/attendance'
     | '/hr/documents'
@@ -6321,6 +6380,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tenant/audit-logs'
     | '/_authenticated/tenant/billing'
     | '/_authenticated/tenant/branding'
+    | '/_authenticated/tenant/calendar'
     | '/_authenticated/tenant/company-profile'
     | '/_authenticated/tenant/dashboard'
     | '/_authenticated/tenant/data'
@@ -6331,6 +6391,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tenant/settings'
     | '/_authenticated/tenant/subscription'
     | '/_authenticated/tenant/support'
+    | '/_authenticated/tenant/todo'
     | '/_authenticated/tenant/users'
     | '/_authenticated/tenet/$'
     | '/portal/invoices/$id'
@@ -6467,6 +6528,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/reports/recruitment'
     | '/_authenticated/hr/reports/statutory'
     | '/_authenticated/hr/reports/training'
+    | '/_authenticated/hr/todo/gantt'
     | '/_authenticated/hr/training/employee-trainings'
     | '/_authenticated/hr/training/programs'
     | '/_authenticated/hr/training/sessions'
@@ -6518,12 +6580,14 @@ export interface FileRouteTypes {
     | '/_authenticated/me/recruitment/job-locations'
     | '/_authenticated/me/recruitment/job-postings'
     | '/_authenticated/me/recruitment/onboarding'
+    | '/_authenticated/me/todo/gantt'
     | '/_authenticated/me/training/programs'
     | '/_authenticated/me/training/sessions'
     | '/_authenticated/me/training/trainings'
     | '/_authenticated/super/blogs/categories'
     | '/_authenticated/super/blogs/tags'
     | '/_authenticated/super/domains/documentation'
+    | '/_authenticated/tenant/todo/gantt'
     | '/_authenticated/hr/assets/'
     | '/_authenticated/hr/attendance/'
     | '/_authenticated/hr/documents/'
@@ -8355,6 +8419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTenantBrandingRouteImport
       parentRoute: typeof AuthenticatedTenantRoute
     }
+    '/_authenticated/tenant/calendar': {
+      id: '/_authenticated/tenant/calendar'
+      path: '/calendar'
+      fullPath: '/tenant/calendar'
+      preLoaderRoute: typeof AuthenticatedTenantCalendarRouteImport
+      parentRoute: typeof AuthenticatedTenantRoute
+    }
     '/_authenticated/tenant/company-profile': {
       id: '/_authenticated/tenant/company-profile'
       path: '/company-profile'
@@ -8423,6 +8494,13 @@ declare module '@tanstack/react-router' {
       path: '/support'
       fullPath: '/tenant/support'
       preLoaderRoute: typeof AuthenticatedTenantSupportRouteImport
+      parentRoute: typeof AuthenticatedTenantRoute
+    }
+    '/_authenticated/tenant/todo': {
+      id: '/_authenticated/tenant/todo'
+      path: '/todo'
+      fullPath: '/tenant/todo'
+      preLoaderRoute: typeof AuthenticatedTenantTodoRouteImport
       parentRoute: typeof AuthenticatedTenantRoute
     }
     '/_authenticated/tenant/users': {
@@ -9412,6 +9490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrReportsTrainingRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
+    '/_authenticated/hr/todo/gantt': {
+      id: '/_authenticated/hr/todo/gantt'
+      path: '/gantt'
+      fullPath: '/hr/todo/gantt'
+      preLoaderRoute: typeof AuthenticatedHrTodoGanttRouteImport
+      parentRoute: typeof AuthenticatedHrTodoRoute
+    }
     '/_authenticated/hr/training/': {
       id: '/_authenticated/hr/training/'
       path: '/training'
@@ -9839,6 +9924,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMeRecruitmentOnboardingRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
+    '/_authenticated/me/todo/gantt': {
+      id: '/_authenticated/me/todo/gantt'
+      path: '/gantt'
+      fullPath: '/me/todo/gantt'
+      preLoaderRoute: typeof AuthenticatedMeTodoGanttRouteImport
+      parentRoute: typeof AuthenticatedMeTodoRoute
+    }
     '/_authenticated/me/training/': {
       id: '/_authenticated/me/training/'
       path: '/training'
@@ -9887,6 +9979,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/super/domains/documentation'
       preLoaderRoute: typeof AuthenticatedSuperDomainsDocumentationRouteImport
       parentRoute: typeof AuthenticatedSuperDomainsRoute
+    }
+    '/_authenticated/tenant/todo/gantt': {
+      id: '/_authenticated/tenant/todo/gantt'
+      path: '/gantt'
+      fullPath: '/tenant/todo/gantt'
+      preLoaderRoute: typeof AuthenticatedTenantTodoGanttRouteImport
+      parentRoute: typeof AuthenticatedTenantTodoRoute
     }
     '/_authenticated/_app/addons/ai-assistant/fields': {
       id: '/_authenticated/_app/addons/ai-assistant/fields'
@@ -10910,6 +11009,17 @@ const AuthenticatedSuperRouteRouteWithChildren =
     AuthenticatedSuperRouteRouteChildren,
   )
 
+interface AuthenticatedHrTodoRouteChildren {
+  AuthenticatedHrTodoGanttRoute: typeof AuthenticatedHrTodoGanttRoute
+}
+
+const AuthenticatedHrTodoRouteChildren: AuthenticatedHrTodoRouteChildren = {
+  AuthenticatedHrTodoGanttRoute: AuthenticatedHrTodoGanttRoute,
+}
+
+const AuthenticatedHrTodoRouteWithChildren =
+  AuthenticatedHrTodoRoute._addFileChildren(AuthenticatedHrTodoRouteChildren)
+
 interface AuthenticatedHrEmployeesIdRouteChildren {
   AuthenticatedHrEmployeesIdEditRoute: typeof AuthenticatedHrEmployeesIdEditRoute
 }
@@ -10933,7 +11043,7 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrNotificationsRoute: typeof AuthenticatedHrNotificationsRoute
   AuthenticatedHrProfileRoute: typeof AuthenticatedHrProfileRoute
   AuthenticatedHrSettingsRoute: typeof AuthenticatedHrSettingsRoute
-  AuthenticatedHrTodoRoute: typeof AuthenticatedHrTodoRoute
+  AuthenticatedHrTodoRoute: typeof AuthenticatedHrTodoRouteWithChildren
   AuthenticatedHrIndexRoute: typeof AuthenticatedHrIndexRoute
   AuthenticatedHrAssetsDashboardRoute: typeof AuthenticatedHrAssetsDashboardRoute
   AuthenticatedHrAssetsDepreciationRoute: typeof AuthenticatedHrAssetsDepreciationRoute
@@ -11069,7 +11179,7 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
   AuthenticatedHrNotificationsRoute: AuthenticatedHrNotificationsRoute,
   AuthenticatedHrProfileRoute: AuthenticatedHrProfileRoute,
   AuthenticatedHrSettingsRoute: AuthenticatedHrSettingsRoute,
-  AuthenticatedHrTodoRoute: AuthenticatedHrTodoRoute,
+  AuthenticatedHrTodoRoute: AuthenticatedHrTodoRouteWithChildren,
   AuthenticatedHrIndexRoute: AuthenticatedHrIndexRoute,
   AuthenticatedHrAssetsDashboardRoute: AuthenticatedHrAssetsDashboardRoute,
   AuthenticatedHrAssetsDepreciationRoute:
@@ -11261,6 +11371,17 @@ const AuthenticatedHrRouteWithChildren = AuthenticatedHrRoute._addFileChildren(
   AuthenticatedHrRouteChildren,
 )
 
+interface AuthenticatedMeTodoRouteChildren {
+  AuthenticatedMeTodoGanttRoute: typeof AuthenticatedMeTodoGanttRoute
+}
+
+const AuthenticatedMeTodoRouteChildren: AuthenticatedMeTodoRouteChildren = {
+  AuthenticatedMeTodoGanttRoute: AuthenticatedMeTodoGanttRoute,
+}
+
+const AuthenticatedMeTodoRouteWithChildren =
+  AuthenticatedMeTodoRoute._addFileChildren(AuthenticatedMeTodoRouteChildren)
+
 interface AuthenticatedMeRouteChildren {
   AuthenticatedMeAccountRoute: typeof AuthenticatedMeAccountRoute
   AuthenticatedMeApprovalsRoute: typeof AuthenticatedMeApprovalsRoute
@@ -11273,7 +11394,7 @@ interface AuthenticatedMeRouteChildren {
   AuthenticatedMeNotificationsRoute: typeof AuthenticatedMeNotificationsRoute
   AuthenticatedMeProfileRoute: typeof AuthenticatedMeProfileRoute
   AuthenticatedMeTeamRoute: typeof AuthenticatedMeTeamRoute
-  AuthenticatedMeTodoRoute: typeof AuthenticatedMeTodoRoute
+  AuthenticatedMeTodoRoute: typeof AuthenticatedMeTodoRouteWithChildren
   AuthenticatedMeIndexRoute: typeof AuthenticatedMeIndexRoute
   AuthenticatedMeAssetsDashboardRoute: typeof AuthenticatedMeAssetsDashboardRoute
   AuthenticatedMeAssetsDepreciationsRoute: typeof AuthenticatedMeAssetsDepreciationsRoute
@@ -11348,7 +11469,7 @@ const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeNotificationsRoute: AuthenticatedMeNotificationsRoute,
   AuthenticatedMeProfileRoute: AuthenticatedMeProfileRoute,
   AuthenticatedMeTeamRoute: AuthenticatedMeTeamRoute,
-  AuthenticatedMeTodoRoute: AuthenticatedMeTodoRoute,
+  AuthenticatedMeTodoRoute: AuthenticatedMeTodoRouteWithChildren,
   AuthenticatedMeIndexRoute: AuthenticatedMeIndexRoute,
   AuthenticatedMeAssetsDashboardRoute: AuthenticatedMeAssetsDashboardRoute,
   AuthenticatedMeAssetsDepreciationsRoute:
@@ -11441,10 +11562,25 @@ const AuthenticatedMeRouteWithChildren = AuthenticatedMeRoute._addFileChildren(
   AuthenticatedMeRouteChildren,
 )
 
+interface AuthenticatedTenantTodoRouteChildren {
+  AuthenticatedTenantTodoGanttRoute: typeof AuthenticatedTenantTodoGanttRoute
+}
+
+const AuthenticatedTenantTodoRouteChildren: AuthenticatedTenantTodoRouteChildren =
+  {
+    AuthenticatedTenantTodoGanttRoute: AuthenticatedTenantTodoGanttRoute,
+  }
+
+const AuthenticatedTenantTodoRouteWithChildren =
+  AuthenticatedTenantTodoRoute._addFileChildren(
+    AuthenticatedTenantTodoRouteChildren,
+  )
+
 interface AuthenticatedTenantRouteChildren {
   AuthenticatedTenantAuditLogsRoute: typeof AuthenticatedTenantAuditLogsRoute
   AuthenticatedTenantBillingRoute: typeof AuthenticatedTenantBillingRoute
   AuthenticatedTenantBrandingRoute: typeof AuthenticatedTenantBrandingRoute
+  AuthenticatedTenantCalendarRoute: typeof AuthenticatedTenantCalendarRoute
   AuthenticatedTenantCompanyProfileRoute: typeof AuthenticatedTenantCompanyProfileRoute
   AuthenticatedTenantDashboardRoute: typeof AuthenticatedTenantDashboardRoute
   AuthenticatedTenantDataRoute: typeof AuthenticatedTenantDataRoute
@@ -11455,6 +11591,7 @@ interface AuthenticatedTenantRouteChildren {
   AuthenticatedTenantSettingsRoute: typeof AuthenticatedTenantSettingsRoute
   AuthenticatedTenantSubscriptionRoute: typeof AuthenticatedTenantSubscriptionRoute
   AuthenticatedTenantSupportRoute: typeof AuthenticatedTenantSupportRoute
+  AuthenticatedTenantTodoRoute: typeof AuthenticatedTenantTodoRouteWithChildren
   AuthenticatedTenantUsersRoute: typeof AuthenticatedTenantUsersRoute
   AuthenticatedTenantIndexRoute: typeof AuthenticatedTenantIndexRoute
 }
@@ -11463,6 +11600,7 @@ const AuthenticatedTenantRouteChildren: AuthenticatedTenantRouteChildren = {
   AuthenticatedTenantAuditLogsRoute: AuthenticatedTenantAuditLogsRoute,
   AuthenticatedTenantBillingRoute: AuthenticatedTenantBillingRoute,
   AuthenticatedTenantBrandingRoute: AuthenticatedTenantBrandingRoute,
+  AuthenticatedTenantCalendarRoute: AuthenticatedTenantCalendarRoute,
   AuthenticatedTenantCompanyProfileRoute:
     AuthenticatedTenantCompanyProfileRoute,
   AuthenticatedTenantDashboardRoute: AuthenticatedTenantDashboardRoute,
@@ -11474,6 +11612,7 @@ const AuthenticatedTenantRouteChildren: AuthenticatedTenantRouteChildren = {
   AuthenticatedTenantSettingsRoute: AuthenticatedTenantSettingsRoute,
   AuthenticatedTenantSubscriptionRoute: AuthenticatedTenantSubscriptionRoute,
   AuthenticatedTenantSupportRoute: AuthenticatedTenantSupportRoute,
+  AuthenticatedTenantTodoRoute: AuthenticatedTenantTodoRouteWithChildren,
   AuthenticatedTenantUsersRoute: AuthenticatedTenantUsersRoute,
   AuthenticatedTenantIndexRoute: AuthenticatedTenantIndexRoute,
 }

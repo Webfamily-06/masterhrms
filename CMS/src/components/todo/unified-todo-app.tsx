@@ -164,6 +164,7 @@ export function UnifiedTodoApp({
   // Active view: list or gantt
   const [viewMode, setViewMode] = useState<"list" | "gantt">(() => {
     if (typeof window !== "undefined") {
+      if (window.location.pathname.endsWith("/gantt")) return "gantt";
       const params = new URLSearchParams(window.location.search);
       const qView = params.get("view");
       if (qView === "gantt" || qView === "list") return qView;
@@ -171,11 +172,25 @@ export function UnifiedTodoApp({
     return initialView;
   });
 
-  // Sync viewMode changes to URL search param smoothly without full page refresh
+  // Sync viewMode changes to URL pathname and search param smoothly without full page refresh
   const handleViewChange = (newView: "list" | "gantt") => {
     setViewMode(newView);
     if (typeof window !== "undefined") {
+      const pathname = window.location.pathname;
+      let targetPath = pathname;
+      if (newView === "gantt") {
+        if (pathname === "/hr/todo") targetPath = "/hr/todo/gantt";
+        else if (pathname === "/me/todo") targetPath = "/me/todo/gantt";
+        else if (pathname === "/tenant/todo") targetPath = "/tenant/todo/gantt";
+        else if (pathname === "/apps/todo/task-list") targetPath = "/apps/todo/gantt";
+      } else {
+        if (pathname === "/hr/todo/gantt") targetPath = "/hr/todo";
+        else if (pathname === "/me/todo/gantt") targetPath = "/me/todo";
+        else if (pathname === "/tenant/todo/gantt") targetPath = "/tenant/todo";
+        else if (pathname === "/apps/todo/gantt") targetPath = "/apps/todo/task-list";
+      }
       const url = new URL(window.location.href);
+      url.pathname = targetPath;
       url.searchParams.set("view", newView);
       window.history.replaceState({}, "", url.toString());
     }

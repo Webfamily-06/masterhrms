@@ -25,6 +25,7 @@
     "test:architecture": "node scripts/test_architecture_consolidation.mjs",
     "test:redirects": "./server/node_modules/.bin/tsx scripts/test_production_redirect_resolution.mjs",
     "test:todo-consolidation": "node scripts/test_todo_tasks_consolidation.cjs",
+    "test:workspace-routing": "./server/node_modules/.bin/tsx scripts/test_workspace_routing_architecture.cjs",
     "test:domain-resolution": "node scripts/test_domain_environment_resolution.mjs",
     "format": "prettier --write .",
     "postinstall": "prisma skills sync || exit 0",

@@ -31,18 +31,24 @@ export function resolveDefaultRoute(
   redirect?: string | null,
   options?: { isImpersonating?: boolean }
 ): string {
-  // If an explicit intended redirect path was provided (e.g. following a deep-link), respect it
-  // unless it points back to an authentication screen or root
-  if (
-    redirect &&
-    redirect !== "/" &&
-    redirect !== "/auth" &&
-    redirect !== "/login" &&
-    redirect !== "/super-login" &&
-    !redirect.startsWith("/auth")
-  ) {
-    return redirect;
-  }
+  const normalized = roles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
+  const isSuperAdmin = roles.includes("super_admin") || normalized.includes("superadmin");
+  const isTenantAdmin =
+    isSuperAdmin ||
+    normalized.some((r) =>
+      ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
+    );
+  const isHrAdmin = isTenantAdmin || normalized.some((r) => ["hradmin", "hr", "hrmanager", "manager"].includes(r));
+  const isEmployee = normalized.includes("employee") || normalized.includes("staff") || roles.length === 0;
+
+  // Resolve authorized landing page based on role hierarchy
+  const defaultLanding = isSuperAdmin
+    ? "/super"
+    : isTenantAdmin
+    ? "/tenant/dashboard"
+    : isHrAdmin
+    ? "/hr/dashboard"
+    : "/me/dashboard";
 
   // If super admin is impersonating a tenant, preserve tenant landing (/hrm-dashboard)
   const isImpersonating =
@@ -53,35 +59,40 @@ export function resolveDefaultRoute(
     return "/hrm-dashboard";
   }
 
-  // Super Admin Portal
-  if (roles.includes("super_admin")) {
-    return "/super";
+  // Validate explicit intended redirect path
+  if (
+    redirect &&
+    redirect !== "/" &&
+    redirect !== "/auth" &&
+    redirect !== "/login" &&
+    redirect !== "/super-login" &&
+    !redirect.startsWith("/auth")
+  ) {
+    // 1. Legacy Route Translation based on authorized role
+    if (redirect === "/todo" || redirect === "/apps/todo/task-list") {
+      return isEmployee && !isHrAdmin && !isTenantAdmin ? "/me/todo" : isHrAdmin && !isTenantAdmin ? "/hr/todo" : "/tenant/todo";
+    }
+    if (redirect === "/apps/todo/gantt") {
+      return isEmployee && !isHrAdmin && !isTenantAdmin ? "/me/todo/gantt" : isHrAdmin && !isTenantAdmin ? "/hr/todo/gantt" : "/tenant/todo/gantt";
+    }
+    if (redirect === "/apps/calendar") {
+      return isEmployee && !isHrAdmin && !isTenantAdmin ? "/me/calendar" : isHrAdmin && !isTenantAdmin ? "/hr/calendar" : "/tenant/calendar";
+    }
+
+    // 2. Authorization validation for destination path
+    if (redirect.startsWith("/super") && !isSuperAdmin) {
+      return defaultLanding;
+    }
+    if (redirect.startsWith("/tenant") && !isTenantAdmin) {
+      return defaultLanding;
+    }
+    if (redirect.startsWith("/hr") && !isHrAdmin) {
+      return defaultLanding;
+    }
+
+    return redirect;
   }
 
-  // Tenant / Workspace Administrator -> Lands directly on Tenant Admin Command Center (/tenant/dashboard)
-  const normalized = roles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
-  const isTenantAdmin = normalized.some((r) =>
-    ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
-  );
-  if (isTenantAdmin) {
-    return "/tenant/dashboard";
-  }
-
-  // Client Portal (B2B Customers)
-  if (roles.includes("client")) {
-    return "/client-dashboard";
-  }
-
-  // HR Admin Portal (Canonical HR Namespace - strictly for non-tenant-admin HR staff)
-  if (roles.includes("hr_admin") || roles.includes("hr")) {
-    return "/hr/dashboard";
-  }
-
-  // Employee Self-Service (Workforce Canonical /me Namespace)
-  if (roles.includes("employee")) {
-    return "/me/dashboard";
-  }
-
-  // Tenant Admin Fallback
-  return "/tenant/dashboard";
+  return defaultLanding;
 }
+

@@ -71,7 +71,7 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Chat Contacts", path: "/apps/chat/chat-contact", permission: "hrm.dashboard.view" },
         ],
       },
-      { label: "Calendar", path: "/apps/calendar", permission: "hrm.dashboard.view" },
+      { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
       { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
       {
         label: "Scrumboard",
