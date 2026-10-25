@@ -63,6 +63,8 @@ const HR_ICON_MAP: Record<string, string> = {
   Scrumboard: "ph-kanban",
   "File Manager": "ph-folder-notch-open",
   "Todo & Tasks": "ph-check-square-offset",
+  Todo: "ph-check-square",
+  Gantt: "ph-chart-bar-horizontal",
   "All Apps Catalog": "ph-storefront",
   Email: "ph-envelope-simple",
   "Email Mailbox": "ph-envelope-simple",

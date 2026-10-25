@@ -50,6 +50,8 @@ export interface EmployeeRouteInventoryItem {
   description: string;
 }
 
+import { EMPLOYEE_TODO_NAV_GROUP } from "./todo-navigation";
+
 /**
  * 11 Canonical Employee Portal Sidebar Sections
  */
@@ -61,7 +63,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
     children: [
       { label: "Dashboard", path: "/me/dashboard", icon: "ph-squares-four" },
       { label: "Calendar", path: "/me/calendar", icon: "ph-calendar" },
-      { label: "Todo & Gantt", path: "/me/todo", icon: "ph-check-square" },
+      EMPLOYEE_TODO_NAV_GROUP,
       { label: "Email Mailbox", path: "/apps/email", icon: "ph-envelope" },
       { label: "Chat", path: "/me/chat", icon: "ph-chat-circle-dots" },
       { label: "Notifications", path: "/me/notifications", icon: "ph-bell" },

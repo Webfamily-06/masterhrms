@@ -36,6 +36,8 @@ export interface HRRouteInventoryItem {
   description: string;
 }
 
+import { HR_TODO_NAV_GROUP } from "./todo-navigation";
+
 /**
  * 01 - 07 Canonical HR Sidebar Hierarchy
  */
@@ -48,8 +50,6 @@ export const hrSidebar: HRMenuItem[] = [
     children: [
       { label: "Dashboard", path: "/hr/dashboard", permission: "hrm.dashboard.view" },
       { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
-      { label: "My Tasks", path: "/hr/todo", permission: "hrm.dashboard.view" },
-      { label: "Gantt Timeline", path: "/apps/todo/gantt", permission: "hrm.dashboard.view" },
       { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
       { label: "Team Chat", path: "/hr/chat", permission: "hrm.dashboard.view" },
       { label: "Approvals", path: "/hr/approvals", permission: "hrm.manage" },
@@ -87,13 +87,7 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Grid View", path: "/apps/file-manager/grid-view", permission: "hrm.dashboard.view" },
         ],
       },
-      {
-        label: "Todo & Tasks",
-        children: [
-          { label: "Task List", path: "/apps/todo/task-list", permission: "hrm.dashboard.view" },
-          { label: "Gantt Timeline", path: "/apps/todo/gantt", permission: "hrm.dashboard.view" },
-        ],
-      },
+      HR_TODO_NAV_GROUP,
       { label: "All Apps Catalog", path: "/apps/integrations/all-apps", permission: "hrm.dashboard.view" },
     ],
   },
