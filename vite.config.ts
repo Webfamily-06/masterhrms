@@ -1,3 +1,4 @@
+process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = "true";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
@@ -80,7 +81,7 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 2500,
+    chunkSizeWarningLimit: 15000,
     rollupOptions: {
       output: {
         manualChunks(id: string) {

@@ -9,7 +9,7 @@ import {
   getSettingDefinition,
   validateSettingValue,
 } from "./settings-registry";
-export { SettingScopeType } from "./settings-registry";
+export type { SettingScopeType } from "./settings-registry";
 import { broadcastToAll, broadcastToTenant, broadcastToPlatform } from "../../socket";
 import { MailerFactory } from "../factories/mailer.factory";
 import { OAuthFactory } from "../factories/oauth.factory";

@@ -603,6 +603,6 @@ process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
 // MasterHRMS Platform Server active
 
-export { app, server };
+(app as any).server = server;
 export default app;
 
