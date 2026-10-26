@@ -51,6 +51,7 @@ export interface EmployeeRouteInventoryItem {
 }
 
 import { EMPLOYEE_TODO_NAV_GROUP } from "./todo-navigation";
+import { EMPLOYEE_CHAT_NAV_GROUP } from "./chat-navigation";
 
 /**
  * 11 Canonical Employee Portal Sidebar Sections
@@ -65,7 +66,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
       { label: "Calendar", path: "/me/calendar", icon: "ph-calendar" },
       EMPLOYEE_TODO_NAV_GROUP,
       { label: "Email Mailbox", path: "/apps/email", icon: "ph-envelope" },
-      { label: "Chat", path: "/me/chat", icon: "ph-chat-circle-dots" },
+      EMPLOYEE_CHAT_NAV_GROUP,
       { label: "Notifications", path: "/me/notifications", icon: "ph-bell" },
       { label: "My Profile", path: "/me/profile", icon: "ph-user" },
       { label: "Employee Directory", path: "/me/employees", icon: "ph-users" },

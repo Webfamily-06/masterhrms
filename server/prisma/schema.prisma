@@ -90,6 +90,10 @@ model Tenant {
   cashRegisters                CashRegister[]
   chartOfAccounts              ChartOfAccount[]
   chatMessages                 ChatMessage[]
+  chatGroups                   ChatGroup[]
+  chatGroupMembers             ChatGroupMember[]
+  chatReadReceipts             ChatReadReceipt[]
+  chatConversationPins         ChatConversationPin[]
   commerceOrders               CommerceOrder[]
   companyDocuments             CompanyDocument[]
   companyProfile               CompanyProfile?
@@ -3276,19 +3280,105 @@ model StockMovement {
 }
 
 model ChatMessage {
-  id           String   @id @default(uuid()) @db.VarChar(36)
-  tenantId     String   @map("tenant_id") @db.VarChar(36)
-  threadId     String   @map("thread_id") @db.VarChar(100)
-  senderId     String   @map("sender_id") @db.VarChar(36)
-  senderName   String   @map("sender_name") @db.VarChar(150)
-  senderAvatar String?  @map("sender_avatar") @db.VarChar(500)
-  content      String
-  attachments  Json?
-  createdAt    DateTime @default(now()) @map("created_at")
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                   String    @id @default(uuid()) @db.VarChar(36)
+  tenantId             String    @map("tenant_id") @db.VarChar(36)
+  threadId             String    @map("thread_id") @db.VarChar(100)
+  senderId             String    @map("sender_id") @db.VarChar(36)
+  senderName           String    @map("sender_name") @db.VarChar(150)
+  senderAvatar         String?   @map("sender_avatar") @db.VarChar(500)
+  content              String
+  attachments          Json?
+  replyToId            String?   @map("reply_to_id") @db.VarChar(36)
+  replyTo              Json?     @map("reply_to")
+  isPinned             Boolean   @default(false) @map("is_pinned")
+  pinnedAt             DateTime? @map("pinned_at")
+  pinnedById           String?   @map("pinned_by_id") @db.VarChar(36)
+  isEdited             Boolean   @default(false) @map("is_edited")
+  editedAt             DateTime? @map("edited_at")
+  deletedForUserIds    Json?     @map("deleted_for_user_ids")
+  isDeletedForEveryone Boolean   @default(false) @map("is_deleted_for_everyone")
+  reactions            Json?     @map("reactions")
+  urlPreviews          Json?     @map("url_previews")
+  voiceNote            Json?     @map("voice_note")
+  poll                 Json?     @map("poll")
+  deliveryStatus       String    @default("sent") @map("delivery_status") @db.VarChar(20)
+  deliveredToUserIds   Json?     @map("delivered_to_user_ids")
+  clientTempId         String?   @map("client_temp_id") @db.VarChar(100)
+  isSystemEvent        Boolean   @default(false) @map("is_system_event")
+  eventType            String?   @map("event_type") @db.VarChar(50)
+  eventMetadata        Json?     @map("event_metadata")
+  mentions             Json?     @map("mentions")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, threadId])
+  @@index([tenantId, threadId, isPinned])
+  @@index([tenantId, threadId, createdAt])
+  @@index([tenantId, clientTempId])
   @@map("chat_messages")
+}
+
+model ChatGroup {
+  id              String            @id @default(uuid()) @db.VarChar(36)
+  tenantId        String            @map("tenant_id") @db.VarChar(36)
+  name            String            @db.VarChar(150)
+  description     String?           @db.VarChar(500)
+  avatarUrl       String?           @map("avatar_url") @db.VarChar(500)
+  createdById     String            @map("created_by_id") @db.VarChar(36)
+  ownerId         String?           @map("owner_id") @db.VarChar(36)
+  inviteToken     String?           @map("invite_token") @db.VarChar(100)
+  inviteExpiresAt DateTime?         @map("invite_expires_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members         ChatGroupMember[]
+
+  @@index([tenantId])
+  @@index([tenantId, inviteToken])
+  @@map("chat_groups")
+}
+
+model ChatGroupMember {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  tenantId   String    @map("tenant_id") @db.VarChar(36)
+  groupId    String    @map("group_id") @db.VarChar(36)
+  userId     String    @map("user_id") @db.VarChar(36)
+  role       String    @default("member") @db.VarChar(50)
+  isMuted    Boolean   @default(false) @map("is_muted")
+  mutedUntil DateTime? @map("muted_until")
+  joinedAt   DateTime  @default(now()) @map("joined_at")
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group      ChatGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([tenantId, userId])
+  @@map("chat_group_members")
+}
+
+model ChatReadReceipt {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  tenantId   String   @map("tenant_id") @db.VarChar(36)
+  threadId   String   @map("thread_id") @db.VarChar(100)
+  userId     String   @map("user_id") @db.VarChar(36)
+  lastReadAt DateTime @default(now()) @map("last_read_at")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, threadId, userId])
+  @@index([tenantId, userId])
+  @@map("chat_read_receipts")
+}
+
+model ChatConversationPin {
+  id       String   @id @default(uuid()) @db.VarChar(36)
+  tenantId String   @map("tenant_id") @db.VarChar(36)
+  userId   String   @map("user_id") @db.VarChar(36)
+  threadId String   @map("thread_id") @db.VarChar(100)
+  pinnedAt DateTime @default(now()) @map("pinned_at")
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, threadId])
+  @@index([tenantId, userId])
+  @@map("chat_conversation_pins")
 }
 
 model WorkspaceRole {
@@ -4109,26 +4199,42 @@ model SystemCronJob {
 }
 
 model CallHistoryRecord {
-  id              String   @id @default(uuid()) @db.VarChar(36)
-  tenantId        String   @map("tenant_id") @db.VarChar(36)
-  callerName      String   @map("caller_name") @db.VarChar(150)
-  callerEmail     String?  @map("caller_email") @db.VarChar(150)
-  callerPhone     String   @map("caller_phone") @db.VarChar(50)
-  callerAvatarUrl String?  @map("caller_avatar_url")
-  callType        String   @map("call_type") @db.VarChar(50)
-  durationSeconds Int      @default(0) @map("duration_seconds")
-  callTime        DateTime @default(now()) @map("call_time")
-  totalCalls      Int      @default(1) @map("total_calls")
-  avgCallSeconds  Int      @default(30) @map("avg_call_seconds")
-  avgWaitSeconds  Int      @default(5) @map("avg_wait_seconds")
-  status          String   @default("completed") @db.VarChar(50)
+  id              String    @id @default(uuid()) @db.VarChar(36)
+  tenantId        String    @map("tenant_id") @db.VarChar(36)
+  callSessionId   String?   @map("call_session_id") @db.VarChar(100)
+  callerId        String?   @map("caller_id") @db.VarChar(36)
+  callerName      String    @map("caller_name") @db.VarChar(150)
+  callerEmail     String?   @map("caller_email") @db.VarChar(150)
+  callerPhone     String    @map("caller_phone") @db.VarChar(50)
+  callerAvatarUrl String?   @map("caller_avatar_url")
+  receiverId      String?   @map("receiver_id") @db.VarChar(36)
+  receiverName    String?   @map("receiver_name") @db.VarChar(150)
+  receiverAvatarUrl String? @map("receiver_avatar_url")
+  direction       String    @default("outgoing") @db.VarChar(20) // incoming, outgoing
+  callType        String    @map("call_type") @db.VarChar(50) // audio, video
+  durationSeconds Int       @default(0) @map("duration_seconds")
+  callTime        DateTime  @default(now()) @map("call_time")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  groupId         String?   @map("group_id") @db.VarChar(36)
+  participantIds  String[]  @default([]) @map("participant_ids")
+  totalCalls      Int       @default(1) @map("total_calls")
+  avgCallSeconds  Int       @default(30) @map("avg_call_seconds")
+  avgWaitSeconds  Int       @default(5) @map("avg_wait_seconds")
+  status          String    @default("completed") @db.VarChar(50) // completed, missed, rejected, cancelled, failed
   notes           String?
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  hiddenByUserIds String[]  @default([]) @map("hidden_by_user_ids")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, callTime])
   @@index([tenantId, callType])
+  @@index([tenantId, direction])
+  @@index([tenantId, status])
+  @@index([tenantId, callerId])
+  @@index([tenantId, receiverId])
+  @@index([tenantId, callSessionId])
   @@map("call_history_records")
 }
 

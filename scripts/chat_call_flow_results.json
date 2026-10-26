@@ -1,0 +1,229 @@
+{
+  "timestamp": "2026-10-26T12:49:49.785Z",
+  "total": 37,
+  "passed": 37,
+  "results": [
+    {
+      "suite": "Contacts",
+      "check": "Contacts endpoint returns array",
+      "passed": true,
+      "details": "Count: 14"
+    },
+    {
+      "suite": "Contacts",
+      "check": "Contacts contain authoritative id, name, and presence status",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Contacts",
+      "check": "Contacts list has zero duplicates",
+      "passed": true,
+      "details": "14 unique contacts"
+    },
+    {
+      "suite": "Presence",
+      "check": "Presence endpoint returns onlineUserIds",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "CallHistory",
+      "check": "Manual call logging without session ID rejected (400)",
+      "passed": true,
+      "details": "Direct manual call logging is disabled. Call records must originate from verified call sessions."
+    },
+    {
+      "suite": "CallHistory",
+      "check": "Authoritative call lifecycle record persisted",
+      "passed": true,
+      "details": "ID: 10099f15-0b90-4ce0-93b0-5115afc378ba"
+    },
+    {
+      "suite": "CallHistory",
+      "check": "Call session idempotency verified (exact 1 record)",
+      "passed": true,
+      "details": "Count: 1"
+    },
+    {
+      "suite": "CallHistory",
+      "check": "GET /api/chat/calls returns pagination metadata",
+      "passed": true,
+      "details": "Total: 7"
+    },
+    {
+      "suite": "CallHistory",
+      "check": "Direction filter (?direction=outgoing) operates correctly",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "CallHistory",
+      "check": "Call type filter (?callType=audio) operates correctly",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "CallHistory",
+      "check": "DELETE /api/chat/calls/:id hides record for user without destroying audit data",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "CallHistory",
+      "check": "Hidden record excluded from user call history query",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Signaling",
+      "check": "Callee Socket.IO connected with authenticated token",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Signaling",
+      "check": "Caller Socket.IO connected with authenticated token",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Signaling",
+      "check": "Callee receives real-time call:incoming event",
+      "passed": true,
+      "details": "From: Sarah Jenkins (HR Director)"
+    },
+    {
+      "suite": "Signaling",
+      "check": "Server emits call:busy when target user is already in a call",
+      "passed": true,
+      "details": "User is currently on another call."
+    },
+    {
+      "suite": "Signaling",
+      "check": "Callee receives call:timeout notification",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Signaling",
+      "check": "Missed call record persisted in database with status 'missed'",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Signaling",
+      "check": "Missed call in-app notification persisted for recipient",
+      "passed": true,
+      "details": "Missed Audio Call"
+    },
+    {
+      "suite": "Signaling",
+      "check": "Personal Chat system event message recorded in direct thread",
+      "passed": true,
+      "details": "Missed audio call."
+    },
+    {
+      "suite": "Signaling",
+      "check": "Caller receives call:accepted event",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Signaling",
+      "check": "Callee receives call:ended event with duration",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Signaling",
+      "check": "Completed call record persisted with exact duration",
+      "passed": true,
+      "details": "Duration: 42s"
+    },
+    {
+      "suite": "Calendar",
+      "check": "POST /api/calendar/events successfully schedules meeting",
+      "passed": true,
+      "details": "Event ID: f074c159-d8f2-4215-a08c-6c4e76aea51a"
+    },
+    {
+      "suite": "Calendar",
+      "check": "CalendarEvent persisted with category 'Meetings'",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Calendar",
+      "check": "Attendee share record created for employee",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Calendar",
+      "check": "Meeting reminders scheduled",
+      "passed": true,
+      "details": "Reminders count: 2"
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Header displays 'Call History' (not misleading Telephony title)",
+      "passed": true,
+      "details": "Found: \"Call History\""
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Manual 'Log Call' button completely removed from UI",
+      "passed": true,
+      "details": "Found buttons: "
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "'Schedule Meeting' button is present in Call History view",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Public Sans typography verified on Call History headers",
+      "passed": true,
+      "details": "Computed: \"Public Sans\", Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Saved 10_call_history_redesigned.png",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Clicking 'Schedule Meeting' opens Schedule Meeting dialog",
+      "passed": true,
+      "details": "Dialog Title: \"Schedule Meeting\""
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Saved 11_schedule_meeting_dialog.png",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Contacts directory displays Audio Call, Video Call, and Message actions",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "BrowserUI",
+      "check": "Saved 12_contacts_directory_actions.png",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Security",
+      "check": "Super Admin workspace has zero Chat navigation entries",
+      "passed": true,
+      "details": ""
+    }
+  ]
+}

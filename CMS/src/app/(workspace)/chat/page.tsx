@@ -2,17 +2,15 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { extractRolesFromToken } from '@/lib/auth-navigation';
+import { resolveWorkspaceChatRoute } from '@/lib/auth-navigation';
 import { Loader2 } from 'lucide-react';
 
 export default function ChatRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('hrms_auth_token') : null;
-    const { roles } = extractRolesFromToken(token);
-    const isHrOrAdmin = roles.some((r) => ['admin', 'super_admin', 'tenant_admin', 'hr_admin', 'hr'].includes(r));
-    router.replace(isHrOrAdmin ? '/hr/chat' : '/me/chat');
+    const target = resolveWorkspaceChatRoute('') || '/super/dashboard';
+    router.replace(target);
   }, [router]);
 
   return (

@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TeamWhatsAppChatAddon } from "@/components/chat/team-whatsapp-chat-addon";
+import { UnifiedChatApp } from "@/components/chat/unified-chat-app";
 
 export const Route = createFileRoute("/_authenticated/hr/chat")({
-  component: TeamWhatsAppChatAddon,
+  component: HrChatPage,
   head: () => ({
-    meta: [{ title: "Team Chat — HR Management — Master HRMS" }],
+    meta: [{ title: "Personal Chat — HR Operations — Master HRMS" }],
   }),
 });
 
-export default TeamWhatsAppChatAddon;
+export function HrChatPage() {
+  return <UnifiedChatApp initialMode="chats" workspacePrefix="/hr" />;
+}
+
+export default HrChatPage;

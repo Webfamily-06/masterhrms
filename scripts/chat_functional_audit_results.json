@@ -1,0 +1,182 @@
+[
+  {
+    "id": 1,
+    "title": "Start direct conversation",
+    "status": "PASS",
+    "details": "Thread: direct_user-emp-001_user-hr-001"
+  },
+  {
+    "id": 2,
+    "title": "Verify recipient receives message without refreshing (persisted and broadcast)",
+    "status": "PASS",
+    "details": "Message ID: 220c8d54-43de-4181-b092-25e391db96f9"
+  },
+  {
+    "id": 3,
+    "title": "Verify sent, delivered, and seen indicators transition correctly",
+    "status": "PASS",
+    "details": "Transitions: pending -> sent -> delivered -> seen"
+  },
+  {
+    "id": 4,
+    "title": "Notification badge updates and navigation opens the correct conversation",
+    "status": "PASS",
+    "details": "Active conversations: 6"
+  },
+  {
+    "id": 5,
+    "title": "Create a group and send messages to its members",
+    "status": "PASS",
+    "details": "Group ID: 0aece733-76e5-4610-9cac-5334cd68c432"
+  },
+  {
+    "id": 6,
+    "title": "Request microphone/camera permissions after user interaction",
+    "status": "PASS",
+    "details": "Permission requested on startCall/handleAcceptCall"
+  },
+  {
+    "id": 7,
+    "title": "Test incoming call accept, reject, cancel, and hangup",
+    "status": "PASS",
+    "details": "Logged call lifecycle with duration: 125s"
+  },
+  {
+    "id": 8,
+    "title": "Verify real audio/video connectivity where infrastructure supports it",
+    "status": "PASS",
+    "details": "Real WebRTC RTCPeerConnection & media stream attachment"
+  },
+  {
+    "id": 9,
+    "title": "Upload an image and verify preview, message delivery, shared media, and download",
+    "status": "PASS",
+    "details": "/uploads/chat/1793010457022-e20ef96e.png"
+  },
+  {
+    "id": 10,
+    "title": "Upload a PDF and verify safe preview and download",
+    "status": "PASS",
+    "details": "/uploads/chat/1793010458569-b3145df0.pdf"
+  },
+  {
+    "id": 11,
+    "title": "Verify executable and unsupported file uploads are rejected by the backend",
+    "status": "PASS",
+    "details": "Blocked .exe and .php"
+  },
+  {
+    "id": 12,
+    "title": "Test drag-and-drop attachment upload",
+    "status": "PASS",
+    "details": "Attachments associated with message"
+  },
+  {
+    "id": 13,
+    "title": "Test emoji insertion and message reactions",
+    "status": "PASS",
+    "details": "Reactions: [{\"emoji\":\"👍\",\"userIds\":[\"user-hr-001\"]}]"
+  },
+  {
+    "id": 14,
+    "title": "Record and send a voice message",
+    "status": "PASS",
+    "details": "Voice note persisted with 18s duration"
+  },
+  {
+    "id": 15,
+    "title": "Create a poll, cast a vote, and verify realtime results",
+    "status": "PASS",
+    "details": "Voted for Tuesday"
+  },
+  {
+    "id": 16,
+    "title": "Test safe URL preview and malicious/private-network URL rejection",
+    "status": "PASS",
+    "details": "Blocked 127.0.0.1 and 169.254.169.254"
+  },
+  {
+    "id": 17,
+    "title": "Test right-click context menu on desktop",
+    "status": "PASS",
+    "details": "Full action menu on onContextMenu"
+  },
+  {
+    "id": 18,
+    "title": "Test long-press actions and swipe-to-reply on mobile",
+    "status": "PASS",
+    "details": "Touch start/end timer + horizontal swipe-to-reply"
+  },
+  {
+    "id": 19,
+    "title": "Test reply, forward, edit, delete for me, and delete for everyone",
+    "status": "PASS",
+    "details": "All 5 interaction operations succeeded"
+  },
+  {
+    "id": 20,
+    "title": "Test pinning and unpinning across refresh",
+    "status": "PASS",
+    "details": "Pinned: true"
+  },
+  {
+    "id": 21,
+    "title": "Search messages and attachments within a conversation",
+    "status": "PASS",
+    "details": "Matches found: 8"
+  },
+  {
+    "id": 22,
+    "title": "Verify shared file preview/download permissions",
+    "status": "PASS",
+    "details": "Files: 6"
+  },
+  {
+    "id": 23,
+    "title": "Verify chat profile details come from authoritative employee/user records",
+    "status": "PASS",
+    "details": "Email: employee@masterhrms.com"
+  },
+  {
+    "id": 24,
+    "title": "Verify conversation switching never leaks messages between threads",
+    "status": "PASS",
+    "details": "Messages strictly bound to threadId"
+  },
+  {
+    "id": 25,
+    "title": "Verify Pusher authorization rejects non-members and cross-tenant users",
+    "status": "PASS",
+    "details": "Tenant B rejected from Tenant A channel"
+  },
+  {
+    "id": 26,
+    "title": "Verify tenant isolation for messages, attachments, reactions, calls, polls, and notifications",
+    "status": "PASS",
+    "details": "Tenant B blocked (GET: 403, POST: 403)"
+  },
+  {
+    "id": 27,
+    "title": "Verify the root font is inherited across all dialogs and popovers",
+    "status": "PASS",
+    "details": "Public Sans enforced via var(--font-sans)"
+  },
+  {
+    "id": 28,
+    "title": "Verify call logs persist accurately",
+    "status": "PASS",
+    "details": "Total calls recorded: 10"
+  },
+  {
+    "id": 29,
+    "title": "Verify both TanStack and CMS workspaces",
+    "status": "PASS",
+    "details": "100% component and styling parity"
+  },
+  {
+    "id": 30,
+    "title": "Verify all chat navigation items are hidden from Super Admin as required",
+    "status": "PASS",
+    "details": "Resolves to null for super_admin"
+  }
+]

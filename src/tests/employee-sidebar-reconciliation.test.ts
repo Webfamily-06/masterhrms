@@ -36,15 +36,20 @@ describe("MASTERHRMS — Employee Portal Sidebar Navigation & Reconciliation", (
     ]);
   });
 
-  it("2. Contains all 55 canonical employee portal routes", () => {
+  it("2. Contains all canonical employee portal routes including consolidated Todo, Chat, and Email", () => {
     const allRoutes = employeeSidebar.flatMap((section) => flattenRoutes(section.children));
 
-    const expected55Routes = [
+    const expectedEmployeeRoutes = [
       // 1. Overview & Profile
       "/me/dashboard",
       "/me/calendar",
       "/me/todo",
+      "/me/todo/gantt",
+      "/apps/email",
       "/me/chat",
+      "/me/chat/groups",
+      "/me/chat/contacts",
+      "/me/chat/calls",
       "/me/notifications",
       "/me/profile",
       "/me/employees",
@@ -109,6 +114,7 @@ describe("MASTERHRMS — Employee Portal Sidebar Navigation & Reconciliation", (
       // 10. Meetings & Collaboration
       "/me/meetings",
       "/me/meetings/action-items",
+      "/settings/email-accounts",
 
       // 11. Documents & Files
       "/me/documents",
@@ -118,8 +124,8 @@ describe("MASTERHRMS — Employee Portal Sidebar Navigation & Reconciliation", (
       "/me/media",
     ];
 
-    expect(allRoutes).toHaveLength(55);
-    for (const expectedRoute of expected55Routes) {
+    expect(allRoutes).toHaveLength(expectedEmployeeRoutes.length);
+    for (const expectedRoute of expectedEmployeeRoutes) {
       expect(allRoutes).toContain(expectedRoute);
     }
   });
@@ -128,15 +134,23 @@ describe("MASTERHRMS — Employee Portal Sidebar Navigation & Reconciliation", (
     const allRoutes = employeeSidebar.flatMap((section) => flattenRoutes(section.children));
 
     for (const routePath of allRoutes) {
-      const relPath = routePath.replace(/^\/me/, "");
-      const directFile = path.join(routesDir, `${relPath}.tsx`);
-      const indexFile = path.join(routesDir, relPath, "index.tsx");
-      const rootFile = path.join(routesDir, "index.tsx");
+      let fileExists = false;
+      if (!routePath.startsWith("/me")) {
+        const directFile = path.resolve(__dirname, "../routes/_authenticated/_app", `${routePath.replace(/^\//, "").replace(/\//g, ".")}.tsx`);
+        fileExists = fs.existsSync(directFile);
+      } else {
+        const relPath = routePath.replace(/^\/me/, "");
+        const directFile = path.join(routesDir, `${relPath}.tsx`);
+        const indexFile = path.join(routesDir, relPath, "index.tsx");
+        const dotFile = path.join(routesDir, `${relPath.replace(/^\//, "").replace(/\//g, ".")}.tsx`);
+        const rootFile = path.join(routesDir, "index.tsx");
 
-      const fileExists =
-        (routePath === "/me" && fs.existsSync(rootFile)) ||
-        fs.existsSync(directFile) ||
-        fs.existsSync(indexFile);
+        fileExists =
+          (routePath === "/me" && fs.existsSync(rootFile)) ||
+          fs.existsSync(directFile) ||
+          fs.existsSync(indexFile) ||
+          fs.existsSync(dotFile);
+      }
 
       expect(fileExists, `Route file for ${routePath} must exist`).toBe(true);
     }

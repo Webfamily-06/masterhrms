@@ -526,6 +526,7 @@ const loginHandler = async (req: any, res: Response) => {
         profile: true,
         roles: true,
         employees: true,
+        workspaceRoleAssignments: true,
       },
     });
 
@@ -594,7 +595,10 @@ const loginHandler = async (req: any, res: Response) => {
         });
       }
 
-      const userTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId === resolvedTenant.id)?.tenantId;
+      const userTenantId =
+        user.profile?.tenantId ||
+        user.roles.find((r: any) => r.tenantId === resolvedTenant.id)?.tenantId ||
+        user.workspaceRoleAssignments?.find((a: any) => a.tenantId === resolvedTenant.id)?.tenantId;
       if (userTenantId !== resolvedTenant.id) {
         return res.status(403).json({
           error: "This account does not belong to this workspace.",
@@ -613,7 +617,9 @@ const loginHandler = async (req: any, res: Response) => {
 
       // Check if employee account access is deactivated in this workspace
       const isSuperUser = user.roles.some((r: any) => r.role === "super_admin");
-      const hasTenantRole = user.roles.some((r: any) => r.tenantId === resolvedTenant.id);
+      const hasTenantRole =
+        user.roles.some((r: any) => r.tenantId === resolvedTenant.id || r.tenantId === null) ||
+        (user.workspaceRoleAssignments && user.workspaceRoleAssignments.some((a: any) => a.tenantId === resolvedTenant.id));
       if (!isSuperUser && !hasTenantRole) {
         return res.status(403).json({
           error: "Your login account for this workspace has been deactivated. Please contact your administrator.",
@@ -1011,6 +1017,7 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
         },
         roles: true,
         employees: true,
+        workspaceRoleAssignments: true,
       },
     });
 
@@ -1102,7 +1109,10 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
         });
       }
 
-      const userTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId === resolvedTenant.id)?.tenantId;
+      const userTenantId =
+        user.profile?.tenantId ||
+        user.roles.find((r: any) => r.tenantId === resolvedTenant.id)?.tenantId ||
+        user.workspaceRoleAssignments?.find((a: any) => a.tenantId === resolvedTenant.id)?.tenantId;
       if (userTenantId !== resolvedTenant.id) {
         return res.status(403).json({
           error: "This account does not belong to this workspace.",

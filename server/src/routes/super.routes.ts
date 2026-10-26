@@ -618,103 +618,124 @@ superRouter.get("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequ
     const limitNum = Math.min(100, Math.max(1, parseInt(limit || "10", 10) || 10));
 
     // Construct Prisma WHERE conditions
-    const where: any = {};
+    const andConditions: any[] = [];
 
     if (search && search.trim()) {
       const q = search.trim();
-      where.OR = [
-        { name: { contains: q, mode: "insensitive" } },
-        { slug: { contains: q, mode: "insensitive" } },
-        { tenantDomains: { some: { domain: { contains: q, mode: "insensitive" } } } },
-        { profiles: { some: { OR: [{ email: { contains: q, mode: "insensitive" } }, { user: { email: { contains: q, mode: "insensitive" } } }] } } },
-      ];
+      andConditions.push({
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { slug: { contains: q, mode: "insensitive" } },
+          { tenantDomains: { some: { domain: { contains: q, mode: "insensitive" } } } },
+          { profiles: { some: { OR: [{ email: { contains: q, mode: "insensitive" } }, { user: { email: { contains: q, mode: "insensitive" } } }] } } },
+        ],
+      });
     }
 
     if (plan && plan !== "All Plans" && plan !== "all") {
       const planLower = plan.toLowerCase();
       if (planLower === "unassigned") {
-        where.OR = [
-          { subscription: { is: null } },
-          { subscription: { planId: null } },
-        ];
+        andConditions.push({
+          OR: [
+            { subscription: { is: null } },
+            { subscription: { planId: null } },
+          ],
+        });
       } else {
-        where.subscription = {
-          plan: {
-            OR: [
-              { id: { equals: plan, mode: "insensitive" } },
-              { name: { contains: plan, mode: "insensitive" } },
-            ],
+        andConditions.push({
+          subscription: {
+            plan: {
+              OR: [
+                { id: { equals: plan, mode: "insensitive" } },
+                { name: { contains: plan, mode: "insensitive" } },
+              ],
+            },
           },
-        };
+        });
       }
     }
 
     if (status && status !== "All Status" && status !== "all") {
       const statusLower = status.toLowerCase();
+      const now = new Date();
       if (statusLower === "active") {
-        // Active = no subscription row OR subscription exists and is NOT suspended/expired
-        const now = new Date();
-        where.OR = [
-          // Tenants with no TenantSubscription record (default active)
-          { subscription: { is: null } },
-          // Tenants with a subscription that is not suspended, not expired, and not past expiresAt
-          {
-            subscription: {
-              AND: [
-                { status: { not: "suspended" } },
-                { status: { not: "expired" } },
-                {
-                  OR: [
-                    { expiresAt: null },
-                    { expiresAt: { gt: now } },
-                  ],
-                },
-              ],
+        // Active = no subscription row OR subscription exists and is NOT suspended/expired and not expired by date
+        andConditions.push({
+          OR: [
+            // Tenants with no TenantSubscription record (default active)
+            { subscription: { is: null } },
+            // Tenants with a subscription that is not suspended, not expired, and not past expiresAt
+            {
+              subscription: {
+                AND: [
+                  { status: { not: "suspended" } },
+                  { status: { not: "expired" } },
+                  {
+                    OR: [
+                      { expiresAt: null },
+                      { expiresAt: { gt: now } },
+                    ],
+                  },
+                ],
+              },
             },
+          ],
+        });
+      } else if (statusLower === "inactive") {
+        // Inactive matches the KPI card / metric: any tenant whose subscription is suspended, expired, or past expiresAt
+        andConditions.push({
+          OR: [
+            { subscription: { status: "suspended" } },
+            { subscription: { status: "expired" } },
+            { subscription: { expiresAt: { lt: now } } },
+          ],
+        });
+      } else if (statusLower === "suspended") {
+        // Suspended = manually suspended
+        andConditions.push({
+          subscription: {
+            status: "suspended",
           },
-        ];
-      } else if (statusLower === "inactive" || statusLower === "suspended") {
-        // Inactive = manually suspended (but not expired)
-        where.subscription = {
-          status: "suspended",
-        };
+        });
       } else if (statusLower === "expired") {
         // Expired = subscription status is expired OR expiresAt is in the past
-        const now = new Date();
-        where.subscription = {
+        andConditions.push({
           OR: [
-            { status: "expired" },
-            { AND: [{ status: { not: "suspended" } }, { expiresAt: { lt: now } }] },
+            { subscription: { status: "expired" } },
+            { subscription: { expiresAt: { lt: now } } },
           ],
-        };
+        });
       }
     }
 
     // Date range filtering
     if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      const createdAtCond: any = {};
+      if (dateFrom) createdAtCond.gte = new Date(dateFrom);
       if (dateTo) {
         const toD = new Date(dateTo);
         toD.setHours(23, 59, 59, 999);
-        where.createdAt.lte = toD;
+        createdAtCond.lte = toD;
       }
+      andConditions.push({ createdAt: createdAtCond });
     } else if (dateRange && dateRange !== "all") {
       const now = new Date();
       if (dateRange === "today") {
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        where.createdAt = { gte: start };
+        andConditions.push({ createdAt: { gte: start } });
       } else if (dateRange === "week") {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        where.createdAt = { gte: weekAgo };
+        andConditions.push({ createdAt: { gte: weekAgo } });
       } else if (dateRange === "month") {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        where.createdAt = { gte: monthAgo };
+        andConditions.push({ createdAt: { gte: monthAgo } });
       } else if (dateRange === "year") {
         const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        where.createdAt = { gte: yearAgo };
+        andConditions.push({ createdAt: { gte: yearAgo } });
       }
     }
+
+    const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
     const totalFiltered = await prisma.tenant.count({ where });
 

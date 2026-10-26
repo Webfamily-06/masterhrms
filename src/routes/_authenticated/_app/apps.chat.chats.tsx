@@ -1,13 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ClassicChatApp } from "@/components/apps/chat/classic-chat-app";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { resolveWorkspaceChatRoute } from "@/lib/auth-navigation";
 
 export const Route = createFileRoute("/_authenticated/_app/apps/chat/chats")({
-  component: PersonalChatsPage,
-  head: () => ({ meta: [{ title: "Personal Chat — Master HRMS" }] }),
+  beforeLoad: () => {
+    const destination = resolveWorkspaceChatRoute("") || "/super/dashboard";
+    throw redirect({ to: destination as any });
+  },
+  component: () => null,
 });
 
-export function PersonalChatsPage() {
-  return <ClassicChatApp initialMode="chats" />;
-}
-
-export default PersonalChatsPage;
+export default Route;

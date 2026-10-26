@@ -34,6 +34,7 @@ const EMPLOYEE_SUBMENU_KEY_MAP: Record<string, string> = {
   "Documents & Files": "meDocs",
   "Documents & Contracts": "meDocs",
   "Media Library": "meMedia",
+  Chat: "meChat",
 };
 
 const HR_SUBMENU_KEY_MAP: Record<string, string> = {
@@ -194,6 +195,9 @@ export function DreamsSidebar({
     hrMeetings: false,
     hrDocs: false,
     hrPlanning: false,
+    meChat: false,
+    hrAppsChat: false,
+    tenantChat: false,
     tenantWorkspace: true,
   });
 
@@ -218,6 +222,7 @@ export function DreamsSidebar({
     if (currentPath.startsWith("/me/meetings")) setOpenMenus((p) => ({ ...p, meMeetings: true }));
     if (currentPath.startsWith("/me/documents")) setOpenMenus((p) => ({ ...p, meDocs: true }));
     if (currentPath.startsWith("/me/media")) setOpenMenus((p) => ({ ...p, meMedia: true }));
+    if (currentPath.startsWith("/me/chat")) setOpenMenus((p) => ({ ...p, meChat: true }));
     if (currentPath.startsWith("/hr/organization")) setOpenMenus((p) => ({ ...p, hrOrg: true }));
     if (currentPath.startsWith("/hr/attendance")) setOpenMenus((p) => ({ ...p, hrAttendance: true }));
     if (currentPath.startsWith("/hr/leave")) setOpenMenus((p) => ({ ...p, hrLeave: true }));
@@ -229,7 +234,9 @@ export function DreamsSidebar({
     if (currentPath.startsWith("/hr/assets")) setOpenMenus((p) => ({ ...p, hrAssets: true }));
     if (currentPath.startsWith("/hr/meetings")) setOpenMenus((p) => ({ ...p, hrMeetings: true }));
     if (currentPath.startsWith("/hr/documents")) setOpenMenus((p) => ({ ...p, hrDocs: true }));
+    if (currentPath.startsWith("/hr/chat")) setOpenMenus((p) => ({ ...p, hrAppsChat: true, apps: true }));
     if (currentPath.startsWith("/addons/planning")) setOpenMenus((p) => ({ ...p, hrPlanning: true }));
+    if (currentPath.startsWith("/tenant/chat")) setOpenMenus((p) => ({ ...p, tenantChat: true, tenantWorkspace: true }));
     if (currentPath.startsWith("/tenant")) setOpenMenus((p) => ({ ...p, tenantWorkspace: true }));
     if (currentPath === "/integrations" || currentPath === "/shopify") {
       setOpenMenus((p) => ({ ...p, ecommerce: true }));
@@ -1275,6 +1282,53 @@ export function DreamsSidebar({
                         Priority Support
                       </Link>
                     </li>
+                    <li className="submenu">
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleSubmenu("tenantChat");
+                        }}
+                        className={cn(
+                          "cursor-pointer",
+                          openMenus.tenantChat && "subdrop",
+                          currentPath.startsWith("/tenant/chat") && "active"
+                        )}
+                      >
+                        <i className="ph-duotone ph-chat-circle-dots"></i>
+                        <span>Chat</span>
+                        <span className="menu-arrow"></span>
+                      </a>
+                      <ul style={{ display: !isMini && openMenus.tenantChat ? "block" : "none" }}>
+                        <li>
+                          <Link
+                            to="/tenant/chat"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/tenant/chat" && "active")}
+                          >
+                            Personal Chat
+                          </Link>
+                        </li>
+                        <li>
+                          <Link
+                            to="/tenant/chat/groups"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/tenant/chat/groups" && "active")}
+                          >
+                            Chat Groups
+                          </Link>
+                        </li>
+                        <li>
+                          <Link
+                            to="/tenant/chat/contacts"
+                            onClick={onCloseMobile}
+                            className={cn(currentPath === "/tenant/chat/contacts" && "active")}
+                          >
+                            Chat Contacts
+                          </Link>
+                        </li>
+                      </ul>
+                    </li>
                   </ul>
                 </li>
               </>
@@ -1300,15 +1354,64 @@ export function DreamsSidebar({
                 <span className="menu-arrow"></span>
               </a>
               <ul style={{ display: !isMini && openMenus.apps ? "block" : "none" }}>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/chat" : "/me/chat"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/chat" || currentPath === "/me/chat" || currentPath === "/chat") && "active")}
-                  >
-                    Team Chat
-                  </Link>
-                </li>
+                {!isSuperAdmin && !isTenantAdmin && !isTenantRoute && (
+                  <li className="submenu">
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleSubmenu("hrAppsChat");
+                      }}
+                      className={cn(
+                        "cursor-pointer",
+                        openMenus.hrAppsChat && "subdrop",
+                        (currentPath.startsWith("/hr/chat") || currentPath.startsWith("/me/chat")) && "active"
+                      )}
+                    >
+                      <i className="ph-duotone ph-chat-circle-dots"></i>
+                      <span>Chat</span>
+                      <span className="menu-arrow"></span>
+                    </a>
+                    <ul style={{ display: !isMini && openMenus.hrAppsChat ? "block" : "none" }}>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/chat" : "/me/chat"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/chat" || currentPath === "/me/chat") && "active")}
+                        >
+                          Personal Chat
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/chat/groups" : "/me/chat/groups"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/chat/groups" || currentPath === "/me/chat/groups") && "active")}
+                        >
+                          Chat Groups
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/chat/contacts" : "/me/chat/contacts"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/chat/contacts" || currentPath === "/me/chat/contacts") && "active")}
+                        >
+                          Chat Contacts
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to={isAdminOrSuper ? "/hr/chat/calls" : "/me/chat/calls"}
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/chat/calls" || currentPath === "/me/chat/calls") && "active")}
+                        >
+                          Call Logs
+                        </Link>
+                      </li>
+                    </ul>
+                  </li>
+                )}
                 <li>
                   <Link
                     to="/call-history"

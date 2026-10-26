@@ -16,9 +16,9 @@ export const revalidate = 0;
 
 const Page = async () => {
   let cmsPosts: FormattedPost[] = [];
-  const internalApiBase = process.env.INTERNAL_API_URL || process.env.API_BASE_URL || 'http://127.0.0.1:4000';
+  const internalApiBase = process.env.SERVER_URL || process.env.INTERNAL_API_URL || process.env.API_BASE_URL || 'http://127.0.0.1:4000';
   try {
-    const res = await fetch(`${internalApiBase}/api/cms/blogs`, { cache: 'no-store' });
+    const res = await fetch(new URL('/api/cms/blogs', internalApiBase).toString(), { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {

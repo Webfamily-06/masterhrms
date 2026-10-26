@@ -256,6 +256,7 @@ import { Route as AuthenticatedTenantAuditLogsRouteImport } from './routes/_auth
 import { Route as AuthenticatedTenantBillingRouteImport } from './routes/_authenticated/tenant/billing'
 import { Route as AuthenticatedTenantBrandingRouteImport } from './routes/_authenticated/tenant/branding'
 import { Route as AuthenticatedTenantCalendarRouteImport } from './routes/_authenticated/tenant/calendar'
+import { Route as AuthenticatedTenantChatRouteImport } from './routes/_authenticated/tenant/chat'
 import { Route as AuthenticatedTenantCompanyProfileRouteImport } from './routes/_authenticated/tenant/company-profile'
 import { Route as AuthenticatedTenantDashboardRouteImport } from './routes/_authenticated/tenant/dashboard'
 import { Route as AuthenticatedTenantDataRouteImport } from './routes/_authenticated/tenant/data'
@@ -307,6 +308,9 @@ import { Route as AuthenticatedHrAttendanceRegularizationsRouteImport } from './
 import { Route as AuthenticatedHrAttendanceShiftsRouteImport } from './routes/_authenticated/hr/attendance/shifts'
 import { Route as AuthenticatedHrAttendanceTimesheetRouteImport } from './routes/_authenticated/hr/attendance/timesheet'
 import { Route as AuthenticatedHrAttendanceTimesheetsRouteImport } from './routes/_authenticated/hr/attendance/timesheets'
+import { Route as AuthenticatedHrChatCallsRouteImport } from './routes/_authenticated/hr/chat.calls'
+import { Route as AuthenticatedHrChatContactsRouteImport } from './routes/_authenticated/hr/chat.contacts'
+import { Route as AuthenticatedHrChatGroupsRouteImport } from './routes/_authenticated/hr/chat.groups'
 import { Route as AuthenticatedHrDocumentsIndexRouteImport } from './routes/_authenticated/hr/documents/index'
 import { Route as AuthenticatedHrDocumentsAcknowledgementsRouteImport } from './routes/_authenticated/hr/documents/acknowledgements'
 import { Route as AuthenticatedHrDocumentsCategoriesRouteImport } from './routes/_authenticated/hr/documents/categories'
@@ -427,6 +431,9 @@ import { Route as AuthenticatedMeAttendanceRegularizationsRouteImport } from './
 import { Route as AuthenticatedMeAttendanceRequestsRouteImport } from './routes/_authenticated/me/attendance/requests'
 import { Route as AuthenticatedMeAttendanceShiftsRouteImport } from './routes/_authenticated/me/attendance/shifts'
 import { Route as AuthenticatedMeAttendanceTimesheetRouteImport } from './routes/_authenticated/me/attendance/timesheet'
+import { Route as AuthenticatedMeChatCallsRouteImport } from './routes/_authenticated/me/chat.calls'
+import { Route as AuthenticatedMeChatContactsRouteImport } from './routes/_authenticated/me/chat.contacts'
+import { Route as AuthenticatedMeChatGroupsRouteImport } from './routes/_authenticated/me/chat.groups'
 import { Route as AuthenticatedMeDocumentsIndexRouteImport } from './routes/_authenticated/me/documents/index'
 import { Route as AuthenticatedMeDocumentsAcknowledgementsRouteImport } from './routes/_authenticated/me/documents/acknowledgements'
 import { Route as AuthenticatedMeDocumentsContractsRouteImport } from './routes/_authenticated/me/documents/contracts'
@@ -478,6 +485,9 @@ import { Route as AuthenticatedMeTrainingTrainingsRouteImport } from './routes/_
 import { Route as AuthenticatedSuperBlogsCategoriesRouteImport } from './routes/_authenticated/super/blogs.categories'
 import { Route as AuthenticatedSuperBlogsTagsRouteImport } from './routes/_authenticated/super/blogs.tags'
 import { Route as AuthenticatedSuperDomainsDocumentationRouteImport } from './routes/_authenticated/super/domains.documentation'
+import { Route as AuthenticatedTenantChatCallsRouteImport } from './routes/_authenticated/tenant/chat.calls'
+import { Route as AuthenticatedTenantChatContactsRouteImport } from './routes/_authenticated/tenant/chat.contacts'
+import { Route as AuthenticatedTenantChatGroupsRouteImport } from './routes/_authenticated/tenant/chat.groups'
 import { Route as AuthenticatedTenantTodoGanttRouteImport } from './routes/_authenticated/tenant/todo.gantt'
 import { Route as AuthenticatedAppAddonsAiAssistantFieldsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/fields'
 import { Route as AuthenticatedAppAddonsAiAssistantSettingsRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/settings'
@@ -1919,6 +1929,11 @@ const AuthenticatedTenantCalendarRoute =
     path: '/calendar',
     getParentRoute: () => AuthenticatedTenantRoute,
   } as any)
+const AuthenticatedTenantChatRoute = AuthenticatedTenantChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedTenantRoute,
+} as any)
 const AuthenticatedTenantCompanyProfileRoute =
   AuthenticatedTenantCompanyProfileRouteImport.update({
     id: '/company-profile',
@@ -2219,6 +2234,24 @@ const AuthenticatedHrAttendanceTimesheetsRoute =
     id: '/attendance/timesheets',
     path: '/attendance/timesheets',
     getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
+const AuthenticatedHrChatCallsRoute =
+  AuthenticatedHrChatCallsRouteImport.update({
+    id: '/calls',
+    path: '/calls',
+    getParentRoute: () => AuthenticatedHrChatRoute,
+  } as any)
+const AuthenticatedHrChatContactsRoute =
+  AuthenticatedHrChatContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => AuthenticatedHrChatRoute,
+  } as any)
+const AuthenticatedHrChatGroupsRoute =
+  AuthenticatedHrChatGroupsRouteImport.update({
+    id: '/groups',
+    path: '/groups',
+    getParentRoute: () => AuthenticatedHrChatRoute,
   } as any)
 const AuthenticatedHrDocumentsIndexRoute =
   AuthenticatedHrDocumentsIndexRouteImport.update({
@@ -2940,6 +2973,24 @@ const AuthenticatedMeAttendanceTimesheetRoute =
     path: '/attendance/timesheet',
     getParentRoute: () => AuthenticatedMeRoute,
   } as any)
+const AuthenticatedMeChatCallsRoute =
+  AuthenticatedMeChatCallsRouteImport.update({
+    id: '/calls',
+    path: '/calls',
+    getParentRoute: () => AuthenticatedMeChatRoute,
+  } as any)
+const AuthenticatedMeChatContactsRoute =
+  AuthenticatedMeChatContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => AuthenticatedMeChatRoute,
+  } as any)
+const AuthenticatedMeChatGroupsRoute =
+  AuthenticatedMeChatGroupsRouteImport.update({
+    id: '/groups',
+    path: '/groups',
+    getParentRoute: () => AuthenticatedMeChatRoute,
+  } as any)
 const AuthenticatedMeDocumentsIndexRoute =
   AuthenticatedMeDocumentsIndexRouteImport.update({
     id: '/documents/',
@@ -3245,6 +3296,24 @@ const AuthenticatedSuperDomainsDocumentationRoute =
     id: '/documentation',
     path: '/documentation',
     getParentRoute: () => AuthenticatedSuperDomainsRoute,
+  } as any)
+const AuthenticatedTenantChatCallsRoute =
+  AuthenticatedTenantChatCallsRouteImport.update({
+    id: '/calls',
+    path: '/calls',
+    getParentRoute: () => AuthenticatedTenantChatRoute,
+  } as any)
+const AuthenticatedTenantChatContactsRoute =
+  AuthenticatedTenantChatContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => AuthenticatedTenantChatRoute,
+  } as any)
+const AuthenticatedTenantChatGroupsRoute =
+  AuthenticatedTenantChatGroupsRouteImport.update({
+    id: '/groups',
+    path: '/groups',
+    getParentRoute: () => AuthenticatedTenantChatRoute,
   } as any)
 const AuthenticatedTenantTodoGanttRoute =
   AuthenticatedTenantTodoGanttRouteImport.update({
@@ -3734,7 +3803,7 @@ export interface FileRoutesByFullPath {
   '/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
   '/hr/approvals': typeof AuthenticatedHrApprovalsRoute
   '/hr/calendar': typeof AuthenticatedHrCalendarRoute
-  '/hr/chat': typeof AuthenticatedHrChatRoute
+  '/hr/chat': typeof AuthenticatedHrChatRouteWithChildren
   '/hr/dashboard': typeof AuthenticatedHrDashboardRoute
   '/hr/media': typeof AuthenticatedHrMediaRoute
   '/hr/notifications': typeof AuthenticatedHrNotificationsRoute
@@ -3744,7 +3813,7 @@ export interface FileRoutesByFullPath {
   '/me/account': typeof AuthenticatedMeAccountRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
-  '/me/chat': typeof AuthenticatedMeChatRoute
+  '/me/chat': typeof AuthenticatedMeChatRouteWithChildren
   '/me/dashboard': typeof AuthenticatedMeDashboardRoute
   '/me/employees': typeof AuthenticatedMeEmployeesRoute
   '/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
@@ -3787,6 +3856,7 @@ export interface FileRoutesByFullPath {
   '/tenant/billing': typeof AuthenticatedTenantBillingRoute
   '/tenant/branding': typeof AuthenticatedTenantBrandingRoute
   '/tenant/calendar': typeof AuthenticatedTenantCalendarRoute
+  '/tenant/chat': typeof AuthenticatedTenantChatRouteWithChildren
   '/tenant/company-profile': typeof AuthenticatedTenantCompanyProfileRoute
   '/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/tenant/data': typeof AuthenticatedTenantDataRoute
@@ -3842,6 +3912,9 @@ export interface FileRoutesByFullPath {
   '/hr/attendance/shifts': typeof AuthenticatedHrAttendanceShiftsRoute
   '/hr/attendance/timesheet': typeof AuthenticatedHrAttendanceTimesheetRoute
   '/hr/attendance/timesheets': typeof AuthenticatedHrAttendanceTimesheetsRoute
+  '/hr/chat/calls': typeof AuthenticatedHrChatCallsRoute
+  '/hr/chat/contacts': typeof AuthenticatedHrChatContactsRoute
+  '/hr/chat/groups': typeof AuthenticatedHrChatGroupsRoute
   '/hr/documents/acknowledgements': typeof AuthenticatedHrDocumentsAcknowledgementsRoute
   '/hr/documents/categories': typeof AuthenticatedHrDocumentsCategoriesRoute
   '/hr/documents/contract-templates': typeof AuthenticatedHrDocumentsContractTemplatesRoute
@@ -3950,6 +4023,9 @@ export interface FileRoutesByFullPath {
   '/me/attendance/requests': typeof AuthenticatedMeAttendanceRequestsRoute
   '/me/attendance/shifts': typeof AuthenticatedMeAttendanceShiftsRoute
   '/me/attendance/timesheet': typeof AuthenticatedMeAttendanceTimesheetRoute
+  '/me/chat/calls': typeof AuthenticatedMeChatCallsRoute
+  '/me/chat/contacts': typeof AuthenticatedMeChatContactsRoute
+  '/me/chat/groups': typeof AuthenticatedMeChatGroupsRoute
   '/me/documents/acknowledgements': typeof AuthenticatedMeDocumentsAcknowledgementsRoute
   '/me/documents/contracts': typeof AuthenticatedMeDocumentsContractsRoute
   '/me/documents/requests': typeof AuthenticatedMeDocumentsRequestsRoute
@@ -3993,6 +4069,9 @@ export interface FileRoutesByFullPath {
   '/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
   '/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
+  '/tenant/chat/calls': typeof AuthenticatedTenantChatCallsRoute
+  '/tenant/chat/contacts': typeof AuthenticatedTenantChatContactsRoute
+  '/tenant/chat/groups': typeof AuthenticatedTenantChatGroupsRoute
   '/tenant/todo/gantt': typeof AuthenticatedTenantTodoGanttRoute
   '/hr/assets/': typeof AuthenticatedHrAssetsIndexRoute
   '/hr/attendance/': typeof AuthenticatedHrAttendanceIndexRoute
@@ -4249,7 +4328,7 @@ export interface FileRoutesByTo {
   '/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
   '/hr/approvals': typeof AuthenticatedHrApprovalsRoute
   '/hr/calendar': typeof AuthenticatedHrCalendarRoute
-  '/hr/chat': typeof AuthenticatedHrChatRoute
+  '/hr/chat': typeof AuthenticatedHrChatRouteWithChildren
   '/hr/dashboard': typeof AuthenticatedHrDashboardRoute
   '/hr/media': typeof AuthenticatedHrMediaRoute
   '/hr/notifications': typeof AuthenticatedHrNotificationsRoute
@@ -4259,7 +4338,7 @@ export interface FileRoutesByTo {
   '/me/account': typeof AuthenticatedMeAccountRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
-  '/me/chat': typeof AuthenticatedMeChatRoute
+  '/me/chat': typeof AuthenticatedMeChatRouteWithChildren
   '/me/dashboard': typeof AuthenticatedMeDashboardRoute
   '/me/employees': typeof AuthenticatedMeEmployeesRoute
   '/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
@@ -4302,6 +4381,7 @@ export interface FileRoutesByTo {
   '/tenant/billing': typeof AuthenticatedTenantBillingRoute
   '/tenant/branding': typeof AuthenticatedTenantBrandingRoute
   '/tenant/calendar': typeof AuthenticatedTenantCalendarRoute
+  '/tenant/chat': typeof AuthenticatedTenantChatRouteWithChildren
   '/tenant/company-profile': typeof AuthenticatedTenantCompanyProfileRoute
   '/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/tenant/data': typeof AuthenticatedTenantDataRoute
@@ -4357,6 +4437,9 @@ export interface FileRoutesByTo {
   '/hr/attendance/shifts': typeof AuthenticatedHrAttendanceShiftsRoute
   '/hr/attendance/timesheet': typeof AuthenticatedHrAttendanceTimesheetRoute
   '/hr/attendance/timesheets': typeof AuthenticatedHrAttendanceTimesheetsRoute
+  '/hr/chat/calls': typeof AuthenticatedHrChatCallsRoute
+  '/hr/chat/contacts': typeof AuthenticatedHrChatContactsRoute
+  '/hr/chat/groups': typeof AuthenticatedHrChatGroupsRoute
   '/hr/documents/acknowledgements': typeof AuthenticatedHrDocumentsAcknowledgementsRoute
   '/hr/documents/categories': typeof AuthenticatedHrDocumentsCategoriesRoute
   '/hr/documents/contract-templates': typeof AuthenticatedHrDocumentsContractTemplatesRoute
@@ -4465,6 +4548,9 @@ export interface FileRoutesByTo {
   '/me/attendance/requests': typeof AuthenticatedMeAttendanceRequestsRoute
   '/me/attendance/shifts': typeof AuthenticatedMeAttendanceShiftsRoute
   '/me/attendance/timesheet': typeof AuthenticatedMeAttendanceTimesheetRoute
+  '/me/chat/calls': typeof AuthenticatedMeChatCallsRoute
+  '/me/chat/contacts': typeof AuthenticatedMeChatContactsRoute
+  '/me/chat/groups': typeof AuthenticatedMeChatGroupsRoute
   '/me/documents/acknowledgements': typeof AuthenticatedMeDocumentsAcknowledgementsRoute
   '/me/documents/contracts': typeof AuthenticatedMeDocumentsContractsRoute
   '/me/documents/requests': typeof AuthenticatedMeDocumentsRequestsRoute
@@ -4508,6 +4594,9 @@ export interface FileRoutesByTo {
   '/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
   '/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
+  '/tenant/chat/calls': typeof AuthenticatedTenantChatCallsRoute
+  '/tenant/chat/contacts': typeof AuthenticatedTenantChatContactsRoute
+  '/tenant/chat/groups': typeof AuthenticatedTenantChatGroupsRoute
   '/tenant/todo/gantt': typeof AuthenticatedTenantTodoGanttRoute
   '/hr/assets': typeof AuthenticatedHrAssetsIndexRoute
   '/hr/attendance': typeof AuthenticatedHrAttendanceIndexRoute
@@ -4771,7 +4860,7 @@ export interface FileRoutesById {
   '/_authenticated/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
   '/_authenticated/hr/approvals': typeof AuthenticatedHrApprovalsRoute
   '/_authenticated/hr/calendar': typeof AuthenticatedHrCalendarRoute
-  '/_authenticated/hr/chat': typeof AuthenticatedHrChatRoute
+  '/_authenticated/hr/chat': typeof AuthenticatedHrChatRouteWithChildren
   '/_authenticated/hr/dashboard': typeof AuthenticatedHrDashboardRoute
   '/_authenticated/hr/media': typeof AuthenticatedHrMediaRoute
   '/_authenticated/hr/notifications': typeof AuthenticatedHrNotificationsRoute
@@ -4781,7 +4870,7 @@ export interface FileRoutesById {
   '/_authenticated/me/account': typeof AuthenticatedMeAccountRoute
   '/_authenticated/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/_authenticated/me/calendar': typeof AuthenticatedMeCalendarRoute
-  '/_authenticated/me/chat': typeof AuthenticatedMeChatRoute
+  '/_authenticated/me/chat': typeof AuthenticatedMeChatRouteWithChildren
   '/_authenticated/me/dashboard': typeof AuthenticatedMeDashboardRoute
   '/_authenticated/me/employees': typeof AuthenticatedMeEmployeesRoute
   '/_authenticated/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
@@ -4824,6 +4913,7 @@ export interface FileRoutesById {
   '/_authenticated/tenant/billing': typeof AuthenticatedTenantBillingRoute
   '/_authenticated/tenant/branding': typeof AuthenticatedTenantBrandingRoute
   '/_authenticated/tenant/calendar': typeof AuthenticatedTenantCalendarRoute
+  '/_authenticated/tenant/chat': typeof AuthenticatedTenantChatRouteWithChildren
   '/_authenticated/tenant/company-profile': typeof AuthenticatedTenantCompanyProfileRoute
   '/_authenticated/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/_authenticated/tenant/data': typeof AuthenticatedTenantDataRoute
@@ -4879,6 +4969,9 @@ export interface FileRoutesById {
   '/_authenticated/hr/attendance/shifts': typeof AuthenticatedHrAttendanceShiftsRoute
   '/_authenticated/hr/attendance/timesheet': typeof AuthenticatedHrAttendanceTimesheetRoute
   '/_authenticated/hr/attendance/timesheets': typeof AuthenticatedHrAttendanceTimesheetsRoute
+  '/_authenticated/hr/chat/calls': typeof AuthenticatedHrChatCallsRoute
+  '/_authenticated/hr/chat/contacts': typeof AuthenticatedHrChatContactsRoute
+  '/_authenticated/hr/chat/groups': typeof AuthenticatedHrChatGroupsRoute
   '/_authenticated/hr/documents/acknowledgements': typeof AuthenticatedHrDocumentsAcknowledgementsRoute
   '/_authenticated/hr/documents/categories': typeof AuthenticatedHrDocumentsCategoriesRoute
   '/_authenticated/hr/documents/contract-templates': typeof AuthenticatedHrDocumentsContractTemplatesRoute
@@ -4987,6 +5080,9 @@ export interface FileRoutesById {
   '/_authenticated/me/attendance/requests': typeof AuthenticatedMeAttendanceRequestsRoute
   '/_authenticated/me/attendance/shifts': typeof AuthenticatedMeAttendanceShiftsRoute
   '/_authenticated/me/attendance/timesheet': typeof AuthenticatedMeAttendanceTimesheetRoute
+  '/_authenticated/me/chat/calls': typeof AuthenticatedMeChatCallsRoute
+  '/_authenticated/me/chat/contacts': typeof AuthenticatedMeChatContactsRoute
+  '/_authenticated/me/chat/groups': typeof AuthenticatedMeChatGroupsRoute
   '/_authenticated/me/documents/acknowledgements': typeof AuthenticatedMeDocumentsAcknowledgementsRoute
   '/_authenticated/me/documents/contracts': typeof AuthenticatedMeDocumentsContractsRoute
   '/_authenticated/me/documents/requests': typeof AuthenticatedMeDocumentsRequestsRoute
@@ -5030,6 +5126,9 @@ export interface FileRoutesById {
   '/_authenticated/super/blogs/categories': typeof AuthenticatedSuperBlogsCategoriesRoute
   '/_authenticated/super/blogs/tags': typeof AuthenticatedSuperBlogsTagsRoute
   '/_authenticated/super/domains/documentation': typeof AuthenticatedSuperDomainsDocumentationRoute
+  '/_authenticated/tenant/chat/calls': typeof AuthenticatedTenantChatCallsRoute
+  '/_authenticated/tenant/chat/contacts': typeof AuthenticatedTenantChatContactsRoute
+  '/_authenticated/tenant/chat/groups': typeof AuthenticatedTenantChatGroupsRoute
   '/_authenticated/tenant/todo/gantt': typeof AuthenticatedTenantTodoGanttRoute
   '/_authenticated/hr/assets/': typeof AuthenticatedHrAssetsIndexRoute
   '/_authenticated/hr/attendance/': typeof AuthenticatedHrAttendanceIndexRoute
@@ -5345,6 +5444,7 @@ export interface FileRouteTypes {
     | '/tenant/billing'
     | '/tenant/branding'
     | '/tenant/calendar'
+    | '/tenant/chat'
     | '/tenant/company-profile'
     | '/tenant/dashboard'
     | '/tenant/data'
@@ -5400,6 +5500,9 @@ export interface FileRouteTypes {
     | '/hr/attendance/shifts'
     | '/hr/attendance/timesheet'
     | '/hr/attendance/timesheets'
+    | '/hr/chat/calls'
+    | '/hr/chat/contacts'
+    | '/hr/chat/groups'
     | '/hr/documents/acknowledgements'
     | '/hr/documents/categories'
     | '/hr/documents/contract-templates'
@@ -5508,6 +5611,9 @@ export interface FileRouteTypes {
     | '/me/attendance/requests'
     | '/me/attendance/shifts'
     | '/me/attendance/timesheet'
+    | '/me/chat/calls'
+    | '/me/chat/contacts'
+    | '/me/chat/groups'
     | '/me/documents/acknowledgements'
     | '/me/documents/contracts'
     | '/me/documents/requests'
@@ -5551,6 +5657,9 @@ export interface FileRouteTypes {
     | '/super/blogs/categories'
     | '/super/blogs/tags'
     | '/super/domains/documentation'
+    | '/tenant/chat/calls'
+    | '/tenant/chat/contacts'
+    | '/tenant/chat/groups'
     | '/tenant/todo/gantt'
     | '/hr/assets/'
     | '/hr/attendance/'
@@ -5860,6 +5969,7 @@ export interface FileRouteTypes {
     | '/tenant/billing'
     | '/tenant/branding'
     | '/tenant/calendar'
+    | '/tenant/chat'
     | '/tenant/company-profile'
     | '/tenant/dashboard'
     | '/tenant/data'
@@ -5915,6 +6025,9 @@ export interface FileRouteTypes {
     | '/hr/attendance/shifts'
     | '/hr/attendance/timesheet'
     | '/hr/attendance/timesheets'
+    | '/hr/chat/calls'
+    | '/hr/chat/contacts'
+    | '/hr/chat/groups'
     | '/hr/documents/acknowledgements'
     | '/hr/documents/categories'
     | '/hr/documents/contract-templates'
@@ -6023,6 +6136,9 @@ export interface FileRouteTypes {
     | '/me/attendance/requests'
     | '/me/attendance/shifts'
     | '/me/attendance/timesheet'
+    | '/me/chat/calls'
+    | '/me/chat/contacts'
+    | '/me/chat/groups'
     | '/me/documents/acknowledgements'
     | '/me/documents/contracts'
     | '/me/documents/requests'
@@ -6066,6 +6182,9 @@ export interface FileRouteTypes {
     | '/super/blogs/categories'
     | '/super/blogs/tags'
     | '/super/domains/documentation'
+    | '/tenant/chat/calls'
+    | '/tenant/chat/contacts'
+    | '/tenant/chat/groups'
     | '/tenant/todo/gantt'
     | '/hr/assets'
     | '/hr/attendance'
@@ -6381,6 +6500,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tenant/billing'
     | '/_authenticated/tenant/branding'
     | '/_authenticated/tenant/calendar'
+    | '/_authenticated/tenant/chat'
     | '/_authenticated/tenant/company-profile'
     | '/_authenticated/tenant/dashboard'
     | '/_authenticated/tenant/data'
@@ -6436,6 +6556,9 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/attendance/shifts'
     | '/_authenticated/hr/attendance/timesheet'
     | '/_authenticated/hr/attendance/timesheets'
+    | '/_authenticated/hr/chat/calls'
+    | '/_authenticated/hr/chat/contacts'
+    | '/_authenticated/hr/chat/groups'
     | '/_authenticated/hr/documents/acknowledgements'
     | '/_authenticated/hr/documents/categories'
     | '/_authenticated/hr/documents/contract-templates'
@@ -6544,6 +6667,9 @@ export interface FileRouteTypes {
     | '/_authenticated/me/attendance/requests'
     | '/_authenticated/me/attendance/shifts'
     | '/_authenticated/me/attendance/timesheet'
+    | '/_authenticated/me/chat/calls'
+    | '/_authenticated/me/chat/contacts'
+    | '/_authenticated/me/chat/groups'
     | '/_authenticated/me/documents/acknowledgements'
     | '/_authenticated/me/documents/contracts'
     | '/_authenticated/me/documents/requests'
@@ -6587,6 +6713,9 @@ export interface FileRouteTypes {
     | '/_authenticated/super/blogs/categories'
     | '/_authenticated/super/blogs/tags'
     | '/_authenticated/super/domains/documentation'
+    | '/_authenticated/tenant/chat/calls'
+    | '/_authenticated/tenant/chat/contacts'
+    | '/_authenticated/tenant/chat/groups'
     | '/_authenticated/tenant/todo/gantt'
     | '/_authenticated/hr/assets/'
     | '/_authenticated/hr/attendance/'
@@ -8426,6 +8555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTenantCalendarRouteImport
       parentRoute: typeof AuthenticatedTenantRoute
     }
+    '/_authenticated/tenant/chat': {
+      id: '/_authenticated/tenant/chat'
+      path: '/chat'
+      fullPath: '/tenant/chat'
+      preLoaderRoute: typeof AuthenticatedTenantChatRouteImport
+      parentRoute: typeof AuthenticatedTenantRoute
+    }
     '/_authenticated/tenant/company-profile': {
       id: '/_authenticated/tenant/company-profile'
       path: '/company-profile'
@@ -8782,6 +8918,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/hr/attendance/timesheets'
       preLoaderRoute: typeof AuthenticatedHrAttendanceTimesheetsRouteImport
       parentRoute: typeof AuthenticatedHrRoute
+    }
+    '/_authenticated/hr/chat/calls': {
+      id: '/_authenticated/hr/chat/calls'
+      path: '/calls'
+      fullPath: '/hr/chat/calls'
+      preLoaderRoute: typeof AuthenticatedHrChatCallsRouteImport
+      parentRoute: typeof AuthenticatedHrChatRoute
+    }
+    '/_authenticated/hr/chat/contacts': {
+      id: '/_authenticated/hr/chat/contacts'
+      path: '/contacts'
+      fullPath: '/hr/chat/contacts'
+      preLoaderRoute: typeof AuthenticatedHrChatContactsRouteImport
+      parentRoute: typeof AuthenticatedHrChatRoute
+    }
+    '/_authenticated/hr/chat/groups': {
+      id: '/_authenticated/hr/chat/groups'
+      path: '/groups'
+      fullPath: '/hr/chat/groups'
+      preLoaderRoute: typeof AuthenticatedHrChatGroupsRouteImport
+      parentRoute: typeof AuthenticatedHrChatRoute
     }
     '/_authenticated/hr/documents/': {
       id: '/_authenticated/hr/documents/'
@@ -9623,6 +9780,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMeAttendanceTimesheetRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
+    '/_authenticated/me/chat/calls': {
+      id: '/_authenticated/me/chat/calls'
+      path: '/calls'
+      fullPath: '/me/chat/calls'
+      preLoaderRoute: typeof AuthenticatedMeChatCallsRouteImport
+      parentRoute: typeof AuthenticatedMeChatRoute
+    }
+    '/_authenticated/me/chat/contacts': {
+      id: '/_authenticated/me/chat/contacts'
+      path: '/contacts'
+      fullPath: '/me/chat/contacts'
+      preLoaderRoute: typeof AuthenticatedMeChatContactsRouteImport
+      parentRoute: typeof AuthenticatedMeChatRoute
+    }
+    '/_authenticated/me/chat/groups': {
+      id: '/_authenticated/me/chat/groups'
+      path: '/groups'
+      fullPath: '/me/chat/groups'
+      preLoaderRoute: typeof AuthenticatedMeChatGroupsRouteImport
+      parentRoute: typeof AuthenticatedMeChatRoute
+    }
     '/_authenticated/me/documents/': {
       id: '/_authenticated/me/documents/'
       path: '/documents'
@@ -9979,6 +10157,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/super/domains/documentation'
       preLoaderRoute: typeof AuthenticatedSuperDomainsDocumentationRouteImport
       parentRoute: typeof AuthenticatedSuperDomainsRoute
+    }
+    '/_authenticated/tenant/chat/calls': {
+      id: '/_authenticated/tenant/chat/calls'
+      path: '/calls'
+      fullPath: '/tenant/chat/calls'
+      preLoaderRoute: typeof AuthenticatedTenantChatCallsRouteImport
+      parentRoute: typeof AuthenticatedTenantChatRoute
+    }
+    '/_authenticated/tenant/chat/contacts': {
+      id: '/_authenticated/tenant/chat/contacts'
+      path: '/contacts'
+      fullPath: '/tenant/chat/contacts'
+      preLoaderRoute: typeof AuthenticatedTenantChatContactsRouteImport
+      parentRoute: typeof AuthenticatedTenantChatRoute
+    }
+    '/_authenticated/tenant/chat/groups': {
+      id: '/_authenticated/tenant/chat/groups'
+      path: '/groups'
+      fullPath: '/tenant/chat/groups'
+      preLoaderRoute: typeof AuthenticatedTenantChatGroupsRouteImport
+      parentRoute: typeof AuthenticatedTenantChatRoute
     }
     '/_authenticated/tenant/todo/gantt': {
       id: '/_authenticated/tenant/todo/gantt'
@@ -11009,6 +11208,21 @@ const AuthenticatedSuperRouteRouteWithChildren =
     AuthenticatedSuperRouteRouteChildren,
   )
 
+interface AuthenticatedHrChatRouteChildren {
+  AuthenticatedHrChatCallsRoute: typeof AuthenticatedHrChatCallsRoute
+  AuthenticatedHrChatContactsRoute: typeof AuthenticatedHrChatContactsRoute
+  AuthenticatedHrChatGroupsRoute: typeof AuthenticatedHrChatGroupsRoute
+}
+
+const AuthenticatedHrChatRouteChildren: AuthenticatedHrChatRouteChildren = {
+  AuthenticatedHrChatCallsRoute: AuthenticatedHrChatCallsRoute,
+  AuthenticatedHrChatContactsRoute: AuthenticatedHrChatContactsRoute,
+  AuthenticatedHrChatGroupsRoute: AuthenticatedHrChatGroupsRoute,
+}
+
+const AuthenticatedHrChatRouteWithChildren =
+  AuthenticatedHrChatRoute._addFileChildren(AuthenticatedHrChatRouteChildren)
+
 interface AuthenticatedHrTodoRouteChildren {
   AuthenticatedHrTodoGanttRoute: typeof AuthenticatedHrTodoGanttRoute
 }
@@ -11037,7 +11251,7 @@ const AuthenticatedHrEmployeesIdRouteWithChildren =
 interface AuthenticatedHrRouteChildren {
   AuthenticatedHrApprovalsRoute: typeof AuthenticatedHrApprovalsRoute
   AuthenticatedHrCalendarRoute: typeof AuthenticatedHrCalendarRoute
-  AuthenticatedHrChatRoute: typeof AuthenticatedHrChatRoute
+  AuthenticatedHrChatRoute: typeof AuthenticatedHrChatRouteWithChildren
   AuthenticatedHrDashboardRoute: typeof AuthenticatedHrDashboardRoute
   AuthenticatedHrMediaRoute: typeof AuthenticatedHrMediaRoute
   AuthenticatedHrNotificationsRoute: typeof AuthenticatedHrNotificationsRoute
@@ -11173,7 +11387,7 @@ interface AuthenticatedHrRouteChildren {
 const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
   AuthenticatedHrApprovalsRoute: AuthenticatedHrApprovalsRoute,
   AuthenticatedHrCalendarRoute: AuthenticatedHrCalendarRoute,
-  AuthenticatedHrChatRoute: AuthenticatedHrChatRoute,
+  AuthenticatedHrChatRoute: AuthenticatedHrChatRouteWithChildren,
   AuthenticatedHrDashboardRoute: AuthenticatedHrDashboardRoute,
   AuthenticatedHrMediaRoute: AuthenticatedHrMediaRoute,
   AuthenticatedHrNotificationsRoute: AuthenticatedHrNotificationsRoute,
@@ -11371,6 +11585,21 @@ const AuthenticatedHrRouteWithChildren = AuthenticatedHrRoute._addFileChildren(
   AuthenticatedHrRouteChildren,
 )
 
+interface AuthenticatedMeChatRouteChildren {
+  AuthenticatedMeChatCallsRoute: typeof AuthenticatedMeChatCallsRoute
+  AuthenticatedMeChatContactsRoute: typeof AuthenticatedMeChatContactsRoute
+  AuthenticatedMeChatGroupsRoute: typeof AuthenticatedMeChatGroupsRoute
+}
+
+const AuthenticatedMeChatRouteChildren: AuthenticatedMeChatRouteChildren = {
+  AuthenticatedMeChatCallsRoute: AuthenticatedMeChatCallsRoute,
+  AuthenticatedMeChatContactsRoute: AuthenticatedMeChatContactsRoute,
+  AuthenticatedMeChatGroupsRoute: AuthenticatedMeChatGroupsRoute,
+}
+
+const AuthenticatedMeChatRouteWithChildren =
+  AuthenticatedMeChatRoute._addFileChildren(AuthenticatedMeChatRouteChildren)
+
 interface AuthenticatedMeTodoRouteChildren {
   AuthenticatedMeTodoGanttRoute: typeof AuthenticatedMeTodoGanttRoute
 }
@@ -11386,7 +11615,7 @@ interface AuthenticatedMeRouteChildren {
   AuthenticatedMeAccountRoute: typeof AuthenticatedMeAccountRoute
   AuthenticatedMeApprovalsRoute: typeof AuthenticatedMeApprovalsRoute
   AuthenticatedMeCalendarRoute: typeof AuthenticatedMeCalendarRoute
-  AuthenticatedMeChatRoute: typeof AuthenticatedMeChatRoute
+  AuthenticatedMeChatRoute: typeof AuthenticatedMeChatRouteWithChildren
   AuthenticatedMeDashboardRoute: typeof AuthenticatedMeDashboardRoute
   AuthenticatedMeEmployeesRoute: typeof AuthenticatedMeEmployeesRoute
   AuthenticatedMeHelpdeskRoute: typeof AuthenticatedMeHelpdeskRoute
@@ -11461,7 +11690,7 @@ const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeAccountRoute: AuthenticatedMeAccountRoute,
   AuthenticatedMeApprovalsRoute: AuthenticatedMeApprovalsRoute,
   AuthenticatedMeCalendarRoute: AuthenticatedMeCalendarRoute,
-  AuthenticatedMeChatRoute: AuthenticatedMeChatRoute,
+  AuthenticatedMeChatRoute: AuthenticatedMeChatRouteWithChildren,
   AuthenticatedMeDashboardRoute: AuthenticatedMeDashboardRoute,
   AuthenticatedMeEmployeesRoute: AuthenticatedMeEmployeesRoute,
   AuthenticatedMeHelpdeskRoute: AuthenticatedMeHelpdeskRoute,
@@ -11562,6 +11791,24 @@ const AuthenticatedMeRouteWithChildren = AuthenticatedMeRoute._addFileChildren(
   AuthenticatedMeRouteChildren,
 )
 
+interface AuthenticatedTenantChatRouteChildren {
+  AuthenticatedTenantChatCallsRoute: typeof AuthenticatedTenantChatCallsRoute
+  AuthenticatedTenantChatContactsRoute: typeof AuthenticatedTenantChatContactsRoute
+  AuthenticatedTenantChatGroupsRoute: typeof AuthenticatedTenantChatGroupsRoute
+}
+
+const AuthenticatedTenantChatRouteChildren: AuthenticatedTenantChatRouteChildren =
+  {
+    AuthenticatedTenantChatCallsRoute: AuthenticatedTenantChatCallsRoute,
+    AuthenticatedTenantChatContactsRoute: AuthenticatedTenantChatContactsRoute,
+    AuthenticatedTenantChatGroupsRoute: AuthenticatedTenantChatGroupsRoute,
+  }
+
+const AuthenticatedTenantChatRouteWithChildren =
+  AuthenticatedTenantChatRoute._addFileChildren(
+    AuthenticatedTenantChatRouteChildren,
+  )
+
 interface AuthenticatedTenantTodoRouteChildren {
   AuthenticatedTenantTodoGanttRoute: typeof AuthenticatedTenantTodoGanttRoute
 }
@@ -11581,6 +11828,7 @@ interface AuthenticatedTenantRouteChildren {
   AuthenticatedTenantBillingRoute: typeof AuthenticatedTenantBillingRoute
   AuthenticatedTenantBrandingRoute: typeof AuthenticatedTenantBrandingRoute
   AuthenticatedTenantCalendarRoute: typeof AuthenticatedTenantCalendarRoute
+  AuthenticatedTenantChatRoute: typeof AuthenticatedTenantChatRouteWithChildren
   AuthenticatedTenantCompanyProfileRoute: typeof AuthenticatedTenantCompanyProfileRoute
   AuthenticatedTenantDashboardRoute: typeof AuthenticatedTenantDashboardRoute
   AuthenticatedTenantDataRoute: typeof AuthenticatedTenantDataRoute
@@ -11601,6 +11849,7 @@ const AuthenticatedTenantRouteChildren: AuthenticatedTenantRouteChildren = {
   AuthenticatedTenantBillingRoute: AuthenticatedTenantBillingRoute,
   AuthenticatedTenantBrandingRoute: AuthenticatedTenantBrandingRoute,
   AuthenticatedTenantCalendarRoute: AuthenticatedTenantCalendarRoute,
+  AuthenticatedTenantChatRoute: AuthenticatedTenantChatRouteWithChildren,
   AuthenticatedTenantCompanyProfileRoute:
     AuthenticatedTenantCompanyProfileRoute,
   AuthenticatedTenantDashboardRoute: AuthenticatedTenantDashboardRoute,
@@ -11711,13 +11960,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -46,6 +46,10 @@ export const ROUTES = {
     calendar: "/tenant/calendar",
     todo: "/tenant/todo",
     todoGantt: "/tenant/todo/gantt",
+    chat: "/tenant/chat",
+    chatGroups: "/tenant/chat/groups",
+    chatContacts: "/tenant/chat/contacts",
+    chatCalls: "/tenant/chat/calls",
   },
 
   // ── HR Operations Portal (/hr/*) ──
@@ -56,6 +60,9 @@ export const ROUTES = {
     todo: "/hr/todo",
     todoGantt: "/hr/todo/gantt",
     chat: "/hr/chat",
+    chatGroups: "/hr/chat/groups",
+    chatContacts: "/hr/chat/contacts",
+    chatCalls: "/hr/chat/calls",
 
     // 2. Workforce Management
     employees: "/hr/employees",
@@ -170,6 +177,9 @@ export const ROUTES = {
     todo: "/me/todo",
     todoGantt: "/me/todo/gantt",
     chat: "/me/chat",
+    chatGroups: "/me/chat/groups",
+    chatContacts: "/me/chat/contacts",
+    chatCalls: "/me/chat/calls",
     notifications: "/me/notifications",
 
     // 2. Workspace Management

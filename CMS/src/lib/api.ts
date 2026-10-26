@@ -3,6 +3,9 @@
  */
 
 export const API_BASE =
+  (typeof process !== "undefined" && process.env?.SERVER_URL
+    ? `${process.env.SERVER_URL.replace(/\/+$/, "")}/api`
+    : undefined) ||
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
   (typeof import.meta !== "undefined" && (import.meta as any)?.env?.VITE_API_URL) ||
   (typeof window !== "undefined" ? "/api" : "http://localhost:4000/api");

@@ -8,12 +8,13 @@ import {
 } from "@/nav/hr-sidebar";
 
 describe("HR Sidebar Navigation Reconciliation & Coverage Suite", () => {
-  it("1. exposes all 7 top-level sections with required icons and metadata", () => {
-    expect(hrSidebar).toHaveLength(7);
+  it("1. exposes all 8 top-level sections with required icons and metadata", () => {
+    expect(hrSidebar).toHaveLength(8);
 
     const sectionLabels = hrSidebar.map((s) => s.label);
     expect(sectionLabels).toEqual([
       "Overview",
+      "Applications",
       "Workspace Management",
       "Talent & Growth",
       "Finance & Assets",
@@ -123,9 +124,10 @@ describe("HR Sidebar Navigation Reconciliation & Coverage Suite", () => {
       activeAddonSlugs: activeAddons,
     });
 
-    // 1. All 7 top-level sections must be present
+    // 1. All 8 top-level sections must be present
     expect(renderedSidebar.map((s) => s.label)).toEqual([
       "Overview",
+      "Applications",
       "Workspace Management",
       "Talent & Growth",
       "Finance & Assets",

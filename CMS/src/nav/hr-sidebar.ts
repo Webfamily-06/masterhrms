@@ -37,6 +37,7 @@ export interface HRRouteInventoryItem {
 }
 
 import { HR_TODO_NAV_GROUP } from "./todo-navigation";
+import { HR_CHAT_NAV_GROUP } from "./chat-navigation";
 
 /**
  * 01 - 07 Canonical HR Sidebar Hierarchy
@@ -51,7 +52,6 @@ export const hrSidebar: HRMenuItem[] = [
       { label: "Dashboard", path: "/hr/dashboard", permission: "hrm.dashboard.view" },
       { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
       { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
-      { label: "Team Chat", path: "/hr/chat", permission: "hrm.dashboard.view" },
       { label: "Approvals", path: "/hr/approvals", permission: "hrm.manage" },
       { label: "Notifications", path: "/hr/notifications", permission: "hrm.dashboard.view" },
     ],
@@ -63,14 +63,7 @@ export const hrSidebar: HRMenuItem[] = [
     icon: "grid-four",
     permission: "hrm.dashboard.view",
     children: [
-      {
-        label: "Chat",
-        children: [
-          { label: "Personal Chat", path: "/apps/chat/chats", permission: "hrm.dashboard.view" },
-          { label: "Chat Groups", path: "/apps/chat/chat-groups", permission: "hrm.dashboard.view" },
-          { label: "Chat Contacts", path: "/apps/chat/chat-contact", permission: "hrm.dashboard.view" },
-        ],
-      },
+      HR_CHAT_NAV_GROUP,
       { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
       { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
       {

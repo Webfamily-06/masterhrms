@@ -1,7 +1,14 @@
 "use client";
 
-import { ClassicChatApp } from "@/components/apps/chat/classic-chat-app";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { resolveWorkspaceChatRoute } from "@/lib/auth-navigation";
 
 export default function ChatContactPage() {
-  return <ClassicChatApp initialMode="contacts" />;
+  const router = useRouter();
+  useEffect(() => {
+    const target = resolveWorkspaceChatRoute("/contacts") || "/super/dashboard";
+    router.replace(target);
+  }, [router]);
+  return null;
 }

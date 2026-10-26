@@ -78,6 +78,15 @@ export function resolveDefaultRoute(
     if (redirect === "/apps/calendar") {
       return isEmployee && !isHrAdmin && !isTenantAdmin ? "/me/calendar" : isHrAdmin && !isTenantAdmin ? "/hr/calendar" : "/tenant/calendar";
     }
+    if (redirect === "/chat" || redirect === "/apps/chat" || redirect === "/apps/chat/chats") {
+      return isEmployee && !isHrAdmin && !isTenantAdmin ? "/me/chat" : isHrAdmin && !isTenantAdmin ? "/hr/chat" : "/tenant/chat";
+    }
+    if (redirect === "/apps/chat/chat-groups") {
+      return isEmployee && !isHrAdmin && !isTenantAdmin ? "/me/chat/groups" : isHrAdmin && !isTenantAdmin ? "/hr/chat/groups" : "/tenant/chat/groups";
+    }
+    if (redirect === "/apps/chat/chat-contact") {
+      return isEmployee && !isHrAdmin && !isTenantAdmin ? "/me/chat/contacts" : isHrAdmin && !isTenantAdmin ? "/hr/chat/contacts" : "/tenant/chat/contacts";
+    }
 
     // 2. Authorization validation for destination path
     if (redirect.startsWith("/super") && !isSuperAdmin) {
@@ -94,5 +103,24 @@ export function resolveDefaultRoute(
   }
 
   return defaultLanding;
+}
+
+export function resolveWorkspaceChatRoute(
+  subpath: "" | "/groups" | "/contacts" = "",
+  token?: string | null
+): string | null {
+  const effectiveToken = token || (typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null);
+  const { roles } = extractRolesFromToken(effectiveToken);
+  const normalized = roles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
+  const isSuperAdmin = roles.includes("super_admin") || normalized.includes("superadmin");
+  if (isSuperAdmin) {
+    return null;
+  }
+  const isTenantAdmin = normalized.some((r) =>
+    ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
+  );
+  const isHrAdmin = isTenantAdmin || normalized.some((r) => ["hradmin", "hr", "hrmanager", "manager"].includes(r));
+  const prefix = isTenantAdmin ? "/tenant/chat" : isHrAdmin ? "/hr/chat" : "/me/chat";
+  return `${prefix}${subpath}`;
 }
 

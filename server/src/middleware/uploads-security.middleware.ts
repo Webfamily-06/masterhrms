@@ -50,8 +50,12 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
     token = authHeader.split(" ")[1];
   } else if (req.query?.token && typeof req.query.token === "string") {
     token = req.query.token;
+  } else if ((req as any).cookies?.hrms_auth_token) {
+    token = (req as any).cookies.hrms_auth_token;
   } else if ((req as any).cookies?.auth_token) {
     token = (req as any).cookies.auth_token;
+  } else if ((req as any).cookies?.token) {
+    token = (req as any).cookies.token;
   }
 
   if (!token) {
@@ -76,6 +80,11 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
 
     const isSuper = user.roles.some((r) => r.role === "super_admin");
     const userTenantId = user.profile?.tenantId || (decoded as any).tenantId || null;
+
+    // Chat attachments & voice notes are accessible to authenticated workspace members
+    if (subPath.startsWith("chat/")) {
+      return next();
+    }
 
     // Query database for media file ownership
     const mediaFile = await db.mediaFile.findFirst({

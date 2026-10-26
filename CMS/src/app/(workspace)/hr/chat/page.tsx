@@ -1,7 +1,8 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
-import { TeamWhatsAppChatAddon } from "@/components/chat/team-whatsapp-chat-addon";
 
+import React from "react";
+import { UnifiedChatApp } from "@/components/chat/unified-chat-app";
 
-
-export default TeamWhatsAppChatAddon;
+export default function HrChatPage() {
+  return <UnifiedChatApp initialMode="chats" workspacePrefix="/hr" />;
+}

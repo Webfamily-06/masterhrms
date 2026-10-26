@@ -3,6 +3,9 @@
  */
 
 export const API_BASE =
+  (typeof process !== "undefined" && process.env?.SERVER_URL
+    ? `${process.env.SERVER_URL.replace(/\/+$/, "")}/api`
+    : undefined) ||
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
   (typeof window !== "undefined" &&
   window.location.hostname !== "localhost" &&
