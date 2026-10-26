@@ -541,7 +541,7 @@ function scheduleDailySubscriptionReminders() {
 
   console.log(`⏰ Daily Subscription Expiry Reminders scheduled in ${Math.round(msUntilNext / 60000)} min (target: 08:00 UTC)`);
 }
-if (process.env.NODE_ENV !== "test") {
+if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
   scheduleDailySubscriptionReminders();
   CalendarReminderScheduler.start();
 

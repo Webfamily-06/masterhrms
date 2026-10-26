@@ -4,12 +4,14 @@ import path from "path";
 import { prismaProxy, createDynamicPrismaProxy } from "./facade/prisma-proxy.facade";
 
 // Ensure environment variables are loaded before PrismaClient initializes
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 dotenv.config();
 
 const dbUrl = process.env.DATABASE_URL;
 
 if (!dbUrl) {
+  console.error("❌ [CRITICAL] DATABASE_URL is missing. Please set DATABASE_URL in Vercel Project Settings > Environment Variables.");
   throw new Error("DATABASE_URL must be configured before starting the API.");
 }
 
@@ -34,10 +36,9 @@ export const rawPrisma: PrismaClient =
 // Dynamic Prisma Proxy Facade exported as the default application-wide 'prisma' client instance
 export const prisma: PrismaClient & Record<string, any> = (global.__prismaProxy || prismaProxy) as any;
 
-if (process.env.NODE_ENV !== "production") {
-  global.__rawPrisma = rawPrisma;
-  global.__prismaProxy = prisma;
-}
+// Retain Prisma singleton across lambda / hot-reloads
+global.__rawPrisma = rawPrisma;
+global.__prismaProxy = prisma;
 
 export { createDynamicPrismaProxy, prismaProxy };
 
