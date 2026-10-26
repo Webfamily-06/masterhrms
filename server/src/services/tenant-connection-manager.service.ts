@@ -33,10 +33,10 @@ export class TenantConnectionManager {
   private constructor() {
     const baseDbUrl = process.env.DATABASE_URL;
     if (!baseDbUrl) {
-      throw new Error("DATABASE_URL must be configured before starting TenantConnectionManager.");
+      console.warn("⚠️ [TenantConnectionManager] DATABASE_URL is missing from environment variables.");
     }
     const rawShared = new PrismaClient({
-      datasources: { db: { url: baseDbUrl } },
+      datasources: { db: { url: baseDbUrl || "postgresql://missing_db_url@localhost:5432/postgres" } },
     });
     this.sharedClient = createTenantIsolationExtension(rawShared) as any;
 

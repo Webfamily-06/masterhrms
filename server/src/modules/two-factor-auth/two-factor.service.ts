@@ -15,7 +15,7 @@ const MAX_FAILURES = 5;
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes lockout
 
 // Clean expired cache entries every 5 minutes
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, expiresAt] of replayCache.entries()) {
     if (expiresAt <= now) {
@@ -28,6 +28,9 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+if (cleanupTimer.unref) {
+  cleanupTimer.unref();
+}
 
 export function hashBackupCode(rawCode: string): string {
   const normalized = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
