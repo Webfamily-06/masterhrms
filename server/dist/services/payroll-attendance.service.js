@@ -1,0 +1,161 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PayrollAttendanceService = void 0;
+const decimal_js_1 = __importDefault(require("decimal.js"));
+const attendance_service_1 = require("./attendance.service");
+class PayrollAttendanceService {
+    prisma;
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    /**
+     * Determine date range for cutoff window
+     */
+    getCutoffDateRange(options) {
+        const { periodMonth, periodYear, cutoffStartDay = 1, cutoffEndDay = 0 } = options;
+        const daysInCurrentMonth = new Date(periodYear, periodMonth, 0).getDate();
+        let startDate;
+        let endDate;
+        if (cutoffStartDay === 1 && (cutoffEndDay === 0 || cutoffEndDay === daysInCurrentMonth)) {
+            // Standard calendar month
+            startDate = new Date(Date.UTC(periodYear, periodMonth - 1, 1, 0, 0, 0));
+            endDate = new Date(Date.UTC(periodYear, periodMonth - 1, daysInCurrentMonth, 23, 59, 59));
+        }
+        else {
+            // Custom cutoff: e.g. 25th of previous month to 24th of current month
+            const prevMonth = periodMonth === 1 ? 12 : periodMonth - 1;
+            const prevYear = periodMonth === 1 ? periodYear - 1 : periodYear;
+            startDate = new Date(Date.UTC(prevYear, prevMonth - 1, cutoffStartDay, 0, 0, 0));
+            endDate = new Date(Date.UTC(periodYear, periodMonth - 1, cutoffEndDay, 23, 59, 59));
+        }
+        return {
+            startDate,
+            endDate,
+            totalMonthDays: daysInCurrentMonth,
+        };
+    }
+    /**
+     * Calculate attendance & LOP summary for an employee or all active employees in tenant
+     */
+    async computeTenantAttendance(tenantId, options, lopOverrides) {
+        const { startDate, endDate, totalMonthDays } = this.getCutoffDateRange(options);
+        // Verify if P3 attendance month is locked
+        const isAttendanceLocked = await attendance_service_1.AttendanceService.isMonthLocked(tenantId, new Date(Date.UTC(options.periodYear, options.periodMonth - 1, 1)));
+        // Fetch active employees
+        const employees = await this.prisma.employee.findMany({
+            where: { tenantId, status: 'active' },
+            select: { id: true, employeeCode: true },
+        });
+        // Fetch punches in range
+        const attendanceRecords = await this.prisma.attendance.findMany({
+            where: {
+                tenantId,
+                date: { gte: startDate, lte: endDate },
+            },
+        });
+        // Fetch approved leaves in range
+        const leaveRequests = await this.prisma.leaveRequest.findMany({
+            where: {
+                tenantId,
+                status: 'approved',
+                OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
+            },
+            include: { leaveType: true },
+        });
+        // Fetch approved overtime requests in range
+        const overtimeRequests = await this.prisma.overtimeRequest.findMany({
+            where: {
+                tenantId,
+                status: 'approved',
+                overtimeDate: { gte: startDate, lte: endDate },
+            },
+        });
+        const result = new Map();
+        for (const emp of employees) {
+            const empPunches = attendanceRecords.filter((a) => a.employeeId === emp.id);
+            const empLeaves = leaveRequests.filter((l) => l.employeeId === emp.id);
+            const empOvertimes = overtimeRequests.filter((o) => o.employeeId === emp.id);
+            let presentPunches = 0;
+            let halfDayPunches = 0;
+            let punchOvertimeMinutes = 0;
+            for (const p of empPunches) {
+                if (p.status === 'present' || p.status === 'late') {
+                    presentPunches++;
+                }
+                else if (p.status === 'half_day') {
+                    halfDayPunches++;
+                }
+                if (p.overtimeMinutes) {
+                    punchOvertimeMinutes += p.overtimeMinutes;
+                }
+            }
+            let requestOvertimeHours = 0;
+            for (const o of empOvertimes) {
+                requestOvertimeHours += Number(o.hoursRequested || 0);
+            }
+            const totalOvertimeHours = Math.round(((punchOvertimeMinutes / 60) + requestOvertimeHours) * 100) / 100;
+            let paidLeaveDays = 0;
+            let unpaidLeaveDays = 0;
+            for (const l of empLeaves) {
+                const isUnpaid = l.leaveType ? /unpaid|lop|loss of pay/i.test(l.leaveType.name) : false;
+                const isPaid = !isUnpaid;
+                const days = Number(l.days || 1);
+                if (isPaid) {
+                    paidLeaveDays += days;
+                }
+                else {
+                    unpaidLeaveDays += days;
+                }
+            }
+            let calculatedLop = 0;
+            let payableDays = totalMonthDays;
+            if (empPunches.length > 0) {
+                // Punches exist: standard LOP is remaining days minus approved paid leaves and working credit
+                const workedCredit = presentPunches + halfDayPunches * 0.5;
+                const creditedDays = workedCredit + paidLeaveDays;
+                payableDays = Math.min(totalMonthDays, Math.round(creditedDays * 10) / 10);
+                calculatedLop = Math.max(0, totalMonthDays - payableDays);
+            }
+            else {
+                // No explicit biometric/web punches uploaded for this month
+                // Default to full month days minus approved unpaid leave
+                calculatedLop = unpaidLeaveDays;
+                payableDays = Math.max(0, totalMonthDays - calculatedLop);
+            }
+            // Check manual LOP override
+            let manualLopAdjustment = 0;
+            let auditNotes;
+            if (lopOverrides && lopOverrides[emp.id]) {
+                const override = lopOverrides[emp.id];
+                manualLopAdjustment = override.lopDays - calculatedLop;
+                calculatedLop = override.lopDays;
+                payableDays = Math.max(0, totalMonthDays - calculatedLop);
+                auditNotes = `LOP manually overridden to ${override.lopDays} days. Reason: ${override.reason}`;
+            }
+            const prorationFactor = new decimal_js_1.default(payableDays).dividedBy(new decimal_js_1.default(totalMonthDays));
+            result.set(emp.id, {
+                employeeId: emp.id,
+                employeeCode: emp.employeeCode,
+                totalMonthDays,
+                totalWorkingDays: totalMonthDays,
+                presentDays: presentPunches,
+                halfDays: halfDayPunches,
+                approvedPaidLeaveDays: paidLeaveDays,
+                approvedUnpaidLeaveDays: unpaidLeaveDays,
+                calculatedLopDays: calculatedLop,
+                manualLopAdjustment,
+                finalLopDays: calculatedLop,
+                payableDays,
+                prorationFactor,
+                overtimeHours: totalOvertimeHours,
+                isAttendanceLocked,
+                auditNotes,
+            });
+        }
+        return result;
+    }
+}
+exports.PayrollAttendanceService = PayrollAttendanceService;

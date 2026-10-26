@@ -1,0 +1,1174 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.projectsRouter = void 0;
+const express_1 = require("express");
+const prisma_1 = require("../prisma");
+const auth_1 = require("../middleware/auth");
+const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
+const pagination_1 = require("../lib/pagination");
+const idempotency_middleware_1 = require("../middleware/idempotency.middleware");
+exports.projectsRouter = (0, express_1.Router)();
+// Enforce Request-Scoped Tenant Context on all project endpoints
+exports.projectsRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
+// ==========================================
+// PROJECTS API (Relational MySQL backed)
+// ==========================================
+// GET /api/projects - List all projects for tenant
+exports.projectsRouter.get("/", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const pagination = (0, pagination_1.parsePaginationParams)(req, "createdAt", 20);
+        const [total, dbProjects] = await Promise.all([
+            prisma_1.prisma.project.count({ where: { tenantId } }),
+            prisma_1.prisma.project.findMany({
+                where: { tenantId },
+                include: {
+                    tasks: true,
+                },
+                orderBy: { createdAt: "desc" },
+                ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+            }),
+        ]);
+        if (dbProjects.length > 0) {
+            const formattedProjects = dbProjects.map((p) => ({
+                id: p.id,
+                name: p.name,
+                description: p.description || "",
+                status: p.status,
+                priority: p.priority,
+                progress: p.progress,
+                clientName: p.clientName || "",
+                color: "#3b82f6",
+                createdAt: p.createdAt.toISOString(),
+            }));
+            const formattedTasks = dbProjects.flatMap((p) => p.tasks.map((t) => ({
+                id: t.id,
+                projectId: t.projectId,
+                title: t.title,
+                description: t.description || "",
+                status: t.status,
+                priority: t.priority,
+                assignee: t.assignedTo || "Unassigned",
+                dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+                createdAt: t.createdAt.toISOString(),
+            })));
+            if (pagination.isPaginated) {
+                const paginated = (0, pagination_1.formatPaginatedResponse)(formattedProjects, total, pagination);
+                return res.json({
+                    ...paginated,
+                    projects: formattedProjects,
+                    tasks: formattedTasks,
+                });
+            }
+            res.setHeader("X-Total-Count", String(total));
+            return res.json({
+                projects: formattedProjects,
+                tasks: formattedTasks,
+            });
+        }
+        // Auto-migrate from CMS legacy slug if exists
+        const SLUG = `system-projects-kanban-${tenantId}`;
+        const page = await prisma_1.prisma.cmsPage.findUnique({ where: { slug: SLUG } });
+        if (page?.content) {
+            const parsed = page.content;
+            const legacyProjects = parsed.projects || [];
+            const legacyTasks = parsed.tasks || [];
+            if (legacyProjects.length > 0) {
+                for (const lp of legacyProjects) {
+                    try {
+                        const prj = await prisma_1.prisma.project.create({
+                            data: {
+                                id: lp.id.startsWith("proj-") ? lp.id : undefined,
+                                tenantId,
+                                name: lp.name || "Default Project",
+                                description: lp.description || null,
+                                status: "in_progress",
+                            },
+                        });
+                        // Migrate tasks for this project
+                        const prjTasks = legacyTasks.filter((t) => t.projectId === lp.id);
+                        for (const lt of prjTasks) {
+                            await prisma_1.prisma.projectTask.create({
+                                data: {
+                                    tenantId,
+                                    projectId: prj.id,
+                                    title: lt.title || "Task",
+                                    description: lt.description || null,
+                                    status: lt.status || "todo",
+                                    priority: lt.priority || "medium",
+                                    assignedTo: lt.assignee || null,
+                                    dueDate: lt.dueDate ? new Date(lt.dueDate) : null,
+                                },
+                            });
+                        }
+                    }
+                    catch { }
+                }
+                const [migratedTotal, freshProjects] = await Promise.all([
+                    prisma_1.prisma.project.count({ where: { tenantId } }),
+                    prisma_1.prisma.project.findMany({
+                        where: { tenantId },
+                        include: { tasks: true },
+                        orderBy: { createdAt: "desc" },
+                        ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
+                    }),
+                ]);
+                const formattedProjects = freshProjects.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    description: p.description || "",
+                    color: "#3b82f6",
+                    createdAt: p.createdAt.toISOString(),
+                }));
+                const formattedTasks = freshProjects.flatMap((p) => p.tasks.map((t) => ({
+                    id: t.id,
+                    projectId: t.projectId,
+                    title: t.title,
+                    description: t.description || "",
+                    status: t.status,
+                    priority: t.priority,
+                    assignee: t.assignedTo || "Unassigned",
+                    dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+                    createdAt: t.createdAt.toISOString(),
+                })));
+                if (pagination.isPaginated) {
+                    const paginated = (0, pagination_1.formatPaginatedResponse)(formattedProjects, migratedTotal, pagination);
+                    return res.json({
+                        ...paginated,
+                        projects: formattedProjects,
+                        tasks: formattedTasks,
+                    });
+                }
+                res.setHeader("X-Total-Count", String(migratedTotal));
+                return res.json({
+                    projects: formattedProjects,
+                    tasks: formattedTasks,
+                });
+            }
+        }
+        // If no projects exist in database or CMS legacy, seed the canonical enterprise reference project
+        const defaultPrj = await prisma_1.prisma.project.create({
+            data: {
+                tenantId,
+                name: "Hospital Administration System",
+                description: "The Enhanced Patient Management System (EPMS) project aims to modernize and streamline the patient management processes within healthcare networks. By integrating advanced technologies and optimizing existing workflows, the project seeks to improve patient care, enhance operational efficiency, and ensure compliance with regulatory standards.",
+                status: "in_progress",
+                priority: "high",
+                clientName: "EcoVision Enterprises",
+                budget: 1400.00,
+                startDate: new Date("2026-01-15"),
+                dueDate: new Date("2026-11-15"),
+                progress: 45,
+                tasks: {
+                    create: [
+                        {
+                            tenantId,
+                            title: "Patient appointment booking",
+                            description: "Online scheduling interface and calendar sync.",
+                            status: "on_hold",
+                            priority: "medium",
+                            assignedTo: "Lewis",
+                            dueDate: new Date("2026-10-15"),
+                        },
+                        {
+                            tenantId,
+                            title: "Appointment booking with payment gateway",
+                            description: "Stripe and UPI payment reconciliation for appointments.",
+                            status: "in_progress",
+                            priority: "high",
+                            assignedTo: "Leona",
+                            dueDate: new Date("2026-10-20"),
+                        },
+                        {
+                            tenantId,
+                            title: "Patient and Doctor video conferencing",
+                            description: "WebRTC encrypted telemedicine consultations.",
+                            status: "completed",
+                            priority: "critical",
+                            assignedTo: "Pineiro",
+                            dueDate: new Date("2026-09-25"),
+                        },
+                        {
+                            tenantId,
+                            title: "Private chat module",
+                            description: "Secure HIPAA compliant staff messaging.",
+                            status: "in_progress",
+                            priority: "medium",
+                            assignedTo: "Moseley",
+                            dueDate: new Date("2026-11-01"),
+                        },
+                        {
+                            tenantId,
+                            title: "Go-Live and Post-Implementation Support",
+                            description: "UAT signoff, training docs, and cutover monitoring.",
+                            status: "todo",
+                            priority: "high",
+                            assignedTo: "Cameron",
+                            dueDate: new Date("2026-11-15"),
+                        },
+                    ],
+                },
+            },
+            include: { tasks: true },
+        });
+        const formattedProjects = [
+            {
+                id: defaultPrj.id,
+                name: defaultPrj.name,
+                description: defaultPrj.description || "",
+                status: defaultPrj.status,
+                priority: defaultPrj.priority,
+                progress: defaultPrj.progress,
+                clientName: defaultPrj.clientName || "",
+                color: "#3b82f6",
+                createdAt: defaultPrj.createdAt.toISOString(),
+            },
+        ];
+        const formattedTasks = defaultPrj.tasks.map((t) => ({
+            id: t.id,
+            projectId: t.projectId,
+            title: t.title,
+            description: t.description || "",
+            status: t.status,
+            priority: t.priority,
+            assignee: t.assignedTo || "Unassigned",
+            dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: t.createdAt.toISOString(),
+        }));
+        if (pagination.isPaginated) {
+            return res.json({
+                ...(0, pagination_1.formatPaginatedResponse)(formattedProjects, 1, pagination),
+                projects: formattedProjects,
+                tasks: formattedTasks,
+            });
+        }
+        res.setHeader("X-Total-Count", "1");
+        return res.json({ projects: formattedProjects, tasks: formattedTasks });
+    }
+    catch (err) {
+        console.error("Projects GET error:", err);
+        return res.status(500).json({ error: err.message || "Failed to fetch projects" });
+    }
+});
+// GET /api/projects/kanban-state - Retrieve shared board state for tenant
+exports.projectsRouter.get("/kanban-state", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const slug = `system-kanban-state-${tenantId}`;
+        const page = await prisma_1.prisma.cmsPage.findUnique({ where: { slug } });
+        if (!page?.content) {
+            return res.json({ success: true, state: null, boardData: null });
+        }
+        const state = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+        return res.json({ success: true, state, boardData: state });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load kanban state" });
+    }
+});
+// PUT /api/projects/kanban-state - Persist shared board state for tenant
+exports.projectsRouter.put("/kanban-state", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const slug = `system-kanban-state-${tenantId}`;
+        const state = req.body.state ?? req.body.boardData;
+        if (!state) {
+            return res.status(400).json({ error: "State or boardData payload is required" });
+        }
+        const contentJson = typeof state === "object" ? state : JSON.parse(state);
+        await prisma_1.prisma.cmsPage.upsert({
+            where: { slug },
+            create: {
+                slug,
+                title: `Kanban State (${tenantId})`,
+                content: contentJson,
+                published: true,
+            },
+            update: {
+                content: contentJson,
+                updatedAt: new Date(),
+            },
+        });
+        return res.json({ success: true, message: "Kanban state persisted to database" });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to save kanban state" });
+    }
+});
+// GET /api/projects/pipeline-state - Retrieve shared pipeline state for tenant
+exports.projectsRouter.get("/pipeline-state", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const slug = `system-pipeline-state-${tenantId}`;
+        const page = await prisma_1.prisma.cmsPage.findUnique({ where: { slug } });
+        if (!page?.content) {
+            return res.json({ success: true, state: null, pipelineData: null });
+        }
+        const state = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+        return res.json({ success: true, state, pipelineData: state });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load pipeline state" });
+    }
+});
+// PUT /api/projects/pipeline-state - Persist shared pipeline state for tenant
+exports.projectsRouter.put("/pipeline-state", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const slug = `system-pipeline-state-${tenantId}`;
+        const state = req.body.state ?? req.body.pipelineData;
+        if (!state) {
+            return res.status(400).json({ error: "State or pipelineData payload is required" });
+        }
+        const contentJson = typeof state === "object" ? state : JSON.parse(state);
+        await prisma_1.prisma.cmsPage.upsert({
+            where: { slug },
+            create: {
+                slug,
+                title: `Pipeline State (${tenantId})`,
+                content: contentJson,
+                published: true,
+            },
+            update: {
+                content: contentJson,
+                updatedAt: new Date(),
+            },
+        });
+        return res.json({ success: true, message: "Pipeline state persisted to database" });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to save pipeline state" });
+    }
+});
+// POST /api/projects - Create project
+exports.projectsRouter.post("/", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { name, description } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: "Project name is required" });
+        }
+        const project = await prisma_1.prisma.project.create({
+            data: {
+                tenantId,
+                name: name.trim(),
+                description: description || null,
+                status: "in_progress",
+            },
+        });
+        return res.status(201).json({
+            id: project.id,
+            name: project.name,
+            description: project.description || "",
+            color: "#3b82f6",
+            createdAt: project.createdAt.toISOString(),
+        });
+    }
+    catch (err) {
+        console.error("Projects POST error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create project" });
+    }
+});
+// DELETE /api/projects/:id - Delete project & tasks
+exports.projectsRouter.delete("/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        const result = await prisma_1.prisma.project.deleteMany({
+            where: { id, tenantId },
+        });
+        if (result.count === 0) {
+            return res.status(404).json({ error: "Project not found in this workspace." });
+        }
+        return res.json({ success: true, message: "Project deleted" });
+    }
+    catch (err) {
+        console.error("Projects DELETE error:", err);
+        return res.status(500).json({ error: err.message || "Failed to delete project" });
+    }
+});
+// GET /api/projects/tasks - List tasks across projects with filtering
+exports.projectsRouter.get("/tasks", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { status, priority, assignedTo, search } = req.query;
+        const where = { tenantId };
+        if (status && status !== "all")
+            where.status = String(status);
+        if (priority && priority !== "all")
+            where.priority = String(priority);
+        if (assignedTo && assignedTo !== "all")
+            where.assignedTo = String(assignedTo);
+        if (search) {
+            where.OR = [
+                { title: { contains: String(search) } },
+                { description: { contains: String(search) } },
+            ];
+        }
+        const tasks = await prisma_1.prisma.projectTask.findMany({
+            where,
+            include: {
+                project: {
+                    select: { id: true, name: true, status: true },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+        return res.json(tasks.map((t) => ({
+            id: t.id,
+            projectId: t.projectId,
+            projectName: t.project?.name || "General Project",
+            title: t.title,
+            description: t.description || "",
+            status: t.status,
+            priority: t.priority,
+            assignee: t.assignedTo || "Unassigned",
+            dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: t.createdAt.toISOString(),
+        })));
+    }
+    catch (err) {
+        console.error("Tasks GET error:", err);
+        return res.status(500).json({ error: err.message || "Failed to list tasks" });
+    }
+});
+// POST /api/projects/tasks - Create task directly (for global task board)
+exports.projectsRouter.post("/tasks", auth_1.requireAuth, idempotency_middleware_1.enforceIdempotency, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { title, description, priority, assignee, dueDate, status, projectId } = req.body;
+        if (!title || !title.trim()) {
+            return res.status(400).json({ error: "Task title is required." });
+        }
+        let targetProjectId = projectId;
+        if (!targetProjectId) {
+            let defaultPrj = await prisma_1.prisma.project.findFirst({ where: { tenantId } });
+            if (!defaultPrj) {
+                defaultPrj = await prisma_1.prisma.project.create({
+                    data: {
+                        tenantId,
+                        name: "Hospital Administration System",
+                        status: "in_progress",
+                        priority: "high",
+                    },
+                });
+            }
+            targetProjectId = defaultPrj.id;
+        }
+        const task = await prisma_1.prisma.projectTask.create({
+            data: {
+                tenantId,
+                projectId: targetProjectId,
+                title: title.trim(),
+                description: description || null,
+                status: status || "todo",
+                priority: priority || "medium",
+                assignedTo: assignee || null,
+                dueDate: dueDate ? new Date(dueDate) : null,
+            },
+            include: {
+                project: {
+                    select: { id: true, name: true },
+                },
+            },
+        });
+        return res.status(201).json({
+            id: task.id,
+            projectId: task.projectId,
+            projectName: task.project?.name || "General Project",
+            title: task.title,
+            description: task.description || "",
+            status: task.status,
+            priority: task.priority,
+            assignee: task.assignedTo || "Unassigned",
+            dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: task.createdAt.toISOString(),
+        });
+    }
+    catch (err) {
+        console.error("Task POST error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create task" });
+    }
+});
+// GET /api/projects/:id - Retrieve project details by ID with tasks, team, stats
+exports.projectsRouter.get("/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        let project = await prisma_1.prisma.project.findFirst({
+            where: { id, tenantId },
+            include: {
+                tasks: {
+                    orderBy: { createdAt: "desc" },
+                },
+            },
+        });
+        if (!project && id === "default") {
+            project = await prisma_1.prisma.project.findFirst({
+                where: { tenantId },
+                include: {
+                    tasks: {
+                        orderBy: { createdAt: "desc" },
+                    },
+                },
+            });
+        }
+        if (!project) {
+            return res.status(404).json({ error: "Project not found in this workspace." });
+        }
+        const tasks = project.tasks.map((t) => ({
+            id: t.id,
+            projectId: t.projectId,
+            title: t.title,
+            description: t.description || "",
+            status: t.status,
+            priority: t.priority,
+            assignee: t.assignedTo || "Unassigned",
+            dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: t.createdAt.toISOString(),
+        }));
+        const totalTasks = tasks.length;
+        const completedTasks = tasks.filter((t) => t.status === "completed" || t.status === "done").length;
+        const inProgressTasks = tasks.filter((t) => t.status === "in_progress").length;
+        const onHoldTasks = tasks.filter((t) => t.status === "on_hold" || t.status === "onhold").length;
+        const todoTasks = tasks.filter((t) => t.status === "todo").length;
+        // Distinct team members from assignees
+        const assignees = Array.from(new Set(tasks.map((t) => t.assignee).filter((a) => a && a !== "Unassigned")));
+        const team = assignees.map((name, idx) => ({
+            id: `member-${idx + 1}`,
+            name,
+            role: idx === 0 ? "Project Lead" : "Contributor",
+        }));
+        // Default enterprise files if empty
+        const files = project.files || [
+            {
+                id: "file-1",
+                name: "Project_Architecture_Spec.docx",
+                size: "7.6 MB",
+                type: "docx",
+                uploadedAt: project.createdAt.toISOString(),
+                uploadedBy: team[0]?.name || "Project Lead",
+            },
+            {
+                id: "file-2",
+                name: "Commercial_Scope_Proposal.pdf",
+                size: "12.6 MB",
+                type: "pdf",
+                uploadedAt: project.createdAt.toISOString(),
+                uploadedBy: "Cameron",
+            },
+            {
+                id: "file-3",
+                name: "Design_Assets_Tokens.zip",
+                size: "6.2 MB",
+                type: "zip",
+                uploadedAt: project.createdAt.toISOString(),
+                uploadedBy: "Lewis",
+            },
+        ];
+        // Default enterprise notes if empty
+        const notes = project.notes || [
+            {
+                id: "note-1",
+                title: "Architecture & Design Review",
+                date: new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }),
+                content: "Enterprise modular app project streamlines operational workflows by integrating tools for scheduling, communication, and milestone sign-off.",
+                author: team[0]?.name || "Lead Architect",
+            },
+        ];
+        // Default enterprise activities if empty
+        const activities = project.activities || [
+            {
+                id: "act-1",
+                actor: "Andrew",
+                action: "added a new task",
+                target: tasks[0]?.title || "Core Architecture Setup",
+                timestamp: "Today, 10:30 AM",
+                icon: "task",
+            },
+            {
+                id: "act-2",
+                actor: "Jermai",
+                action: "updated task status to",
+                target: "In Progress",
+                timestamp: "Yesterday, 04:15 PM",
+                icon: "move",
+            },
+        ];
+        const computedProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : (project.progress || 0);
+        return res.json({
+            id: project.id,
+            name: project.name,
+            description: project.description || "",
+            status: project.status,
+            priority: project.priority,
+            progress: computedProgress,
+            clientName: project.clientName || "Corporate Account",
+            budget: Number(project.budget || 0),
+            startDate: project.startDate ? project.startDate.toISOString().slice(0, 10) : "",
+            dueDate: project.dueDate ? project.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: project.createdAt.toISOString(),
+            updatedAt: project.updatedAt.toISOString(),
+            tasksCount: {
+                total: totalTasks,
+                completed: completedTasks,
+                inProgress: inProgressTasks,
+                onHold: onHoldTasks,
+                todo: todoTasks,
+            },
+            team,
+            tasks,
+            files,
+            notes,
+            activities,
+        });
+    }
+    catch (err) {
+        console.error("Project GET by ID error:", err);
+        return res.status(500).json({ error: err.message || "Failed to fetch project details" });
+    }
+});
+// PUT /api/projects/:id - Update project fields
+exports.projectsRouter.put("/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        const body = req.body;
+        const dataToUpdate = {};
+        if (body.name !== undefined)
+            dataToUpdate.name = body.name.trim();
+        if (body.description !== undefined)
+            dataToUpdate.description = body.description;
+        if (body.status !== undefined)
+            dataToUpdate.status = body.status;
+        if (body.priority !== undefined)
+            dataToUpdate.priority = body.priority;
+        if (body.clientName !== undefined)
+            dataToUpdate.clientName = body.clientName;
+        if (body.budget !== undefined)
+            dataToUpdate.budget = Number(body.budget) || 0;
+        if (body.progress !== undefined)
+            dataToUpdate.progress = Number(body.progress) || 0;
+        if (body.startDate !== undefined)
+            dataToUpdate.startDate = body.startDate ? new Date(body.startDate) : null;
+        if (body.dueDate !== undefined)
+            dataToUpdate.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+        if (body.files !== undefined)
+            dataToUpdate.files = body.files;
+        if (body.notes !== undefined)
+            dataToUpdate.notes = body.notes;
+        if (body.activities !== undefined)
+            dataToUpdate.activities = body.activities;
+        const existing = await prisma_1.prisma.project.findFirst({
+            where: { id, tenantId },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Project not found in this workspace." });
+        }
+        const updated = await prisma_1.prisma.project.update({
+            where: { id: existing.id },
+            data: dataToUpdate,
+            include: { tasks: true },
+        });
+        return res.json({
+            id: updated.id,
+            name: updated.name,
+            description: updated.description || "",
+            status: updated.status,
+            priority: updated.priority,
+            clientName: updated.clientName || "",
+            budget: Number(updated.budget || 0),
+            progress: updated.progress,
+            startDate: updated.startDate ? updated.startDate.toISOString().slice(0, 10) : "",
+            dueDate: updated.dueDate ? updated.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: updated.createdAt.toISOString(),
+            updatedAt: updated.updatedAt.toISOString(),
+            tasks: updated.tasks,
+        });
+    }
+    catch (err) {
+        console.error("Project PUT error:", err);
+        return res.status(500).json({ error: err.message || "Failed to update project" });
+    }
+});
+// POST /api/projects/:id/notes - Add a note to project
+exports.projectsRouter.post("/:id/notes", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        const { title, content } = req.body;
+        if (!title || !title.trim()) {
+            return res.status(400).json({ error: "Note title is required" });
+        }
+        const project = await prisma_1.prisma.project.findFirst({ where: { id, tenantId } });
+        if (!project)
+            return res.status(404).json({ error: "Project not found" });
+        const existingNotes = project.notes || [];
+        const newNote = {
+            id: `note-${Date.now()}`,
+            title: title.trim(),
+            content: content || "",
+            date: new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }),
+            author: req.user?.name || req.user?.email || "Team Member",
+        };
+        const updated = await prisma_1.prisma.project.update({
+            where: { id },
+            data: {
+                notes: [newNote, ...existingNotes],
+            },
+        });
+        return res.status(201).json(newNote);
+    }
+    catch (err) {
+        console.error("Project Add Note error:", err);
+        return res.status(500).json({ error: err.message || "Failed to add note" });
+    }
+});
+// POST /api/projects/:id/files - Add a document/file record
+exports.projectsRouter.post("/:id/files", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        const { name, size = "2.4 MB", type = "pdf" } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: "File name is required" });
+        }
+        const project = await prisma_1.prisma.project.findFirst({ where: { id, tenantId } });
+        if (!project)
+            return res.status(404).json({ error: "Project not found" });
+        const existingFiles = project.files || [];
+        const newFile = {
+            id: `file-${Date.now()}`,
+            name: name.trim(),
+            size,
+            type,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: req.user?.name || req.user?.email || "Team Member",
+        };
+        await prisma_1.prisma.project.update({
+            where: { id },
+            data: {
+                files: [newFile, ...existingFiles],
+            },
+        });
+        return res.status(201).json(newFile);
+    }
+    catch (err) {
+        console.error("Project Add File error:", err);
+        return res.status(500).json({ error: err.message || "Failed to add file" });
+    }
+});
+// GET /api/projects/:id/tasks - Get tasks under a specific project
+exports.projectsRouter.get("/:id/tasks", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id: projectId } = req.params;
+        const project = await prisma_1.prisma.project.findFirst({
+            where: { id: projectId, tenantId },
+        });
+        if (!project) {
+            return res.status(404).json({ error: "Project not found in this workspace." });
+        }
+        const tasks = await prisma_1.prisma.projectTask.findMany({
+            where: { projectId: project.id, tenantId },
+            orderBy: { createdAt: "desc" },
+        });
+        return res.json({
+            tasks: tasks.map((t) => ({
+                id: t.id,
+                projectId: t.projectId,
+                title: t.title,
+                description: t.description || "",
+                status: t.status,
+                priority: t.priority,
+                category: t.category || "Web Layout",
+                progress: t.progress || 0,
+                assignee: t.assignedTo || "Unassigned",
+                dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : "",
+                createdAt: t.createdAt.toISOString(),
+            })),
+        });
+    }
+    catch (err) {
+        console.error("Project GET tasks error:", err);
+        return res.status(500).json({ error: err.message || "Failed to fetch project tasks" });
+    }
+});
+// POST /api/projects/:id/tasks - Create task under project
+exports.projectsRouter.post("/:id/tasks", auth_1.requireAuth, idempotency_middleware_1.enforceIdempotency, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id: projectId } = req.params;
+        const body = req.body;
+        if (!body.title || !body.title.trim()) {
+            return res.status(400).json({ error: "Task title is required" });
+        }
+        const project = await prisma_1.prisma.project.findFirst({
+            where: { id: projectId, tenantId },
+        });
+        if (!project) {
+            return res.status(404).json({ error: "Project not found in this workspace." });
+        }
+        const task = await prisma_1.prisma.projectTask.create({
+            data: {
+                tenantId,
+                projectId: project.id,
+                title: body.title.trim(),
+                description: body.description || null,
+                status: body.status || "todo",
+                priority: body.priority || "medium",
+                assignedTo: body.assignee || null,
+                dueDate: body.dueDate ? new Date(body.dueDate) : null,
+            },
+        });
+        return res.status(201).json({
+            id: task.id,
+            projectId: task.projectId,
+            title: task.title,
+            description: task.description || "",
+            status: task.status,
+            priority: task.priority,
+            assignee: task.assignedTo || "Unassigned",
+            dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : "",
+            createdAt: task.createdAt.toISOString(),
+        });
+    }
+    catch (err) {
+        console.error("Task POST error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create task" });
+    }
+});
+// PUT /api/projects/tasks/:taskId - Update task
+exports.projectsRouter.put("/tasks/:taskId", auth_1.requireAuth, idempotency_middleware_1.enforceIdempotency, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { taskId } = req.params;
+        const body = req.body;
+        const dataToUpdate = {};
+        if (body.title !== undefined)
+            dataToUpdate.title = body.title;
+        if (body.description !== undefined)
+            dataToUpdate.description = body.description;
+        if (body.status !== undefined)
+            dataToUpdate.status = body.status;
+        if (body.priority !== undefined)
+            dataToUpdate.priority = body.priority;
+        if (body.assignee !== undefined)
+            dataToUpdate.assignedTo = body.assignee;
+        if (body.dueDate !== undefined)
+            dataToUpdate.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+        const result = await prisma_1.prisma.projectTask.updateMany({
+            where: { id: taskId, tenantId },
+            data: dataToUpdate,
+        });
+        if (result.count === 0) {
+            return res.status(404).json({ error: "Task not found in this workspace." });
+        }
+        return res.json({ success: true, taskId });
+    }
+    catch (err) {
+        console.error("Task PUT error:", err);
+        return res.status(500).json({ error: err.message || "Failed to update task" });
+    }
+});
+// DELETE /api/projects/tasks/:taskId - Delete task
+exports.projectsRouter.delete("/tasks/:taskId", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { taskId } = req.params;
+        const result = await prisma_1.prisma.projectTask.deleteMany({
+            where: { id: taskId, tenantId },
+        });
+        if (result.count === 0) {
+            return res.status(404).json({ error: "Task not found in this workspace." });
+        }
+        return res.json({ success: true, message: "Task deleted" });
+    }
+    catch (err) {
+        console.error("Task DELETE error:", err);
+        return res.status(500).json({ error: err.message || "Failed to delete task" });
+    }
+});
+// -------------------------------------------------------------
+// TIMESHEETS & PROJECT AUTO-INVOICE BATCH ENGINE
+// -------------------------------------------------------------
+// POST /api/projects/:id/generate-invoice
+exports.projectsRouter.post("/:id/generate-invoice", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        const { hourlyRate = 1500, customHours, taxPercent = 18, notes = "Consulting services rendered as per project timesheet", dueDateDays = 30, } = req.body;
+        const project = await prisma_1.prisma.project.findFirst({
+            where: { id, tenantId },
+            include: { tasks: true },
+        });
+        if (!project) {
+            return res.status(404).json({ error: "Project not found in this workspace." });
+        }
+        // Determine billable hours
+        const totalHours = customHours !== undefined
+            ? Number(customHours)
+            : Math.max(project.tasks.length * 8, 40); // default 8 hours per completed milestone/task or 40h
+        const subtotal = totalHours * Number(hourlyRate);
+        const taxAmt = Math.round((subtotal * (Number(taxPercent) / 100)) * 100) / 100;
+        const total = subtotal + taxAmt;
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + Number(dueDateDays));
+        // Fallback warehouse
+        let defaultWh = await prisma_1.prisma.warehouse.findFirst({ where: { tenantId } });
+        if (!defaultWh) {
+            defaultWh = await prisma_1.prisma.warehouse.create({
+                data: { tenantId, name: "Consulting Operations HQ", location: "Main HQ" },
+            });
+        }
+        // Match or create fallback service product for timesheet/milestone billing
+        let serviceProduct = await prisma_1.prisma.product.findFirst({
+            where: { tenantId, name: "Consulting & Professional Services" },
+        });
+        if (!serviceProduct) {
+            serviceProduct = await prisma_1.prisma.product.findFirst({ where: { tenantId } });
+        }
+        if (!serviceProduct) {
+            serviceProduct = await prisma_1.prisma.product.create({
+                data: {
+                    tenantId,
+                    name: "Consulting & Professional Services",
+                    sku: `SRV-${Date.now().toString().slice(-6)}`,
+                    purchasePrice: 0,
+                    salePrice: Number(hourlyRate),
+                    lowStockThreshold: 0,
+                },
+            });
+        }
+        // Match or create client customer
+        let customer = null;
+        if (project.clientName) {
+            customer = await prisma_1.prisma.customer.findFirst({
+                where: { tenantId, name: project.clientName },
+            });
+            if (!customer) {
+                try {
+                    customer = await prisma_1.prisma.customer.create({
+                        data: {
+                            tenantId,
+                            name: project.clientName,
+                            email: `billing@${project.clientName.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`,
+                        },
+                    });
+                }
+                catch { }
+            }
+        }
+        // Generate formal invoice
+        const count = await prisma_1.prisma.sale.count({ where: { tenantId, type: "invoice" } });
+        const invoiceNo = `INV-PRJ-${Date.now().toString().slice(-4)}-${count + 1}`;
+        const invoice = await prisma_1.prisma.sale.create({
+            data: {
+                tenantId,
+                invoiceNo,
+                type: "invoice",
+                warehouseId: defaultWh.id,
+                customerId: customer?.id || null,
+                customerName: project.clientName || "Project Client",
+                paymentStatus: "unpaid",
+                subtotal,
+                taxMode: "sgst_cgst",
+                cgst: taxAmt / 2,
+                sgst: taxAmt / 2,
+                igst: 0,
+                totalTax: taxAmt,
+                total,
+                paidAmount: 0,
+                date: new Date(),
+                dueDate,
+                notes: `[Project: ${project.name}] ${notes}`,
+                details: {
+                    create: [
+                        {
+                            productId: serviceProduct.id,
+                            productName: `${project.name} - Timesheet & Milestones (${totalHours} hrs @ ₹${hourlyRate}/hr)`,
+                            quantity: totalHours,
+                            price: Number(hourlyRate),
+                            taxRate: Number(taxPercent),
+                            taxAmount: taxAmt,
+                            subtotal,
+                            hsnSac: "998311", // IT Consulting Services SAC Code
+                        },
+                    ],
+                },
+            },
+            include: {
+                details: true,
+            },
+        });
+        return res.status(201).json({
+            success: true,
+            id: invoice.id,
+            invoiceNo: invoice.invoiceNo,
+            subtotal,
+            total,
+            invoice: {
+                id: invoice.id,
+                invoiceNo: invoice.invoiceNo,
+                projectName: project.name,
+                clientName: invoice.customerName,
+                totalHours,
+                hourlyRate,
+                subtotal,
+                tax: taxAmt,
+                total,
+                dueDate: invoice.dueDate,
+                status: invoice.paymentStatus,
+            },
+            message: `Successfully converted timesheets to formal Invoice ${invoice.invoiceNo} for project '${project.name}'!`,
+        });
+    }
+    catch (err) {
+        console.error("Generate invoice error:", err);
+        return res.status(500).json({ error: err.message || "Failed to generate project invoice" });
+    }
+});
+// -------------------------------------------------------------
+// PROJECT MILESTONES (RELATIONAL DB BACKED)
+// -------------------------------------------------------------
+// GET /api/projects/:id/milestones
+exports.projectsRouter.get("/:id/milestones", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        const milestones = await prisma_1.prisma.projectMilestone.findMany({
+            where: { projectId: id, tenantId },
+            orderBy: { createdAt: "asc" },
+        });
+        return res.json(milestones.map((m) => ({
+            id: m.id,
+            projectId: m.projectId,
+            title: m.title,
+            description: m.description || "",
+            cost: Number(m.cost),
+            status: m.status,
+            dueDate: m.dueDate ? m.dueDate.toISOString().split("T")[0] : null,
+            completedAt: m.completedAt ? m.completedAt.toISOString() : null,
+            createdAt: m.createdAt.toISOString(),
+        })));
+    }
+    catch (err) {
+        console.error("Milestones GET error:", err);
+        return res.status(500).json({ error: err.message || "Failed to fetch milestones" });
+    }
+});
+// POST /api/projects/:id/milestones
+exports.projectsRouter.post("/:id/milestones", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id } = req.params;
+        const { title, description, cost, dueDate, status } = req.body;
+        if (!title) {
+            return res.status(400).json({ error: "Milestone title is required" });
+        }
+        const project = await prisma_1.prisma.project.findFirst({
+            where: { id, tenantId },
+        });
+        if (!project) {
+            return res.status(404).json({ error: "Project not found" });
+        }
+        const milestone = await prisma_1.prisma.projectMilestone.create({
+            data: {
+                tenantId,
+                projectId: id,
+                title: title.trim(),
+                description: description || null,
+                cost: Number(cost || 0),
+                dueDate: dueDate ? new Date(dueDate) : null,
+                status: status || "pending",
+                completedAt: status === "completed" ? new Date() : null,
+            },
+        });
+        return res.status(201).json({
+            id: milestone.id,
+            projectId: milestone.projectId,
+            title: milestone.title,
+            description: milestone.description,
+            cost: Number(milestone.cost),
+            status: milestone.status,
+            dueDate: milestone.dueDate ? milestone.dueDate.toISOString().split("T")[0] : null,
+            createdAt: milestone.createdAt.toISOString(),
+        });
+    }
+    catch (err) {
+        console.error("Milestone POST error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create milestone" });
+    }
+});
+// PATCH /api/projects/:id/milestones/:mid
+exports.projectsRouter.patch("/:id/milestones/:mid", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id, mid } = req.params;
+        const { status, title, description, cost, dueDate } = req.body;
+        const existing = await prisma_1.prisma.projectMilestone.findFirst({
+            where: { id: mid, projectId: id, tenantId },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Milestone not found" });
+        }
+        const dataToUpdate = {};
+        if (status !== undefined) {
+            dataToUpdate.status = status;
+            if (status === "completed") {
+                dataToUpdate.completedAt = new Date();
+            }
+            else {
+                dataToUpdate.completedAt = null;
+            }
+        }
+        if (title !== undefined)
+            dataToUpdate.title = title;
+        if (description !== undefined)
+            dataToUpdate.description = description;
+        if (cost !== undefined)
+            dataToUpdate.cost = Number(cost);
+        if (dueDate !== undefined)
+            dataToUpdate.dueDate = dueDate ? new Date(dueDate) : null;
+        const updated = await prisma_1.prisma.projectMilestone.update({
+            where: { id: mid },
+            data: dataToUpdate,
+        });
+        // Update project progress percentage based on completed milestones
+        const allMilestones = await prisma_1.prisma.projectMilestone.findMany({
+            where: { projectId: id, tenantId },
+        });
+        if (allMilestones.length > 0) {
+            const completed = allMilestones.filter((m) => m.status === "completed").length;
+            const progress = Math.round((completed / allMilestones.length) * 100);
+            await prisma_1.prisma.project.update({
+                where: { id },
+                data: { progress },
+            });
+        }
+        return res.json({ success: true, milestone: updated });
+    }
+    catch (err) {
+        console.error("Milestone PATCH error:", err);
+        return res.status(500).json({ error: err.message || "Failed to update milestone" });
+    }
+});
+// DELETE /api/projects/:id/milestones/:mid
+exports.projectsRouter.delete("/:id/milestones/:mid", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { id, mid } = req.params;
+        const existing = await prisma_1.prisma.projectMilestone.findFirst({
+            where: { id: mid, projectId: id, tenantId },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Milestone not found" });
+        }
+        await prisma_1.prisma.projectMilestone.delete({ where: { id: mid } });
+        return res.json({ success: true, message: "Milestone deleted" });
+    }
+    catch (err) {
+        console.error("Milestone DELETE error:", err);
+        return res.status(500).json({ error: err.message || "Failed to delete milestone" });
+    }
+});

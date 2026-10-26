@@ -1,0 +1,658 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.addonsRouter = void 0;
+exports.getRelatedSlugs = getRelatedSlugs;
+const express_1 = require("express");
+const prisma_1 = require("../prisma");
+const auth_1 = require("../middleware/auth");
+const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
+const audit_service_1 = require("../services/audit.service");
+const outbox_service_1 = require("../services/outbox.service");
+exports.addonsRouter = (0, express_1.Router)();
+// Enforce authentication and request-scoped tenant context for all tenant addon routes
+exports.addonsRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
+function getRelatedSlugs(cleanSlug) {
+    const set = new Set([cleanSlug]);
+    if (cleanSlug.includes("woocommerce")) {
+        set.add("woocommerce");
+        set.add("woocommerce-sync");
+        set.add("woocommerce-hub");
+    }
+    if (cleanSlug.includes("shopify")) {
+        set.add("shopify");
+        set.add("shopify-sync");
+    }
+    if (cleanSlug.includes("google-workspace")) {
+        set.add("google-workspace");
+        set.add("google-workspace-integration");
+    }
+    if (cleanSlug.includes("tally")) {
+        set.add("tally");
+        set.add("tally-importer");
+    }
+    if (cleanSlug.includes("biometric")) {
+        set.add("biometric");
+        set.add("biometric-sync");
+    }
+    if (cleanSlug.includes("okr")) {
+        set.add("okr");
+        set.add("okr-performance");
+    }
+    if (cleanSlug.includes("asset")) {
+        set.add("assets");
+        set.add("asset-management");
+    }
+    if (cleanSlug.includes("smart-reports") || cleanSlug.includes("smart_reports")) {
+        set.add("smart-reports");
+        set.add("smart-reports-addon");
+        set.add("addon_smart_reports");
+        set.add("module-smart-reports");
+    }
+    if (cleanSlug.includes("smart-dashboard") || cleanSlug.includes("smart_dashboard")) {
+        set.add("smart-dashboard");
+        set.add("smart-dashboard-analytics");
+        set.add("addon_smart_dashboard");
+        set.add("module-smart-dashboard");
+    }
+    if (cleanSlug.includes("ai-business-advisor") || cleanSlug.includes("business-advisor")) {
+        set.add("ai-business-advisor");
+        set.add("business-advisor");
+        set.add("addon_ai_business_advisor");
+        set.add("module-ai-business-advisor");
+    }
+    return Array.from(set);
+}
+/**
+ * GET /api/addons/entitlements
+ * Returns all active addon entitlements for the current tenant.
+ */
+exports.addonsRouter.get("/entitlements", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const entitlements = await db.tenantAddon.findMany({
+            where: { tenantId },
+        });
+        const entitlementMap = {};
+        entitlements.forEach((e) => {
+            let isExpired = false;
+            if (e.status === "trial" && e.trialEndsAt && new Date() > new Date(e.trialEndsAt)) {
+                isExpired = true;
+            }
+            const isInstalled = true;
+            const isEnabled = !isExpired && e.status !== "disabled";
+            const isActive = !isExpired && (e.status === "active" || e.status === "trial");
+            entitlementMap[e.addonSlug] = {
+                id: e.id,
+                addonSlug: e.addonSlug,
+                status: isExpired ? "expired" : e.status,
+                plan: e.plan,
+                trialEndsAt: e.trialEndsAt,
+                renewsAt: e.renewsAt,
+                features: e.features,
+                isInstalled,
+                isEnabled,
+                isActive,
+            };
+        });
+        // Check tenant active subscription for included add-ons
+        const activeSub = await db.tenantSubscription.findFirst({
+            where: {
+                tenantId,
+                status: { in: ["active", "trial"] },
+            },
+            include: { plan: true },
+        });
+        if (activeSub?.plan) {
+            const planName = (activeSub.plan.name || "").toLowerCase();
+            const planSlug = (activeSub.plan.slug || "").toLowerCase();
+            const features = Array.isArray(activeSub.plan.features) ? activeSub.plan.features : [];
+            const isSovereignOrGrowth = planName.includes("sovereign") ||
+                planName.includes("growth") ||
+                planSlug.includes("sovereign") ||
+                planSlug.includes("growth") ||
+                features.some((f) => typeof f === "string" &&
+                    (f.toLowerCase().includes("sovereign") ||
+                        f.toLowerCase().includes("integration") ||
+                        f.toLowerCase().includes("all add-on") ||
+                        f.toLowerCase().includes("all-addon")));
+            if (isSovereignOrGrowth) {
+                const ALL_INTEGRATIONS = [
+                    "woocommerce-sync",
+                    "woocommerce-hub",
+                    "shopify-sync",
+                    "google-workspace-integration",
+                    "tally-importer",
+                    "whatsapp-alerts",
+                    "razorpay-gateway",
+                    "biometric-sync",
+                    "okr-performance",
+                    "asset-management",
+                    "two-factor-auth",
+                    "backup-restore",
+                    "activity-logs",
+                    "internal-reminders",
+                    "public-api",
+                    "notice-board",
+                    "outbound-webhooks",
+                    "sms-gateway",
+                    "procurement",
+                    "smart-reports",
+                    "smart-dashboard",
+                    "ai-business-advisor",
+                    "learning-lms",
+                    "contracts",
+                    "budget-planner",
+                    "swot",
+                    "pestel",
+                ];
+                for (const slug of ALL_INTEGRATIONS) {
+                    const related = getRelatedSlugs(slug);
+                    const isExplicitlyDisabled = related.some((r) => entitlementMap[r]?.status === "disabled");
+                    if (!entitlementMap[slug]) {
+                        if (!isExplicitlyDisabled) {
+                            entitlementMap[slug] = {
+                                id: `plan-${slug}`,
+                                addonSlug: slug,
+                                status: "available_in_plan",
+                                plan: activeSub.plan.name || "included",
+                                isPlanIncluded: true,
+                                isInstalled: false,
+                                isEnabled: false,
+                                isActive: false,
+                            };
+                        }
+                    }
+                }
+            }
+            if (Array.isArray(activeSub.plan.includedAddonIds)) {
+                for (const addonId of activeSub.plan.includedAddonIds) {
+                    const slug = String(addonId).toLowerCase();
+                    const related = getRelatedSlugs(slug);
+                    const isExplicitlyDisabled = related.some((r) => entitlementMap[r]?.status === "disabled");
+                    if (!entitlementMap[slug]) {
+                        if (!isExplicitlyDisabled) {
+                            entitlementMap[slug] = {
+                                id: `plan-${slug}`,
+                                addonSlug: slug,
+                                status: "available_in_plan",
+                                plan: activeSub.plan.name || "included",
+                                isPlanIncluded: true,
+                                isInstalled: false,
+                                isEnabled: false,
+                                isActive: false,
+                            };
+                        }
+                    }
+                }
+            }
+        }
+        return res.json({ entitlements: entitlementMap });
+    }
+    catch (err) {
+        console.error("[addons/entitlements] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to fetch entitlements." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/install
+ * Authoritative Addon Installation Rule:
+ * 1. Resolves authoritative catalog price server-side (never trusts client).
+ * 2. If free (price == 0) or included in active tenant subscription plan:
+ *    - Enables addon for tenant workspace immediately.
+ *    - Persists TenantAddon and Tenant.enabledModules transactionally.
+ *    - Zero payment gateway redirection.
+ *    - Idempotent on repeated calls.
+ * 3. If paid (price > 0) and not included:
+ *    - Rejects with 402 Payment Required.
+ */
+exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const userId = req.user?.userId;
+        const { addonSlug } = req.params;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        // 1. Resolve catalog record from DB
+        const catalogItem = await db.addon.findUnique({
+            where: { slug: cleanSlug },
+        });
+        // Check price (defaults to 0 if free extension)
+        const publishedPrice = catalogItem?.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0;
+        // 2. Check if included in tenant plan
+        const activeSub = await db.tenantSubscription.findFirst({
+            where: {
+                tenantId,
+                status: { in: ["active", "trial"] },
+            },
+            include: { plan: true },
+        });
+        let isIncludedInPlan = false;
+        if (activeSub?.plan) {
+            const planName = (activeSub.plan.name || "").toLowerCase();
+            const isSovereign = planName.includes("sovereign") || planName.includes("growth");
+            if (isSovereign) {
+                isIncludedInPlan = true;
+            }
+            if (Array.isArray(activeSub.plan.includedAddonIds)) {
+                if (activeSub.plan.includedAddonIds.map((id) => String(id).toLowerCase()).includes(cleanSlug)) {
+                    isIncludedInPlan = true;
+                }
+            }
+        }
+        // 3. Paid protection: if price > 0 and NOT included in plan, require payment flow
+        if (publishedPrice > 0 && !isIncludedInPlan) {
+            // Check if an existing paid order exists for this addon
+            const paidOrders = await db.commerceOrder.findMany({
+                where: {
+                    tenantId,
+                    status: "PAID",
+                },
+                orderBy: { createdAt: "desc" },
+                take: 20,
+            });
+            const paidOrder = paidOrders.find((ord) => {
+                const snap = typeof ord.priceSnapshot === "string" ? JSON.parse(ord.priceSnapshot) : ord.priceSnapshot;
+                const items = snap?.items || snap?.lineItems || [];
+                return items.some((it) => String(it.slug || it.itemId || it.catalogItemId || it.addonSlug || "").toLowerCase() === cleanSlug ||
+                    JSON.stringify(snap).toLowerCase().includes(cleanSlug));
+            });
+            if (!paidOrder) {
+                return res.status(402).json({
+                    error: `Add-on "${catalogItem?.name || cleanSlug}" is a commercial add-on (₹${publishedPrice}/mo). Please complete payment through the marketplace checkout flow.`,
+                    paymentRequired: true,
+                    priceMonthly: publishedPrice,
+                    addonSlug: cleanSlug,
+                });
+            }
+        }
+        // 4. Transactional install & enablement
+        const entitlement = await db.$transaction(async (tx) => {
+            const ent = await tx.tenantAddon.upsert({
+                where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+                create: {
+                    tenantId,
+                    addonSlug: cleanSlug,
+                    status: "active",
+                    plan: publishedPrice === 0 ? "free_tier" : isIncludedInPlan ? "plan_included" : "paid_addon",
+                    features: catalogItem?.features || ["full_access"],
+                },
+                update: {
+                    status: "active",
+                    plan: publishedPrice === 0 ? "free_tier" : isIncludedInPlan ? "plan_included" : "paid_addon",
+                },
+            });
+            // Update tenant module enablement in TenantModule
+            if (tx.tenantModule) {
+                await tx.tenantModule.upsert({
+                    where: { tenantId_moduleKey: { tenantId, moduleKey: cleanSlug } },
+                    create: { tenantId, moduleKey: cleanSlug, isEnabled: true },
+                    update: { isEnabled: true },
+                });
+            }
+            return ent;
+        });
+        // 5. Audit & Outbox logging
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: userId || "SYSTEM",
+            action: "addon.installed",
+            entityType: "TenantAddon",
+            entityId: entitlement.id,
+            newState: { addonSlug: cleanSlug, plan: entitlement.plan, price: publishedPrice },
+        }).catch(() => { });
+        await outbox_service_1.OutboxService.createOutboxEvent({
+            tenantId,
+            eventType: "addon.installed",
+            entityType: "TenantAddon",
+            entityId: entitlement.id,
+            actorId: userId || "SYSTEM",
+            payload: { addonSlug: cleanSlug, plan: entitlement.plan },
+        }).catch(() => { });
+        return res.json({
+            success: true,
+            message: `Add-on "${catalogItem?.name || cleanSlug}" installed and enabled successfully.`,
+            entitlement: {
+                ...entitlement,
+                isActive: true,
+            },
+        });
+    }
+    catch (err) {
+        console.error("[addons/install] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to install add-on." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/uninstall
+ * Disables and uninstalls add-on from tenant workspace.
+ */
+exports.addonsRouter.post("/:addonSlug/uninstall", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const userId = req.user?.userId;
+        const { addonSlug } = req.params;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        await db.$transaction(async (tx) => {
+            await tx.tenantAddon.updateMany({
+                where: { tenantId, addonSlug: cleanSlug },
+                data: { status: "uninstalled" },
+            });
+            if (tx.tenantModule) {
+                await tx.tenantModule.updateMany({
+                    where: { tenantId, moduleKey: cleanSlug },
+                    data: { isEnabled: false },
+                });
+            }
+        });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: userId || "SYSTEM",
+            action: "addon.uninstalled",
+            entityType: "TenantAddon",
+            entityId: cleanSlug,
+        }).catch(() => { });
+        return res.json({
+            success: true,
+            message: `Add-on "${cleanSlug}" uninstalled successfully.`,
+        });
+    }
+    catch (err) {
+        console.error("[addons/uninstall] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to uninstall add-on." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/disable
+ * Explicitly disables an installed add-on for the tenant workspace.
+ */
+exports.addonsRouter.post("/:addonSlug/disable", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const userId = req.user?.userId;
+        const { addonSlug } = req.params;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        const CORE_MODULES = new Set(["core_platform", "hrm", "hrms", "employees", "starter", "growth", "sovereign"]);
+        if (CORE_MODULES.has(cleanSlug)) {
+            return res.status(400).json({ success: false, error: `Core platform modules cannot be disabled: ${cleanSlug}` });
+        }
+        const relatedSlugs = getRelatedSlugs(cleanSlug);
+        await db.$transaction(async (tx) => {
+            await tx.tenantAddon.upsert({
+                where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+                create: {
+                    tenantId,
+                    addonSlug: cleanSlug,
+                    status: "disabled",
+                    plan: "custom",
+                    features: [],
+                },
+                update: {
+                    status: "disabled",
+                },
+            });
+            await tx.tenantAddon.updateMany({
+                where: { tenantId, addonSlug: { in: relatedSlugs } },
+                data: { status: "disabled" },
+            });
+            if (tx.tenantModule) {
+                await tx.tenantModule.upsert({
+                    where: { tenantId_moduleKey: { tenantId, moduleKey: cleanSlug } },
+                    create: { tenantId, moduleKey: cleanSlug, isEnabled: false },
+                    update: { isEnabled: false },
+                });
+                await tx.tenantModule.updateMany({
+                    where: { tenantId, moduleKey: { in: relatedSlugs } },
+                    data: { isEnabled: false },
+                });
+            }
+        });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: userId || "SYSTEM",
+            action: "addon.disabled",
+            entityType: "TenantAddon",
+            entityId: cleanSlug,
+        }).catch(() => { });
+        return res.json({
+            success: true,
+            status: "disabled",
+            message: `Add-on "${cleanSlug}" disabled successfully.`,
+        });
+    }
+    catch (err) {
+        console.error("[addons/disable] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to disable add-on." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/enable
+ * Re-enables a previously disabled add-on for the tenant workspace.
+ */
+exports.addonsRouter.post("/:addonSlug/enable", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const userId = req.user?.userId;
+        const { addonSlug } = req.params;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        const relatedSlugs = getRelatedSlugs(cleanSlug);
+        await db.$transaction(async (tx) => {
+            await tx.tenantAddon.upsert({
+                where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+                create: {
+                    tenantId,
+                    addonSlug: cleanSlug,
+                    status: "active",
+                    plan: "custom",
+                    features: ["full_access"],
+                },
+                update: {
+                    status: "active",
+                },
+            });
+            await tx.tenantAddon.updateMany({
+                where: { tenantId, addonSlug: { in: relatedSlugs } },
+                data: { status: "active" },
+            });
+            if (tx.tenantModule) {
+                await tx.tenantModule.upsert({
+                    where: { tenantId_moduleKey: { tenantId, moduleKey: cleanSlug } },
+                    create: { tenantId, moduleKey: cleanSlug, isEnabled: true },
+                    update: { isEnabled: true },
+                });
+                await tx.tenantModule.updateMany({
+                    where: { tenantId, moduleKey: { in: relatedSlugs } },
+                    data: { isEnabled: true },
+                });
+            }
+        });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: userId || "SYSTEM",
+            action: "addon.enabled",
+            entityType: "TenantAddon",
+            entityId: cleanSlug,
+        }).catch(() => { });
+        return res.json({
+            success: true,
+            status: "active",
+            message: `Add-on "${cleanSlug}" enabled successfully.`,
+        });
+    }
+    catch (err) {
+        console.error("[addons/enable] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to enable add-on." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/trial
+ * Starts a 14-day free trial for an add-on.
+ */
+exports.addonsRouter.post("/:addonSlug/trial", auth_1.requireAuth, async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const { addonSlug } = req.params;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const existing = await db.tenantAddon.findUnique({
+            where: { tenantId_addonSlug: { tenantId, addonSlug } },
+        });
+        if (existing && existing.status === "active") {
+            return res.status(400).json({ error: "Addon is already actively subscribed." });
+        }
+        const trialEndsAt = new Date();
+        trialEndsAt.setDate(trialEndsAt.getDate() + 14); // 14 days trial
+        const entitlement = await db.tenantAddon.upsert({
+            where: { tenantId_addonSlug: { tenantId, addonSlug } },
+            create: {
+                tenantId,
+                addonSlug,
+                status: "trial",
+                plan: "pro_trial",
+                trialEndsAt,
+                features: ["full_access"],
+            },
+            update: {
+                status: "trial",
+                trialEndsAt,
+                plan: "pro_trial",
+            },
+        });
+        return res.json({
+            message: `14-Day Free Trial activated for ${addonSlug}!`,
+            entitlement,
+        });
+    }
+    catch (err) {
+        console.error("[addons/trial] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to activate trial." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/subscribe
+ * Activates full paid subscription for an add-on.
+ * Validates server-side payment/order state before granting paid entitlement.
+ */
+exports.addonsRouter.post("/:addonSlug/subscribe", auth_1.requireAuth, async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const { addonSlug } = req.params;
+        const { plan = "pro_annual", orderId } = req.body;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        const catalogItem = await db.addon.findUnique({ where: { slug: cleanSlug } });
+        const price = catalogItem?.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0;
+        // Server-side payment validation for paid add-ons
+        if (price > 0) {
+            let hasValidPayment = false;
+            if (orderId) {
+                const order = await db.commerceOrder.findFirst({
+                    where: { id: orderId, tenantId, status: "PAID" },
+                });
+                if (order)
+                    hasValidPayment = true;
+            }
+            else {
+                const paidOrders = await db.commerceOrder.findMany({
+                    where: {
+                        tenantId,
+                        status: "PAID",
+                    },
+                    orderBy: { createdAt: "desc" },
+                    take: 20,
+                });
+                const order = paidOrders.find((ord) => {
+                    const snap = typeof ord.priceSnapshot === "string" ? JSON.parse(ord.priceSnapshot) : ord.priceSnapshot;
+                    const items = snap?.items || snap?.lineItems || [];
+                    return items.some((it) => String(it.slug || it.itemId || it.catalogItemId || it.addonSlug || "").toLowerCase() === cleanSlug ||
+                        JSON.stringify(snap).toLowerCase().includes(cleanSlug));
+                });
+                if (order)
+                    hasValidPayment = true;
+            }
+            if (!hasValidPayment) {
+                return res.status(402).json({
+                    error: "Valid paid order required before activating paid add-on subscription.",
+                    paymentRequired: true,
+                });
+            }
+        }
+        const renewsAt = new Date();
+        renewsAt.setFullYear(renewsAt.getFullYear() + 1); // 1 year renewal
+        const entitlement = await db.tenantAddon.upsert({
+            where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+            create: {
+                tenantId,
+                addonSlug: cleanSlug,
+                status: "active",
+                plan,
+                renewsAt,
+                features: ["unlimited"],
+            },
+            update: {
+                status: "active",
+                plan,
+                renewsAt,
+            },
+        });
+        return res.json({
+            message: `Successfully subscribed to ${cleanSlug}!`,
+            entitlement,
+        });
+    }
+    catch (err) {
+        console.error("[addons/subscribe] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to subscribe to add-on." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/cancel
+ * Cancels add-on subscription (preserves data, marks inactive).
+ */
+exports.addonsRouter.post("/:addonSlug/cancel", auth_1.requireAuth, async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const { addonSlug } = req.params;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const entitlement = await db.tenantAddon.update({
+            where: { tenantId_addonSlug: { tenantId, addonSlug } },
+            data: {
+                status: "cancelled",
+            },
+        });
+        return res.json({
+            message: `Subscription for ${addonSlug} cancelled. Historical records are preserved.`,
+            entitlement,
+        });
+    }
+    catch (err) {
+        console.error("[addons/cancel] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to cancel subscription." });
+    }
+});

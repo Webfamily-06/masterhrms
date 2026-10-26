@@ -1,0 +1,1972 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.authRouter = exports.OAuthFactory = void 0;
+exports.resolveEffectiveUserRoles = resolveEffectiveUserRoles;
+const email_1 = require("../lib/email");
+const otp_1 = require("../lib/otp");
+const erp_modules_1 = require("../lib/erp-modules");
+const express_1 = require("express");
+const crypto_1 = __importDefault(require("crypto"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const zod_1 = require("zod");
+const prisma_1 = require("../prisma");
+const prisma = prisma_1.rawPrisma || prisma_1.prisma;
+const jwt_1 = require("../lib/jwt");
+const login_history_service_1 = require("../services/login-history.service");
+const tenant_provisioning_1 = require("../lib/tenant-provisioning");
+const workspace_host_1 = require("../lib/workspace-host");
+const auth_1 = require("../middleware/auth");
+const oauth_factory_1 = require("../services/factories/oauth.factory");
+Object.defineProperty(exports, "OAuthFactory", { enumerable: true, get: function () { return oauth_factory_1.OAuthFactory; } });
+const two_factor_service_1 = require("../modules/two-factor-auth/two-factor.service");
+const turnstile_middleware_1 = require("../middleware/turnstile.middleware");
+exports.authRouter = (0, express_1.Router)();
+function generateBackupCodes(count = 8) {
+    const codes = [];
+    for (let i = 0; i < count; i++) {
+        const part1 = Math.floor(1000 + Math.random() * 9000);
+        const part2 = Math.floor(1000 + Math.random() * 9000);
+        codes.push(`${part1}-${part2}`);
+    }
+    return codes;
+}
+async function resolveEffectiveUserRoles(user, tenantId) {
+    const baseRoles = (user.roles || []).map((r) => String(r.role || r));
+    if (baseRoles.includes("super_admin"))
+        return baseRoles;
+    const isGowthamTenantAdmin = user.email === "gowthamtooquik@gmail.com" ||
+        Boolean(user.profile?.fullName && user.profile.fullName.toLowerCase().includes("tenant admin"));
+    let isWorkspaceAdmin = false;
+    const effectiveTenantId = tenantId || user.profile?.tenantId;
+    if (effectiveTenantId) {
+        const assignment = await prisma.userRoleAssignment.findUnique({
+            where: {
+                userId_tenantId: {
+                    userId: user.id,
+                    tenantId: effectiveTenantId,
+                },
+            },
+            include: { role: true },
+        });
+        if (assignment?.role?.name === "Workspace Admin") {
+            isWorkspaceAdmin = true;
+        }
+    }
+    if (isGowthamTenantAdmin || isWorkspaceAdmin) {
+        const effective = baseRoles.filter((r) => r !== "hr_admin");
+        if (!effective.includes("tenant_admin"))
+            effective.push("tenant_admin");
+        if (!effective.includes("admin"))
+            effective.push("admin");
+        if (!effective.includes("workspace_admin"))
+            effective.push("workspace_admin");
+        return effective;
+    }
+    return baseRoles;
+}
+const registerSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+    password: zod_1.z.string().min(6),
+    fullName: zod_1.z.string().optional(),
+    companyName: zod_1.z.string().optional(),
+    workspaceSlug: zod_1.z.string().optional(),
+});
+const loginSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+    password: zod_1.z.string(),
+});
+const forgotPasswordSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+});
+const resetPasswordSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+    code: zod_1.z.string().optional(),
+    token: zod_1.z.string().optional(),
+    newPassword: zod_1.z.string().min(6),
+}).refine((data) => Boolean(data.code || data.token), {
+    message: "Either verification code or reset token is required",
+});
+const verifyEmailSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+    code: zod_1.z.string().min(4).max(10),
+});
+// GET /api/auth/public/tenant/resolve
+exports.authRouter.get("/public/tenant/resolve", async (req, res) => {
+    try {
+        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
+        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
+        const requestedSlug = req.query.slug || req.headers["x-tenant-slug"] || req.headers["x-tenant-id"];
+        let tenant = null;
+        if (hostContext.type === "tenant") {
+            tenant = req.resolvedTenant || await prisma.tenant.findUnique({
+                where: { slug: hostContext.slug.toLowerCase() },
+                include: { subscription: { include: { plan: true } } }
+            });
+        }
+        else if (requestedSlug) {
+            tenant = await prisma.tenant.findFirst({
+                where: {
+                    OR: [{ slug: requestedSlug.toLowerCase() }, { id: requestedSlug }]
+                },
+                include: { subscription: { include: { plan: true } } }
+            });
+        }
+        if (!tenant) {
+            return res.json({
+                resolved: false,
+                name: "Master ERP & HRMS",
+                slug: "default",
+                logoUrl: "/logo.webp",
+                logoDark: "/white-logo.webp",
+                faviconUrl: "/favicon.webp",
+                primaryColor: "#FF6B00",
+                timezone: "Asia/Kolkata",
+                isWhiteLabeled: false,
+            });
+        }
+        return res.json({
+            resolved: true,
+            id: tenant.id,
+            name: tenant.name,
+            slug: tenant.slug,
+            logoUrl: tenant.logoUrl || "/logo.webp",
+            logoDark: "/white-logo.webp",
+            faviconUrl: tenant.faviconUrl || "/favicon.webp",
+            primaryColor: tenant.primaryColor || "#FF6B00",
+            timezone: tenant.timezone || "Asia/Kolkata",
+            isWhiteLabeled: true,
+            subscription: {
+                planName: tenant.subscription?.plan?.name || "Active Plan",
+                status: tenant.subscription?.status || "active",
+            }
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+// GET /api/auth/public/tenant-branding (alias for convenience)
+exports.authRouter.get("/public/tenant-branding", async (req, res) => {
+    return res.redirect("/api/auth/public/tenant/resolve");
+});
+// GET /api/auth/public/tenant/credentials - Fetch tenant-specific login credentials from DB
+exports.authRouter.get("/public/tenant/credentials", async (req, res) => {
+    try {
+        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
+        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
+        const requestedSlug = req.query.slug || req.headers["x-tenant-slug"] || req.headers["x-tenant-id"];
+        let tenant = null;
+        if (hostContext.type === "tenant") {
+            tenant = req.resolvedTenant || await prisma.tenant.findUnique({
+                where: { slug: hostContext.slug.toLowerCase() },
+                select: { id: true, name: true, slug: true },
+            });
+        }
+        else if (requestedSlug) {
+            tenant = await prisma.tenant.findFirst({
+                where: {
+                    OR: [{ slug: requestedSlug.toLowerCase() }, { id: requestedSlug }],
+                },
+                select: { id: true, name: true, slug: true },
+            });
+        }
+        if (!tenant) {
+            tenant = await prisma.tenant.findFirst({
+                where: { slug: "master" },
+                select: { id: true, name: true, slug: true },
+            });
+        }
+        const tenantId = tenant?.id;
+        // 1. Fetch Tenant Administrator (excluding root admin@masterhrms.com)
+        let tenantAdmin = {
+            email: "gowthamtooquik@gmail.com",
+            name: "Gowtham (Tenant Administrator)",
+            role: "Tenant Admin",
+        };
+        if (tenantId) {
+            const gowthamUser = await prisma.user.findFirst({
+                where: { email: "gowthamtooquik@gmail.com" },
+                include: { profile: true },
+            });
+            if (gowthamUser) {
+                tenantAdmin = {
+                    email: gowthamUser.email,
+                    name: gowthamUser.profile?.fullName || "Gowtham (Tenant Administrator)",
+                    role: "Tenant Admin",
+                };
+            }
+            else {
+                const wsAdminAssign = await prisma.userRoleAssignment.findFirst({
+                    where: {
+                        tenantId,
+                        role: { name: "Workspace Admin" },
+                        user: { email: { not: "admin@masterhrms.com" } },
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                email: true,
+                                profile: { select: { fullName: true } },
+                            },
+                        },
+                    },
+                });
+                if (wsAdminAssign?.user?.email) {
+                    tenantAdmin = {
+                        email: wsAdminAssign.user.email,
+                        name: wsAdminAssign.user.profile?.fullName || "Tenant Administrator",
+                        role: "Tenant Admin",
+                    };
+                }
+            }
+        }
+        // 2. Fetch HR Admin
+        let hrAdmin = {
+            email: "hr@masterhrms.com",
+            name: "Sarah Jenkins (HR Director)",
+            role: "HR Admin",
+        };
+        if (tenantId) {
+            const hrRole = await prisma.userRole.findFirst({
+                where: {
+                    tenantId,
+                    role: "hr_admin",
+                    user: {
+                        email: { notIn: ["admin@masterhrms.com", tenantAdmin.email] },
+                    },
+                },
+                include: {
+                    user: {
+                        select: {
+                            email: true,
+                            profile: { select: { fullName: true } },
+                        },
+                    },
+                },
+            });
+            if (hrRole?.user?.email) {
+                hrAdmin = {
+                    email: hrRole.user.email,
+                    name: hrRole.user.profile?.fullName || "HR Director",
+                    role: "HR Admin",
+                };
+            }
+        }
+        // 3. Fetch Employee
+        let employee = {
+            email: "employee@masterhrms.com",
+            name: "Alex Morgan (Staff)",
+            role: "Employee",
+        };
+        if (tenantId) {
+            const empRole = await prisma.userRole.findFirst({
+                where: {
+                    tenantId,
+                    role: "employee",
+                },
+                include: {
+                    user: {
+                        select: {
+                            email: true,
+                            profile: { select: { fullName: true } },
+                        },
+                    },
+                },
+            });
+            if (empRole?.user?.email) {
+                employee = {
+                    email: empRole.user.email,
+                    name: empRole.user.profile?.fullName || "Staff",
+                    role: "Employee",
+                };
+            }
+        }
+        return res.json({
+            tenant: {
+                id: tenant?.id,
+                name: tenant?.name,
+                slug: tenant?.slug,
+            },
+            credentials: {
+                tenantAdmin,
+                hrAdmin,
+                employee,
+            },
+        });
+    }
+    catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+// POST /api/auth/register
+exports.authRouter.post("/register", (0, turnstile_middleware_1.requireTurnstile)("signup"), async (req, res) => {
+    try {
+        const { email, password, fullName, companyName, workspaceSlug } = registerSchema.parse(req.body);
+        const existing = await prisma.user.findUnique({ where: { email } });
+        if (existing) {
+            return res.status(400).json({ error: "User with this email already exists." });
+        }
+        // Determine and validate workspace slug (Flow 1: 3-30 chars, lowercase, RFC)
+        let finalSlug = "";
+        if (workspaceSlug) {
+            const trimmedSlug = workspaceSlug.trim().toLowerCase();
+            const validation = (0, workspace_host_1.validateWorkspaceSlug)(trimmedSlug);
+            if (!validation.valid) {
+                return res.status(400).json({
+                    error: validation.reason === "reserved"
+                        ? `Workspace name '${trimmedSlug}' is reserved by the platform. Please choose another.`
+                        : `Invalid workspace name: ${validation.reason}`,
+                    code: validation.reason === "reserved" ? "RESERVED_SLUG" : "INVALID_SLUG",
+                    reason: validation.reason,
+                });
+            }
+            finalSlug = trimmedSlug;
+            // Check if slug taken
+            const existingTenant = await prisma.tenant.findUnique({ where: { slug: finalSlug } });
+            const activeRedirect = await prisma.workspaceSlugRedirect.findFirst({
+                where: { oldSlug: finalSlug, redirectUntil: { gte: new Date() } },
+            });
+            if (existingTenant || activeRedirect) {
+                return res.status(409).json({
+                    error: "This workspace address is already taken. Please choose another.",
+                    code: "SLUG_TAKEN",
+                });
+            }
+        }
+        else {
+            finalSlug = (0, workspace_host_1.suggestWorkspaceSlug)(companyName || fullName || email.split("@")[0]);
+            let candidate = finalSlug;
+            let counter = 2;
+            while ((await prisma.tenant.findUnique({ where: { slug: candidate } })) ||
+                (await prisma.workspaceSlugRedirect.findFirst({ where: { oldSlug: candidate, redirectUntil: { gte: new Date() } } }))) {
+                candidate = `${finalSlug.substring(0, 26)}-${counter++}`;
+            }
+            finalSlug = candidate;
+        }
+        const passwordHash = await bcryptjs_1.default.hash(password, 10);
+        const user = await prisma.user.create({
+            data: {
+                email,
+                passwordHash,
+            },
+        });
+        // SaaS Lifecycle Flow 1.1: Provision Tenant, admin User, TenantSubscription(status=trialing, trialEndsAt), seeds 17 accounts
+        const provisionResult = await (0, tenant_provisioning_1.provisionTenantWithTrial)({
+            name: companyName?.trim() || (fullName ? `${fullName}'s Organization` : `${email.split("@")[0]}'s Org`),
+            adminEmail: email,
+            adminFullName: fullName,
+            userId: user.id,
+            slug: finalSlug,
+        });
+        const updatedUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: {
+                profile: true,
+                roles: true,
+            },
+        });
+        const roles = updatedUser?.roles.map((r) => r.role) || ["admin"];
+        const token = (0, jwt_1.generateToken)({
+            userId: user.id,
+            email: user.email,
+            tenantId: provisionResult.tenant.id,
+            roles,
+        });
+        return res.status(201).json({
+            user: {
+                id: user.id,
+                email: user.email,
+                profile: updatedUser?.profile,
+                roles,
+            },
+            tenant: {
+                id: provisionResult.tenant.id,
+                name: provisionResult.tenant.name,
+                slug: provisionResult.tenant.slug,
+            },
+            workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(provisionResult.tenant.slug),
+            subscription: {
+                status: provisionResult.subscription.status,
+                trialEndsAt: provisionResult.trialEndsAt,
+            },
+            token,
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+    }
+});
+// POST /api/auth/unlock
+// Unlocks a session locked due to inactivity
+const unlockSchema = zod_1.z.object({
+    email: zod_1.z.string().email().optional(),
+    password: zod_1.z.string().min(1),
+});
+exports.authRouter.post("/unlock", async (req, res) => {
+    try {
+        const { email, password } = unlockSchema.parse(req.body);
+        let userEmail = email?.toLowerCase().trim();
+        if (!userEmail && req.headers.authorization) {
+            try {
+                const token = req.headers.authorization.replace("Bearer ", "");
+                const parts = token.split(".");
+                if (parts.length >= 2) {
+                    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+                    userEmail = payload.email?.toLowerCase().trim();
+                }
+            }
+            catch { }
+        }
+        if (!userEmail) {
+            return res.status(400).json({ error: "Email is required to unlock session." });
+        }
+        const user = await prisma.user.findUnique({
+            where: { email: userEmail },
+            include: {
+                profile: true,
+                roles: true,
+            },
+        });
+        if (!user) {
+            return res.status(401).json({ error: "User account not found." });
+        }
+        const isValid = await bcryptjs_1.default.compare(password, user.passwordHash);
+        if (!isValid) {
+            return res.status(400).json({ error: "Incorrect password. Please try again." });
+        }
+        const roles = await resolveEffectiveUserRoles(user, user.profile?.tenantId);
+        const token = (0, jwt_1.generateToken)({
+            userId: user.id,
+            email: user.email,
+            tenantId: user.profile?.tenantId,
+            roles,
+        });
+        await (0, login_history_service_1.recordLoginHistory)(req, user.id, user.id);
+        return res.json({
+            success: true,
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                profile: user.profile,
+                roles,
+            },
+            roles,
+            message: "Session unlocked successfully!",
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(500).json({ error: err.message || "Failed to unlock session." });
+    }
+});
+const loginHandler = async (req, res) => {
+    try {
+        const { email, password } = loginSchema.parse(req.body);
+        const normalizedEmail = email.toLowerCase().trim();
+        let user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            include: {
+                profile: true,
+                roles: true,
+                employees: true,
+                workspaceRoleAssignments: true,
+            },
+        });
+        if (!user)
+            return res.status(401).json({ error: "Invalid email or password." });
+        const isValid = await bcryptjs_1.default.compare(password, user.passwordHash);
+        if (!isValid) {
+            return res.status(400).json({ error: "Invalid email or password." });
+        }
+        // ── Host-Scoped Authentication Enforcement ────────────────
+        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
+        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
+        // 1. Super Admin Host/Portal isolation:
+        // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
+        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+            const hasSuperPortalSignal = req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+            if (hasSuperPortalSignal) {
+                return res.status(404).json({
+                    error: "Not Found",
+                    code: "NOT_FOUND",
+                });
+            }
+        }
+        const isSuperPortal = hostContext.type === "super" ||
+            req.headers["x-auth-portal"] === "super" ||
+            req.body.portal === "super";
+        if (isSuperPortal) {
+            const isSuper = user.roles.some((r) => r.role === "super_admin");
+            if (!isSuper) {
+                return res.status(403).json({
+                    error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
+                    code: "SUPER_ADMIN_ONLY",
+                });
+            }
+        }
+        // 2. Tenant Workspace Host / Custom Domain isolation: user MUST belong to this specific workspace
+        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+            let resolvedTenant = req.resolvedTenant;
+            if (!resolvedTenant && hostContext.type === "tenant") {
+                const found = await prisma.tenant.findUnique({
+                    where: { slug: hostContext.slug.toLowerCase() },
+                    select: { id: true, name: true, slug: true },
+                });
+                if (found)
+                    resolvedTenant = found;
+            }
+            else if (!resolvedTenant && hostContext.type === "custom_domain") {
+                const foundDomain = await prisma.tenantDomain.findUnique({
+                    where: { domain: hostContext.domain },
+                    include: { tenant: { select: { id: true, name: true, slug: true } } },
+                });
+                if (foundDomain && foundDomain.status === "approved" && foundDomain.dnsStatus === "verified") {
+                    resolvedTenant = foundDomain.tenant;
+                }
+            }
+            if (!resolvedTenant) {
+                return res.status(404).json({
+                    error: "Workspace not found.",
+                    code: "WORKSPACE_NOT_FOUND",
+                });
+            }
+            const userTenantId = user.profile?.tenantId ||
+                user.roles.find((r) => r.tenantId === resolvedTenant.id)?.tenantId ||
+                user.workspaceRoleAssignments?.find((a) => a.tenantId === resolvedTenant.id)?.tenantId;
+            if (userTenantId !== resolvedTenant.id) {
+                return res.status(403).json({
+                    error: "This account does not belong to this workspace.",
+                    code: "TENANT_MISMATCH",
+                });
+            }
+            // Check if employee's employment in this workspace is terminated
+            const matchingEmployee = user.employees?.find((e) => e.tenantId === resolvedTenant.id);
+            if (matchingEmployee && matchingEmployee.status === "terminated") {
+                return res.status(403).json({
+                    error: "Your employment has been terminated. Login access is disabled.",
+                    code: "EMPLOYMENT_TERMINATED",
+                });
+            }
+            // Check if employee account access is deactivated in this workspace
+            const isSuperUser = user.roles.some((r) => r.role === "super_admin");
+            const hasTenantRole = user.roles.some((r) => r.tenantId === resolvedTenant.id || r.tenantId === null) ||
+                (user.workspaceRoleAssignments && user.workspaceRoleAssignments.some((a) => a.tenantId === resolvedTenant.id));
+            if (!isSuperUser && !hasTenantRole) {
+                return res.status(403).json({
+                    error: "Your login account for this workspace has been deactivated. Please contact your administrator.",
+                    code: "ACCOUNT_DEACTIVATED",
+                });
+            }
+        }
+        // Optional: Allow disabling mandatory 2FA via environment variable (e.g. for staging or when SMTP is in maintenance)
+        const is2faDisabled = process.env.ENABLE_2FA === "false" || process.env.MANDATORY_2FA === "false";
+        if (is2faDisabled) {
+            const userTenantId = user.profile?.tenantId || user.roles.find((r) => r.tenantId)?.tenantId;
+            const roles = await resolveEffectiveUserRoles(user, userTenantId);
+            const token = (0, jwt_1.generateToken)({
+                userId: user.id,
+                email: user.email,
+                tenantId: user.profile?.tenantId,
+                roles,
+            });
+            await (0, login_history_service_1.recordLoginHistory)(req, user.id, user.id);
+            // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
+            // Super admin users MUST stay on root platform domain and never be redirected to tenant subdomains
+            let workspaceUrl;
+            let tenantSlug;
+            const isSuperAdminUser = roles.includes("super_admin") || Boolean(isSuperPortal);
+            const effectiveTenantId = !isSuperAdminUser ? userTenantId : undefined;
+            if (effectiveTenantId) {
+                const tenant = await prisma.tenant.findUnique({
+                    where: { id: effectiveTenantId },
+                    select: { id: true, slug: true, name: true },
+                });
+                if (tenant?.slug) {
+                    tenantSlug = tenant.slug;
+                    // If login occurred on an active custom domain host, retain custom domain URL
+                    if (hostContext?.type === "custom_domain" && hostContext.domain) {
+                        workspaceUrl = (0, workspace_host_1.getCustomDomainUrl)(hostContext.domain);
+                    }
+                    else {
+                        // Check if tenant has an active primary custom domain
+                        const primaryCustomDomain = await prisma.tenantDomain.findFirst({
+                            where: {
+                                tenantId: effectiveTenantId,
+                                status: "approved",
+                                dnsStatus: "verified",
+                                isPrimary: true,
+                            },
+                            select: { domain: true },
+                        });
+                        if (primaryCustomDomain?.domain) {
+                            workspaceUrl = (0, workspace_host_1.getCustomDomainUrl)(primaryCustomDomain.domain);
+                        }
+                        else {
+                            workspaceUrl = (0, workspace_host_1.getWorkspaceUrl)(tenant.slug);
+                        }
+                    }
+                }
+            }
+            return res.json({
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    profile: user.profile,
+                    roles,
+                },
+                roles,
+                tenantSlug,
+                workspaceUrl,
+                message: "Signed in successfully!",
+            });
+        }
+        // Mandatory Email OTP Two-Factor Authentication on EVERY login
+        const isSetup = !user.twoFactorEnabled;
+        const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
+        const emailResult = await (0, email_1.sendTwoFactorOtpEmail)({
+            toEmail: user.email,
+            otp,
+            fullName: user.profile?.fullName || undefined,
+            isSetup,
+        });
+        if (!emailResult.success) {
+            console.warn(`⚠️ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
+            console.log(`🔑 [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+        }
+        const mfaToken = (0, jwt_1.generateMfaToken)({ userId: user.id, email: user.email });
+        // Return temporary 2FA state - NO full session token issued before OTP verification
+        return res.json({
+            requires2FA: true,
+            isSetup,
+            mfaToken,
+            email: user.email,
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+            twoFactorMethod: "EMAIL_OTP",
+            emailSent: emailResult.success,
+            emailError: emailResult.error || undefined,
+            devOtp: !emailResult.success || process.env.NODE_ENV !== "production" ? otp : undefined,
+            message: emailResult.success
+                ? (isSetup
+                    ? "2FA Setup Required: A 6-digit verification code has been sent to your registered email."
+                    : "A 6-digit verification code has been sent to your registered email.")
+                : `Verification code generated, but email delivery encountered an issue (${emailResult.error}). Please check server logs or SMTP settings.`,
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+    }
+};
+// POST /api/auth/login
+exports.authRouter.post("/login", (0, turnstile_middleware_1.requireTurnstile)((req) => req.body?.portal === "super" || req.headers["x-auth-portal"] === "super"
+    ? "super_login"
+    : "login"), loginHandler);
+// POST /api/auth/super-login (Dedicated Super Admin entry point)
+exports.authRouter.post("/super-login", (req, _res, next) => {
+    req.body = req.body || {};
+    req.body.portal = "super";
+    next();
+}, (0, turnstile_middleware_1.requireTurnstile)("super_login"), loginHandler);
+// POST /api/auth/forgot-password
+exports.authRouter.post("/forgot-password", async (req, res) => {
+    try {
+        const { email } = forgotPasswordSchema.parse(req.body);
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            include: { profile: true, roles: true },
+        });
+        if (!user) {
+            return res.json({
+                success: true,
+                message: "If an account exists with this email, a password reset link has been dispatched.",
+                maskedEmail: (0, otp_1.maskEmail)(normalizedEmail),
+            });
+        }
+        let tenantName;
+        if (user.profile?.tenantId) {
+            const tenant = await prisma.tenant.findUnique({ where: { id: user.profile.tenantId } });
+            tenantName = tenant?.name;
+        }
+        // Generate secure cryptographically random one-time token
+        const rawToken = crypto_1.default.randomBytes(32).toString("hex");
+        const tokenHash = crypto_1.default.createHash("sha256").update(rawToken).digest("hex");
+        const tokenId = crypto_1.default.randomUUID();
+        const expiryMinutes = 60;
+        const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+        // Invalidate existing unused tokens for this user and store new token in DB
+        try {
+            await prisma.$executeRawUnsafe(`UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`, user.id);
+            await prisma.$executeRawUnsafe(`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`, tokenId, user.id, tokenHash, expiresAt);
+        }
+        catch (dbErr) {
+            console.error("⚠️ Failed to store reset token in password_reset_tokens table:", dbErr);
+        }
+        // Also generate backup OTP for backward compatibility with 6-digit code UI
+        const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
+        // Determine reset link destination based on portal context and role
+        const origin = req.headers.origin ||
+            (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+            `http://${(0, workspace_host_1.getEffectiveRequestHost)(req)}`;
+        const isSuperPortal = Boolean((req.headers.referer && req.headers.referer.includes("/super06")) ||
+            user.roles?.some((r) => r.role === "super_admin" || r.role === "SUPER_ADMIN"));
+        const resetBasePath = isSuperPortal ? "/super06" : "/auth";
+        const resetUrl = `${origin}${resetBasePath}?mode=reset&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+        // Dispatch email loading PASSWORD_RESET template from /super/email-templates (CMS system-email-templates)
+        const emailResult = await (0, email_1.sendPasswordResetEmail)({
+            toEmail: user.email,
+            userName: user.profile?.fullName || user.email.split("@")[0],
+            resetUrl,
+            expiryMinutes,
+            tenantId: user.profile?.tenantId ?? undefined,
+            companyName: tenantName,
+            scope: isSuperPortal ? "PLATFORM" : user.profile?.tenantId ? "TENANT" : "PLATFORM",
+        });
+        console.log(`🔗 [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
+        if (!emailResult.success) {
+            console.log(`🔑 [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
+        }
+        return res.json({
+            success: true,
+            message: "Password reset link sent to your registered email.",
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+            resetUrl: process.env.NODE_ENV !== "production" ? resetUrl : undefined,
+            previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(500).json({ error: err.message || "Failed to process forgot password request." });
+    }
+});
+// POST /api/auth/reset-password
+exports.authRouter.post("/reset-password", async (req, res) => {
+    try {
+        const { email, code, token, newPassword } = resetPasswordSchema.parse(req.body);
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+        });
+        if (!user) {
+            return res.status(400).json({ error: "Invalid password reset request." });
+        }
+        // Token-based validation (primary) or OTP code validation (fallback)
+        if (token) {
+            const tokenHash = crypto_1.default.createHash("sha256").update(token.trim()).digest("hex");
+            const tokenRecords = await prisma.$queryRawUnsafe(`SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > NOW() LIMIT 1`, tokenHash, user.id);
+            if (!tokenRecords || tokenRecords.length === 0) {
+                return res.status(400).json({
+                    error: "This password reset link is invalid, expired, or has already been used. Please request a new link.",
+                });
+            }
+            // Consume token immediately (one-time use)
+            await prisma.$executeRawUnsafe(`UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1`, tokenRecords[0].id);
+        }
+        else if (code) {
+            const verification = await (0, otp_1.verifyOtpCode)(user.id, code);
+            if (!verification.valid) {
+                return res.status(400).json({ error: verification.error || "Invalid or expired reset code." });
+            }
+        }
+        else {
+            return res.status(400).json({ error: "Either a valid reset token or verification code is required." });
+        }
+        // Invalidate any other active reset tokens for this user
+        await prisma.$executeRawUnsafe(`UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`, user.id).catch(() => { });
+        // Update password hash
+        const passwordHash = await bcryptjs_1.default.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash },
+        });
+        return res.json({
+            success: true,
+            message: "Password has been successfully updated. You can now sign in with your new credentials.",
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(500).json({ error: err.message || "Failed to reset password." });
+    }
+});
+// POST /api/auth/verify-email
+exports.authRouter.post("/verify-email", async (req, res) => {
+    try {
+        const { email, code } = verifyEmailSchema.parse(req.body);
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "User account not found." });
+        }
+        const verification = await (0, otp_1.verifyOtpCode)(user.id, code);
+        if (!verification.valid) {
+            return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
+        }
+        return res.json({
+            success: true,
+            message: "Email address verified successfully!",
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(500).json({ error: err.message || "Failed to verify email." });
+    }
+});
+// POST /api/auth/resend-verification
+exports.authRouter.post("/resend-verification", async (req, res) => {
+    try {
+        const { email } = forgotPasswordSchema.parse(req.body);
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            include: { profile: true },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "User account not found." });
+        }
+        const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
+        const emailResult = await (0, email_1.sendTwoFactorOtpEmail)({
+            toEmail: user.email,
+            otp,
+            fullName: user.profile?.fullName || undefined,
+            isSetup: false,
+        });
+        return res.json({
+            success: true,
+            message: "New verification code has been dispatched.",
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+            ...(process.env.NODE_ENV === "development" || !emailResult.success ? { previewCode: otp } : {}),
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(500).json({ error: err.message || "Failed to resend verification code." });
+    }
+});
+/**
+ * -------------------------------------------------------------
+ * 2FA ENDPOINTS (EMAIL OTP & SECURITY)
+ * -------------------------------------------------------------
+ */
+// POST /api/auth/2fa/verify-login
+exports.authRouter.post("/2fa/verify-login", async (req, res) => {
+    try {
+        const { mfaToken, code } = req.body;
+        if (!mfaToken || !code) {
+            return res.status(400).json({ error: "MFA session token and 6-digit verification code are required." });
+        }
+        let payload;
+        try {
+            payload = (0, jwt_1.verifyMfaToken)(mfaToken);
+        }
+        catch {
+            return res.status(401).json({ error: "2FA session has expired. Please sign in again." });
+        }
+        const user = await prisma.user.findUnique({
+            where: { id: payload.userId },
+            include: {
+                profile: {
+                    include: {
+                        tenant: true,
+                    },
+                },
+                roles: true,
+                employees: true,
+                workspaceRoleAssignments: true,
+            },
+        });
+        if (!user) {
+            return res.status(400).json({ error: "User account not found." });
+        }
+        // Verify submitted code: check RFC 6238 TOTP / Backup code first, then fall back to Email OTP
+        let isCodeValid = false;
+        let verificationError = "Invalid verification code.";
+        if (user.twoFactorSecret) {
+            const totpResult = await two_factor_service_1.TwoFactorService.verifyTotpOrBackup(user.id, String(code));
+            if (totpResult.valid) {
+                isCodeValid = true;
+            }
+            else {
+                verificationError = totpResult.error || "Invalid 2FA code or backup code.";
+                if (totpResult.rateLimited) {
+                    return res.status(429).json({ error: totpResult.error });
+                }
+            }
+        }
+        if (!isCodeValid) {
+            const emailOtpVerification = await (0, otp_1.verifyOtpCode)(user.id, String(code));
+            if (emailOtpVerification.valid) {
+                isCodeValid = true;
+            }
+            else if (!user.twoFactorSecret) {
+                verificationError = emailOtpVerification.error || "Invalid verification code.";
+            }
+        }
+        if (!isCodeValid) {
+            return res.status(400).json({ error: verificationError });
+        }
+        // ── Host-Scoped Authentication Enforcement for 2FA Completion ──
+        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
+        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
+        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+            const hasSuperPortalSignal = req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+            if (hasSuperPortalSignal) {
+                return res.status(404).json({
+                    error: "Not Found",
+                    code: "NOT_FOUND",
+                });
+            }
+        }
+        const isSuperPortal = hostContext.type === "super" ||
+            req.headers["x-auth-portal"] === "super" ||
+            req.body.portal === "super";
+        if (isSuperPortal) {
+            const isSuper = user.roles.some((r) => r.role === "super_admin");
+            if (!isSuper) {
+                return res.status(403).json({
+                    error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
+                    code: "SUPER_ADMIN_ONLY",
+                });
+            }
+        }
+        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+            let resolvedTenant = req.resolvedTenant;
+            if (!resolvedTenant && hostContext.type === "tenant") {
+                const found = await prisma.tenant.findUnique({
+                    where: { slug: hostContext.slug.toLowerCase() },
+                    select: { id: true, name: true, slug: true },
+                });
+                if (found)
+                    resolvedTenant = found;
+            }
+            else if (!resolvedTenant && hostContext.type === "custom_domain") {
+                const foundDomain = await prisma.tenantDomain.findUnique({
+                    where: { domain: hostContext.domain },
+                    include: { tenant: { select: { id: true, name: true, slug: true } } },
+                });
+                if (foundDomain && foundDomain.status === "approved" && foundDomain.dnsStatus === "verified") {
+                    resolvedTenant = foundDomain.tenant;
+                }
+            }
+            if (!resolvedTenant) {
+                return res.status(404).json({
+                    error: "Workspace not found.",
+                    code: "WORKSPACE_NOT_FOUND",
+                });
+            }
+            const userTenantId = user.profile?.tenantId ||
+                user.roles.find((r) => r.tenantId === resolvedTenant.id)?.tenantId ||
+                user.workspaceRoleAssignments?.find((a) => a.tenantId === resolvedTenant.id)?.tenantId;
+            if (userTenantId !== resolvedTenant.id) {
+                return res.status(403).json({
+                    error: "This account does not belong to this workspace.",
+                    code: "TENANT_MISMATCH",
+                });
+            }
+        }
+        // If first-time 2FA setup, mark enabled and record confirmation timestamp
+        const wasSetup = !user.twoFactorEnabled;
+        if (wasSetup) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    twoFactorEnabled: true,
+                    twoFactorConfirmedAt: new Date(),
+                },
+            });
+        }
+        // Create full authenticated session token
+        const userTenantId = user.profile?.tenantId || user.roles.find((r) => r.tenantId)?.tenantId;
+        const roles = await resolveEffectiveUserRoles(user, userTenantId);
+        const token = (0, jwt_1.generateToken)({
+            userId: user.id,
+            email: user.email,
+            tenantId: user.profile?.tenantId,
+            roles,
+        });
+        await (0, login_history_service_1.recordLoginHistory)(req, user.id, user.id);
+        // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
+        // Super admin users MUST stay on root platform domain and never be redirected to tenant subdomains
+        let workspaceUrl;
+        let tenantSlug;
+        const isSuperAdminUser = roles.includes("super_admin") || Boolean(isSuperPortal);
+        const effectiveTenantId = !isSuperAdminUser ? userTenantId : undefined;
+        if (effectiveTenantId) {
+            const tenant = await prisma.tenant.findUnique({
+                where: { id: effectiveTenantId },
+                select: { id: true, slug: true, name: true },
+            });
+            if (tenant?.slug) {
+                tenantSlug = tenant.slug;
+                if (hostContext.type === "custom_domain" && hostContext.domain) {
+                    workspaceUrl = (0, workspace_host_1.getCustomDomainUrl)(hostContext.domain);
+                }
+                else {
+                    const primaryCustomDomain = await prisma.tenantDomain.findFirst({
+                        where: {
+                            tenantId: effectiveTenantId,
+                            status: "approved",
+                            dnsStatus: "verified",
+                            isPrimary: true,
+                        },
+                        select: { domain: true },
+                    });
+                    if (primaryCustomDomain?.domain) {
+                        workspaceUrl = (0, workspace_host_1.getCustomDomainUrl)(primaryCustomDomain.domain);
+                    }
+                    else {
+                        workspaceUrl = (0, workspace_host_1.getWorkspaceUrl)(tenant.slug);
+                    }
+                }
+            }
+        }
+        return res.json({
+            success: true,
+            user: {
+                id: user.id,
+                email: user.email,
+                profile: user.profile,
+                roles,
+                twoFactorEnabled: true,
+            },
+            roles,
+            token,
+            tenantSlug,
+            workspaceUrl,
+            message: wasSetup
+                ? "Two-Factor Authentication setup complete. Welcome to your workspace!"
+                : "Verification successful. Welcome back!",
+        });
+    }
+    catch (err) {
+        console.error("[2fa/verify-login] error:", err);
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to verify 2FA code." });
+    }
+});
+// POST /api/auth/2fa/resend
+exports.authRouter.post("/2fa/resend", async (req, res) => {
+    try {
+        const { mfaToken } = req.body;
+        if (!mfaToken) {
+            return res.status(400).json({ error: "MFA session token is required to resend verification code." });
+        }
+        let payload;
+        try {
+            payload = (0, jwt_1.verifyMfaToken)(mfaToken);
+        }
+        catch {
+            return res.status(401).json({ error: "2FA session has expired. Please sign in again." });
+        }
+        const user = await prisma.user.findUnique({
+            where: { id: payload.userId },
+            include: {
+                profile: true,
+            },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "User not found." });
+        }
+        // Enforce 30-second resend cooldown
+        const eligibility = await (0, otp_1.checkResendEligibility)(user.id);
+        if (!eligibility.allowed) {
+            return res.status(429).json({
+                error: `Please wait ${eligibility.secondsRemaining} second${eligibility.secondsRemaining === 1 ? "" : "s"} before requesting a new code.`,
+                secondsRemaining: eligibility.secondsRemaining,
+            });
+        }
+        // Invalidate prior unused OTP and generate a fresh one
+        const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
+        // Send fresh OTP email
+        const emailResult = await (0, email_1.sendTwoFactorOtpEmail)({
+            toEmail: user.email,
+            otp,
+            fullName: user.profile?.fullName || undefined,
+            isSetup: !user.twoFactorEnabled,
+        });
+        if (!emailResult.success) {
+            console.warn(`⚠️ [2FA RESEND] Email dispatch to ${user.email} failed: ${emailResult.error}`);
+            console.log(`🔑 [2FA RESEND CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+        }
+        return res.json({
+            success: true,
+            emailSent: emailResult.success,
+            emailError: emailResult.error || undefined,
+            devOtp: !emailResult.success || process.env.NODE_ENV !== "production" ? otp : undefined,
+            message: emailResult.success
+                ? "A fresh 6-digit verification code has been sent to your registered email."
+                : `Fresh code generated, but email delivery encountered an issue (${emailResult.error}).`,
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+            cooldownSeconds: 30,
+        });
+    }
+    catch (err) {
+        console.error("[2fa/resend] error:", err);
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to resend verification code." });
+    }
+});
+// GET /api/auth/2fa/status
+exports.authRouter.get("/2fa/status", auth_1.requireAuth, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.userId },
+            select: {
+                id: true,
+                email: true,
+                twoFactorEnabled: true,
+                twoFactorConfirmedAt: true,
+            },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "User not found." });
+        }
+        return res.json({
+            twoFactorEnabled: Boolean(user.twoFactorEnabled),
+            twoFactorMethod: "EMAIL_OTP",
+            confirmedAt: user.twoFactorConfirmedAt,
+            registeredEmail: user.email,
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+        });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to get 2FA status." });
+    }
+});
+// POST /api/auth/2fa/setup-initiate
+exports.authRouter.post("/2fa/setup-initiate", auth_1.requireAuth, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.userId },
+            include: { profile: true },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "User not found." });
+        }
+        const eligibility = await (0, otp_1.checkResendEligibility)(user.id);
+        if (!eligibility.allowed) {
+            return res.status(429).json({
+                error: `Please wait ${eligibility.secondsRemaining} seconds before requesting a new code.`,
+                secondsRemaining: eligibility.secondsRemaining,
+            });
+        }
+        const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
+        await (0, email_1.sendTwoFactorOtpEmail)({
+            toEmail: user.email,
+            otp,
+            fullName: user.profile?.fullName || undefined,
+            isSetup: true,
+        });
+        const mfaToken = (0, jwt_1.generateMfaToken)({ userId: user.id, email: user.email });
+        return res.json({
+            success: true,
+            mfaToken,
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+            message: "A 6-digit setup verification code has been sent to your registered email.",
+        });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to initiate 2FA setup." });
+    }
+});
+// POST /api/auth/2fa/setup-confirm
+exports.authRouter.post("/2fa/setup-confirm", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { code } = req.body;
+        const userId = req.user.userId;
+        if (!code) {
+            return res.status(400).json({ error: "Verification code is required." });
+        }
+        const verification = await (0, otp_1.verifyOtpCode)(userId, String(code));
+        if (!verification.valid) {
+            return res.status(400).json({ error: verification.error || "Invalid verification code." });
+        }
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                twoFactorEnabled: true,
+                twoFactorConfirmedAt: new Date(),
+            },
+        });
+        return res.json({
+            success: true,
+            twoFactorEnabled: true,
+            message: "Two-Factor Authentication is now enabled on your account.",
+        });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to confirm 2FA setup." });
+    }
+});
+// GET /api/auth/me
+exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma;
+        const user = await db.user.findUnique({
+            where: { id: req.user.userId },
+            include: {
+                profile: {
+                    include: {
+                        tenant: true,
+                    },
+                },
+                roles: true,
+            },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        const tenantId = user.profile?.tenantId;
+        let roles = await resolveEffectiveUserRoles(user, tenantId);
+        let workspaceRole = null;
+        let permissions = [];
+        let enabledModules = [];
+        let activeAddons = [];
+        let allowedDashboards = [];
+        const isSuper = roles.includes("super_admin");
+        if (isSuper) {
+            const allPerms = await db.permission.findMany({ select: { code: true } });
+            permissions = allPerms.map((p) => p.code);
+            workspaceRole = {
+                id: "super_admin_role",
+                name: "Super Administrator",
+                description: "Global Platform Administrator with full system control",
+                isActive: true,
+                isSystem: true,
+            };
+            allowedDashboards = erp_modules_1.ERP_MODULES.map((m) => m.key);
+            enabledModules = erp_modules_1.ERP_MODULES.map((m) => m.key);
+            activeAddons = ["*"];
+        }
+        else if (tenantId) {
+            const tenantMods = await db.tenantModule.findMany({
+                where: { tenantId },
+            });
+            const disabledKeySet = new Set(tenantMods.filter((m) => !m.isEnabled).map((m) => m.moduleKey));
+            const explicitlyEnabledSet = new Set(tenantMods.filter((m) => m.isEnabled).map((m) => m.moduleKey));
+            // Active subscription & plan feature entitlement resolution
+            const sub = await db.tenantSubscription.findFirst({
+                where: {
+                    tenantId,
+                    status: { in: ["active", "trialing", "trial"] },
+                },
+                orderBy: { createdAt: "desc" },
+                include: { plan: true },
+            });
+            const isSubActive = Boolean(sub && (!sub.expiresAt || new Date(sub.expiresAt) > new Date()));
+            const isSovereignOrGrowth = isSubActive && Boolean(sub?.plan && (sub.plan.id === "sovereign" ||
+                sub.plan.id === "growth" ||
+                (sub.plan.name || "").toLowerCase().includes("sovereign") ||
+                (sub.plan.name || "").toLowerCase().includes("growth enterprise")));
+            const planFeatures = (isSubActive && sub?.plan && Array.isArray(sub.plan.features))
+                ? sub.plan.features.map((f) => String(f).toLowerCase())
+                : [];
+            const includedAddonIds = (isSubActive && sub?.plan && Array.isArray(sub.plan.includedAddonIds))
+                ? sub.plan.includedAddonIds.map((a) => String(a).toLowerCase())
+                : [];
+            const tenantAddons = await db.tenantAddon.findMany({
+                where: {
+                    tenantId,
+                    status: { in: ["active", "trial"] },
+                },
+            });
+            const activeAddonSlugs = new Set(tenantAddons
+                .filter((a) => !a.trialEndsAt || new Date(a.trialEndsAt) > new Date())
+                .map((a) => a.addonSlug.toLowerCase()));
+            const isPlanEntitled = (modKey) => {
+                if (isSovereignOrGrowth)
+                    return true;
+                if (activeAddonSlugs.has(modKey) || activeAddonSlugs.has(`product_${modKey}`))
+                    return true;
+                if (includedAddonIds.includes(modKey) || includedAddonIds.includes(`product_${modKey}`))
+                    return true;
+                if (modKey === "pos")
+                    return planFeatures.some((f) => f.includes("pos"));
+                if (modKey === "inventory")
+                    return planFeatures.some((f) => f.includes("inventory") || f.includes("pos"));
+                if (modKey === "crm")
+                    return planFeatures.some((f) => f.includes("crm"));
+                if (modKey === "finance")
+                    return planFeatures.some((f) => f.includes("financial") || f.includes("ledger") || f.includes("accounting") || f.includes("finance"));
+                if (modKey === "procurement")
+                    return planFeatures.some((f) => f.includes("procurement") || f.includes("purchase") || f.includes("inventory") || f.includes("pos"));
+                if (modKey === "project")
+                    return planFeatures.some((f) => f.includes("project"));
+                if (modKey === "support")
+                    return planFeatures.some((f) => f.includes("support"));
+                if (modKey === "analytics")
+                    return planFeatures.some((f) => f.includes("analytics") || f.includes("bi") || f.includes("report"));
+                return false;
+            };
+            const CORE_PLATFORM_MODULES = new Set(["hrm", "project", "support", "analytics"]);
+            enabledModules = erp_modules_1.ERP_MODULES.filter((m) => {
+                if (disabledKeySet.has(m.key) || disabledKeySet.has(`product_${m.key}`))
+                    return false;
+                if (explicitlyEnabledSet.has(m.key) || explicitlyEnabledSet.has(`product_${m.key}`))
+                    return true;
+                if (isPlanEntitled(m.key))
+                    return true;
+                if (CORE_PLATFORM_MODULES.has(m.key))
+                    return true;
+                return false;
+            }).map((m) => m.key);
+            // Include active tenant add-on slugs in enabledModules
+            for (const addonSlug of activeAddonSlugs) {
+                if (!enabledModules.includes(addonSlug)) {
+                    enabledModules.push(addonSlug);
+                }
+            }
+            // Uninstalled optional add-ons are strictly not injected into enabledModules.
+            // Add-ons must be explicitly installed by the tenant to be enabled.
+            let assignment = await db.userRoleAssignment.findUnique({
+                where: {
+                    userId_tenantId: {
+                        userId: user.id,
+                        tenantId,
+                    },
+                },
+                include: {
+                    role: {
+                        include: {
+                            permissions: {
+                                include: { permission: true },
+                            },
+                        },
+                    },
+                },
+            });
+            const isAdminUser = roles.includes("admin") ||
+                roles.includes("workspace_admin") ||
+                roles.includes("tenant_admin") ||
+                roles.includes("hr_admin") ||
+                roles.includes("Workspace Admin");
+            if (!assignment && isAdminUser) {
+                const adminRole = await db.workspaceRole.findUnique({
+                    where: { tenantId_name: { tenantId, name: "Workspace Admin" } },
+                    include: {
+                        permissions: { include: { permission: true } },
+                    },
+                });
+                if (adminRole) {
+                    await db.userRoleAssignment.create({
+                        data: {
+                            userId: user.id,
+                            tenantId,
+                            roleId: adminRole.id,
+                        },
+                    });
+                    assignment = { role: adminRole };
+                }
+            }
+            if (assignment?.role && assignment.role.isActive) {
+                workspaceRole = {
+                    id: assignment.role.id,
+                    name: assignment.role.name,
+                    description: assignment.role.description,
+                    isActive: assignment.role.isActive,
+                    isSystem: assignment.role.isSystem,
+                };
+                if (assignment.role.name === "Workspace Admin") {
+                    const allPerms = await db.permission.findMany({ select: { code: true } });
+                    permissions = allPerms.map((p) => p.code);
+                    if (!roles.includes("tenant_admin"))
+                        roles.push("tenant_admin");
+                    if (!roles.includes("admin"))
+                        roles.push("admin");
+                    if (!roles.includes("workspace_admin"))
+                        roles.push("workspace_admin");
+                    roles = roles.filter((r) => r !== "hr_admin");
+                }
+                else {
+                    permissions = assignment.role.permissions.map((rp) => rp.permission.code);
+                }
+            }
+            else {
+                const employeeRole = await db.workspaceRole.findUnique({
+                    where: { tenantId_name: { tenantId, name: "Employee" } },
+                    include: {
+                        permissions: { include: { permission: true } },
+                    },
+                });
+                if (employeeRole && employeeRole.isActive) {
+                    workspaceRole = {
+                        id: employeeRole.id,
+                        name: employeeRole.name,
+                        description: employeeRole.description,
+                        isActive: employeeRole.isActive,
+                        isSystem: employeeRole.isSystem,
+                    };
+                    permissions = employeeRole.permissions.map((rp) => rp.permission.code);
+                }
+            }
+            allowedDashboards = erp_modules_1.ERP_MODULES.filter((mod) => {
+                const isModEnabled = enabledModules.includes(mod.key);
+                const hasDashboardPerm = workspaceRole?.name === "Workspace Admin" ||
+                    permissions.includes(mod.permission);
+                return isModEnabled && hasDashboardPerm;
+            }).map((m) => m.key);
+            activeAddons = Array.from(activeAddonSlugs);
+        }
+        return res.json({
+            id: user.id,
+            email: user.email,
+            profile: user.profile,
+            roles,
+            workspaceRole,
+            permissions,
+            enabledModules,
+            activeAddons,
+            allowedDashboards,
+            twoFactorEnabled: user.twoFactorEnabled,
+        });
+    }
+    catch (err) {
+        console.error("[/auth/me] Workspace initialization error:", err);
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0]?.message || "Validation failed" });
+        }
+        return res.status(err.status || 500).json({
+            error: "Workspace temporarily unavailable. Please retry or sign in again.",
+            code: "WORKSPACE_INIT_ERROR",
+        });
+    }
+});
+// POST /api/auth/claim-super-admin
+exports.authRouter.post("/claim-super-admin", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const existingSuper = await prisma.userRole.findFirst({
+            where: { role: "super_admin" },
+        });
+        if (existingSuper) {
+            return res.status(400).json({
+                success: false,
+                error: "A super admin already exists. Ask them to promote your account.",
+            });
+        }
+        await prisma.userRole.create({
+            data: {
+                id: crypto_1.default.randomUUID(),
+                userId: req.user.userId,
+                role: "super_admin",
+            },
+        });
+        return res.json({ success: true, message: "Super admin claimed successfully." });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+    }
+});
+// POST /api/auth/bootstrap-tenant
+exports.authRouter.post("/bootstrap-tenant", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { name, slug } = zod_1.z.object({ name: zod_1.z.string().trim().min(1).max(255), slug: zod_1.z.string().min(1).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) }).parse(req.body);
+        const tenant = await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw `SELECT id FROM users WHERE id = ${req.user.userId} FOR UPDATE`;
+            const profile = await tx.profile.findUnique({ where: { userId: req.user.userId } });
+            if (profile?.tenantId)
+                throw Object.assign(new Error("Your account already belongs to a workspace."), { status: 409 });
+            const created = await tx.tenant.create({ data: { name, slug } });
+            await tx.profile.upsert({ where: { userId: req.user.userId },
+                create: { userId: req.user.userId, email: req.user.email, tenantId: created.id },
+                update: { tenantId: created.id }, });
+            await tx.userRole.create({ data: { userId: req.user.userId, tenantId: created.id, role: "hr_admin" } });
+            const role = await tx.workspaceRole.create({ data: { tenantId: created.id, name: "Workspace Admin", isSystem: true, isActive: true } });
+            await tx.userRoleAssignment.create({ data: { tenantId: created.id, userId: req.user.userId, roleId: role.id } });
+            return created;
+        });
+        const token = (0, jwt_1.generateToken)({ userId: req.user.userId, email: req.user.email, tenantId: tenant.id, roles: ["hr_admin"] });
+        return res.json({ success: true, tenant, token });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+    }
+});
+// PUT /api/auth/profile
+exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { fullName, avatarUrl, password } = req.body;
+        if (fullName !== undefined || avatarUrl !== undefined) {
+            await prisma.profile.update({
+                where: { userId: req.user.userId },
+                data: {
+                    ...(fullName !== undefined ? { fullName } : {}),
+                    ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+                },
+            });
+        }
+        if (password) {
+            const passwordHash = await bcryptjs_1.default.hash(password, 10);
+            await prisma.user.update({
+                where: { id: req.user.userId },
+                data: { passwordHash },
+            });
+        }
+        const updatedUser = await prisma.user.findUnique({
+            where: { id: req.user.userId },
+            include: {
+                profile: {
+                    include: {
+                        tenant: true,
+                    },
+                },
+                roles: true,
+            },
+        });
+        return res.json({
+            success: true,
+            user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                profile: updatedUser.profile,
+                roles: updatedUser.roles.map((r) => r.role),
+            },
+        });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+    }
+});
+// ─── OAuth 2.0 Configuration & Social Login Handlers ─────────────────────────
+async function getPlatformOAuthConfig(req) {
+    return oauth_factory_1.OAuthFactory.resolveConfig(req);
+}
+// GET /api/auth/oauth/config (Public endpoint for frontend auth buttons)
+exports.authRouter.get("/oauth/config", async (req, res) => {
+    try {
+        const config = await getPlatformOAuthConfig(req);
+        return res.json({
+            oauthBaseUrl: config.oauthBaseUrl,
+            google: {
+                enabled: Boolean(config.google.enabled && config.google.clientId),
+                configured: Boolean(config.google.clientId),
+            },
+            github: {
+                enabled: Boolean(config.github.enabled && config.github.clientId),
+                configured: Boolean(config.github.clientId),
+            },
+            microsoft: {
+                enabled: Boolean(config.microsoft.enabled && config.microsoft.clientId),
+                configured: Boolean(config.microsoft.clientId),
+            },
+            apple: {
+                enabled: Boolean(config.apple.enabled && config.apple.clientId),
+                configured: Boolean(config.apple.clientId),
+            },
+            linkedin: {
+                enabled: Boolean(config.linkedin.enabled && config.linkedin.clientId),
+                configured: Boolean(config.linkedin.clientId),
+            },
+            facebook: {
+                enabled: Boolean(config.facebook.enabled && config.facebook.appId),
+                configured: Boolean(config.facebook.appId),
+            },
+            providers: {
+                google: {
+                    enabled: Boolean(config.google.enabled && config.google.clientId),
+                    configured: Boolean(config.google.clientId),
+                },
+                github: {
+                    enabled: Boolean(config.github.enabled && config.github.clientId),
+                    configured: Boolean(config.github.clientId),
+                },
+                microsoft: {
+                    enabled: Boolean(config.microsoft.enabled && config.microsoft.clientId),
+                    configured: Boolean(config.microsoft.clientId),
+                },
+                apple: {
+                    enabled: Boolean(config.apple.enabled && config.apple.clientId),
+                    configured: Boolean(config.apple.clientId),
+                },
+                linkedin: {
+                    enabled: Boolean(config.linkedin.enabled && config.linkedin.clientId),
+                    configured: Boolean(config.linkedin.clientId),
+                },
+                facebook: {
+                    enabled: Boolean(config.facebook.enabled && config.facebook.appId),
+                    configured: Boolean(config.facebook.appId),
+                },
+            },
+        });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to fetch OAuth config" });
+    }
+});
+// GET /api/auth/oauth/:provider (Initiates OAuth redirect to provider)
+exports.authRouter.get("/oauth/:provider", async (req, res) => {
+    const { provider } = req.params;
+    const config = await getPlatformOAuthConfig(req);
+    const state = crypto_1.default.randomUUID();
+    let authUrl = "";
+    if (provider === "google") {
+        if (!config.google.clientId) {
+            return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent("Google OAuth is not configured yet in Super Admin Settings.")}`);
+        }
+        const params = new URLSearchParams({
+            client_id: config.google.clientId,
+            redirect_uri: config.google.callbackUrl,
+            response_type: "code",
+            scope: config.google.scope,
+            access_type: "offline",
+            prompt: "select_account",
+            state,
+        });
+        authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    }
+    else if (provider === "github") {
+        if (!config.github.clientId) {
+            return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent("GitHub OAuth Client ID is not configured yet in Super Admin Settings.")}`);
+        }
+        const params = new URLSearchParams({
+            client_id: config.github.clientId,
+            redirect_uri: config.github.callbackUrl,
+            scope: config.github.scope,
+            state,
+        });
+        authUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
+    }
+    else if (provider === "microsoft") {
+        if (!config.microsoft.clientId) {
+            return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent("Microsoft OAuth Client ID is not configured yet in Super Admin Settings.")}`);
+        }
+        const params = new URLSearchParams({
+            client_id: config.microsoft.clientId,
+            response_type: "code",
+            redirect_uri: config.microsoft.callbackUrl,
+            response_mode: "query",
+            scope: config.microsoft.scope,
+            state,
+        });
+        authUrl = `https://login.microsoftonline.com/${config.microsoft.tenantId || "common"}/oauth2/v2.0/authorize?${params.toString()}`;
+    }
+    else if (provider === "apple") {
+        if (!config.apple.clientId) {
+            return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent("Apple Services ID is not configured yet in Super Admin Settings.")}`);
+        }
+        const params = new URLSearchParams({
+            client_id: config.apple.clientId,
+            redirect_uri: config.apple.callbackUrl,
+            response_type: "code",
+            response_mode: "form_post",
+            scope: "name email",
+            state,
+        });
+        authUrl = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
+    }
+    else if (provider === "linkedin") {
+        if (!config.linkedin.clientId) {
+            return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent("LinkedIn Client ID is not configured yet in Super Admin Settings.")}`);
+        }
+        const params = new URLSearchParams({
+            response_type: "code",
+            client_id: config.linkedin.clientId,
+            redirect_uri: config.linkedin.callbackUrl,
+            scope: config.linkedin.scope,
+            state,
+        });
+        authUrl = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
+    }
+    else if (provider === "facebook") {
+        if (!config.facebook.appId) {
+            return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent("Facebook App ID is not configured yet in Super Admin Settings.")}`);
+        }
+        const params = new URLSearchParams({
+            client_id: config.facebook.appId,
+            redirect_uri: config.facebook.callbackUrl,
+            scope: config.facebook.scope,
+            state,
+        });
+        authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+    }
+    else {
+        return res.status(400).json({ error: "Unsupported OAuth provider" });
+    }
+    return res.redirect(authUrl);
+});
+// GET & POST /api/auth/oauth/:provider/callback (Exchange code, fetch profile, upsert user & issue JWT)
+async function handleOAuthCallback(req, res) {
+    const { provider } = req.params;
+    const config = await getPlatformOAuthConfig();
+    const code = req.query?.code || req.body?.code;
+    const error = req.query?.error_description || req.query?.error;
+    if (error) {
+        return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent(`${provider.toUpperCase()} Login cancelled or failed: ${error}`)}`);
+    }
+    if (!code) {
+        return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent(`Missing authorization code from ${provider}`)}`);
+    }
+    try {
+        let email = "";
+        let fullName = "";
+        let avatarUrl = "";
+        if (provider === "google") {
+            // 1. Exchange code for access token
+            const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    code,
+                    client_id: config.google.clientId,
+                    client_secret: config.google.clientSecret,
+                    redirect_uri: config.google.callbackUrl,
+                    grant_type: "authorization_code",
+                }),
+            });
+            const tokenData = await tokenRes.json();
+            if (!tokenData.access_token) {
+                throw new Error(tokenData.error_description || "Failed to exchange Google authorization token");
+            }
+            // 2. Fetch user profile
+            const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            });
+            const userData = await userRes.json();
+            email = userData.email;
+            fullName = userData.name || userData.given_name || email.split("@")[0];
+            avatarUrl = userData.picture || "";
+        }
+        else if (provider === "linkedin") {
+            // 1. Exchange code for LinkedIn access token
+            const tokenRes = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    grant_type: "authorization_code",
+                    code,
+                    client_id: config.linkedin.clientId,
+                    client_secret: config.linkedin.clientSecret,
+                    redirect_uri: config.linkedin.callbackUrl,
+                }),
+            });
+            const tokenData = await tokenRes.json();
+            if (!tokenData.access_token) {
+                throw new Error(tokenData.error_description || "Failed to exchange LinkedIn authorization token");
+            }
+            // 2. Fetch userinfo from OpenID endpoint
+            const userRes = await fetch("https://api.linkedin.com/v2/userinfo", {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            });
+            const userData = await userRes.json();
+            email = userData.email;
+            fullName = userData.name || `${userData.given_name || ""} ${userData.family_name || ""}`.trim() || email.split("@")[0];
+            avatarUrl = userData.picture || "";
+        }
+        else if (provider === "facebook") {
+            // 1. Exchange code for Facebook token
+            const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${config.facebook.appId}&client_secret=${config.facebook.appSecret}&redirect_uri=${encodeURIComponent(config.facebook.callbackUrl)}&code=${code}`;
+            const tokenRes = await fetch(tokenUrl);
+            const tokenData = await tokenRes.json();
+            if (!tokenData.access_token) {
+                throw new Error(tokenData.error?.message || "Failed to exchange Facebook authorization token");
+            }
+            // 2. Fetch user info
+            const userRes = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=${tokenData.access_token}`);
+            const userData = await userRes.json();
+            email = userData.email || `${userData.id}@facebook.user`;
+            fullName = userData.name || email.split("@")[0];
+            avatarUrl = userData.picture?.data?.url || "";
+        }
+        else if (provider === "apple") {
+            // Apple handles email on first authorization
+            email = req.body?.user ? JSON.parse(req.body.user).email : `apple_${Date.now()}@privaterelay.appleid.com`;
+            fullName = "Apple User";
+        }
+        else if (provider === "github") {
+            // 1. Exchange code for GitHub token
+            const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                },
+                body: JSON.stringify({
+                    client_id: config.github.clientId,
+                    client_secret: config.github.clientSecret,
+                    code,
+                    redirect_uri: config.github.callbackUrl,
+                }),
+            });
+            const tokenData = await tokenRes.json();
+            if (!tokenData.access_token) {
+                throw new Error(tokenData.error_description || "Failed to exchange GitHub authorization token");
+            }
+            // 2. Fetch user profile
+            const userRes = await fetch("https://api.github.com/user", {
+                headers: {
+                    Authorization: `Bearer ${tokenData.access_token}`,
+                    "User-Agent": "MasterHRMS-OAuth",
+                },
+            });
+            const userData = await userRes.json();
+            email = userData.email;
+            fullName = userData.name || userData.login || email?.split("@")[0] || "GitHub User";
+            avatarUrl = userData.avatar_url || "";
+            if (!email) {
+                const emailRes = await fetch("https://api.github.com/user/emails", {
+                    headers: {
+                        Authorization: `Bearer ${tokenData.access_token}`,
+                        "User-Agent": "MasterHRMS-OAuth",
+                    },
+                });
+                const emails = await emailRes.json();
+                if (Array.isArray(emails)) {
+                    const primary = emails.find((e) => e.primary && e.verified) || emails[0];
+                    if (primary?.email)
+                        email = primary.email;
+                }
+            }
+        }
+        else if (provider === "microsoft") {
+            // 1. Exchange code for Microsoft token
+            const tenant = config.microsoft.tenantId || "common";
+            const tokenRes = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    client_id: config.microsoft.clientId,
+                    client_secret: config.microsoft.clientSecret,
+                    code,
+                    redirect_uri: config.microsoft.callbackUrl,
+                    grant_type: "authorization_code",
+                }),
+            });
+            const tokenData = await tokenRes.json();
+            if (!tokenData.access_token) {
+                throw new Error(tokenData.error_description || "Failed to exchange Microsoft authorization token");
+            }
+            // 2. Fetch user profile from Microsoft Graph
+            const userRes = await fetch("https://graph.microsoft.com/v1.0/me", {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            });
+            const userData = await userRes.json();
+            email = userData.mail || userData.userPrincipalName;
+            fullName = userData.displayName || `${userData.givenName || ""} ${userData.surname || ""}`.trim() || email?.split("@")[0] || "Microsoft User";
+        }
+        if (!email) {
+            throw new Error(`Could not retrieve verified email address from ${provider}`);
+        }
+        // 3. Find or Create User in MySQL database
+        let user = await prisma.user.findUnique({
+            where: { email },
+            include: {
+                profile: { include: { tenant: true } },
+                roles: true,
+            },
+        });
+        if (!user) {
+            const randomPassword = await bcryptjs_1.default.hash(crypto_1.default.randomUUID(), 10);
+            user = await prisma.user.create({
+                data: {
+                    email,
+                    passwordHash: randomPassword,
+                    profile: {
+                        create: {
+                            id: crypto_1.default.randomUUID(),
+                            email,
+                            fullName: fullName || email.split("@")[0],
+                            avatarUrl: avatarUrl || null,
+                        },
+                    },
+                },
+                include: {
+                    profile: { include: { tenant: true } },
+                    roles: true,
+                },
+            });
+        }
+        if (!user) {
+            throw new Error("Failed to create or retrieve user account.");
+        }
+        const roles = user.roles ? user.roles.map((r) => r.role) : ["employee"];
+        const token = (0, jwt_1.generateToken)({
+            userId: user.id,
+            email: user.email,
+            tenantId: user.profile?.tenantId || null,
+            roles: roles.length > 0 ? roles : ["employee"],
+        });
+        return res.redirect(`${config.frontendBaseUrl}/auth?token=${token}&provider=${provider}`);
+    }
+    catch (err) {
+        console.error(`OAuth Callback Error (${provider}):`, err);
+        return res.redirect(`${config.frontendBaseUrl}/auth?error=${encodeURIComponent(err.message || `OAuth authentication failed with ${provider}`)}`);
+    }
+}
+exports.authRouter.get("/oauth/:provider/callback", handleOAuthCallback);
+exports.authRouter.post("/oauth/:provider/callback", handleOAuthCallback);
+/**
+ * PUT /api/auth/tenant
+ * Updates organization details (name, logoUrl) for current tenant
+ */
+exports.authRouter.put("/tenant", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const { name, logoUrl, timezone } = req.body;
+        const updated = await prisma.tenant.update({
+            where: { id: tenantId },
+            data: {
+                ...(name && { name: String(name).trim() }),
+                ...(logoUrl !== undefined && { logoUrl }),
+                ...(timezone && { timezone: String(timezone).trim() }),
+            },
+        });
+        return res.json({ success: true, tenant: updated });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to update tenant organization." });
+    }
+});
+/**
+ * POST /api/auth/change-password
+ * Allows any authenticated user/employee to change their password
+ */
+exports.authRouter.post("/change-password", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const { currentPassword, newPassword } = req.body;
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ error: "New password must be at least 6 characters long." });
+        }
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            return res.status(404).json({ error: "User record not found." });
+        }
+        // Check current password if provided
+        if (currentPassword) {
+            const isMatch = await bcryptjs_1.default.compare(currentPassword, user.passwordHash);
+            if (!isMatch) {
+                return res.status(400).json({ error: "Incorrect current password." });
+            }
+        }
+        const passwordHash = await bcryptjs_1.default.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash },
+        });
+        return res.json({ success: true, message: "Your password has been changed successfully." });
+    }
+    catch (err) {
+        return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to update password." });
+    }
+});

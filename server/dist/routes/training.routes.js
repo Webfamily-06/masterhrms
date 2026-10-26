@@ -1,0 +1,478 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.trainingRouter = void 0;
+const express_1 = require("express");
+const prisma_1 = require("../prisma");
+const auth_1 = require("../middleware/auth");
+exports.trainingRouter = (0, express_1.Router)();
+// GET /api/training/courses (List courses)
+exports.trainingRouter.get("/courses", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        // seed disabled
+        const { category, search } = req.query;
+        const where = { tenantId };
+        if (category && category !== "all") {
+            where.category = String(category);
+        }
+        if (search) {
+            where.OR = [
+                { title: { contains: String(search) } },
+                { description: { contains: String(search) } },
+                { instructor: { contains: String(search) } },
+            ];
+        }
+        const courses = await prisma_1.prisma.trainingCourse.findMany({
+            where,
+            include: {
+                modules: {
+                    orderBy: { orderIndex: "asc" },
+                },
+                _count: {
+                    select: { enrollments: true },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+        return res.json(courses);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to list courses." });
+    }
+});
+// POST /api/training/courses (Create course)
+exports.trainingRouter.post("/courses", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const { title, category, instructor, durationHours, isMandatory, passingScore, description, bannerUrl, modules } = req.body;
+        if (!title)
+            return res.status(400).json({ error: "Course title is required." });
+        const baseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        const slug = `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
+        const course = await prisma_1.prisma.trainingCourse.create({
+            data: {
+                tenantId,
+                title,
+                slug,
+                category: category || "Compliance & Security",
+                instructor: instructor || "Internal Academy",
+                durationHours: durationHours ? Number(durationHours) : 4.0,
+                isMandatory: isMandatory !== undefined ? Boolean(isMandatory) : false,
+                passingScore: passingScore ? Number(passingScore) : 80,
+                description: description || null,
+                bannerUrl: bannerUrl || null,
+                status: "published",
+            },
+        });
+        if (modules && Array.isArray(modules)) {
+            for (let i = 0; i < modules.length; i++) {
+                const m = modules[i];
+                await prisma_1.prisma.courseModule.create({
+                    data: {
+                        courseId: course.id,
+                        orderIndex: m.orderIndex || i + 1,
+                        title: m.title || `Lesson ${i + 1}`,
+                        durationMinutes: m.durationMinutes ? Number(m.durationMinutes) : 30,
+                        content: m.content || null,
+                        videoUrl: m.videoUrl || null,
+                    },
+                });
+            }
+        }
+        const created = await prisma_1.prisma.trainingCourse.findUnique({
+            where: { id: course.id },
+            include: { modules: { orderBy: { orderIndex: "asc" } } },
+        });
+        return res.status(201).json(created);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to create course." });
+    }
+});
+// GET /api/training/courses/:id (Course details + curriculum + enrollments)
+exports.trainingRouter.get("/courses/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tenantId = req.user?.tenantId;
+        const course = await prisma_1.prisma.trainingCourse.findUnique({
+            where: { id },
+            include: {
+                modules: { orderBy: { orderIndex: "asc" } },
+                enrollments: {
+                    include: {
+                        employee: {
+                            include: { department: true },
+                        },
+                    },
+                    orderBy: { createdAt: "desc" },
+                },
+            },
+        });
+        if (!course || (tenantId && course.tenantId !== tenantId)) {
+            return res.status(404).json({ error: "Course not found." });
+        }
+        return res.json(course);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to fetch course details." });
+    }
+});
+// PUT /api/training/courses/:id (Update course)
+exports.trainingRouter.put("/courses/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tenantId = req.user?.tenantId;
+        const existing = await prisma_1.prisma.trainingCourse.findUnique({ where: { id } });
+        if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+            return res.status(404).json({ error: "Course not found." });
+        }
+        const { title, category, instructor, durationHours, isMandatory, passingScore, description, status } = req.body;
+        const updated = await prisma_1.prisma.trainingCourse.update({
+            where: { id },
+            data: {
+                ...(title && { title }),
+                ...(category && { category }),
+                ...(instructor && { instructor }),
+                ...(durationHours !== undefined && { durationHours: Number(durationHours) }),
+                ...(isMandatory !== undefined && { isMandatory: Boolean(isMandatory) }),
+                ...(passingScore !== undefined && { passingScore: Number(passingScore) }),
+                ...(description !== undefined && { description }),
+                ...(status && { status }),
+            },
+            include: { modules: true },
+        });
+        return res.json(updated);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to update course." });
+    }
+});
+// DELETE /api/training/courses/:id
+exports.trainingRouter.delete("/courses/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tenantId = req.user?.tenantId;
+        const existing = await prisma_1.prisma.trainingCourse.findUnique({ where: { id } });
+        if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+            return res.status(404).json({ error: "Course not found." });
+        }
+        await prisma_1.prisma.trainingCourse.delete({ where: { id } });
+        return res.json({ success: true, message: "Course deleted." });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to delete course." });
+    }
+});
+// GET /api/training/enrollments (List student enrollments across tenant)
+exports.trainingRouter.get("/enrollments", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const { courseId, employeeId, status, search } = req.query;
+        const where = { tenantId };
+        if (courseId && courseId !== "all") {
+            where.courseId = String(courseId);
+        }
+        if (employeeId && employeeId !== "all") {
+            where.employeeId = String(employeeId);
+        }
+        if (status && status !== "all") {
+            where.status = String(status);
+        }
+        if (search) {
+            where.OR = [
+                { course: { title: { contains: String(search) } } },
+                { employee: { firstName: { contains: String(search) } } },
+                { employee: { lastName: { contains: String(search) } } },
+                { certificateId: { contains: String(search) } },
+            ];
+        }
+        const enrollments = await prisma_1.prisma.courseEnrollment.findMany({
+            where,
+            include: {
+                course: true,
+                employee: {
+                    include: { department: true },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+        return res.json(enrollments);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to list enrollments." });
+    }
+});
+// POST /api/training/enrollments (Enroll employee or bulk-enroll department)
+exports.trainingRouter.post("/enrollments", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const { courseId, employeeIds } = req.body;
+        if (!courseId || !employeeIds || !Array.isArray(employeeIds) || employeeIds.length === 0) {
+            return res.status(400).json({ error: "Course ID and at least one employee are required." });
+        }
+        let enrolledCount = 0;
+        for (const empId of employeeIds) {
+            await prisma_1.prisma.courseEnrollment.upsert({
+                where: {
+                    tenantId_courseId_employeeId: {
+                        tenantId,
+                        courseId,
+                        employeeId: empId,
+                    },
+                },
+                create: {
+                    tenantId,
+                    courseId,
+                    employeeId: empId,
+                    status: "not_started",
+                    progressPercent: 0,
+                },
+                update: {},
+            });
+            enrolledCount++;
+        }
+        return res.status(201).json({
+            success: true,
+            message: `Successfully enrolled ${enrolledCount} staff member(s) into course!`,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to enroll staff." });
+    }
+});
+// PUT /api/training/enrollments/:id/progress (Update student progress & generate certificate)
+exports.trainingRouter.put("/enrollments/:id/progress", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { progressPercent, score } = req.body;
+        const tenantId = req.user?.tenantId;
+        const existing = await prisma_1.prisma.courseEnrollment.findUnique({
+            where: { id },
+            include: { course: true },
+        });
+        if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+            return res.status(404).json({ error: "Enrollment record not found." });
+        }
+        const progress = Math.min(100, Math.max(0, Number(progressPercent)));
+        const examScore = score !== undefined ? Number(score) : existing.score;
+        let status = existing.status;
+        let certificateId = existing.certificateId;
+        let certifiedAt = existing.certifiedAt;
+        let expiryDate = existing.expiryDate;
+        if (progress > 0 && progress < 100) {
+            status = "in_progress";
+        }
+        else if (progress === 100) {
+            const isPassed = examScore !== null && examScore >= existing.course.passingScore;
+            if (isPassed) {
+                status = "completed";
+                if (!certificateId) {
+                    const rand = Math.floor(1000 + Math.random() * 9000);
+                    certificateId = `CERT-${rand}`;
+                    certifiedAt = new Date();
+                    const exp = new Date();
+                    exp.setFullYear(exp.getFullYear() + 1);
+                    expiryDate = exp;
+                }
+            }
+            else {
+                status = "in_progress";
+            }
+        }
+        const updated = await prisma_1.prisma.courseEnrollment.update({
+            where: { id },
+            data: {
+                progressPercent: progress,
+                score: examScore,
+                status,
+                certificateId,
+                certifiedAt,
+                expiryDate,
+            },
+            include: {
+                course: true,
+                employee: { include: { department: true } },
+            },
+        });
+        return res.json({
+            success: true,
+            message: status === "completed" ? `Course completed & Certificate issued (${certificateId})!` : "Learning progress updated.",
+            enrollment: updated,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to update progress." });
+    }
+});
+// GET /api/training/summary (Academy analytics)
+exports.trainingRouter.get("/summary", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const totalCourses = await prisma_1.prisma.trainingCourse.count({ where: { tenantId } });
+        const allEnrollments = await prisma_1.prisma.courseEnrollment.findMany({ where: { tenantId } });
+        const totalEnrolled = allEnrollments.length;
+        const completedCount = allEnrollments.filter((e) => e.status === "completed").length;
+        const inProgressCount = allEnrollments.filter((e) => e.status === "in_progress").length;
+        const complianceRate = totalEnrolled > 0 ? Math.round((completedCount / totalEnrolled) * 100) : 100;
+        return res.json({
+            totalCourses,
+            totalEnrolled,
+            completedCount,
+            inProgressCount,
+            complianceRate,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to generate academy summary." });
+    }
+});
+// GET /api/training/certifications (List issued certifications for tenant)
+exports.trainingRouter.get("/certifications", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const { search, courseId, employeeId } = req.query;
+        const where = {
+            tenantId,
+            certificateId: { not: null },
+        };
+        if (courseId && courseId !== "all") {
+            where.courseId = String(courseId);
+        }
+        if (employeeId && employeeId !== "all") {
+            where.employeeId = String(employeeId);
+        }
+        if (search) {
+            where.OR = [
+                { certificateId: { contains: String(search) } },
+                { course: { title: { contains: String(search) } } },
+                { employee: { firstName: { contains: String(search) } } },
+                { employee: { lastName: { contains: String(search) } } },
+            ];
+        }
+        const certifications = await prisma_1.prisma.courseEnrollment.findMany({
+            where,
+            include: {
+                course: true,
+                employee: {
+                    include: { department: true },
+                },
+            },
+            orderBy: { certifiedAt: "desc" },
+        });
+        return res.json(certifications);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to list certifications." });
+    }
+});
+// POST /api/training/certifications (Issue / Grant a certification)
+exports.trainingRouter.post("/certifications", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const roles = req.user?.roles || [];
+        const isAuthorized = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r));
+        if (!isAuthorized) {
+            return res.status(403).json({ error: "Forbidden: Insufficient privileges to issue certifications." });
+        }
+        const { employeeId, courseId, certifiedAt, expiryDate, certificateId, score } = req.body;
+        if (!employeeId || !courseId) {
+            return res.status(400).json({ error: "Both employeeId and courseId are required." });
+        }
+        // Verify employee tenant boundary
+        const emp = await prisma_1.prisma.employee.findUnique({
+            where: { id: employeeId },
+            select: { id: true, tenantId: true },
+        });
+        if (!emp || emp.tenantId !== tenantId) {
+            return res.status(400).json({ error: "Invalid employee or cross-tenant assignment rejected." });
+        }
+        // Verify course tenant boundary
+        const crs = await prisma_1.prisma.trainingCourse.findUnique({
+            where: { id: courseId },
+            select: { id: true, tenantId: true },
+        });
+        if (!crs || crs.tenantId !== tenantId) {
+            return res.status(400).json({ error: "Invalid training course or cross-tenant course rejected." });
+        }
+        const finalCertId = certificateId?.trim() || `CERT-${Math.floor(100000 + Math.random() * 900000)}`;
+        const certification = await prisma_1.prisma.courseEnrollment.upsert({
+            where: {
+                tenantId_courseId_employeeId: {
+                    tenantId,
+                    courseId,
+                    employeeId,
+                },
+            },
+            create: {
+                tenantId,
+                courseId,
+                employeeId,
+                status: "completed",
+                progressPercent: 100,
+                score: score !== undefined ? Number(score) : 100,
+                certificateId: finalCertId,
+                certifiedAt: certifiedAt ? new Date(certifiedAt) : new Date(),
+                expiryDate: expiryDate ? new Date(expiryDate) : null,
+            },
+            update: {
+                status: "completed",
+                progressPercent: 100,
+                score: score !== undefined ? Number(score) : 100,
+                certificateId: finalCertId,
+                certifiedAt: certifiedAt ? new Date(certifiedAt) : new Date(),
+                expiryDate: expiryDate ? new Date(expiryDate) : null,
+            },
+            include: {
+                course: true,
+                employee: {
+                    include: { department: true },
+                },
+            },
+        });
+        return res.status(201).json({
+            success: true,
+            message: `Certification issued successfully (${finalCertId})`,
+            certification,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to issue certification." });
+    }
+});
+// DELETE /api/training/certifications/:id (Revoke certification)
+exports.trainingRouter.delete("/certifications/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const roles = req.user?.roles || [];
+        const isAuthorized = roles.some((r) => ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r));
+        if (!isAuthorized) {
+            return res.status(403).json({ error: "Forbidden: Insufficient privileges to revoke certifications." });
+        }
+        const { id } = req.params;
+        const existing = await prisma_1.prisma.courseEnrollment.findUnique({ where: { id } });
+        if (!existing || existing.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Certification record not found." });
+        }
+        await prisma_1.prisma.courseEnrollment.delete({ where: { id } });
+        return res.json({ success: true, message: "Certification record revoked successfully." });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to revoke certification." });
+    }
+});

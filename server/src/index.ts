@@ -133,7 +133,7 @@ app.use(securityHeadersMiddleware);
 
 // CORS setup
 const defaultAllowedOrigins = process.env.NODE_ENV === "production"
-  ? "https://masterhrms.com,https://staging.masterhrms.com"
+  ? "https://masterhrms.com,https://www.masterhrms.com,https://staging.masterhrms.com"
   : "http://localhost:5173,http://localhost:3000,http://localhost:8080";
 const allowedOrigins = (process.env.CORS_ORIGIN || defaultAllowedOrigins)
   .split(",")

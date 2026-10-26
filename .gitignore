@@ -14,7 +14,6 @@ server/node_modules/
 # Production Builds
 dist/
 dist-ssr/
-server/dist/
 .output/
 .vinxi/
 .nitro/

@@ -1,0 +1,267 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.requireAuth = requireAuth;
+exports.requireRole = requireRole;
+exports.requireSuperAdmin = requireSuperAdmin;
+exports.requirePermission = requirePermission;
+const jwt_1 = require("../lib/jwt");
+const prisma_1 = require("../prisma");
+const workspace_policy_service_1 = require("../services/workspace-policy.service");
+async function requireAuth(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Unauthorized: Missing or invalid token format" });
+    }
+    const token = authHeader.split(" ")[1];
+    try {
+        const decoded = (0, jwt_1.verifyToken)(token);
+        if (decoded.mfaPending)
+            return res.status(401).json({ error: "Complete two-factor verification first." });
+        const userId = decoded.userId || decoded.id;
+        const account = await (prisma_1.rawPrisma || prisma_1.prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
+        if (!account)
+            return res.status(401).json({ error: "Account no longer exists." });
+        const isSuper = account.roles.some((r) => r.role === "super_admin");
+        const isImpersonating = Boolean(decoded.isImpersonating);
+        // Host-to-JWT Tenant Binding Enforcement
+        const resolvedTenant = req.resolvedTenant;
+        let tenantId = account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
+        if (resolvedTenant) {
+            if (!isSuper && !isImpersonating) {
+                // Strict isolation: non-super-admin tokens cannot access a foreign host workspace
+                if (tenantId && tenantId !== resolvedTenant.id) {
+                    return res.status(403).json({
+                        error: "Tenant host mismatch: Authenticated workspace does not match the requested host workspace.",
+                        code: "TENANT_HOST_MISMATCH",
+                        hostTenantId: resolvedTenant.id,
+                        hostSlug: resolvedTenant.slug,
+                        tokenTenantId: tenantId,
+                    });
+                }
+            }
+            else if (isImpersonating) {
+                // Impersonated tokens must match the target host workspace
+                const targetTenantId = decoded.tenantId || tenantId;
+                if (targetTenantId && targetTenantId !== resolvedTenant.id) {
+                    return res.status(403).json({
+                        error: "Tenant host mismatch: Impersonation token is not valid for this host workspace.",
+                        code: "TENANT_HOST_MISMATCH",
+                        hostTenantId: resolvedTenant.id,
+                        hostSlug: resolvedTenant.slug,
+                        tokenTenantId: targetTenantId,
+                    });
+                }
+            }
+            else if (isSuper) {
+                // Explicit audited Super Admin access to tenant workspace
+                tenantId = resolvedTenant.id;
+                try {
+                    const db = prisma_1.rawPrisma || prisma_1.prisma;
+                    await db.auditLog.create({
+                        data: {
+                            tenantId: resolvedTenant.id,
+                            actorId: userId,
+                            actorEmail: account.email,
+                            action: "SUPER_ADMIN_WORKSPACE_ACCESS",
+                            entityType: "Tenant",
+                            entityId: resolvedTenant.id,
+                            ipAddress: req.ip || null,
+                            afterJson: {
+                                host: req.headers.host,
+                                path: req.originalUrl,
+                                method: req.method,
+                                accessType: "direct_super_admin",
+                            },
+                        },
+                    });
+                }
+                catch (auditErr) {
+                    console.warn("[requireAuth] Super admin host audit record error:", auditErr?.message);
+                }
+            }
+        }
+        const roles = account.roles.filter((r) => r.role === "super_admin" || r.tenantId === tenantId).map((r) => r.role);
+        const isSafeRoute = req.originalUrl?.startsWith("/api/billing") ||
+            req.originalUrl?.startsWith("/api/commerce") ||
+            req.originalUrl?.startsWith("/api/auth") ||
+            req.originalUrl?.startsWith("/api/webhooks") ||
+            req.originalUrl?.startsWith("/api/workspace/subscription");
+        const isPreflight = req.method === "HEAD" || req.method === "OPTIONS";
+        if (!isSuper && tenantId && !isSafeRoute && !isPreflight) {
+            try {
+                (0, workspace_policy_service_1.assertWorkspaceActive)(await (0, workspace_policy_service_1.getWorkspacePolicy)(tenantId));
+            }
+            catch (error) {
+                const isExp = error.message?.includes("expired");
+                return res.status(402).json({
+                    error: error.message || "Subscription is not active. Please renew to continue.",
+                    code: isExp ? "SUBSCRIPTION_EXPIRED" : "SUBSCRIPTION_SUSPENDED",
+                });
+            }
+        }
+        if (!isSuper && !tenantId && !req.originalUrl.startsWith("/api/auth/")) {
+            return res.status(403).json({ error: "Complete workspace onboarding first." });
+        }
+        req.tenantId = tenantId ?? undefined;
+        let userPermissions = Array.isArray(decoded.permissions) ? [...decoded.permissions] : [];
+        if (tenantId && userId) {
+            try {
+                const db = prisma_1.rawPrisma || prisma_1.prisma;
+                const assignment = await db.userRoleAssignment.findUnique({
+                    where: { userId_tenantId: { userId, tenantId } },
+                    include: {
+                        role: {
+                            include: {
+                                permissions: { include: { permission: true } },
+                            },
+                        },
+                    },
+                });
+                if (assignment?.role?.permissions) {
+                    const roleCodes = assignment.role.permissions.map((rp) => rp.permission.code);
+                    userPermissions = Array.from(new Set([...userPermissions, ...roleCodes]));
+                }
+            }
+            catch { }
+        }
+        // Default system role administrative permissions
+        const rawRoleNames = roles;
+        if (rawRoleNames.includes("super_admin") || rawRoleNames.includes("Workspace Admin") || rawRoleNames.includes("admin") || rawRoleNames.includes("hr_admin")) {
+            userPermissions = Array.from(new Set([
+                ...userPermissions,
+                "hr:employee:sensitive:write",
+                "hr:employee:sensitive:read",
+                "hr:employees:read",
+                "hr:employees:write",
+                "hr:documents:delete",
+                "hr:documents:verify",
+                "hrm.sensitive.edit",
+                "hrm.sensitive.view",
+                "hrm.employees.view",
+                "hrm.employees.create",
+                "hrm.employees.edit",
+                "hrm.employees.delete",
+            ]));
+        }
+        req.user = {
+            ...decoded,
+            userId,
+            tenantId: tenantId ?? null,
+            roles,
+            permissions: userPermissions,
+            isImpersonating,
+        };
+        req.user.id = userId;
+        next();
+    }
+    catch (err) {
+        if (["JsonWebTokenError", "TokenExpiredError", "NotBeforeError"].includes(err.name)) {
+            return res.status(401).json({ error: "Unauthorized: Token expired or invalid" });
+        }
+        console.error("[requireAuth] Error:", err?.message || err);
+        return res.status(503).json({ error: err?.message || "Unable to verify workspace access. Please retry." });
+    }
+}
+function requireRole(...allowedRoles) {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        const hasRole = req.user.roles.some((r) => allowedRoles.includes(r));
+        if (!hasRole) {
+            return res.status(403).json({ error: "Forbidden: Insufficient permissions" });
+        }
+        next();
+    };
+}
+function requireSuperAdmin(req, res, next) {
+    return requireRole("super_admin")(req, res, next);
+}
+/**
+ * requirePermission - Dynamic permission validator
+ * Resolves user role, active status, module enablement, and action permission.
+ * Format: module.resource.action (e.g. finance.invoices.view)
+ */
+function requirePermission(permissionCode) {
+    return async (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        // 1. Strict Role Separation: Super Admin does not automatically bypass tenant checks on tenant-scoped endpoints
+        const tenantId = req.user.tenantId;
+        if (!tenantId) {
+            return res.status(403).json({ error: "Forbidden: Valid workspace context is required for tenant-scoped operations" });
+        }
+        try {
+            // 2. Check if Module is enabled in this workspace
+            const moduleKey = permissionCode.split(".")[0];
+            let tenantMod = null;
+            const db = prisma_1.rawPrisma || prisma_1.prisma;
+            try {
+                tenantMod = await db.tenantModule.findUnique({
+                    where: {
+                        tenantId_moduleKey: {
+                            tenantId,
+                            moduleKey,
+                        },
+                    },
+                });
+            }
+            catch {
+                tenantMod = null;
+            }
+            if (tenantMod && !tenantMod.isEnabled) {
+                return res.status(403).json({
+                    error: "Forbidden: The " + moduleKey.toUpperCase() + " module is currently disabled for this workspace",
+                });
+            }
+            // 3. Resolve User Role Assignment
+            let assignment = null;
+            try {
+                assignment = await db.userRoleAssignment.findUnique({
+                    where: {
+                        userId_tenantId: {
+                            userId: req.user.userId,
+                            tenantId,
+                        },
+                    },
+                    include: {
+                        role: {
+                            include: {
+                                permissions: {
+                                    include: { permission: true },
+                                },
+                            },
+                        },
+                    },
+                });
+            }
+            catch {
+                assignment = null;
+            }
+            if (!assignment || !assignment.role || !assignment.role.isActive) {
+                if (req.user.roles?.includes("admin") || req.user.roles?.includes("hr_admin") || req.user.roles?.includes("Workspace Admin")) {
+                    return next();
+                }
+                return res.status(403).json({
+                    error: "Forbidden: No active role assigned in this workspace",
+                });
+            }
+            // Workspace Admin role has full access
+            if (assignment.role.name === "Workspace Admin") {
+                return next();
+            }
+            // 4. Verify permission exists on role
+            const hasPerm = assignment.role.permissions.some((rp) => rp.permission.code === permissionCode);
+            if (!hasPerm) {
+                return res.status(403).json({
+                    error: "Forbidden: You do not have permission (" + permissionCode + ") to perform this action",
+                });
+            }
+            next();
+        }
+        catch (err) {
+            return res.status(500).json({ error: "Internal authorization check error: " + err.message });
+        }
+    };
+}

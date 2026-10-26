@@ -1,0 +1,926 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.assetsRouter = void 0;
+const express_1 = require("express");
+const prisma_1 = require("../prisma");
+const auth_1 = require("../middleware/auth");
+const addons_1 = require("../middleware/addons");
+const audit_service_1 = require("../services/audit.service");
+const outbox_service_1 = require("../services/outbox.service");
+exports.assetsRouter = (0, express_1.Router)();
+/**
+ * -------------------------------------------------------------
+ * PUBLIC QR / SCAN ENDPOINT (No auth required for camera scan)
+ * -------------------------------------------------------------
+ * GET /api/addons/assets/public/tag/:assetTag
+ */
+exports.assetsRouter.get("/public/tag/:assetTag", async (req, res) => {
+    try {
+        const { assetTag } = req.params;
+        const asset = await prisma_1.prisma.asset.findFirst({
+            where: { assetTag },
+            include: {
+                categoryRel: { select: { name: true, icon: true, prefix: true } },
+                assignedEmployee: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        phone: true,
+                        position: true,
+                        department: { select: { name: true } },
+                    },
+                },
+                assignments: {
+                    orderBy: { assignedAt: "desc" },
+                    take: 5,
+                    include: {
+                        employee: { select: { firstName: true, lastName: true, email: true } },
+                    },
+                },
+                maintenanceLogs: {
+                    orderBy: { serviceDate: "desc" },
+                    take: 3,
+                },
+            },
+        });
+        if (!asset) {
+            return res.status(404).json({ error: `Asset tag '${assetTag}' not found.` });
+        }
+        return res.json({ asset });
+    }
+    catch (err) {
+        console.error("[assets/public-tag] error:", err);
+        return res.status(500).json({ error: "Failed to fetch asset details for tag." });
+    }
+});
+// All subsequent routes require Tenant Auth and Asset Management Add-on entitlement
+exports.assetsRouter.use(auth_1.requireAuth);
+exports.assetsRouter.use((0, addons_1.requireAddon)("asset-management"));
+/**
+ * -------------------------------------------------------------
+ * 1. ASSET CATEGORIES CRUD
+ * -------------------------------------------------------------
+ */
+exports.assetsRouter.get("/categories", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const categories = await prisma_1.prisma.assetCategory.findMany({
+            where: { tenantId },
+            orderBy: { name: "asc" },
+            include: {
+                _count: { select: { assets: true } },
+            },
+        });
+        return res.json({ categories });
+    }
+    catch (err) {
+        console.error("[assets/categories] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to load categories." });
+    }
+});
+exports.assetsRouter.post("/categories", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { name, description, icon = "laptop", prefix = "AST" } = req.body;
+        if (!name) {
+            return res.status(400).json({ error: "Category name is required." });
+        }
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const category = await prisma_1.prisma.assetCategory.upsert({
+            where: { tenantId_slug: { tenantId, slug } },
+            create: {
+                tenantId,
+                name,
+                slug,
+                description,
+                icon,
+                prefix: prefix.toUpperCase(),
+            },
+            update: {
+                name,
+                description,
+                icon,
+                prefix: prefix.toUpperCase(),
+            },
+        });
+        await prisma_1.prisma.assetActivityLog.create({
+            data: {
+                tenantId,
+                actionType: "create_category",
+                performedBy: req.user?.email || "Admin",
+                details: `Created category '${category.name}' (Prefix: ${category.prefix})`,
+            },
+        });
+        return res.status(201).json({ category });
+    }
+    catch (err) {
+        console.error("[assets/categories:create] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create category." });
+    }
+});
+exports.assetsRouter.delete("/categories/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const existing = await prisma_1.prisma.assetCategory.findFirst({
+            where: { id, tenantId },
+            include: { assets: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Category not found." });
+        }
+        if (existing.assets && existing.assets.length > 0) {
+            return res.status(400).json({
+                error: `Cannot delete category with ${existing.assets.length} associated assets. Please reassign or delete assets first.`,
+            });
+        }
+        await prisma_1.prisma.assetCategory.delete({ where: { id } });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: req.user?.userId || req.user?.id,
+            actorEmail: req.user?.email,
+            action: "asset.category.deleted",
+            entityType: "AssetCategory",
+            entityId: id,
+            oldState: { name: existing.name },
+        }).catch(() => { });
+        return res.json({ success: true, message: "Category deleted successfully." });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to delete category." });
+    }
+});
+exports.assetsRouter.put("/categories/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const { name, description, icon, prefix } = req.body;
+        const existing = await prisma_1.prisma.assetCategory.findFirst({ where: { id, tenantId } });
+        if (!existing)
+            return res.status(404).json({ error: "Category not found." });
+        const updated = await prisma_1.prisma.assetCategory.update({
+            where: { id },
+            data: {
+                ...(name && { name }),
+                ...(description !== undefined && { description }),
+                ...(icon && { icon }),
+                ...(prefix && { prefix: prefix.toUpperCase() }),
+            },
+        });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: req.user?.userId || req.user?.id,
+            actorEmail: req.user?.email,
+            action: "asset.category.updated",
+            entityType: "AssetCategory",
+            entityId: id,
+            oldState: { name: existing.name },
+            newState: { name: updated.name },
+        }).catch(() => { });
+        return res.json({ category: updated });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to update category." });
+    }
+});
+/**
+ * -------------------------------------------------------------
+ * 2. ASSETS INVENTORY (Single & Batch with Quantity Reconciliation)
+ * -------------------------------------------------------------
+ */
+exports.assetsRouter.get("/", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { category, status, employeeId, isBatch, search } = req.query;
+        const whereClause = { tenantId };
+        if (category && category !== "all")
+            whereClause.category = String(category);
+        if (status && status !== "all")
+            whereClause.status = String(status);
+        if (employeeId)
+            whereClause.assignedEmployeeId = String(employeeId);
+        if (isBatch === "true")
+            whereClause.isBatch = true;
+        if (isBatch === "false")
+            whereClause.isBatch = false;
+        if (search) {
+            whereClause.OR = [
+                { name: { contains: String(search) } },
+                { assetTag: { contains: String(search) } },
+                { serialNumber: { contains: String(search) } },
+                { brand: { contains: String(search) } },
+                { location: { contains: String(search) } },
+            ];
+        }
+        const [assets, totalCount, assignedCount, maintenanceCount, availableCount, batchCount] = await Promise.all([
+            prisma_1.prisma.asset.findMany({
+                where: whereClause,
+                orderBy: { createdAt: "desc" },
+                include: {
+                    categoryRel: true,
+                    assignedEmployee: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            position: true,
+                            department: { select: { name: true } },
+                        },
+                    },
+                    assignments: {
+                        where: { status: "active" },
+                        include: {
+                            employee: { select: { firstName: true, lastName: true } },
+                        },
+                    },
+                    maintenanceLogs: {
+                        orderBy: { serviceDate: "desc" },
+                        take: 1,
+                    },
+                },
+            }),
+            prisma_1.prisma.asset.count({ where: { tenantId } }),
+            prisma_1.prisma.asset.count({ where: { tenantId, status: "assigned" } }),
+            prisma_1.prisma.asset.count({ where: { tenantId, status: "maintenance" } }),
+            prisma_1.prisma.asset.count({ where: { tenantId, status: "available" } }),
+            prisma_1.prisma.asset.count({ where: { tenantId, isBatch: true } }),
+        ]);
+        // Check expiring warranties within 60 days
+        const now = new Date();
+        const sixtyDaysLater = new Date();
+        sixtyDaysLater.setDate(sixtyDaysLater.getDate() + 60);
+        const expiringWarrantyCount = await prisma_1.prisma.asset.count({
+            where: {
+                tenantId,
+                warrantyExpiry: { gte: now, lte: sixtyDaysLater },
+            },
+        });
+        const totalAssetValuation = assets.reduce((sum, a) => sum + Number(a.purchasePrice || 0) * (a.isBatch ? a.totalQuantity : 1), 0);
+        return res.json({
+            assets,
+            summary: {
+                totalAssets: totalCount,
+                assignedCount,
+                availableCount,
+                maintenanceCount,
+                batchCount,
+                expiringWarrantyCount,
+                totalValuation: totalAssetValuation,
+            },
+        });
+    }
+    catch (err) {
+        console.error("[assets/list] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to load assets." });
+    }
+});
+exports.assetsRouter.post("/", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        let { assetTag, name, category = "laptop", categoryId, brand, model, serialNumber, isBatch = false, totalQuantity = 1, unit = "pcs", location = "HQ Main Storage", purchaseDate, purchasePrice, vendor, warrantyExpiry, condition = "good", notes, } = req.body;
+        if (!name) {
+            return res.status(400).json({ error: "Asset name is required." });
+        }
+        // Auto-generate assetTag if not provided
+        if (!assetTag) {
+            const prefix = category.slice(0, 3).toUpperCase() || "AST";
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            assetTag = `${prefix}-${randomNum}`;
+        }
+        const existing = await prisma_1.prisma.asset.findUnique({
+            where: { tenantId_assetTag: { tenantId, assetTag } },
+        });
+        if (existing) {
+            return res.status(400).json({ error: `Asset Tag '${assetTag}' is already registered.` });
+        }
+        const parsedTotalQty = isBatch ? Number(totalQuantity) || 1 : 1;
+        const asset = await prisma_1.prisma.asset.create({
+            data: {
+                tenantId,
+                assetTag,
+                name,
+                category,
+                categoryId: categoryId || null,
+                brand,
+                model,
+                serialNumber: isBatch ? null : serialNumber,
+                isBatch: Boolean(isBatch),
+                totalQuantity: parsedTotalQty,
+                availableQuantity: parsedTotalQty,
+                unit,
+                location,
+                purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
+                purchasePrice: purchasePrice ? Number(purchasePrice) : 0,
+                vendor,
+                warrantyExpiry: warrantyExpiry ? new Date(warrantyExpiry) : null,
+                condition,
+                status: "available",
+                notes,
+                qrCode: `/a/${assetTag}`,
+            },
+        });
+        await prisma_1.prisma.assetActivityLog.create({
+            data: {
+                tenantId,
+                assetId: asset.id,
+                actionType: "create",
+                quantity: parsedTotalQty,
+                performedBy: req.user?.email || "Admin",
+                details: `Registered asset ${asset.assetTag} (${asset.name}) - Qty: ${parsedTotalQty} ${unit}`,
+            },
+        });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: req.user?.userId || req.user?.id,
+            actorEmail: req.user?.email,
+            action: "asset.created",
+            entityType: "Asset",
+            entityId: asset.id,
+            newState: { assetTag: asset.assetTag, name: asset.name, category: asset.category, quantity: parsedTotalQty },
+        }).catch(() => { });
+        await outbox_service_1.OutboxService.createOutboxEvent({
+            tenantId,
+            eventType: "asset.created",
+            entityType: "asset",
+            entityId: asset.id,
+            actorId: req.user?.userId || req.user?.id,
+            payload: { assetTag: asset.assetTag, name: asset.name, status: asset.status },
+        }).catch(() => { });
+        return res.status(201).json({ asset });
+    }
+    catch (err) {
+        console.error("[assets/create] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to register asset." });
+    }
+});
+// GET /api/addons/assets/:id - Fetch single asset details
+exports.assetsRouter.get("/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const asset = await prisma_1.prisma.asset.findFirst({
+            where: { id, tenantId },
+            include: {
+                categoryRel: true,
+                assignedEmployee: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        position: true,
+                        department: { select: { name: true } },
+                    },
+                },
+                assignments: {
+                    orderBy: { assignedAt: "desc" },
+                    include: {
+                        employee: { select: { firstName: true, lastName: true, email: true } },
+                    },
+                },
+                maintenanceLogs: {
+                    orderBy: { serviceDate: "desc" },
+                },
+            },
+        });
+        if (!asset) {
+            return res.status(404).json({ error: "Asset not found." });
+        }
+        return res.json({ asset });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to fetch asset." });
+    }
+});
+// PUT /api/addons/assets/:id - Update asset details
+exports.assetsRouter.put("/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const { name, category, categoryId, brand, model, serialNumber, location, purchaseDate, purchasePrice, vendor, warrantyExpiry, condition, notes, } = req.body;
+        const existing = await prisma_1.prisma.asset.findFirst({ where: { id, tenantId } });
+        if (!existing) {
+            return res.status(404).json({ error: "Asset not found." });
+        }
+        const updated = await prisma_1.prisma.asset.update({
+            where: { id },
+            data: {
+                ...(name && { name }),
+                ...(category && { category }),
+                ...(categoryId !== undefined && { categoryId }),
+                ...(brand !== undefined && { brand }),
+                ...(model !== undefined && { model }),
+                ...(serialNumber !== undefined && { serialNumber }),
+                ...(location !== undefined && { location }),
+                ...(purchaseDate !== undefined && { purchaseDate: purchaseDate ? new Date(purchaseDate) : null }),
+                ...(purchasePrice !== undefined && { purchasePrice: Number(purchasePrice) }),
+                ...(vendor !== undefined && { vendor }),
+                ...(warrantyExpiry !== undefined && { warrantyExpiry: warrantyExpiry ? new Date(warrantyExpiry) : null }),
+                ...(condition && { condition }),
+                ...(notes !== undefined && { notes }),
+            },
+            include: {
+                categoryRel: true,
+                assignedEmployee: true,
+            },
+        });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: req.user?.userId || req.user?.id,
+            actorEmail: req.user?.email,
+            action: "asset.updated",
+            entityType: "Asset",
+            entityId: id,
+            oldState: { name: existing.name, condition: existing.condition },
+            newState: { name: updated.name, condition: updated.condition },
+        }).catch(() => { });
+        await outbox_service_1.OutboxService.createOutboxEvent({
+            tenantId,
+            eventType: "asset.updated",
+            entityType: "asset",
+            entityId: id,
+            actorId: req.user?.userId || req.user?.id,
+            payload: { assetTag: updated.assetTag, name: updated.name },
+        }).catch(() => { });
+        return res.json({ asset: updated });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to update asset." });
+    }
+});
+// DELETE /api/addons/assets/:id - Delete asset (restricted if currently allocated)
+exports.assetsRouter.delete("/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const existing = await prisma_1.prisma.asset.findFirst({
+            where: { id, tenantId },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Asset not found." });
+        }
+        if (existing.status === "assigned" || existing.availableQuantity < existing.totalQuantity) {
+            return res.status(400).json({
+                error: `Cannot delete asset '${existing.assetTag}' while allocated to employees or departments. Please return all allocations first.`,
+            });
+        }
+        await prisma_1.prisma.$transaction(async (tx) => {
+            await tx.assetAssignment.deleteMany({ where: { assetId: id } });
+            await tx.assetActivityLog.deleteMany({ where: { assetId: id } });
+            await tx.assetMaintenance.deleteMany({ where: { assetId: id } });
+            await tx.asset.delete({ where: { id } });
+            await audit_service_1.AuditService.logMutation({
+                tenantId,
+                actorId: req.user?.userId || req.user?.id,
+                actorEmail: req.user?.email,
+                action: "asset.deleted",
+                entityType: "Asset",
+                entityId: id,
+                oldState: { assetTag: existing.assetTag, name: existing.name },
+            }, tx).catch(() => { });
+            await outbox_service_1.OutboxService.createOutboxEvent({
+                tenantId,
+                eventType: "asset.deleted",
+                entityType: "asset",
+                entityId: id,
+                actorId: req.user?.userId || req.user?.id,
+                payload: { assetTag: existing.assetTag },
+            }, tx).catch(() => { });
+        });
+        return res.json({ success: true, message: `Asset ${existing.assetTag} deleted successfully.` });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to delete asset." });
+    }
+});
+/**
+ * -------------------------------------------------------------
+ * 3. MULTI-TARGET ALLOCATIONS (Employee, Department, Warehouse)
+ * -------------------------------------------------------------
+ */
+exports.assetsRouter.post("/:id/allocate", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const { targetType = "employee", // employee, department, location
+        employeeId, departmentId, locationName, quantity = 1, expectedReturnDate, conditionOnAssign = "good", notes, } = req.body;
+        const asset = await prisma_1.prisma.asset.findUnique({ where: { id } });
+        if (!asset || asset.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Asset not found." });
+        }
+        const allocQty = Number(quantity) || 1;
+        if (asset.availableQuantity < allocQty) {
+            return res.status(400).json({
+                error: `Insufficient available quantity. In stock: ${asset.availableQuantity}, Requested: ${allocQty}`,
+            });
+        }
+        const newAvailableQty = asset.availableQuantity - allocQty;
+        // 1. Create Assignment record
+        const assignment = await prisma_1.prisma.assetAssignment.create({
+            data: {
+                assetId: id,
+                targetType,
+                employeeId: targetType === "employee" ? employeeId : null,
+                departmentId: targetType === "department" ? departmentId : null,
+                locationName: targetType === "location" ? locationName : null,
+                quantity: allocQty,
+                assignedAt: new Date(),
+                expectedReturnDate: expectedReturnDate ? new Date(expectedReturnDate) : null,
+                conditionOnAssign,
+                status: "active",
+                notes,
+            },
+        });
+        // 2. Update Asset status & quantity
+        const updatedAsset = await prisma_1.prisma.asset.update({
+            where: { id },
+            data: {
+                availableQuantity: newAvailableQty,
+                status: newAvailableQty === 0 ? "assigned" : "available",
+                assignedEmployeeId: targetType === "employee" ? employeeId : asset.assignedEmployeeId,
+                assignedAt: new Date(),
+            },
+            include: {
+                assignedEmployee: { select: { firstName: true, lastName: true } },
+            },
+        });
+        // 3. Log Activity
+        await prisma_1.prisma.assetActivityLog.create({
+            data: {
+                tenantId,
+                assetId: id,
+                actionType: "assign",
+                quantity: allocQty,
+                performedBy: req.user?.email || "Admin",
+                details: `Allocated ${allocQty} ${asset.unit} of ${asset.assetTag} to ${targetType}`,
+            },
+        });
+        return res.json({
+            message: `Successfully allocated ${allocQty} ${asset.unit} of ${asset.assetTag}!`,
+            asset: updatedAsset,
+            assignment,
+        });
+    }
+    catch (err) {
+        console.error("[assets/allocate] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to allocate asset." });
+    }
+});
+exports.assetsRouter.post("/assignments/:assignmentId/return", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { assignmentId } = req.params;
+        const { returnedQuantity, conditionOnReturn = "good", notes } = req.body;
+        const assignment = await prisma_1.prisma.assetAssignment.findUnique({
+            where: { id: assignmentId },
+            include: { asset: true },
+        });
+        if (!assignment || assignment.asset.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Assignment not found." });
+        }
+        const returnQty = Number(returnedQuantity) || assignment.quantity;
+        const isFullReturn = returnQty >= assignment.quantity;
+        // 1. Update assignment
+        await prisma_1.prisma.assetAssignment.update({
+            where: { id: assignmentId },
+            data: {
+                status: isFullReturn ? "returned" : "active",
+                returnedAt: new Date(),
+                conditionOnReturn,
+                notes: notes ? `${assignment.notes || ""}\n[Return]: ${notes}` : assignment.notes,
+                quantity: assignment.quantity - (isFullReturn ? 0 : returnQty),
+            },
+        });
+        // 2. Reconcile asset quantity
+        const newAvailable = Math.min(assignment.asset.totalQuantity, assignment.asset.availableQuantity + returnQty);
+        const asset = await prisma_1.prisma.asset.update({
+            where: { id: assignment.assetId },
+            data: {
+                availableQuantity: newAvailable,
+                status: newAvailable > 0 ? "available" : "assigned",
+                assignedEmployeeId: newAvailable === assignment.asset.totalQuantity ? null : assignment.asset.assignedEmployeeId,
+            },
+        });
+        // 3. Log Activity
+        await prisma_1.prisma.assetActivityLog.create({
+            data: {
+                tenantId,
+                assetId: asset.id,
+                actionType: "return",
+                quantity: returnQty,
+                performedBy: req.user?.email || "Admin",
+                details: `Returned ${returnQty} units of ${asset.assetTag} (Condition: ${conditionOnReturn})`,
+            },
+        });
+        return res.json({
+            message: `Checked in ${returnQty} units of ${asset.assetTag}. In stock: ${newAvailable}`,
+            asset,
+        });
+    }
+    catch (err) {
+        console.error("[assets/return] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to return asset." });
+    }
+});
+/**
+ * -------------------------------------------------------------
+ * 4. EMPLOYEE ASSET REQUESTS & 1-CLICK APPROVAL
+ * -------------------------------------------------------------
+ */
+exports.assetsRouter.get("/requests", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { status, employeeId } = req.query;
+        const whereClause = { tenantId };
+        if (status && status !== "all")
+            whereClause.status = String(status);
+        if (employeeId)
+            whereClause.employeeId = String(employeeId);
+        const requests = await prisma_1.prisma.assetRequest.findMany({
+            where: whereClause,
+            orderBy: { requestedAt: "desc" },
+            include: {
+                employee: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        position: true,
+                        department: { select: { name: true } },
+                    },
+                },
+            },
+        });
+        return res.json({ requests });
+    }
+    catch (err) {
+        console.error("[assets/requests] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to load requests." });
+    }
+});
+exports.assetsRouter.post("/requests", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { employeeId, categoryName, itemName, quantity = 1, purpose, priority = "medium" } = req.body;
+        if (!employeeId || !itemName || !purpose) {
+            return res.status(400).json({ error: "Employee, item name, and business purpose are required." });
+        }
+        const request = await prisma_1.prisma.assetRequest.create({
+            data: {
+                tenantId,
+                employeeId,
+                categoryName: categoryName || "General IT",
+                itemName,
+                quantity: Number(quantity) || 1,
+                purpose,
+                priority,
+                status: "pending",
+            },
+        });
+        await prisma_1.prisma.assetActivityLog.create({
+            data: {
+                tenantId,
+                actionType: "request",
+                performedBy: req.user?.email || "Employee",
+                details: `Submitted request for ${request.quantity}x ${request.itemName} (Priority: ${request.priority})`,
+            },
+        });
+        return res.status(201).json({ request });
+    }
+    catch (err) {
+        console.error("[assets/requests:create] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to submit request." });
+    }
+});
+exports.assetsRouter.post("/requests/:id/review", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const { status, adminNotes } = req.body; // approved, rejected, fulfilled
+        if (!status) {
+            return res.status(400).json({ error: "Review status is required." });
+        }
+        const request = await prisma_1.prisma.assetRequest.update({
+            where: { id },
+            data: {
+                status,
+                adminNotes,
+                reviewedAt: new Date(),
+                reviewedBy: req.user?.email || "Admin",
+            },
+            include: { employee: true },
+        });
+        await prisma_1.prisma.assetActivityLog.create({
+            data: {
+                tenantId,
+                actionType: "request_review",
+                performedBy: req.user?.email || "Admin",
+                details: `Marked asset request for ${request.itemName} as '${status}'`,
+            },
+        });
+        return res.json({ message: `Request updated to ${status}.`, request });
+    }
+    catch (err) {
+        console.error("[assets/requests:review] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to review request." });
+    }
+});
+/**
+ * -------------------------------------------------------------
+ * 5. DISPOSALS & WRITE-OFF BATCHES
+ * -------------------------------------------------------------
+ */
+exports.assetsRouter.get("/disposals", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const batches = await prisma_1.prisma.assetDisposalBatch.findMany({
+            where: { tenantId },
+            orderBy: { createdAt: "desc" },
+            include: {
+                items: {
+                    include: {
+                        asset: { select: { assetTag: true, name: true, category: true } },
+                    },
+                },
+            },
+        });
+        return res.json({ batches });
+    }
+    catch (err) {
+        console.error("[assets/disposals] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to load disposals." });
+    }
+});
+exports.assetsRouter.post("/disposals", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { title, period = "Q4", justification, items = [] } = req.body;
+        const batchNumber = `DISP-${period}-${Math.floor(1000 + Math.random() * 9000)}`;
+        let totalBookVal = 0;
+        let totalItems = 0;
+        items.forEach((item) => {
+            totalBookVal += Number(item.bookValue || 0) * (Number(item.quantity) || 1);
+            totalItems += Number(item.quantity) || 1;
+        });
+        const batch = await prisma_1.prisma.assetDisposalBatch.create({
+            data: {
+                tenantId,
+                batchNumber,
+                title: title || `Asset Write-Off Batch ${period}`,
+                period,
+                status: "draft",
+                totalItemsCount: totalItems,
+                totalBookValue: totalBookVal,
+                justification,
+                items: {
+                    create: items.map((it) => ({
+                        assetId: it.assetId,
+                        quantity: Number(it.quantity) || 1,
+                        reason: it.reason || "End of life / irreparable damage",
+                        bookValue: Number(it.bookValue) || 0,
+                        disposalMethod: it.disposalMethod || "scrap",
+                        recoveryAmount: Number(it.recoveryAmount) || 0,
+                    })),
+                },
+            },
+            include: { items: true },
+        });
+        return res.status(201).json({ batch });
+    }
+    catch (err) {
+        console.error("[assets/disposals:create] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create disposal batch." });
+    }
+});
+exports.assetsRouter.post("/disposals/:id/approve", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const batch = await prisma_1.prisma.assetDisposalBatch.findUnique({
+            where: { id },
+            include: { items: true },
+        });
+        if (!batch || batch.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Disposal batch not found." });
+        }
+        // 1. Mark assets as disposed and deduct quantity (batched)
+        const assetIds = Array.from(new Set(batch.items.map((item) => item.assetId)));
+        const assets = await prisma_1.prisma.asset.findMany({
+            where: { id: { in: assetIds } },
+        });
+        const assetMap = new Map(assets.map((a) => [a.id, a]));
+        for (const item of batch.items) {
+            const asset = assetMap.get(item.assetId);
+            if (asset) {
+                const remainingTotal = Math.max(0, asset.totalQuantity - item.quantity);
+                const remainingAvail = Math.max(0, asset.availableQuantity - item.quantity);
+                await prisma_1.prisma.asset.update({
+                    where: { id: asset.id },
+                    data: {
+                        totalQuantity: remainingTotal,
+                        availableQuantity: remainingAvail,
+                        status: remainingTotal === 0 ? "disposed" : asset.status,
+                    },
+                });
+            }
+        }
+        // 2. Approve batch
+        const updatedBatch = await prisma_1.prisma.assetDisposalBatch.update({
+            where: { id },
+            data: {
+                status: "approved",
+                approvedBy: req.user?.email || "Board Approver",
+                approvedAt: new Date(),
+            },
+        });
+        await prisma_1.prisma.assetActivityLog.create({
+            data: {
+                tenantId,
+                actionType: "disposal_approved",
+                performedBy: req.user?.email || "Board Approver",
+                details: `Approved write-off batch ${batch.batchNumber} (${batch.totalItemsCount} items)`,
+            },
+        });
+        return res.json({ message: "Disposal batch approved and assets written off!", batch: updatedBatch });
+    }
+    catch (err) {
+        console.error("[assets/disposals:approve] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to approve disposal batch." });
+    }
+});
+/**
+ * -------------------------------------------------------------
+ * 6. 4 OPERATIONAL REPORTS
+ * -------------------------------------------------------------
+ */
+exports.assetsRouter.get("/reports", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        // 1. Employee Assignments Report
+        const employeeAssignments = await prisma_1.prisma.assetAssignment.findMany({
+            where: { asset: { tenantId }, targetType: "employee", status: "active" },
+            include: {
+                asset: true,
+                employee: { select: { firstName: true, lastName: true, position: true, department: { select: { name: true } } } },
+            },
+        });
+        // 2. Department & Location Distribution
+        const departmentAssignments = await prisma_1.prisma.assetAssignment.findMany({
+            where: { asset: { tenantId }, status: "active" },
+            include: {
+                asset: true,
+            },
+        });
+        // 3. Inventory & Valuation Reconciliation
+        const inventoryReconciliation = await prisma_1.prisma.asset.findMany({
+            where: { tenantId },
+            include: { categoryRel: true },
+        });
+        // 4. Damaged & Under Maintenance Assets
+        const maintenanceAndDamaged = await prisma_1.prisma.asset.findMany({
+            where: {
+                tenantId,
+                OR: [{ status: "maintenance" }, { condition: "damaged" }],
+            },
+            include: {
+                maintenanceLogs: { orderBy: { serviceDate: "desc" }, take: 1 },
+            },
+        });
+        return res.json({
+            reports: {
+                employeeAssignments,
+                departmentAssignments,
+                inventoryReconciliation,
+                maintenanceAndDamaged,
+            },
+        });
+    }
+    catch (err) {
+        console.error("[assets/reports] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to generate reports." });
+    }
+});
+/**
+ * -------------------------------------------------------------
+ * 7. AUDIT & TRANSACTION LOGS
+ * -------------------------------------------------------------
+ */
+exports.assetsRouter.get("/activity", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const logs = await prisma_1.prisma.assetActivityLog.findMany({
+            where: { tenantId },
+            orderBy: { createdAt: "desc" },
+            take: 50,
+            include: {
+                asset: { select: { assetTag: true, name: true } },
+            },
+        });
+        return res.json({ logs });
+    }
+    catch (err) {
+        console.error("[assets/activity] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to load activity logs." });
+    }
+});
