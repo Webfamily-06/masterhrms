@@ -11,8 +11,7 @@ dotenv.config();
 const dbUrl = process.env.DATABASE_URL;
 
 if (!dbUrl) {
-  console.error("❌ [CRITICAL] DATABASE_URL is missing. Please set DATABASE_URL in Vercel Project Settings > Environment Variables.");
-  throw new Error("DATABASE_URL must be configured before starting the API.");
+  console.warn("⚠️ [CRITICAL] DATABASE_URL is missing in environment variables. Database operations will fail until DATABASE_URL is configured in Vercel Project Settings.");
 }
 
 declare global {
@@ -28,7 +27,7 @@ export const rawPrisma: PrismaClient =
   new PrismaClient({
     datasources: {
       db: {
-        url: dbUrl,
+        url: dbUrl || "postgresql://missing_db_url@localhost:5432/postgres",
       },
     },
   });

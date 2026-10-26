@@ -15,29 +15,27 @@
     },
     "server": {
       "root": "server",
-      "framework": "express"
+      "framework": "express",
+      "entrypoint": "dist/index.js"
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": {
-        "service": "server",
-        "path": "/api/$1"
+        "service": "server"
       }
     },
     {
       "source": "/uploads/(.*)",
       "destination": {
-        "service": "server",
-        "path": "/uploads/$1"
+        "service": "server"
       }
     },
     {
       "source": "/socket.io/(.*)",
       "destination": {
-        "service": "server",
-        "path": "/socket.io/$1"
+        "service": "server"
       }
     },
     {
