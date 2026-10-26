@@ -1844,8 +1844,9 @@ chatRouter.get("/messages/:threadId/files", requireAuth, async (req: AuthRequest
 
     const allFiles: any[] = [];
     for (const msg of messages) {
-      const atts = Array.isArray(msg.attachments) ? msg.attachments : [];
-      for (const att of atts) {
+      const atts: any[] = Array.isArray(msg.attachments) ? (msg.attachments as any[]) : [];
+      for (const attItem of atts) {
+        const att: any = typeof attItem === "object" && attItem !== null ? attItem : {};
         const fileObj = {
           messageId: msg.id,
           senderId: msg.senderId,
@@ -2385,7 +2386,8 @@ chatRouter.post("/messages/:id/poll/close", requireAuth, async (req: AuthRequest
       return res.status(403).json({ error: "Only the poll creator or admin can close this poll." });
     }
 
-    const pollData: any = { ...existing.poll, isClosed: true };
+    const pollObj: any = typeof existing.poll === "object" && existing.poll !== null ? existing.poll : {};
+    const pollData: any = { ...pollObj, isClosed: true };
     await prisma.chatMessage.update({
       where: { id },
       data: { poll: pollData },
