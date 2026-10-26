@@ -6,6 +6,7 @@ import { z } from "zod";
 import { syncSubscriptionPlans } from "../services/workspace-policy.service";
 import { SettingsService } from "../services/settings/settings.service";
 import { AUTHORITATIVE_LEGAL_DOCS } from "../services/legal-docs.service";
+import { getAuthoritativeTemplates, mergeWithPersistedTemplates } from "../lib/email-templates-registry";
 
 export const cmsRouter = Router();
 
@@ -557,6 +558,44 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
         ],
       },
     });
+
+    if (slug === "system-email-templates") {
+      if (!page) {
+        const defaults = getAuthoritativeTemplates();
+        page = await prisma.cmsPage.create({
+          data: {
+            id: "system-email-templates",
+            slug: "system-email-templates",
+            title: "System Email Templates",
+            metaDescription: "Realtime transactional HTML email templates",
+            content: { templates: defaults } as any,
+            published: true,
+          },
+        });
+        return res.json(page);
+      }
+
+      let content = page.content as any;
+      if (typeof content === "string") {
+        try { content = JSON.parse(content); } catch { content = {}; }
+      }
+      const existingList = Array.isArray(content?.templates) ? (content.templates as any[]) : [];
+      const merged = mergeWithPersistedTemplates(existingList);
+
+      if (merged.length !== existingList.length) {
+        page = await prisma.cmsPage.update({
+          where: { id: page.id },
+          data: {
+            content: { templates: merged } as any,
+          },
+        });
+      }
+
+      return res.json({
+        ...page,
+        content: { templates: merged },
+      });
+    }
 
     if (!page && slug === "system-solutions-catalog") {
       const defaultSolutions = [

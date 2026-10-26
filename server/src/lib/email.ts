@@ -1466,8 +1466,9 @@ export async function sendCalendarNotificationEmail(options: {
   if (hasSmtp || hasTestTransport) {
     try {
       const transporter = await MailerFactory.getTransporter(scope, tenantId);
+      const fromEmail = config.smtpUser && config.smtpUser.includes("@") ? config.smtpUser : config.smtpFromEmail;
       const info = await transporter.sendMail({
-        from: `"${config.smtpFromName}" <${config.smtpFromEmail}>`,
+        from: `"${config.smtpFromName}" <${fromEmail}>`,
         to: toEmail,
         replyTo: config.smtpFromEmail,
         subject: renderedSubject,

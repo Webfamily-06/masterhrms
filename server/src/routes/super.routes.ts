@@ -4,6 +4,7 @@ import {
   sendPaymentConfirmationEmail,
   sendPaymentRejectionEmail,
   sendCalendarNotificationEmail,
+  sendTodoNotificationEmail,
 } from "../lib/email";
 import { Router, Response } from "express";
 import { rawPrisma as prisma } from "../prisma";
@@ -424,6 +425,20 @@ superRouter.post("/email-templates/test", requireAuth, requireSuperAdmin, async 
         organizerName: "Sarah Jenkins",
         eventDescription: "Review Q4 product roadmap, team deliverables, and release schedules.",
         reminderText: "Starting in 60 minutes",
+        scope: "PLATFORM",
+      });
+    } else if (templateId?.startsWith("todo-task-") || templateId?.includes("todo") || templateId?.includes("task")) {
+      result = await sendTodoNotificationEmail({
+        templateId: templateId as any,
+        toEmail: recipient,
+        assigneeName: req.user?.email?.split("@")[0] || "Administrator",
+        taskTitle: "Q4 Performance Benchmarking & Team Audit",
+        assignerName: "Sarah Jenkins (HR Director)",
+        taskDescription: "Review cross-department benchmarking deliverables and team targets.",
+        priority: "High",
+        dueDate: "2026-10-31",
+        startDate: "2026-10-26",
+        taskUrl: `${getRootUrl()}/hr/todo`,
       });
     } else {
       result = await sendSubscriptionLifecycleEmail({

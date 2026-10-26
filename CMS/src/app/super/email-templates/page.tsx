@@ -21,7 +21,7 @@ export type EmailTemplate = {
   id: string;
   name: string;
   subject: string;
-  category: "Subscription" | "Onboarding" | "Payroll" | "Security" | "Invoices" | "Calendar";
+  category: "Subscription" | "Onboarding" | "Payroll" | "Security" | "Invoices" | "Calendar" | "Tasks" | string;
   html_body: string;
   variables: string[];
 };
@@ -73,6 +73,23 @@ const SAMPLE_VARS: Record<string, string> = {
   eventDescription: "Reviewing Q3 business performance and aligning team targets for the upcoming quarter.",
   reminderText: "Event starts in 1 hour",
   calendarUrl: "/calendar",
+  task_title: "Q4 Performance Benchmarking & Team Audit",
+  taskTitle: "Q4 Performance Benchmarking & Team Audit",
+  task_description: "Complete cross-department benchmarking analysis with assigned leads.",
+  taskDescription: "Complete cross-department benchmarking analysis with assigned leads.",
+  assigner_name: "Sarah Jenkins (HR Director)",
+  assignerName: "Sarah Jenkins (HR Director)",
+  assignee_name: "Alex Morgan",
+  assigneeName: "Alex Morgan",
+  priority: "High",
+  start_date: "26 Oct 2026",
+  startDate: "26 Oct 2026",
+  due_date: "31 Oct 2026",
+  dueDate: "31 Oct 2026",
+  task_url: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
+  taskUrl: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
+  app_name: "Master HRMS & ERP",
+  appName: "Master HRMS & ERP",
 };
 
 const DEFAULT_TEMPLATES: EmailTemplate[] = [
@@ -124,6 +141,216 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
           <a href="{{calendarUrl}}" style="background: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Open in Calendar →</a>
         </div>
         <p style="color: #94a3b8; font-size: 11px; margin: 0; text-align: center;">This is an automated notification from Master HRMS. Please do not reply directly.</p>
+      </td>
+    </tr>
+  </table>
+</body></html>`,
+  },
+  {
+    id: "todo-task-created",
+    name: "Task Created — New Task Assigned",
+    subject: "New Task Assigned: {{task_title}}",
+    category: "Tasks",
+    variables: [
+      "{{assignee_name}}",
+      "{{task_title}}",
+      "{{task_description}}",
+      "{{assigner_name}}",
+      "{{priority}}",
+      "{{start_date}}",
+      "{{due_date}}",
+      "{{task_url}}",
+      "{{app_name}}",
+      "{{company_name}}",
+      "{{support_email}}",
+    ],
+    html_body: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Action Item Notification</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          A new actionable deliverable has been assigned to you by <strong>{{assigner_name}}</strong>:
+        </p>
+        <div style="background: #f8fafc; border-left: 4px solid #6366f1; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #1e293b; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #475569;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Priority:</td><td><span style="background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px;">{{priority}}</span></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Start Date:</td><td>{{start_date}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Due Date:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #6366f1; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Open Task in Workspace →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #6366f1; text-decoration: none;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body></html>`,
+  },
+  {
+    id: "todo-task-assigned",
+    name: "Task Reassigned / Additional Assignment",
+    subject: "Task Assigned: {{task_title}}",
+    category: "Tasks",
+    variables: [
+      "{{assignee_name}}",
+      "{{task_title}}",
+      "{{task_description}}",
+      "{{assigner_name}}",
+      "{{priority}}",
+      "{{due_date}}",
+      "{{task_url}}",
+      "{{app_name}}",
+      "{{company_name}}",
+      "{{support_email}}",
+    ],
+    html_body: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Task Assignment Update</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          You have been added as an assignee to the following task by <strong>{{assigner_name}}</strong>:
+        </p>
+        <div style="background: #f8fafc; border-left: 4px solid #3b82f6; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #1e293b; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #475569;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Priority:</td><td><span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px;">{{priority}}</span></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Due Date:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">View Assigned Task →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #3b82f6; text-decoration: none;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body></html>`,
+  },
+  {
+    id: "todo-task-reminder-2-days",
+    name: "Task Reminder — Due in 2 Days",
+    subject: "Reminder: Task due in 2 days — {{task_title}}",
+    category: "Tasks",
+    variables: [
+      "{{assignee_name}}",
+      "{{task_title}}",
+      "{{task_description}}",
+      "{{assigner_name}}",
+      "{{priority}}",
+      "{{due_date}}",
+      "{{task_url}}",
+      "{{app_name}}",
+      "{{company_name}}",
+      "{{support_email}}",
+    ],
+    html_body: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #f59e0b; margin: 4px 0 0 0; font-size: 13px; font-weight: 600;">Upcoming Deadline — Due in 2 Days</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          This is an automated courtesy reminder that your assigned task is due in <strong>2 days</strong> on <strong>{{due_date}}</strong>:
+        </p>
+        <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #92400e; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #78350f;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Target Due:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Priority:</td><td>{{priority}}</td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #92400e; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #f59e0b; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Review & Complete Task →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #f59e0b; text-decoration: none;">{{support_email}}</a>.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body></html>`,
+  },
+  {
+    id: "todo-task-reminder-1-day",
+    name: "Task Reminder — Due Tomorrow",
+    subject: "Urgent Reminder: Task due tomorrow — {{task_title}}",
+    category: "Tasks",
+    variables: [
+      "{{assignee_name}}",
+      "{{task_title}}",
+      "{{task_description}}",
+      "{{assigner_name}}",
+      "{{priority}}",
+      "{{due_date}}",
+      "{{task_url}}",
+      "{{app_name}}",
+      "{{company_name}}",
+      "{{support_email}}",
+    ],
+    html_body: `<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 24px; margin: 0;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <tr>
+      <td style="padding: 24px 32px; background: #0f172a; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">{{app_name}}</h1>
+        <p style="color: #ef4444; margin: 4px 0 0 0; font-size: 13px; font-weight: 700;">CRITICAL: Due Tomorrow (1 Day Remaining)</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 32px;">
+        <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 18px;">Hello {{assignee_name}},</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          Your assigned task is due <strong>tomorrow</strong> on <strong>{{due_date}}</strong>. Please ensure all deliverables and checklists are finalized:
+        </p>
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 18px; border-radius: 6px; margin-bottom: 24px;">
+          <h3 style="margin: 0 0 12px 0; color: #991b1b; font-size: 16px;">{{task_title}}</h3>
+          <table width="100%" style="font-size: 13px; color: #991b1b;">
+            <tr><td style="padding: 4px 0; width: 110px; font-weight: 600;">Due Tomorrow:</td><td><strong>{{due_date}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Priority:</td><td><strong style="color: #dc2626;">{{priority}}</strong></td></tr>
+            <tr><td style="padding: 4px 0; font-weight: 600;">Assigner:</td><td>{{assigner_name}}</td></tr>
+          </table>
+          <p style="margin: 12px 0 0 0; font-size: 13px; color: #7f1d1d; line-height: 1.5;">{{task_description}}</p>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="{{task_url}}" style="background: #ef4444; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Complete Task Now →</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin: 24px 0 0 0; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          This is an automated notification from {{company_name}}. Need help? Contact <a href="mailto:{{support_email}}" style="color: #ef4444; text-decoration: none;">{{support_email}}</a>.
+        </p>
       </td>
     </tr>
   </table>
@@ -1021,7 +1248,7 @@ function EmailTemplatesAdmin() {
 
             {/* Category Filter Pills */}
             <div className="flex flex-wrap gap-1 p-1.5 mb-2 bg-muted/40 rounded-lg border border-border/50 text-[11px]">
-              {["All", "Calendar", "Invoices", "Subscription", "Payroll", "Onboarding"].map((cat) => {
+              {Array.from(new Set(["All", "Calendar", "Tasks", "Invoices", "Subscription", "Payroll", "Onboarding", "Security", ...list.map((t) => t.category)])).map((cat) => {
                 const count = cat === "All" ? list.length : list.filter((t) => t.category === cat).length;
                 if (count === 0 && cat !== "All") return null;
                 const isSelected = selectedCategory === cat;
@@ -1077,6 +1304,14 @@ function EmailTemplatesAdmin() {
                     ) : t.category === "Subscription" ? (
                       <span className={`text-[9px] px-1.5 py-0.5 rounded ${current.id === t.id ? "bg-white/20 text-white" : "bg-primary/10 text-primary"}`}>
                         Lifecycle
+                      </span>
+                    ) : t.category === "Tasks" ? (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${current.id === t.id ? "bg-white/20 text-white" : "bg-indigo-500/10 text-indigo-600"}`}>
+                        Tasks
+                      </span>
+                    ) : t.category === "Calendar" ? (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${current.id === t.id ? "bg-white/20 text-white" : "bg-amber-500/10 text-amber-600"}`}>
+                        Calendar
                       </span>
                     ) : null}
                   </div>
