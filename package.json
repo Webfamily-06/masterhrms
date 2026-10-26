@@ -15,12 +15,12 @@
     "cms:dev": "npm --prefix CMS run dev",
     "cms:build": "npm --prefix CMS run build",
     "cms:typecheck": "npm --prefix CMS run typecheck",
-    "build": "npm --prefix CMS run build",
+    "build": "node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
     "build:vite": "node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
-    "preview": "npm --prefix CMS run start",
-    "preview:vite": "vite preview",
+    "preview": "vite preview",
+    "preview:cms": "npm --prefix CMS run start",
     "lint": "eslint .",
-    "typecheck": "npm --prefix CMS run typecheck",
+    "typecheck": "tsc --noEmit",
     "test:cms-isolation": "npx --prefix server vitest run src/tests/cms-tenant-host-isolation.test.ts",
     "test:architecture": "node scripts/test_architecture_consolidation.mjs",
     "test:redirects": "./server/node_modules/.bin/tsx scripts/test_production_redirect_resolution.mjs",
@@ -31,7 +31,6 @@
     "test:todo-notifications": "./server/node_modules/.bin/tsx scripts/test_todo_notifications_and_email_templates.cjs",
     "test:domain-resolution": "node scripts/test_domain_environment_resolution.mjs",
     "format": "prettier --write .",
-    "postinstall": "prisma skills sync || exit 0",
     "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
@@ -117,7 +116,6 @@
     "nitro": "3.0.260603-beta",
     "playwright": "^1.64.1",
     "prettier": "^3.7.3",
-    "prisma": "^8.0.0-rc.19",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16"
