@@ -17,6 +17,7 @@
     "cms:typecheck": "npm --prefix CMS run typecheck",
     "build": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
     "build:vite": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
+    "postinstall": "npm --prefix server run prisma:generate",
     "preview": "vite preview",
     "preview:cms": "npm --prefix CMS run start",
     "lint": "eslint .",
