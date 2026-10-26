@@ -1,18 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
-    "app": {
-      "root": ".",
-      "framework": "tanstack-start",
-      "bindings": [
-        {
-          "type": "service",
-          "service": "server",
-          "format": "url",
-          "env": "SERVER_URL"
-        }
-      ]
-    },
     "cms": {
       "root": "CMS",
       "framework": "nextjs",
@@ -52,7 +40,7 @@
     {
       "source": "/(.*)",
       "destination": {
-        "service": "app"
+        "service": "cms"
       }
     }
   ]

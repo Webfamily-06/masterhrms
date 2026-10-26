@@ -86,8 +86,8 @@ const SAMPLE_VARS: Record<string, string> = {
   startDate: "26 Oct 2026",
   due_date: "31 Oct 2026",
   dueDate: "31 Oct 2026",
-  task_url: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
-  taskUrl: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
+  task_url: "/hr/todo?taskId=task-bench-402",
+  taskUrl: "/hr/todo?taskId=task-bench-402",
   app_name: "Master HRMS & ERP",
   appName: "Master HRMS & ERP",
 };
