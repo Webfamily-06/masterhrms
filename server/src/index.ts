@@ -477,18 +477,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 const server = http.createServer(app);
-initSocket(server, allowedOrigins);
-
-// Start Transactional Outbox Background Processor (Every 3 seconds)
-OutboxService.startProcessor(3000);
-
-// Start Outbound Webhook Background Retry Worker (Every 5 seconds)
-WebhookRetryWorker.start(5000);
-
-// Start Biometric Auto-Sync Cron (Every 30 mins)
-setInterval(() => {
-  runBiometricAutoSync();
-}, 30 * 60 * 1000);
 
 // Wave 2.3 — Nightly Biometric Reconciliation Cron (02:00 AM IST daily)
 // Replays offline buffer, resolves unmatched logs, and computes monthly LOP.
@@ -514,7 +502,6 @@ function scheduleNightlyReconciliation() {
 
   console.log(`⏰ Biometric reconciliation scheduled in ${Math.round(msUntilNext / 60000)} min`);
 }
-scheduleNightlyReconciliation();
 
 // Centralized Subscription Expiry Reminders Cron (08:00 UTC daily)
 function scheduleDailySubscriptionReminders() {
@@ -541,7 +528,24 @@ function scheduleDailySubscriptionReminders() {
 
   console.log(`⏰ Daily Subscription Expiry Reminders scheduled in ${Math.round(msUntilNext / 60000)} min (target: 08:00 UTC)`);
 }
+
+// In serverless environments (e.g. Vercel), do NOT start persistent background workers,
+// WebSocket listeners, or infinite interval timers which cause FUNCTION_INVOCATION_FAILED.
 if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
+  initSocket(server, allowedOrigins);
+
+  // Start Transactional Outbox Background Processor (Every 3 seconds)
+  OutboxService.startProcessor(3000);
+
+  // Start Outbound Webhook Background Retry Worker (Every 5 seconds)
+  WebhookRetryWorker.start(5000);
+
+  // Start Biometric Auto-Sync Cron (Every 30 mins)
+  setInterval(() => {
+    runBiometricAutoSync();
+  }, 30 * 60 * 1000);
+
+  scheduleNightlyReconciliation();
   scheduleDailySubscriptionReminders();
   CalendarReminderScheduler.start();
 
@@ -604,5 +608,13 @@ process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));
 // MasterHRMS Platform Server active
 
 (app as any).server = server;
+
+// Crucial: CommonJS export compatibility for Vercel Serverless Function entry point
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = app;
+  (module.exports as any).default = app;
+}
+
 export default app;
+
 
