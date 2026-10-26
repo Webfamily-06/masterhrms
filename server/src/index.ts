@@ -222,7 +222,7 @@ app.use((req, res, next) => {
 });
 
 // Liveness Check (Process alive check without external dependency)
-app.get("/api/health/live", (_req, res) => {
+app.get(["/api/health/live", "/health/live"], (_req, res) => {
   if (isShuttingDown) {
     return res.status(503).json({ status: "shutting_down", uptime: process.uptime() });
   }
@@ -235,7 +235,7 @@ app.get("/api/health/live", (_req, res) => {
 });
 
 // Readiness Check (Database dependency verification)
-app.get("/api/health/ready", async (_req, res) => {
+app.get(["/api/health/ready", "/health/ready"], async (_req, res) => {
   if (isShuttingDown) {
     return res.status(503).json({ status: "not_ready", error: "Server is shutting down" });
   }
@@ -266,7 +266,7 @@ app.get("/api/health/ready", async (_req, res) => {
 });
 
 // Health Check (Deep Observability & Outbox Health)
-app.get("/api/health", async (_req, res) => {
+app.get(["/api/health", "/health"], async (_req, res) => {
   const timeoutMs = 3000;
   const startTime = Date.now();
 

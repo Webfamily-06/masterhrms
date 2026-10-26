@@ -22,19 +22,22 @@
     {
       "source": "/api/(.*)",
       "destination": {
-        "service": "server"
+        "service": "server",
+        "path": "/api/$1"
       }
     },
     {
       "source": "/uploads/(.*)",
       "destination": {
-        "service": "server"
+        "service": "server",
+        "path": "/uploads/$1"
       }
     },
     {
       "source": "/socket.io/(.*)",
       "destination": {
-        "service": "server"
+        "service": "server",
+        "path": "/socket.io/$1"
       }
     },
     {
