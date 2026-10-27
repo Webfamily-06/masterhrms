@@ -3,11 +3,30 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.server = exports.app = void 0;
+exports.getMissingRequiredEnvNames = getMissingRequiredEnvNames;
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const crypto_1 = __importDefault(require("crypto"));
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../.env") }); // project root .env
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
 dotenv_1.default.config(); // cwd fallback
+// Global process error logging (ensures crashes appear in Vercel runtime logs without secret leakage)
+process.on("unhandledRejection", (reason) => {
+    console.error("Unhandled Rejection:", reason?.message || reason, reason?.stack || "");
+});
+process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err?.message || err, err?.stack || "");
+});
+const REQUIRED_ENV_VARS = ["DATABASE_URL", "JWT_SECRET"];
+function getMissingRequiredEnvNames() {
+    return REQUIRED_ENV_VARS.filter((name) => !process.env[name] || process.env[name]?.trim() === "");
+}
+const missingOnStartup = getMissingRequiredEnvNames();
+if (missingOnStartup.length > 0) {
+    console.error("⚠️ [CONFIG] Missing required environment variables on startup:", missingOnStartup.join(", "));
+}
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const compression_1 = __importDefault(require("compression"));
@@ -124,6 +143,7 @@ const subscription_reminder_cron_1 = require("./cron/subscription-reminder.cron"
 const calendar_reminder_scheduler_1 = require("./services/calendar-reminder.scheduler");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
+exports.app = app;
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || "0.0.0.0";
 // Enable reverse-proxy header trust (X-Forwarded-For, X-Forwarded-Proto) for Nginx / Cloudflare
@@ -131,42 +151,64 @@ app.set("trust proxy", 1);
 app.use(security_hardening_middleware_1.securityHeadersMiddleware);
 // CORS setup
 const defaultAllowedOrigins = process.env.NODE_ENV === "production"
-    ? "https://masterhrms.com,https://www.masterhrms.com,https://staging.masterhrms.com"
+    ? "https://masterhrms.com,https://staging.masterhrms.com,https://masterhrms.vercel.app,https://www.masterhrms.com"
     : "http://localhost:5173,http://localhost:3000,http://localhost:8080";
 const allowedOrigins = (process.env.CORS_ORIGIN || defaultAllowedOrigins)
     .split(",")
     .map((s) => s.trim());
+function isOriginAllowed(origin) {
+    if (allowedOrigins.indexOf(origin) !== -1) {
+        return true;
+    }
+    try {
+        const url = new URL(origin);
+        const host = url.hostname.toLowerCase();
+        const baseDomain = (0, workspace_host_1.getBaseDomain)().toLowerCase();
+        // Allow localhost and *.localhost only in non-production
+        if (process.env.NODE_ENV !== "production" && (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1")) {
+            return true;
+        }
+        // Allow Vercel preview and canonical production domains
+        if (host === "masterhrms.vercel.app" || host.endsWith(".vercel.app") || host === "www.masterhrms.com" || host === "masterhrms.com") {
+            return true;
+        }
+        // Allow configured BASE_DOMAIN and *.{BASE_DOMAIN}
+        if (host === baseDomain || host.endsWith(`.${baseDomain}`)) {
+            return true;
+        }
+        // Allow active verified & approved custom domains (Flow 2)
+        const cachedCustom = (0, workspace_host_1.getCachedCustomDomain)(host);
+        if (cachedCustom && cachedCustom.status === "approved" && cachedCustom.dnsStatus === "verified") {
+            return true;
+        }
+    }
+    catch { }
+    return false;
+}
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
         // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
         if (!origin)
             return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === "development") {
+        if (isOriginAllowed(origin)) {
             return callback(null, true);
         }
-        try {
-            const url = new URL(origin);
-            const host = url.hostname.toLowerCase();
-            const baseDomain = (0, workspace_host_1.getBaseDomain)().toLowerCase();
-            // Allow localhost and *.localhost
-            if (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1") {
-                return callback(null, true);
-            }
-            // Allow configured BASE_DOMAIN and *.{BASE_DOMAIN}
-            if (host === baseDomain || host.endsWith(`.${baseDomain}`)) {
-                return callback(null, true);
-            }
-            // Allow active verified & approved custom domains (Flow 2)
-            const cachedCustom = (0, workspace_host_1.getCachedCustomDomain)(host);
-            if (cachedCustom && cachedCustom.status === "approved" && cachedCustom.dnsStatus === "verified") {
-                return callback(null, true);
-            }
-        }
-        catch { }
-        return callback(new Error("Not allowed by CORS"));
+        return callback(null, false);
     },
     credentials: true,
 }));
+// Explicit 403 response for disallowed origin if origin header was sent and rejected
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && !isOriginAllowed(origin)) {
+        return res.status(403).json({
+            error: "CORS origin forbidden",
+            code: "CORS_DISALLOWED",
+            origin,
+        });
+    }
+    next();
+});
 app.post("/api/payments/razorpay/webhook", express_1.default.raw({ type: "application/json" }), payments_routes_1.razorpayWebhookHandler);
 app.use(express_1.default.json({
     verify: (req, _res, buf) => {
@@ -185,26 +227,24 @@ app.use(express_1.default.text({
         return ct.startsWith("text/") || ct === "application/octet-stream";
     },
 }));
-app.use("/uploads", uploads_security_middleware_1.uploadsSecurityMiddleware, express_1.default.static((0, media_service_1.getUploadsRoot)(), {
+const uploadsDir = (0, media_service_1.getUploadsRoot)();
+try {
+    if (!fs_1.default.existsSync(uploadsDir)) {
+        fs_1.default.mkdirSync(uploadsDir, { recursive: true });
+    }
+}
+catch (e) {
+    console.warn("⚠️ [UPLOADS] Read-only or inaccessible uploads directory:", e?.message);
+}
+app.use("/uploads", uploads_security_middleware_1.uploadsSecurityMiddleware, express_1.default.static(uploadsDir, {
     maxAge: "7d",
     etag: true,
     lastModified: true,
     fallthrough: false,
 }));
 app.use((0, compression_1.default)()); // Gzip all responses — 60-80% smaller payloads
-app.use(workspace_host_middleware_1.workspaceHostMiddleware); // Host resolution early in the pipeline
-app.use(maintenance_1.maintenanceMiddleware);
-app.use("/api", subscription_1.requireActiveSubscription);
-let isShuttingDown = false;
-app.use((req, res, next) => {
-    if (isShuttingDown && !req.path.startsWith("/api/health/live")) {
-        res.setHeader("Connection", "close");
-        return res.status(503).json({ error: "Server is undergoing graceful shutdown." });
-    }
-    next();
-});
-// Liveness Check (Process alive check without external dependency)
-app.get(["/api/health/live", "/health/live"], (_req, res) => {
+// ── 1. Core Platform Health Probes (Bypass all host, auth, & subscription middlewares) ──
+app.get(["/api/health/live", "/health/live", "/live"], (_req, res) => {
     if (isShuttingDown) {
         return res.status(503).json({ status: "shutting_down", uptime: process.uptime() });
     }
@@ -215,10 +255,32 @@ app.get(["/api/health/live", "/health/live"], (_req, res) => {
         service: "Master HRMS API",
     });
 });
-// Readiness Check (Database dependency verification)
-app.get(["/api/health/ready", "/health/ready"], async (_req, res) => {
+app.get(["/api/health/db", "/health/db"], async (_req, res) => {
+    if (!process.env.DATABASE_URL) {
+        return res.status(503).json({ ok: false, error: "DATABASE_URL is not configured" });
+    }
+    try {
+        const timeoutMs = 3000;
+        const dbPingPromise = prisma.$queryRawUnsafe("SELECT 1");
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database ping timed out")), timeoutMs));
+        await Promise.race([dbPingPromise, timeoutPromise]);
+        return res.status(200).json({ ok: true });
+    }
+    catch {
+        return res.status(503).json({ ok: false, error: "Database unreachable" });
+    }
+});
+app.get(["/api/health/ready", "/health/ready", "/ready"], async (_req, res) => {
     if (isShuttingDown) {
         return res.status(503).json({ status: "not_ready", error: "Server is shutting down" });
+    }
+    if (!process.env.DATABASE_URL) {
+        return res.status(503).json({
+            status: "not_ready",
+            timestamp: new Date().toISOString(),
+            database: { status: "disconnected" },
+            error: "DATABASE_URL is not configured",
+        });
     }
     const timeoutMs = 3000;
     const startTime = Date.now();
@@ -244,60 +306,60 @@ app.get(["/api/health/ready", "/health/ready"], async (_req, res) => {
         });
     }
 });
-// Health Check (Deep Observability & Outbox Health)
-app.get(["/api/health", "/health"], async (_req, res) => {
-    const timeoutMs = 3000;
-    const startTime = Date.now();
-    try {
-        // 1. Primary Database Ping with bounded timeout
-        const dbPingPromise = (async () => {
-            await prisma.$queryRawUnsafe("SELECT 1");
-            return Date.now() - startTime;
-        })();
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database ping timed out")), timeoutMs));
-        const latencyMs = await Promise.race([dbPingPromise, timeoutPromise]);
-        // 2. Query Commerce Outbox metrics
-        let pendingOutbox = 0;
-        let failedOutbox = 0;
-        try {
-            const [pending, failed] = await Promise.all([
-                prisma.outboxEvent.count({ where: { status: "PENDING" } }),
-                prisma.outboxEvent.count({ where: { status: "FAILED" } }),
-            ]);
-            pendingOutbox = pending;
-            failedOutbox = failed;
-        }
-        catch {
-            // Outbox query failure does not crash DB status but is flagged
-        }
-        return res.status(200).json({
-            status: "healthy",
-            timestamp: new Date().toISOString(),
-            service: "Master HRMS API",
-            database: {
-                status: "connected",
-                latencyMs,
-            },
-            commerceOutbox: {
-                status: failedOutbox > 10 ? "degraded" : "operational",
-                pendingCount: pendingOutbox,
-                failedCount: failedOutbox,
-            },
-        });
-    }
-    catch {
-        // Fail-safe closed: return 503 without leaking credentials, SQL errors, or internal hostnames
-        return res.status(503).json({
-            status: "unhealthy",
-            timestamp: new Date().toISOString(),
-            service: "Master HRMS API",
-            database: {
-                status: "disconnected",
-            },
-            error: "Primary database health check failed",
-        });
-    }
+// GET /api/health — Minimal high-availability response
+app.get(["/api/health", "/health"], (_req, res) => {
+    return res.status(200).json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        service: "Master HRMS API",
+    });
 });
+// Temporary diagnostics endpoint (protected by x-diag-token header)
+app.get(["/api/health/diag", "/health/diag"], (req, res) => {
+    const diagToken = process.env.DIAG_TOKEN;
+    if (!diagToken || req.headers["x-diag-token"] !== diagToken) {
+        return res.status(403).json({ error: "Forbidden" });
+    }
+    return res.status(200).json({
+        nodeEnv: process.env.NODE_ENV || "unknown",
+        isVercel: Boolean(process.env.VERCEL),
+        hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+        hasJwtSecret: Boolean(process.env.JWT_SECRET),
+        hasCorsOrigin: Boolean(process.env.CORS_ORIGIN),
+        hasBaseDomain: Boolean(process.env.BASE_DOMAIN),
+        missingRequiredEnv: getMissingRequiredEnvNames(),
+        baseDomain: (0, workspace_host_1.getBaseDomain)(),
+    });
+});
+// ── 2. Required Environment Configuration Guard ────────────────
+app.use((req, res, next) => {
+    if (req.path.startsWith("/api/health") || req.path.startsWith("/health")) {
+        return next();
+    }
+    const missing = getMissingRequiredEnvNames();
+    if (missing.length > 0) {
+        const requestId = req.headers["x-request-id"] || crypto_1.default.randomUUID();
+        return res.status(503).json({
+            error: "Service unavailable due to missing required platform configuration.",
+            code: "MISSING_ENV_CONFIGURATION",
+            missingRequired: missing,
+            requestId,
+        });
+    }
+    next();
+});
+let isShuttingDown = false;
+app.use((req, res, next) => {
+    if (isShuttingDown && !req.path.startsWith("/api/health/live")) {
+        res.setHeader("Connection", "close");
+        return res.status(503).json({ error: "Server is undergoing graceful shutdown." });
+    }
+    next();
+});
+// ── 3. Platform Identity, Host, Maintenance & Subscription Pipeline ──
+app.use(workspace_host_middleware_1.workspaceHostMiddleware); // Host resolution
+app.use(maintenance_1.maintenanceMiddleware);
+app.use("/api", subscription_1.requireActiveSubscription);
 // Settings & Media & App-Config (Phase 1)
 app.use("/api/v1/settings", settings_routes_1.settingsRouter);
 app.use("/api/v1/media", media_routes_1.mediaRouter);
@@ -430,7 +492,8 @@ app.use("/api/v1", platform_foundation_routes_1.platformFoundationRouter);
 app.use("/api", platform_foundation_routes_1.platformFoundationRouter);
 // Global Error Handler
 app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err);
+    const requestId = req.requestId || req.headers["x-request-id"] || crypto_1.default.randomUUID();
+    console.error(`[ERROR] [${requestId}] Unhandled error:`, err?.message || err, err?.stack || "");
     const isHardened = process.env.NODE_ENV === "production" || process.env.NODE_ENV === "staging";
     const rawMsg = String(err?.message || "");
     const isSensitive = rawMsg.includes("prisma") ||
@@ -440,50 +503,12 @@ app.use((err, req, res, next) => {
         rawMsg.includes("connect") ||
         rawMsg.includes("password");
     const clientError = isHardened && isSensitive ? "Internal server error" : (rawMsg || "Internal server error");
-    res.status(err.status || 500).json({ error: clientError });
+    res.status(err.status || 500).json({ error: clientError, requestId });
 });
-const server = http_1.default.createServer(app);
-// Wave 2.3 — Nightly Biometric Reconciliation Cron (02:00 AM IST daily)
-// Replays offline buffer, resolves unmatched logs, and computes monthly LOP.
-function scheduleNightlyReconciliation() {
-    const now = new Date();
-    // Target: next 02:00 IST = 20:30 UTC previous day
-    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-    const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
-    const next2AM = new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate(), 2, 0, 0, 0));
-    // next2AM is in "IST calendar" but stored as UTC — convert back to real UTC
-    let msUntilNext = (next2AM.getTime() - IST_OFFSET_MS) - now.getTime();
-    if (msUntilNext <= 0)
-        msUntilNext += 24 * 60 * 60 * 1000; // push to tomorrow
-    setTimeout(async () => {
-        await (0, biometric_reconcile_cron_1.runBiometricReconciliation)();
-        scheduleNightlyReconciliation(); // reschedule for next day
-    }, msUntilNext);
-    console.log(`⏰ Biometric reconciliation scheduled in ${Math.round(msUntilNext / 60000)} min`);
-}
-// Centralized Subscription Expiry Reminders Cron (08:00 UTC daily)
-function scheduleDailySubscriptionReminders() {
-    const now = new Date();
-    const next8AM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0, 0));
-    let msUntilNext = next8AM.getTime() - now.getTime();
-    if (msUntilNext <= 0)
-        msUntilNext += 24 * 60 * 60 * 1000;
-    setTimeout(async () => {
-        try {
-            console.log("⏰ [CRON] Executing scheduled daily subscription expiry reminders...");
-            const result = await (0, subscription_reminder_cron_1.runSubscriptionExpiryRemindersCron)();
-            console.log("✅ [CRON] Daily subscription reminders finished:", result);
-        }
-        catch (err) {
-            console.error("❌ [CRON] Daily subscription reminders failed:", err.message);
-        }
-        scheduleDailySubscriptionReminders();
-    }, msUntilNext);
-    console.log(`⏰ Daily Subscription Expiry Reminders scheduled in ${Math.round(msUntilNext / 60000)} min (target: 08:00 UTC)`);
-}
-// In serverless environments (e.g. Vercel), do NOT start persistent background workers,
-// WebSocket listeners, or infinite interval timers which cause FUNCTION_INVOCATION_FAILED.
-if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
+let server;
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+if (!isServerless && process.env.NODE_ENV !== "test") {
+    exports.server = server = http_1.default.createServer(app);
     (0, socket_1.initSocket)(server, allowedOrigins);
     // Start Transactional Outbox Background Processor (Every 3 seconds)
     outbox_service_1.OutboxService.startProcessor(3000);
@@ -493,7 +518,45 @@ if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
     setInterval(() => {
         (0, biometric_sync_1.runBiometricAutoSync)();
     }, 30 * 60 * 1000);
+    // Wave 2.3 — Nightly Biometric Reconciliation Cron (02:00 AM IST daily)
+    // Replays offline buffer, resolves unmatched logs, and computes monthly LOP.
+    function scheduleNightlyReconciliation() {
+        const now = new Date();
+        // Target: next 02:00 IST = 20:30 UTC previous day
+        const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+        const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+        const next2AM = new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate(), 2, 0, 0, 0));
+        // next2AM is in "IST calendar" but stored as UTC — convert back to real UTC
+        let msUntilNext = (next2AM.getTime() - IST_OFFSET_MS) - now.getTime();
+        if (msUntilNext <= 0)
+            msUntilNext += 24 * 60 * 60 * 1000; // push to tomorrow
+        setTimeout(async () => {
+            await (0, biometric_reconcile_cron_1.runBiometricReconciliation)();
+            scheduleNightlyReconciliation(); // reschedule for next day
+        }, msUntilNext);
+        console.log(`⏰ Biometric reconciliation scheduled in ${Math.round(msUntilNext / 60000)} min`);
+    }
     scheduleNightlyReconciliation();
+    // Centralized Subscription Expiry Reminders Cron (08:00 UTC daily)
+    function scheduleDailySubscriptionReminders() {
+        const now = new Date();
+        const next8AM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0, 0));
+        let msUntilNext = next8AM.getTime() - now.getTime();
+        if (msUntilNext <= 0)
+            msUntilNext += 24 * 60 * 60 * 1000;
+        setTimeout(async () => {
+            try {
+                console.log("⏰ [CRON] Executing scheduled daily subscription expiry reminders...");
+                const result = await (0, subscription_reminder_cron_1.runSubscriptionExpiryRemindersCron)();
+                console.log("✅ [CRON] Daily subscription reminders finished:", result);
+            }
+            catch (err) {
+                console.error("❌ [CRON] Daily subscription reminders failed:", err.message);
+            }
+            scheduleDailySubscriptionReminders();
+        }, msUntilNext);
+        console.log(`⏰ Daily Subscription Expiry Reminders scheduled in ${Math.round(msUntilNext / 60000)} min (target: 08:00 UTC)`);
+    }
     scheduleDailySubscriptionReminders();
     calendar_reminder_scheduler_1.CalendarReminderScheduler.start();
     server.listen(Number(PORT), HOST, async () => {
@@ -526,24 +589,33 @@ const handleGracefulShutdown = async (signal) => {
     }, 10000);
     if (forceKillTimer.unref)
         forceKillTimer.unref();
-    server.close(async () => {
-        console.log("🛑 [SHUTDOWN] HTTP listener closed to new connections.");
+    if (server) {
+        server.close(async () => {
+            console.log("🛑 [SHUTDOWN] HTTP listener closed to new connections.");
+            try {
+                // 1. Terminate background outbox worker
+                outbox_service_1.OutboxService.stopProcessor();
+                calendar_reminder_scheduler_1.CalendarReminderScheduler.stop();
+                console.log("🛑 [SHUTDOWN] Background outbox and calendar reminder schedulers halted.");
+                // 2. Disconnect Prisma pool
+                await prisma.$disconnect();
+                console.log("🛑 [SHUTDOWN] Database pool disconnected cleanly.");
+                console.log("✅ [SHUTDOWN] Graceful shutdown completed.");
+                process.exit(0);
+            }
+            catch (shutdownErr) {
+                console.error("⚠️ [SHUTDOWN] Error during shutdown:", shutdownErr?.message);
+                process.exit(1);
+            }
+        });
+    }
+    else {
         try {
-            // 1. Terminate background outbox worker
-            outbox_service_1.OutboxService.stopProcessor();
-            calendar_reminder_scheduler_1.CalendarReminderScheduler.stop();
-            console.log("🛑 [SHUTDOWN] Background outbox and calendar reminder schedulers halted.");
-            // 2. Disconnect Prisma pool
             await prisma.$disconnect();
-            console.log("🛑 [SHUTDOWN] Database pool disconnected cleanly.");
-            console.log("✅ [SHUTDOWN] Graceful shutdown completed.");
-            process.exit(0);
         }
-        catch (shutdownErr) {
-            console.error("⚠️ [SHUTDOWN] Error during shutdown:", shutdownErr?.message);
-            process.exit(1);
-        }
-    });
+        catch (_) { }
+        process.exit(0);
+    }
 };
 process.on("SIGTERM", () => handleGracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => handleGracefulShutdown("SIGINT"));

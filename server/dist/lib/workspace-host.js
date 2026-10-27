@@ -195,6 +195,8 @@ function resolveHostContext(hostHeader, baseDomainOverride) {
     // ── Public / Root Hosts ────────────────────────────────────
     if (hostname === baseDomain ||
         hostname === `www.${baseDomain}` ||
+        hostname === "masterhrms.vercel.app" ||
+        hostname.endsWith(".vercel.app") ||
         hostname === "127.0.0.1" ||
         hostname === "0.0.0.0") {
         return { type: "public", baseDomain };

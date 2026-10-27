@@ -26,7 +26,17 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   async rewrites() {
-    const backendOrigin = (process.env.SERVER_URL || 'http://localhost:4000').replace(/\/+$/, '');
+    const rawBackend = process.env.SERVER_URL || process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL;
+    const backendOrigin = rawBackend
+      ? rawBackend.replace(/\/+$/, '')
+      : process.env.NODE_ENV === 'production'
+      ? ''
+      : 'http://localhost:4000';
+
+    if (!backendOrigin) {
+      return [];
+    }
+
     return [
       {
         source: '/api/:path*',

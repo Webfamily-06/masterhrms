@@ -11,7 +11,7 @@ dotenv.config();
 const dbUrl = process.env.DATABASE_URL;
 
 if (!dbUrl) {
-  console.warn("⚠️ [CRITICAL] DATABASE_URL is missing in environment variables. Database operations will fail until DATABASE_URL is configured in Vercel Project Settings.");
+  console.warn("⚠️ [WARN] DATABASE_URL is not configured. Database operations will be unavailable until DATABASE_URL is provided.");
 }
 
 declare global {
@@ -24,13 +24,17 @@ declare global {
 // Un-proxied base PrismaClient (retained for explicit system/admin access or rollback)
 export const rawPrisma: PrismaClient =
   global.__rawPrisma ||
-  new PrismaClient({
-    datasources: {
-      db: {
-        url: dbUrl || "postgresql://missing_db_url@localhost:5432/postgres",
-      },
-    },
-  });
+  new PrismaClient(
+    dbUrl
+      ? {
+          datasources: {
+            db: {
+              url: dbUrl,
+            },
+          },
+        }
+      : undefined
+  );
 
 // Dynamic Prisma Proxy Facade exported as the default application-wide 'prisma' client instance
 export const prisma: PrismaClient & Record<string, any> = (global.__prismaProxy || prismaProxy) as any;

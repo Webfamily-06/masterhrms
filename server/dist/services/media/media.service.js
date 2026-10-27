@@ -7,11 +7,22 @@ exports.MediaService = void 0;
 exports.getUploadsRoot = getUploadsRoot;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
 const crypto_1 = __importDefault(require("crypto"));
 const prisma_1 = require("../../prisma");
 const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 const integrity_hasher_1 = require("../storage/integrity-hasher");
 function getUploadsRoot() {
+    if (process.env.VERCEL) {
+        const tmpUploads = path_1.default.join(os_1.default.tmpdir(), "uploads");
+        try {
+            if (!fs_1.default.existsSync(tmpUploads)) {
+                fs_1.default.mkdirSync(tmpUploads, { recursive: true });
+            }
+        }
+        catch { }
+        return tmpUploads;
+    }
     const cwd = process.cwd();
     if (fs_1.default.existsSync(path_1.default.join(cwd, "src", "index.ts"))) {
         return path_1.default.resolve(cwd, "../uploads");
@@ -128,15 +139,23 @@ class MediaService {
             .replace(/\.\./g, "");
         const uploadsRoot = getUploadsRoot();
         const targetDir = path_1.default.join(uploadsRoot, folder);
-        if (!fs_1.default.existsSync(targetDir)) {
-            fs_1.default.mkdirSync(targetDir, { recursive: true });
+        try {
+            if (!fs_1.default.existsSync(targetDir)) {
+                fs_1.default.mkdirSync(targetDir, { recursive: true });
+            }
+            const uniqueFileName = `${Date.now()}-${crypto_1.default.randomBytes(4).toString("hex")}${validation.extension}`;
+            const fullDiskPath = path_1.default.join(targetDir, uniqueFileName);
+            const relativeFilePath = `${folder}/${uniqueFileName}`;
+            const publicUrl = `/uploads/${folder}/${uniqueFileName}`;
+            // Write file to disk
+            await fs_1.default.promises.writeFile(fullDiskPath, buffer);
+        }
+        catch (fsErr) {
+            console.warn("⚠️ [MediaService] Disk write warning (read-only filesystem or tmp limitation):", fsErr?.message);
         }
         const uniqueFileName = `${Date.now()}-${crypto_1.default.randomBytes(4).toString("hex")}${validation.extension}`;
-        const fullDiskPath = path_1.default.join(targetDir, uniqueFileName);
         const relativeFilePath = `${folder}/${uniqueFileName}`;
         const publicUrl = `/uploads/${folder}/${uniqueFileName}`;
-        // Write file to disk
-        await fs_1.default.promises.writeFile(fullDiskPath, buffer);
         // Save record to DB
         const mediaFile = await prisma.mediaFile.create({
             data: {

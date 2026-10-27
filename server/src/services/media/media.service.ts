@@ -1,11 +1,21 @@
 import fs from "fs";
 import path from "path";
+import os from "os";
 import crypto from "crypto";
 import { rawPrisma, prisma as proxiedPrisma } from "../../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { computeSha256 } from "../storage/integrity-hasher";
 
 export function getUploadsRoot(): string {
+  if (process.env.VERCEL) {
+    const tmpUploads = path.join(os.tmpdir(), "uploads");
+    try {
+      if (!fs.existsSync(tmpUploads)) {
+        fs.mkdirSync(tmpUploads, { recursive: true });
+      }
+    } catch {}
+    return tmpUploads;
+  }
   const cwd = process.cwd();
   if (fs.existsSync(path.join(cwd, "src", "index.ts"))) {
     return path.resolve(cwd, "../uploads");
@@ -162,17 +172,24 @@ export class MediaService {
       .replace(/\.\./g, "");
     const uploadsRoot = getUploadsRoot();
     const targetDir = path.join(uploadsRoot, folder);
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+    try {
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      const uniqueFileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${validation.extension}`;
+      const fullDiskPath = path.join(targetDir, uniqueFileName);
+      const relativeFilePath = `${folder}/${uniqueFileName}`;
+      const publicUrl = `/uploads/${folder}/${uniqueFileName}`;
+
+      // Write file to disk
+      await fs.promises.writeFile(fullDiskPath, buffer);
+    } catch (fsErr: any) {
+      console.warn("⚠️ [MediaService] Disk write warning (read-only filesystem or tmp limitation):", fsErr?.message);
     }
 
     const uniqueFileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${validation.extension}`;
-    const fullDiskPath = path.join(targetDir, uniqueFileName);
     const relativeFilePath = `${folder}/${uniqueFileName}`;
     const publicUrl = `/uploads/${folder}/${uniqueFileName}`;
-
-    // Write file to disk
-    await fs.promises.writeFile(fullDiskPath, buffer);
 
     // Save record to DB
     const mediaFile = await prisma.mediaFile.create({

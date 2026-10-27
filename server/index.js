@@ -26,7 +26,6 @@ const handler = (req, res) => {
         NODE_ENV: process.env.NODE_ENV,
         VERCEL: process.env.VERCEL,
         HAS_DATABASE_URL: Boolean(process.env.DATABASE_URL),
-        DATABASE_URL_PREFIX: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 25) + "..." : null,
       }
     }, null, 2));
   }

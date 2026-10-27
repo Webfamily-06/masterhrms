@@ -141,80 +141,86 @@ function evaluateMaintenanceStatus(config) {
     };
 }
 async function maintenanceMiddleware(req, res, next) {
-    const isPreflight = req.method === "OPTIONS" || req.method === "HEAD";
-    if (isPreflight)
-        return next();
-    const url = req.originalUrl || req.url;
-    // 1. Whitelisted Public Endpoints (Least Privilege)
-    const isWhitelisted = url.startsWith("/api/health") ||
-        url.startsWith("/api/system/maintenance-status") ||
-        url.startsWith("/api/v1/public/app-config") ||
-        url.startsWith("/api/public/app-config") ||
-        url.startsWith("/api/app-config") ||
-        url.startsWith("/api/cms/pages/system-platform-settings") ||
-        url.startsWith("/api/cms/pages/footer") ||
-        url.startsWith("/api/auth/login") ||
-        url.startsWith("/api/auth/verify-2fa") ||
-        url.startsWith("/api/auth/logout") ||
-        url.startsWith("/api/auth/me") ||
-        url.startsWith("/api/auth/oauth") ||
-        url.startsWith("/api/auth/check-domain") ||
-        // Specific payment webhook endpoints with signature validation
-        url.startsWith("/api/payments/razorpay/webhook") ||
-        url.startsWith("/api/webhooks/razorpay") ||
-        url.startsWith("/api/billing/webhook") ||
-        url.startsWith("/api/commerce/webhook") ||
-        url.startsWith("/ui-assets") ||
-        url.startsWith("/assets") ||
-        url.startsWith("/favicon") ||
-        url.startsWith("/logo");
-    if (isWhitelisted) {
-        return next();
-    }
-    const config = await getPlatformMaintenanceConfig();
-    const evaluation = evaluateMaintenanceStatus(config);
-    if (!evaluation.isActive) {
-        return next();
-    }
-    // 2. Privileged Access Check: Authorized Super Admin Bypass
-    // Only granted if caller presents a valid Bearer token belonging to an authentic Super Admin user
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.split(" ")[1];
-        try {
-            const decoded = (0, jwt_1.verifyToken)(token);
-            const userId = decoded.userId || decoded.id;
-            if (userId) {
-                const user = await (prisma_1.rawPrisma || prisma_1.prisma).user.findUnique({
-                    where: { id: userId },
-                    include: { roles: true },
-                });
-                const isSuperAdmin = user?.roles?.some((r) => r.role === "super_admin");
-                if (isSuperAdmin) {
-                    // Authorized Super Admin can manage maintenance mode, view logs, and access Super routes
-                    return next();
+    try {
+        const isPreflight = req.method === "OPTIONS" || req.method === "HEAD";
+        if (isPreflight)
+            return next();
+        const url = req.originalUrl || req.url;
+        // 1. Whitelisted Public Endpoints (Least Privilege)
+        const isWhitelisted = url.startsWith("/api/health") ||
+            url.startsWith("/api/system/maintenance-status") ||
+            url.startsWith("/api/v1/public/app-config") ||
+            url.startsWith("/api/public/app-config") ||
+            url.startsWith("/api/app-config") ||
+            url.startsWith("/api/cms/pages/system-platform-settings") ||
+            url.startsWith("/api/cms/pages/footer") ||
+            url.startsWith("/api/auth/login") ||
+            url.startsWith("/api/auth/verify-2fa") ||
+            url.startsWith("/api/auth/logout") ||
+            url.startsWith("/api/auth/me") ||
+            url.startsWith("/api/auth/oauth") ||
+            url.startsWith("/api/auth/check-domain") ||
+            // Specific payment webhook endpoints with signature validation
+            url.startsWith("/api/payments/razorpay/webhook") ||
+            url.startsWith("/api/webhooks/razorpay") ||
+            url.startsWith("/api/billing/webhook") ||
+            url.startsWith("/api/commerce/webhook") ||
+            url.startsWith("/ui-assets") ||
+            url.startsWith("/assets") ||
+            url.startsWith("/favicon") ||
+            url.startsWith("/logo");
+        if (isWhitelisted) {
+            return next();
+        }
+        const config = await getPlatformMaintenanceConfig();
+        const evaluation = evaluateMaintenanceStatus(config);
+        if (!evaluation.isActive) {
+            return next();
+        }
+        // 2. Privileged Access Check: Authorized Super Admin Bypass
+        // Only granted if caller presents a valid Bearer token belonging to an authentic Super Admin user
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            const token = authHeader.split(" ")[1];
+            try {
+                const decoded = (0, jwt_1.verifyToken)(token);
+                const userId = decoded.userId || decoded.id;
+                if (userId) {
+                    const user = await (prisma_1.rawPrisma || prisma_1.prisma).user.findUnique({
+                        where: { id: userId },
+                        include: { roles: true },
+                    });
+                    const isSuperAdmin = user?.roles?.some((r) => r.role === "super_admin");
+                    if (isSuperAdmin) {
+                        // Authorized Super Admin can manage maintenance mode, view logs, and access Super routes
+                        return next();
+                    }
                 }
             }
+            catch {
+                // Invalid/expired token during maintenance -> proceed to 503 response
+            }
         }
-        catch {
-            // Invalid/expired token during maintenance -> proceed to 503 response
+        // 3. Block Non-Super Admin requests with HTTP 503 Service Unavailable
+        if (evaluation.retryAfterSeconds && evaluation.retryAfterSeconds > 0) {
+            res.setHeader("Retry-After", String(evaluation.retryAfterSeconds));
         }
+        return res.status(503).json({
+            error: config.maintenanceNoticeMessage ||
+                "System is currently undergoing scheduled maintenance. We are performing essential platform and database upgrades.",
+            code: "SYSTEM_MAINTENANCE",
+            maintenance: {
+                status: "active",
+                startTime: config.maintenanceStartTime || null,
+                endTime: config.maintenanceEndTime || null,
+                message: config.maintenanceNoticeMessage || null,
+                timezone: config.defaultTimezone || "Asia/Kolkata",
+                supportEmail: config.supportEmail || `support@${(0, workspace_host_1.getBaseDomain)()}`,
+            },
+        });
     }
-    // 3. Block Non-Super Admin requests with HTTP 503 Service Unavailable
-    if (evaluation.retryAfterSeconds && evaluation.retryAfterSeconds > 0) {
-        res.setHeader("Retry-After", String(evaluation.retryAfterSeconds));
+    catch (err) {
+        console.error("[maintenanceMiddleware Error]:", err);
+        return next(err);
     }
-    return res.status(503).json({
-        error: config.maintenanceNoticeMessage ||
-            "System is currently undergoing scheduled maintenance. We are performing essential platform and database upgrades.",
-        code: "SYSTEM_MAINTENANCE",
-        maintenance: {
-            status: "active",
-            startTime: config.maintenanceStartTime || null,
-            endTime: config.maintenanceEndTime || null,
-            message: config.maintenanceNoticeMessage || null,
-            timezone: config.defaultTimezone || "Asia/Kolkata",
-            supportEmail: config.supportEmail || `support@${(0, workspace_host_1.getBaseDomain)()}`,
-        },
-    });
 }

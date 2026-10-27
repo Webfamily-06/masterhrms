@@ -606,6 +606,13 @@ async function runSuite() {
     assertTest(resPosAllowed.status === 200, "POS /api/sales allowed when pos module is active (200 OK)");
 
     // Test 37: Biometric sync management route /api/biometric/devices -> 200 OK
+    await (prisma as any).tenantAddon.create({
+      data: {
+        tenantId: tenantAlphaId,
+        addonSlug: "biometric-sync",
+        status: "active",
+      },
+    });
     const resBioAllowed = await hostFetch(`${baseUrl}/api/biometric/devices`, {
       headers: {
         Host: `${tenantAlphaSlug}.localhost:${port}`,

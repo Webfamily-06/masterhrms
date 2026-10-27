@@ -7,7 +7,7 @@ export const Route = createFileRoute("/")({
     // to the workspace dashboard for authenticated sessions, or /auth for login.
     const token = typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null;
     if (token) {
-      throw redirect({ to: "/_authenticated/_app/hrm-dashboard" });
+      throw redirect({ to: "/hrm-dashboard" });
     }
     throw redirect({ to: "/auth" });
   },

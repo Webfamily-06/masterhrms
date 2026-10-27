@@ -19,44 +19,44 @@ const SAFE_PREFIXES = [
 ];
 
 export async function requireActiveSubscription(req: AuthRequest, res: Response, next: NextFunction) {
-  // 1. CORS Preflight & Head requests always allowed
-  if (req.method === "OPTIONS" || req.method === "HEAD") {
-    return next();
-  }
-
-  // 2. Safe routes (billing, auth, webhooks, health, public, super, subscription status) always allowed
-  const url = req.originalUrl || req.url || "";
-  if (SAFE_PREFIXES.some((p) => url.startsWith(p))) {
-    return next();
-  }
-
-  // 3. Platform Super Admin and impersonation bypass
-  if (req.user?.roles?.includes("super_admin") || (req.user as any)?.isImpersonating) {
-    return next();
-  }
-
-  // Check token if req.user is not yet populated
-  let tenantId = req.user?.tenantId || (req as any).tenantId || (req as any).tenantContext?.tenantId;
-  const authHeader = req.headers?.authorization;
-  if (!tenantId && authHeader && authHeader.startsWith("Bearer ")) {
-    try {
-      const token = authHeader.split(" ")[1];
-      const decoded: any = verifyToken(token);
-      if (decoded.roles?.includes("super_admin") || decoded.isImpersonating) {
-        return next();
-      }
-      tenantId = decoded.tenantId;
-    } catch {
-      // Downstream requireAuth will reject if invalid
+  try {
+    // 1. CORS Preflight & Head requests always allowed
+    if (req.method === "OPTIONS" || req.method === "HEAD") {
       return next();
     }
-  }
 
-  if (!tenantId) {
-    return next();
-  }
+    // 2. Safe routes (billing, auth, webhooks, health, public, super, subscription status) always allowed
+    const url = req.originalUrl || req.url || "";
+    if (SAFE_PREFIXES.some((p) => url.startsWith(p))) {
+      return next();
+    }
 
-  try {
+    // 3. Platform Super Admin and impersonation bypass
+    if (req.user?.roles?.includes("super_admin") || (req.user as any)?.isImpersonating) {
+      return next();
+    }
+
+    // Check token if req.user is not yet populated
+    let tenantId = req.user?.tenantId || (req as any).tenantId || (req as any).tenantContext?.tenantId;
+    const authHeader = req.headers?.authorization;
+    if (!tenantId && authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const decoded: any = verifyToken(token);
+        if (decoded.roles?.includes("super_admin") || decoded.isImpersonating) {
+          return next();
+        }
+        tenantId = decoded.tenantId;
+      } catch {
+        // Downstream requireAuth will reject if invalid
+        return next();
+      }
+    }
+
+    if (!tenantId) {
+      return next();
+    }
+
     const db = rawPrisma || prisma;
     const sub = await db.tenantSubscription.findFirst({
       where: { tenantId },
@@ -94,6 +94,6 @@ export async function requireActiveSubscription(req: AuthRequest, res: Response,
     next();
   } catch (err: any) {
     console.error("[requireActiveSubscription] error:", err?.message || err);
-    next();
+    next(err);
   }
 }
