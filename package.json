@@ -3,6 +3,9 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "concurrently \"npm run cms:dev\" \"npm run server:dev\"",
     "dev:cms": "npm --prefix CMS run dev",

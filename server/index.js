@@ -11,11 +11,12 @@ try {
   console.error("FATAL INITIALIZATION ERROR:", err);
 }
 
-if (initError || typeof app !== "function") {
-  const express = require("express");
-  const fallbackApp = express();
-  fallbackApp.all("*", (req, res) => {
-    res.status(500).json({
+// Uncrashable Serverless Function handler
+const handler = (req, res) => {
+  if (initError || typeof app !== "function") {
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({
       error: "FATAL_SERVER_INIT_ERROR",
       message: initError ? initError.message : "Loaded module is not a callable Express application",
       stack: initError ? initError.stack : null,
@@ -27,9 +28,21 @@ if (initError || typeof app !== "function") {
         HAS_DATABASE_URL: Boolean(process.env.DATABASE_URL),
         DATABASE_URL_PREFIX: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 25) + "..." : null,
       }
-    });
-  });
-  module.exports = fallbackApp;
-} else {
-  module.exports = app;
-}
+    }, null, 2));
+  }
+
+  try {
+    return app(req, res);
+  } catch (err) {
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({
+      error: "UNHANDLED_SERVER_INVOCATION_ERROR",
+      message: err.message,
+      stack: err.stack,
+    }, null, 2));
+  }
+};
+
+handler.default = handler;
+module.exports = handler;

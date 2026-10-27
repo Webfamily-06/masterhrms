@@ -2,7 +2,10 @@
   "name": "hrms-server",
   "version": "1.0.0",
   "description": "MySQL Backend Server with Prisma ORM for Master HRMS/ERP",
-  "main": "dist/index.js",
+  "main": "index.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc",
