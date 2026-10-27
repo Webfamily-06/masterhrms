@@ -35,6 +35,8 @@
     "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "prisma": "^5.19.1",
     "@codedthemes/uiable-mcp": "^0.1.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
