@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-26T12:49:49.785Z",
+  "timestamp": "2026-10-27T09:37:49.942Z",
   "total": 37,
   "passed": 37,
   "results": [
@@ -37,7 +37,7 @@
       "suite": "CallHistory",
       "check": "Authoritative call lifecycle record persisted",
       "passed": true,
-      "details": "ID: 10099f15-0b90-4ce0-93b0-5115afc378ba"
+      "details": "ID: 1ec5b370-4244-4daa-ae99-e137b3fcec0a"
     },
     {
       "suite": "CallHistory",
@@ -49,7 +49,7 @@
       "suite": "CallHistory",
       "check": "GET /api/chat/calls returns pagination metadata",
       "passed": true,
-      "details": "Total: 7"
+      "details": "Total: 9"
     },
     {
       "suite": "CallHistory",
@@ -77,13 +77,13 @@
     },
     {
       "suite": "Signaling",
-      "check": "Callee Socket.IO connected with authenticated token",
+      "check": "Caller Socket.IO connected with authenticated token",
       "passed": true,
       "details": ""
     },
     {
       "suite": "Signaling",
-      "check": "Caller Socket.IO connected with authenticated token",
+      "check": "Callee Socket.IO connected with authenticated token",
       "passed": true,
       "details": ""
     },
@@ -145,7 +145,7 @@
       "suite": "Calendar",
       "check": "POST /api/calendar/events successfully schedules meeting",
       "passed": true,
-      "details": "Event ID: f074c159-d8f2-4215-a08c-6c4e76aea51a"
+      "details": "Event ID: 23d28b26-4a47-4a7b-b901-4c6a08e67174"
     },
     {
       "suite": "Calendar",

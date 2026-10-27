@@ -98,9 +98,15 @@ import {
   LogOut,
   Shield,
   UserMinus,
+  ZoomIn,
+  ZoomOut,
+  Image as ImageIcon,
+  Upload,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { MediaPickerModal, MediaFileItem } from "@/components/media/media-picker-modal";
 
 export type ChatMode = "chats" | "groups" | "contacts" | "calls";
 
@@ -112,6 +118,20 @@ export interface ChatMessageAttachment {
   mimeType: string;
   url: string;
   path?: string;
+  folder?: string;
+}
+
+export interface ComposerAttachmentItem {
+  id: string;
+  file?: File;
+  mediaFile?: MediaFileItem;
+  name: string;
+  size: number;
+  mimeType: string;
+  previewUrl?: string;
+  isUploaded?: boolean;
+  uploadProgress?: number;
+  error?: string;
 }
 
 export interface ChatMessageUrlPreview {
@@ -606,7 +626,6 @@ export function UnifiedChatApp({
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDescription, setNewGroupDescription] = useState("");
-  const [newGroupAvatarUrl, setNewGroupAvatarUrl] = useState("");
   const [newGroupMemberSearch, setNewGroupMemberSearch] = useState("");
   const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([]);
   const [groupFormError, setGroupFormError] = useState("");
@@ -631,10 +650,28 @@ export function UnifiedChatApp({
   const [forwardMessage, setForwardMessage] = useState<ChatMessageItem | null>(null);
   const [forwardTargetThreadId, setForwardTargetThreadId] = useState("");
 
-  // File Attachments & Drag-and-Drop
+  // File Attachments & Drag-and-Drop & Media Library Integration
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [composerAttachments, setComposerAttachments] = useState<ComposerAttachmentItem[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // In-App Attachment Viewer Modal State (Images, PDFs & Office Documents)
+  const [activeViewer, setActiveViewer] = useState<{
+    items: Array<{ url: string; name: string; size?: number; mimeType?: string }>;
+    currentIndex: number;
+    zoom: number;
+  } | null>(null);
+
+  // Media Library Picker Modal State
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerPurpose, setMediaPickerPurpose] = useState<"composer" | "newGroup" | "editGroup">("composer");
+
+  // Group Avatar Selection & Upload State
+  const [newGroupAvatarUrl, setNewGroupAvatarUrl] = useState<string>("");
+  const [newGroupAvatarMediaId, setNewGroupAvatarMediaId] = useState<string>("");
+  const [isUploadingGroupAvatar, setIsUploadingGroupAvatar] = useState(false);
+  const [editGroupAvatarMediaId, setEditGroupAvatarMediaId] = useState<string>("");
 
   // Poll Creation Dialog
   const [createPollOpen, setCreatePollOpen] = useState(false);
@@ -1436,7 +1473,7 @@ export function UnifiedChatApp({
 
   // Create Group
   const createGroupMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string; memberIds: string[] }) => {
+    mutationFn: async (data: { name: string; description: string; memberIds: string[]; avatarUrl?: string }) => {
       const res: any = await api.post("/api/chat/groups", data);
       return res?.group || res;
     },
@@ -1446,6 +1483,7 @@ export function UnifiedChatApp({
       setNewGroupName("");
       setNewGroupDescription("");
       setNewGroupAvatarUrl("");
+      setNewGroupAvatarMediaId("");
       setSelectedGroupMemberIds([]);
       setGroupFormError("");
       queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
@@ -2010,14 +2048,39 @@ export function UnifiedChatApp({
   // ──────────────────────────────────────────────────────────────────────────
   // FILE ATTACHMENTS & DRAG-AND-DROP
   // ──────────────────────────────────────────────────────────────────────────
+  // FILE ATTACHMENTS & MEDIA LIBRARY INTEGRATION & PREVIEWS
+  // ──────────────────────────────────────────────────────────────────────────
+  const createPendingItem = (file: File): ComposerAttachmentItem => {
+    const isImage = file.type.startsWith("image/");
+    const isPdf = file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf");
+    let previewUrl = "";
+    if (isImage || isPdf) {
+      try {
+        previewUrl = URL.createObjectURL(file);
+      } catch {}
+    }
+    return {
+      id: `comp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      file,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type || "application/octet-stream",
+      previewUrl,
+      isUploaded: false,
+    };
+  };
+
   const handleFilesSelected = (files: FileList | File[]) => {
     const list = Array.from(files);
-    const validFiles: File[] = [];
+    const validItems: ComposerAttachmentItem[] = [];
 
-    const RESTRICTED = [".exe", ".bat", ".cmd", ".sh", ".php", ".js", ".py", ".env", ".vbs"];
+    const RESTRICTED = [
+      ".exe", ".bat", ".cmd", ".sh", ".php", ".js", ".py", ".env", ".vbs",
+      ".bin", ".msi", ".apk", ".com", ".ps1", ".jar", ".html", ".htm"
+    ];
     for (const f of list) {
       const ext = "." + (f.name.split(".").pop() || "").toLowerCase();
-      if (RESTRICTED.includes(ext)) {
+      if (RESTRICTED.includes(ext) || f.name.toLowerCase().startsWith(".env")) {
         toast.error(`Security restriction: Executable / script file "${f.name}" is blocked.`);
         continue;
       }
@@ -2025,12 +2088,159 @@ export function UnifiedChatApp({
         toast.error(`File "${f.name}" exceeds 25 MB size limit.`);
         continue;
       }
-      validFiles.push(f);
+      validItems.push(createPendingItem(f));
     }
 
-    if (validFiles.length > 0) {
-      setPendingAttachments((prev) => [...prev, ...validFiles]);
-      toast.success(`${validFiles.length} file(s) attached.`);
+    if (validItems.length > 0) {
+      setComposerAttachments((prev) => [...prev, ...validItems]);
+      setPendingAttachments((prev) => [...prev, ...validItems.map((v) => v.file!).filter(Boolean)]);
+      toast.success(`${validItems.length} file(s) attached.`);
+    }
+  };
+
+  const handleSelectFromMediaLibrary = (media: MediaFileItem) => {
+    if (mediaPickerPurpose === "newGroup") {
+      setNewGroupAvatarUrl(media.url);
+      setNewGroupAvatarMediaId(media.id);
+      setMediaPickerOpen(false);
+      toast.success("Group avatar selected from Media Library");
+      return;
+    }
+    if (mediaPickerPurpose === "editGroup") {
+      setEditGroupAvatarUrl(media.url);
+      setEditGroupAvatarMediaId(media.id);
+      setMediaPickerOpen(false);
+      toast.success("Group avatar selected from Media Library");
+      return;
+    }
+
+    const item: ComposerAttachmentItem = {
+      id: `media_${media.id}`,
+      mediaFile: media,
+      name: media.fileName || media.originalName || "Asset",
+      size: media.fileSize || media.sizeBytes || 0,
+      mimeType: media.mimeType || "application/octet-stream",
+      previewUrl: media.url,
+      isUploaded: true,
+    };
+    setComposerAttachments((prev) => [...prev, item]);
+    setMediaPickerOpen(false);
+    toast.success(`Attached "${item.name}" from Media Library`);
+  };
+
+  const removeComposerAttachment = (index: number) => {
+    setComposerAttachments((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl && target.file) {
+        try {
+          URL.revokeObjectURL(target.previewUrl);
+        } catch {}
+      }
+      const updated = prev.filter((_, i) => i !== index);
+      setPendingAttachments(updated.map((u) => u.file!).filter(Boolean));
+      return updated;
+    });
+  };
+
+  const replaceComposerAttachment = (index: number, newFile: File) => {
+    const newItem = createPendingItem(newFile);
+    setComposerAttachments((prev) => {
+      const old = prev[index];
+      if (old?.previewUrl && old.file) {
+        try {
+          URL.revokeObjectURL(old.previewUrl);
+        } catch {}
+      }
+      const copy = [...prev];
+      copy[index] = newItem;
+      setPendingAttachments(copy.map((u) => u.file!).filter(Boolean));
+      return copy;
+    });
+  };
+
+  // Revoke object URLs on unmount
+  useEffect(() => {
+    return () => {
+      composerAttachments.forEach((att) => {
+        if (att.previewUrl && att.file) {
+          try {
+            URL.revokeObjectURL(att.previewUrl);
+          } catch {}
+        }
+      });
+    };
+  }, [composerAttachments]);
+
+  // In-App Attachment Viewer opener
+  const openAttachmentViewer = (attachments: any[], index: number = 0) => {
+    if (!attachments || attachments.length === 0) return;
+    setActiveViewer({
+      items: attachments.map((a) => ({
+        url: a.url,
+        name: a.name || a.fileName || "Attachment",
+        size: a.size || a.fileSize,
+        mimeType: a.mimeType,
+      })),
+      currentIndex: Math.max(0, Math.min(index, attachments.length - 1)),
+      zoom: 1,
+    });
+  };
+
+  // Keyboard navigation for attachment viewer
+  useEffect(() => {
+    if (!activeViewer) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveViewer(null);
+      } else if (e.key === "ArrowLeft") {
+        setActiveViewer((prev) =>
+          prev && prev.items.length > 1
+            ? { ...prev, currentIndex: (prev.currentIndex - 1 + prev.items.length) % prev.items.length, zoom: 1 }
+            : prev
+        );
+      } else if (e.key === "ArrowRight") {
+        setActiveViewer((prev) =>
+          prev && prev.items.length > 1
+            ? { ...prev, currentIndex: (prev.currentIndex + 1) % prev.items.length, zoom: 1 }
+            : prev
+        );
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeViewer]);
+
+  // Group Avatar Upload Handler
+  const handleGroupAvatarUpload = async (file: File, purpose: "newGroup" | "editGroup") => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (PNG, JPG, WebP, GIF).");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image file exceeds 10MB limit.");
+      return;
+    }
+
+    setIsUploadingGroupAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "Chat/Images");
+      const res = await api.upload("/api/v1/media/upload", formData);
+      const media = res.data;
+      if (purpose === "newGroup") {
+        setNewGroupAvatarUrl(media.url);
+        setNewGroupAvatarMediaId(media.id);
+      } else {
+        setEditGroupAvatarUrl(media.url);
+        setEditGroupAvatarMediaId(media.id);
+      }
+      toast.success("Group avatar uploaded to Media Library");
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.message || "Failed to upload group avatar");
+    } finally {
+      setIsUploadingGroupAvatar(false);
     }
   };
 
@@ -2056,18 +2266,19 @@ export function UnifiedChatApp({
   }, []);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // SEND MESSAGE HANDLER (Deduplicated with isSending Lock & Idempotency Key)
+  // SEND MESSAGE HANDLER (Resilient with Centralized Media Storage)
   // ──────────────────────────────────────────────────────────────────────────
   const handleSendMessage = async () => {
+    const totalPendingCount = composerAttachments.length;
     if (isSending) return;
-    if (!messageInput.trim() && pendingAttachments.length === 0) return;
+    if (!messageInput.trim() && totalPendingCount === 0) return;
     if (!activeThreadId) return;
 
     setIsSending(true);
-    const content = messageInput.trim() || (pendingAttachments.length > 0 ? "Shared file(s)" : "");
+    const content = messageInput.trim() || (totalPendingCount > 0 ? "Shared file(s)" : "");
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const replyTarget = replyingToMessage;
-    const filesToUpload = [...pendingAttachments];
+    const currentAttachments = [...composerAttachments];
 
     // Detect @mentions if in group chat
     let mentions: string[] = [];
@@ -2087,11 +2298,6 @@ export function UnifiedChatApp({
         }
       }
     }
-
-    setPendingAttachments([]);
-    setReplyingToMessage(null);
-    setMessageInput("");
-    setMentionQuery(null);
 
     // Optimistic item
     const optimisticItem: ChatMessageItem = {
@@ -2120,13 +2326,38 @@ export function UnifiedChatApp({
 
     try {
       let uploadedAttachments: any[] = [];
-      if (filesToUpload.length > 0) {
-        const formData = new FormData();
-        filesToUpload.forEach((f) => formData.append("files", f));
-        const uploadRes: any = await api.upload("/api/chat/upload", formData);
-        uploadedAttachments = uploadRes?.files || uploadRes?.data || [];
+      const filesToUpload = currentAttachments.filter((a) => a.file && !a.isUploaded);
+      const existingMediaFiles = currentAttachments.filter((a) => a.mediaFile);
+
+      // 1. Existing Media Library records
+      for (const m of existingMediaFiles) {
+        if (m.mediaFile) {
+          uploadedAttachments.push({
+            id: m.mediaFile.id,
+            mediaId: m.mediaFile.id,
+            url: m.mediaFile.url,
+            name: m.mediaFile.fileName || m.mediaFile.originalName || m.name,
+            fileName: m.mediaFile.fileName || m.mediaFile.originalName || m.name,
+            size: m.mediaFile.fileSize || m.mediaFile.sizeBytes || m.size,
+            fileSize: m.mediaFile.fileSize || m.mediaFile.sizeBytes || m.size,
+            mimeType: m.mediaFile.mimeType || m.mimeType,
+            folder: m.mediaFile.folder,
+          });
+        }
       }
 
+      // 2. Upload un-uploaded files to Media Library
+      if (filesToUpload.length > 0) {
+        const formData = new FormData();
+        filesToUpload.forEach((f) => {
+          if (f.file) formData.append("files", f.file);
+        });
+        const uploadRes: any = await api.upload("/api/chat/upload", formData);
+        const serverFiles = uploadRes?.files || uploadRes?.data || [];
+        uploadedAttachments = [...uploadedAttachments, ...serverFiles];
+      }
+
+      // 3. Post message with all attachments
       const res: any = await api.post("/api/chat/messages", {
         threadId: activeThreadId,
         content,
@@ -2138,6 +2369,20 @@ export function UnifiedChatApp({
         mentions,
       });
 
+      // Clear composer only after successful upload and submission
+      currentAttachments.forEach((att) => {
+        if (att.previewUrl && att.file) {
+          try {
+            URL.revokeObjectURL(att.previewUrl);
+          } catch {}
+        }
+      });
+      setComposerAttachments([]);
+      setPendingAttachments([]);
+      setReplyingToMessage(null);
+      setMessageInput("");
+      setMentionQuery(null);
+
       // Clear or reconcile optimistic message immediately upon server confirmation
       const canonicalMsg = res?.message || res;
       setOptimisticMessages((prev) =>
@@ -2148,7 +2393,7 @@ export function UnifiedChatApp({
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
       queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Failed to send message");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to send message");
       setOptimisticMessages((prev) =>
         prev.map((m) => (m.clientTempId === tempId ? { ...m, status: "failed" } : m))
       );
@@ -3668,10 +3913,12 @@ export function UnifiedChatApp({
                             <div className="mt-2 space-y-1.5">
                               {msg.attachments.map((att, aIdx) => {
                                 const isImage = att.mimeType?.startsWith("image/");
+                                const isPdf = att.mimeType?.includes("pdf") || att.name?.toLowerCase().endsWith(".pdf");
+
                                 return isImage ? (
                                   <div
                                     key={aIdx}
-                                    onClick={() => setPreviewImage(att.url)}
+                                    onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
                                     className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-xs"
                                   >
                                     <img
@@ -3686,23 +3933,32 @@ export function UnifiedChatApp({
                                 ) : (
                                   <div
                                     key={aIdx}
-                                    className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-xs"
+                                    onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
+                                    className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-xs cursor-pointer hover:bg-muted/60 transition-colors"
                                   >
-                                    <FileIcon className="size-5 text-teal-600 flex-shrink-0" />
+                                    {isPdf ? (
+                                      <FileText className="size-5 text-rose-600 flex-shrink-0" />
+                                    ) : (
+                                      <FileIcon className="size-5 text-teal-600 flex-shrink-0" />
+                                    )}
                                     <div className="flex-1 min-w-0">
                                       <p className="font-medium text-xs truncate">{att.name}</p>
                                       <p className="text-[10px] text-muted-foreground">{formatFileSize(att.size)}</p>
                                     </div>
-                                    <a
-                                      href={att.url}
-                                      download={att.name}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="p-1 hover:bg-muted rounded text-teal-700"
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const link = document.createElement("a");
+                                        link.href = att.url;
+                                        link.download = att.name;
+                                        link.click();
+                                      }}
+                                      className="p-1 hover:bg-muted rounded text-teal-700 dark:text-teal-400"
                                       title="Download"
                                     >
                                       <Download className="size-4" />
-                                    </a>
+                                    </button>
                                   </div>
                                 );
                               })}
@@ -4085,26 +4341,97 @@ export function UnifiedChatApp({
               </div>
             )}
 
-            {/* Pending Attachments Chips */}
-            {pendingAttachments.length > 0 && (
-              <div className="px-4 py-2 bg-muted/40 border-t border-border flex items-center gap-2 overflow-x-auto">
-                {pendingAttachments.map((file, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-card border border-border shadow-xs"
-                  >
-                    <FileIcon className="size-3.5 text-teal-600" />
-                    <span className="max-w-[120px] truncate">{file.name}</span>
-                    <span className="text-[10px] text-muted-foreground">({formatFileSize(file.size)})</span>
-                    <button
-                      type="button"
-                      onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
-                      className="hover:text-destructive"
+            {/* Rich Composer Attachment Preview Strip */}
+            {composerAttachments.length > 0 && (
+              <div className="p-3 bg-muted/40 border-t border-border flex items-center gap-3 overflow-x-auto">
+                {composerAttachments.map((item, idx) => {
+                  const isImage = item.mimeType?.startsWith("image/") || (item.file && item.file.type.startsWith("image/"));
+                  const isPdf = item.mimeType?.includes("pdf") || item.name.toLowerCase().endsWith(".pdf");
+                  const ext = (item.name.split(".").pop() || "").toUpperCase();
+
+                  return (
+                    <div
+                      key={item.id || idx}
+                      className="group relative flex items-center gap-2.5 p-2 rounded-xl bg-card border border-border shadow-xs max-w-xs flex-shrink-0"
                     >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
+                      {/* Visual Preview */}
+                      <div className="size-14 rounded-lg bg-muted/60 flex items-center justify-center overflow-hidden flex-shrink-0 border border-border/40 relative">
+                        {isImage && item.previewUrl ? (
+                          <img
+                            src={item.previewUrl}
+                            alt={item.name}
+                            className="size-full object-cover"
+                          />
+                        ) : isPdf ? (
+                          <div className="flex flex-col items-center justify-center text-rose-600">
+                            <FileText className="size-6" />
+                            <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-teal-600">
+                            <FileIcon className="size-6" />
+                            <span className="text-[9px] font-bold mt-0.5">{ext || "DOC"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* File Metadata */}
+                      <div className="flex-1 min-w-0 pr-6">
+                        <p className="text-xs font-semibold text-foreground truncate max-w-[130px]" title={item.name}>
+                          {item.name}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
+                          <span>{formatFileSize(item.size)}</span>
+                          {item.mediaFile && (
+                            <Badge variant="outline" className="text-[8px] h-3.5 px-1 bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300 border-teal-200">
+                              From Media
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Remove Control */}
+                      <button
+                        type="button"
+                        onClick={() => removeComposerAttachment(idx)}
+                        className="absolute top-1.5 right-1.5 size-5 rounded-full bg-muted/80 hover:bg-destructive hover:text-white flex items-center justify-center text-muted-foreground transition-colors"
+                        title="Remove attachment"
+                      >
+                        <X className="size-3" />
+                      </button>
+
+                      {/* Replace Control (For local file) */}
+                      {item.file && (
+                        <label className="absolute bottom-1.5 right-1.5 size-5 rounded-full bg-muted/80 hover:bg-teal-700 hover:text-white flex items-center justify-center text-muted-foreground transition-colors cursor-pointer" title="Replace file">
+                          <RotateCcw className="size-3" />
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) replaceComposerAttachment(idx, f);
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Button to add from Media Library in preview strip */}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMediaPickerPurpose("composer");
+                    setMediaPickerOpen(true);
+                  }}
+                  className="h-14 px-3 text-xs flex flex-col items-center justify-center gap-1 border-dashed border-teal-600/40 text-teal-800 dark:text-teal-300 hover:bg-teal-50/50 flex-shrink-0"
+                >
+                  <ImageIcon className="size-4" />
+                  <span className="text-[10px] font-medium">+ Media Library</span>
+                </Button>
               </div>
             )}
 
@@ -4176,23 +4503,45 @@ export function UnifiedChatApp({
                   </div>
                 )}
 
-                {/* Attach File Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const input = document.createElement("input");
-                    input.type = "file";
-                    input.multiple = true;
-                    input.onchange = (e: any) => {
-                      if (e.target.files) handleFilesSelected(e.target.files);
-                    };
-                    input.click();
-                  }}
-                  className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                  title="Attach files (images, documents, PDF)"
-                >
-                  <Paperclip className="size-4.5" />
-                </button>
+                {/* Attach File Dropdown (Device + Media Library) */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                      title="Attach files (Device or Media Library)"
+                    >
+                      <Paperclip className="size-4.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-52 font-sans text-xs">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.multiple = true;
+                        input.onchange = (e: any) => {
+                          if (e.target.files) handleFilesSelected(e.target.files);
+                        };
+                        input.click();
+                      }}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Upload className="size-3.5 text-teal-600" />
+                      <span>Upload from Device</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setMediaPickerPurpose("composer");
+                        setMediaPickerOpen(true);
+                      }}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <ImageIcon className="size-3.5 text-teal-600" />
+                      <span>Choose from Media Library</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {/* Create Poll Button */}
                 <button
@@ -4271,7 +4620,7 @@ export function UnifiedChatApp({
                 {/* Send Button */}
                 <Button
                   onClick={handleSendMessage}
-                  disabled={isSending || (!messageInput.trim() && pendingAttachments.length === 0)}
+                  disabled={isSending || (!messageInput.trim() && composerAttachments.length === 0)}
                   size="sm"
                   className="rounded-full size-8.5 p-0 bg-teal-700 hover:bg-teal-800 text-white cursor-pointer shadow-xs disabled:opacity-50"
                 >
@@ -4514,28 +4863,6 @@ export function UnifiedChatApp({
                           <span>Mute Notifications</span>
                         </>
                       )}
-                    </Button>
-
-                    {/* Copy Invite Link */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full text-xs justify-start gap-2"
-                      onClick={async () => {
-                        if (!activeGroup) return;
-                        try {
-                          const res: any = await api.post(`/api/chat/groups/${activeGroup.id}/invite-link`);
-                          if (res?.inviteUrl) {
-                            navigator.clipboard.writeText(res.inviteUrl);
-                            toast.success("Invite link copied to clipboard (valid 7 days)");
-                          }
-                        } catch {
-                          toast.error("Failed to generate group invite link");
-                        }
-                      }}
-                    >
-                      <Share2 className="size-3.5 text-teal-600" />
-                      <span>Copy Invite Link</span>
                     </Button>
 
                     {/* Leave Group Button */}
@@ -4865,6 +5192,79 @@ export function UnifiedChatApp({
               </div>
             )}
 
+            {/* Group Avatar Selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Group Avatar (Optional)</Label>
+              <div className="flex items-center gap-3">
+                <div className="size-14 rounded-full border border-border/80 bg-muted/40 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs relative">
+                  {newGroupAvatarUrl ? (
+                    <img
+                      src={newGroupAvatarUrl}
+                      alt="Group Avatar"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <Users className="size-6 text-muted-foreground/60" />
+                  )}
+                  {isUploadingGroupAvatar && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <RefreshCw className="size-4 text-white animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1.5 font-sans"
+                      onClick={() => {
+                        setMediaPickerPurpose("newGroup");
+                        setMediaPickerOpen(true);
+                      }}
+                    >
+                      <ImageIcon className="size-3.5 text-teal-600" />
+                      Choose from Media Library
+                    </Button>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleGroupAvatarUpload(file, "newGroup");
+                          e.target.value = "";
+                        }}
+                      />
+                      <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background hover:bg-accent text-xs font-medium cursor-pointer shadow-xs">
+                        <Upload className="size-3.5 text-teal-600" />
+                        Upload
+                      </span>
+                    </label>
+                    {newGroupAvatarUrl && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                        onClick={() => {
+                          setNewGroupAvatarUrl("");
+                          setNewGroupAvatarMediaId("");
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    PNG, JPG, WebP or GIF up to 10MB. Stored under Chat/Images.
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1">
               <Label htmlFor="group-name" className="text-xs font-semibold">
                 Group Name <span className="text-destructive">*</span>
@@ -5008,6 +5408,7 @@ export function UnifiedChatApp({
                   name: newGroupName.trim(),
                   description: newGroupDescription.trim(),
                   memberIds: selectedGroupMemberIds,
+                  avatarUrl: newGroupAvatarUrl.trim() || undefined,
                 });
               }}
             >
@@ -5420,36 +5821,199 @@ export function UnifiedChatApp({
         </DialogContent>
       </Dialog>
 
-      {/* 9. IMAGE LIGHTBOX PREVIEW MODAL */}
-      {previewImage && (
-        <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-          <DialogContent className="sm:max-w-3xl p-2 bg-black/90 border-none flex flex-col items-center">
-            <img
-              src={previewImage}
-              alt="Attachment Preview"
-              className="max-h-[80vh] w-auto object-contain rounded"
-            />
-            <div className="flex items-center gap-2 mt-2">
-              <a
-                href={previewImage}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-white underline flex items-center gap-1"
-              >
-                <ExternalLink className="size-3.5" /> Open Original
-              </a>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setPreviewImage(null)}
-                className="text-xs text-white hover:bg-white/20"
-              >
-                Close
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* 9. IN-APP ATTACHMENT VIEWER MODAL (IMAGES, PDFS & DOCUMENTS) */}
+      {activeViewer && activeViewer.items.length > 0 && (() => {
+        const currentItem = activeViewer.items[activeViewer.currentIndex] || activeViewer.items[0];
+        const fileName = currentItem.name || "Attachment";
+        const fileExt = fileName.split(".").pop()?.toLowerCase() || "";
+        const mime = currentItem.mimeType || "";
+        const isImg = mime.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(fileExt);
+        const isPdf = mime === "application/pdf" || fileExt === "pdf";
+        const hasPrev = activeViewer.currentIndex > 0;
+        const hasNext = activeViewer.currentIndex < activeViewer.items.length - 1;
+
+        return (
+          <Dialog
+            open={!!activeViewer}
+            onOpenChange={(open) => {
+              if (!open) setActiveViewer(null);
+            }}
+          >
+            <DialogContent
+              className="sm:max-w-4xl max-w-[95vw] h-[85vh] max-h-[85vh] p-0 overflow-hidden flex flex-col bg-background border shadow-2xl font-sans"
+              style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/40 flex-shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  {isImg ? (
+                    <ImageIcon className="size-4 text-teal-600 flex-shrink-0" />
+                  ) : isPdf ? (
+                    <FileText className="size-4 text-red-500 flex-shrink-0" />
+                  ) : (
+                    <FileIcon className="size-4 text-blue-500 flex-shrink-0" />
+                  )}
+                  <div className="truncate">
+                    <p className="text-xs font-semibold text-foreground truncate max-w-sm sm:max-w-md">
+                      {fileName}
+                    </p>
+                    {currentItem.size ? (
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatFileSize(currentItem.size)}
+                        {activeViewer.items.length > 1 && ` • ${activeViewer.currentIndex + 1} of ${activeViewer.items.length}`}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {isImg && (
+                    <div className="flex items-center gap-1 mr-2 bg-background border rounded-md px-1 py-0.5">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6"
+                        onClick={() => setActiveViewer((prev) => prev ? { ...prev, zoom: Math.max(0.5, prev.zoom - 0.25) } : null)}
+                        title="Zoom Out"
+                      >
+                        <ZoomOut className="size-3.5" />
+                      </Button>
+                      <span className="text-[11px] font-mono px-1">
+                        {Math.round(activeViewer.zoom * 100)}%
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6"
+                        onClick={() => setActiveViewer((prev) => prev ? { ...prev, zoom: Math.min(3, prev.zoom + 0.25) } : null)}
+                        title="Zoom In"
+                      >
+                        <ZoomIn className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6"
+                        onClick={() => setActiveViewer((prev) => prev ? { ...prev, zoom: 1 } : null)}
+                        title="Reset Zoom"
+                      >
+                        <RotateCcw className="size-3" />
+                      </Button>
+                    </div>
+                  )}
+
+                  <a
+                    href={currentItem.url}
+                    download={fileName}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-input bg-background hover:bg-accent text-foreground font-medium transition-colors"
+                  >
+                    <Download className="size-3.5" />
+                    <span className="hidden sm:inline">Download</span>
+                  </a>
+
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    onClick={() => setActiveViewer(null)}
+                    title="Close (Esc)"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Viewer Body */}
+              <div className="flex-1 relative bg-muted/20 flex items-center justify-center overflow-auto p-4 select-none">
+                {isImg ? (
+                  <div className="w-full h-full flex items-center justify-center overflow-auto">
+                    <img
+                      src={currentItem.url}
+                      alt={fileName}
+                      style={{
+                        transform: `scale(${activeViewer.zoom})`,
+                        transformOrigin: "center center",
+                        transition: "transform 0.15s ease-out",
+                      }}
+                      className="max-h-full max-w-full object-contain rounded shadow-sm select-none"
+                    />
+                  </div>
+                ) : isPdf ? (
+                  <div className="w-full h-full bg-background rounded-md overflow-hidden border">
+                    <iframe
+                      src={currentItem.url}
+                      title={fileName}
+                      className="w-full h-full border-none"
+                    />
+                  </div>
+                ) : (
+                  <div className="max-w-md w-full bg-background p-6 rounded-xl border shadow-sm text-center space-y-4">
+                    <div className="size-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center mx-auto border border-blue-200">
+                      <FileIcon className="size-8" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground break-all">{fileName}</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {fileExt.toUpperCase()} Document • {currentItem.size ? formatFileSize(currentItem.size) : "Standard format"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/80 mt-2">
+                        In-app secure preview. You can safely download and open this document with your installed software.
+                      </p>
+                    </div>
+                    <div className="pt-2 flex justify-center gap-2">
+                      <a
+                        href={currentItem.url}
+                        download={fileName}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold shadow-xs transition-colors"
+                      >
+                        <Download className="size-4" /> Download Document
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Left/Right Navigation Buttons */}
+                {hasPrev && (
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full size-9 bg-background/90 shadow-md hover:bg-background z-10"
+                    onClick={() => setActiveViewer((prev) => prev ? { ...prev, currentIndex: prev.currentIndex - 1, zoom: 1 } : null)}
+                    title="Previous Attachment (Left Arrow)"
+                  >
+                    <ChevronLeft className="size-5" />
+                  </Button>
+                )}
+                {hasNext && (
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full size-9 bg-background/90 shadow-md hover:bg-background z-10"
+                    onClick={() => setActiveViewer((prev) => prev ? { ...prev, currentIndex: prev.currentIndex + 1, zoom: 1 } : null)}
+                    title="Next Attachment (Right Arrow)"
+                  >
+                    <ChevronRight className="size-5" />
+                  </Button>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
+      {/* 10. MEDIA LIBRARY PICKER MODAL */}
+      <MediaPickerModal
+        open={mediaPickerOpen}
+        onOpenChange={setMediaPickerOpen}
+        onSelect={handleSelectFromMediaLibrary}
+        allowedTypes={mediaPickerPurpose === "composer" ? undefined : ["image/*"]}
+        title={
+          mediaPickerPurpose === "composer"
+            ? "Choose Attachment from Media Library"
+            : "Choose Group Avatar from Media Library"
+        }
+      />
+
 
       {/* 10. CALLER DETAILS MODAL */}
       {viewCallerDetails && (
@@ -5752,14 +6316,77 @@ export function UnifiedChatApp({
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Avatar Image URL (or via Media/Storage)</Label>
-              <Input
-                value={editGroupAvatarUrl}
-                onChange={(e) => setEditGroupAvatarUrl(e.target.value)}
-                placeholder="https://... or /uploads/..."
-                className="text-xs font-sans"
-              />
+            {/* Group Avatar Selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Group Avatar</Label>
+              <div className="flex items-center gap-3">
+                <div className="size-14 rounded-full border border-border/80 bg-muted/40 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs relative">
+                  {editGroupAvatarUrl ? (
+                    <img
+                      src={editGroupAvatarUrl}
+                      alt="Group Avatar"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <Users className="size-6 text-muted-foreground/60" />
+                  )}
+                  {isUploadingGroupAvatar && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <RefreshCw className="size-4 text-white animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1.5 font-sans"
+                      onClick={() => {
+                        setMediaPickerPurpose("editGroup");
+                        setMediaPickerOpen(true);
+                      }}
+                    >
+                      <ImageIcon className="size-3.5 text-teal-600" />
+                      Choose from Media Library
+                    </Button>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleGroupAvatarUpload(file, "editGroup");
+                          e.target.value = "";
+                        }}
+                      />
+                      <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background hover:bg-accent text-xs font-medium cursor-pointer shadow-xs">
+                        <Upload className="size-3.5 text-teal-600" />
+                        Upload
+                      </span>
+                    </label>
+                    {editGroupAvatarUrl && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                        onClick={() => {
+                          setEditGroupAvatarUrl("");
+                          setEditGroupAvatarMediaId("");
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    Select an existing image from Media Library or upload a new one to Chat/Images.
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 

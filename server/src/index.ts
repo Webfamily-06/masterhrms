@@ -392,6 +392,7 @@ app.use("/api", requireActiveSubscription);
 // Settings & Media & App-Config (Phase 1)
 app.use("/api/v1/settings", settingsRouter);
 app.use("/api/v1/media", mediaRouter);
+app.use("/api/media", mediaRouter);
 app.use("/api/v1/public", appConfigRouter);
 app.use("/api/public", appConfigRouter);
 app.use("/api", appConfigRouter);

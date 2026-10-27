@@ -69,6 +69,8 @@ export interface TenantMediaFile {
 }
 
 const DEFAULT_FOLDERS = [
+  "Chat/Images",
+  "Chat/Documents",
   "branding",
   "documents",
   "invoices",

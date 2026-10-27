@@ -219,11 +219,16 @@ async function runCompleteFunctionalAudit() {
 
     // ── Scenario 7: WebRTC Incoming Call Accept, Reject, Cancel, Hangup ──
     const callRes = await request("POST", "/chat/calls", {
+      callSessionId: `session_audit_${Date.now()}`,
+      callerId: userA1.userId,
       callerName: "Alex Morgan",
       callerPhone: "+1 (555) 019-2834",
       callerEmail: "employee@masterhrms.com",
+      receiverId: userA2.userId,
+      receiverName: "Jane Doe",
       callType: "video",
       durationSeconds: 125,
+      status: "completed",
       notes: "WebRTC Audio/Video session test - accept & hangup lifecycle",
     });
     record(7, "Test incoming call accept, reject, cancel, and hangup", (callRes.status === 200 || callRes.status === 201) ? "PASS" : "FAIL", "Logged call lifecycle with duration: 125s");
@@ -364,10 +369,13 @@ async function runCompleteFunctionalAudit() {
     // ── Scenario 24: Conversation Switching Message Isolation ──
     const otherThreadId = "direct_user-hr-001_different-user-999";
     const otherMessagesRes = await request("GET", `/chat/messages/${otherThreadId}`);
+    const otherMsgList = Array.isArray(otherMessagesRes.data)
+      ? otherMessagesRes.data
+      : (otherMessagesRes.data?.messages || []);
     const isolated =
       otherMessagesRes.status === 200 &&
-      Array.isArray(otherMessagesRes.data) &&
-      otherMessagesRes.data.length === 0;
+      Array.isArray(otherMsgList) &&
+      otherMsgList.length === 0;
     record(24, "Verify conversation switching never leaks messages between threads", isolated ? "PASS" : "FAIL", "Messages strictly bound to threadId");
 
     // ── Scenario 25: Pusher Authorization rejects non-members and cross-tenant users ──
@@ -404,7 +412,10 @@ async function runCompleteFunctionalAudit() {
 
     // ── Scenario 28: Call Logs Persistence ──
     const logsRes = await request("GET", "/chat/calls");
-    record(28, "Verify call logs persist accurately", logsRes.status === 200 && logsRes.data?.length > 0 ? "PASS" : "FAIL", `Total calls recorded: ${logsRes.data?.length}`);
+    const totalCalls = Array.isArray(logsRes.data)
+      ? logsRes.data.length
+      : (logsRes.data?.calls?.length ?? logsRes.data?.total ?? 0);
+    record(28, "Verify call logs persist accurately", logsRes.status === 200 && totalCalls > 0 ? "PASS" : "FAIL", `Total calls recorded: ${totalCalls}`);
 
     // ── Scenario 29: Dual-Workspace Parity (TanStack vs Next.js CMS) ──
     const parityPassed = unifiedChatSrc.length === unifiedChatCMS.length;
