@@ -1,3 +1,4 @@
+const bannedIpCache = new Map<string, { rules: any[]; expiresAt: number }>();
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "./auth";
 import { TenantConnectionManager } from "../services/tenant-connection-manager.service";
@@ -62,10 +63,17 @@ export async function resolveTenantContext(
     const clientIp = normalizeIp(rawIp);
     if (clientIp) {
       try {
-        const bannedRules = await client.bannedIp.findMany({
-          where: { tenantId, isActive: true },
-          select: { ipAddress: true, reason: true },
-        });
+        let bannedRules: any[] = [];
+        const cachedBanned = bannedIpCache.get(tenantId);
+        if (cachedBanned && cachedBanned.expiresAt > Date.now()) {
+          bannedRules = cachedBanned.rules;
+        } else {
+          bannedRules = await client.bannedIp.findMany({
+            where: { tenantId, isActive: true },
+            select: { ipAddress: true, reason: true },
+          });
+          bannedIpCache.set(tenantId, { rules: bannedRules, expiresAt: Date.now() + 60000 });
+        }
         if (bannedRules.length > 0) {
           const matched = bannedRules.find((rule: any) => matchIpOrCidr(clientIp, rule.ipAddress));
           if (matched) {
@@ -83,6 +91,7 @@ export async function resolveTenantContext(
     }
 
     // Run remaining middleware and route handlers inside AsyncLocalStorage context scope
+    console.log(`[PERF_CTX] resolveTenantContext done: ${Date.now() - (req as any)._tStart}ms`);
     tenantStorage.run(context, () => {
       next();
     });

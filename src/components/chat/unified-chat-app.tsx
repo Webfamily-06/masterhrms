@@ -24,6 +24,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar";
+import {
   Table,
   TableBody,
   TableCell,
@@ -103,6 +113,8 @@ import {
   Image as ImageIcon,
   Upload,
   RotateCcw,
+  Ban,
+  ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -121,6 +133,16 @@ export interface ChatMessageAttachment {
   folder?: string;
 }
 
+export type AttachmentSendState =
+  | "selected"
+  | "uploading"
+  | "uploaded"
+  | "sending"
+  | "sent"
+  | "delivered"
+  | "seen"
+  | "failed";
+
 export interface ComposerAttachmentItem {
   id: string;
   file?: File;
@@ -131,7 +153,10 @@ export interface ComposerAttachmentItem {
   previewUrl?: string;
   isUploaded?: boolean;
   uploadProgress?: number;
+  state?: AttachmentSendState;
   error?: string;
+  serverUrl?: string;
+  mediaId?: string;
 }
 
 export interface ChatMessageUrlPreview {
@@ -159,6 +184,8 @@ export interface ChatMessagePoll {
   options: ChatMessagePollOption[];
   isClosed?: boolean;
   allowMultiple?: boolean;
+  isMultiSelect?: boolean;
+  createdAt?: string;
 }
 
 export interface ChatMessageItem {
@@ -279,10 +306,17 @@ export interface GroupItem {
   unreadCount?: number;
 }
 
+export interface ReactionParticipant {
+  userId: string;
+  fullName: string;
+  avatarUrl?: string | null;
+}
+
 export interface NormalizedReaction {
   emoji: string;
   count: number;
   userIds: string[];
+  users: ReactionParticipant[];
   hasReacted: boolean;
 }
 
@@ -293,10 +327,17 @@ export function normalizeReactions(reactions: any, currentUserId?: string): Norm
       .filter((r) => r && typeof r.emoji === "string")
       .map((r) => {
         const uids: string[] = Array.isArray(r.userIds) ? r.userIds : [];
+        const rawUsers: any[] = Array.isArray(r.users) ? r.users : [];
+        const users: ReactionParticipant[] = rawUsers.map((u) => ({
+          userId: u.userId || u.id || "",
+          fullName: u.fullName || u.name || "Colleague",
+          avatarUrl: u.avatarUrl || null,
+        }));
         return {
           emoji: r.emoji,
-          count: uids.length || (typeof r.count === "number" ? r.count : 0),
+          count: uids.length || (typeof r.count === "number" ? r.count : users.length),
           userIds: uids,
+          users,
           hasReacted: Boolean(currentUserId && uids.includes(currentUserId)),
         };
       })
@@ -309,10 +350,12 @@ export function normalizeReactions(reactions: any, currentUserId?: string): Norm
       if (typeof val === "object" && val !== null && "emoji" in val) {
         const r = val as any;
         const uids: string[] = Array.isArray(r.userIds) ? r.userIds : [];
+        const rawUsers: any[] = Array.isArray(r.users) ? r.users : [];
         list.push({
           emoji: r.emoji,
           count: uids.length || (typeof r.count === "number" ? r.count : 0),
           userIds: uids,
+          users: rawUsers,
           hasReacted: Boolean(currentUserId && uids.includes(currentUserId)),
         });
       } else if (Array.isArray(val)) {
@@ -320,6 +363,7 @@ export function normalizeReactions(reactions: any, currentUserId?: string): Norm
           emoji: key,
           count: val.length,
           userIds: val,
+          users: [],
           hasReacted: Boolean(currentUserId && val.includes(currentUserId)),
         });
       } else if (typeof val === "number") {
@@ -327,6 +371,7 @@ export function normalizeReactions(reactions: any, currentUserId?: string): Norm
           emoji: key,
           count: val,
           userIds: [],
+          users: [],
           hasReacted: false,
         });
       }
@@ -368,11 +413,17 @@ export function getDateGroupLabel(dateString?: string | null): string {
 
 // Format raw server message into ChatMessageItem
 export function formatMessageItem(m: any, currentUserId: string): ChatMessageItem {
+  const isDeleted = Boolean(m.isDeletedForEveryone);
+  const rawPoll = typeof m.poll === "string" ? JSON.parse(m.poll) : m.poll;
+  const rawReactions = typeof m.reactions === "string" ? JSON.parse(m.reactions) : m.reactions;
+  const rawAttachments = typeof m.attachments === "string" ? JSON.parse(m.attachments) : m.attachments;
+  const rawVoiceNote = typeof m.voiceNote === "string" ? JSON.parse(m.voiceNote) : m.voiceNote;
+
   return {
     id: m.id,
     senderId: m.senderId,
     senderName: m.senderName || "User",
-    content: m.content || "",
+    content: isDeleted ? "This message was deleted" : (m.content || ""),
     types: m.senderId === currentUserId ? "sent" : "received",
     time: m.createdAt
       ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -385,7 +436,7 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
     eventType: m.eventType,
     eventMetadata: m.eventMetadata,
     mentions: m.mentions,
-    attachments: m.attachments || [],
+    attachments: isDeleted ? [] : (rawAttachments || []),
     replyToId: m.replyToId,
     replyTo: m.replyTo,
     isPinned: m.isPinned || false,
@@ -393,11 +444,11 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
     pinnedById: m.pinnedById,
     isEdited: m.isEdited || false,
     editedAt: m.editedAt,
-    isDeletedForEveryone: m.isDeletedForEveryone || false,
-    reactions: m.reactions || {},
-    urlPreviews: m.urlPreviews || [],
-    voiceNote: m.voiceNote,
-    poll: m.poll,
+    isDeletedForEveryone: isDeleted,
+    reactions: isDeleted ? {} : (rawReactions || {}),
+    urlPreviews: isDeleted ? [] : (m.urlPreviews || []),
+    voiceNote: isDeleted ? undefined : rawVoiceNote,
+    poll: isDeleted ? undefined : rawPoll,
   };
 }
 
@@ -490,6 +541,8 @@ function formatFileSize(bytes: number) {
 function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(voiceNote.durationSeconds || 0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const togglePlay = () => {
@@ -505,15 +558,43 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
     }
   };
 
+  const cycleSpeed = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    setPlaybackRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current) return;
+    const effectiveDuration = duration || voiceNote.durationSeconds || 1;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const seekTime = pct * effectiveDuration;
+    audioRef.current.currentTime = seekTime;
+    setCurrentTime(seekTime);
+  };
+
+  const effectiveDuration = duration || voiceNote.durationSeconds || 0;
+
   return (
-    <div className="flex items-center gap-2.5 py-1 min-w-[200px]">
+    <div data-testid="voice-note-player" className="flex items-center gap-2.5 py-1 min-w-[210px] select-none">
       <audio
         ref={audioRef}
         src={voiceNote.url}
+        preload="metadata"
+        onLoadedMetadata={() => {
+          if (audioRef.current && audioRef.current.duration && !isNaN(audioRef.current.duration)) {
+            setDuration(Math.round(audioRef.current.duration));
+          }
+        }}
         onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
         onEnded={() => {
           setIsPlaying(false);
           setCurrentTime(0);
+        }}
+        onError={() => {
+          setIsPlaying(false);
         }}
       />
       <Button
@@ -521,18 +602,22 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
         size="icon"
         variant="ghost"
         onClick={togglePlay}
-        className="size-8 rounded-full bg-primary/10 hover:bg-primary/20 text-primary flex-shrink-0"
+        className="size-8 rounded-full bg-teal-600/10 hover:bg-teal-600/20 text-teal-700 dark:text-teal-300 flex-shrink-0"
       >
         {isPlaying ? <Pause className="size-4" /> : <Play className="size-4 fill-current ml-0.5" />}
       </Button>
       <div className="flex-1 space-y-1 min-w-0">
-        <div className="h-1.5 w-full bg-muted-foreground/20 rounded-full overflow-hidden">
+        <div
+          onClick={handleSeek}
+          className="h-2 w-full bg-muted-foreground/20 rounded-full overflow-hidden cursor-pointer relative group/scrub"
+          title="Click to seek"
+        >
           <div
-            className="h-full bg-primary transition-all duration-100"
+            className="h-full bg-teal-600 dark:bg-teal-400 transition-all duration-100"
             style={{
               width: `${
-                voiceNote.durationSeconds > 0
-                  ? (currentTime / voiceNote.durationSeconds) * 100
+                effectiveDuration > 0
+                  ? (currentTime / effectiveDuration) * 100
                   : 0
               }%`,
             }}
@@ -540,7 +625,17 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
         </div>
         <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
           <span>{formatDuration(Math.floor(currentTime))}</span>
-          <span>{formatDuration(voiceNote.durationSeconds)}</span>
+          <div className="flex items-center gap-1.5">
+            <span>{formatDuration(effectiveDuration)}</span>
+            <button
+              type="button"
+              onClick={cycleSpeed}
+              className="text-[9px] px-1 py-0.2 rounded bg-muted/60 hover:bg-muted font-sans font-semibold text-foreground/80 cursor-pointer"
+              title="Playback speed"
+            >
+              {playbackRate}x
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -655,6 +750,7 @@ export function UnifiedChatApp({
   const [composerAttachments, setComposerAttachments] = useState<ComposerAttachmentItem[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
 
   // In-App Attachment Viewer Modal State (Images, PDFs & Office Documents)
   const [activeViewer, setActiveViewer] = useState<{
@@ -679,9 +775,13 @@ export function UnifiedChatApp({
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [pollAllowMultiple, setPollAllowMultiple] = useState(false);
 
-  // Voice Note Recording
+  // Voice Note Recording & Preview
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceDuration, setVoiceDuration] = useState(0);
+  const [voicePreviewBlob, setVoicePreviewBlob] = useState<Blob | null>(null);
+  const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
+  const [isPlayingVoicePreview, setIsPlayingVoicePreview] = useState(false);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -696,11 +796,13 @@ export function UnifiedChatApp({
 
   const handleContextMenu = (e: React.MouseEvent, msg: any) => {
     e.preventDefault();
+    if (msg.isDeletedForEveryone) return;
     setContextMenuMessage(msg);
     setContextMenuPos({ x: e.clientX, y: e.clientY });
   };
 
   const handleTouchStart = (e: React.TouchEvent, msg: any) => {
+    if (msg.isDeletedForEveryone) return;
     const touch = e.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
   };
@@ -791,6 +893,27 @@ export function UnifiedChatApp({
   // Optimistic message list state
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessageItem[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [unreadBelowCount, setUnreadBelowCount] = useState<number>(0);
+  const [showScrollBottom, setShowScrollBottom] = useState<boolean>(false);
+
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+    }
+    setShowScrollBottom(false);
+    setUnreadBelowCount(0);
+  }, []);
+
+  const handleMessagesScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
+    if (isNearBottom) {
+      setShowScrollBottom(false);
+      setUnreadBelowCount(0);
+    } else {
+      setShowScrollBottom(true);
+    }
+  };
 
   // ──────────────────────────────────────────────────────────────────────────
   // 1. DATA QUERIES (Authoritative, Zero Mock)
@@ -1014,10 +1137,12 @@ export function UnifiedChatApp({
   // Sync pagination cursor when new thread messages load
   useEffect(() => {
     if (messagesData) {
-      setHasMoreOlder(Boolean(messagesData.hasMore));
-      setOldestCursor(messagesData.nextCursor || null);
+      const nextHasMore = Boolean(messagesData.hasMore);
+      const nextCursor = messagesData.nextCursor || null;
+      setHasMoreOlder((prev) => (prev !== nextHasMore ? nextHasMore : prev));
+      setOldestCursor((prev) => (prev !== nextCursor ? nextCursor : prev));
     }
-  }, [messagesData]);
+  }, [messagesData?.hasMore, messagesData?.nextCursor]);
 
   // Query authoritative employee/participant profile for active direct thread
   const {
@@ -1078,8 +1203,38 @@ export function UnifiedChatApp({
     }
   }, [activeThreadId, activeTargetUserId, currentUserId]);
 
-  // Auto-select first conversation on initial load if none selected
+  // Auto-select conversation on initial load: URL param threadId takes priority, fallback to first
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlThreadId = params.get("threadId");
+      if (urlThreadId && urlThreadId !== activeThreadId) {
+        const found = conversations.find((c) => c.threadId === urlThreadId);
+        if (found) {
+          setActiveThreadId(found.threadId);
+          setActiveThreadTitle(found.title);
+          setActiveThreadType(found.type);
+          setActiveTargetUserId(found.otherParticipantId || "");
+          setActiveGroupId(found.groupId || "");
+          return;
+        } else if (urlThreadId.startsWith("direct_")) {
+          const targetId = urlThreadId.replace("direct_", "");
+          setActiveThreadId(urlThreadId);
+          setActiveThreadTitle("Direct Chat");
+          setActiveThreadType("direct");
+          setActiveTargetUserId(targetId);
+          return;
+        } else if (urlThreadId.startsWith("group_")) {
+          const gId = urlThreadId.replace("group_", "");
+          setActiveThreadId(urlThreadId);
+          setActiveThreadTitle("Group Chat");
+          setActiveThreadType("group");
+          setActiveGroupId(gId);
+          return;
+        }
+      }
+    }
+
     if (!activeThreadId && conversations.length > 0 && mode === "chats") {
       const first = conversations[0];
       setActiveThreadId(first.threadId);
@@ -1132,6 +1287,13 @@ export function UnifiedChatApp({
     if (!container) return;
     if (container.scrollTop < 40 && hasMoreOlder && !isLoadingOlder) {
       loadOlderMessages();
+    }
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    if (isNearBottom) {
+      setShowScrollBottom(false);
+      setUnreadBelowCount(0);
+    } else {
+      setShowScrollBottom(true);
     }
   }, [hasMoreOlder, isLoadingOlder, loadOlderMessages]);
 
@@ -1186,25 +1348,146 @@ export function UnifiedChatApp({
       socket.emit("chat:join", { threadId: activeThreadId });
     }
 
-    const handleIncomingMessage = (msg: any) => {
-      if (msg.threadId === activeThreadId) {
+    const handleIncomingMessage = (payload: any) => {
+      const msg = payload?.message || payload;
+      const threadId = payload?.threadId || msg?.threadId;
+      console.log("[SOCKET_INCOMING]", Date.now(), "activeThread:", activeThreadId, "msgThread:", threadId, "content:", msg?.content);
+
+      if (threadId === activeThreadId && msg && msg.id) {
         setOptimisticMessages((prev) =>
           prev.filter((m) => m.clientTempId !== msg.clientTempId && m.id !== msg.id)
         );
-        queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
 
-        // Auto-ack delivery
+        const formatted = formatMessageItem(msg, currentUserId);
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return { messages: [formatted], hasMore: false };
+          const exists = old.messages.some((m: any) => m.id === formatted.id);
+          if (exists) {
+            return {
+              ...old,
+              messages: old.messages.map((m: any) => (m.id === formatted.id ? formatted : m)),
+            };
+          }
+          return {
+            ...old,
+            messages: [...old.messages, formatted],
+          };
+        });
+
+        // Auto-ack delivery via WebSocket
         if (msg.senderId !== currentUserId) {
           socket.emit("chat:delivered", { threadId: activeThreadId, messageIds: [msg.id] });
-          api.post("/api/chat/messages/delivered", {
-            threadId: activeThreadId,
-            messageIds: [msg.id],
-          }).catch(() => {});
+        }
+
+        // Auto-scroll if near bottom
+        const container = scrollContainerRef.current;
+        if (container) {
+          const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+          if (distFromBottom < 140) {
+            scrollToBottom(false);
+          } else {
+            setUnreadBelowCount((c) => c + 1);
+            setShowScrollBottom(true);
+          }
         }
       }
-      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["chat", "contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+
+      // Update conversations query cache targeted
+      queryClient.setQueryData(["chat", "conversations"], (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((conv: any) => {
+          if (conv.threadId === threadId) {
+            return {
+              ...conv,
+              lastMessage: msg?.content || (msg?.attachments?.length ? "Shared attachment" : (msg?.voiceNote ? "Voice message" : "Message")),
+              lastMessageTime: new Date(msg?.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              unreadCount: threadId === activeThreadId ? 0 : (conv.unreadCount || 0) + 1,
+            };
+          }
+          return conv;
+        });
+      });
+    };
+
+    const handleMessageEdited = (payload: any) => {
+      const msg = payload?.message || payload;
+      const threadId = payload?.threadId || msg?.threadId;
+      if (threadId === activeThreadId && msg && msg.id) {
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          return {
+            ...old,
+            messages: old.messages.map((m: any) =>
+              m.id === msg.id ? { ...m, content: msg.content, isEdited: true, editedAt: msg.editedAt } : m
+            ),
+          };
+        });
+      }
+    };
+
+    const handleMessageDeleted = (payload: any) => {
+      const { id, threadId, isDeletedForEveryone, deletedForUserId } = payload || {};
+      if (threadId === activeThreadId) {
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          if (isDeletedForEveryone) {
+            return {
+              ...old,
+              messages: old.messages.map((m: any) =>
+                m.id === id
+                  ? {
+                      ...m,
+                      isDeletedForEveryone: true,
+                      content: "This message was deleted",
+                      attachments: [],
+                      voiceNote: undefined,
+                      poll: undefined,
+                      reactions: {},
+                      urlPreviews: [],
+                    }
+                  : m
+              ),
+            };
+          } else if (deletedForUserId === currentUserId) {
+            return {
+              ...old,
+              messages: old.messages.filter((m: any) => m.id !== id),
+            };
+          }
+          return old;
+        });
+        setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
+      }
+    };
+
+    const handleReactionEvent = (payload: any) => {
+      const { id, threadId, reactions } = payload || {};
+      if (threadId === activeThreadId) {
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          return {
+            ...old,
+            messages: old.messages.map((m: any) =>
+              m.id === id ? { ...m, reactions } : m
+            ),
+          };
+        });
+      }
+    };
+
+    const handlePollUpdated = (payload: any) => {
+      const { id, threadId, poll } = payload || {};
+      if (threadId === activeThreadId) {
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          return {
+            ...old,
+            messages: old.messages.map((m: any) =>
+              m.id === id ? { ...m, poll } : m
+            ),
+          };
+        });
+      }
     };
 
     const handleTypingEvent = (data: { threadId: string; userId: string; isTyping: boolean }) => {
@@ -1217,14 +1500,39 @@ export function UnifiedChatApp({
     };
 
     const handleReadReceipt = (data: { threadId: string; userId: string }) => {
-      if (data.threadId === activeThreadId) {
-        queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      if (data?.userId === currentUserId) return;
+      if (data?.threadId === activeThreadId) {
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          let changed = false;
+          const nextMessages = old.messages.map((m: any) => {
+            if (m.senderId === currentUserId && m.deliveryStatus !== "seen") {
+              changed = true;
+              return { ...m, deliveryStatus: "seen", status: "read" };
+            }
+            return m;
+          });
+          return changed ? { ...old, messages: nextMessages } : old;
+        });
       }
     };
 
-    const handleDeliveredReceipt = (data: { threadId: string; messageIds: string[] }) => {
-      if (data.threadId === activeThreadId) {
-        queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+    const handleDeliveredReceipt = (data: { threadId: string; messageIds: string[]; userId?: string }) => {
+      if (data?.userId === currentUserId) return;
+      if (data?.threadId === activeThreadId && Array.isArray(data.messageIds)) {
+        const idSet = new Set(data.messageIds);
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          let changed = false;
+          const nextMessages = old.messages.map((m: any) => {
+            if (idSet.has(m.id) && m.deliveryStatus !== "seen" && m.deliveryStatus !== "delivered") {
+              changed = true;
+              return { ...m, deliveryStatus: "delivered" };
+            }
+            return m;
+          });
+          return changed ? { ...old, messages: nextMessages } : old;
+        });
       }
     };
 
@@ -1384,19 +1692,10 @@ export function UnifiedChatApp({
     };
 
     socket.on("chat:message", handleIncomingMessage);
-    socket.on("chat:message_edited", () => {
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-    });
-    socket.on("chat:message_deleted", () => {
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
-    });
-    socket.on("chat:reaction", () => {
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-    });
-    socket.on("chat:poll_updated", () => {
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-    });
+    socket.on("chat:message_edited", handleMessageEdited);
+    socket.on("chat:message_deleted", handleMessageDeleted);
+    socket.on("chat:reaction", handleReactionEvent);
+    socket.on("chat:poll_updated", handlePollUpdated);
     socket.on("chat:typing", handleTypingEvent);
     socket.on("chat:read", handleReadReceipt);
     socket.on("chat:delivered", handleDeliveredReceipt);
@@ -1419,10 +1718,10 @@ export function UnifiedChatApp({
         socket.emit("chat:leave", { threadId: activeThreadId });
       }
       socket.off("chat:message", handleIncomingMessage);
-      socket.off("chat:message_edited");
-      socket.off("chat:message_deleted");
-      socket.off("chat:reaction");
-      socket.off("chat:poll_updated");
+      socket.off("chat:message_edited", handleMessageEdited);
+      socket.off("chat:message_deleted", handleMessageDeleted);
+      socket.off("chat:reaction", handleReactionEvent);
+      socket.off("chat:poll_updated", handlePollUpdated);
       socket.off("chat:typing", handleTypingEvent);
       socket.off("chat:read", handleReadReceipt);
       socket.off("chat:delivered", handleDeliveredReceipt);
@@ -1967,19 +2266,43 @@ export function UnifiedChatApp({
     }
 
     try {
+      if (voicePreviewUrl) {
+        URL.revokeObjectURL(voicePreviewUrl);
+        setVoicePreviewUrl(null);
+        setVoicePreviewBlob(null);
+      }
+      setIsPlayingVoicePreview(false);
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
+
+      let mimeType = "audio/webm";
+      if (typeof MediaRecorder.isTypeSupported === "function") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        } else {
+          mimeType = "";
+        }
+      }
+
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+        if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(250);
       setIsRecordingVoice(true);
       setVoiceDuration(0);
 
+      if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
       voiceTimerRef.current = setInterval(() => {
         setVoiceDuration((prev) => prev + 1);
       }, 1000);
@@ -1988,61 +2311,192 @@ export function UnifiedChatApp({
     }
   };
 
-  const cancelVoiceRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
-      mediaRecorderRef.current = null;
+  const stopVoiceRecording = () => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") return;
+
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
     }
-    if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+
+    const mr = mediaRecorderRef.current;
+    mr.onstop = () => {
+      try {
+        mr.stream.getTracks().forEach((track) => track.stop());
+      } catch {}
+      const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
+      if (blob.size === 0) {
+        toast.error("No audio recorded.");
+        setIsRecordingVoice(false);
+        setVoiceDuration(0);
+        return;
+      }
+      const previewUrl = URL.createObjectURL(blob);
+      setVoicePreviewBlob(blob);
+      setVoicePreviewUrl(previewUrl);
+      setIsRecordingVoice(false);
+    };
+
+    mr.stop();
+  };
+
+  const cancelVoiceRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+    if (voicePreviewUrl) {
+      URL.revokeObjectURL(voicePreviewUrl);
+      setVoicePreviewUrl(null);
+      setVoicePreviewBlob(null);
+    }
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+    }
     audioChunksRef.current = [];
     setIsRecordingVoice(false);
+    setIsPlayingVoicePreview(false);
     setVoiceDuration(0);
   };
 
+  const togglePlayVoicePreview = () => {
+    if (!voicePreviewAudioRef.current) return;
+    if (isPlayingVoicePreview) {
+      voicePreviewAudioRef.current.pause();
+      setIsPlayingVoicePreview(false);
+    } else {
+      voicePreviewAudioRef.current.play().catch(() => {});
+      setIsPlayingVoicePreview(true);
+    }
+  };
+
   const sendVoiceRecording = async () => {
-    if (!mediaRecorderRef.current) return;
-    const recordedDuration = voiceDuration;
+    let blobToSend = voicePreviewBlob;
+    let durationToSend = voiceDuration;
 
-    mediaRecorderRef.current.onstop = async () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      const audioFile = new File([audioBlob], `voice_note_${Date.now()}.webm`, {
-        type: "audio/webm",
-      });
-
-      try {
-        const formData = new FormData();
-        formData.append("files", audioFile);
-        const uploadRes: any = await api.upload("/api/chat/upload", formData);
-        const uploadedFile = (uploadRes?.files || uploadRes?.data || [])[0];
-
-        if (!uploadedFile) throw new Error("Upload failed");
-
-        await api.post("/api/chat/messages", {
-          threadId: activeThreadId,
-          content: "🎤 Voice message",
-          clientTempId: `temp_${Date.now()}`,
-          recipientId: activeThreadType === "direct" ? activeTargetUserId : undefined,
-          groupId: activeThreadType === "group" ? activeGroupId : undefined,
-          voiceNote: {
-            url: uploadedFile.url,
-            durationSeconds: Math.max(recordedDuration, 1),
-            size: audioFile.size,
-          },
-        });
-
-        queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-        queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
-      } catch (err: any) {
-        toast.error("Failed to upload voice message");
+    if (isRecordingVoice && mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      if (voiceTimerRef.current) {
+        clearInterval(voiceTimerRef.current);
+        voiceTimerRef.current = null;
       }
+      const mr = mediaRecorderRef.current;
+      await new Promise<void>((resolve) => {
+        mr.onstop = () => {
+          try {
+            mr.stream.getTracks().forEach((track) => track.stop());
+          } catch {}
+          blobToSend = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
+          resolve();
+        };
+        mr.stop();
+      });
+      setIsRecordingVoice(false);
+    }
+
+    if (!blobToSend || blobToSend.size === 0) {
+      toast.error("No audio recorded to send.");
+      cancelVoiceRecording();
+      return;
+    }
+
+    if (blobToSend.size > 30 * 1024 * 1024) {
+      toast.error("Voice note exceeds 30 MB size limit.");
+      cancelVoiceRecording();
+      return;
+    }
+
+    const tempId = `temp_voice_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const localPreviewUrl = voicePreviewUrl || URL.createObjectURL(blobToSend);
+
+    // Optimistic voice message
+    const optimisticVoiceItem: ChatMessageItem = {
+      id: tempId,
+      clientTempId: tempId,
+      senderId: currentUserId,
+      senderName: (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || "Me",
+      content: "",
+      voiceNote: {
+        url: localPreviewUrl,
+        durationSeconds: Math.max(durationToSend, 1),
+        size: blobToSend.size,
+      },
+      types: "sent",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      createdAt: new Date().toISOString(),
+      status: "pending",
+      deliveryStatus: "sent",
+      isOptimistic: true,
     };
 
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
-    if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
-    setIsRecordingVoice(false);
-    setVoiceDuration(0);
+    setOptimisticMessages((prev) => [...prev, optimisticVoiceItem]);
+    cancelVoiceRecording();
+    scrollToBottom(true);
+
+    try {
+      const ext = blobToSend.type.includes("mp4") ? "mp4" : "webm";
+      const audioFile = new File([blobToSend], `voice_note_${Date.now()}.${ext}`, {
+        type: blobToSend.type || "audio/webm",
+      });
+
+      const formData = new FormData();
+      formData.append("files", audioFile);
+      const uploadRes: any = await api.upload("/api/chat/upload", formData);
+      const uploadedFile = (uploadRes?.files || uploadRes?.data || [])[0];
+
+      if (!uploadedFile?.url) {
+        throw new Error("Failed to upload voice message file.");
+      }
+
+      const res: any = await api.post("/api/chat/messages", {
+        threadId: activeThreadId,
+        content: "",
+        clientTempId: tempId,
+        recipientId: activeThreadType === "direct" ? activeTargetUserId : undefined,
+        groupId: activeThreadType === "group" ? activeGroupId : undefined,
+        voiceNote: {
+          url: uploadedFile.url,
+          durationSeconds: Math.max(durationToSend, 1),
+          size: audioFile.size,
+        },
+      });
+
+      const canonicalMsg = res?.message || res;
+      setOptimisticMessages((prev) =>
+        prev.filter((m) => m.clientTempId !== tempId && m.id !== tempId && m.id !== canonicalMsg?.id)
+      );
+
+      // Instant cache update
+      queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+        if (!old || !old.messages) return old;
+        const exists = old.messages.some((m: any) => m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId));
+        if (exists) {
+          return {
+            ...old,
+            messages: old.messages.map((m: any) =>
+              m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId)
+                ? canonicalMsg
+                : m
+            ),
+          };
+        }
+        return {
+          ...old,
+          messages: [...old.messages, canonicalMsg],
+        };
+      });
+      scrollToBottom(true);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to deliver voice note.");
+      setOptimisticMessages((prev) =>
+        prev.map((m) => (m.clientTempId === tempId ? { ...m, status: "failed" } : m))
+      );
+    }
   };
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -2084,8 +2538,8 @@ export function UnifiedChatApp({
         toast.error(`Security restriction: Executable / script file "${f.name}" is blocked.`);
         continue;
       }
-      if (f.size > 25 * 1024 * 1024) {
-        toast.error(`File "${f.name}" exceeds 25 MB size limit.`);
+      if (f.size > 30 * 1024 * 1024) {
+        toast.error(`File "${f.name}" exceeds 30 MB size limit.`);
         continue;
       }
       validItems.push(createPendingItem(f));
@@ -2275,7 +2729,7 @@ export function UnifiedChatApp({
     if (!activeThreadId) return;
 
     setIsSending(true);
-    const content = messageInput.trim() || (totalPendingCount > 0 ? "Shared file(s)" : "");
+    const content = messageInput.trim();
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const replyTarget = replyingToMessage;
     const currentAttachments = [...composerAttachments];
@@ -2306,6 +2760,13 @@ export function UnifiedChatApp({
       senderId: currentUserId,
       senderName: (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || "Me",
       content,
+      attachments: currentAttachments.map((a) => ({
+        id: a.id,
+        name: a.name,
+        size: a.size,
+        mimeType: a.mimeType,
+        url: a.previewUrl || a.mediaFile?.url || "",
+      })),
       types: "sent",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       createdAt: new Date().toISOString(),
@@ -2323,6 +2784,7 @@ export function UnifiedChatApp({
     };
 
     setOptimisticMessages((prev) => [...prev, optimisticItem]);
+    scrollToBottom(true);
 
     try {
       let uploadedAttachments: any[] = [];
@@ -2389,9 +2851,40 @@ export function UnifiedChatApp({
         prev.filter((m) => m.clientTempId !== tempId && m.id !== tempId && m.id !== canonicalMsg?.id)
       );
 
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      // Instant cache update
+      queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+        if (!old || !old.messages) return old;
+        const exists = old.messages.some((m: any) => m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId));
+        if (exists) {
+          return {
+            ...old,
+            messages: old.messages.map((m: any) =>
+              m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId)
+                ? canonicalMsg
+                : m
+            ),
+          };
+        }
+        return {
+          ...old,
+          messages: [...old.messages, canonicalMsg],
+        };
+      });
+
+      // Update conversations list last message
+      queryClient.setQueryData(["chat", "conversations"], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((c: any) =>
+          c.threadId === activeThreadId
+            ? {
+                ...c,
+                lastMessage: canonicalMsg.content || (canonicalMsg.attachments?.length ? "Shared attachment" : (canonicalMsg.voiceNote ? "Voice message" : "Message")),
+                lastMessageTime: canonicalMsg.createdAt || new Date().toISOString(),
+              }
+            : c
+        );
+      });
+      scrollToBottom(true);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || err?.message || "Failed to send message");
       setOptimisticMessages((prev) =>
@@ -2436,10 +2929,78 @@ export function UnifiedChatApp({
   };
 
   const handleAddReaction = async (messageId: string, emoji: string) => {
+    const myName = (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || "Me";
+    const myAvatar = (currentUser as any)?.profile?.avatarUrl || null;
+
+    // Instant optimistic update
+    queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+      if (!old || !old.messages) return old;
+      return {
+        ...old,
+        messages: old.messages.map((m: any) => {
+          if (m.id !== messageId) return m;
+          const currentReactions: NormalizedReaction[] = normalizeReactions(m.reactions, currentUserId);
+          const existingIdx = currentReactions.findIndex((r) => r.emoji === emoji);
+          let nextReactions: NormalizedReaction[];
+
+          if (existingIdx >= 0) {
+            const target = currentReactions[existingIdx];
+            if (target.hasReacted) {
+              const newUsers = (target.users || []).filter((u) => u.userId !== currentUserId);
+              const newUserIds = target.userIds.filter((id) => id !== currentUserId);
+              if (newUserIds.length === 0) {
+                nextReactions = currentReactions.filter((_, idx) => idx !== existingIdx);
+              } else {
+                nextReactions = currentReactions.map((r, idx) =>
+                  idx === existingIdx
+                    ? { ...r, count: newUserIds.length, userIds: newUserIds, users: newUsers, hasReacted: false }
+                    : r
+                );
+              }
+            } else {
+              const newUsers = [...(target.users || []), { userId: currentUserId, fullName: myName, avatarUrl: myAvatar }];
+              const newUserIds = [...target.userIds, currentUserId];
+              nextReactions = currentReactions.map((r, idx) =>
+                idx === existingIdx
+                  ? { ...r, count: newUserIds.length, userIds: newUserIds, users: newUsers, hasReacted: true }
+                  : r
+              );
+            }
+          } else {
+            nextReactions = [
+              ...currentReactions,
+              {
+                emoji,
+                count: 1,
+                userIds: [currentUserId],
+                users: [{ userId: currentUserId, fullName: myName, avatarUrl: myAvatar }],
+                hasReacted: true,
+              },
+            ];
+          }
+          return {
+            ...m,
+            reactions: nextReactions,
+          };
+        }),
+      };
+    });
+
     try {
-      await api.post(`/api/chat/messages/${messageId}/react`, { emoji });
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      const res: any = await api.post(`/api/chat/messages/${messageId}/react`, { emoji });
+      if (res?.reactions) {
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          return {
+            ...old,
+            messages: old.messages.map((m: any) =>
+              m.id === messageId ? { ...m, reactions: res.reactions } : m
+            ),
+          };
+        });
+      }
     } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
       toast.error("Failed to add reaction");
     }
   };
@@ -2450,7 +3011,15 @@ export function UnifiedChatApp({
       await api.patch(`/api/chat/messages/${editingMessage.id}`, {
         content: editingContent.trim(),
       });
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+        if (!old || !old.messages) return old;
+        return {
+          ...old,
+          messages: old.messages.map((m: any) =>
+            m.id === editingMessage.id ? { ...m, content: editingContent.trim(), isEdited: true } : m
+          ),
+        };
+      });
       setEditingMessage(null);
       setEditingContent("");
       toast.success("Message edited");
@@ -2460,12 +3029,40 @@ export function UnifiedChatApp({
   };
 
   const handleDeleteMessage = async (messageId: string, mode: "me" | "everyone") => {
+    // Instant optimistic removal or tombstone update
+    queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+      if (!old || !old.messages) return old;
+      if (mode === "me") {
+        return {
+          ...old,
+          messages: old.messages.filter((m: any) => m.id !== messageId),
+        };
+      } else {
+        return {
+          ...old,
+          messages: old.messages.map((m: any) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  isDeletedForEveryone: true,
+                  content: "This message was deleted",
+                  attachments: null,
+                  voiceNote: null,
+                  poll: null,
+                  reactions: null,
+                  urlPreviews: null,
+                }
+              : m
+          ),
+        };
+      }
+    });
+
     try {
       await api.delete(`/api/chat/messages/${messageId}?mode=${mode}`);
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
       toast.success(mode === "everyone" ? "Message deleted for everyone" : "Message hidden for you");
     } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
       toast.error(err?.response?.data?.error || "Failed to delete message");
     }
   };
@@ -2488,18 +3085,68 @@ export function UnifiedChatApp({
   };
 
   const handleVotePoll = async (messageId: string, optionId: string) => {
+    queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+      if (!old || !old.messages) return old;
+      return {
+        ...old,
+        messages: old.messages.map((m: any) => {
+          if (m.id !== messageId || !m.poll) return m;
+          const poll = typeof m.poll === "string" ? JSON.parse(m.poll) : m.poll;
+          const allowMultiple = Boolean(poll.allowMultiple || poll.isMultiSelect);
+          const updatedOptions = (poll.options || []).map((opt: any) => {
+            const votes: string[] = Array.isArray(opt.votes) ? [...opt.votes] : [];
+            if (opt.id === optionId) {
+              if (votes.includes(currentUserId)) {
+                return { ...opt, votes: votes.filter((id) => id !== currentUserId) };
+              } else {
+                return { ...opt, votes: [...votes, currentUserId] };
+              }
+            } else if (!allowMultiple) {
+              return { ...opt, votes: votes.filter((id) => id !== currentUserId) };
+            }
+            return opt;
+          });
+          return {
+            ...m,
+            poll: { ...poll, options: updatedOptions },
+          };
+        }),
+      };
+    });
+
     try {
-      await api.post(`/api/chat/messages/${messageId}/poll/vote`, { optionId });
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      const res: any = await api.post(`/api/chat/messages/${messageId}/poll/vote`, { optionId });
+      if (res?.poll) {
+        queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          if (!old || !old.messages) return old;
+          return {
+            ...old,
+            messages: old.messages.map((m: any) =>
+              m.id === messageId ? { ...m, poll: res.poll } : m
+            ),
+          };
+        });
+      }
     } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
       toast.error(err?.response?.data?.error || "Failed to cast vote");
     }
   };
 
   const handleClosePoll = async (messageId: string) => {
     try {
-      await api.post(`/api/chat/messages/${messageId}/poll/close`);
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      const res: any = await api.post(`/api/chat/messages/${messageId}/poll/close`);
+      queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+        if (!old || !old.messages) return old;
+        return {
+          ...old,
+          messages: old.messages.map((m: any) =>
+            m.id === messageId
+              ? { ...m, poll: res?.poll ? res.poll : (m.poll ? { ...m.poll, isClosed: true } : m.poll) }
+              : m
+          ),
+        };
+      });
       toast.success("Poll closed");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to close poll");
@@ -2517,30 +3164,45 @@ export function UnifiedChatApp({
       return;
     }
 
+    const tempId = `temp_poll_${Date.now()}`;
+    const newPollData = {
+      question: pollQuestion.trim(),
+      options: cleanOptions.map((text, idx) => ({
+        id: `opt_${idx + 1}`,
+        text,
+        votes: [],
+      })),
+      isClosed: false,
+      allowMultiple: pollAllowMultiple,
+      isMultiSelect: pollAllowMultiple,
+    };
+
+    setCreatePollOpen(false);
+    setPollQuestion("");
+    setPollOptions(["", ""]);
+    setPollAllowMultiple(false);
+
     try {
-      await api.post("/api/chat/messages", {
+      const res: any = await api.post("/api/chat/messages", {
         threadId: activeThreadId,
         content: `📊 Poll: ${pollQuestion.trim()}`,
-        clientTempId: `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        clientTempId: tempId,
         recipientId: activeThreadType === "direct" ? activeTargetUserId : undefined,
         groupId: activeThreadType === "group" ? activeGroupId : undefined,
-        poll: {
-          question: pollQuestion.trim(),
-          options: cleanOptions.map((text, idx) => ({
-            id: `opt_${idx + 1}`,
-            text,
-            votes: [],
-          })),
-          isClosed: false,
-          allowMultiple: pollAllowMultiple,
-        },
+        poll: newPollData,
       });
 
-      setCreatePollOpen(false);
-      setPollQuestion("");
-      setPollOptions(["", ""]);
-      setPollAllowMultiple(false);
-      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      const canonicalMsg = res?.message || res;
+      queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+        if (!old || !old.messages) return old;
+        const exists = old.messages.some((m: any) => m.id === canonicalMsg.id);
+        if (exists) return old;
+        return {
+          ...old,
+          messages: [...old.messages, canonicalMsg],
+        };
+      });
+      scrollToBottom(true);
       toast.success("Poll created successfully!");
     } catch (err: any) {
       toast.error("Failed to create poll");
@@ -3771,7 +4433,7 @@ export function UnifiedChatApp({
                   <p className="text-sm font-bold text-teal-800 dark:text-teal-200">
                     Drop files here to upload to this conversation
                   </p>
-                  <p className="text-xs text-teal-600">Documents, images, PDF (Max 25 MB)</p>
+                  <p className="text-xs text-teal-600">Documents, images, PDF (Max 30 MB)</p>
                 </div>
               )}
 
@@ -3859,187 +4521,222 @@ export function UnifiedChatApp({
                           onTouchEnd={(e) => handleTouchEnd(e, msg)}
                           className={cn(
                             "px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-2xs relative select-text",
-                            isSent
+                            msg.isDeletedForEveryone
+                              ? "bg-muted/50 text-muted-foreground border border-dashed border-border italic"
+                              : isSent
                               ? "bg-teal-700 text-white rounded-br-none"
-                              : "bg-muted/80 text-foreground border border-border/60 rounded-bl-none",
-                            msg.isDeletedForEveryone && "italic opacity-70"
+                              : "bg-muted/80 text-foreground border border-border/60 rounded-bl-none"
                           )}
                         >
-                          {/* Message Content */}
-                          {msg.content}
-
-                          {/* URL Previews */}
-                          {msg.urlPreviews && msg.urlPreviews.length > 0 && (
-                            <div className="mt-2 space-y-1.5">
-                              {msg.urlPreviews.map((preview, idx) => (
-                                <a
-                                  key={idx}
-                                  href={preview.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block p-2 rounded bg-card text-foreground border border-border/70 hover:bg-muted/60 transition-colors"
-                                >
-                                  {preview.image && (
-                                    <img
-                                      src={preview.image}
-                                      alt={preview.title || "Preview"}
-                                      className="w-full h-28 object-cover rounded mb-1.5"
-                                    />
-                                  )}
-                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-                                    <ExternalLink className="size-3" />
-                                    <span>{preview.siteName || preview.url}</span>
-                                  </div>
-                                  <p className="font-semibold text-xs line-clamp-1">{preview.title}</p>
-                                  {preview.description && (
-                                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
-                                      {preview.description}
-                                    </p>
-                                  )}
-                                </a>
-                              ))}
+                          {msg.isDeletedForEveryone ? (
+                            <div className="flex items-center gap-1.5 select-none text-muted-foreground py-0.5">
+                              <Ban className="size-3.5 text-muted-foreground/80 shrink-0" />
+                              <span>This message was deleted</span>
                             </div>
-                          )}
+                          ) : (
+                            <>
+                              {/* Message Content */}
+                              {msg.content}
 
-                          {/* Voice Note Player */}
-                          {msg.voiceNote && (
-                            <div className="mt-2">
-                              <VoiceNotePlayer voiceNote={msg.voiceNote} />
-                            </div>
-                          )}
-
-                          {/* Attachments List */}
-                          {msg.attachments && msg.attachments.length > 0 && (
-                            <div className="mt-2 space-y-1.5">
-                              {msg.attachments.map((att, aIdx) => {
-                                const isImage = att.mimeType?.startsWith("image/");
-                                const isPdf = att.mimeType?.includes("pdf") || att.name?.toLowerCase().endsWith(".pdf");
-
-                                return isImage ? (
-                                  <div
-                                    key={aIdx}
-                                    onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                    className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-xs"
-                                  >
-                                    <img
-                                      src={att.url}
-                                      alt={att.name}
-                                      className="max-h-48 w-auto object-cover group-hover/img:scale-105 transition-transform"
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1">
-                                      <Eye className="size-4" /> View Full
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div
-                                    key={aIdx}
-                                    onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                    className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-xs cursor-pointer hover:bg-muted/60 transition-colors"
-                                  >
-                                    {isPdf ? (
-                                      <FileText className="size-5 text-rose-600 flex-shrink-0" />
-                                    ) : (
-                                      <FileIcon className="size-5 text-teal-600 flex-shrink-0" />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-medium text-xs truncate">{att.name}</p>
-                                      <p className="text-[10px] text-muted-foreground">{formatFileSize(att.size)}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const link = document.createElement("a");
-                                        link.href = att.url;
-                                        link.download = att.name;
-                                        link.click();
-                                      }}
-                                      className="p-1 hover:bg-muted rounded text-teal-700 dark:text-teal-400"
-                                      title="Download"
+                              {/* URL Previews */}
+                              {msg.urlPreviews && msg.urlPreviews.length > 0 && (
+                                <div className="mt-2 space-y-1.5">
+                                  {msg.urlPreviews.map((preview, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={preview.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="block p-2 rounded bg-card text-foreground border border-border/70 hover:bg-muted/60 transition-colors"
                                     >
-                                      <Download className="size-4" />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          {/* Poll Card */}
-                          {msg.poll && (
-                            <div className="mt-2 p-3 rounded-lg bg-card text-foreground border border-border/80 space-y-2 min-w-[240px]">
-                              <div className="flex items-center justify-between">
-                                <h5 className="font-semibold text-xs flex items-center gap-1.5">
-                                  <BarChart2 className="size-3.5 text-teal-600" />
-                                  <span>{msg.poll.question}</span>
-                                </h5>
-                                {msg.poll.isClosed && (
-                                  <Badge variant="secondary" className="text-[9px]">Closed</Badge>
-                                )}
-                              </div>
-
-                              <div className="space-y-1.5">
-                                {(msg.poll.options || []).map((opt) => {
-                                  const totalVotes = (msg.poll?.options || []).reduce(
-                                    (sum, o) => sum + (Array.isArray(o.votes) ? o.votes.length : (typeof (o as any).votes === "number" ? (o as any).votes : 0)),
-                                    0
-                                  );
-                                  const optionVotes = Array.isArray(opt.votes) ? opt.votes.length : (typeof (opt as any).votes === "number" ? (opt as any).votes : 0);
-                                  const pct = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
-                                  const hasVoted = Array.isArray(opt.votes) && opt.votes.includes(currentUserId);
-
-                                  return (
-                                    <div
-                                      key={opt.id}
-                                      onClick={() => {
-                                        if (!msg.poll?.isClosed) handleVotePoll(msg.id, opt.id);
-                                      }}
-                                      className={cn(
-                                        "p-2 rounded border border-border/60 relative overflow-hidden transition-colors cursor-pointer",
-                                        hasVoted && "border-teal-500 bg-teal-50/40 dark:bg-teal-950/20"
+                                      {preview.image && (
+                                        <img
+                                          src={preview.image}
+                                          alt={preview.title || "Preview"}
+                                          className="w-full h-28 object-cover rounded mb-1.5"
+                                        />
                                       )}
-                                    >
-                                      <div
-                                        className="absolute inset-y-0 left-0 bg-teal-200/40 dark:bg-teal-800/20 pointer-events-none"
-                                        style={{ width: `${pct}%` }}
-                                      />
-                                      <div className="relative flex items-center justify-between text-xs">
-                                        <div className="flex items-center gap-1.5">
-                                          {hasVoted ? (
-                                            <CheckSquare className="size-3.5 text-teal-600" />
-                                          ) : (
-                                            <Square className="size-3.5 text-muted-foreground" />
-                                          )}
-                                          <span className="font-medium">{opt.text}</span>
-                                        </div>
-                                        <span className="text-[11px] font-mono text-muted-foreground">
-                                          {optionVotes} ({pct}%)
-                                        </span>
+                                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
+                                        <ExternalLink className="size-3" />
+                                        <span>{preview.siteName || preview.url}</span>
                                       </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                                      <p className="font-semibold text-xs line-clamp-1">{preview.title}</p>
+                                      {preview.description && (
+                                        <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                                          {preview.description}
+                                        </p>
+                                      )}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
 
-                                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t">
-                                  <span>
-                                    {(msg.poll.options || []).reduce((sum, o) => sum + (Array.isArray(o.votes) ? o.votes.length : (typeof (o as any).votes === "number" ? (o as any).votes : 0)), 0)} total votes
-                                  </span>
-                                {isAuthor && !msg.poll.isClosed && (
-                                  <button
-                                    onClick={() => handleClosePoll(msg.id)}
-                                    className="text-destructive hover:underline"
-                                  >
-                                    Close Poll
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          )}
+                              {/* Voice Note Player */}
+                              {msg.voiceNote && (
+                                <div className="mt-2">
+                                  <VoiceNotePlayer voiceNote={msg.voiceNote} />
+                                </div>
+                              )}
 
-                          {/* Edited label */}
-                          {msg.isEdited && (
-                            <span className="text-[9px] opacity-75 ml-1.5">(edited)</span>
+                              {/* Attachments List */}
+                              {msg.attachments && msg.attachments.length > 0 && (
+                                <div className="mt-2 space-y-1.5">
+                                  {msg.attachments.map((att, aIdx) => {
+                                    const isImage = att.mimeType?.startsWith("image/");
+                                    const isPdf = att.mimeType?.includes("pdf") || att.name?.toLowerCase().endsWith(".pdf");
+
+                                    return isImage ? (
+                                      <div
+                                        key={aIdx}
+                                        onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
+                                        className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-xs"
+                                      >
+                                        <img
+                                          src={att.url}
+                                          alt={att.name}
+                                          className="max-h-48 w-auto object-cover group-hover/img:scale-105 transition-transform"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1">
+                                          <Eye className="size-4" /> View Full
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div
+                                        key={aIdx}
+                                        onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
+                                        className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-xs cursor-pointer hover:bg-muted/60 transition-colors"
+                                      >
+                                        {isPdf ? (
+                                          <FileText className="size-5 text-rose-600 flex-shrink-0" />
+                                        ) : (
+                                          <FileIcon className="size-5 text-teal-600 flex-shrink-0" />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium text-xs truncate">{att.name}</p>
+                                          <p className="text-[10px] text-muted-foreground">{formatFileSize(att.size)}</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const link = document.createElement("a");
+                                            link.href = att.url;
+                                            link.download = att.name;
+                                            link.click();
+                                          }}
+                                          className="p-1 hover:bg-muted rounded text-teal-700 dark:text-teal-400"
+                                          title="Download"
+                                        >
+                                          <Download className="size-4" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Poll Card */}
+                              {msg.poll && (
+                                <div className="mt-2 p-3 rounded-lg bg-card text-foreground border border-border/80 space-y-2 min-w-[240px]">
+                                  <div className="flex items-center justify-between">
+                                    <h5 className="font-semibold text-xs flex items-center gap-1.5">
+                                      <BarChart2 className="size-3.5 text-teal-600" />
+                                      <span>{msg.poll.question}</span>
+                                    </h5>
+                                    {msg.poll.isClosed && (
+                                      <Badge variant="secondary" className="text-[9px]">Closed</Badge>
+                                    )}
+                                  </div>
+
+                                  {(() => {
+                                    const isMulti = Boolean(msg.poll.allowMultiple || msg.poll.isMultiSelect);
+                                    const allVoterIds = new Set<string>();
+                                    (msg.poll.options || []).forEach((o: any) => {
+                                      if (Array.isArray(o.votes)) {
+                                        o.votes.forEach((v: string) => allVoterIds.add(v));
+                                      }
+                                    });
+                                    const distinctVotersCount = allVoterIds.size;
+                                    const totalSelections = (msg.poll.options || []).reduce(
+                                      (sum: number, o: any) => sum + (Array.isArray(o.votes) ? o.votes.length : (typeof o.votes === "number" ? o.votes : 0)),
+                                      0
+                                    );
+                                    const denominator = isMulti ? Math.max(distinctVotersCount, 1) : Math.max(totalSelections, 1);
+
+                                    return (
+                                      <>
+                                        <div className="space-y-1.5">
+                                          {(msg.poll.options || []).map((opt: any) => {
+                                            const optionVotes = Array.isArray(opt.votes)
+                                              ? opt.votes.length
+                                              : typeof opt.votes === "number"
+                                              ? opt.votes
+                                              : 0;
+                                            const pct = (distinctVotersCount > 0 || totalSelections > 0)
+                                              ? Math.round((optionVotes / denominator) * 100)
+                                              : 0;
+                                            const hasVoted = Array.isArray(opt.votes) && opt.votes.includes(currentUserId);
+
+                                            return (
+                                              <div
+                                                key={opt.id}
+                                                onClick={() => {
+                                                  if (!msg.poll?.isClosed) handleVotePoll(msg.id, opt.id);
+                                                }}
+                                                className={cn(
+                                                  "p-2 rounded border border-border/60 relative overflow-hidden transition-colors cursor-pointer select-none",
+                                                  hasVoted && "border-teal-500 bg-teal-50/40 dark:bg-teal-950/20"
+                                                )}
+                                              >
+                                                <div
+                                                  className="absolute inset-y-0 left-0 bg-teal-200/40 dark:bg-teal-800/20 pointer-events-none"
+                                                  style={{ width: `${Math.min(pct, 100)}%` }}
+                                                />
+                                                <div className="relative flex items-center justify-between text-xs">
+                                                  <div className="flex items-center gap-1.5">
+                                                    {hasVoted ? (
+                                                      <CheckSquare className="size-3.5 text-teal-600" />
+                                                    ) : (
+                                                      <Square className="size-3.5 text-muted-foreground" />
+                                                    )}
+                                                    <span className="font-medium">{opt.text}</span>
+                                                  </div>
+                                                  <span className="text-[11px] font-mono text-muted-foreground">
+                                                    {optionVotes} ({pct}%)
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border">
+                                          <span>
+                                            {isMulti
+                                              ? `${distinctVotersCount} voter${distinctVotersCount === 1 ? "" : "s"} · ${totalSelections} selections`
+                                              : `${totalSelections} vote${totalSelections === 1 ? "" : "s"}`}
+                                          </span>
+                                          {isAuthor && !msg.poll.isClosed && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleClosePoll(msg.id)}
+                                              className="text-[10px] text-destructive hover:underline cursor-pointer"
+                                            >
+                                              End Poll
+                                            </button>
+                                          )}
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+
+                              {/* Edited label */}
+                              {msg.isEdited && (
+                                <span className="text-[9px] opacity-75 ml-1.5">(edited)</span>
+                              )}
+                            </>
                           )}
                         </div>
 
@@ -4049,20 +4746,64 @@ export function UnifiedChatApp({
                           if (pills.length === 0) return null;
                           return (
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {pills.map(({ emoji, count, hasReacted }) => (
-                                <button
-                                  key={emoji}
-                                  onClick={() => handleAddReaction(msg.id, emoji)}
-                                  className={cn(
-                                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border transition-colors cursor-pointer",
-                                    hasReacted
-                                      ? "bg-teal-100 dark:bg-teal-950 text-teal-800 border-teal-300"
-                                      : "bg-muted/60 hover:bg-muted border-border"
-                                  )}
-                                >
-                                  <span>{emoji}</span>
-                                  <span className="font-semibold">{count}</span>
-                                </button>
+                              {pills.map(({ emoji, count, hasReacted, users }) => (
+                                <Popover key={emoji}>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      data-testid={`reaction-pill-${emoji}`}
+                                      className={cn(
+                                        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border transition-colors cursor-pointer",
+                                        hasReacted
+                                          ? "bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700"
+                                          : "bg-muted/60 hover:bg-muted border-border text-foreground"
+                                      )}
+                                      title="Click to view who reacted"
+                                    >
+                                      <span>{emoji}</span>
+                                      <span className="font-semibold">{count}</span>
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-56 p-2 text-xs font-sans shadow-lg" align="start">
+                                    <div className="font-semibold text-xs border-b border-border pb-1.5 mb-1.5 flex items-center justify-between">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-base">{emoji}</span>
+                                        <span>{count} {count === 1 ? "reaction" : "reactions"}</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddReaction(msg.id, emoji)}
+                                        className="text-[11px] text-teal-600 hover:underline cursor-pointer font-medium"
+                                      >
+                                        {hasReacted ? "Remove" : "React"}
+                                      </button>
+                                    </div>
+                                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                      {users && users.length > 0 ? (
+                                        users.map((u) => {
+                                          const isMe = u.userId === currentUserId;
+                                          return (
+                                            <div key={u.userId} className="flex items-center gap-2 py-0.5">
+                                              <Avatar className="size-5">
+                                                <AvatarImage src={u.avatarUrl || undefined} />
+                                                <AvatarFallback className="text-[9px] bg-teal-100 text-teal-800 font-bold">
+                                                  {(u.fullName || "U").slice(0, 2).toUpperCase()}
+                                                </AvatarFallback>
+                                              </Avatar>
+                                              <span className="truncate flex-1 text-xs">
+                                                {u.fullName} {isMe && <span className="text-muted-foreground font-normal">(You)</span>}
+                                              </span>
+                                            </div>
+                                          );
+                                        })
+                                      ) : (
+                                        <div className="text-muted-foreground text-[11px] py-1">
+                                          {hasReacted ? "You reacted" : `${count} person(s)`}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
                               ))}
                             </div>
                           );
@@ -4095,100 +4836,102 @@ export function UnifiedChatApp({
                         </div>
 
                         {/* Message Action Context Menu (Hover or Click) */}
-                        <div
-                          className={cn(
-                            "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-card/90 backdrop-blur-xs border border-border rounded-lg shadow-sm px-1 py-0.5 z-10",
-                            isSent ? "-left-24" : "-right-24"
-                          )}
-                        >
-                          {/* Quick Emoji Reaction */}
-                          <button
-                            onClick={() => handleAddReaction(msg.id, "👍")}
-                            className="p-1 hover:bg-muted rounded text-xs"
-                            title="React Thumbs Up"
+                        {!msg.isDeletedForEveryone && (
+                          <div
+                            className={cn(
+                              "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-card/90 backdrop-blur-xs border border-border rounded-lg shadow-sm px-1 py-0.5 z-10",
+                              isSent ? "-left-24" : "-right-24"
+                            )}
                           >
-                            👍
-                          </button>
-                          <button
-                            onClick={() => handleAddReaction(msg.id, "❤️")}
-                            className="p-1 hover:bg-muted rounded text-xs"
-                            title="React Heart"
-                          >
-                            ❤️
-                          </button>
+                            {/* Quick Emoji Reaction */}
+                            <button
+                              onClick={() => handleAddReaction(msg.id, "👍")}
+                              className="p-1 hover:bg-muted rounded text-xs"
+                              title="React Thumbs Up"
+                            >
+                              👍
+                            </button>
+                            <button
+                              onClick={() => handleAddReaction(msg.id, "❤️")}
+                              className="p-1 hover:bg-muted rounded text-xs"
+                              title="React Heart"
+                            >
+                              ❤️
+                            </button>
 
-                          {/* Reply */}
-                          <button
-                            onClick={() => setReplyingToMessage(msg)}
-                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                            title="Reply"
-                          >
-                            <CornerUpLeft className="size-3.5" />
-                          </button>
+                            {/* Reply */}
+                            <button
+                              onClick={() => setReplyingToMessage(msg)}
+                              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                              title="Reply"
+                            >
+                              <CornerUpLeft className="size-3.5" />
+                            </button>
 
-                          {/* Pin */}
-                          <button
-                            onClick={() => handleTogglePin(msg.id)}
-                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                            title={msg.isPinned ? "Unpin message" : "Pin message"}
-                          >
-                            <Pin className="size-3.5" />
-                          </button>
+                            {/* Pin */}
+                            <button
+                              onClick={() => handleTogglePin(msg.id)}
+                              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                              title={msg.isPinned ? "Unpin message" : "Pin message"}
+                            >
+                              <Pin className="size-3.5" />
+                            </button>
 
-                          {/* Dropdown for More Actions */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground">
-                                <MoreVertical className="size-3.5" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align={isSent ? "start" : "end"} className="w-44 font-sans">
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setForwardMessage(msg);
-                                  setForwardTargetThreadId(activeThreadId);
-                                }}
-                              >
-                                <Share2 className="size-3.5 mr-2" /> Forward
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  navigator.clipboard.writeText(msg.content);
-                                  toast.success("Copied to clipboard");
-                                }}
-                              >
-                                <Copy className="size-3.5 mr-2" /> Copy Message
-                              </DropdownMenuItem>
-
-                              {isAuthor && !msg.isDeletedForEveryone && (
+                            {/* Dropdown for More Actions */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground">
+                                  <MoreVertical className="size-3.5" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align={isSent ? "start" : "end"} className="w-44 font-sans">
                                 <DropdownMenuItem
                                   onClick={() => {
-                                    setEditingMessage(msg);
-                                    setEditingContent(msg.content);
+                                    setForwardMessage(msg);
+                                    setForwardTargetThreadId(activeThreadId);
                                   }}
                                 >
-                                  <Edit3 className="size-3.5 mr-2" /> Edit Message
+                                  <Share2 className="size-3.5 mr-2" /> Forward
                                 </DropdownMenuItem>
-                              )}
-
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteMessage(msg.id, "me")}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="size-3.5 mr-2" /> Delete for Me
-                              </DropdownMenuItem>
-                              {isAuthor && !msg.isDeletedForEveryone && (
                                 <DropdownMenuItem
-                                  onClick={() => handleDeleteMessage(msg.id, "everyone")}
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(msg.content);
+                                    toast.success("Copied to clipboard");
+                                  }}
+                                >
+                                  <Copy className="size-3.5 mr-2" /> Copy Message
+                                </DropdownMenuItem>
+
+                                {isAuthor && (
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setEditingMessage(msg);
+                                      setEditingContent(msg.content);
+                                    }}
+                                  >
+                                    <Edit3 className="size-3.5 mr-2" /> Edit Message
+                                  </DropdownMenuItem>
+                                )}
+
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteMessage(msg.id, "me")}
                                   className="text-destructive focus:text-destructive"
                                 >
-                                  <Trash2 className="size-3.5 mr-2" /> Delete for Everyone
+                                  <Trash2 className="size-3.5 mr-2" /> Delete for Me
                                 </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                                {isAuthor && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteMessage(msg.id, "everyone")}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="size-3.5 mr-2" /> Delete for Everyone
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -4202,6 +4945,23 @@ export function UnifiedChatApp({
                   <div className="size-2 rounded-full bg-teal-600 animate-ping" />
                   <span>Someone is typing...</span>
                 </div>
+              )}
+
+              {showScrollBottom && (
+                <button
+                  type="button"
+                  onClick={() => scrollToBottom(true)}
+                  className="sticky bottom-4 ml-auto mr-2 flex items-center justify-center size-9 rounded-full bg-card border border-border shadow-lg hover:bg-muted text-foreground transition-all duration-200 cursor-pointer z-30"
+                  title="Scroll to bottom"
+                  data-testid="scroll-to-bottom-btn"
+                >
+                  <ArrowDown className="size-4 text-teal-700 dark:text-teal-400" />
+                  {unreadBelowCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-teal-600 text-white text-[10px] font-bold">
+                      {unreadBelowCount}
+                    </span>
+                  )}
+                </button>
               )}
 
               <div ref={messagesEndRef} />
@@ -4437,21 +5197,74 @@ export function UnifiedChatApp({
 
             {/* Message Composer / Voice Recording Bar */}
             {isRecordingVoice ? (
-              <div className="p-3 border-t border-border bg-card flex items-center justify-between gap-3">
+              <div className="p-3 border-t border-border bg-card flex items-center justify-between gap-3 animate-in fade-in">
                 <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 animate-pulse">
                   <div className="size-3 rounded-full bg-rose-600" />
                   <span>Recording voice message... ({formatDuration(voiceDuration)})</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelVoiceRecording}
+                    className="text-xs text-destructive hover:bg-destructive/10"
+                    title="Cancel recording"
+                  >
+                    <Trash2 className="size-3.5 mr-1" /> Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={stopVoiceRecording}
+                    className="text-xs"
+                    title="Stop & preview"
+                  >
+                    <Square className="size-3 mr-1" /> Stop & Preview
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={sendVoiceRecording}
+                    className="text-xs bg-teal-700 hover:bg-teal-800 text-white"
+                    title="Send voice note"
+                  >
+                    <Send className="size-3.5 mr-1" /> Send Voice Note
+                  </Button>
+                </div>
+              </div>
+            ) : voicePreviewBlob && voicePreviewUrl ? (
+              <div className="p-3 border-t border-border bg-card flex items-center justify-between gap-3 animate-in fade-in">
+                <audio
+                  ref={voicePreviewAudioRef}
+                  src={voicePreviewUrl}
+                  onEnded={() => setIsPlayingVoicePreview(false)}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={togglePlayVoicePreview}
+                    className="flex items-center justify-center size-8 rounded-full bg-teal-700 text-white hover:bg-teal-800 cursor-pointer"
+                    title={isPlayingVoicePreview ? "Pause" : "Play preview"}
+                  >
+                    {isPlayingVoicePreview ? <Pause className="size-4" /> : <Play className="size-4 ml-0.5" />}
+                  </button>
+                  <span className="font-mono text-xs text-muted-foreground">Voice preview ({formatDuration(voiceDuration || 1)})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
                     variant="outline"
                     size="sm"
                     onClick={cancelVoiceRecording}
                     className="text-xs text-destructive hover:bg-destructive/10"
                   >
-                    <Trash2 className="size-3.5 mr-1" /> Cancel
+                    <Trash2 className="size-3.5 mr-1" /> Delete
                   </Button>
                   <Button
+                    type="button"
                     size="sm"
                     onClick={sendVoiceRecording}
                     className="text-xs bg-teal-700 hover:bg-teal-800 text-white"
@@ -4516,15 +5329,7 @@ export function UnifiedChatApp({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-52 font-sans text-xs">
                     <DropdownMenuItem
-                      onClick={() => {
-                        const input = document.createElement("input");
-                        input.type = "file";
-                        input.multiple = true;
-                        input.onchange = (e: any) => {
-                          if (e.target.files) handleFilesSelected(e.target.files);
-                        };
-                        input.click();
-                      }}
+                      onClick={() => chatFileInputRef.current?.click()}
                       className="gap-2 cursor-pointer"
                     >
                       <Upload className="size-3.5 text-teal-600" />
@@ -4542,6 +5347,18 @@ export function UnifiedChatApp({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                <input
+                  ref={chatFileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  data-testid="chat-file-input"
+                  onChange={(e) => {
+                    if (e.target.files) handleFilesSelected(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
 
                 {/* Create Poll Button */}
                 <button

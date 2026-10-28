@@ -223,11 +223,13 @@ app.use((req, res, next) => {
 app.post("/api/payments/razorpay/webhook", express.raw({ type: "application/json" }), razorpayWebhookHandler);
 app.use(
   express.json({
+    limit: "50mb",
     verify: (req: any, _res, buf) => {
       req.rawBody = buf;
     },
   })
 );
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // NOTE: Do NOT include "multipart/*" or "*/*" here — multer handles multipart/form-data
 // and express.text consuming it first causes "Unexpected end of form" errors in multer.
 app.use(

@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WorkspacePolicyError = void 0;
+exports.workspacePolicyCache = exports.WorkspacePolicyError = void 0;
 exports.resolveWorkspacePolicy = resolveWorkspacePolicy;
 exports.assertWorkspaceActive = assertWorkspaceActive;
+exports.invalidateWorkspacePolicyCache = invalidateWorkspacePolicyCache;
 exports.getWorkspacePolicy = getWorkspacePolicy;
 exports.getWorkspacePoliciesBatch = getWorkspacePoliciesBatch;
 exports.syncSubscriptionPlans = syncSubscriptionPlans;
@@ -59,7 +60,20 @@ function assertWorkspaceActive(policy) {
         throw new WorkspacePolicyError("This workspace subscription has expired. Contact platform support.");
     }
 }
+exports.workspacePolicyCache = new Map();
+function invalidateWorkspacePolicyCache(tenantId) {
+    if (!tenantId) {
+        exports.workspacePolicyCache.clear();
+        return;
+    }
+    exports.workspacePolicyCache.delete(tenantId);
+}
 async function getWorkspacePolicy(tenantId, db = prisma_1.rawPrisma) {
+    const now = Date.now();
+    const cached = exports.workspacePolicyCache.get(tenantId);
+    if (cached && cached.expiresAt > now) {
+        return cached.policy;
+    }
     // Prefer the relational source of truth. The optional access keeps the
     // transition backward-compatible with test fixtures and pre-migration DBs.
     if (db.tenantSubscription?.findUnique) {
@@ -69,7 +83,9 @@ async function getWorkspacePolicy(tenantId, db = prisma_1.rawPrisma) {
                 include: { plan: true },
             });
             if (subscription) {
-                return resolveWorkspacePolicy(subscription, subscription.plan ? [subscription.plan] : []);
+                const pol = resolveWorkspacePolicy(subscription, subscription.plan ? [subscription.plan] : []);
+                exports.workspacePolicyCache.set(tenantId, { policy: pol, expiresAt: Date.now() + 60000 });
+                return pol;
             }
         }
         catch (error) {
@@ -93,7 +109,9 @@ async function getWorkspacePolicy(tenantId, db = prisma_1.rawPrisma) {
     catch {
         catalog = null;
     }
-    return resolveWorkspacePolicy(subscription?.content || {}, Array.isArray(catalog?.content?.plans) ? catalog.content.plans : []);
+    const resolved = resolveWorkspacePolicy(subscription?.content || {}, Array.isArray(catalog?.content?.plans) ? catalog.content.plans : []);
+    exports.workspacePolicyCache.set(tenantId, { policy: resolved, expiresAt: Date.now() + 60000 });
+    return resolved;
 }
 async function getWorkspacePoliciesBatch(tenantIds, db = prisma_1.rawPrisma) {
     if (!tenantIds.length)

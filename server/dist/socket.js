@@ -189,6 +189,11 @@ function initSocket(server, allowedOrigins) {
                 userId: uId,
                 deliveredAt: new Date().toISOString(),
             });
+            // Asynchronously persist delivery status in DB without blocking event loop
+            (prisma_1.rawPrisma || prisma_1.prisma).chatMessage.updateMany({
+                where: { id: { in: payload.messageIds }, tenantId: tId, senderId: { not: uId } },
+                data: { deliveryStatus: "delivered" },
+            }).catch(() => { });
         });
         // =========================================================================
         // WEBRTC CALL SIGNALING & LIFECYCLE (Audio, Video, Group Calls)

@@ -10,7 +10,7 @@ const auth_1 = require("../middleware/auth");
 const media_service_1 = require("../services/media/media.service");
 const upload = (0, multer_1.default)({
     storage: multer_1.default.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+    limits: { fileSize: 30 * 1024 * 1024 }, // 30 MB
 });
 exports.mediaRouter = (0, express_1.Router)();
 /**

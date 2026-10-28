@@ -1,0 +1,115 @@
+{
+  "timestamp": "2026-10-28T10:01:14.889Z",
+  "total": 18,
+  "passed": 18,
+  "results": [
+    {
+      "id": 1,
+      "title": "Realtime text exchange & latency measurement (<500 ms)",
+      "passed": true,
+      "details": "Min: 219ms, p50: 388ms, p95: 1411ms, Max: 1411ms (Samples: 10)"
+    },
+    {
+      "id": 2,
+      "title": "Reliable File & Image Sending (Under 30 MB limit)",
+      "passed": true,
+      "details": "2 MB file uploaded & delivered: /uploads/Chat/Documents/1793177102054-84331729.txt"
+    },
+    {
+      "id": 3,
+      "title": "Attachment rejection for files > 30 MB (HTTP 413)",
+      "passed": true,
+      "details": "Backend returned status: 413, code: FILE_TOO_LARGE"
+    },
+    {
+      "id": 4,
+      "title": "Concurrent message operations without blocking",
+      "passed": true,
+      "details": "Concurrent text rendered immediately"
+    },
+    {
+      "id": 5,
+      "title": "Voice message lifecycle & persistent playback",
+      "passed": true,
+      "details": "Voice note delivered, player rendered with speed controls, persisted across reload"
+    },
+    {
+      "id": 6,
+      "title": "Delete for me (hidden for requester, visible for recipient)",
+      "passed": true,
+      "details": "API returned mode: me, Emp still sees message: true"
+    },
+    {
+      "id": 7,
+      "title": "Delete for everyone with tombstone placeholder",
+      "passed": true,
+      "details": "DB record tombstoned, real-time updated on both clients"
+    },
+    {
+      "id": 8,
+      "title": "Deletion cleans up voice player, attachments, poll cards, and reactions",
+      "passed": true,
+      "details": "DB verified: attachments=null, voiceNote=null, poll=null, reactions=null"
+    },
+    {
+      "id": 9,
+      "title": "Emoji reactions with participant identification (name & avatar)",
+      "passed": true,
+      "details": "Count: 2, Users: [\"Alex Rivera\",\"HR Administrator\"]"
+    },
+    {
+      "id": 10,
+      "title": "Reaction removal updates count without refreshing",
+      "passed": true,
+      "details": "Updated count after toggle: 1"
+    },
+    {
+      "id": 11,
+      "title": "Single-choice poll voting exclusivity",
+      "passed": true,
+      "details": "Option 1 votes: 0, Option 2 votes: 1 (Switched cleanly)"
+    },
+    {
+      "id": 12,
+      "title": "Multi-choice poll allows multiple selections & distinct voter counts",
+      "passed": true,
+      "details": "Distinct voters: 1, Total selections: 2"
+    },
+    {
+      "id": 13,
+      "title": "Poll closing locks results & blocks subsequent votes",
+      "passed": true,
+      "details": "Close status: 200, Rejected vote status: 400 (This poll is closed.)"
+    },
+    {
+      "id": 14,
+      "title": "Message ordering and idempotent deduplication by clientTempId",
+      "passed": true,
+      "details": "Duplicate request handled idempotently, DB record count: 1"
+    },
+    {
+      "id": 15,
+      "title": "Unread count and mark-as-read receipt synchronization",
+      "passed": true,
+      "details": "Read receipt registered in DB & broadcast to thread"
+    },
+    {
+      "id": 16,
+      "title": "Socket transport resilience & history fetch pagination",
+      "passed": true,
+      "details": "Fetched 9 messages with cursor 20fa2212-872a-4a93-a619-775872fa42d7"
+    },
+    {
+      "id": 17,
+      "title": "Cross-tenant security isolation (Strict 403 enforcement)",
+      "passed": true,
+      "details": "Read status: 403, Send status: 403"
+    },
+    {
+      "id": 18,
+      "title": "Route parity across /hr/chat, /me/chat, and /tenant/chat",
+      "passed": true,
+      "details": "/hr/chat: 200, /me/chat: 200, /tenant/chat: 200"
+    }
+  ]
+}

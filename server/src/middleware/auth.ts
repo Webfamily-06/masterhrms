@@ -1,3 +1,17 @@
+export const authAccountCache = new Map<string, { account: any; userPermissions: string[]; expiresAt: number }>();
+
+export function invalidateAuthCache(userId?: string, tenantId?: string) {
+  if (!userId && !tenantId) {
+    authAccountCache.clear();
+    return;
+  }
+  for (const key of Array.from(authAccountCache.keys())) {
+    const [uId, tId] = key.split(":");
+    if ((!userId || uId === userId) && (!tenantId || tId === tenantId)) {
+      authAccountCache.delete(key);
+    }
+  }
+}
 import { Request, Response, NextFunction } from "express";
 import { verifyToken, JwtPayload } from "../lib/jwt";
 import { prisma, rawPrisma } from "../prisma";
@@ -13,19 +27,30 @@ export interface AuthRequest extends Request {
 }
 
 export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  if (req.user) return next();
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Unauthorized: Missing or invalid token format" });
   }
 
   const token = authHeader.split(" ")[1];
+    console.log(`[PERF_AUTH] reached requireAuth: ${Date.now() - (req as any)._tStart}ms`);
   try {
     const decoded = verifyToken(token);
     if ((decoded as any).mfaPending) return res.status(401).json({ error: "Complete two-factor verification first." });
     const userId = decoded.userId || (decoded as any).id;
-    const account = await (rawPrisma || prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
+    const cacheKey = `${userId}:${decoded.tenantId || "default"}`;
+    const cachedEntry = authAccountCache.get(cacheKey);
+    let account: any = null;
+    let cachedPermissions: string[] | null = null;
+    if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
+      account = cachedEntry.account;
+      cachedPermissions = cachedEntry.userPermissions;
+    } else {
+      account = await (rawPrisma || prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
+    }
     if (!account) return res.status(401).json({ error: "Account no longer exists." });
-    const isSuper = account.roles.some((r) => r.role === "super_admin");
+    const isSuper = account.roles.some((r: any) => r.role === "super_admin");
     const isImpersonating = Boolean((decoded as any).isImpersonating);
 
     // Host-to-JWT Tenant Binding Enforcement
@@ -84,7 +109,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       }
     }
 
-    const roles = account.roles.filter((r) => r.role === "super_admin" || r.tenantId === tenantId).map((r) => r.role);
+    const roles = account.roles.filter((r: any) => r.role === "super_admin" || r.tenantId === tenantId).map((r: any) => r.role);
     const isSafeRoute =
       req.originalUrl?.startsWith("/api/billing") ||
       req.originalUrl?.startsWith("/api/commerce") ||
@@ -109,8 +134,8 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
 
     req.tenantId = tenantId ?? undefined;
 
-    let userPermissions: string[] = Array.isArray(decoded.permissions) ? [...decoded.permissions] : [];
-    if (tenantId && userId) {
+    let userPermissions: string[] = cachedPermissions || (Array.isArray(decoded.permissions) ? [...decoded.permissions] : []);
+    if (!cachedPermissions && tenantId && userId) {
       try {
         const db = rawPrisma || prisma;
         const assignment = await db.userRoleAssignment.findUnique({
@@ -150,6 +175,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       ]));
     }
 
+    authAccountCache.set(cacheKey, { account, userPermissions, expiresAt: Date.now() + 60000 });
     req.user = {
       ...decoded,
       userId,

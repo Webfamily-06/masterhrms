@@ -44,7 +44,13 @@ export function getAuthHeaders(extraHeaders?: HeadersInit): HeadersInit {
 }
 
 export function setToken(token: string) {
-  localStorage.setItem("hrms_auth_token", token);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("hrms_auth_token", token);
+    localStorage.setItem("auth_token", token);
+    try {
+      document.cookie = `hrms_auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+    } catch {}
+  }
   try {
     const parts = token.split(".");
     if (parts.length >= 2) {
@@ -92,6 +98,11 @@ export function clearToken() {
   localStorage.removeItem("hrms_auth_token");
   localStorage.removeItem("auth_token");
   localStorage.removeItem("hrms_user");
+  if (typeof document !== "undefined") {
+    try {
+      document.cookie = "hrms_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    } catch {}
+  }
   window.dispatchEvent(new Event("auth-token-changed"));
 }
 

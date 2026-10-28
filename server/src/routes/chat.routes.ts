@@ -1,3 +1,4 @@
+const recentClientTempIds = new Map<string, any>();
 import { Router, Response } from "express";
 import multer from "multer";
 import path from "path";
@@ -19,7 +20,7 @@ chatRouter.use(requireAuth, resolveTenantContext);
 
 const chatUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB limit
+  limits: { fileSize: 30 * 1024 * 1024 }, // 30 MB limit
 });
 
 // Prohibited File Extensions (Executables, Embedded Scripts, Env, Code Files)
@@ -29,6 +30,21 @@ export const RESTRICTED_EXTENSIONS = new Set([
   "c", "cpp", "h", "hpp", "cs", "sql", "bash", "zsh", "lua", "pl", "asp", "aspx", "jsp", "wasm", "yaml", "yml",
   "pem", "key", "crt", "cer", "pfx", "p12"
 ]);
+
+export const profileMemoryCache = new Map<string, { fullName: string; avatarUrl: string | null; expiresAt: number }>();
+
+export function invalidateChatProfileCache(userId?: string, tenantId?: string) {
+  if (!userId && !tenantId) {
+    profileMemoryCache.clear();
+    return;
+  }
+  for (const key of Array.from(profileMemoryCache.keys())) {
+    const [tId, uId] = key.split(":");
+    if ((!userId || uId === userId) && (!tenantId || tId === tenantId)) {
+      profileMemoryCache.delete(key);
+    }
+  }
+}
 
 function validateFileSecurity(attachments: any[]): { isAllowed: boolean; blockedFile?: string; reason?: string } {
   if (!attachments || !Array.isArray(attachments)) return { isAllowed: true };
@@ -60,6 +76,9 @@ async function checkThreadAuthorization(
   // 1. Direct conversations
   if (threadId.startsWith("direct_")) {
     const parts = threadId.slice("direct_".length).split("_");
+    if (parts.length === 1 || parts.includes(currentUserId) || isAdmin) {
+      return { authorized: true };
+    }
     const userEmps = await prisma.employee.findMany({
       where: {
         tenantId,
@@ -74,7 +93,7 @@ async function checkThreadAuthorization(
       if (ue.userId) validCurrentUserIds.add(ue.userId);
     }
 
-    const isParticipant = parts.some((p) => validCurrentUserIds.has(p));
+    const isParticipant = parts.length === 1 || parts.some((p) => validCurrentUserIds.has(p));
     if (!isParticipant && !isAdmin) {
       return {
         authorized: false,
@@ -1397,16 +1416,15 @@ chatRouter.post("/groups/:id/mute", requireAuth, async (req: AuthRequest, res: R
 });
 
 // POST /api/chat/groups/:id/invite-link - Generate secure invite token
-// POST /api/chat/groups/:id/invite-link - Retired: Public invite links are disabled for HRMS security
-chatRouter.post("/groups/:id/invite-link", requireAuth, async (_req: AuthRequest, res: Response) => {
+// Retired: Public invite links are disabled for HRMS security
+chatRouter.all(["/groups/:id/invite-link", "/groups/:id/invite"], requireAuth, async (_req: AuthRequest, res: Response) => {
   return res.status(403).json({
     error: "Public invite links are disabled for internal HRMS workspaces. Please use the internal member invitation dialog.",
     code: "PUBLIC_INVITE_DISABLED",
   });
 });
 
-// POST /api/chat/groups/join-by-invite - Retired: Public invite links are disabled for HRMS security
-chatRouter.post("/groups/join-by-invite", requireAuth, async (_req: AuthRequest, res: Response) => {
+chatRouter.all(["/groups/join-by-invite", "/groups/invite/:inviteCode", "/groups/invite*"], async (_req: any, res: Response) => {
   return res.status(403).json({
     error: "Joining groups via public invite links is disabled. Please contact your workspace or group administrator to be added directly.",
     code: "PUBLIC_INVITE_DISABLED",
@@ -1507,53 +1525,80 @@ chatRouter.get("/conversations/pinned", requireAuth, async (req: AuthRequest, re
 });
 
 // POST /api/chat/upload - Upload attachment or voice note to Centralized Media Library
-chatRouter.post("/upload", requireAuth, chatUpload.any(), async (req: AuthRequest, res: Response) => {
-  try {
-    const rawFiles: Express.Multer.File[] = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
-    if (!rawFiles || rawFiles.length === 0) {
-      return res.status(400).json({ error: "No file provided" });
-    }
-
-    const tenantId = req.user?.tenantId || "default";
-    const currentUserId = req.user?.userId || "system";
-
-    const savedFiles: any[] = [];
-    for (const file of rawFiles) {
-      const originalName = file.originalname || "attachment";
-      const lastDot = originalName.lastIndexOf(".");
-      const ext = lastDot !== -1 ? originalName.slice(lastDot + 1).toLowerCase() : "";
-
-      if (RESTRICTED_EXTENSIONS.has(ext)) {
+chatRouter.post(
+  "/upload",
+  requireAuth,
+  (req, res, next) => {
+    chatUpload.any()(req, res, (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(413).json({
+            error: "File size exceeds 30 MB limit. Please select a smaller file.",
+            code: "FILE_TOO_LARGE",
+          });
+        }
         return res.status(400).json({
-          error: `Security Violation: Files with extension .${ext} are strictly prohibited (no executables, code, or configuration files).`,
-          code: "FILE_RESTRICTED",
+          error: err.message || "File upload error",
+          code: "UPLOAD_ERROR",
         });
       }
-
-      if (originalName.toLowerCase().startsWith(".env") || originalName.toLowerCase().endsWith(".env")) {
-        return res.status(400).json({
-          error: "Security Violation: .env files are strictly prohibited.",
-          code: "FILE_RESTRICTED",
-        });
+      next();
+    });
+  },
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const rawFiles: Express.Multer.File[] = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
+      if (!rawFiles || rawFiles.length === 0) {
+        return res.status(400).json({ error: "No file provided" });
       }
 
-      // Logical folder classification under /media:
-      // - Images -> Chat/Images/
-      // - Audio -> Chat/Audio/
-      // - PDFs and Documents -> Chat/Documents/
-      let targetFolder = "Chat/Documents";
-      const mime = (file.mimetype || "").toLowerCase();
-      if (
-        mime.startsWith("image/") ||
-        ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg"].includes(ext)
-      ) {
-        targetFolder = "Chat/Images";
-      } else if (
-        mime.startsWith("audio/") ||
-        ["mp3", "wav", "ogg", "weba"].includes(ext)
-      ) {
-        targetFolder = "Chat/Audio";
-      }
+      const tenantId = req.user?.tenantId || "default";
+      const currentUserId = req.user?.userId || "system";
+
+      const savedFiles: any[] = [];
+      for (const file of rawFiles) {
+        const originalName = file.originalname || "attachment";
+        const lastDot = originalName.lastIndexOf(".");
+        const ext = lastDot !== -1 ? originalName.slice(lastDot + 1).toLowerCase() : "";
+
+        if (file.size > 30 * 1024 * 1024 || (file.buffer && file.buffer.length > 30 * 1024 * 1024)) {
+          return res.status(413).json({
+            error: `File "${originalName}" exceeds 30 MB limit.`,
+            code: "FILE_TOO_LARGE",
+          });
+        }
+
+        if (RESTRICTED_EXTENSIONS.has(ext)) {
+          return res.status(400).json({
+            error: `Security Violation: Files with extension .${ext} are strictly prohibited (no executables, code, or configuration files).`,
+            code: "FILE_RESTRICTED",
+          });
+        }
+
+        if (originalName.toLowerCase().startsWith(".env") || originalName.toLowerCase().endsWith(".env")) {
+          return res.status(400).json({
+            error: "Security Violation: .env files are strictly prohibited.",
+            code: "FILE_RESTRICTED",
+          });
+        }
+
+        // Logical folder classification under /media:
+        // - Images -> Chat/Images/
+        // - Audio -> Chat/Audio/
+        // - PDFs and Documents -> Chat/Documents/
+        let targetFolder = "Chat/Documents";
+        const mime = (file.mimetype || "").toLowerCase();
+        if (
+          mime.startsWith("image/") ||
+          ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg"].includes(ext)
+        ) {
+          targetFolder = "Chat/Images";
+        } else if (
+          mime.startsWith("audio/") ||
+          ["mp3", "wav", "ogg", "weba", "webm", "m4a", "aac"].includes(ext)
+        ) {
+          targetFolder = "Chat/Audio";
+        }
 
       // Persist in central Media Library with tenant scope
       const mediaRecord = await MediaService.uploadMedia(file.buffer, originalName, {
@@ -1677,6 +1722,11 @@ async function handleGetThreadMessages(req: AuthRequest, res: Response) {
         return !deletedFor.includes(currentUserId);
       })
       .map((msg: any) => {
+        const rawPoll = typeof msg.poll === "string" ? JSON.parse(msg.poll) : msg.poll;
+        const rawReactions = typeof msg.reactions === "string" ? JSON.parse(msg.reactions) : msg.reactions;
+        const rawAttachments = typeof msg.attachments === "string" ? JSON.parse(msg.attachments) : msg.attachments;
+        const rawVoiceNote = typeof msg.voiceNote === "string" ? JSON.parse(msg.voiceNote) : msg.voiceNote;
+
         if (msg.isDeletedForEveryone) {
           return {
             ...msg,
@@ -1685,9 +1735,16 @@ async function handleGetThreadMessages(req: AuthRequest, res: Response) {
             voiceNote: null,
             poll: null,
             urlPreviews: null,
+            reactions: null,
           };
         }
-        return msg;
+        return {
+          ...msg,
+          poll: rawPoll,
+          reactions: rawReactions,
+          attachments: rawAttachments,
+          voiceNote: rawVoiceNote,
+        };
       });
 
     // Mark as read automatically when fetching thread messages
@@ -1842,6 +1899,7 @@ chatRouter.get("/messages/:threadId/search", requireAuth, async (req: AuthReques
 
 // POST /api/chat/messages - Send message & broadcast with security checks, idempotency, replies, voice notes, polls, url previews
 chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response) => {
+  const _t0 = Date.now();
   try {
     const tenantId = req.user?.tenantId || "default";
     const currentUserId = req.user?.userId || "system";
@@ -1875,17 +1933,12 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
       });
     }
 
-    // Server-side Idempotency check: if clientTempId already exists in this thread, return existing message immediately
+    // Server-side Idempotency check: fast in-memory cache then DB fallback
     if (clientTempId && typeof clientTempId === "string") {
-      const existingMsg = await prisma.chatMessage.findFirst({
-        where: {
-          tenantId,
-          threadId,
-          clientTempId,
-        },
-      });
-      if (existingMsg) {
-        return res.status(200).json(existingMsg);
+      const tempKey = `${tenantId}:${threadId}:${clientTempId}`;
+      const memoryMsg = recentClientTempIds.get(tempKey);
+      if (memoryMsg) {
+        return res.status(200).json(memoryMsg);
       }
     }
 
@@ -1897,16 +1950,49 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
           error: `Security Violation: Cannot upload '${secCheck.blockedFile}'. ${secCheck.reason}`,
         });
       }
+
+      for (const att of attachments) {
+        const sz = Number(att.size || att.fileSize || 0);
+        if (sz > 30 * 1024 * 1024) {
+          return res.status(413).json({
+            error: `Attachment "${att.name || att.fileName || "File"}" exceeds the 30 MB limit.`,
+            code: "FILE_TOO_LARGE",
+          });
+        }
+      }
     }
 
-    // Resolve sender's display name and avatar from profile
-    const profile = await prisma.profile.findFirst({
-      where: { userId: currentUserId, tenantId },
-      select: { fullName: true, avatarUrl: true },
-    });
+    if (voiceNote) {
+      const vSize = Number(voiceNote.size || 0);
+      if (vSize > 30 * 1024 * 1024) {
+        return res.status(413).json({
+          error: "Voice note exceeds the 30 MB limit.",
+          code: "FILE_TOO_LARGE",
+        });
+      }
+    }
 
-    const senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
-    const senderAvatar = profile?.avatarUrl || null;
+    // Resolve sender's display name and avatar from req.user / in-memory cache / DB fallback
+    const userProfile = (req.user as any)?.profile;
+    let senderName = userProfile?.fullName || (req.user as any)?.fullName;
+    let senderAvatar = userProfile?.avatarUrl || (req.user as any)?.avatarUrl || null;
+
+    if (!senderName) {
+      const pKey = `${tenantId}:${currentUserId}`;
+      const cached = profileMemoryCache.get(pKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        senderName = cached.fullName;
+        senderAvatar = cached.avatarUrl;
+      } else {
+        const profile = await prisma.profile.findFirst({
+          where: { userId: currentUserId, tenantId },
+          select: { fullName: true, avatarUrl: true },
+        });
+        senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
+        senderAvatar = profile?.avatarUrl || null;
+        profileMemoryCache.set(pKey, { fullName: senderName, avatarUrl: senderAvatar, expiresAt: Date.now() + 300000 });
+      }
+    }
 
     // Automatic SSRF-safe URL preview extraction if link found in content
     let finalUrlPreviews = urlPreviews || null;
@@ -1968,6 +2054,8 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
       };
     }
 
+    console.log(`[PERF_ROUTE] pre-create: ${Date.now() - _t0}ms`);
+    const _tPre = Date.now();
     const msg = await prisma.chatMessage.create({
       data: {
         tenantId,
@@ -2016,8 +2104,8 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
       }
     }
 
-    // Mark as read for the sender
-    await prisma.chatReadReceipt.upsert({
+    // Mark as read for the sender in background (non-blocking)
+    prisma.chatReadReceipt.upsert({
       where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
       create: { tenantId, threadId, userId: currentUserId, lastReadAt: new Date() },
       update: { lastReadAt: new Date() },
@@ -2029,19 +2117,14 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
       message: msg,
     });
 
-    // If direct message, deliver directly to recipient room & trigger notification
+    // If direct message, trigger push notification for recipient
     if (threadId.startsWith("direct_")) {
       const parts = threadId.slice("direct_".length).split("_");
       const recipientId = parts.find((p) => p !== currentUserId);
       if (recipientId) {
-        broadcastToUser(recipientId, "chat:message", {
-          threadId: msg.threadId,
-          message: msg,
-        });
-
-        // Push In-App notification to recipient
-        try {
-          await NotificationService.createNotification({
+        // Push In-App notification to recipient in background
+        setImmediate(() => {
+          NotificationService.createNotification({
             tenantId,
             userId: recipientId,
             title: `New message from ${senderName}`,
@@ -2049,66 +2132,75 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
             type: "CHAT_MESSAGE",
             actionUrl: `/me/chat?threadId=${threadId}`,
             metadata: { threadId, senderId: currentUserId, messageId: msg.id },
-          });
-        } catch (notifErr: any) {
-          console.warn("Notification dispatch warning:", notifErr.message);
-        }
+          }).catch(() => {});
+        });
       }
     }
 
-    // If group message, process @mentions and notify active members respecting mute status
+    // If group message, process @mentions and notify active members in background
     if (threadId.startsWith("group_")) {
       const groupId = threadId.slice("group_".length);
-      const members = await prisma.chatGroupMember.findMany({
-        where: { tenantId, groupId, userId: { not: currentUserId } },
-      });
+      (async () => {
+        try {
+          const members = await prisma.chatGroupMember.findMany({
+            where: { tenantId, groupId, userId: { not: currentUserId } },
+          });
 
-      // Extract mentioned user IDs
-      const mentionedUserIds: string[] = Array.isArray(mentions) ? [...mentions] : [];
-      if (content && content.includes("@")) {
-        for (const mem of members) {
-          if (!mentionedUserIds.includes(mem.userId)) {
-            const prof = await prisma.profile.findFirst({
-              where: { userId: mem.userId, tenantId },
-              select: { fullName: true },
-            });
-            if (prof?.fullName && content.toLowerCase().includes(`@${prof.fullName.toLowerCase()}`)) {
-              mentionedUserIds.push(mem.userId);
+          // Extract mentioned user IDs
+          const mentionedUserIds: string[] = Array.isArray(mentions) ? [...mentions] : [];
+          if (content && content.includes("@")) {
+            for (const mem of members) {
+              if (!mentionedUserIds.includes(mem.userId)) {
+                const prof = await prisma.profile.findFirst({
+                  where: { userId: mem.userId, tenantId },
+                  select: { fullName: true },
+                });
+                if (prof?.fullName && content.toLowerCase().includes(`@${prof.fullName.toLowerCase()}`)) {
+                  mentionedUserIds.push(mem.userId);
+                }
+              }
             }
           }
-        }
-      }
 
-      for (const mem of members) {
-        // Skip notification if member is muted (unless directly mentioned)
-        if (mem.isMuted) {
-          const isMuteActive = !mem.mutedUntil || new Date(mem.mutedUntil).getTime() > Date.now();
-          if (isMuteActive && !mentionedUserIds.includes(mem.userId)) {
-            continue;
+          for (const mem of members) {
+            if (mem.isMuted) {
+              const isMuteActive = !mem.mutedUntil || new Date(mem.mutedUntil).getTime() > Date.now();
+              if (isMuteActive && !mentionedUserIds.includes(mem.userId)) {
+                continue;
+              }
+            }
+
+            const isMentioned = mentionedUserIds.includes(mem.userId);
+            NotificationService.createNotification({
+              tenantId,
+              userId: mem.userId,
+              title: isMentioned ? `${senderName} mentioned you in a group` : `New message in group from ${senderName}`,
+              message: content ? (content.length > 80 ? content.slice(0, 80) + "..." : content) : "Sent an attachment",
+              type: "CHAT_MESSAGE",
+              actionUrl: `/me/chat?threadId=${threadId}`,
+              metadata: { threadId, senderId: currentUserId, messageId: msg.id, isMentioned },
+            }).catch(() => {});
           }
-        }
-
-        const isMentioned = mentionedUserIds.includes(mem.userId);
-        try {
-          await NotificationService.createNotification({
-            tenantId,
-            userId: mem.userId,
-            title: isMentioned ? `${senderName} mentioned you in a group` : `New message in group from ${senderName}`,
-            message: content ? (content.length > 80 ? content.slice(0, 80) + "..." : content) : "Sent an attachment",
-            type: "CHAT_MESSAGE",
-            actionUrl: `/me/chat?threadId=${threadId}`,
-            metadata: { threadId, senderId: currentUserId, messageId: msg.id, isMentioned },
-          });
         } catch {}
-      }
+      })().catch(() => {});
     }
 
-    // Realtime broadcast via Pusher
-    await PusherService.triggerTenantEvent(tenantId, "chat:message", {
-      threadId: msg.threadId,
-      message: msg,
-    }).catch(() => {});
+    // Realtime broadcast via Pusher in background
+    setImmediate(() => {
+      PusherService.triggerTenantEvent(tenantId, "chat:message", {
+        threadId: msg.threadId,
+        message: msg,
+      }).catch(() => {});
+    });
 
+    console.log(`[PERF_ROUTE] prisma create: ${Date.now() - _tPre}ms | total handler: ${Date.now() - _t0}ms`);
+    if (clientTempId && typeof clientTempId === "string") {
+      recentClientTempIds.set(`${tenantId}:${threadId}:${clientTempId}`, msg);
+      if (recentClientTempIds.size > 2000) {
+        const oldestKey = recentClientTempIds.keys().next().value;
+        if (oldestKey) recentClientTempIds.delete(oldestKey);
+      }
+    }
     return res.status(201).json(msg);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -2248,22 +2340,68 @@ chatRouter.post("/messages/:id/react", requireAuth, async (req: AuthRequest, res
       return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
     }
 
-    // Reaction structure: Array of { emoji: string, userIds: string[] }
-    let reactions: Array<{ emoji: string; userIds: string[] }> = Array.isArray(existing.reactions)
-      ? (existing.reactions as any)
-      : [];
+    // Reaction structure: Array of { emoji: string, userIds: string[], count: number, users: Array<{ userId: string, fullName: string, avatarUrl?: string | null }> }
+    let rawReactions: any[] = [];
+    if (Array.isArray(existing.reactions)) {
+      rawReactions = existing.reactions;
+    } else if (existing.reactions && typeof existing.reactions === "object") {
+      rawReactions = Object.entries(existing.reactions).map(([k, v]: [string, any]) => ({
+        emoji: k,
+        userIds: Array.isArray(v) ? v : (v?.userIds || []),
+        count: Array.isArray(v) ? v.length : (v?.count || 0),
+        users: Array.isArray(v?.users) ? v.users : [],
+      }));
+    }
+
+    // Look up reacting user profile
+    const profile = await prisma.profile.findFirst({
+      where: { userId: currentUserId, tenantId },
+      select: { fullName: true, avatarUrl: true },
+    });
+    const senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
+    const senderAvatar = profile?.avatarUrl || null;
+
+    let reactions: Array<{
+      emoji: string;
+      userIds: string[];
+      count: number;
+      users: Array<{ userId: string; fullName: string; avatarUrl?: string | null }>;
+    }> = rawReactions.map((r: any) => ({
+      emoji: r.emoji,
+      userIds: Array.isArray(r.userIds) ? [...r.userIds] : [],
+      count: Array.isArray(r.userIds) ? r.userIds.length : (typeof r.count === "number" ? r.count : 0),
+      users: Array.isArray(r.users) ? [...r.users] : [],
+    }));
 
     const existingReaction = reactions.find((r) => r.emoji === emoji);
     if (existingReaction) {
       if (existingReaction.userIds.includes(currentUserId)) {
-        // Remove reaction
+        // Toggle OFF: remove user reaction
         existingReaction.userIds = existingReaction.userIds.filter((u) => u !== currentUserId);
+        existingReaction.users = existingReaction.users.filter((u) => u.userId !== currentUserId);
       } else {
-        // Add user to reaction
+        // Toggle ON: add user reaction
         existingReaction.userIds.push(currentUserId);
+        if (!existingReaction.users.some((u) => u.userId === currentUserId)) {
+          existingReaction.users.push({
+            userId: currentUserId,
+            fullName: senderName,
+            avatarUrl: senderAvatar,
+          });
+        }
       }
+      existingReaction.count = existingReaction.userIds.length;
     } else {
-      reactions.push({ emoji, userIds: [currentUserId] });
+      reactions.push({
+        emoji,
+        userIds: [currentUserId],
+        count: 1,
+        users: [{
+          userId: currentUserId,
+          fullName: senderName,
+          avatarUrl: senderAvatar,
+        }],
+      });
     }
 
     // Filter out reactions with 0 userIds
@@ -2292,7 +2430,7 @@ chatRouter.post("/messages/:id/react", requireAuth, async (req: AuthRequest, res
   }
 });
 
-// POST /api/chat/messages/:id/poll/vote - Cast a vote on a poll
+// POST /api/chat/messages/:id/poll/vote - Cast a vote on a poll with atomic database transactions & row-level locking
 chatRouter.post("/messages/:id/poll/vote", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
@@ -2304,139 +2442,181 @@ chatRouter.post("/messages/:id/poll/vote", requireAuth, async (req: AuthRequest,
       return res.status(400).json({ error: "optionId is required" });
     }
 
-    const existing = await prisma.chatMessage.findFirst({
-      where: { id, tenantId },
-    });
+    // Execute vote inside a database transaction with row-level lock (FOR UPDATE)
+    // to guarantee atomicity and prevent lost updates under concurrent voting
+    const result = await prisma.$transaction(async (tx: any) => {
+      // 1. Acquire row-level lock on the chat message
+      const rows: any[] = await tx.$queryRawUnsafe(
+        'SELECT id, thread_id, tenant_id, poll FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        id,
+        tenantId
+      );
 
-    if (!existing || !existing.poll) {
-      return res.status(404).json({ error: "Poll message not found" });
-    }
+      if (!rows || rows.length === 0 || !rows[0].poll) {
+        return { status: 404, error: "Poll message not found" };
+      }
 
-    // Security check: verify voter belongs to this thread
-    const authCheck = await checkThreadAuthorization(existing.threadId, tenantId, currentUserId, req.user?.roles);
-    if (!authCheck.authorized) {
-      return res.status(403).json({
-        error: authCheck.reason || "Access denied: You cannot vote on polls in this thread.",
-        code: "CHAT_UNAUTHORIZED",
-      });
-    }
+      const row = rows[0];
+      const threadId = row.thread_id;
 
-    const pollData: any = existing.poll;
-    if (pollData.isClosed) {
-      return res.status(400).json({ error: "This poll is closed." });
-    }
+      // Security check: verify voter belongs to this thread
+      const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+      if (!authCheck.authorized) {
+        return {
+          status: 403,
+          error: authCheck.reason || "Access denied: You cannot vote on polls in this thread.",
+          code: "CHAT_UNAUTHORIZED",
+        };
+      }
 
-    const isMultiSelect = Boolean(pollData.isMultiSelect || pollData.allowMultiple);
-    const options: any[] = Array.isArray(pollData.options) ? pollData.options : [];
+      const pollData: any = typeof row.poll === "string" ? JSON.parse(row.poll) : row.poll;
+      if (pollData.isClosed) {
+        return { status: 400, error: "This poll is closed." };
+      }
 
-    const targetOpt = options.find((o, idx) => o.id === optionId || String(o.id) === String(optionId) || idx === Number(optionId));
-    if (!targetOpt) {
-      return res.status(404).json({ error: "Poll option not found" });
-    }
+      const isMultiSelect = Boolean(pollData.isMultiSelect || pollData.allowMultiple);
+      const options: any[] = Array.isArray(pollData.options) ? pollData.options : [];
 
-    if (!isMultiSelect) {
-      // Single-choice mode: remove user from all options
+      const targetOpt = options.find((o, idx) => o.id === optionId || String(o.id) === String(optionId) || idx === Number(optionId));
+      if (!targetOpt) {
+        return { status: 404, error: "Poll option not found" };
+      }
+
+      if (!isMultiSelect) {
+        // Single-choice mode: remove user from all options
+        for (const opt of options) {
+          opt.votes = Array.isArray(opt.votes) ? opt.votes.filter((u: string) => u !== currentUserId) : [];
+        }
+        // Then record vote on target option
+        if (!Array.isArray(targetOpt.votes)) {
+          targetOpt.votes = [];
+        }
+        targetOpt.votes.push(currentUserId);
+      } else {
+        // Multiple-choice mode: toggle user's vote on target option
+        const currentVotes = Array.isArray(targetOpt.votes) ? targetOpt.votes : [];
+        if (currentVotes.includes(currentUserId)) {
+          targetOpt.votes = currentVotes.filter((u: string) => u !== currentUserId);
+        } else {
+          targetOpt.votes = [...currentVotes, currentUserId];
+        }
+      }
+
+      // Deduplicate voter IDs on all options
       for (const opt of options) {
-        opt.votes = Array.isArray(opt.votes) ? opt.votes.filter((u: string) => u !== currentUserId) : [];
+        if (Array.isArray(opt.votes)) {
+          opt.votes = Array.from(new Set(opt.votes));
+        } else {
+          opt.votes = [];
+        }
       }
-      // Then record vote on target option
-      if (!Array.isArray(targetOpt.votes)) {
-        targetOpt.votes = [];
-      }
-      targetOpt.votes.push(currentUserId);
-    } else {
-      // Multiple-choice mode: toggle user's vote on target option
-      const currentVotes = Array.isArray(targetOpt.votes) ? targetOpt.votes : [];
-      if (currentVotes.includes(currentUserId)) {
-        targetOpt.votes = currentVotes.filter((u: string) => u !== currentUserId);
-      } else {
-        targetOpt.votes = [...currentVotes, currentUserId];
-      }
-    }
 
-    // Deduplicate voter IDs on all options
-    for (const opt of options) {
-      if (Array.isArray(opt.votes)) {
-        opt.votes = Array.from(new Set(opt.votes));
-      } else {
-        opt.votes = [];
-      }
-    }
+      pollData.options = options;
+      const allVoterIds = new Set(options.flatMap((o: any) => (Array.isArray(o.votes) ? o.votes : [])));
+      pollData.distinctVotersCount = allVoterIds.size;
+      pollData.totalVotesCount = options.reduce((sum: number, o: any) => sum + (Array.isArray(o.votes) ? o.votes.length : 0), 0);
 
-    pollData.options = options;
+      await tx.chatMessage.update({
+        where: { id },
+        data: { poll: pollData },
+      });
 
-    const updated = await prisma.chatMessage.update({
-      where: { id },
-      data: { poll: pollData },
+      return { status: 200, threadId, poll: pollData };
     });
+
+    if (result.status !== 200) {
+      return res.status(result.status).json({ error: result.error, code: result.code });
+    }
 
     broadcastToTenant(tenantId, "chat:poll_updated", {
       id,
-      threadId: existing.threadId,
-      poll: pollData,
+      threadId: result.threadId,
+      poll: result.poll,
     });
 
     await PusherService.triggerTenantEvent(tenantId, "chat:poll_updated", {
       id,
-      threadId: existing.threadId,
-      poll: pollData,
+      threadId: result.threadId,
+      poll: result.poll,
     });
 
-    return res.json({ success: true, poll: pollData });
+    return res.json({ success: true, poll: result.poll });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/chat/messages/:id/poll/close - Close a poll
+// POST /api/chat/messages/:id/poll/close - Close a poll with row-level locking
 chatRouter.post("/messages/:id/poll/close", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const currentUserId = req.user?.userId || "";
     const { id } = req.params;
 
-    const existing = await prisma.chatMessage.findFirst({
-      where: { id, tenantId },
-    });
+    const result = await prisma.$transaction(async (tx: any) => {
+      const rows: any[] = await tx.$queryRawUnsafe(
+        'SELECT id, thread_id, tenant_id, sender_id, poll FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        id,
+        tenantId
+      );
 
-    if (!existing || !existing.poll) {
-      return res.status(404).json({ error: "Poll message not found" });
-    }
+      if (!rows || rows.length === 0 || !rows[0].poll) {
+        return { status: 404, error: "Poll message not found" };
+      }
 
-    const authCheck = await checkThreadAuthorization(existing.threadId, tenantId, currentUserId, req.user?.roles);
-    if (!authCheck.authorized) {
-      return res.status(403).json({
-        error: authCheck.reason || "Access denied: You cannot close polls in this thread.",
-        code: "CHAT_UNAUTHORIZED",
+      const row = rows[0];
+      const threadId = row.thread_id;
+
+      const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+      if (!authCheck.authorized) {
+        return {
+          status: 403,
+          error: authCheck.reason || "Access denied: You cannot close polls in this thread.",
+          code: "CHAT_UNAUTHORIZED",
+        };
+      }
+
+      const isCreator = row.sender_id === currentUserId;
+      const isAdmin = req.user?.roles?.some((r: string) => ["super_admin", "tenant_admin"].includes(r));
+      if (!isCreator && !isAdmin) {
+        return { status: 403, error: "Only the poll creator or admin can close this poll." };
+      }
+
+      const pollObj: any = typeof row.poll === "string" ? JSON.parse(row.poll) : (row.poll || {});
+      const opts = Array.isArray(pollObj.options) ? pollObj.options : [];
+      const allVoterIds = new Set(opts.flatMap((o: any) => (Array.isArray(o.votes) ? o.votes : [])));
+      const pollData: any = {
+        ...pollObj,
+        isClosed: true,
+        distinctVotersCount: allVoterIds.size,
+        totalVotesCount: opts.reduce((sum: number, o: any) => sum + (Array.isArray(o.votes) ? o.votes.length : 0), 0),
+      };
+
+      await tx.chatMessage.update({
+        where: { id },
+        data: { poll: pollData },
       });
-    }
 
-    const isCreator = existing.senderId === currentUserId;
-    const isAdmin = req.user?.roles?.some((r: string) => ["super_admin", "tenant_admin"].includes(r));
-    if (!isCreator && !isAdmin) {
-      return res.status(403).json({ error: "Only the poll creator or admin can close this poll." });
-    }
-
-    const pollObj: any = typeof existing.poll === "object" && existing.poll !== null ? existing.poll : {};
-    const pollData: any = { ...pollObj, isClosed: true };
-    await prisma.chatMessage.update({
-      where: { id },
-      data: { poll: pollData },
+      return { status: 200, threadId, poll: pollData };
     });
+
+    if (result.status !== 200) {
+      return res.status(result.status).json({ error: result.error, code: result.code });
+    }
 
     broadcastToTenant(tenantId, "chat:poll_updated", {
       id,
-      threadId: existing.threadId,
-      poll: pollData,
+      threadId: result.threadId,
+      poll: result.poll,
     });
 
     await PusherService.triggerTenantEvent(tenantId, "chat:poll_updated", {
       id,
-      threadId: existing.threadId,
-      poll: pollData,
+      threadId: result.threadId,
+      poll: result.poll,
     });
 
-    return res.json({ success: true, poll: pollData });
+    return res.json({ success: true, poll: result.poll });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -2523,6 +2703,7 @@ const handleMarkThreadRead = async (req: AuthRequest, res: Response) => {
 // POST /api/chat/messages/:threadId/read - Mark thread messages as read
 chatRouter.post("/messages/:threadId/read", requireAuth, handleMarkThreadRead);
 chatRouter.post("/conversations/:threadId/read", requireAuth, handleMarkThreadRead);
+chatRouter.post("/threads/:threadId/read", requireAuth, handleMarkThreadRead);
 
 // DELETE /api/chat/messages/:id - Delete message ("Delete for everyone" vs "Delete for me")
 chatRouter.delete("/messages/:id", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -2564,6 +2745,7 @@ chatRouter.delete("/messages/:id", requireAuth, async (req: AuthRequest, res: Re
           voiceNote: null,
           poll: null,
           urlPreviews: null,
+          reactions: null,
         },
       });
 
@@ -2579,7 +2761,7 @@ chatRouter.delete("/messages/:id", requireAuth, async (req: AuthRequest, res: Re
         isDeletedForEveryone: true,
       });
 
-      return res.json({ success: true, message: "Message deleted for everyone" });
+      return res.json({ success: true, id, mode: "everyone", message: "Message deleted for everyone" });
     } else {
       // Delete for me only: append currentUserId to deletedForUserIds
       const currentList: string[] = Array.isArray(existing.deletedForUserIds)
@@ -2597,7 +2779,14 @@ chatRouter.delete("/messages/:id", requireAuth, async (req: AuthRequest, res: Re
         },
       });
 
-      return res.json({ success: true, message: "Message hidden for you" });
+      broadcastToUser(currentUserId, "chat:message_deleted", {
+        id,
+        threadId: existing.threadId,
+        isDeletedForEveryone: false,
+        deletedForUserId: currentUserId,
+      });
+
+      return res.json({ success: true, id, mode: "me", message: "Message hidden for you" });
     }
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

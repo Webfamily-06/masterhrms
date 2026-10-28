@@ -37,9 +37,9 @@ export class MediaService {
       return { isValid: false, mimeType: "", extension: "", error: "File buffer is empty" };
     }
 
-    // 25 MB max limit
-    if (buffer.length > 25 * 1024 * 1024) {
-      return { isValid: false, mimeType: "", extension: "", error: "File size exceeds 25MB limit" };
+    // 30 MB max limit
+    if (buffer.length > 30 * 1024 * 1024) {
+      return { isValid: false, mimeType: "", extension: "", error: "File size exceeds 30MB limit" };
     }
 
     const name = (originalName || "").toLowerCase();
@@ -184,13 +184,14 @@ export class MediaService {
       return { isValid: true, mimeType: "application/msword", extension: ".doc" };
     }
 
-    // 10. WebM / Matroska (Audio or Video): 1A 45 DF A3
+    // 10. WebM / Matroska (Audio or Video): 1A 45 DF A3 or declared webm extension
     if (
-      buffer.length >= 4 &&
-      buffer[0] === 0x1a &&
-      buffer[1] === 0x45 &&
-      buffer[2] === 0xdf &&
-      buffer[3] === 0xa3
+      (buffer.length >= 4 &&
+        buffer[0] === 0x1a &&
+        buffer[1] === 0x45 &&
+        buffer[2] === 0xdf &&
+        buffer[3] === 0xa3) ||
+      (ext === ".webm" || ext === ".weba" || declaredMime === "audio/webm" || declaredMime === "video/webm")
     ) {
       if (ext === ".weba" || declaredMime?.startsWith("audio/")) {
         return { isValid: true, mimeType: "audio/webm", extension: ".webm" };
@@ -218,6 +219,16 @@ export class MediaService {
       buffer.toString("ascii", 8, 12) === "WAVE"
     ) {
       return { isValid: true, mimeType: "audio/wav", extension: ".wav" };
+    }
+
+    // 14. MP4 / M4A / AAC Audio
+    if (
+      (buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "ftyp") ||
+      (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0)
+    ) {
+      if (ext === ".m4a" || ext === ".aac" || declaredMime?.startsWith("audio/")) {
+        return { isValid: true, mimeType: "audio/mp4", extension: ext || ".m4a" };
+      }
     }
 
     // 14. Text & CSV Files (Ensure valid utf8 without null bytes)

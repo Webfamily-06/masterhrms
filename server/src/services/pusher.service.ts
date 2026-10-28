@@ -77,7 +77,19 @@ export class PusherService {
       secret,
       cluster,
       useTLS: true,
-      enabled: Boolean(enabled && appId && key && secret),
+      enabled: Boolean(
+        enabled &&
+        appId &&
+        key &&
+        secret &&
+        !key.startsWith("mock_") &&
+        !key.includes("test") &&
+        !key.includes("fake") &&
+        !secret.includes("test") &&
+        appId !== "123" &&
+        !key.includes("demo") &&
+        process.env.PUSHER_ENABLED !== "false"
+      ),
     };
   }
 

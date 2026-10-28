@@ -60,6 +60,18 @@ async function uploadsSecurityMiddleware(req, res, next) {
     else if (req.cookies?.token) {
         token = req.cookies.token;
     }
+    else if (req.headers.cookie) {
+        const rawCookies = req.headers.cookie;
+        const match = rawCookies.match(/(?:^|;\s*)(?:hrms_auth_token|auth_token|token)=([^;]+)/);
+        if (match) {
+            try {
+                token = decodeURIComponent(match[1]);
+            }
+            catch {
+                token = match[1];
+            }
+        }
+    }
     if (!token) {
         return res.status(401).json({
             error: "Authentication required to access private document assets.",
@@ -79,14 +91,13 @@ async function uploadsSecurityMiddleware(req, res, next) {
         }
         const isSuper = user.roles.some((r) => r.role === "super_admin");
         const userTenantId = user.profile?.tenantId || decoded.tenantId || null;
-        // Chat attachments & voice notes are accessible to authenticated workspace members
-        if (subPath.startsWith("chat/")) {
-            return next();
-        }
         // Query database for media file ownership
         const mediaFile = await db.mediaFile.findFirst({
             where: {
-                filePath: subPath,
+                OR: [
+                    { filePath: subPath },
+                    { url: `/uploads/${subPath}` },
+                ],
                 deletedAt: null,
             },
         });

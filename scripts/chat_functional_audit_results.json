@@ -9,7 +9,7 @@
     "id": 2,
     "title": "Verify recipient receives message without refreshing (persisted and broadcast)",
     "status": "PASS",
-    "details": "Message ID: a4bbf613-4a6b-41fb-b32c-776d3d45cf76"
+    "details": "Message ID: f6bf582a-c938-4704-87fe-42fd8048895d"
   },
   {
     "id": 3,
@@ -21,13 +21,13 @@
     "id": 4,
     "title": "Notification badge updates and navigation opens the correct conversation",
     "status": "PASS",
-    "details": "Active conversations: 13"
+    "details": "Active conversations: 16"
   },
   {
     "id": 5,
     "title": "Create a group and send messages to its members",
     "status": "PASS",
-    "details": "Group ID: 080f69d4-3192-4cec-ba47-4c2b596d4b32"
+    "details": "Group ID: 5faa5fe5-8b2e-4d2d-b571-469131df2b1b"
   },
   {
     "id": 6,
@@ -123,13 +123,13 @@
     "id": 21,
     "title": "Search messages and attachments within a conversation",
     "status": "PASS",
-    "details": "Matches found: 14"
+    "details": "Matches found: 16"
   },
   {
     "id": 22,
     "title": "Verify shared file preview/download permissions",
     "status": "PASS",
-    "details": "Files: 20"
+    "details": "Files: 24"
   },
   {
     "id": 23,
@@ -165,7 +165,7 @@
     "id": 28,
     "title": "Verify call logs persist accurately",
     "status": "PASS",
-    "details": "Total calls recorded: 12"
+    "details": "Total calls recorded: 13"
   },
   {
     "id": 29,

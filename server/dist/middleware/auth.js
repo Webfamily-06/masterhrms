@@ -1,24 +1,52 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.authAccountCache = void 0;
+exports.invalidateAuthCache = invalidateAuthCache;
 exports.requireAuth = requireAuth;
 exports.requireRole = requireRole;
 exports.requireSuperAdmin = requireSuperAdmin;
 exports.requirePermission = requirePermission;
+exports.authAccountCache = new Map();
+function invalidateAuthCache(userId, tenantId) {
+    if (!userId && !tenantId) {
+        exports.authAccountCache.clear();
+        return;
+    }
+    for (const key of Array.from(exports.authAccountCache.keys())) {
+        const [uId, tId] = key.split(":");
+        if ((!userId || uId === userId) && (!tenantId || tId === tenantId)) {
+            exports.authAccountCache.delete(key);
+        }
+    }
+}
 const jwt_1 = require("../lib/jwt");
 const prisma_1 = require("../prisma");
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
 async function requireAuth(req, res, next) {
+    if (req.user)
+        return next();
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return res.status(401).json({ error: "Unauthorized: Missing or invalid token format" });
     }
     const token = authHeader.split(" ")[1];
+    console.log(`[PERF_AUTH] reached requireAuth: ${Date.now() - req._tStart}ms`);
     try {
         const decoded = (0, jwt_1.verifyToken)(token);
         if (decoded.mfaPending)
             return res.status(401).json({ error: "Complete two-factor verification first." });
         const userId = decoded.userId || decoded.id;
-        const account = await (prisma_1.rawPrisma || prisma_1.prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
+        const cacheKey = `${userId}:${decoded.tenantId || "default"}`;
+        const cachedEntry = exports.authAccountCache.get(cacheKey);
+        let account = null;
+        let cachedPermissions = null;
+        if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
+            account = cachedEntry.account;
+            cachedPermissions = cachedEntry.userPermissions;
+        }
+        else {
+            account = await (prisma_1.rawPrisma || prisma_1.prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
+        }
         if (!account)
             return res.status(401).json({ error: "Account no longer exists." });
         const isSuper = account.roles.some((r) => r.role === "super_admin");
@@ -103,8 +131,8 @@ async function requireAuth(req, res, next) {
             return res.status(403).json({ error: "Complete workspace onboarding first." });
         }
         req.tenantId = tenantId ?? undefined;
-        let userPermissions = Array.isArray(decoded.permissions) ? [...decoded.permissions] : [];
-        if (tenantId && userId) {
+        let userPermissions = cachedPermissions || (Array.isArray(decoded.permissions) ? [...decoded.permissions] : []);
+        if (!cachedPermissions && tenantId && userId) {
             try {
                 const db = prisma_1.rawPrisma || prisma_1.prisma;
                 const assignment = await db.userRoleAssignment.findUnique({
@@ -143,6 +171,7 @@ async function requireAuth(req, res, next) {
                 "hrm.employees.delete",
             ]));
         }
+        exports.authAccountCache.set(cacheKey, { account, userPermissions, expiresAt: Date.now() + 60000 });
         req.user = {
             ...decoded,
             userId,

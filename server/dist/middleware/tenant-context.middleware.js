@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resolveTenantContext = resolveTenantContext;
+const bannedIpCache = new Map();
 const tenant_connection_manager_service_1 = require("../services/tenant-connection-manager.service");
 const tenant_context_1 = require("../context/tenant-context");
 const ip_firewall_1 = require("../lib/ip-firewall");
@@ -48,10 +49,18 @@ async function resolveTenantContext(req, res, next) {
         const clientIp = (0, ip_firewall_1.normalizeIp)(rawIp);
         if (clientIp) {
             try {
-                const bannedRules = await client.bannedIp.findMany({
-                    where: { tenantId, isActive: true },
-                    select: { ipAddress: true, reason: true },
-                });
+                let bannedRules = [];
+                const cachedBanned = bannedIpCache.get(tenantId);
+                if (cachedBanned && cachedBanned.expiresAt > Date.now()) {
+                    bannedRules = cachedBanned.rules;
+                }
+                else {
+                    bannedRules = await client.bannedIp.findMany({
+                        where: { tenantId, isActive: true },
+                        select: { ipAddress: true, reason: true },
+                    });
+                    bannedIpCache.set(tenantId, { rules: bannedRules, expiresAt: Date.now() + 60000 });
+                }
                 if (bannedRules.length > 0) {
                     const matched = bannedRules.find((rule) => (0, ip_firewall_1.matchIpOrCidr)(clientIp, rule.ipAddress));
                     if (matched) {
@@ -69,6 +78,7 @@ async function resolveTenantContext(req, res, next) {
             }
         }
         // Run remaining middleware and route handlers inside AsyncLocalStorage context scope
+        console.log(`[PERF_CTX] resolveTenantContext done: ${Date.now() - req._tStart}ms`);
         tenant_context_1.tenantStorage.run(context, () => {
             next();
         });

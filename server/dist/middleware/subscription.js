@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireActiveSubscription = requireActiveSubscription;
+const subscriptionCache = new Map();
 const prisma_1 = require("../prisma");
 const jwt_1 = require("../lib/jwt");
 const SAFE_PREFIXES = [
@@ -18,6 +19,7 @@ const SAFE_PREFIXES = [
     "/api/workspace/public",
 ];
 async function requireActiveSubscription(req, res, next) {
+    req._tStart = Date.now();
     try {
         // 1. CORS Preflight & Head requests always allowed
         if (req.method === "OPTIONS" || req.method === "HEAD") {
@@ -53,11 +55,19 @@ async function requireActiveSubscription(req, res, next) {
             return next();
         }
         const db = prisma_1.rawPrisma || prisma_1.prisma;
-        const sub = await db.tenantSubscription.findFirst({
-            where: { tenantId },
-            orderBy: { createdAt: "desc" },
-            include: { plan: true },
-        });
+        let sub = null;
+        const cachedSub = subscriptionCache.get(tenantId);
+        if (cachedSub && cachedSub.expiresAt > Date.now()) {
+            sub = cachedSub.sub;
+        }
+        else {
+            sub = await db.tenantSubscription.findFirst({
+                where: { tenantId },
+                orderBy: { createdAt: "desc" },
+                include: { plan: true },
+            });
+            subscriptionCache.set(tenantId, { sub, expiresAt: Date.now() + 60000 });
+        }
         if (!sub) {
             return next();
         }

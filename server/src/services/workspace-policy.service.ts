@@ -53,7 +53,22 @@ export function assertWorkspaceActive(policy: ReturnType<typeof resolveWorkspace
   }
 }
 
+export const workspacePolicyCache = new Map<string, { policy: any; expiresAt: number }>();
+
+export function invalidateWorkspacePolicyCache(tenantId?: string) {
+  if (!tenantId) {
+    workspacePolicyCache.clear();
+    return;
+  }
+  workspacePolicyCache.delete(tenantId);
+}
+
 export async function getWorkspacePolicy(tenantId: string, db: any = prisma) {
+  const now = Date.now();
+  const cached = workspacePolicyCache.get(tenantId);
+  if (cached && cached.expiresAt > now) {
+    return cached.policy;
+  }
   // Prefer the relational source of truth. The optional access keeps the
   // transition backward-compatible with test fixtures and pre-migration DBs.
   if (db.tenantSubscription?.findUnique) {
@@ -63,7 +78,9 @@ export async function getWorkspacePolicy(tenantId: string, db: any = prisma) {
         include: { plan: true },
       });
       if (subscription) {
-        return resolveWorkspacePolicy(subscription, subscription.plan ? [subscription.plan] : []);
+        const pol = resolveWorkspacePolicy(subscription, subscription.plan ? [subscription.plan] : []);
+        workspacePolicyCache.set(tenantId, { policy: pol, expiresAt: Date.now() + 60000 });
+        return pol;
       }
     } catch (error: any) {
       // A deployment can temporarily run code before db push. Fall back to
@@ -83,7 +100,9 @@ export async function getWorkspacePolicy(tenantId: string, db: any = prisma) {
   } catch {
     catalog = null;
   }
-  return resolveWorkspacePolicy(subscription?.content || {}, Array.isArray(catalog?.content?.plans) ? catalog.content.plans : []);
+  const resolved = resolveWorkspacePolicy(subscription?.content || {}, Array.isArray(catalog?.content?.plans) ? catalog.content.plans : []);
+  workspacePolicyCache.set(tenantId, { policy: resolved, expiresAt: Date.now() + 60000 });
+  return resolved;
 }
 
 export async function getWorkspacePoliciesBatch(tenantIds: string[], db: any = prisma): Promise<Record<string, ReturnType<typeof resolveWorkspacePolicy>>> {

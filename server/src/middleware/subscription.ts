@@ -1,3 +1,4 @@
+const subscriptionCache = new Map<string, { sub: any; expiresAt: number }>();
 import { Request, Response, NextFunction } from "express";
 import { AuthRequest } from "./auth";
 import { prisma, rawPrisma } from "../prisma";
@@ -19,6 +20,7 @@ const SAFE_PREFIXES = [
 ];
 
 export async function requireActiveSubscription(req: AuthRequest, res: Response, next: NextFunction) {
+  (req as any)._tStart = Date.now();
   try {
     // 1. CORS Preflight & Head requests always allowed
     if (req.method === "OPTIONS" || req.method === "HEAD") {
@@ -58,11 +60,18 @@ export async function requireActiveSubscription(req: AuthRequest, res: Response,
     }
 
     const db = rawPrisma || prisma;
-    const sub = await db.tenantSubscription.findFirst({
-      where: { tenantId },
-      orderBy: { createdAt: "desc" },
-      include: { plan: true },
-    });
+    let sub: any = null;
+    const cachedSub = subscriptionCache.get(tenantId);
+    if (cachedSub && cachedSub.expiresAt > Date.now()) {
+      sub = cachedSub.sub;
+    } else {
+      sub = await db.tenantSubscription.findFirst({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        include: { plan: true },
+      });
+      subscriptionCache.set(tenantId, { sub, expiresAt: Date.now() + 60000 });
+    }
 
     if (!sub) {
       return next();

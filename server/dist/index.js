@@ -211,10 +211,12 @@ app.use((req, res, next) => {
 });
 app.post("/api/payments/razorpay/webhook", express_1.default.raw({ type: "application/json" }), payments_routes_1.razorpayWebhookHandler);
 app.use(express_1.default.json({
+    limit: "50mb",
     verify: (req, _res, buf) => {
         req.rawBody = buf;
     },
 }));
+app.use(express_1.default.urlencoded({ limit: "50mb", extended: true }));
 // NOTE: Do NOT include "multipart/*" or "*/*" here — multer handles multipart/form-data
 // and express.text consuming it first causes "Unexpected end of form" errors in multer.
 app.use(express_1.default.text({
@@ -363,6 +365,7 @@ app.use("/api", subscription_1.requireActiveSubscription);
 // Settings & Media & App-Config (Phase 1)
 app.use("/api/v1/settings", settings_routes_1.settingsRouter);
 app.use("/api/v1/media", media_routes_1.mediaRouter);
+app.use("/api/media", media_routes_1.mediaRouter);
 app.use("/api/v1/public", app_config_routes_1.appConfigRouter);
 app.use("/api/public", app_config_routes_1.appConfigRouter);
 app.use("/api", app_config_routes_1.appConfigRouter);

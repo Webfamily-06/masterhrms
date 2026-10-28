@@ -337,7 +337,8 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
       setIsDirty(true);
       toast.success(`Image added to section`);
     } else if (mediaTarget === 'source') {
-      const imgTag = `\n<img src="${file.url}" alt="${file.originalName.replace(/\.[^.]+$/, '')}" class="w-full rounded-xl shadow-md my-4" />\n`;
+      const rawName = file.originalName || file.fileName || "image";
+      const imgTag = `\n<img src="${file.url}" alt="${rawName.replace(/\.[^.]+$/, '')}" class="w-full rounded-xl shadow-md my-4" />\n`;
       const textarea = textareaRef.current;
       if (textarea) {
         const start = textarea.selectionStart;

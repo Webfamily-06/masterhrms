@@ -771,12 +771,13 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
   const handleInsertBodyImage = (file: MediaFileItem) => {
     const text = form.body;
     const { start, end } = savedSelectionRef.current;
-    const alt = file.originalName.replace(/\.[^.]+$/, '').trim() || 'Article illustration';
+    const rawName = file.originalName || file.fileName || "image";
+    const alt = rawName.replace(/\.[^.]+$/, '').trim() || 'Article illustration';
     const markdownImage = `\n![${alt}](${file.url})\n`;
 
     const newText = text.substring(0, start) + markdownImage + text.substring(end);
     updateBody(newText, true);
-    toast.success(`Image inserted: ${file.originalName}`);
+    toast.success(`Image inserted: ${rawName}`);
 
     const nextPos = start + markdownImage.length;
     pendingSelectionRef.current = { start: nextPos, end: nextPos };
@@ -1999,12 +2000,13 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                 allowedTypes={['image/*']}
                 title="Choose Cover Image from Media Library"
                 onSelect={(file) => {
+                  const rawName = file.originalName || file.fileName || "cover";
                   setForm((p) => ({
                     ...p,
                     coverImage: file.url,
-                    coverImageAlt: p.coverImageAlt || file.originalName.replace(/\.[^.]+$/, ''),
+                    coverImageAlt: p.coverImageAlt || rawName.replace(/\.[^.]+$/, ''),
                   }));
-                  toast.success(`Cover image set: ${file.originalName}`);
+                  toast.success(`Cover image set: ${rawName}`);
                 }}
               />
 
